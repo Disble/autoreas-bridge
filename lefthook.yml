@@ -1,0 +1,20 @@
+pre-commit:
+  parallel: false
+  jobs:
+    - name: gofmt
+      run: go run ./tools/checkgofmt
+
+    - name: golangci-lint
+      run: golangci-lint run
+
+    - name: go-vet
+      run: go vet ./...
+
+    - name: go-test
+      run: go test ./...
+
+    - name: go-cover
+      run: go test ./... -cover
+
+    - name: sdd-gate
+      run: go run ./tools/checksdd
