@@ -28,6 +28,7 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
 		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
 	}
 
 	ctx := context.Background()
@@ -62,6 +63,7 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
 		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
 	}
 
 	app.startup(context.Background())
@@ -93,6 +95,12 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 				t.Fatal("expected startup coordinator config to include anime data path")
 			}
 			return coordinator
+		},
+		newRuntimeWatcher: func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+			if config.FilePath == "" {
+				t.Fatal("expected runtime watcher config to include anime data path")
+			}
+			return &stubAppRuntimeWatcher{}
 		},
 	}
 
@@ -128,6 +136,7 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	var receivedBus events.Bus
 	var receivedSink tracerbullet.TraceSink
 	runner := &stubTracerBulletRunner{}
+	runtimeWatcher := &stubAppRuntimeWatcher{}
 	app := &App{
 		bootstrapBridgeDB:    func() (*sql.DB, error) { return wantDB, nil },
 		resolveAnimeDataPath: func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
@@ -135,6 +144,9 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		newSnapshotStore:     func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator {
 			return &stubAppCoordinator{started: make(chan context.Context, 1)}
+		},
+		newRuntimeWatcher: func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+			return runtimeWatcher
 		},
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return &stubTraceSink{}
@@ -168,8 +180,25 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		t.Fatal("expected startup to continue bootstrapping sqlite after tracer bullet wiring")
 	}
 
+	if !runtimeWatcher.started {
+		t.Fatal("expected startup to start runtime watcher")
+	}
+
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
+func TestAppShutdownWaitsForRuntimeWatcher(t *testing.T) {
+	t.Parallel()
+
+	runtimeWatcher := &stubAppRuntimeWatcher{}
+	app := &App{animeRuntimeWatcher: runtimeWatcher}
+
+	app.shutdown(context.Background())
+
+	if !runtimeWatcher.waitCalled {
+		t.Fatal("expected shutdown to wait for runtime watcher")
 	}
 }
 
@@ -200,6 +229,23 @@ type stubAppCoordinator struct {
 
 type stubTracerBulletRunner struct {
 	started bool
+}
+
+type stubAppRuntimeWatcher struct {
+	started    bool
+	waitCalled bool
+}
+
+func (s *stubAppRuntimeWatcher) StartAsync(context.Context) {
+	s.started = true
+}
+
+func (s *stubAppRuntimeWatcher) Wait() {
+	s.waitCalled = true
+}
+
+func (s *stubAppRuntimeWatcher) Err() error {
+	return nil
 }
 
 func (s *stubTracerBulletRunner) Start() {

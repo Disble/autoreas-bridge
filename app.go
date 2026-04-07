@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/events"
@@ -21,10 +22,12 @@ type App struct {
 	newSnapshotParser       func() anime.SnapshotParser
 	newSnapshotStore        func(db *sql.DB) anime.SnapshotStore
 	newStartupCoordinator   func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
+	newRuntimeWatcher       func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
 	eventBus                events.Bus
 	animeStartupCoordinator anime.StartupCoordinator
+	animeRuntimeWatcher     anime.RuntimeWatcher
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
@@ -42,6 +45,9 @@ func NewApp() *App {
 		newSnapshotParser:     anime.NewSnapshotParser,
 		newSnapshotStore:      func(db *sql.DB) anime.SnapshotStore { return bridgeSync.NewAnimeSnapshotStore(db) },
 		newStartupCoordinator: anime.NewStartupCoordinator,
+		newRuntimeWatcher: func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+			return anime.NewRuntimeWatcher(config)
+		},
 		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
 		},
@@ -70,6 +76,11 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.newStartupCoordinator == nil {
 		a.newStartupCoordinator = anime.NewStartupCoordinator
+	}
+	if a.newRuntimeWatcher == nil {
+		a.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+			return anime.NewRuntimeWatcher(config)
+		}
 	}
 	if a.newTracerBulletRunner == nil {
 		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
@@ -109,11 +120,23 @@ func (a *App) startup(ctx context.Context) {
 		Logger:    anime.NewStdLogger(),
 	})
 	a.animeStartupCoordinator.StartAsync(catchUpContext)
+	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
+		FilePath:   animeDataPath,
+		Parser:     a.newSnapshotParser(),
+		Store:      a.newSnapshotStore(a.bridgeDB),
+		Publisher:  a.eventBus,
+		Logger:     anime.NewStdLogger(),
+		RetryDelay: 100 * time.Millisecond,
+	})
+	a.animeRuntimeWatcher.StartAsync(catchUpContext)
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
+	}
+	if a.animeRuntimeWatcher != nil {
+		a.animeRuntimeWatcher.Wait()
 	}
 	if a.animeStartupCoordinator != nil {
 		a.animeStartupCoordinator.Wait()
