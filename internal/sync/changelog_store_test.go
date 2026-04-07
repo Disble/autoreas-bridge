@@ -2,23 +2,25 @@ package sync
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
-
-	"autoreas-bridge/internal/events"
 )
 
 func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(db)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
 	ctx := context.Background()
-	event := events.AnimeChangedEvent{
-		AnimeID: "anime-1",
-		Payload: []byte(`{"_id":"anime-1","nombre":"Recorder","nrocapvisto":2}`),
+	entry := ChangelogEntry{
+		AnimeID:     "anime-1",
+		PayloadJSON: []byte(`{"_id":"anime-1","nombre":"Recorder","nrocapvisto":2}`),
 	}
 
-	if err := store.InsertPending(ctx, event); err != nil {
+	if err := store.InsertPending(ctx, entry); err != nil {
 		t.Fatalf("insert pending changelog: %v", err)
 	}
 
@@ -37,11 +39,11 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 		if err := rows.Scan(&animeID, &payload, &status); err != nil {
 			t.Fatalf("scan changelog row: %v", err)
 		}
-		if animeID != event.AnimeID {
-			t.Fatalf("expected anime id %q, got %q", event.AnimeID, animeID)
+		if animeID != entry.AnimeID {
+			t.Fatalf("expected anime id %q, got %q", entry.AnimeID, animeID)
 		}
-		if payload != string(event.Payload) {
-			t.Fatalf("expected payload %s, got %s", string(event.Payload), payload)
+		if payload != string(entry.PayloadJSON) {
+			t.Fatalf("expected payload %s, got %s", string(entry.PayloadJSON), payload)
 		}
 		if status != "pending" {
 			t.Fatalf("expected status pending, got %q", status)
@@ -65,4 +67,54 @@ func TestBootstrapBridgeDBCreatesChangelogTable(t *testing.T) {
 	if !tableExists(t, db, "changelog") {
 		t.Fatal("expected changelog table to exist after bootstrap")
 	}
+}
+
+func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	ctx := context.Background()
+
+	const inserts = 100
+	errCh := make(chan error, inserts)
+	var wg sync.WaitGroup
+	for i := 0; i < inserts; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			errCh <- store.InsertPending(ctx, ChangelogEntry{
+				AnimeID:     fmt.Sprintf("anime-%03d", index),
+				PayloadJSON: []byte(fmt.Sprintf(`{"_id":"anime-%03d","nrocapvisto":%d}`, index, index)),
+			})
+		}(i)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err == nil {
+			continue
+		}
+		if strings.Contains(err.Error(), "database is locked") || strings.Contains(err.Error(), "SQLITE_BUSY") {
+			t.Fatalf("expected no SQLITE_BUSY/database is locked errors, got %v", err)
+		}
+		t.Fatalf("insert pending changelog: %v", err)
+	}
+
+	if count := countChangelogRows(t, db); count != inserts {
+		t.Fatalf("expected %d changelog rows, got %d", inserts, count)
+	}
+}
+
+func countChangelogRows(t *testing.T, db *sql.DB) int {
+	t.Helper()
+
+	var count int
+	if err := db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM changelog`).Scan(&count); err != nil {
+		t.Fatalf("count changelog rows: %v", err)
+	}
+
+	return count
 }

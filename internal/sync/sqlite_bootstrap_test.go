@@ -73,6 +73,10 @@ func TestOpenBridgeDBOpensFileBackedSQLiteDatabase(t *testing.T) {
 	if got := queryPragmaInt(t, db, "busy_timeout"); got != 5000 {
 		t.Fatalf("expected busy_timeout 5000, got %d", got)
 	}
+
+	if got := db.Stats().MaxOpenConnections; got != 1 {
+		t.Fatalf("expected max open connections 1, got %d", got)
+	}
 }
 
 func TestBootstrapBridgeDBCreatesAnimeSnapshotsTableIdempotently(t *testing.T) {

@@ -44,7 +44,7 @@ type tracerBulletRunner interface {
 }
 
 type changelogPendingStore interface {
-	InsertPending(ctx context.Context, event events.AnimeChangedEvent) error
+	InsertPending(ctx context.Context, entry bridgeSync.ChangelogEntry) error
 }
 
 type changelogRecorder interface {
@@ -69,7 +69,7 @@ func NewApp() *App {
 			return anime.NewUpdateWriter(config)
 		},
 		newChangelogStore: func(db *sql.DB) changelogPendingStore {
-			return bridgeSync.NewChangelogStore(db)
+			return bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
 		},
 		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
 			return bridgeSync.NewChangelogRecorder(bus, store)
@@ -118,7 +118,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.newChangelogStore == nil {
 		a.newChangelogStore = func(db *sql.DB) changelogPendingStore {
-			return bridgeSync.NewChangelogStore(db)
+			return bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
 		}
 	}
 	if a.newChangelogRecorder == nil {

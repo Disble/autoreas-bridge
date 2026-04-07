@@ -11,6 +11,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/events"
+	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 )
 
@@ -322,7 +323,7 @@ type stubAppUpdateWriter struct {
 
 type stubAppChangelogStore struct{}
 
-func (*stubAppChangelogStore) InsertPending(context.Context, events.AnimeChangedEvent) error {
+func (*stubAppChangelogStore) InsertPending(context.Context, bridgeSync.ChangelogEntry) error {
 	return nil
 }
 

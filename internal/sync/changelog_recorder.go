@@ -8,7 +8,7 @@ import (
 )
 
 type pendingChangelogStore interface {
-	InsertPending(ctx context.Context, event events.AnimeChangedEvent) error
+	InsertPending(ctx context.Context, entry ChangelogEntry) error
 }
 
 type ChangelogRecorder struct {
@@ -30,7 +30,11 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 		if !ok {
 			return
 		}
-		if err := r.store.InsertPending(ctx, changed); err != nil {
+		if err := r.store.InsertPending(ctx, ChangelogEntry{
+			AnimeID:     changed.AnimeID,
+			PayloadJSON: changed.Payload,
+			Status:      changelogStatusPending,
+		}); err != nil {
 			r.mu.Lock()
 			r.err = err
 			r.mu.Unlock()

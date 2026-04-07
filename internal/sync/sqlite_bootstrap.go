@@ -101,6 +101,9 @@ func BootstrapBridgeDB() (*sql.DB, error) {
 }
 
 func initializeBridgeDB(db *sql.DB) error {
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("ping bridge db: %w", err)
 	}

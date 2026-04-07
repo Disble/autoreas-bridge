@@ -29,6 +29,12 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	if store.lastEvent.AnimeID != event.AnimeID {
 		t.Fatalf("expected anime id %q, got %q", event.AnimeID, store.lastEvent.AnimeID)
 	}
+	if string(store.lastEvent.PayloadJSON) != string(event.Payload) {
+		t.Fatalf("expected payload %s, got %s", string(event.Payload), string(store.lastEvent.PayloadJSON))
+	}
+	if store.lastEvent.Status != "pending" {
+		t.Fatalf("expected status pending, got %q", store.lastEvent.Status)
+	}
 
 	recorder.Stop()
 }
@@ -78,11 +84,11 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 
 type stubChangelogStore struct {
 	insertCalls int
-	lastEvent   events.AnimeChangedEvent
+	lastEvent   ChangelogEntry
 	err         error
 }
 
-func (s *stubChangelogStore) InsertPending(_ context.Context, event events.AnimeChangedEvent) error {
+func (s *stubChangelogStore) InsertPending(_ context.Context, event ChangelogEntry) error {
 	s.insertCalls++
 	s.lastEvent = event
 	return s.err
