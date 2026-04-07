@@ -9,8 +9,8 @@
 ### Completeness
 | Metric | Value |
 |--------|-------|
-| Tasks total | 13 |
-| Tasks complete | 13 |
+| Tasks total | 25 |
+| Tasks complete | 25 |
 | Tasks incomplete | 0 |
 
 All tasks in `openspec/changes/sdd-00-foundation/tasks.md` are marked complete.
