@@ -5,21 +5,49 @@ import (
 	"database/sql"
 	"fmt"
 
+	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/tracerbullet"
 )
 
 // App struct
 type App struct {
-	ctx               context.Context
-	bridgeDB          *sql.DB
-	startupErr        error
-	bootstrapBridgeDB func() (*sql.DB, error)
+	ctx                     context.Context
+	bridgeDB                *sql.DB
+	startupErr              error
+	bootstrapBridgeDB       func() (*sql.DB, error)
+	resolveAnimeDataPath    func() (string, error)
+	newSnapshotParser       func() anime.SnapshotParser
+	newSnapshotStore        func(db *sql.DB) anime.SnapshotStore
+	newStartupCoordinator   func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
+	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
+	newTracerBulletSink     func() tracerbullet.TraceSink
+	eventBus                events.Bus
+	animeStartupCoordinator anime.StartupCoordinator
+	tracerBulletRunner      tracerBulletRunner
+	catchUpContext          context.Context
+	catchUpCancel           context.CancelFunc
+}
+
+type tracerBulletRunner interface {
+	Start()
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		bootstrapBridgeDB: bridgeSync.BootstrapBridgeDB,
+		bootstrapBridgeDB:     bridgeSync.BootstrapBridgeDB,
+		resolveAnimeDataPath:  anime.ResolveAnimeDataPath,
+		newSnapshotParser:     anime.NewSnapshotParser,
+		newSnapshotStore:      func(db *sql.DB) anime.SnapshotStore { return bridgeSync.NewAnimeSnapshotStore(db) },
+		newStartupCoordinator: anime.NewStartupCoordinator,
+		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
+			return tracerbullet.NewRunner(bus, sink)
+		},
+		newTracerBulletSink: func() tracerbullet.TraceSink {
+			return tracerbullet.NewStdoutSink()
+		},
 	}
 }
 
@@ -31,8 +59,69 @@ func (a *App) startup(ctx context.Context) {
 	if a.bootstrapBridgeDB == nil {
 		a.bootstrapBridgeDB = bridgeSync.BootstrapBridgeDB
 	}
+	if a.resolveAnimeDataPath == nil {
+		a.resolveAnimeDataPath = anime.ResolveAnimeDataPath
+	}
+	if a.newSnapshotParser == nil {
+		a.newSnapshotParser = anime.NewSnapshotParser
+	}
+	if a.newSnapshotStore == nil {
+		a.newSnapshotStore = func(db *sql.DB) anime.SnapshotStore { return bridgeSync.NewAnimeSnapshotStore(db) }
+	}
+	if a.newStartupCoordinator == nil {
+		a.newStartupCoordinator = anime.NewStartupCoordinator
+	}
+	if a.newTracerBulletRunner == nil {
+		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
+			return tracerbullet.NewRunner(bus, sink)
+		}
+	}
+	if a.newTracerBulletSink == nil {
+		a.newTracerBulletSink = func() tracerbullet.TraceSink {
+			return tracerbullet.NewStdoutSink()
+		}
+	}
+	if a.eventBus == nil {
+		a.eventBus = events.NewBus()
+	}
+	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink())
+	a.tracerBulletRunner.Start()
 
 	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
+	if a.startupErr != nil {
+		return
+	}
+
+	animeDataPath, err := a.resolveAnimeDataPath()
+	if err != nil {
+		a.startupErr = err
+		return
+	}
+
+	catchUpContext, catchUpCancel := context.WithCancel(ctx)
+	a.catchUpContext = catchUpContext
+	a.catchUpCancel = catchUpCancel
+	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
+		FilePath:  animeDataPath,
+		Parser:    a.newSnapshotParser(),
+		Store:     a.newSnapshotStore(a.bridgeDB),
+		Publisher: a.eventBus,
+		Logger:    anime.NewStdLogger(),
+	})
+	a.animeStartupCoordinator.StartAsync(catchUpContext)
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	if a.catchUpCancel != nil {
+		a.catchUpCancel()
+	}
+	if a.animeStartupCoordinator != nil {
+		a.animeStartupCoordinator.Wait()
+	}
+	if a.bridgeDB != nil {
+		_ = a.bridgeDB.Close()
+	}
+	a.ctx = ctx
 }
 
 // Greet returns a greeting for the given name
