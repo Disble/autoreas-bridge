@@ -21,6 +21,13 @@ const (
 			snapshot_json TEXT NOT NULL,
 			snapshot_hash TEXT NOT NULL
 		)`
+	changelogDDL = `
+		CREATE TABLE IF NOT EXISTS changelog (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			anime_id TEXT NOT NULL,
+			payload_json TEXT,
+			status TEXT NOT NULL
+		)`
 )
 
 type SQLiteBootstrap struct {
@@ -104,6 +111,9 @@ func initializeBridgeDB(db *sql.DB) error {
 
 	if _, err := db.Exec(animeSnapshotsDDL); err != nil {
 		return fmt.Errorf("ensure anime_snapshots schema: %w", err)
+	}
+	if _, err := db.Exec(changelogDDL); err != nil {
+		return fmt.Errorf("ensure changelog schema: %w", err)
 	}
 
 	return nil

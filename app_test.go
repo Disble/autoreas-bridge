@@ -31,6 +31,8 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
 	}
 
 	ctx := context.Background()
@@ -68,6 +70,8 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
 	}
 
 	app.startup(context.Background())
@@ -116,6 +120,21 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 			}
 			return &stubAppUpdateWriter{}
 		},
+		newChangelogStore: func(db *sql.DB) changelogPendingStore {
+			if db == nil {
+				t.Fatal("expected changelog store to receive sqlite db")
+			}
+			return &stubAppChangelogStore{}
+		},
+		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
+			if bus == nil {
+				t.Fatal("expected changelog recorder to receive event bus")
+			}
+			if store == nil {
+				t.Fatal("expected changelog recorder to receive changelog store")
+			}
+			return &stubAppChangelogRecorder{}
+		},
 	}
 
 	ctx := context.Background()
@@ -152,6 +171,7 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	runner := &stubTracerBulletRunner{}
 	runtimeWatcher := &stubAppRuntimeWatcher{}
 	updateWriter := &stubAppUpdateWriter{}
+	recorder := &stubAppChangelogRecorder{}
 	app := &App{
 		bootstrapBridgeDB:    func() (*sql.DB, error) { return wantDB, nil },
 		resolveAnimeDataPath: func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
@@ -166,6 +186,12 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
 		newUpdateWriter: func(anime.UpdateWriterConfig) anime.UpdateWriter {
 			return updateWriter
+		},
+		newChangelogStore: func(*sql.DB) changelogPendingStore {
+			return &stubAppChangelogStore{}
+		},
+		newChangelogRecorder: func(events.Bus, changelogPendingStore) changelogRecorder {
+			return recorder
 		},
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return &stubTraceSink{}
@@ -207,6 +233,10 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		t.Fatal("expected startup to start update writer")
 	}
 
+	if !recorder.started {
+		t.Fatal("expected startup to start changelog recorder")
+	}
+
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
 	}
@@ -235,6 +265,19 @@ func TestAppShutdownWaitsForUpdateWriter(t *testing.T) {
 
 	if !updateWriter.waitCalled {
 		t.Fatal("expected shutdown to wait for update writer")
+	}
+}
+
+func TestAppShutdownStopsChangelogRecorder(t *testing.T) {
+	t.Parallel()
+
+	recorder := &stubAppChangelogRecorder{}
+	app := &App{syncChangelogRecorder: recorder}
+
+	app.shutdown(context.Background())
+
+	if !recorder.stopped {
+		t.Fatal("expected shutdown to stop changelog recorder")
 	}
 }
 
@@ -277,6 +320,17 @@ type stubAppUpdateWriter struct {
 	waitCalled bool
 }
 
+type stubAppChangelogStore struct{}
+
+func (*stubAppChangelogStore) InsertPending(context.Context, events.AnimeChangedEvent) error {
+	return nil
+}
+
+type stubAppChangelogRecorder struct {
+	started bool
+	stopped bool
+}
+
 func (s *stubAppRuntimeWatcher) StartAsync(context.Context) {
 	s.started = true
 }
@@ -298,6 +352,18 @@ func (s *stubAppUpdateWriter) Wait() {
 }
 
 func (s *stubAppUpdateWriter) Err() error {
+	return nil
+}
+
+func (s *stubAppChangelogRecorder) Start(context.Context) {
+	s.started = true
+}
+
+func (s *stubAppChangelogRecorder) Stop() {
+	s.stopped = true
+}
+
+func (s *stubAppChangelogRecorder) Err() error {
 	return nil
 }
 

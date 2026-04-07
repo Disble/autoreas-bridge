@@ -25,12 +25,15 @@ type App struct {
 	newRuntimeWatcher       func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
 	newSelfEchoRegistry     func() anime.SelfEchoRegistry
 	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
+	newChangelogStore       func(db *sql.DB) changelogPendingStore
+	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore) changelogRecorder
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
 	eventBus                events.Bus
 	animeStartupCoordinator anime.StartupCoordinator
 	animeRuntimeWatcher     anime.RuntimeWatcher
 	animeUpdateWriter       anime.UpdateWriter
+	syncChangelogRecorder   changelogRecorder
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
@@ -38,6 +41,16 @@ type App struct {
 
 type tracerBulletRunner interface {
 	Start()
+}
+
+type changelogPendingStore interface {
+	InsertPending(ctx context.Context, event events.AnimeChangedEvent) error
+}
+
+type changelogRecorder interface {
+	Start(ctx context.Context)
+	Stop()
+	Err() error
 }
 
 // NewApp creates a new App application struct
@@ -54,6 +67,12 @@ func NewApp() *App {
 		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
 		newUpdateWriter: func(config anime.UpdateWriterConfig) anime.UpdateWriter {
 			return anime.NewUpdateWriter(config)
+		},
+		newChangelogStore: func(db *sql.DB) changelogPendingStore {
+			return bridgeSync.NewChangelogStore(db)
+		},
+		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
+			return bridgeSync.NewChangelogRecorder(bus, store)
 		},
 		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
@@ -95,6 +114,16 @@ func (a *App) startup(ctx context.Context) {
 	if a.newUpdateWriter == nil {
 		a.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
 			return anime.NewUpdateWriter(config)
+		}
+	}
+	if a.newChangelogStore == nil {
+		a.newChangelogStore = func(db *sql.DB) changelogPendingStore {
+			return bridgeSync.NewChangelogStore(db)
+		}
+	}
+	if a.newChangelogRecorder == nil {
+		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore) changelogRecorder {
+			return bridgeSync.NewChangelogRecorder(bus, store)
 		}
 	}
 	if a.newTracerBulletRunner == nil {
@@ -154,11 +183,16 @@ func (a *App) startup(ctx context.Context) {
 		SelfEchoRegistry: selfEchoRegistry,
 	})
 	a.animeUpdateWriter.StartAsync(catchUpContext)
+	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB))
+	a.syncChangelogRecorder.Start(catchUpContext)
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
+	}
+	if a.syncChangelogRecorder != nil {
+		a.syncChangelogRecorder.Stop()
 	}
 	if a.animeUpdateWriter != nil {
 		a.animeUpdateWriter.Wait()
