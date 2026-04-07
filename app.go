@@ -23,11 +23,14 @@ type App struct {
 	newSnapshotStore        func(db *sql.DB) anime.SnapshotStore
 	newStartupCoordinator   func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
 	newRuntimeWatcher       func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
+	newSelfEchoRegistry     func() anime.SelfEchoRegistry
+	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
 	eventBus                events.Bus
 	animeStartupCoordinator anime.StartupCoordinator
 	animeRuntimeWatcher     anime.RuntimeWatcher
+	animeUpdateWriter       anime.UpdateWriter
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
@@ -47,6 +50,10 @@ func NewApp() *App {
 		newStartupCoordinator: anime.NewStartupCoordinator,
 		newRuntimeWatcher: func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
 			return anime.NewRuntimeWatcher(config)
+		},
+		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
+		newUpdateWriter: func(config anime.UpdateWriterConfig) anime.UpdateWriter {
+			return anime.NewUpdateWriter(config)
 		},
 		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
@@ -82,6 +89,14 @@ func (a *App) startup(ctx context.Context) {
 			return anime.NewRuntimeWatcher(config)
 		}
 	}
+	if a.newSelfEchoRegistry == nil {
+		a.newSelfEchoRegistry = anime.NewSelfEchoRegistry
+	}
+	if a.newUpdateWriter == nil {
+		a.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
+			return anime.NewUpdateWriter(config)
+		}
+	}
 	if a.newTracerBulletRunner == nil {
 		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
@@ -112,6 +127,7 @@ func (a *App) startup(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
+	selfEchoRegistry := a.newSelfEchoRegistry()
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:  animeDataPath,
 		Parser:    a.newSnapshotParser(),
@@ -121,19 +137,31 @@ func (a *App) startup(ctx context.Context) {
 	})
 	a.animeStartupCoordinator.StartAsync(catchUpContext)
 	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
-		FilePath:   animeDataPath,
-		Parser:     a.newSnapshotParser(),
-		Store:      a.newSnapshotStore(a.bridgeDB),
-		Publisher:  a.eventBus,
-		Logger:     anime.NewStdLogger(),
-		RetryDelay: 100 * time.Millisecond,
+		FilePath:         animeDataPath,
+		Parser:           a.newSnapshotParser(),
+		Store:            a.newSnapshotStore(a.bridgeDB),
+		Publisher:        a.eventBus,
+		Logger:           anime.NewStdLogger(),
+		SelfEchoRegistry: selfEchoRegistry,
+		RetryDelay:       100 * time.Millisecond,
 	})
 	a.animeRuntimeWatcher.StartAsync(catchUpContext)
+	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
+		FilePath:         animeDataPath,
+		Bus:              a.eventBus,
+		Publisher:        a.eventBus,
+		Logger:           anime.NewStdLogger(),
+		SelfEchoRegistry: selfEchoRegistry,
+	})
+	a.animeUpdateWriter.StartAsync(catchUpContext)
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
+	}
+	if a.animeUpdateWriter != nil {
+		a.animeUpdateWriter.Wait()
 	}
 	if a.animeRuntimeWatcher != nil {
 		a.animeRuntimeWatcher.Wait()

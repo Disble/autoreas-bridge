@@ -29,6 +29,8 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
 		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 	}
 
 	ctx := context.Background()
@@ -64,6 +66,8 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
 		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 	}
 
 	app.startup(context.Background())
@@ -102,6 +106,16 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 			}
 			return &stubAppRuntimeWatcher{}
 		},
+		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
+		newUpdateWriter: func(config anime.UpdateWriterConfig) anime.UpdateWriter {
+			if config.FilePath == "" {
+				t.Fatal("expected update writer config to include anime data path")
+			}
+			if config.Bus == nil {
+				t.Fatal("expected update writer config to include event bus")
+			}
+			return &stubAppUpdateWriter{}
+		},
 	}
 
 	ctx := context.Background()
@@ -137,6 +151,7 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	var receivedSink tracerbullet.TraceSink
 	runner := &stubTracerBulletRunner{}
 	runtimeWatcher := &stubAppRuntimeWatcher{}
+	updateWriter := &stubAppUpdateWriter{}
 	app := &App{
 		bootstrapBridgeDB:    func() (*sql.DB, error) { return wantDB, nil },
 		resolveAnimeDataPath: func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
@@ -147,6 +162,10 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		},
 		newRuntimeWatcher: func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
 			return runtimeWatcher
+		},
+		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
+		newUpdateWriter: func(anime.UpdateWriterConfig) anime.UpdateWriter {
+			return updateWriter
 		},
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return &stubTraceSink{}
@@ -184,6 +203,10 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		t.Fatal("expected startup to start runtime watcher")
 	}
 
+	if !updateWriter.started {
+		t.Fatal("expected startup to start update writer")
+	}
+
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
 	}
@@ -199,6 +222,19 @@ func TestAppShutdownWaitsForRuntimeWatcher(t *testing.T) {
 
 	if !runtimeWatcher.waitCalled {
 		t.Fatal("expected shutdown to wait for runtime watcher")
+	}
+}
+
+func TestAppShutdownWaitsForUpdateWriter(t *testing.T) {
+	t.Parallel()
+
+	updateWriter := &stubAppUpdateWriter{}
+	app := &App{animeUpdateWriter: updateWriter}
+
+	app.shutdown(context.Background())
+
+	if !updateWriter.waitCalled {
+		t.Fatal("expected shutdown to wait for update writer")
 	}
 }
 
@@ -236,6 +272,11 @@ type stubAppRuntimeWatcher struct {
 	waitCalled bool
 }
 
+type stubAppUpdateWriter struct {
+	started    bool
+	waitCalled bool
+}
+
 func (s *stubAppRuntimeWatcher) StartAsync(context.Context) {
 	s.started = true
 }
@@ -245,6 +286,18 @@ func (s *stubAppRuntimeWatcher) Wait() {
 }
 
 func (s *stubAppRuntimeWatcher) Err() error {
+	return nil
+}
+
+func (s *stubAppUpdateWriter) StartAsync(context.Context) {
+	s.started = true
+}
+
+func (s *stubAppUpdateWriter) Wait() {
+	s.waitCalled = true
+}
+
+func (s *stubAppUpdateWriter) Err() error {
 	return nil
 }
 

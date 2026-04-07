@@ -31,31 +31,33 @@ type RuntimeWatcher interface {
 }
 
 type RuntimeWatcherConfig struct {
-	FilePath       string
-	Parser         SnapshotParser
-	Store          SnapshotStore
-	Publisher      EventPublisher
-	Logger         WarningLogger
-	DebounceWindow time.Duration
-	RetryDelay     time.Duration
-	OpenFile       func(path string) (io.ReadCloser, error)
-	WatcherFactory func() (FileWatcher, error)
-	TimerFactory   func() DebounceTimer
+	FilePath         string
+	Parser           SnapshotParser
+	Store            SnapshotStore
+	Publisher        EventPublisher
+	Logger           WarningLogger
+	SelfEchoRegistry SelfEchoRegistry
+	DebounceWindow   time.Duration
+	RetryDelay       time.Duration
+	OpenFile         func(path string) (io.ReadCloser, error)
+	WatcherFactory   func() (FileWatcher, error)
+	TimerFactory     func() DebounceTimer
 }
 
 type runtimeWatcher struct {
-	filePath       string
-	watchDir       string
-	watchBase      string
-	parser         SnapshotParser
-	store          SnapshotStore
-	publisher      EventPublisher
-	logger         WarningLogger
-	debounceWindow time.Duration
-	retryDelay     time.Duration
-	openFile       func(path string) (io.ReadCloser, error)
-	watcherFactory func() (FileWatcher, error)
-	timerFactory   func() DebounceTimer
+	filePath         string
+	watchDir         string
+	watchBase        string
+	parser           SnapshotParser
+	store            SnapshotStore
+	publisher        EventPublisher
+	logger           WarningLogger
+	selfEchoRegistry SelfEchoRegistry
+	debounceWindow   time.Duration
+	retryDelay       time.Duration
+	openFile         func(path string) (io.ReadCloser, error)
+	watcherFactory   func() (FileWatcher, error)
+	timerFactory     func() DebounceTimer
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -66,18 +68,19 @@ type runtimeWatcher struct {
 
 func NewRuntimeWatcher(config RuntimeWatcherConfig) RuntimeWatcher {
 	watcher := &runtimeWatcher{
-		filePath:       config.FilePath,
-		watchDir:       filepath.Dir(config.FilePath),
-		watchBase:      filepath.Base(config.FilePath),
-		parser:         config.Parser,
-		store:          config.Store,
-		publisher:      config.Publisher,
-		logger:         config.Logger,
-		debounceWindow: config.DebounceWindow,
-		retryDelay:     config.RetryDelay,
-		openFile:       config.OpenFile,
-		watcherFactory: config.WatcherFactory,
-		timerFactory:   config.TimerFactory,
+		filePath:         config.FilePath,
+		watchDir:         filepath.Dir(config.FilePath),
+		watchBase:        filepath.Base(config.FilePath),
+		parser:           config.Parser,
+		store:            config.Store,
+		publisher:        config.Publisher,
+		logger:           config.Logger,
+		selfEchoRegistry: config.SelfEchoRegistry,
+		debounceWindow:   config.DebounceWindow,
+		retryDelay:       config.RetryDelay,
+		openFile:         config.OpenFile,
+		watcherFactory:   config.WatcherFactory,
+		timerFactory:     config.TimerFactory,
 	}
 
 	if watcher.debounceWindow <= 0 {
@@ -242,6 +245,9 @@ func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 	for _, delta := range deltas {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if w.selfEchoRegistry != nil && len(delta.Payload) > 0 && w.selfEchoRegistry.ConsumeIfPresent(delta.Payload) {
+			continue
 		}
 		w.publisher.Publish(delta)
 	}
