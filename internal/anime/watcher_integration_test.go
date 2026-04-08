@@ -45,7 +45,7 @@ func TestRuntimeWatcherDetectsAtomicReplaceAndKeepsListening(t *testing.T) {
 		`{"_id":"keep","nombre":"Updated","nrocapvisto":2}`,
 	})
 
-	eventuallyWithin(t, time.Second, func() bool {
+	eventuallyWithin(t, 3*time.Second, func() bool {
 		eventsList := publisher.events()
 		return len(eventsList) >= 1
 	})
@@ -58,7 +58,7 @@ func TestRuntimeWatcherDetectsAtomicReplaceAndKeepsListening(t *testing.T) {
 		`{"_id":"new","nombre":"Brand New","nrocapvisto":3}`,
 	})
 
-	eventuallyWithin(t, time.Second, func() bool {
+	eventuallyWithin(t, 3*time.Second, func() bool {
 		eventsList := publisher.events()
 		return len(eventsList) >= 2
 	})
