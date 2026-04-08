@@ -575,3 +575,68 @@ func (stubAppStore) ListSnapshots(context.Context) (map[string]anime.SnapshotRec
 func (stubAppStore) ReplaceBaseline(context.Context, map[string]anime.SnapshotRecord, []string) error {
 	return nil
 }
+
+// ── GetBridgeStatus ──────────────────────────────────────────────────────────
+
+func TestGetBridgeStatusReturnsOkWhenNoStartupError(t *testing.T) {
+	t.Parallel()
+	app := &App{}
+	if got := app.GetBridgeStatus(); got != "ok" {
+		t.Fatalf("expected %q, got %q", "ok", got)
+	}
+}
+
+func TestGetBridgeStatusReturnsErrorStringWhenStartupFailed(t *testing.T) {
+	t.Parallel()
+	app := &App{startupErr: errors.New("sqlite failed")}
+	got := app.GetBridgeStatus()
+	if got == "ok" {
+		t.Fatal("expected non-ok status when startupErr is set")
+	}
+	if got != "sqlite failed" {
+		t.Fatalf("expected error string %q, got %q", "sqlite failed", got)
+	}
+}
+
+// ── GetEffectiveAddress ──────────────────────────────────────────────────────
+
+func TestGetEffectiveAddressReturnsEmptyWhenHTTPServerNil(t *testing.T) {
+	t.Parallel()
+	app := &App{}
+	if got := app.GetEffectiveAddress(); got != "" {
+		t.Fatalf("expected empty string when httpServer nil, got %q", got)
+	}
+}
+
+func TestGetEffectiveAddressReturnsDelegatedAddress(t *testing.T) {
+	t.Parallel()
+	app := &App{httpServer: &stubAppHTTPServer{}}
+	got := app.GetEffectiveAddress()
+	if got != "192.168.1.50:8080" {
+		t.Fatalf("expected %q, got %q", "192.168.1.50:8080", got)
+	}
+}
+
+// ── TriggerReconcile ─────────────────────────────────────────────────────────
+
+func TestTriggerReconcileReturnsErrorWhenSyncTriggerNil(t *testing.T) {
+	t.Parallel()
+	app := &App{}
+	got := app.TriggerReconcile()
+	if got == "ok" {
+		t.Fatal("expected error string when syncTrigger is nil")
+	}
+	if got == "" {
+		t.Fatal("expected non-empty error string when syncTrigger is nil")
+	}
+}
+
+func TestTriggerReconcileReturnsOkWhenSyncTriggerPublishes(t *testing.T) {
+	t.Parallel()
+	bus := events.NewBus()
+	syncTrigger := bridgeSync.NewTriggerService(bus)
+	app := &App{syncTrigger: syncTrigger, ctx: context.Background()}
+	if got := app.TriggerReconcile(); got != "ok" {
+		t.Fatalf("expected %q, got %q", "ok", got)
+	}
+}

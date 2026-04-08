@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"autoreas-bridge/internal/anime"
@@ -20,6 +19,7 @@ type App struct {
 	ctx                     context.Context
 	bridgeDB                *sql.DB
 	startupErr              error
+	syncTrigger             *bridgeSync.TriggerService
 	bootstrapBridgeDB       func() (*sql.DB, error)
 	resolveAnimeDataPath    func() (string, error)
 	newSnapshotParser       func() anime.SnapshotParser
@@ -242,6 +242,7 @@ func (a *App) startup(ctx context.Context) {
 	animeQuery := anime.NewQueryService(snapshotStore)
 	animeWrite := anime.NewWriteService(snapshotStore, a.eventBus)
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus)
+	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{
 		DeviceService: deviceService,
 		AnimeQuery:    animeQuery,
@@ -283,7 +284,32 @@ func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
+// GetBridgeStatus returns "ok" when all services started successfully,
+// or an error description if startup failed.
+func (a *App) GetBridgeStatus() string {
+	if a.startupErr != nil {
+		return a.startupErr.Error()
+	}
+	return "ok"
+}
+
+// GetEffectiveAddress returns the local LAN address the HTTP server is
+// listening on (e.g. "192.168.1.5:8080"), or "" if not yet started.
+func (a *App) GetEffectiveAddress() string {
+	if a.httpServer == nil {
+		return ""
+	}
+	return a.httpServer.EffectiveAddress()
+}
+
+// TriggerReconcile asks the sync service to publish a reconciliation event.
+// Returns "ok" on success or an error string if the service is unavailable.
+func (a *App) TriggerReconcile() string {
+	if a.syncTrigger == nil {
+		return "sync service unavailable"
+	}
+	if err := a.syncTrigger.TriggerReconcile(a.ctx); err != nil {
+		return err.Error()
+	}
+	return "ok"
 }
