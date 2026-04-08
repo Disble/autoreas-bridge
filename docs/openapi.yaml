@@ -1,0 +1,215 @@
+openapi: 3.1.0
+info:
+  title: Autoreas Bridge API
+  version: 1.0.0
+  description: |
+    REST API exposed by the Autoreas Bridge desktop application on 0.0.0.0:8080.
+    Used by mobile clients to pair, sync anime state, and receive real-time events.
+
+    Excluded endpoints (always return 405 — intentionally undocumented):
+      POST   /api/animes
+      DELETE /api/animes/{id}
+
+x-websocket:
+  path: /ws
+  description: |
+    WebSocket endpoint for real-time anime change events.
+    Authentication: Bearer token via Authorization header OR ?token= query param.
+    On connect, server sends: {"type":"sync_required","reason":"connection_gap_assumed"}
+    Broadcasts: {"type":"anime_changed","anime_id":"<id>","payload":<object>}
+  responses:
+    101: Upgrade success
+    401: Authentication failure
+    503: Hub unavailable
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: invalid request body
+
+    StatusOK:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    StatusAccepted:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: accepted
+
+paths:
+  /api/devices/pair:
+    post:
+      summary: Pair a mobile device
+      description: |
+        Validates the pairing token displayed in the Bridge UI and registers the device.
+        Returns a persistent auth_token for subsequent authenticated requests.
+        No authentication required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pairing_token, device_name]
+              additionalProperties: false
+              properties:
+                pairing_token:
+                  type: string
+                  description: One-time token shown in the Bridge pairing panel
+                device_name:
+                  type: string
+                  description: Human-readable name for this device
+      responses:
+        '201':
+          description: Device paired successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device_id, device_name, auth_token]
+                properties:
+                  device_id:
+                    type: string
+                  device_name:
+                    type: string
+                  auth_token:
+                    type: string
+                    description: Bearer token for authenticated endpoints
+        '400':
+          description: Invalid request body or pairing request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid pairing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/animes/{id}:
+    patch:
+      summary: Patch anime state
+      description: |
+        Partially updates the state of an anime entry identified by its legacy ID.
+        All body fields are optional; unknown fields are silently ignored.
+        Business rule: if nrocapvisto >= totalcap and totalcap > 0, estado is forced to 1 (completed).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Legacy anime ID from animes.dat
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                estado:
+                  type: integer
+                  minimum: 0
+                  maximum: 3
+                  description: |
+                    Watch state:
+                      0 = not started
+                      1 = completed
+                      2 = watching
+                      3 = dropped
+                nrocapvisto:
+                  type: number
+                  minimum: 0
+                  description: Episode number last watched (fractional allowed)
+                dias:
+                  type: array
+                  items:
+                    type: string
+                  description: Days of the week the anime airs
+      responses:
+        '200':
+          description: Patch applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusOK'
+        '400':
+          description: Invalid field value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Anime not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/sync/reconcile:
+    post:
+      summary: Trigger sync reconciliation
+      description: |
+        Triggers an immediate reconciliation pass between animes.dat and the SQLite store.
+        Accepted asynchronously — the response does not wait for reconciliation to complete.
+      security:
+        - BearerAuth: []
+      responses:
+        '202':
+          description: Reconciliation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusAccepted'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
