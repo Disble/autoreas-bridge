@@ -5,4 +5,9 @@ export function GetBridgeStatus(): Promise<string>;
 
 export function GetEffectiveAddress(): Promise<string>;
 
+export function GetPairingToken(): Promise<string>;
+
+export function GetSQLiteStatus(): Promise<string>;
+
 export function TriggerReconcile(): Promise<string>;
+

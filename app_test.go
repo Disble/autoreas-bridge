@@ -785,3 +785,97 @@ func TestTriggerReconcileReturnsOkWhenSyncTriggerPublishes(t *testing.T) {
 		t.Fatalf("expected %q, got %q", "ok", got)
 	}
 }
+
+// ── GetSQLiteStatus ──────────────────────────────────────────────────────────
+
+func TestGetSQLiteStatusReturnsErrorWhenBridgeDBNil(t *testing.T) {
+	t.Parallel()
+	app := &App{}
+	got := app.GetSQLiteStatus()
+	if got == "ok" {
+		t.Fatal("expected non-ok status when bridgeDB is nil")
+	}
+	if got == "" {
+		t.Fatal("expected non-empty error string when bridgeDB is nil")
+	}
+}
+
+func TestGetSQLiteStatusReturnsOkWhenBridgeDBInitialized(t *testing.T) {
+	t.Parallel()
+	// Use a real *sql.DB opened against sqlite3 in-memory so Ping succeeds.
+	// We cannot ping a bare &sql.DB{} — it panics. Use an in-memory SQLite db.
+	db, err := openInMemorySQLite(t)
+	if err != nil {
+		t.Skipf("sqlite3 unavailable: %v", err)
+	}
+	app := &App{bridgeDB: db, ctx: context.Background()}
+	if got := app.GetSQLiteStatus(); got != "ok" {
+		t.Fatalf("expected %q, got %q", "ok", got)
+	}
+}
+
+// ── GetPairingToken ──────────────────────────────────────────────────────────
+
+func TestGetPairingTokenReturnsErrorWhenDeviceStoreNil(t *testing.T) {
+	t.Parallel()
+	// deviceStore is nil (not set) — GetPairingToken must degrade gracefully.
+	app := &App{ctx: context.Background()}
+	got := app.GetPairingToken()
+	if got == "" {
+		t.Fatal("expected non-empty error string when device store is nil")
+	}
+	if isHex32(got) {
+		t.Fatalf("expected error string, not a 32-char hex token, got %q", got)
+	}
+}
+
+func TestGetPairingTokenReturns32CharHexAndPersists(t *testing.T) {
+	t.Parallel()
+	spy := &spyDeviceStore{}
+	// Inject deviceStore directly — same pattern used for httpServer, trayManager etc.
+	app := &App{ctx: context.Background(), deviceStore: spy}
+	got := app.GetPairingToken()
+	if !isHex32(got) {
+		t.Fatalf("expected 32-char hex token, got %q", got)
+	}
+	if spy.savedToken != got {
+		t.Fatalf("expected token %q to be persisted, spy has %q", got, spy.savedToken)
+	}
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+type spyDeviceStore struct {
+	stubAppDeviceStore
+	savedToken string
+	saveErr    error
+}
+
+func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int64) error {
+	s.savedToken = token
+	return s.saveErr
+}
+
+func isHex32(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+func openInMemorySQLite(t *testing.T) (*sql.DB, error) {
+	t.Helper()
+	// bridgeSync.BootstrapBridgeDB uses "modernc.org/sqlite" driver registered as "sqlite".
+	// Use the same driver name to open an in-memory database.
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db, nil
+}

@@ -10,6 +10,14 @@ export function GetEffectiveAddress() {
     return window['go']['main']['App']['GetEffectiveAddress']();
 }
 
+export function GetPairingToken() {
+    return window['go']['main']['App']['GetPairingToken']();
+}
+
+export function GetSQLiteStatus() {
+    return window['go']['main']['App']['GetSQLiteStatus']();
+}
+
 export function TriggerReconcile() {
     return window['go']['main']['App']['TriggerReconcile']();
 }

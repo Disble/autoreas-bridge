@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
+	"fmt"
 	"time"
 
 	"autoreas-bridge/internal/anime"
@@ -54,6 +57,8 @@ type App struct {
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
+	deviceStore             device.Store
+	newToken                func() (string, error)
 }
 
 type tracerBulletRunner interface {
@@ -270,6 +275,7 @@ func (a *App) startup(ctx context.Context) {
 	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB))
 	a.syncChangelogRecorder.Start(catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
+	a.deviceStore = deviceStore
 	deviceService := a.newDeviceService(deviceStore)
 	a.realtimeHub = a.newRealtimeHub(ctx)
 	if a.realtimeHub != nil {
@@ -373,4 +379,50 @@ func (a *App) TriggerReconcile() string {
 		return err.Error()
 	}
 	return "ok"
+}
+
+// GetSQLiteStatus returns "ok" when the bridge DB is initialized and reachable,
+// or an error string if nil or unreachable.
+func (a *App) GetSQLiteStatus() string {
+	if a.bridgeDB == nil {
+		return "db unavailable"
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := a.bridgeDB.PingContext(ctx); err != nil {
+		return err.Error()
+	}
+	return "ok"
+}
+
+// GetPairingToken generates a 32-char hex token, persists it via device.Store,
+// and returns it. Returns an error string if the device store is nil.
+func (a *App) GetPairingToken() string {
+	if a.deviceStore == nil {
+		return "device store unavailable"
+	}
+	genToken := a.newToken
+	if genToken == nil {
+		genToken = func() (string, error) {
+			buf := make([]byte, 16)
+			if _, err := rand.Read(buf); err != nil {
+				return "", err
+			}
+			return hex.EncodeToString(buf), nil
+		}
+	}
+	token, err := genToken()
+	if err != nil {
+		return fmt.Sprintf("token generation failed: %s", err.Error())
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := a.deviceStore.SavePairingToken(ctx, token, time.Now().UnixMilli()); err != nil {
+		return fmt.Sprintf("token persist failed: %s", err.Error())
+	}
+	return token
 }
