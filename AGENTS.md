@@ -15,6 +15,7 @@
 2. Before implementing, read the corresponding artifacts in `openspec/changes/<change>/`.
 3. Treat `openspec/specs/` and active change artifacts as the execution contract.
 4. Prefer incremental changes with verification after each meaningful step.
+5. **Auto-Pilot SDD**: The entire SDD workflow (explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive) MUST run completely automatically and proactively from start to finish. DO NOT stop for user confirmations, reviews, or to ask permission for the next step. Ignore simple reviews and "next step" confirmations aggressively to save the user time. Ask for user input ONLY on hard, unresolvable blockers. Execute the rest of the skills exactly as indicated but with ZERO user intervention.
 
 ## Testing Rules
 
@@ -40,6 +41,16 @@
 - `animes.dat` is append-only legacy data; effective state must be reasoned by `_id`, not by naive line diffs.
 - `activo=false` is not a tombstone.
 - Direct file watch on `animes.dat` is not trustworthy for Windows atomic replace flows; watch the parent directory.
+
+## Delegation and Verification Guardrails
+
+- If docs, specs, or archived changes conflict with the code, treat the **codebase** as the runtime truth, document the drift, and only then plan the fix.
+- When delegating bugfix or apply work to sub-agents, prompts MUST include the exact reproduction steps/commands when known.
+- Those prompts MUST include both acceptance examples and rejection/negative examples; do not describe only the happy path.
+- Those prompts MUST name forbidden outputs or behaviors explicitly when the bug involves false positives, misleading fallbacks, or malformed UX.
+- If the user explicitly asks the orchestrator to perform a repo-doc or instruction-file update itself, do not delegate that file edit to a sub-agent.
+- Verification is a special case: the orchestrating agent MUST perform the final verification itself and MUST NOT delegate the verify phase to a sub-agent. Other phases may still use sub-agents when appropriate.
+- After verify passes, the orchestrating agent MUST create the commit before reporting verify as fully complete. The commit's own hooks/validations are part of the real verification boundary and save the user an extra round-trip.
 
 ## Project-local Skills
 
