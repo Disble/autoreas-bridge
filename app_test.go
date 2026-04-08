@@ -16,6 +16,7 @@ import (
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
+	"autoreas-bridge/internal/tray"
 )
 
 func TestAppStartupBootstrapsSQLite(t *testing.T) {
@@ -258,6 +259,103 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	}
 }
 
+func TestAppStartupStartsTrayManagerWithIconCallbacksAndHide(t *testing.T) {
+	t.Parallel()
+
+	manager := &tray.MockTrayManager{}
+	app := newTrayLifecycleTestApp(t, manager)
+
+	ctx := context.Background()
+	app.startup(ctx)
+
+	if manager.StartCalls != 1 {
+		t.Fatalf("expected tray start once, got %d", manager.StartCalls)
+	}
+
+	if len(manager.StartConfig.Icon) == 0 {
+		t.Fatal("expected tray start config icon bytes")
+	}
+
+	if manager.StartConfig.OnOpen == nil {
+		t.Fatal("expected tray start config OnOpen callback")
+	}
+
+	if manager.StartConfig.OnExit == nil {
+		t.Fatal("expected tray start config OnExit callback")
+	}
+
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+
+	if app.trayManager != manager {
+		t.Fatal("expected app to retain tray manager instance")
+	}
+
+	if app.hideWindowCalls != 1 {
+		t.Fatalf("expected startup to hide window once, got %d", app.hideWindowCalls)
+	}
+
+	if app.lastHiddenContext != ctx {
+		t.Fatal("expected hide window to receive app context")
+	}
+}
+
+func TestAppShutdownStopsTrayManager(t *testing.T) {
+	t.Parallel()
+
+	manager := &tray.MockTrayManager{}
+	app := &App{trayManager: manager}
+
+	app.shutdown(context.Background())
+
+	if manager.StopCalls != 1 {
+		t.Fatalf("expected tray stop once, got %d", manager.StopCalls)
+	}
+}
+
+func TestAppTrayOnOpenShowsAndUnminimisesWindow(t *testing.T) {
+	t.Parallel()
+
+	manager := &tray.MockTrayManager{}
+	app := newTrayLifecycleTestApp(t, manager)
+
+	ctx := context.Background()
+	app.startup(ctx)
+	manager.StartConfig.OnOpen()
+
+	if app.unminimiseWindowCalls != 1 {
+		t.Fatalf("expected OnOpen to unminimise window once, got %d", app.unminimiseWindowCalls)
+	}
+
+	if app.showWindowCalls != 1 {
+		t.Fatalf("expected OnOpen to show window once, got %d", app.showWindowCalls)
+	}
+
+	if app.quitCalls != 0 {
+		t.Fatalf("expected OnOpen not to quit app, got %d quit calls", app.quitCalls)
+	}
+}
+
+func TestAppTrayOnExitRequestsQuit(t *testing.T) {
+	t.Parallel()
+
+	manager := &tray.MockTrayManager{}
+	app := newTrayLifecycleTestApp(t, manager)
+
+	ctx := context.Background()
+	app.startup(ctx)
+	manager.StartConfig.OnExit()
+
+	if app.quitCalls != 1 {
+		t.Fatalf("expected OnExit to request quit once, got %d", app.quitCalls)
+	}
+
+	if app.showWindowCalls != 0 {
+		t.Fatalf("expected OnExit not to show window, got %d show calls", app.showWindowCalls)
+	}
+}
+
 func TestAppShutdownWaitsForRuntimeWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -402,6 +500,53 @@ func TestAppShutdownStopsHTTPServer(t *testing.T) {
 type stubAppCoordinator struct {
 	started    chan context.Context
 	waitCalled bool
+}
+
+type trayLifecycleTestApp struct {
+	*App
+	hideWindowCalls       int
+	showWindowCalls       int
+	unminimiseWindowCalls int
+	quitCalls             int
+	lastHiddenContext     context.Context
+}
+
+func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayLifecycleTestApp {
+	t.Helper()
+
+	base := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newTrayManager:        func() tray.TrayManager { return manager },
+	}
+
+	app := &trayLifecycleTestApp{App: base}
+	base.hideWindow = func(ctx context.Context) {
+		app.hideWindowCalls++
+		app.lastHiddenContext = ctx
+	}
+	base.showWindow = func(context.Context) {
+		app.showWindowCalls++
+	}
+	base.unminimiseWindow = func(context.Context) {
+		app.unminimiseWindowCalls++
+	}
+	base.quitApp = func(context.Context) {
+		app.quitCalls++
+	}
+
+	return app
 }
 
 type stubTracerBulletRunner struct {

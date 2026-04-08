@@ -12,6 +12,8 @@ import (
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
+	"autoreas-bridge/internal/tray"
+	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -34,8 +36,13 @@ type App struct {
 	newDeviceService        func(store device.Store) device.AuthService
 	newRealtimeHub          func(ctx context.Context) realtime.Hub
 	newHTTPServer           func(config api.Config) api.Server
+	newTrayManager          func() tray.TrayManager
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
+	hideWindow              func(context.Context)
+	showWindow              func(context.Context)
+	unminimiseWindow        func(context.Context)
+	quitApp                 func(context.Context)
 	eventBus                events.Bus
 	animeStartupCoordinator anime.StartupCoordinator
 	animeRuntimeWatcher     anime.RuntimeWatcher
@@ -43,6 +50,7 @@ type App struct {
 	syncChangelogRecorder   changelogRecorder
 	realtimeHub             realtime.Hub
 	httpServer              api.Server
+	trayManager             tray.TrayManager
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
@@ -95,12 +103,19 @@ func NewApp() *App {
 		newHTTPServer: func(config api.Config) api.Server {
 			return api.NewServer(config)
 		},
+		newTrayManager: func() tray.TrayManager {
+			return tray.NewSystrayManager()
+		},
 		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
 		},
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return tracerbullet.NewStdoutSink()
 		},
+		hideWindow:       wruntime.WindowHide,
+		showWindow:       wruntime.WindowShow,
+		unminimiseWindow: wruntime.WindowUnminimise,
+		quitApp:          wruntime.Quit,
 	}
 }
 
@@ -167,6 +182,9 @@ func (a *App) startup(ctx context.Context) {
 			return api.NewServer(config)
 		}
 	}
+	if a.newTrayManager == nil {
+		a.newTrayManager = func() tray.TrayManager { return nil }
+	}
 	if a.newTracerBulletRunner == nil {
 		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
@@ -177,11 +195,36 @@ func (a *App) startup(ctx context.Context) {
 			return tracerbullet.NewStdoutSink()
 		}
 	}
+	if a.hideWindow == nil {
+		a.hideWindow = wruntime.WindowHide
+	}
+	if a.showWindow == nil {
+		a.showWindow = wruntime.WindowShow
+	}
+	if a.unminimiseWindow == nil {
+		a.unminimiseWindow = wruntime.WindowUnminimise
+	}
+	if a.quitApp == nil {
+		a.quitApp = wruntime.Quit
+	}
 	if a.eventBus == nil {
 		a.eventBus = events.NewBus()
 	}
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink())
 	a.tracerBulletRunner.Start()
+	a.trayManager = a.newTrayManager()
+	if a.trayManager != nil {
+		a.startupErr = a.trayManager.Start(tray.Config{
+			Icon:    tray.DefaultIcon,
+			Tooltip: tray.DefaultTooltip,
+			OnOpen:  a.openMainWindow,
+			OnExit:  a.requestQuit,
+		})
+		if a.startupErr != nil {
+			return
+		}
+		a.hideWindow(ctx)
+	}
 
 	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
 	if a.startupErr != nil {
@@ -263,6 +306,9 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.httpServer != nil {
 		_ = a.httpServer.Shutdown(ctx)
 	}
+	if a.trayManager != nil {
+		_ = a.trayManager.Stop()
+	}
 	if closer, ok := a.realtimeHub.(interface{ Close() error }); ok && closer != nil {
 		_ = closer.Close()
 	}
@@ -282,6 +328,21 @@ func (a *App) shutdown(ctx context.Context) {
 		_ = a.bridgeDB.Close()
 	}
 	a.ctx = ctx
+}
+
+func (a *App) openMainWindow() {
+	if a.ctx == nil {
+		return
+	}
+	a.unminimiseWindow(a.ctx)
+	a.showWindow(a.ctx)
+}
+
+func (a *App) requestQuit() {
+	if a.ctx == nil {
+		return
+	}
+	a.quitApp(a.ctx)
 }
 
 // GetBridgeStatus returns "ok" when all services started successfully,
