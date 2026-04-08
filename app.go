@@ -217,7 +217,16 @@ func (a *App) startup(ctx context.Context) {
 	a.syncChangelogRecorder.Start(catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
-	a.httpServer = a.newHTTPServer(api.Config{DeviceService: deviceService})
+	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
+	animeQuery := anime.NewQueryService(snapshotStore)
+	animeWrite := anime.NewWriteService(snapshotStore, a.eventBus)
+	syncTrigger := bridgeSync.NewTriggerService(a.eventBus)
+	a.httpServer = a.newHTTPServer(api.Config{
+		DeviceService: deviceService,
+		AnimeQuery:    animeQuery,
+		AnimeWrite:    animeWrite,
+		SyncTrigger:   syncTrigger,
+	})
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
 		return

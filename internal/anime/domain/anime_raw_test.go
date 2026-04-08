@@ -465,6 +465,59 @@ func TestLegacyAnimeRawRejectsMalformedLegacyPayloads(t *testing.T) {
 	}
 }
 
+func TestLegacyAnimeRawTypedHelpers(t *testing.T) {
+	t.Parallel()
+
+	const payload = `{"_id":"anime-helpers","nombre":"Helpers","nrocapvisto":3,"estado":2,"totalcap":12,"dias":[{"dia":"Lunes","orden":1}]}`
+
+	var raw LegacyAnimeRaw
+	if err := json.Unmarshal([]byte(payload), &raw); err != nil {
+		t.Fatalf("unmarshal legacy anime raw: %v", err)
+	}
+
+	if got := raw.EstadoValue(); got == nil || *got != 2 {
+		t.Fatalf("expected estado 2, got %v", got)
+	}
+
+	if got := raw.TotalCapValue(); got == nil || *got != 12 {
+		t.Fatalf("expected totalcap 12, got %v", got)
+	}
+
+	raw.SetEstado(3)
+	raw.SetNroCapVisto(10.5)
+	raw.SetDias([]string{"Martes", "Jueves"})
+	raw.StampServerTimestamp(time.UnixMilli(1710000000789).UTC())
+
+	if got := raw.EstadoValue(); got == nil || *got != 3 {
+		t.Fatalf("expected estado 3 after setter, got %v", got)
+	}
+
+	if raw.NroCapVisto != 10.5 {
+		t.Fatalf("expected nrocapvisto 10.5 after setter, got %v", raw.NroCapVisto)
+	}
+
+	gotDias := raw.DiasStrings()
+	if len(gotDias) != 2 || gotDias[0] != "Martes" || gotDias[1] != "Jueves" {
+		t.Fatalf("expected dias [Martes Jueves], got %#v", gotDias)
+	}
+
+	stampedAt := raw.FechaUltCapVisto.Time()
+	if stampedAt == nil || stampedAt.UnixMilli() != 1710000000789 {
+		t.Fatalf("expected stamped timestamp 1710000000789, got %v", stampedAt)
+	}
+
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("marshal legacy anime raw: %v", err)
+	}
+
+	assertJSONContains(t, string(encoded), `"estado":3`)
+	assertJSONContains(t, string(encoded), `"totalcap":12`)
+	assertJSONContains(t, string(encoded), `"nrocapvisto":10.5`)
+	assertJSONContains(t, string(encoded), `"fechaUltCapVisto":{"$$date":1710000000789}`)
+	assertJSONContains(t, string(encoded), `"dias":[{"dia":"Martes","orden":1},{"dia":"Jueves","orden":2}]`)
+}
+
 func TestLegacyFieldWrappersRejectInvalidTypes(t *testing.T) {
 	t.Parallel()
 

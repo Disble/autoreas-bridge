@@ -7,12 +7,24 @@ import (
 	"net/http"
 	"sync"
 
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 )
+
+type AnimePatch = contracts.AnimePatch
+type EffectiveAnime = contracts.EffectiveAnime
+type AnimeQueryService = contracts.AnimeQueryService
+type AnimeWriteService = contracts.AnimeWriteService
+type SyncTriggerService = contracts.SyncTriggerService
+
+var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
 type Config struct {
 	Addr          string
 	DeviceService device.AuthService
+	AnimeQuery    AnimeQueryService
+	AnimeWrite    AnimeWriteService
+	SyncTrigger   SyncTriggerService
 }
 
 type Server interface {

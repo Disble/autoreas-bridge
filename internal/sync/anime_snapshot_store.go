@@ -3,11 +3,13 @@ package sync
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
 )
 
 type AnimeSnapshotStore struct {
@@ -88,6 +90,21 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 	}
 
 	return nil
+}
+
+func (s *AnimeSnapshotStore) GetSnapshot(ctx context.Context, animeID string) (anime.SnapshotRecord, error) {
+	var record anime.SnapshotRecord
+	var snapshotJSON string
+	err := s.db.QueryRowContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash FROM anime_snapshots WHERE anime_id = ?`, animeID).Scan(&record.AnimeID, &snapshotJSON, &record.Hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return anime.SnapshotRecord{}, contracts.ErrAnimeNotFound
+		}
+		return anime.SnapshotRecord{}, fmt.Errorf("query anime snapshot %q: %w", animeID, err)
+	}
+
+	record.CanonicalJSON = []byte(snapshotJSON)
+	return record, nil
 }
 
 func animeSnapshotIDs(records map[string]anime.SnapshotRecord) []string {

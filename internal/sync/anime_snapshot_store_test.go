@@ -3,10 +3,12 @@ package sync
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
 )
 
 func TestSQLiteAnimeSnapshotStoreReplaceBaselineUpsertsAndPrunes(t *testing.T) {
@@ -52,6 +54,44 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselineUpsertsAndPrunes(t *testing.T) {
 
 	if string(got["new"].CanonicalJSON) != string(current["new"].CanonicalJSON) {
 		t.Fatalf("expected new snapshot json %s, got %s", string(current["new"].CanonicalJSON), string(got["new"].CanonicalJSON))
+	}
+}
+
+func TestSQLiteAnimeSnapshotStoreGetSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewAnimeSnapshotStore(db)
+	ctx := context.Background()
+	payload := []byte(`{"_id":"anime-1","nombre":"Lookup","nrocapvisto":1}`)
+
+	if err := store.ReplaceBaseline(ctx, map[string]anime.SnapshotRecord{
+		"anime-1": {AnimeID: "anime-1", CanonicalJSON: payload, Hash: anime.HashSnapshot(payload)},
+	}, nil); err != nil {
+		t.Fatalf("seed baseline: %v", err)
+	}
+
+	record, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+
+	if record.AnimeID != "anime-1" {
+		t.Fatalf("expected anime id %q, got %q", "anime-1", record.AnimeID)
+	}
+
+	if string(record.CanonicalJSON) != string(payload) {
+		t.Fatalf("expected snapshot json %s, got %s", string(payload), string(record.CanonicalJSON))
+	}
+}
+
+func TestSQLiteAnimeSnapshotStoreGetSnapshotReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	store := NewAnimeSnapshotStore(openTestBridgeDB(t))
+	_, err := store.GetSnapshot(context.Background(), "missing")
+	if !errors.Is(err, contracts.ErrAnimeNotFound) {
+		t.Fatalf("expected ErrAnimeNotFound, got %v", err)
 	}
 }
 

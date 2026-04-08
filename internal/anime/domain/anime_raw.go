@@ -12,6 +12,8 @@ type LegacyAnimeRaw struct {
 	ID               string               `json:"_id"`
 	Nombre           string               `json:"nombre"`
 	NroCapVisto      float64              `json:"nrocapvisto"`
+	Estado           LegacyNumberField    `json:"estado,omitempty"`
+	TotalCap         LegacyNumberField    `json:"totalcap,omitempty"`
 	Activo           LegacyBoolField      `json:"activo,omitempty"`
 	FechaEstreno     LegacyDateField      `json:"fechaEstreno,omitempty"`
 	FechaUltCapVisto LegacyDateField      `json:"fechaUltCapVisto,omitempty"`
@@ -112,6 +114,18 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if value, ok := raw["estado"]; ok {
+		if err := r.Estado.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal estado: %w", err)
+		}
+	}
+
+	if value, ok := raw["totalcap"]; ok {
+		if err := r.TotalCap.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal totalcap: %w", err)
+		}
+	}
+
 	if value, ok := raw["activo"]; ok {
 		if err := r.Activo.UnmarshalJSON(value); err != nil {
 			return fmt.Errorf("unmarshal activo: %w", err)
@@ -192,7 +206,7 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 }
 
 func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
-	fields := make(map[string]json.RawMessage, len(r.extraFields)+13)
+	fields := make(map[string]json.RawMessage, len(r.extraFields)+15)
 	for key, value := range r.extraFields {
 		fields[key] = cloneJSON(value)
 	}
@@ -200,6 +214,8 @@ func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
 	assignJSON(fields, "_id", mustMarshalJSON(r.ID))
 	assignJSON(fields, "nombre", mustMarshalJSON(r.Nombre))
 	assignJSON(fields, "nrocapvisto", mustMarshalJSON(r.NroCapVisto))
+	assignOptionalField(fields, "estado", r.Estado.raw)
+	assignOptionalField(fields, "totalcap", r.TotalCap.raw)
 	assignOptionalField(fields, "activo", r.Activo.raw)
 	assignOptionalField(fields, "fechaEstreno", r.FechaEstreno.raw)
 	assignOptionalField(fields, "fechaUltCapVisto", r.FechaUltCapVisto.raw)
@@ -383,6 +399,94 @@ func (f LegacyAnimeDaysField) Values() []LegacyAnimeDay {
 	values := make([]LegacyAnimeDay, len(f.val))
 	copy(values, f.val)
 	return values
+}
+
+func (r LegacyAnimeRaw) EstadoValue() *int {
+	value := r.Estado.Float64()
+	if value == nil {
+		return nil
+	}
+
+	result := int(*value)
+	return &result
+}
+
+func (r LegacyAnimeRaw) TotalCapValue() *float64 {
+	return r.TotalCap.Float64()
+}
+
+func (r LegacyAnimeRaw) DiasStrings() []string {
+	values := r.Dias.Values()
+	if len(values) > 0 {
+		result := make([]string, 0, len(values))
+		for _, value := range values {
+			result = append(result, value.Dia)
+		}
+		return result
+	}
+
+	legacyDay := r.Dia.String()
+	if legacyDay == nil {
+		return nil
+	}
+
+	return []string{*legacyDay}
+}
+
+func (r *LegacyAnimeRaw) SetEstado(value int) {
+	r.Estado = newLegacyNumberField(float64(value))
+}
+
+func (r *LegacyAnimeRaw) SetNroCapVisto(value float64) {
+	r.NroCapVisto = value
+	assignJSON(r.ensureExtraFields(), "nrocapvisto", mustMarshalJSON(value))
+}
+
+func (r *LegacyAnimeRaw) SetDias(days []string) {
+	legacyDays := make([]LegacyAnimeDay, 0, len(days))
+	for index, day := range days {
+		legacyDays = append(legacyDays, LegacyAnimeDay{Dia: day, Orden: float64(index + 1)})
+	}
+
+	r.Dias = newLegacyAnimeDaysField(legacyDays)
+	r.Dia = LegacyStringField{}
+	r.Orden = LegacyNumberField{}
+}
+
+func (r *LegacyAnimeRaw) StampServerTimestamp(at time.Time) {
+	r.FechaUltCapVisto = newLegacyDateField(at)
+}
+
+func (r *LegacyAnimeRaw) ensureExtraFields() map[string]json.RawMessage {
+	if r.extraFields == nil {
+		r.extraFields = make(map[string]json.RawMessage)
+	}
+
+	return r.extraFields
+}
+
+func newLegacyNumberField(value float64) LegacyNumberField {
+	return LegacyNumberField{
+		raw:   rawField{state: rawFieldValue, bytes: mustMarshalJSON(value)},
+		value: value,
+	}
+}
+
+func newLegacyAnimeDaysField(days []LegacyAnimeDay) LegacyAnimeDaysField {
+	encoded := mustMarshalJSON(days)
+	return LegacyAnimeDaysField{
+		raw: rawField{state: rawFieldValue, bytes: encoded},
+		val: append([]LegacyAnimeDay(nil), days...),
+	}
+}
+
+func newLegacyDateField(value time.Time) LegacyDateField {
+	utc := value.UTC()
+	encoded := mustMarshalJSON(map[string]int64{"$$date": utc.UnixMilli()})
+	return LegacyDateField{
+		raw:   rawField{state: rawFieldValue, bytes: encoded},
+		value: utc,
+	}
 }
 
 func (f *rawField) set(data []byte) {

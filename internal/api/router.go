@@ -1,25 +1,46 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
+	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/device"
 )
 
 type Handler struct {
 	deviceService device.AuthService
+	patchAnime    http.Handler
+	syncReconcile http.Handler
 	mux           *http.ServeMux
 }
 
 func NewHandler(config Config) http.Handler {
 	h := &Handler{deviceService: config.DeviceService}
+	h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
+		Authenticate: h.authenticate,
+		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
+			return config.AnimeQuery.GetEffectiveAnime(ctx, id)
+		},
+		PatchAnime: func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
+			return config.AnimeWrite.PatchAnime(ctx, id, patch)
+		},
+		IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
+	})
+	h.syncReconcile = apiHandlers.NewSyncHandler(apiHandlers.SyncHandlerConfig{
+		Authenticate: h.authenticate,
+		TriggerReconcile: func(ctx context.Context) error {
+			return config.SyncTrigger.TriggerReconcile(ctx)
+		},
+	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
 	mux.HandleFunc("/api/animes", h.handleAnimes)
 	mux.HandleFunc("/api/animes/", h.handleAnimeByID)
+	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
 	h.mux = mux
 	return h
 }
@@ -88,15 +109,21 @@ func (h *Handler) handleAnimeByID(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	case http.MethodPatch:
-		if _, ok := h.authenticate(w, r); !ok {
-			return
-		}
-		writeJSONError(w, http.StatusNotImplemented, "patch deferred to sdd-10")
+		h.patchAnime.ServeHTTP(w, r)
 		return
 	default:
 		writeMethodNotAllowed(w)
 		return
 	}
+}
+
+func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+
+	h.syncReconcile.ServeHTTP(w, r)
 }
 
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
