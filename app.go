@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -27,6 +29,9 @@ type App struct {
 	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
 	newChangelogStore       func(db *sql.DB) changelogPendingStore
 	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore) changelogRecorder
+	newDeviceStore          func(db *sql.DB) device.Store
+	newDeviceService        func(store device.Store) device.AuthService
+	newHTTPServer           func(config api.Config) api.Server
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
 	eventBus                events.Bus
@@ -34,6 +39,7 @@ type App struct {
 	animeRuntimeWatcher     anime.RuntimeWatcher
 	animeUpdateWriter       anime.UpdateWriter
 	syncChangelogRecorder   changelogRecorder
+	httpServer              api.Server
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
 	catchUpCancel           context.CancelFunc
@@ -73,6 +79,15 @@ func NewApp() *App {
 		},
 		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
 			return bridgeSync.NewChangelogRecorder(bus, store)
+		},
+		newDeviceStore: func(db *sql.DB) device.Store {
+			return device.NewSQLiteStore(db)
+		},
+		newDeviceService: func(store device.Store) device.AuthService {
+			return device.NewService(store)
+		},
+		newHTTPServer: func(config api.Config) api.Server {
+			return api.NewServer(config)
 		},
 		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink)
@@ -124,6 +139,21 @@ func (a *App) startup(ctx context.Context) {
 	if a.newChangelogRecorder == nil {
 		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore) changelogRecorder {
 			return bridgeSync.NewChangelogRecorder(bus, store)
+		}
+	}
+	if a.newDeviceStore == nil {
+		a.newDeviceStore = func(db *sql.DB) device.Store {
+			return device.NewSQLiteStore(db)
+		}
+	}
+	if a.newDeviceService == nil {
+		a.newDeviceService = func(store device.Store) device.AuthService {
+			return device.NewService(store)
+		}
+	}
+	if a.newHTTPServer == nil {
+		a.newHTTPServer = func(config api.Config) api.Server {
+			return api.NewServer(config)
 		}
 	}
 	if a.newTracerBulletRunner == nil {
@@ -185,11 +215,21 @@ func (a *App) startup(ctx context.Context) {
 	a.animeUpdateWriter.StartAsync(catchUpContext)
 	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB))
 	a.syncChangelogRecorder.Start(catchUpContext)
+	deviceStore := a.newDeviceStore(a.bridgeDB)
+	deviceService := a.newDeviceService(deviceStore)
+	a.httpServer = a.newHTTPServer(api.Config{DeviceService: deviceService})
+	if err := a.httpServer.Start(); err != nil {
+		a.startupErr = err
+		return
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
+	}
+	if a.httpServer != nil {
+		_ = a.httpServer.Shutdown(ctx)
 	}
 	if a.syncChangelogRecorder != nil {
 		a.syncChangelogRecorder.Stop()

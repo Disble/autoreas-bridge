@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -34,6 +36,9 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
 		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 
 	ctx := context.Background()
@@ -73,6 +78,9 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
 		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 
 	app.startup(context.Background())
@@ -136,6 +144,9 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 			}
 			return &stubAppChangelogRecorder{}
 		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 
 	ctx := context.Background()
@@ -194,6 +205,9 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		newChangelogRecorder: func(events.Bus, changelogPendingStore) changelogRecorder {
 			return recorder
 		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return &stubTraceSink{}
 		},
@@ -302,6 +316,48 @@ func TestAppShutdownCancelsAnimeCatchUp(t *testing.T) {
 	}
 }
 
+func TestAppStartupStartsHTTPServerWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer: func(api.Config) api.Server {
+			return server
+		},
+	}
+
+	app.startup(context.Background())
+
+	if !server.started {
+		t.Fatal("expected startup to start http server")
+	}
+}
+
+func TestAppShutdownStopsHTTPServer(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	app := &App{httpServer: server}
+
+	app.shutdown(context.Background())
+
+	if !server.stopped {
+		t.Fatal("expected shutdown to stop http server")
+	}
+}
+
 type stubAppCoordinator struct {
 	started    chan context.Context
 	waitCalled bool
@@ -323,8 +379,55 @@ type stubAppUpdateWriter struct {
 
 type stubAppChangelogStore struct{}
 
+type stubAppDeviceStore struct{}
+
+type stubAppHTTPServer struct {
+	started bool
+	stopped bool
+}
+
+type stubAppDeviceService struct{}
+
 func (*stubAppChangelogStore) InsertPending(context.Context, bridgeSync.ChangelogEntry) error {
 	return nil
+}
+
+func (*stubAppDeviceStore) SavePairingToken(context.Context, string, int64) error {
+	return nil
+}
+
+func (*stubAppDeviceStore) ConsumePairingToken(context.Context, string, int64) error {
+	return nil
+}
+
+func (*stubAppDeviceStore) InsertPairedDevice(context.Context, device.StoredDevice) error {
+	return nil
+}
+
+func (*stubAppDeviceStore) FindByAuthToken(context.Context, string) (device.StoredDevice, error) {
+	return device.StoredDevice{}, nil
+}
+
+func (stubAppDeviceService) PairDevice(context.Context, device.PairDeviceRequest) (device.PairedDevice, error) {
+	return device.PairedDevice{}, nil
+}
+
+func (stubAppDeviceService) AuthenticateToken(context.Context, string) (device.PairedDevice, error) {
+	return device.PairedDevice{}, nil
+}
+
+func (s *stubAppHTTPServer) Start() error {
+	s.started = true
+	return nil
+}
+
+func (s *stubAppHTTPServer) Shutdown(context.Context) error {
+	s.stopped = true
+	return nil
+}
+
+func (*stubAppHTTPServer) Addr() string {
+	return "127.0.0.1:0"
 }
 
 type stubAppChangelogRecorder struct {

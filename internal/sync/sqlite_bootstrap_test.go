@@ -110,6 +110,20 @@ func TestBootstrapBridgeDBCreatesAnimeSnapshotsTableIdempotently(t *testing.T) {
 	}
 }
 
+func TestBootstrapBridgeDBCreatesDeviceTables(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	if !tableExists(t, db, "pairing_tokens") {
+		t.Fatal("expected pairing_tokens table to exist after bootstrap")
+	}
+
+	if !tableExists(t, db, "devices") {
+		t.Fatal("expected devices table to exist after bootstrap")
+	}
+}
+
 func TestBootstrapBridgeDBReturnsPathInErrorContext(t *testing.T) {
 	t.Parallel()
 

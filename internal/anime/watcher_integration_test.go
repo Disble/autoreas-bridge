@@ -36,6 +36,11 @@ func TestRuntimeWatcherDetectsAtomicReplaceAndKeepsListening(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	watcher.StartAsync(ctx)
+	// Dejamos que fsnotify termine de registrar el directorio real antes del
+	// rename/create. Sin esta pequeña espera, el test compite contra la
+	// inicialización asíncrona del watcher y se vuelve flaky aunque el watcher
+	// funcione bien una vez armado.
+	time.Sleep(100 * time.Millisecond)
 
 	replacedPath := filepath.Join(dataDir, "animes.tmp")
 	if err := os.Rename(dataPath, replacedPath); err != nil {

@@ -28,6 +28,19 @@ const (
 			payload_json TEXT,
 			status TEXT NOT NULL
 		)`
+	pairingTokensDDL = `
+		CREATE TABLE IF NOT EXISTS pairing_tokens (
+			token TEXT PRIMARY KEY,
+			created_at_ms INTEGER NOT NULL,
+			consumed_at_ms INTEGER
+		)`
+	devicesDDL = `
+		CREATE TABLE IF NOT EXISTS devices (
+			device_id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			auth_token TEXT NOT NULL UNIQUE,
+			paired_at_ms INTEGER NOT NULL
+		)`
 )
 
 type SQLiteBootstrap struct {
@@ -117,6 +130,12 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 	if _, err := db.Exec(changelogDDL); err != nil {
 		return fmt.Errorf("ensure changelog schema: %w", err)
+	}
+	if _, err := db.Exec(pairingTokensDDL); err != nil {
+		return fmt.Errorf("ensure pairing_tokens schema: %w", err)
+	}
+	if _, err := db.Exec(devicesDDL); err != nil {
+		return fmt.Errorf("ensure devices schema: %w", err)
 	}
 
 	return nil
