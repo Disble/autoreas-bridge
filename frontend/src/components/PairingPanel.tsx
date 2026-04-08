@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import QRCodeLib from 'react-qr-code';
+const QRCode = typeof QRCodeLib === 'function' ? QRCodeLib : (QRCodeLib as any).QRCode;
+import { Card, Button, Chip } from '@heroui/react';
 import { GetEffectiveAddress, GetPairingToken } from '../../wailsjs/go/main/App';
 
 export function PairingPanel() {
     const [address, setAddress] = useState('');
-    const [token, setToken] = useState('…');
+    const [token, setToken] = useState('');
     const [copied, setCopied] = useState(false);
 
     const ip = address ? address.split(':')[0] : '';
@@ -17,7 +20,7 @@ export function PairingPanel() {
     }, []);
 
     function copyToken() {
-        if (!token || token === '…') return;
+        if (!token) return;
         navigator.clipboard.writeText(token).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
@@ -25,26 +28,51 @@ export function PairingPanel() {
     }
 
     return (
-        <section>
-            <h2>Pair a Device</h2>
-            <div>
-                <strong>LAN IP:</strong>{' '}
-                <span id="lan-ip">{ip || '—'}</span>
-                {port && <span> :{port}</span>}
-            </div>
-            {qrValue && (
-                <div style={{ margin: '1rem auto', display: 'inline-block', background: 'white', padding: '0.5rem' }}>
-                    <QRCode value={qrValue} size={160} id="pairing-qr" />
+        <Card>
+            <Card.Header>
+                <Card.Title>Pair a Device</Card.Title>
+                <Card.Description>
+                    Scan the QR code from Autoreas Mobile or enter the token manually
+                </Card.Description>
+            </Card.Header>
+            <Card.Content className="flex flex-col gap-4">
+                {/* Network info */}
+                <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted">LAN</span>
+                    <Chip variant="secondary" size="sm" color="default">
+                        <Chip.Label id="lan-ip">
+                            {ip ? `${ip}:${port}` : '—'}
+                        </Chip.Label>
+                    </Chip>
                 </div>
-            )}
-            <div>
-                <strong>Token:</strong>{' '}
-                <span id="pairing-token" style={{ fontFamily: 'monospace' }}>{token}</span>
-                {' '}
-                <button type="button" onClick={copyToken}>
-                    {copied ? 'Copied!' : 'Copy'}
-                </button>
-            </div>
-        </section>
+
+                {/* QR Code */}
+                {qrValue && (
+                    <div className="flex justify-center">
+                        <div className="rounded-xl bg-white p-3">
+                            <QRCode value={qrValue} size={160} id="pairing-qr" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Token */}
+                <div className="flex items-center gap-2">
+                    <code
+                        id="pairing-token"
+                        className="flex-1 rounded-lg bg-surface-secondary px-3 py-2 text-sm text-foreground"
+                    >
+                        {token || '—'}
+                    </code>
+                    <Button
+                        variant={copied ? 'secondary' : 'outline'}
+                        size="sm"
+                        onPress={copyToken}
+                        isDisabled={!token}
+                    >
+                        {copied ? 'Copied!' : 'Copy'}
+                    </Button>
+                </div>
+            </Card.Content>
+        </Card>
     );
 }
