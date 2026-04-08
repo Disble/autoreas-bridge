@@ -362,9 +362,9 @@ flowchart TD
 
 ### 4.8 Descubrimiento de dispositivos
 
-**Principal: mDNS.** El bridge se registra como servicio `_autoreas-bridge._tcp.local`. La tablet lo descubre automáticamente.
+**Principal: IP local + QR/Token.** El bridge expone su IP/puerto efectivo y un QR para que la tablet se conecte sin depender de discovery multicast.
 
-**Fallback (post-MVP): IP manual.**
+**mDNS: despriorizado / best-effort futuro.** Puede explorarse más adelante como mejora de conveniencia, pero deja de ser requisito del flujo principal porque la experiencia mobile real mostró mejor confiabilidad con IP explícita.
 
 ### 4.9 Seguridad
 
@@ -471,7 +471,7 @@ stateDiagram-v2
 | Corrupción de `animes.dat` por escritura concurrente | Muy baja | Alto | Check de actividad reciente + abort en colisión + backup antes de cada escritura |
 | Parser de NeDB no cubre edge cases | Baja | Medio | Usar el archivo real de producción (~800 registros) como suite de tests desde el día uno |
 | Wails v2 → v3 migración futura | Media | Medio | v2 tiene mantenimiento activo (última release: marzo 2026). Migración sería incremental |
-| mDNS bloqueado por firewall de Windows | Media | Bajo | Documentar configuración necesaria. Fallback IP manual en post-MVP |
+| mDNS bloqueado por firewall de Windows | Media | Bajo | Riesgo aceptado porque el flujo principal usa IP local + QR/Token; mDNS queda como mejora opcional futura |
 | Relojes desincronizados entre PC y tablet | Baja | Medio | Usar timestamps relativos al último sync, no absolutos |
 
 ### 5.2 Costes

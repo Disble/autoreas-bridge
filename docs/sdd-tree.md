@@ -71,8 +71,8 @@
 - **Criterio de Éxito:** Si llega un Mock Tablet mandando un JSON `{"nrocapvisto": 12}` a un anime de `totalcap: 12`, el Handler intercepta y muta al Backend un Struct de Mutación donde se envía `estado: 1`. Un JSON `{"nrocapvisto": 10.5}` es aceptado si cumple validaciones. Relojes de 2030 Tablet son silenciados y descartados para el uso de Timestamp Server-Side de Go.
 
 ### SDD-11: WebSocket Hub y Re-Sync Obligatorio (Micro-Desconexiones)
-- **Spec:** Iniciar el servicio mDNS (`_autoreas-bridge._tcp.local`). Si tira error (bloqueado por Defender), hacer un `logger.Warn` pero **NO crashear**. Broadcastear eventos a los WS conectados. **Obligación del cliente:** Por protocolo, cuando el WS conecta (sea primera vez o re-conexión de 5 segundos), el Bridge asume que el cliente tiene "Gap" (eventos perdidos) e informa al cliente que DEBE disparar un `POST /api/sync/reconcile` REST inmediato antes de confiar en los eventos nuevos.
-- **Criterio de Éxito:** Forzar ocupación del puerto 5353, la app debe levantar el HTTP/WS sin morir. El websocket reconecta correctamente tras ser cortado.
+- **Spec:** Priorizar descubrimiento explícito por **IP Local + QR/Token** para pairing y conexión desde mobile. Broadcastear eventos a los WS conectados. **Obligación del cliente:** Por protocolo, cuando el WS conecta (sea primera vez o re-conexión de 5 segundos), el Bridge asume que el cliente tiene "Gap" (eventos perdidos) e informa al cliente que DEBE disparar un `POST /api/sync/reconcile` REST inmediato antes de confiar en los eventos nuevos. **mDNS deja de ser parte crítica del slice** y pasa a quedar despriorizado como mejora best-effort/futura; si existe exploración técnica, debe ser opcional y jamás bloquear la conexión principal basada en IP/QR.
+- **Criterio de Éxito:** El bridge expone la IP/puerto efectivo para pairing por QR o ingreso manual, el websocket reconecta correctamente tras ser cortado y el cliente recibe la instrucción de re-sync obligatorio al reconectar. La ausencia de mDNS NO bloquea el flujo principal.
 
 ---
 
@@ -87,5 +87,5 @@
 - **Criterio de Éxito:** El binario inicia oculto/en el tray y responde a los clics.
 
 ### SDD-14: Frontend MVP (React)
-- **Spec:** Bloquear las versiones en `package.json`. Configurar ESLint. Armar componentes de UI consumiendo la API de `window.go.*`. La pantalla de emparejamiento debe mostrar explícitamente la **IP Local Cruda (ej. 192.168.1.5)** además del QR/Token, como Fallback visual obligado si Android falla al resolver mDNS.
+- **Spec:** Bloquear las versiones en `package.json`. Configurar ESLint. Armar componentes de UI consumiendo la API de `window.go.*`. La pantalla de emparejamiento debe mostrar explícitamente la **IP Local Cruda (ej. 192.168.1.5)** junto al **QR/Token** como mecanismo principal de conexión para mobile. mDNS, si existiera más adelante, será complementario y no requisito de uso.
 - **Criterio de Éxito:** La UI compila limpia, muestra el estado interno de SQLite y la IP cruda de red al abrir la ventana.

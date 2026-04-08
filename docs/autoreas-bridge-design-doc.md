@@ -217,9 +217,9 @@ Modelo inspirado en Syncthing. Principio: nunca se pierde data silenciosamente.
 
 ### 4.8 Descubrimiento de dispositivos
 
-**Principal: mDNS.** El bridge se registra como servicio `_autoreas-bridge._tcp.local`. La tablet lo descubre automáticamente.
+**Principal: IP local + QR/Token.** El bridge debe exponer la IP/puerto efectivo y un QR de conexión como mecanismo principal para mobile.
 
-**Fallback (post-MVP): IP manual.**
+**mDNS: despriorizado / best-effort futuro.** Puede evaluarse después como mejora de conveniencia, pero deja de ser parte crítica del flujo porque en mobile la estrategia explícita por IP resultó más robusta.
 
 ### 4.9 Seguridad
 
@@ -293,8 +293,8 @@ Ventana nativa de Wails con React. Vistas del MVP:
 1. Windows arranca → Bridge arranca (si configurado).
 2. Carga último estado conocido de `animes.dat`.
 3. Activa file watcher.
-4. Registra servicio mDNS.
-5. Inicia servidor HTTP.
+4. Resuelve y expone IP/puerto efectivo para pairing por QR/manual.
+5. Inicia servidor HTTP/WS.
 6. Si la tablet está en la red, reconciliación automática.
 7. Sync en tiempo real mientras estén conectados.
 8. Si la tablet desaparece, acumula cambios en changelog.
@@ -310,7 +310,7 @@ Ventana nativa de Wails con React. Vistas del MVP:
 | Corrupción de `animes.dat` por escritura concurrente | Muy baja | Alto | Check de actividad reciente + abort en colisión + backup antes de cada escritura |
 | Parser de NeDB no cubre edge cases | Baja | Medio | Usar el archivo real de producción (~800 registros) como suite de tests desde el día uno |
 | Wails v2 → v3 migración futura | Media | Medio | v2 tiene mantenimiento activo (última release: marzo 2026). Migración sería incremental |
-| mDNS bloqueado por firewall de Windows | Media | Bajo | Documentar configuración necesaria. Fallback IP manual en post-MVP |
+| mDNS bloqueado por firewall de Windows | Media | Bajo | Riesgo aceptado: el flujo principal usa IP local + QR/Token y no depende de multicast |
 | Relojes desincronizados entre PC y tablet | Baja | Medio | Usar timestamps relativos al último sync, no absolutos |
 
 ### 5.2 Costes
@@ -364,11 +364,11 @@ El desarrollo se organiza en fases con criterios de entrada y salida claros. Cad
 
 ### Fase 5 — Descubrimiento + pairing
 
-**Objetivo:** El bridge es descubrible en la red y autenticable.
+**Objetivo:** El bridge es conectable en la red y autenticable sin depender de discovery multicast.
 
-**Entregable:** mDNS anuncia el servicio. Generación de token de pairing. Autenticación por Bearer token en todos los endpoints.
+**Entregable:** Exposición de IP/puerto local y QR de pairing. Generación de token de pairing. Autenticación por Bearer token en todos los endpoints. mDNS queda opcional para una fase posterior.
 
-**Criterio de salida:** Un dispositivo en la misma red WiFi descubre el bridge por mDNS. Requests sin token son rechazados (401). Token generado permite acceso.
+**Criterio de salida:** Un dispositivo en la misma red WiFi puede conectarse usando IP local + QR/Token. Requests sin token son rechazados (401). Token generado permite acceso.
 
 ### Fase 6 — WebSocket + notificaciones en tiempo real
 

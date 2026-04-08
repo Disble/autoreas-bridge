@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 )
@@ -345,6 +346,46 @@ func TestAppStartupStartsHTTPServerWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
+	t.Parallel()
+
+	realtimeHub := &stubAppRealtimeHub{received: make(chan events.AnimeChangedEvent, 1)}
+	server := &stubAppHTTPServer{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newRealtimeHub:        func(context.Context) realtime.Hub { return realtimeHub },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.RealtimeHub != realtimeHub {
+				t.Fatal("expected realtime hub to be passed into http server config")
+			}
+			return server
+		},
+	}
+
+	app.startup(context.Background())
+	app.eventBus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"nombre":"Bleach"}`)})
+
+	select {
+	case event := <-realtimeHub.received:
+		if event.AnimeID != "anime-1" {
+			t.Fatalf("expected anime id %q, got %q", "anime-1", event.AnimeID)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected anime changed event to be forwarded to realtime hub")
+	}
+}
+
 func TestAppShutdownStopsHTTPServer(t *testing.T) {
 	t.Parallel()
 
@@ -384,6 +425,10 @@ type stubAppDeviceStore struct{}
 type stubAppHTTPServer struct {
 	started bool
 	stopped bool
+}
+
+type stubAppRealtimeHub struct {
+	received chan events.AnimeChangedEvent
 }
 
 type stubAppDeviceService struct{}
@@ -428,6 +473,24 @@ func (s *stubAppHTTPServer) Shutdown(context.Context) error {
 
 func (*stubAppHTTPServer) Addr() string {
 	return "127.0.0.1:0"
+}
+
+func (*stubAppHTTPServer) EffectiveAddress() string {
+	return "192.168.1.50:8080"
+}
+
+func (s *stubAppRealtimeHub) Register(context.Context, realtime.Client) error {
+	return nil
+}
+
+func (s *stubAppRealtimeHub) Unregister(string) {}
+
+func (s *stubAppRealtimeHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
+	s.received <- event
+}
+
+func (*stubAppRealtimeHub) Close() error {
+	return nil
 }
 
 type stubAppChangelogRecorder struct {

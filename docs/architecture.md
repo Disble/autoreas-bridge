@@ -26,8 +26,8 @@ El sistema se divide en **Bounded Contexts (Dominios)** fuertemente separados. N
    - **Mecanismo:** Desacoplado totalmente de `animes.dat`. Recibe los `AnimeChangedEvent` (incluso los retroactivos) y los anota en SQLite (`changelog`, `conflicts`). La base de datos del Bridge debe crearse obligatoriamente en `%APPDATA%\Autoreas\data\bridge.db` para evitar que el UAC (User Account Control) de Windows bloquee las escrituras si el usuario instala el binario en `C:\Program Files`. La conexión a SQLite debe configurarse con **Modo WAL (`PRAGMA journal_mode=WAL`) y Timeout (`busy_timeout=5000`)** de forma obligatoria; de lo contrario, las Go-Routines del Event Bus asíncrono causarán errores `database is locked (SQLITE_BUSY)` al insertar múltiples eventos a la vez. Para el progreso (`nrocapvisto`), siempre gana el mayor valor `MAX(local, remote)` sin importar el timestamp (evade "Stale Overwrites" de la app legacy con "Blind RAM"). Esa regla aplica sobre números fraccionales también.
 
 3. **`internal/device/` (Device/Auth Domain):**
-   - **Responsabilidad:** Gestionar el descubrimiento (mDNS), emparejamiento (Tokens de Pairing), lista de dispositivos de confianza, y conexiones en tiempo real (WebSockets).
-   - **Mecanismo:** Persiste dispositivos en SQLite. Si mDNS (puerto 5353) es bloqueado por Windows Defender, o si el cliente Android no tiene soporte NSD/multicast, levanta igual y expone la IP estática cruda (Fallback IP manual).
+   - **Responsabilidad:** Gestionar el emparejamiento (Tokens de Pairing), la exposición de dirección de conexión (**IP/puerto + QR**), la lista de dispositivos de confianza y las conexiones en tiempo real (WebSockets).
+   - **Mecanismo:** Persiste dispositivos en SQLite. La estrategia principal de conexión para mobile pasa a ser IP local explícita + QR/Token. mDNS queda despriorizado como capacidad opcional/best-effort futura: si alguna vez se habilita, jamás debe ser prerequisite ni punto único de falla para el flujo principal.
 
 4. **`internal/system/` (System Domain):**
    - **Responsabilidad:** Arrancar la app, registrar Auto-start en el OS, gestionar el System Tray y encapsular Wails.

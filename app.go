@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 )
@@ -31,6 +32,7 @@ type App struct {
 	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore) changelogRecorder
 	newDeviceStore          func(db *sql.DB) device.Store
 	newDeviceService        func(store device.Store) device.AuthService
+	newRealtimeHub          func(ctx context.Context) realtime.Hub
 	newHTTPServer           func(config api.Config) api.Server
 	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
@@ -39,6 +41,7 @@ type App struct {
 	animeRuntimeWatcher     anime.RuntimeWatcher
 	animeUpdateWriter       anime.UpdateWriter
 	syncChangelogRecorder   changelogRecorder
+	realtimeHub             realtime.Hub
 	httpServer              api.Server
 	tracerBulletRunner      tracerBulletRunner
 	catchUpContext          context.Context
@@ -85,6 +88,9 @@ func NewApp() *App {
 		},
 		newDeviceService: func(store device.Store) device.AuthService {
 			return device.NewService(store)
+		},
+		newRealtimeHub: func(ctx context.Context) realtime.Hub {
+			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{})
 		},
 		newHTTPServer: func(config api.Config) api.Server {
 			return api.NewServer(config)
@@ -149,6 +155,11 @@ func (a *App) startup(ctx context.Context) {
 	if a.newDeviceService == nil {
 		a.newDeviceService = func(store device.Store) device.AuthService {
 			return device.NewService(store)
+		}
+	}
+	if a.newRealtimeHub == nil {
+		a.newRealtimeHub = func(ctx context.Context) realtime.Hub {
+			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{})
 		}
 	}
 	if a.newHTTPServer == nil {
@@ -217,6 +228,16 @@ func (a *App) startup(ctx context.Context) {
 	a.syncChangelogRecorder.Start(catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
+	a.realtimeHub = a.newRealtimeHub(ctx)
+	if a.realtimeHub != nil {
+		a.eventBus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
+			changed, ok := event.(events.AnimeChangedEvent)
+			if !ok {
+				return
+			}
+			a.realtimeHub.BroadcastAnimeChanged(ctx, changed)
+		})
+	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	animeQuery := anime.NewQueryService(snapshotStore)
 	animeWrite := anime.NewWriteService(snapshotStore, a.eventBus)
@@ -226,6 +247,7 @@ func (a *App) startup(ctx context.Context) {
 		AnimeQuery:    animeQuery,
 		AnimeWrite:    animeWrite,
 		SyncTrigger:   syncTrigger,
+		RealtimeHub:   a.realtimeHub,
 	})
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
@@ -239,6 +261,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.httpServer != nil {
 		_ = a.httpServer.Shutdown(ctx)
+	}
+	if closer, ok := a.realtimeHub.(interface{ Close() error }); ok && closer != nil {
+		_ = closer.Close()
 	}
 	if a.syncChangelogRecorder != nil {
 		a.syncChangelogRecorder.Stop()

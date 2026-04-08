@@ -41,6 +41,12 @@ func NewHandler(config Config) http.Handler {
 	mux.HandleFunc("/api/animes", h.handleAnimes)
 	mux.HandleFunc("/api/animes/", h.handleAnimeByID)
 	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
+	if config.RealtimeHub != nil {
+		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
+			Authenticate: h.authenticateWebSocket,
+			Hub:          config.RealtimeHub,
+		}))
+	}
 	h.mux = mux
 	return h
 }
@@ -127,14 +133,12 @@ func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
-	value := strings.TrimSpace(r.Header.Get("Authorization"))
-	const prefix = "Bearer "
-	if !strings.HasPrefix(value, prefix) {
+	token, ok := extractBearerToken(r)
+	if !ok {
 		writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
 		return device.PairedDevice{}, false
 	}
 
-	token := strings.TrimSpace(strings.TrimPrefix(value, prefix))
 	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
 	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
@@ -142,6 +146,40 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.P
 	}
 
 	return paired, true
+}
+
+func (h *Handler) authenticateWebSocket(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
+	token, ok := extractBearerToken(r)
+	if !ok {
+		token = strings.TrimSpace(r.URL.Query().Get("token"))
+		if token == "" {
+			writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
+			return device.PairedDevice{}, false
+		}
+	}
+
+	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
+	if err != nil {
+		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+		return device.PairedDevice{}, false
+	}
+
+	return paired, true
+}
+
+func extractBearerToken(r *http.Request) (string, bool) {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	const prefix = "Bearer "
+	if !strings.HasPrefix(value, prefix) {
+		return "", false
+	}
+
+	token := strings.TrimSpace(strings.TrimPrefix(value, prefix))
+	if token == "" {
+		return "", false
+	}
+
+	return token, true
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter) {
