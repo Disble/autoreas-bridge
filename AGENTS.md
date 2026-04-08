@@ -15,7 +15,7 @@
 2. Before implementing, read the corresponding artifacts in `openspec/changes/<change>/`.
 3. Treat `openspec/specs/` and active change artifacts as the execution contract.
 4. Prefer incremental changes with verification after each meaningful step.
-5. **Auto-Pilot SDD**: The entire SDD workflow (explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive) MUST run completely automatically and proactively from start to finish. DO NOT stop for user confirmations, reviews, or to ask permission for the next step. Ignore simple reviews and "next step" confirmations aggressively to save the user time. Ask for user input ONLY on hard, unresolvable blockers. Execute the rest of the skills exactly as indicated but with ZERO user intervention.
+5. **Auto-Pilot SDD**: The entire SDD workflow (explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive) MUST run completely automatically and proactively from start to finish. DO NOT stop for user confirmations, reviews, or to ask permission for the next step. Ignore simple reviews and "next step" confirmations aggressively to save the user time. Ask for user input ONLY on hard, unresolvable blockers. If questions arise about preferences or past discussions, search engram memory FIRST; the answer is likely there. Do not interrupt the workflow unless absolutely necessary. Execute the rest of the skills exactly as indicated but with ZERO user intervention.
 
 ## Testing Rules
 
