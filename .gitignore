@@ -3,3 +3,5 @@ node_modules
 frontend/dist
 resources/autoreas-data/*.dat
 .atl/active-sdd-change
+frontend/package.json.md5
+resources/autoreas-bridge-full-icon.png
