@@ -1,6 +1,12 @@
 pre-commit:
   parallel: false
   jobs:
+    - name: frontend-lint
+      run: bun --cwd="frontend" run lint
+
+    - name: frontend-test
+      run: bun --cwd="frontend" run test
+
     - name: gofmt
       run: go run ./tools/checkgofmt
 
