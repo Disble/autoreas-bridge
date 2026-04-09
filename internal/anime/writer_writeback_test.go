@@ -15,6 +15,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 )
@@ -112,6 +113,61 @@ func TestPatchAnimeWaitsForDurableAppendBeforeReturning(t *testing.T) {
 	})
 }
 
+func TestSyncReconcileAppliesPendingOperationsToAnimeDataFile(t *testing.T) {
+	t.Parallel()
+
+	dataPath := filepath.Join(t.TempDir(), "animes.dat")
+	writeAnimeDataFileForPatchTest(t, dataPath, []string{
+		`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`,
+	})
+
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
+
+	bus := events.NewBus()
+	writerCtx, cancelWriter := context.WithCancel(context.Background())
+	defer cancelWriter()
+
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{
+		FilePath:         dataPath,
+		Bus:              bus,
+		Publisher:        bus,
+		Logger:           &testWarningLogger{},
+		SelfEchoRegistry: anime.NewSelfEchoRegistry(),
+	})
+	writer.StartAsync(writerCtx)
+	t.Cleanup(func() {
+		cancelWriter()
+		writer.Wait()
+	})
+
+	query := anime.NewQueryService(store)
+	writeService := anime.NewWriteService(store, writer)
+	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+
+	handler := api.NewHandler(api.Config{
+		DeviceService: durablePatchAuthService{},
+		AnimeQuery:    query,
+		AnimeWrite:    writeService,
+		SyncTrigger:   reconcileStubSyncService{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":664},"created_at":1710000000123}]}`))
+	req.Header.Set("Authorization", "Bearer good-token")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusAccepted, res.Code, res.Body.String())
+	}
+
+	assertAnimeDataLines(t, dataPath, []string{
+		`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`,
+		`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`,
+	})
+}
+
 type durablePatchAuthService struct{}
 
 func (durablePatchAuthService) PairDevice(context.Context, device.PairDeviceRequest) (device.PairedDevice, error) {
@@ -125,6 +181,20 @@ func (durablePatchAuthService) AuthenticateToken(context.Context, string) (devic
 type testWarningLogger struct{}
 
 func (testWarningLogger) Warnf(string, ...any) {}
+
+type reconcileStubSyncService struct{}
+
+func (reconcileStubSyncService) TriggerReconcile(context.Context) error { return nil }
+
+func (reconcileStubSyncService) ListChangesSince(context.Context, int64) ([]contracts.AnimeChange, int64, error) {
+	return []contracts.AnimeChange{}, 0, nil
+}
+
+func (reconcileStubSyncService) ListChangesAfterID(context.Context, int64) ([]contracts.AnimeChange, int64, error) {
+	return []contracts.AnimeChange{}, 0, nil
+}
+
+func (reconcileStubSyncService) LastChangedAt(context.Context) (*int64, error) { return nil, nil }
 
 func appendLineForTest(path string, payload []byte) error {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)

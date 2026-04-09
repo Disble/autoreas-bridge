@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSQLiteBootstrapResolveBridgeDBPathCreatesAutoreasDataDir(t *testing.T) {
@@ -144,6 +145,70 @@ func TestBootstrapBridgeDBReturnsPathInErrorContext(t *testing.T) {
 	}
 }
 
+func TestOpenBridgeDBMigratesLegacyChangelogSchema(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE changelog (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			anime_id TEXT NOT NULL,
+			payload_json TEXT,
+			status TEXT NOT NULL
+		);
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("create legacy changelog schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO changelog (anime_id, payload_json, status)
+		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664}', 'pending');
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("insert legacy changelog row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with migration: %v", err)
+	}
+	defer db.Close()
+
+	columns := readTableColumns(t, db, "changelog")
+	for _, required := range []string{"change_type", "changed_fields_json", "snapshot_json", "changed_at_ms"} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected migrated changelog schema to contain column %q, got %#v", required, columns)
+		}
+	}
+
+	var animeID, changeType, changedFieldsJSON, snapshotJSON, status string
+	var changedAtMs int64
+	if err := db.QueryRow(`SELECT anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms FROM changelog LIMIT 1`).Scan(
+		&animeID, &changeType, &changedFieldsJSON, &snapshotJSON, &status, &changedAtMs,
+	); err != nil {
+		t.Fatalf("query migrated changelog row: %v", err)
+	}
+	if animeID != "anime-1" {
+		t.Fatalf("expected anime_id anime-1, got %q", animeID)
+	}
+	if changeType == "" || snapshotJSON == "" || changedFieldsJSON == "" || changedAtMs <= 0 {
+		t.Fatalf("expected migrated row to populate derived fields, got changeType=%q changedFields=%q snapshot=%q changedAtMs=%d", changeType, changedFieldsJSON, snapshotJSON, changedAtMs)
+	}
+	if status != "pending" {
+		t.Fatalf("expected status pending, got %q", status)
+	}
+	if changedAtMs > time.Now().UnixMilli() {
+		t.Fatalf("expected changed_at_ms to be realistic, got %d", changedAtMs)
+	}
+}
+
 func assertDirectoryExists(t *testing.T, path string) {
 	t.Helper()
 
@@ -206,4 +271,39 @@ func tableExists(t *testing.T, db *sql.DB, tableName string) bool {
 	}
 
 	return got == tableName
+}
+
+func readTableColumns(t *testing.T, db *sql.DB, tableName string) []string {
+	t.Helper()
+	rows, err := db.Query(`PRAGMA table_info(` + tableName + `)`)
+	if err != nil {
+		t.Fatalf("pragma table_info(%s): %v", tableName, err)
+	}
+	defer rows.Close()
+	columns := []string{}
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			t.Fatalf("scan pragma table_info(%s): %v", tableName, err)
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate pragma table_info(%s): %v", tableName, err)
+	}
+	return columns
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

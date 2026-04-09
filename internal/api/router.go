@@ -28,17 +28,35 @@ func NewHandler(config Config) http.Handler {
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
 			return config.AnimeQuery.GetEffectiveAnime(ctx, id)
 		},
-		PatchAnime: func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
-			return config.AnimeWrite.PatchAnime(ctx, id, patch)
-		},
 		IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
 	})
-	h.syncReconcile = apiHandlers.NewSyncHandler(apiHandlers.SyncHandlerConfig{
-		Authenticate: h.authenticate,
-		TriggerReconcile: func(ctx context.Context) error {
+	if config.AnimeWrite != nil {
+		h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
+			Authenticate: h.authenticate,
+			QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
+				return config.AnimeQuery.GetEffectiveAnime(ctx, id)
+			},
+			PatchAnime: func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
+				return config.AnimeWrite.PatchAnime(ctx, id, patch)
+			},
+			IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
+		})
+	}
+	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
+	if config.AnimeWrite != nil {
+		syncConfig.ApplyPendingPatch = func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
+			return config.AnimeWrite.PatchAnime(ctx, id, patch)
+		}
+	}
+	if config.SyncTrigger != nil {
+		syncConfig.TriggerReconcile = func(ctx context.Context) error {
 			return config.SyncTrigger.TriggerReconcile(ctx)
-		},
-	})
+		}
+		syncConfig.ListChangesAfterID = func(ctx context.Context, lastID int64) ([]apiHandlers.AnimeChange, int64, error) {
+			return config.SyncTrigger.ListChangesAfterID(ctx, lastID)
+		}
+	}
+	h.syncReconcile = apiHandlers.NewSyncHandler(syncConfig)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
 	mux.HandleFunc("/api/devices", h.handleDevices)
@@ -50,10 +68,27 @@ func NewHandler(config Config) http.Handler {
 	mux.HandleFunc("/api/conflicts/", h.handleConflictByID)
 	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
 	if config.RealtimeHub != nil {
-		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
+		wsConfig := apiHandlers.WebSocketHandlerConfig{
 			Authenticate: h.authenticateWebSocket,
 			Hub:          config.RealtimeHub,
 			Logger:       config.Logger,
+		}
+		if config.AnimeWrite != nil {
+			wsConfig.ApplyPendingPatch = func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
+				return config.AnimeWrite.PatchAnime(ctx, id, patch)
+			}
+		}
+		if config.SyncTrigger != nil {
+			wsConfig.TriggerReconcile = func(ctx context.Context) error {
+				return config.SyncTrigger.TriggerReconcile(ctx)
+			}
+		}
+		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
+			Authenticate:      wsConfig.Authenticate,
+			ApplyPendingPatch: wsConfig.ApplyPendingPatch,
+			TriggerReconcile:  wsConfig.TriggerReconcile,
+			Hub:               wsConfig.Hub,
+			Logger:            wsConfig.Logger,
 		}))
 	}
 	h.mux = mux

@@ -205,7 +205,7 @@ func TestPatchAnimeHandlerAllowsInactiveAnime(t *testing.T) {
 	}
 }
 
-func TestPatchAnimeHandlerSilentlyDiscardsClientTimestamp(t *testing.T) {
+func TestPatchAnimeHandlerAcceptsClientTimestampMillis(t *testing.T) {
 	t.Parallel()
 
 	stubs := newAnimeHandlerStubs()
@@ -217,7 +217,7 @@ func TestPatchAnimeHandlerSilentlyDiscardsClientTimestamp(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1,"fechaUltCapVisto":{"$$date":1893456000000}}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1,"fechaUltCapVisto":1893456000000}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -234,8 +234,37 @@ func TestPatchAnimeHandlerSilentlyDiscardsClientTimestamp(t *testing.T) {
 		t.Fatalf("expected nrocapvisto 1, got %#v", stubs.patchedPatch.NroCapVisto)
 	}
 
+	if stubs.patchedPatch.FechaUltCapVisto == nil || *stubs.patchedPatch.FechaUltCapVisto != 1893456000000 {
+		t.Fatalf("expected fechaUltCapVisto 1893456000000, got %#v", stubs.patchedPatch.FechaUltCapVisto)
+	}
+
 	if stubs.patchedPatch.Estado != nil {
 		t.Fatalf("expected estado to remain unset, got %#v", stubs.patchedPatch.Estado)
+	}
+}
+
+func TestPatchAnimeHandlerRejectsExtendedJsonTimestampObject(t *testing.T) {
+	t.Parallel()
+
+	stubs := newAnimeHandlerStubs()
+	stubs.effectiveAnime = &EffectiveAnime{ID: "anime-1"}
+	handler := NewPatchAnimeHandler(PatchAnimeConfig{
+		Authenticate: stubs.authenticate(true),
+		QueryAnime:   stubs.queryAnime,
+		PatchAnime:   stubs.patchAnime,
+		IsNotFound:   func(error) bool { return false },
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1,"fechaUltCapVisto":{"$$date":1893456000000}}`))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusBadRequest, res.Code, res.Body.String())
+	}
+	if stubs.patchCalls != 0 {
+		t.Fatalf("expected write service not to be called, got %d calls", stubs.patchCalls)
 	}
 }
 

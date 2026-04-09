@@ -2,9 +2,11 @@ package sync
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -142,8 +144,8 @@ func initializeBridgeDB(db *sql.DB) error {
 	if _, err := db.Exec(animeSnapshotsDDL); err != nil {
 		return fmt.Errorf("ensure anime_snapshots schema: %w", err)
 	}
-	if _, err := db.Exec(changelogDDL); err != nil {
-		return fmt.Errorf("ensure changelog schema: %w", err)
+	if err := ensureChangelogSchema(db); err != nil {
+		return err
 	}
 	if _, err := db.Exec(conflictsDDL); err != nil {
 		return fmt.Errorf("ensure conflicts schema: %w", err)
@@ -156,6 +158,185 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func ensureChangelogSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "changelog")
+	if err != nil {
+		return fmt.Errorf("inspect changelog schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(changelogDDL); err != nil {
+			return fmt.Errorf("ensure changelog schema: %w", err)
+		}
+		return nil
+	}
+	if isCurrentChangelogSchema(columns) {
+		return nil
+	}
+	if isLegacyPayloadOnlyChangelogSchema(columns) {
+		if err := migrateLegacyChangelogSchema(db); err != nil {
+			return fmt.Errorf("migrate legacy changelog schema: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported changelog schema columns: %v", columns)
+}
+
+func tableColumns(db *sql.DB, tableName string) ([]string, error) {
+	rows, err := db.Query(`PRAGMA table_info(` + tableName + `)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	columns := []string{}
+	for rows.Next() {
+		var cid int
+		var name string
+		var columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return nil, err
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return columns, nil
+}
+
+func isCurrentChangelogSchema(columns []string) bool {
+	required := map[string]bool{
+		"id":                  false,
+		"anime_id":            false,
+		"change_type":         false,
+		"changed_fields_json": false,
+		"snapshot_json":       false,
+		"status":              false,
+		"changed_at_ms":       false,
+	}
+	for _, column := range columns {
+		if _, ok := required[column]; ok {
+			required[column] = true
+		}
+	}
+	for _, present := range required {
+		if !present {
+			return false
+		}
+	}
+	return true
+}
+
+func isLegacyPayloadOnlyChangelogSchema(columns []string) bool {
+	if len(columns) != 4 {
+		return false
+	}
+	legacy := map[string]bool{"id": false, "anime_id": false, "payload_json": false, "status": false}
+	for _, column := range columns {
+		if _, ok := legacy[column]; !ok {
+			return false
+		}
+		legacy[column] = true
+	}
+	for _, present := range legacy {
+		if !present {
+			return false
+		}
+	}
+	return true
+}
+
+func migrateLegacyChangelogSchema(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, err = tx.Exec(`ALTER TABLE changelog RENAME TO changelog_legacy`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(changelogDDL); err != nil {
+		return err
+	}
+
+	rows, err := tx.Query(`SELECT id, anime_id, payload_json, status FROM changelog_legacy ORDER BY id ASC`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	nowMs := time.Now().UnixMilli()
+	for rows.Next() {
+		var id int64
+		var animeID string
+		var payload sql.NullString
+		var status string
+		if err = rows.Scan(&id, &animeID, &payload, &status); err != nil {
+			return err
+		}
+		snapshotJSON := ""
+		changedFieldsJSON := "[]"
+		changeType := "update"
+		if payload.Valid && payload.String != "" {
+			snapshotJSON = payload.String
+			changedFieldsJSON = deriveChangedFieldsJSONFromLegacyPayload(payload.String)
+		}
+		changedAtMs := nowMs + id
+		if _, err = tx.Exec(`
+			INSERT INTO changelog (id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, id, animeID, changeType, changedFieldsJSON, snapshotJSON, status, changedAtMs); err != nil {
+			return err
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(`DROP TABLE changelog_legacy`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`DELETE FROM sqlite_sequence WHERE name = 'changelog'`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`INSERT INTO sqlite_sequence(name, seq) SELECT 'changelog', COALESCE(MAX(id), 0) FROM changelog`); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func deriveChangedFieldsJSONFromLegacyPayload(payload string) string {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(payload), &raw); err != nil {
+		return `[]`
+	}
+	fields := make([]string, 0, len(raw))
+	for key := range raw {
+		switch key {
+		case "_id":
+			continue
+		default:
+			fields = append(fields, key)
+		}
+	}
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		return `[]`
+	}
+	return string(encoded)
 }
 
 func applyBridgePragmas(db *sql.DB) error {

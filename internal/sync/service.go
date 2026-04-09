@@ -88,6 +88,7 @@ func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, e
 	changes := make([]contracts.AnimeChange, 0, len(entries))
 	var lastID int64
 	for _, entry := range entries {
+		lastID = entry.ID
 		change := contracts.AnimeChange{
 			ID:            entry.ID,
 			RecordID:      entry.AnimeID,
@@ -98,12 +99,11 @@ func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, e
 		if len(entry.SnapshotJSON) > 0 {
 			snapshot, err := animeSnapshotToContract(entry.SnapshotJSON)
 			if err != nil {
-				return nil, 0, err
+				continue
 			}
 			change.Snapshot = snapshot
 		}
 		changes = append(changes, change)
-		lastID = entry.ID
 	}
 	return changes, lastID, nil
 }

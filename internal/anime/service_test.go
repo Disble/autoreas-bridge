@@ -230,6 +230,32 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	}
 }
 
+func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewWriteService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(1710000000999).UTC() })
+
+	clientTs := int64(1710000000123)
+	patch := api.AnimePatch{NroCapVisto: floatPtr(664), FechaUltCapVisto: &clientTs}
+	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+		t.Fatalf("patch anime: %v", err)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+
+	stampedAt := raw.FechaUltCapVisto.Time()
+	if stampedAt == nil || stampedAt.UnixMilli() != clientTs {
+		t.Fatalf("expected client fechaUltCapVisto %d, got %v", clientTs, stampedAt)
+	}
+}
+
 func TestWriteServicePatchAnimeReturnsWriterError(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
@@ -242,6 +268,43 @@ func TestWriteServicePatchAnimeReturnsWriterError(t *testing.T) {
 	err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(3)})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected writer error %v, got %v", wantErr, err)
+	}
+}
+
+func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12,"dias":[{"dia":"Lunes","orden":1}]}`)
+
+	writer := &capturingAnimeWriter{}
+	service := anime.NewWriteService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+
+	if err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(5)}); err != nil {
+		t.Fatalf("first patch anime: %v", err)
+	}
+	if len(writer.payloads) != 1 {
+		t.Fatalf("expected 1 payload after first write, got %d", len(writer.payloads))
+	}
+	updateAnimeSnapshot(t, store, "anime-1", writer.payloads[0])
+
+	if err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{Dias: []string{"Martes", "Miercoles"}}); err != nil {
+		t.Fatalf("second patch anime: %v", err)
+	}
+	if len(writer.payloads) != 2 {
+		t.Fatalf("expected 2 payloads after second write, got %d", len(writer.payloads))
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payloads[1], &raw); err != nil {
+		t.Fatalf("unmarshal second writer payload: %v", err)
+	}
+	if raw.NroCapVisto != 5 {
+		t.Fatalf("expected second write to preserve nrocapvisto 5, got %v", raw.NroCapVisto)
+	}
+	wantDias := []string{"Martes", "Miercoles"}
+	if !reflect.DeepEqual(raw.DiasStrings(), wantDias) {
+		t.Fatalf("expected dias %#v, got %#v", wantDias, raw.DiasStrings())
 	}
 }
 
@@ -290,4 +353,30 @@ func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payloa
 	s.animeID = animeID
 	s.payload = append([]byte(nil), payload...)
 	return s.err
+}
+
+type capturingAnimeWriter struct {
+	payloads [][]byte
+	err      error
+}
+
+func (w *capturingAnimeWriter) RequestWrite(_ context.Context, _ string, payload []byte) error {
+	w.payloads = append(w.payloads, append([]byte(nil), payload...))
+	return w.err
+}
+
+func updateAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload []byte) {
+	t.Helper()
+	records, err := store.ListSnapshots(context.Background())
+	if err != nil {
+		t.Fatalf("list snapshots: %v", err)
+	}
+	records[animeID] = anime.SnapshotRecord{
+		AnimeID:       animeID,
+		CanonicalJSON: append([]byte(nil), payload...),
+		Hash:          anime.HashSnapshot(payload),
+	}
+	if err := store.ReplaceBaseline(context.Background(), records, nil); err != nil {
+		t.Fatalf("replace snapshot baseline: %v", err)
+	}
 }

@@ -2,21 +2,25 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"autoreas-bridge/internal/api/contracts"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 	"github.com/gorilla/websocket"
 )
 
 type WebSocketHandlerConfig struct {
-	Authenticate AuthenticateFunc
-	Hub          realtime.Hub
-	Logger       sharedlogger.Logger
+	Authenticate      AuthenticateFunc
+	ApplyPendingPatch PatchAnimeFunc
+	TriggerReconcile  TriggerReconcileFunc
+	Hub               realtime.Hub
+	Logger            sharedlogger.Logger
 }
 
 var websocketClientSequence uint64
@@ -56,11 +60,49 @@ func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
 		defer config.Hub.Unregister(client.ID())
 
 		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
+			_, payload, err := conn.ReadMessage()
+			if err != nil {
 				return
+			}
+			if err := handleIncomingWebSocketMessage(r.Context(), payload, config); err != nil && config.Logger != nil {
+				config.Logger.Warnf("websocket incoming message failed for %s: %v", device.DeviceID, err)
 			}
 		}
 	})
+}
+
+type incomingWebSocketMessage struct {
+	Type string `json:"type"`
+	contracts.ReconcileRequest
+}
+
+func handleIncomingWebSocketMessage(ctx context.Context, payload []byte, config WebSocketHandlerConfig) error {
+	var message incomingWebSocketMessage
+	if err := json.Unmarshal(payload, &message); err != nil {
+		return nil
+	}
+
+	if !isIncomingReconcileMessage(message) {
+		return nil
+	}
+
+	if _, err := applyPendingOperations(ctx, message.PendingOperations, config.ApplyPendingPatch); err != nil {
+		return err
+	}
+	if config.TriggerReconcile != nil {
+		return config.TriggerReconcile(ctx)
+	}
+	return nil
+}
+
+func isIncomingReconcileMessage(message incomingWebSocketMessage) bool {
+	if len(message.PendingOperations) == 0 {
+		return message.Type == "reconcile"
+	}
+	if message.Type == "" {
+		return true
+	}
+	return message.Type == "reconcile"
 }
 
 type webSocketClient struct {

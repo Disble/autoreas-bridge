@@ -15,6 +15,10 @@ type snapshotLookup interface {
 	ListSnapshots(ctx context.Context) (map[string]SnapshotRecord, error)
 }
 
+type snapshotBaselineReplacer interface {
+	ReplaceBaseline(ctx context.Context, current map[string]SnapshotRecord, pruneIDs []string) error
+}
+
 type QueryService struct {
 	store snapshotLookup
 }
@@ -125,11 +129,15 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 		raw.SetEstado(*patch.Estado)
 	}
 
-	now := s.now
-	if now == nil {
-		now = time.Now
+	if patch.FechaUltCapVisto != nil {
+		raw.FechaUltCapVisto = domain.NewLegacyDateFieldFromUnixMilli(*patch.FechaUltCapVisto)
+	} else {
+		now := s.now
+		if now == nil {
+			now = time.Now
+		}
+		raw.StampServerTimestamp(now())
 	}
-	raw.StampServerTimestamp(now())
 
 	payload, err := raw.MarshalJSON()
 	if err != nil {
@@ -140,7 +148,37 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 		return fmt.Errorf("anime writer is required")
 	}
 
-	return s.writer.RequestWrite(ctx, id, payload)
+	if err := s.writer.RequestWrite(ctx, id, payload); err != nil {
+		return err
+	}
+
+	if err := s.updateConfirmedSnapshot(ctx, id, payload); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *WriteService) updateConfirmedSnapshot(ctx context.Context, id string, payload []byte) error {
+	replacer, ok := s.store.(snapshotBaselineReplacer)
+	if !ok {
+		return nil
+	}
+
+	records, err := s.store.ListSnapshots(ctx)
+	if err != nil {
+		return fmt.Errorf("list snapshots after confirmed write %q: %w", id, err)
+	}
+	records[id] = SnapshotRecord{
+		AnimeID:       id,
+		CanonicalJSON: append([]byte(nil), payload...),
+		Hash:          HashSnapshot(payload),
+	}
+	if err := replacer.ReplaceBaseline(ctx, records, nil); err != nil {
+		return fmt.Errorf("replace confirmed snapshot %q: %w", id, err)
+	}
+
+	return nil
 }
 
 var _ contracts.AnimeQueryService = (*QueryService)(nil)

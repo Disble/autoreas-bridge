@@ -56,10 +56,18 @@ type PendingOperation struct {
 	CreatedAt int64          `json:"created_at"`
 }
 
+type AppliedOperation struct {
+	AnimeID   string `json:"anime_id"`
+	Operation string `json:"operation"`
+	Applied   bool   `json:"applied"`
+}
+
 type ReconcileResponse struct {
-	Status        string        `json:"status"`
-	BridgeChanges []AnimeChange `json:"bridge_changes"`
-	Conflicts     []any         `json:"conflicts"`
+	Status            string             `json:"status"`
+	LastChangelogID   int64              `json:"last_changelog_id"`
+	AppliedOperations []AppliedOperation `json:"applied_operations"`
+	BridgeChanges     []AnimeChange      `json:"bridge_changes"`
+	Conflicts         []any              `json:"conflicts"`
 }
 
 type DeviceInfo struct {
@@ -85,9 +93,10 @@ type StatusInfo struct {
 var ErrAnimeNotFound = errors.New("anime not found")
 
 type AnimePatch struct {
-	Estado      *int     `json:"estado,omitempty"`
-	NroCapVisto *float64 `json:"nrocapvisto,omitempty"`
-	Dias        []string `json:"dias,omitempty"`
+	Estado           *int     `json:"estado,omitempty"`
+	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
+	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
+	Dias             []string `json:"dias,omitempty"`
 }
 
 type EffectiveAnime struct {

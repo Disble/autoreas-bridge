@@ -13,10 +13,11 @@
 - Must use `$ref` components for reusable schemas, specifically:
   - `ErrorResponse`
   - `BearerAuth` security scheme
-- All request bodies, path parameters, and response schemas must be accurate per the verified API contracts:
+  - All request bodies, path parameters, response schemas, and websocket notes must be accurate per the verified API contracts:
   - **POST /api/devices/pair**: No auth. Requires `pairing_token` (string) and `device_name` (string) in body. Returns 201 (`{device_id, device_name, auth_token}`), 400, 401, 500. Unknown body fields must be rejected (400).
   - **PATCH /api/animes/{id}**: Bearer auth required. Path param `id` (string). Optional body fields: `estado` (integer 0-3), `nrocapvisto` (number >= 0), `dias` (array of strings). Unknown fields are silently ignored. Returns 200 (`{status: "ok"}`), 400, 401, 404, 500.
-  - **POST /api/sync/reconcile**: Bearer auth required. No request body. Returns 202 (`{status: "accepted"}`), 401, 500.
+  - **POST /api/sync/reconcile**: Bearer auth required. Optional reconcile-compatible request body with `device_id`, `last_changelog_id`, and `pending_operations`. Returns 202 (`{status: "accepted", bridge_changes, conflicts}`), 400, 401, 500.
+  - **/ws informational note**: Must document `sync_required` and anime change broadcasts. It should also note the compatibility inbound reconcile message shape if the runtime supports it.
 
 ### REQ-2: `checkopenapi` CLI tool
 - Must be located at `tools/checkopenapi/main.go`.

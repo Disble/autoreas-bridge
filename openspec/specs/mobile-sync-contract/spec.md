@@ -84,14 +84,26 @@ The system MUST accept an authenticated `POST /api/sync/reconcile` request body 
 - WHEN the client sends `POST /api/sync/reconcile` with `device_id`, `last_changelog_id`, and `pending_operations`
 - THEN the system returns 202 Accepted or 200 OK
 - AND the response includes `status`
+- AND the response includes `last_changelog_id`
+- AND the response includes `applied_operations`
 - AND the response includes `bridge_changes`
 - AND the response includes `conflicts`
 
-#### Scenario: Pending operations are not re-executed here
-- GIVEN the bridge still uses `PATCH /api/animes/:id` as the mutation path
-- WHEN the client sends `pending_operations` inside reconcile
-- THEN the system does not apply them as writes inside reconcile
+#### Scenario: Pending update operations are applied compatibly during reconcile
+- GIVEN the bridge still exposes `PATCH /api/animes/:id` as the canonical write path
+- AND the client sends `pending_operations` with update-compatible payloads inside reconcile
+- WHEN the bridge processes the reconcile request
+- THEN the system applies those updates through the same validation and write rules used by `PATCH /api/animes/:id`
+- AND the system appends the resulting merged snapshot to legacy `animes.dat`
+- AND the response marks those operations as applied in `applied_operations`
 - AND the response still returns bridge-side changes successfully
+
+#### Scenario: Unsupported pending operations are ignored during reconcile
+- GIVEN a reconcile request contains pending operations the bridge does not yet support server-side
+- WHEN the system processes the request
+- THEN unsupported operation types are ignored
+- AND the response marks those operations as `applied=false` in `applied_operations`
+- AND supported update-compatible operations are still applied
 
 ### Requirement: WebSocket Event Coverage
 
@@ -116,6 +128,13 @@ The system MUST emit realtime events that let the mobile client react to updates
 - GIVEN a connected authenticated WebSocket client
 - WHEN the handshake completes
 - THEN the client receives `{"type":"sync_required"}`
+
+#### Scenario: WebSocket reconcile compatibility message is accepted
+- GIVEN a connected authenticated WebSocket client
+- AND the client sends a reconcile-compatible message carrying `pending_operations`
+- WHEN those operations are update-compatible
+- THEN the system applies them through the same validation and write path used by REST reconcile
+- AND the bridge emits `anime_changed` after the write is accepted
 
 ### Requirement: GET /api/status Bridge Diagnostics
 

@@ -17,6 +17,9 @@ x-websocket:
     WebSocket endpoint for real-time anime change events.
     Authentication: Bearer token via Authorization header OR ?token= query param.
     On connect, server sends: {"type":"sync_required","reason":"connection_gap_assumed"}
+    Compatibility inbound message:
+      - {"type":"reconcile","device_id":"<id>","last_changelog_id":0,"pending_operations":[...]}
+        Update-compatible pending operations are applied through the same validation and durable write path used by PATCH /api/animes/{id}.
     Broadcasts:
       - {"type":"anime_changed","anime_id":"<id>","payload":<object>}
       - {"type":"anime_created","anime_id":"<id>"}
@@ -153,6 +156,17 @@ components:
         timestamp:
           type: integer
 
+    AppliedOperation:
+      type: object
+      required: [anime_id, operation, applied]
+      properties:
+        anime_id:
+          type: string
+        operation:
+          type: string
+        applied:
+          type: boolean
+
     DeviceInfo:
       type: object
       required: [device_id, device_name, paired_at_ms]
@@ -214,10 +228,16 @@ components:
 
     ReconcileResponse:
       type: object
-      required: [status, bridge_changes, conflicts]
+      required: [status, last_changelog_id, applied_operations, bridge_changes, conflicts]
       properties:
         status:
           type: string
+        last_changelog_id:
+          type: integer
+        applied_operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppliedOperation'
         bridge_changes:
           type: array
           items:
@@ -602,6 +622,11 @@ paths:
   /api/sync/reconcile:
     post:
       summary: Trigger sync reconciliation and fetch bridge changes
+      description: |
+        Accepts a reconcile-compatible body and returns bridge-side changelog entries newer than `last_changelog_id`.
+        For compatibility with mobile/offline sync flows, update-compatible `pending_operations` are applied server-side
+        using the same validation and durable write rules as `PATCH /api/animes/{id}` before bridge changes are returned.
+        Unsupported operation types are ignored.
       security:
         - BearerAuth: []
       requestBody:
@@ -618,7 +643,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReconcileResponse'
         '400':
-          description: Invalid request body
+          description: Invalid request body or invalid pending operation payload
           content:
             application/json:
               schema:

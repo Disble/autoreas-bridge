@@ -528,6 +528,10 @@ func (r *LegacyAnimeRaw) StampServerTimestamp(at time.Time) {
 	r.FechaUltCapVisto = newLegacyDateField(at)
 }
 
+func NewLegacyDateFieldFromUnixMilli(value int64) LegacyDateField {
+	return newLegacyDateField(time.UnixMilli(value).UTC())
+}
+
 func (r *LegacyAnimeRaw) ensureExtraFields() map[string]json.RawMessage {
 	if r.extraFields == nil {
 		r.extraFields = make(map[string]json.RawMessage)

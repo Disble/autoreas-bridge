@@ -88,6 +88,14 @@ func decodeAnimePatch(r *http.Request) (AnimePatch, error) {
 		patch.NroCapVisto = &nroCapVisto
 	}
 
+	if rawFechaUltCapVisto, ok := payload["fechaUltCapVisto"]; ok {
+		var fechaUltCapVisto int64
+		if err := json.Unmarshal(rawFechaUltCapVisto, &fechaUltCapVisto); err != nil || fechaUltCapVisto < 0 {
+			return AnimePatch{}, errors.New("invalid fechaUltCapVisto")
+		}
+		patch.FechaUltCapVisto = &fechaUltCapVisto
+	}
+
 	if rawDias, ok := payload["dias"]; ok {
 		var dias []string
 		if err := json.Unmarshal(rawDias, &dias); err != nil {
