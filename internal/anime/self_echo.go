@@ -8,6 +8,7 @@ import (
 
 type SelfEchoRegistry interface {
 	Remember(payload []byte)
+	Forget(payload []byte)
 	ConsumeIfPresent(payload []byte) bool
 }
 
@@ -29,6 +30,24 @@ func (r *md5SelfEchoRegistry) Remember(payload []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.counts[key]++
+}
+
+func (r *md5SelfEchoRegistry) Forget(payload []byte) {
+	if len(payload) == 0 {
+		return
+	}
+
+	key := md5Payload(payload)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	count := r.counts[key]
+	if count <= 1 {
+		delete(r.counts, key)
+		return
+	}
+
+	r.counts[key] = count - 1
 }
 
 func (r *md5SelfEchoRegistry) ConsumeIfPresent(payload []byte) bool {

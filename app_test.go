@@ -722,6 +722,10 @@ func (s *stubAppUpdateWriter) Err() error {
 	return nil
 }
 
+func (s *stubAppUpdateWriter) RequestWrite(context.Context, string, []byte) error {
+	return nil
+}
+
 func (s *stubAppChangelogRecorder) Start(context.Context) {
 	s.started = true
 }

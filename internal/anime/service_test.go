@@ -13,7 +13,6 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -171,16 +170,8 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true,"pagina":"netflix"}`)
 
-	bus := events.NewBus()
-	published := make(chan events.AnimeUpdateRequestedEvent, 1)
-	bus.Subscribe(events.EventNameAnimeUpdateRequested, func(event events.Event) {
-		update, ok := event.(events.AnimeUpdateRequestedEvent)
-		if ok {
-			published <- update
-		}
-	})
-
-	service := anime.NewWriteService(store, bus)
+	writer := &stubAnimeWriter{}
+	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(10.5)}
@@ -188,35 +179,30 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 		t.Fatalf("patch anime: %v", err)
 	}
 
-	select {
-	case update := <-published:
-		if update.AnimeID != "anime-1" {
-			t.Fatalf("expected anime id %q, got %q", "anime-1", update.AnimeID)
-		}
+	if writer.animeID != "anime-1" {
+		t.Fatalf("expected anime id %q, got %q", "anime-1", writer.animeID)
+	}
 
-		var raw domain.LegacyAnimeRaw
-		if err := json.Unmarshal(update.Payload, &raw); err != nil {
-			t.Fatalf("unmarshal published payload: %v", err)
-		}
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
 
-		if raw.Nombre != "Cowboy Bebop" {
-			t.Fatalf("expected nombre to be preserved, got %q", raw.Nombre)
-		}
+	if raw.Nombre != "Cowboy Bebop" {
+		t.Fatalf("expected nombre to be preserved, got %q", raw.Nombre)
+	}
 
-		if raw.NroCapVisto != 10.5 {
-			t.Fatalf("expected nrocapvisto 10.5, got %v", raw.NroCapVisto)
-		}
+	if raw.NroCapVisto != 10.5 {
+		t.Fatalf("expected nrocapvisto 10.5, got %v", raw.NroCapVisto)
+	}
 
-		if raw.EstadoValue() == nil || *raw.EstadoValue() != 2 {
-			t.Fatalf("expected estado 2 to be preserved, got %#v", raw.EstadoValue())
-		}
+	if raw.EstadoValue() == nil || *raw.EstadoValue() != 2 {
+		t.Fatalf("expected estado 2 to be preserved, got %#v", raw.EstadoValue())
+	}
 
-		stampedAt := raw.FechaUltCapVisto.Time()
-		if stampedAt == nil || stampedAt.UnixMilli() != 1710000000123 {
-			t.Fatalf("expected stamped timestamp 1710000000123, got %v", stampedAt)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected AnimeUpdateRequestedEvent to be published")
+	stampedAt := raw.FechaUltCapVisto.Time()
+	if stampedAt == nil || stampedAt.UnixMilli() != 1710000000123 {
+		t.Fatalf("expected stamped timestamp 1710000000123, got %v", stampedAt)
 	}
 }
 
@@ -225,16 +211,8 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":11,"estado":2,"totalcap":12}`)
 
-	bus := events.NewBus()
-	published := make(chan events.AnimeUpdateRequestedEvent, 1)
-	bus.Subscribe(events.EventNameAnimeUpdateRequested, func(event events.Event) {
-		update, ok := event.(events.AnimeUpdateRequestedEvent)
-		if ok {
-			published <- update
-		}
-	})
-
-	service := anime.NewWriteService(store, bus)
+	writer := &stubAnimeWriter{}
+	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000456).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(12)}
@@ -242,18 +220,28 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 		t.Fatalf("patch anime: %v", err)
 	}
 
-	select {
-	case update := <-published:
-		var raw domain.LegacyAnimeRaw
-		if err := json.Unmarshal(update.Payload, &raw); err != nil {
-			t.Fatalf("unmarshal published payload: %v", err)
-		}
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
 
-		if raw.EstadoValue() == nil || *raw.EstadoValue() != 1 {
-			t.Fatalf("expected forced estado 1, got %#v", raw.EstadoValue())
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected AnimeUpdateRequestedEvent to be published")
+	if raw.EstadoValue() == nil || *raw.EstadoValue() != 1 {
+		t.Fatalf("expected forced estado 1, got %#v", raw.EstadoValue())
+	}
+}
+
+func TestWriteServicePatchAnimeReturnsWriterError(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2}`)
+
+	wantErr := errors.New("append failed")
+	writer := &stubAnimeWriter{err: wantErr}
+	service := anime.NewWriteService(store, writer)
+
+	err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(3)})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected writer error %v, got %v", wantErr, err)
 	}
 }
 
@@ -290,4 +278,16 @@ func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, anime
 
 func floatPtr(value float64) *float64 {
 	return &value
+}
+
+type stubAnimeWriter struct {
+	animeID string
+	payload []byte
+	err     error
+}
+
+func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payload []byte) error {
+	s.animeID = animeID
+	s.payload = append([]byte(nil), payload...)
+	return s.err
 }

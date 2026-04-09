@@ -8,7 +8,6 @@ import (
 
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 )
 
 type snapshotLookup interface {
@@ -20,18 +19,22 @@ type QueryService struct {
 	store snapshotLookup
 }
 
+type AnimeWriter interface {
+	RequestWrite(ctx context.Context, animeID string, payload []byte) error
+}
+
 type WriteService struct {
-	store snapshotLookup
-	bus   events.Bus
-	now   func() time.Time
+	store  snapshotLookup
+	writer AnimeWriter
+	now    func() time.Time
 }
 
 func NewQueryService(store snapshotLookup) *QueryService {
 	return &QueryService{store: store}
 }
 
-func NewWriteService(store snapshotLookup, bus events.Bus) *WriteService {
-	return &WriteService{store: store, bus: bus, now: time.Now}
+func NewWriteService(store snapshotLookup, writer AnimeWriter) *WriteService {
+	return &WriteService{store: store, writer: writer, now: time.Now}
 }
 
 func (s *WriteService) SetNow(now func() time.Time) {
@@ -133,8 +136,11 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 		return fmt.Errorf("marshal merged anime %q: %w", id, err)
 	}
 
-	s.bus.Publish(events.AnimeUpdateRequestedEvent{AnimeID: id, Payload: payload})
-	return nil
+	if s.writer == nil {
+		return fmt.Errorf("anime writer is required")
+	}
+
+	return s.writer.RequestWrite(ctx, id, payload)
 }
 
 var _ contracts.AnimeQueryService = (*QueryService)(nil)

@@ -289,7 +289,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	animeQuery := anime.NewQueryService(snapshotStore)
-	animeWrite := anime.NewWriteService(snapshotStore, a.eventBus)
+	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {

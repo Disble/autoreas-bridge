@@ -1,0 +1,204 @@
+package anime_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/events"
+)
+
+func TestPatchAnimeWaitsForDurableAppendBeforeReturning(t *testing.T) {
+	t.Parallel()
+
+	dataPath := filepath.Join(t.TempDir(), "animes.dat")
+	writeAnimeDataFileForPatchTest(t, dataPath, []string{
+		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`,
+	})
+
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`)
+
+	bus := events.NewBus()
+	appendStarted := make(chan struct{}, 1)
+	releaseAppend := make(chan struct{})
+	writerCtx, cancelWriter := context.WithCancel(context.Background())
+	defer func() {
+		cancelWriter()
+	}()
+
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{
+		FilePath:         dataPath,
+		Bus:              bus,
+		Publisher:        bus,
+		Logger:           &testWarningLogger{},
+		SelfEchoRegistry: anime.NewSelfEchoRegistry(),
+		AppendLine: func(path string, payload []byte) error {
+			appendStarted <- struct{}{}
+			<-releaseAppend
+			return appendLineForTest(path, payload)
+		},
+	})
+	writer.StartAsync(writerCtx)
+	t.Cleanup(func() {
+		cancelWriter()
+		writer.Wait()
+	})
+
+	query := anime.NewQueryService(store)
+	writeService := anime.NewWriteService(store, writer)
+	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+
+	handler := api.NewHandler(api.Config{
+		DeviceService: durablePatchAuthService{},
+		AnimeQuery:    query,
+		AnimeWrite:    writeService,
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":10.5}`))
+	req.Header.Set("Authorization", "Bearer good-token")
+	res := httptest.NewRecorder()
+	requestDone := make(chan struct{})
+
+	go func() {
+		defer close(requestDone)
+		handler.ServeHTTP(res, req)
+	}()
+
+	select {
+	case <-appendStarted:
+	case <-time.After(2 * time.Second):
+		close(releaseAppend)
+		t.Fatal("expected writer append to start")
+	}
+
+	select {
+	case <-requestDone:
+		close(releaseAppend)
+		t.Fatal("expected PATCH response to wait for durable append")
+	default:
+	}
+
+	assertAnimeDataLines(t, dataPath, []string{
+		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`,
+	})
+
+	close(releaseAppend)
+
+	select {
+	case <-requestDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected PATCH request to complete after durable append")
+	}
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, res.Code, res.Body.String())
+	}
+
+	assertAnimeDataLines(t, dataPath, []string{
+		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`,
+		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":10.5,"estado":2,"totalcap":26,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`,
+	})
+}
+
+type durablePatchAuthService struct{}
+
+func (durablePatchAuthService) PairDevice(context.Context, device.PairDeviceRequest) (device.PairedDevice, error) {
+	return device.PairedDevice{}, nil
+}
+
+func (durablePatchAuthService) AuthenticateToken(context.Context, string) (device.PairedDevice, error) {
+	return device.PairedDevice{DeviceID: "device-1", Name: "Tablet", AuthToken: "good-token"}, nil
+}
+
+type testWarningLogger struct{}
+
+func (testWarningLogger) Warnf(string, ...any) {}
+
+func appendLineForTest(path string, payload []byte) error {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	normalized := bytes.TrimRight(payload, "\r\n")
+	if _, err := file.Write(normalized); err != nil {
+		return err
+	}
+	if _, err := file.Write([]byte("\n")); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func assertAnimeDataLines(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read anime data file: %v", err)
+	}
+
+	got := splitAnimeDataLines(string(contents))
+	if len(got) != len(want) {
+		t.Fatalf("expected %d lines, got %d (%v)", len(want), len(got), got)
+	}
+
+	for i := range want {
+		if !jsonLineEqual(t, got[i], want[i]) {
+			t.Fatalf("expected line %d to be %s, got %s", i, want[i], got[i])
+		}
+	}
+}
+
+func splitAnimeDataLines(contents string) []string {
+	lines := strings.Split(strings.ReplaceAll(contents, "\r\n", "\n"), "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	return filtered
+}
+
+func writeAnimeDataFileForPatchTest(t *testing.T, filePath string, lines []string) {
+	t.Helper()
+	contents := []byte("")
+	for _, line := range lines {
+		contents = append(contents, []byte(line+"\n")...)
+	}
+	if err := os.WriteFile(filePath, contents, 0o600); err != nil {
+		t.Fatalf("write anime data file: %v", err)
+	}
+}
+
+func jsonLineEqual(t *testing.T, got string, want string) bool {
+	t.Helper()
+
+	var gotValue any
+	if err := json.Unmarshal([]byte(got), &gotValue); err != nil {
+		t.Fatalf("unmarshal got line: %v", err)
+	}
+
+	var wantValue any
+	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
+		t.Fatalf("unmarshal want line: %v", err)
+	}
+
+	return reflect.DeepEqual(gotValue, wantValue)
+}

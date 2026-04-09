@@ -14,6 +14,13 @@ type UpdateWriter interface {
 	StartAsync(ctx context.Context)
 	Wait()
 	Err() error
+	RequestWrite(ctx context.Context, animeID string, payload []byte) error
+}
+
+type writeRequest struct {
+	animeID string
+	payload []byte
+	result  chan<- error
 }
 
 type UpdateWriterConfig struct {
@@ -38,7 +45,7 @@ type updateWriter struct {
 	startOnce sync.Once
 	wg        sync.WaitGroup
 
-	queue       chan events.AnimeUpdateRequestedEvent
+	queue       chan writeRequest
 	unsubscribe func()
 
 	mu  sync.Mutex
@@ -65,7 +72,7 @@ func NewUpdateWriter(config UpdateWriterConfig) UpdateWriter {
 	if writer.appendLine == nil {
 		writer.appendLine = defaultAppendLine
 	}
-	writer.queue = make(chan events.AnimeUpdateRequestedEvent, writer.queueSize)
+	writer.queue = make(chan writeRequest, writer.queueSize)
 
 	return writer
 }
@@ -83,10 +90,15 @@ func (w *updateWriter) StartAsync(ctx context.Context) {
 				return
 			}
 
+			request := writeRequest{
+				animeID: update.AnimeID,
+				payload: append([]byte(nil), update.Payload...),
+			}
+
 			select {
 			case <-ctx.Done():
 				return
-			case w.queue <- update:
+			case w.queue <- request:
 			}
 		})
 
@@ -108,6 +120,28 @@ func (w *updateWriter) Err() error {
 	return w.err
 }
 
+func (w *updateWriter) RequestWrite(ctx context.Context, animeID string, payload []byte) error {
+	result := make(chan error, 1)
+	request := writeRequest{
+		animeID: animeID,
+		payload: append([]byte(nil), payload...),
+		result:  result,
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case w.queue <- request:
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-result:
+		return err
+	}
+}
+
 func (w *updateWriter) run(ctx context.Context) {
 	defer func() {
 		if w.unsubscribe != nil {
@@ -119,31 +153,44 @@ func (w *updateWriter) run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case update := <-w.queue:
-			w.processUpdate(update)
+		case request := <-w.queue:
+			w.processUpdate(request)
 		}
 	}
 }
 
-func (w *updateWriter) processUpdate(update events.AnimeUpdateRequestedEvent) {
-	if err := w.appendLine(w.filePath, update.Payload); err != nil {
-		wrapped := fmt.Errorf("append anime update for %q: %w", update.AnimeID, err)
+func (w *updateWriter) processUpdate(request writeRequest) {
+	var err error
+	if w.selfEchoRegistry != nil {
+		w.selfEchoRegistry.Remember(request.payload)
+	}
+
+	if appendErr := w.appendLine(w.filePath, request.payload); appendErr != nil {
+		if w.selfEchoRegistry != nil {
+			w.selfEchoRegistry.Forget(request.payload)
+		}
+		wrapped := fmt.Errorf("append anime update for %q at %q: %w", request.animeID, w.filePath, appendErr)
+		if w.publisher != nil {
+			w.publisher.Publish(events.AnimeWriteFailedEvent{
+				AnimeID: request.animeID,
+				Path:    w.filePath,
+				Err:     wrapped.Error(),
+			})
+		}
 		if w.logger != nil {
 			w.logger.Warnf("%v", wrapped)
 		}
 		w.setErr(wrapped)
-		return
-	}
-
-	if w.selfEchoRegistry != nil {
-		w.selfEchoRegistry.Remember(update.Payload)
-	}
-
-	if w.publisher != nil {
+		err = wrapped
+	} else if w.publisher != nil {
 		w.publisher.Publish(events.AnimeChangedEvent{
-			AnimeID: update.AnimeID,
-			Payload: append([]byte(nil), update.Payload...),
+			AnimeID: request.animeID,
+			Payload: append([]byte(nil), request.payload...),
 		})
+	}
+
+	if request.result != nil {
+		request.result <- err
 	}
 }
 

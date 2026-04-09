@@ -173,3 +173,60 @@ func TestUpdateWriterStoresTerminalErrorWhenAppendFails(t *testing.T) {
 	cancel()
 	writer.Wait()
 }
+
+func TestUpdateWriterRequestWriteReturnsAppendErrorAndPublishesFailureEvent(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("disk full")
+	bus := events.NewBus()
+	publisher := &recordingPublisher{}
+	logger := &recordingWarningLogger{}
+	writer := NewUpdateWriter(UpdateWriterConfig{
+		FilePath:         "data/animes.dat",
+		Bus:              bus,
+		Publisher:        publisher,
+		Logger:           logger,
+		SelfEchoRegistry: NewSelfEchoRegistry(),
+		AppendLine: func(string, []byte) error {
+			return wantErr
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	writer.StartAsync(ctx)
+
+	err := writer.RequestWrite(ctx, "anime-1", []byte(`{"_id":"anime-1"}`))
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected request write error %v, got %v", wantErr, err)
+	}
+
+	eventsList := publisher.events()
+	if len(eventsList) != 1 {
+		t.Fatalf("expected 1 failure event, got %d", len(eventsList))
+	}
+
+	failed, ok := eventsList[0].(events.AnimeWriteFailedEvent)
+	if !ok {
+		t.Fatalf("expected AnimeWriteFailedEvent, got %T", eventsList[0])
+	}
+
+	if failed.AnimeID != "anime-1" {
+		t.Fatalf("expected anime id %q, got %q", "anime-1", failed.AnimeID)
+	}
+
+	if failed.Path != "data/animes.dat" {
+		t.Fatalf("expected path %q, got %q", "data/animes.dat", failed.Path)
+	}
+
+	if failed.Err == "" {
+		t.Fatal("expected failure event to include error message")
+	}
+
+	if len(logger.messages()) == 0 {
+		t.Fatal("expected append failure to be logged")
+	}
+
+	cancel()
+	writer.Wait()
+}
