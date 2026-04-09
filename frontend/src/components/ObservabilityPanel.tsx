@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, Chip, ScrollShadow, Separator as Divider } from '@heroui/react';
+import { Card, Chip, ScrollShadow, Separator } from '@heroui/react';
 import { GetRecentLogs } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 
@@ -52,9 +52,7 @@ export function ObservabilityPanel() {
     }, []);
 
     useEffect(() => {
-        if (entries.length === 0) {
-            return;
-        }
+        if (entries.length === 0) return;
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
@@ -63,31 +61,42 @@ export function ObservabilityPanel() {
     const renderedEntries = keepRecent(entries);
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Observability</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <ScrollShadow className="max-h-80" ref={scrollRef}>
-                    {renderedEntries.length === 0 ? (
-                        <Chip color="default" variant="flat">No logs yet</Chip>
-                    ) : (
-                        renderedEntries.map((entry, index) => (
-                            <Card key={`${entry.timestamp}-${entry.domain}-${index}`} className="mb-2">
-                                <CardContent className="gap-2 p-3">
-                                    <Chip color="default" variant="flat">{entry.timestamp}</Chip>
-                                    <Chip color="default" variant="bordered">{entry.domain}</Chip>
-                                    {entry.level ? (
-                                        <Chip color={levelColor(entry.level)} variant="flat">{entry.level}</Chip>
-                                    ) : null}
-                                    <Chip color="default" variant="solid">{entry.message}</Chip>
-                                    {index < renderedEntries.length - 1 ? <Divider /> : null}
-                                </CardContent>
-                            </Card>
-                        ))
-                    )}
+        <Card className="w-full">
+            <Card.Header>
+                <Card.Title>Observability</Card.Title>
+                <Card.Description>Bridge runtime log feed</Card.Description>
+            </Card.Header>
+            <Card.Content className="p-0">
+                <ScrollShadow className="max-h-80 px-4 pb-4" hideScrollBar>
+                    <div ref={scrollRef} className="flex flex-col gap-2 overflow-y-auto max-h-80">
+                        {renderedEntries.length === 0 ? (
+                            <div className="py-4 text-center">
+                                <Chip color="default" variant="soft">No logs yet</Chip>
+                            </div>
+                        ) : (
+                            renderedEntries.map((entry, index) => (
+                                <div key={`${entry.timestamp}-${entry.domain}-${index}`}>
+                                    <div className="flex flex-wrap items-center gap-2 py-1">
+                                        <Chip color="default" variant="tertiary" size="sm">
+                                            {entry.timestamp}
+                                        </Chip>
+                                        <Chip color="default" variant="secondary" size="sm">
+                                            {entry.domain}
+                                        </Chip>
+                                        {entry.level ? (
+                                            <Chip color={levelColor(entry.level)} variant="soft" size="sm">
+                                                {entry.level}
+                                            </Chip>
+                                        ) : null}
+                                        <span className="text-sm text-foreground">{entry.message}</span>
+                                    </div>
+                                    {index < renderedEntries.length - 1 ? <Separator /> : null}
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </ScrollShadow>
-            </CardContent>
+            </Card.Content>
         </Card>
     );
 }
