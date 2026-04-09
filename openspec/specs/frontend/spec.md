@@ -12,9 +12,9 @@ The frontend package configuration MUST use exact version pinning for dependenci
 
 #### Scenario: ESLint Execution
 - GIVEN the frontend project has ESLint configured
-- WHEN the developer runs `npm run lint`
+- WHEN the developer runs `bun run lint`
 - THEN the execution MUST pass cleanly with no errors
-- AND `npm run build` MUST succeed cleanly
+- AND `bun run build` MUST succeed cleanly
 
 ### Requirement: Bridge Status Panel
 

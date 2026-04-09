@@ -9,6 +9,21 @@
 - Current source of truth for sync: `animes.dat`
 - `pendientes.dat` is out of sync scope unless a future SDD change states otherwise
 
+## CRITICAL FRONTEND ARCHITECTURE CONSTRAINTS (DO NOT IGNORE)
+
+1. **Dumb UI Rule**: Files with `.tsx` extensions under `frontend/src/features/` MUST only render JSX using HeroUI React primitives and Tailwind classes. ZERO Wails calls, ZERO `useEffect`, and ZERO business/data transformation logic are allowed in those `.tsx` files.
+2. **Hook Anatomy Rule (10 Steps)**: Custom hooks (`use-*.ts`) in the frontend MUST follow this order: Imports -> Signature -> 1. Refs -> 2. State -> 3. Context/3rd Party Hooks -> 4. Queries/Mutations -> 5. Derived State (`useMemo`) -> 6. Callbacks (`useCallback` calling pure helpers) -> 7. Effects -> Return.
+3. **Strict Colocation**: Each complex frontend UI module must be an independent folder with `index.ts`, `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, optional `*.schema.ts`, and colocated `__tests__/`.
+   - **ESLint Enforcement**: You are FORBIDDEN from putting `interface`, `type`, root-level `const`, root-level helper functions, or inline Zod schemas in frontend feature `.tsx` or `use-*.ts` files.
+   - **Function Export Rule**: Frontend feature `.tsx` and `use-*.ts` files MUST export the main symbol as a named `function`, never a root-level `const` arrow function.
+4. **Delivery Layer Rule**: `frontend/src/App.tsx` and any future `frontend/src/app/**` files are composition only. They MUST NOT use React state/effect hooks, MUST NOT call Wails bindings directly, and MUST NOT contain business logic.
+5. **Readonly Props Rule**: Every property in any `*Props` interface inside frontend `*.types.ts` files MUST be declared as `readonly`.
+6. **Mandatory JSDoc on Helpers**: All exported functions in frontend `*.helpers.ts` MUST have a JSDoc block explaining what the function does and why.
+7. **TDD Mandate**: You are PROHIBITED from modifying or creating a frontend helper or hook without first creating or updating its corresponding test file in the colocated `__tests__/` directory.
+8. **The 500-Line Rule**: If any frontend `.ts` or `.tsx` file exceeds 500 lines, refactor it immediately.
+9. **Reference Feature**: If in doubt, use `frontend/src/features/dashboard` as the frontend source-of-truth structure once introduced.
+10. **Scaffolding Generators**: NEVER create complex frontend feature folders manually when a generator can do it. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
+
 ## Mandatory Workflow
 
 1. Read `docs/sdd-tree.md` and follow the change order unless the user explicitly reprioritizes.
@@ -29,7 +44,7 @@
 ## Pre-commit Gate
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
-- The gate is intentionally **complete**, not partial: formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
+- The gate is intentionally **complete**, not partial: frontend lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
 - Repo-owned validators live in `tools/checkgofmt` and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
 - An active change MUST have `proposal.md`, `design.md`, `tasks.md`, at least one `spec.md`, and a `verify-report.md` whose verdict is `PASS` or `PASS WITH WARNINGS`.

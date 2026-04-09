@@ -69,3 +69,16 @@ La documentación del proyecto no es estática, es viva:
 - **Documento de Arquitectura:** (Este documento) Reglas de diseño y topología post-simulación.
 - **SDD Tree:** Plan maestro de Specs y Tasks accionables y granulares para agentes workers.
 - **Living Specs:** Notas empíricas descubiertas fase a fase en `/docs/adr/`.
+
+---
+
+## 5. Frontend React/Wails — Rails de Arquitectura
+
+El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
+
+- `frontend/src/App.tsx` y cualquier futuro `frontend/src/app/**` son capa de entrega/composición solamente.
+- Los módulos complejos de UI deben vivir bajo `frontend/src/features/` con colocation estricta (`index.ts`, `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, opcional `*.schema.ts`, y `__tests__/`).
+- Los `.tsx` de `frontend/src/features/` son **dumb UI**: HeroUI React + Tailwind, sin Wails bindings, sin `useEffect`, sin lógica de negocio.
+- Los hooks (`use-*.ts`) concentran orquestación, efectos y acceso a bindings Wails siguiendo la anatomía estricta definida en `AGENTS.md`.
+- Los helpers exportados requieren JSDoc y las props en `*.types.ts` deben ser `readonly`.
+- Cuando haga falta scaffolding de una feature nueva, debe usarse `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` en vez de crear carpetas complejas manualmente.
