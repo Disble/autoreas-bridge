@@ -10,6 +10,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 )
 
@@ -34,6 +35,7 @@ type Config struct {
 	DeviceAdmin   DeviceAdminService
 	Conflicts     ConflictService
 	RealtimeHub   realtime.Hub
+	Logger        sharedlogger.Logger
 }
 
 type Server interface {
@@ -50,6 +52,7 @@ type HTTPServer struct {
 	listener             net.Listener
 	serveMu              sync.Mutex
 	resolveEffectiveHost func() (string, error)
+	logger               sharedlogger.Logger
 }
 
 func NewServer(config Config) Server {
@@ -63,6 +66,7 @@ func NewServer(config Config) Server {
 		addr:                 addr,
 		handler:              handler,
 		resolveEffectiveHost: resolveEffectiveHost,
+		logger:               config.Logger,
 	}
 }
 
@@ -82,6 +86,9 @@ func (s *HTTPServer) Start() error {
 	s.listener = listener
 	server := &http.Server{Handler: s.handler}
 	s.server = server
+	if s.logger != nil {
+		s.logger.Infof("api", "http server listening on %s", listener.Addr().String())
+	}
 
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {

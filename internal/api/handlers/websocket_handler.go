@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 	"github.com/gorilla/websocket"
 )
@@ -15,6 +16,7 @@ import (
 type WebSocketHandlerConfig struct {
 	Authenticate AuthenticateFunc
 	Hub          realtime.Hub
+	Logger       sharedlogger.Logger
 }
 
 var websocketClientSequence uint64
@@ -42,8 +44,14 @@ func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
 
 		client := newWebSocketClient(device.DeviceID, conn)
 		if err := config.Hub.Register(r.Context(), client); err != nil {
+			if config.Logger != nil {
+				config.Logger.Errorf("websocket", "failed to register websocket client for %s: %v", device.DeviceID, err)
+			}
 			_ = conn.Close()
 			return
+		}
+		if config.Logger != nil {
+			config.Logger.Infof("websocket", "registered websocket client for %s", device.DeviceID)
 		}
 		defer config.Hub.Unregister(client.ID())
 

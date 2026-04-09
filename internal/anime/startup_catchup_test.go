@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 func TestStartupCoordinatorStartsAsyncAndWaitsForGhostFile(t *testing.T) {
@@ -19,6 +20,7 @@ func TestStartupCoordinatorStartsAsyncAndWaitsForGhostFile(t *testing.T) {
 	parser := &stubSnapshotParser{}
 	store := &stubSnapshotStore{}
 	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	tickCh := make(chan time.Time, 2)
 	started := make(chan struct{}, 1)
 
@@ -28,6 +30,7 @@ func TestStartupCoordinatorStartsAsyncAndWaitsForGhostFile(t *testing.T) {
 		Store:        store,
 		Publisher:    &recordingPublisher{},
 		Logger:       logger,
+		SharedLogger: shared,
 		PollInterval: 5 * time.Second,
 		FileExists:   func(string) bool { return false },
 		OpenFile: func(string) (io.ReadCloser, error) {
@@ -60,6 +63,11 @@ func TestStartupCoordinatorStartsAsyncAndWaitsForGhostFile(t *testing.T) {
 		t.Fatal("expected waiting logger message for missing file")
 	}
 
+	entries := shared.entries()
+	if len(entries) == 0 || entries[0].Domain != "system" || entries[0].Level != sharedlogger.LevelWarn {
+		t.Fatalf("expected system warning entry for missing file, got %#v", entries)
+	}
+
 	cancel()
 	coordinator.Wait()
 	if err := coordinator.Err(); err != nil {
@@ -84,6 +92,7 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 	store := &stubSnapshotStore{existing: previous}
 	publisher := &recordingPublisher{}
 	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	tickCh := make(chan time.Time, 1)
 	fileExists := false
 
@@ -93,6 +102,7 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 		Store:        store,
 		Publisher:    publisher,
 		Logger:       logger,
+		SharedLogger: shared,
 		PollInterval: 5 * time.Second,
 		FileExists: func(string) bool {
 			return fileExists
@@ -144,6 +154,29 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 	if len(logger.messages()) == 0 {
 		t.Fatal("expected parser warnings to be logged")
 	}
+
+	entries := shared.entries()
+	if len(entries) == 0 {
+		t.Fatal("expected structured log entries to be recorded")
+	}
+
+	foundCatchupInfo := false
+	foundParseWarn := false
+	for _, entry := range entries {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && strings.Contains(entry.Message, "catch-up") {
+			foundCatchupInfo = true
+		}
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelWarn && strings.Contains(entry.Message, "warning parsing") {
+			foundParseWarn = true
+		}
+	}
+
+	if !foundCatchupInfo {
+		t.Fatalf("expected catch-up info log, got %#v", entries)
+	}
+	if !foundParseWarn {
+		t.Fatalf("expected parse warning log, got %#v", entries)
+	}
 }
 
 func TestStartupCoordinatorRespectsCancellationWhileWaiting(t *testing.T) {
@@ -155,6 +188,7 @@ func TestStartupCoordinatorRespectsCancellationWhileWaiting(t *testing.T) {
 		Store:         &stubSnapshotStore{},
 		Publisher:     &recordingPublisher{},
 		Logger:        &recordingWarningLogger{},
+		SharedLogger:  &recordingSharedLogger{},
 		PollInterval:  5 * time.Second,
 		FileExists:    func(string) bool { return false },
 		OpenFile:      func(string) (io.ReadCloser, error) { return nil, errors.New("should not open") },
@@ -274,6 +308,37 @@ func (l *recordingWarningLogger) messages() []string {
 	defer l.mu.Unlock()
 	out := make([]string, len(l.msgs))
 	copy(out, l.msgs)
+	return out
+}
+
+type recordingSharedLogger struct {
+	mu  sync.Mutex
+	log []sharedlogger.LogEntry
+}
+
+func (l *recordingSharedLogger) Infof(domain, format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.log = append(l.log, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelInfo, Message: fmt.Sprintf(format, args...)})
+}
+
+func (l *recordingSharedLogger) Warnf(domain, format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.log = append(l.log, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelWarn, Message: fmt.Sprintf(format, args...)})
+}
+
+func (l *recordingSharedLogger) Errorf(domain, format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.log = append(l.log, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError, Message: fmt.Sprintf(format, args...)})
+}
+
+func (l *recordingSharedLogger) entries() []sharedlogger.LogEntry {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := make([]sharedlogger.LogEntry, len(l.log))
+	copy(out, l.log)
 	return out
 }
 

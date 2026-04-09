@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -31,12 +32,15 @@ func TestRuntimeWatcherIgnoresUnrelatedFilesInParentDirectory(t *testing.T) {
 		},
 	}
 	publisher := &recordingPublisher{}
+	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	watcher := NewRuntimeWatcher(RuntimeWatcherConfig{
 		FilePath:       filepath.Join("data", "animes.dat"),
 		Parser:         parser,
 		Store:          store,
 		Publisher:      publisher,
-		Logger:         &recordingWarningLogger{},
+		Logger:         logger,
+		SharedLogger:   shared,
 		DebounceWindow: 50 * time.Millisecond,
 		RetryDelay:     10 * time.Millisecond,
 		OpenFile: func(string) (io.ReadCloser, error) {
@@ -82,12 +86,15 @@ func TestRuntimeWatcherCoalescesBurstEventsIntoSingleProcessingCycle(t *testing.
 		},
 	}
 	publisher := &recordingPublisher{}
+	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	watcher := NewRuntimeWatcher(RuntimeWatcherConfig{
 		FilePath:       filepath.Join("data", "animes.dat"),
 		Parser:         parser,
 		Store:          store,
 		Publisher:      publisher,
-		Logger:         &recordingWarningLogger{},
+		Logger:         logger,
+		SharedLogger:   shared,
 		DebounceWindow: 50 * time.Millisecond,
 		RetryDelay:     10 * time.Millisecond,
 		OpenFile: func(string) (io.ReadCloser, error) {
@@ -125,6 +132,17 @@ func TestRuntimeWatcherCoalescesBurstEventsIntoSingleProcessingCycle(t *testing.
 
 	assertPublishedAnimeChanged(t, publisher.events()[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
 
+	entries := shared.entries()
+	foundPublishedInfo := false
+	for _, entry := range entries {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo {
+			foundPublishedInfo = true
+		}
+	}
+	if !foundPublishedInfo {
+		t.Fatalf("expected anime info log for published deltas, got %#v", entries)
+	}
+
 	cancel()
 	watcher.Wait()
 }
@@ -146,6 +164,8 @@ func TestRuntimeWatcherRecreatesBackendAfterWatcherError(t *testing.T) {
 		},
 	}
 	publisher := &recordingPublisher{}
+	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	backends := []FileWatcher{firstBackend, secondBackend}
 	factoryCalls := 0
 	watcher := NewRuntimeWatcher(RuntimeWatcherConfig{
@@ -153,7 +173,8 @@ func TestRuntimeWatcherRecreatesBackendAfterWatcherError(t *testing.T) {
 		Parser:         parser,
 		Store:          store,
 		Publisher:      publisher,
-		Logger:         &recordingWarningLogger{},
+		Logger:         logger,
+		SharedLogger:   shared,
 		DebounceWindow: 50 * time.Millisecond,
 		RetryDelay:     10 * time.Millisecond,
 		OpenFile: func(string) (io.ReadCloser, error) {
@@ -190,6 +211,17 @@ func TestRuntimeWatcherRecreatesBackendAfterWatcherError(t *testing.T) {
 
 	if err := watcher.Err(); err != nil {
 		t.Fatalf("expected watcher to recover without terminal error, got %v", err)
+	}
+
+	entries := shared.entries()
+	foundRetryWarn := false
+	for _, entry := range entries {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelWarn {
+			foundRetryWarn = true
+		}
+	}
+	if !foundRetryWarn {
+		t.Fatalf("expected anime warning log for backend failure, got %#v", entries)
 	}
 
 	cancel()

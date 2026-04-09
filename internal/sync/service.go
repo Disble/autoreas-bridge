@@ -7,11 +7,13 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 type TriggerService struct {
 	bus   events.Bus
 	store changelogLookup
+	log   sharedlogger.Logger
 }
 
 type changelogLookup interface {
@@ -21,11 +23,18 @@ type changelogLookup interface {
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
 
-func NewTriggerService(bus events.Bus, store changelogLookup) *TriggerService {
-	return &TriggerService{bus: bus, store: store}
+func NewTriggerService(bus events.Bus, store changelogLookup, loggers ...sharedlogger.Logger) *TriggerService {
+	service := &TriggerService{bus: bus, store: store}
+	if len(loggers) > 0 {
+		service.log = loggers[0]
+	}
+	return service
 }
 
 func (s *TriggerService) TriggerReconcile(context.Context) error {
+	if s.log != nil {
+		s.log.Infof("sync", "triggered reconcile request")
+	}
 	s.bus.Publish(events.SyncRequestedEvent{Requester: "rest-api"})
 	return nil
 }

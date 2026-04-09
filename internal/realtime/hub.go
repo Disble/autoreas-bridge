@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 const defaultSendTimeout = 100 * time.Millisecond
@@ -28,6 +29,7 @@ type MemoryHubConfig struct {
 	BroadcastBuffer int
 	ClientBuffer    int
 	SendTimeout     time.Duration
+	Logger          sharedlogger.Logger
 }
 
 type MemoryHub struct {
@@ -40,6 +42,7 @@ type MemoryHub struct {
 	clientBuffer    int
 	sendTimeout     time.Duration
 	broadcastClosed chan struct{}
+	logger          sharedlogger.Logger
 }
 
 type clientState struct {
@@ -73,6 +76,7 @@ func NewMemoryHub(parent context.Context, config MemoryHubConfig) *MemoryHub {
 		clientBuffer:    config.ClientBuffer,
 		sendTimeout:     config.SendTimeout,
 		broadcastClosed: make(chan struct{}),
+		logger:          config.Logger,
 	}
 
 	go hub.run()
@@ -106,6 +110,9 @@ func (h *MemoryHub) Register(ctx context.Context, client Client) error {
 	h.mu.Unlock()
 
 	go h.runClient(state)
+	if h.logger != nil {
+		h.logger.Infof("websocket", "registered client %s", client.ID())
+	}
 	return h.enqueueClientMessage(state, mustJSON(ControlMessage{
 		Type:   MessageTypeSyncRequired,
 		Reason: SyncReasonConnectionGapAssumed,
@@ -121,11 +128,17 @@ func (h *MemoryHub) Unregister(clientID string) {
 	h.mu.Unlock()
 
 	if state != nil {
+		if h.logger != nil {
+			h.logger.Infof("websocket", "unregistered client %s", clientID)
+		}
 		h.unregisterState(state)
 	}
 }
 
 func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
+	if h.logger != nil {
+		h.logger.Infof("websocket", "broadcast anime.changed for %s", event.AnimeID)
+	}
 	message := buildAnimeEventMessage(event)
 
 	select {

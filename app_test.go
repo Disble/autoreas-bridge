@@ -14,6 +14,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -38,10 +39,12 @@ func TestAppStartupBootstrapsSQLite(t *testing.T) {
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 
 	ctx := context.Background()
@@ -80,10 +83,12 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 
 	app.startup(context.Background())
@@ -138,7 +143,7 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 			}
 			return &stubAppChangelogStore{}
 		},
-		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
+		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore, _ ...sharedlogger.Logger) changelogRecorder {
 			if bus == nil {
 				t.Fatal("expected changelog recorder to receive event bus")
 			}
@@ -205,7 +210,7 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		newChangelogStore: func(*sql.DB) changelogPendingStore {
 			return &stubAppChangelogStore{}
 		},
-		newChangelogRecorder: func(events.Bus, changelogPendingStore) changelogRecorder {
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
 			return recorder
 		},
 		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
@@ -214,7 +219,7 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 		newTracerBulletSink: func() tracerbullet.TraceSink {
 			return &stubTraceSink{}
 		},
-		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
+		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink, _ ...sharedlogger.Logger) tracerBulletRunner {
 			receivedBus = bus
 			receivedSink = sink
 			return runner
@@ -257,6 +262,70 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
+func TestAppGetRecentLogsReturnsEmptyWithoutMemLogger(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+	if got := app.GetRecentLogs(); len(got) != 0 {
+		t.Fatalf("expected empty recent logs, got %#v", got)
+	}
+}
+
+func TestAppGetRecentLogsReturnsMemLoggerEntries(t *testing.T) {
+	t.Parallel()
+
+	mem := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{Capacity: 2})
+	mem.Infof("anime", "booted")
+	app := &App{memLogger: mem}
+
+	got := app.GetRecentLogs()
+	if len(got) != 1 || got[0].Domain != "anime" || got[0].Message != "booted" {
+		t.Fatalf("unexpected recent logs: %#v", got)
+	}
+}
+
+func TestAppStartupEmitsObservabilityEventOnNewLogEntry(t *testing.T) {
+	t.Parallel()
+
+	var emittedName string
+	var emittedData any
+	server := &stubAppHTTPServer{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return server },
+		emitFn: func(_ context.Context, eventName string, optionalData ...interface{}) {
+			emittedName = eventName
+			if len(optionalData) > 0 {
+				emittedData = optionalData[0]
+			}
+		},
+	}
+
+	app.startup(context.Background())
+	app.sharedLogger.Infof("system", "hello logs")
+
+	if emittedName != observabilityEventName {
+		t.Fatalf("expected event %q, got %q", observabilityEventName, emittedName)
+	}
+	entry, ok := emittedData.(sharedlogger.LogEntry)
+	if !ok || entry.Domain != "system" || entry.Message != "hello logs" {
+		t.Fatalf("unexpected emitted payload: %#v", emittedData)
 	}
 }
 
@@ -430,9 +499,11 @@ func TestAppStartupStartsHTTPServerWhenConfigured(t *testing.T) {
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
 		newHTTPServer: func(api.Config) api.Server {
 			return server
 		},
@@ -459,9 +530,11 @@ func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
 		newHTTPServer: func(config api.Config) api.Server {
 			if config.Status == nil {
 				t.Fatal("expected startup to wire status service into http server config")
@@ -498,10 +571,12 @@ func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newRealtimeHub:        func(context.Context) realtime.Hub { return realtimeHub },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newRealtimeHub:   func(context.Context) realtime.Hub { return realtimeHub },
 		newHTTPServer: func(config api.Config) api.Server {
 			if config.RealtimeHub != realtimeHub {
 				t.Fatal("expected realtime hub to be passed into http server config")
@@ -563,11 +638,13 @@ func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayL
 		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
 		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
 		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
-		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newHTTPServer:         func(api.Config) api.Server { return &stubAppHTTPServer{} },
-		newTrayManager:        func() tray.TrayManager { return manager },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newTrayManager:   func() tray.TrayManager { return manager },
 	}
 
 	app := &trayLifecycleTestApp{App: base}

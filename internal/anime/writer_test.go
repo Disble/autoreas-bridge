@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 func TestSelfEchoRegistryConsumesOnlyOwnPayloads(t *testing.T) {
@@ -40,11 +41,13 @@ func TestUpdateWriterPublishesConfirmationAfterAppend(t *testing.T) {
 	bus := events.NewBus()
 	publisher := &recordingPublisher{}
 	selfEcho := NewSelfEchoRegistry()
+	shared := &recordingSharedLogger{}
 	appended := make(chan []byte, 1)
 	writer := NewUpdateWriter(UpdateWriterConfig{
 		FilePath:         "data/animes.dat",
 		Bus:              bus,
 		Publisher:        publisher,
+		SharedLogger:     shared,
 		SelfEchoRegistry: selfEcho,
 		AppendLine: func(_ string, payload []byte) error {
 			appended <- append([]byte(nil), payload...)
@@ -87,6 +90,7 @@ func TestUpdateWriterSerializesConcurrentEvents(t *testing.T) {
 
 	bus := events.NewBus()
 	publisher := &recordingPublisher{}
+	shared := &recordingSharedLogger{}
 	var currentConcurrent int32
 	var maxConcurrent int32
 	var writeCount int32
@@ -94,6 +98,7 @@ func TestUpdateWriterSerializesConcurrentEvents(t *testing.T) {
 		FilePath:         "data/animes.dat",
 		Bus:              bus,
 		Publisher:        publisher,
+		SharedLogger:     shared,
 		SelfEchoRegistry: NewSelfEchoRegistry(),
 		AppendLine: func(_ string, payload []byte) error {
 			_ = payload
@@ -181,11 +186,13 @@ func TestUpdateWriterRequestWriteReturnsAppendErrorAndPublishesFailureEvent(t *t
 	bus := events.NewBus()
 	publisher := &recordingPublisher{}
 	logger := &recordingWarningLogger{}
+	shared := &recordingSharedLogger{}
 	writer := NewUpdateWriter(UpdateWriterConfig{
 		FilePath:         "data/animes.dat",
 		Bus:              bus,
 		Publisher:        publisher,
 		Logger:           logger,
+		SharedLogger:     shared,
 		SelfEchoRegistry: NewSelfEchoRegistry(),
 		AppendLine: func(string, []byte) error {
 			return wantErr
@@ -225,6 +232,11 @@ func TestUpdateWriterRequestWriteReturnsAppendErrorAndPublishesFailureEvent(t *t
 
 	if len(logger.messages()) == 0 {
 		t.Fatal("expected append failure to be logged")
+	}
+
+	entries := shared.entries()
+	if len(entries) == 0 || entries[0].Domain != "anime" || entries[0].Level != sharedlogger.LevelWarn {
+		t.Fatalf("expected anime warn structured log, got %#v", entries)
 	}
 
 	cancel()

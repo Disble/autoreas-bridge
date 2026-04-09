@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 func TestMemoryHubBroadcastsAnimeChangedToRegisteredClients(t *testing.T) {
 	t.Parallel()
 
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4})
+	logger := &recordingRealtimeLogger{}
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4, Logger: logger})
 	t.Cleanup(func() { _ = hub.Close() })
 
 	first := newRecordingClient("client-1")
@@ -34,6 +36,11 @@ func TestMemoryHubBroadcastsAnimeChangedToRegisteredClients(t *testing.T) {
 
 	assertAnimeChangedPayload(t, first.Receive(t), "anime-123")
 	assertAnimeChangedPayload(t, second.Receive(t), "anime-123")
+
+	entries := logger.entries()
+	if len(entries) == 0 || entries[0].Domain != "websocket" {
+		t.Fatalf("expected websocket logs, got %#v", entries)
+	}
 }
 
 func TestMemoryHubUnregisterRemovesClientAndIsIdempotent(t *testing.T) {
@@ -147,6 +154,28 @@ func (c *recordingClient) Receive(t *testing.T) []byte {
 
 type blockingClient struct {
 	id string
+}
+
+type recordingRealtimeLogger struct {
+	entriesList []sharedlogger.LogEntry
+}
+
+func (l *recordingRealtimeLogger) Infof(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelInfo})
+}
+
+func (l *recordingRealtimeLogger) Warnf(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelWarn})
+}
+
+func (l *recordingRealtimeLogger) Errorf(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError})
+}
+
+func (l *recordingRealtimeLogger) entries() []sharedlogger.LogEntry {
+	out := make([]sharedlogger.LogEntry, len(l.entriesList))
+	copy(out, l.entriesList)
+	return out
 }
 
 func newBlockingClient(id string) *blockingClient {

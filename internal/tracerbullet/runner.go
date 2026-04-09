@@ -1,6 +1,11 @@
 package tracerbullet
 
-import "autoreas-bridge/internal/events"
+import (
+	"strings"
+
+	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
+)
 
 const tracerAnimeID = "tracer-bullet-anime"
 
@@ -11,19 +16,25 @@ type TraceSink interface {
 type Runner struct {
 	bus  events.Bus
 	sink TraceSink
+	log  sharedlogger.Logger
 }
 
-func NewRunner(bus events.Bus, sink TraceSink) *Runner {
-	return &Runner{
+func NewRunner(bus events.Bus, sink TraceSink, loggers ...sharedlogger.Logger) *Runner {
+	runner := &Runner{
 		bus:  bus,
 		sink: sink,
 	}
+	if len(loggers) > 0 {
+		runner.log = loggers[0]
+	}
+	return runner
+
 }
 
 func (r *Runner) Start() {
 	r.StartSubscriptions()
-	r.sink.Record("system: tracer bullet ready")
-	r.sink.Record("anime: publishing anime.changed for " + tracerAnimeID)
+	r.record("system: tracer bullet ready")
+	r.record("anime: publishing anime.changed for " + tracerAnimeID)
 	r.bus.Publish(events.AnimeChangedEvent{AnimeID: tracerAnimeID})
 }
 
@@ -34,7 +45,7 @@ func (r *Runner) StartSubscriptions() {
 			return
 		}
 
-		r.sink.Record("sync: received anime.changed for " + changed.AnimeID)
+		r.record("sync: received anime.changed for " + changed.AnimeID)
 		r.bus.Publish(events.SyncRequestedEvent{Requester: changed.AnimeID})
 	})
 
@@ -44,6 +55,21 @@ func (r *Runner) StartSubscriptions() {
 			return
 		}
 
-		r.sink.Record("websocket: forwarded anime.changed for " + syncRequest.Requester)
+		r.record("websocket: forwarded anime.changed for " + syncRequest.Requester)
 	})
+}
+
+func (r *Runner) record(message string) {
+	if r.sink != nil {
+		r.sink.Record(message)
+	}
+	if r.log == nil {
+		return
+	}
+	parts := strings.SplitN(message, ": ", 2)
+	if len(parts) != 2 {
+		r.log.Infof("system", "%s", message)
+		return
+	}
+	r.log.Infof(parts[0], "%s", parts[1])
 }

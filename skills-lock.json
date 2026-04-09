@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "heroui-react": {
+      "source": "heroui-inc/heroui",
+      "sourceType": "github",
+      "computedHash": "eb416399a9856a04152d36ef07396274e3bf0fff8f12f3e09bf610e5625dd58d"
+    }
+  }
+}

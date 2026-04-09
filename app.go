@@ -12,6 +12,7 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -24,6 +25,8 @@ type App struct {
 	ctx                     context.Context
 	bridgeDB                *sql.DB
 	startupErr              error
+	sharedLogger            *sharedlogger.FanoutLogger
+	memLogger               *sharedlogger.MemLogger
 	syncTrigger             *bridgeSync.TriggerService
 	bootstrapBridgeDB       func() (*sql.DB, error)
 	resolveAnimeDataPath    func() (string, error)
@@ -34,14 +37,15 @@ type App struct {
 	newSelfEchoRegistry     func() anime.SelfEchoRegistry
 	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
 	newChangelogStore       func(db *sql.DB) changelogPendingStore
-	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore) changelogRecorder
+	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
 	newDeviceStore          func(db *sql.DB) device.Store
 	newDeviceService        func(store device.Store) device.AuthService
 	newRealtimeHub          func(ctx context.Context) realtime.Hub
 	newHTTPServer           func(config api.Config) api.Server
 	newTrayManager          func() tray.TrayManager
-	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner
+	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink     func() tracerbullet.TraceSink
+	emitFn                  func(ctx context.Context, eventName string, optionalData ...interface{})
 	hideWindow              func(context.Context)
 	showWindow              func(context.Context)
 	unminimiseWindow        func(context.Context)
@@ -61,6 +65,15 @@ type App struct {
 	newToken                func() (string, error)
 }
 
+const observabilityEventName = "observability.log"
+
+func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...interface{}) {
+	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
+		return
+	}
+	wruntime.EventsEmit(ctx, eventName, optionalData...)
+}
+
 type tracerBulletRunner interface {
 	Start()
 }
@@ -77,51 +90,52 @@ type changelogRecorder interface {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{
-		bootstrapBridgeDB:     bridgeSync.BootstrapBridgeDB,
-		resolveAnimeDataPath:  anime.ResolveAnimeDataPath,
-		newSnapshotParser:     anime.NewSnapshotParser,
-		newSnapshotStore:      func(db *sql.DB) anime.SnapshotStore { return bridgeSync.NewAnimeSnapshotStore(db) },
-		newStartupCoordinator: anime.NewStartupCoordinator,
-		newRuntimeWatcher: func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
-			return anime.NewRuntimeWatcher(config)
-		},
-		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
-		newUpdateWriter: func(config anime.UpdateWriterConfig) anime.UpdateWriter {
-			return anime.NewUpdateWriter(config)
-		},
-		newChangelogStore: func(db *sql.DB) changelogPendingStore {
-			return bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
-		},
-		newChangelogRecorder: func(bus events.Bus, store changelogPendingStore) changelogRecorder {
-			return bridgeSync.NewChangelogRecorder(bus, store)
-		},
-		newDeviceStore: func(db *sql.DB) device.Store {
-			return device.NewSQLiteStore(db)
-		},
-		newDeviceService: func(store device.Store) device.AuthService {
-			return device.NewService(store)
-		},
-		newRealtimeHub: func(ctx context.Context) realtime.Hub {
-			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{})
-		},
-		newHTTPServer: func(config api.Config) api.Server {
-			return api.NewServer(config)
-		},
-		newTrayManager: func() tray.TrayManager {
-			return tray.NewSystrayManager()
-		},
-		newTracerBulletRunner: func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
-			return tracerbullet.NewRunner(bus, sink)
-		},
-		newTracerBulletSink: func() tracerbullet.TraceSink {
-			return tracerbullet.NewStdoutSink()
-		},
-		hideWindow:       wruntime.WindowHide,
-		showWindow:       wruntime.WindowShow,
-		unminimiseWindow: wruntime.WindowUnminimise,
-		quitApp:          wruntime.Quit,
+	app := &App{}
+	app.bootstrapBridgeDB = bridgeSync.BootstrapBridgeDB
+	app.resolveAnimeDataPath = anime.ResolveAnimeDataPath
+	app.newSnapshotParser = anime.NewSnapshotParser
+	app.newSnapshotStore = func(db *sql.DB) anime.SnapshotStore { return bridgeSync.NewAnimeSnapshotStore(db) }
+	app.newStartupCoordinator = anime.NewStartupCoordinator
+	app.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+		return anime.NewRuntimeWatcher(config)
 	}
+	app.newSelfEchoRegistry = anime.NewSelfEchoRegistry
+	app.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
+		return anime.NewUpdateWriter(config)
+	}
+	app.newChangelogStore = func(db *sql.DB) changelogPendingStore {
+		return bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	}
+	app.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder {
+		return bridgeSync.NewChangelogRecorder(bus, store, loggers...)
+	}
+	app.newDeviceStore = func(db *sql.DB) device.Store {
+		return device.NewSQLiteStore(db)
+	}
+	app.newDeviceService = func(store device.Store) device.AuthService {
+		return device.NewService(store)
+	}
+	app.newRealtimeHub = func(ctx context.Context) realtime.Hub {
+		return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: app.sharedLogger})
+	}
+	app.newHTTPServer = func(config api.Config) api.Server {
+		return api.NewServer(config)
+	}
+	app.newTrayManager = func() tray.TrayManager {
+		return tray.NewSystrayManager()
+	}
+	app.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner {
+		return tracerbullet.NewRunner(bus, sink, loggers...)
+	}
+	app.newTracerBulletSink = func() tracerbullet.TraceSink {
+		return tracerbullet.NewStdoutSink()
+	}
+	app.emitFn = defaultObservabilityEmit
+	app.hideWindow = wruntime.WindowHide
+	app.showWindow = wruntime.WindowShow
+	app.unminimiseWindow = wruntime.WindowUnminimise
+	app.quitApp = wruntime.Quit
+	return app
 }
 
 // startup is called when the app starts. The context is saved
@@ -163,8 +177,8 @@ func (a *App) startup(ctx context.Context) {
 		}
 	}
 	if a.newChangelogRecorder == nil {
-		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore) changelogRecorder {
-			return bridgeSync.NewChangelogRecorder(bus, store)
+		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder {
+			return bridgeSync.NewChangelogRecorder(bus, store, loggers...)
 		}
 	}
 	if a.newDeviceStore == nil {
@@ -179,7 +193,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.newRealtimeHub == nil {
 		a.newRealtimeHub = func(ctx context.Context) realtime.Hub {
-			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{})
+			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: a.sharedLogger})
 		}
 	}
 	if a.newHTTPServer == nil {
@@ -191,8 +205,8 @@ func (a *App) startup(ctx context.Context) {
 		a.newTrayManager = func() tray.TrayManager { return nil }
 	}
 	if a.newTracerBulletRunner == nil {
-		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink) tracerBulletRunner {
-			return tracerbullet.NewRunner(bus, sink)
+		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner {
+			return tracerbullet.NewRunner(bus, sink, loggers...)
 		}
 	}
 	if a.newTracerBulletSink == nil {
@@ -212,10 +226,27 @@ func (a *App) startup(ctx context.Context) {
 	if a.quitApp == nil {
 		a.quitApp = wruntime.Quit
 	}
+	if a.emitFn == nil {
+		a.emitFn = defaultObservabilityEmit
+	}
 	if a.eventBus == nil {
 		a.eventBus = events.NewBus()
 	}
-	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink())
+	if a.memLogger == nil {
+		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
+			Capacity: 200,
+			OnWriteFn: func(entry sharedlogger.LogEntry) {
+				if a.ctx == nil || a.emitFn == nil {
+					return
+				}
+				a.emitFn(a.ctx, observabilityEventName, entry)
+			},
+		})
+	}
+	if a.sharedLogger == nil {
+		a.sharedLogger = sharedlogger.NewFanoutLogger(sharedlogger.NewStdoutLogger(nil), a.memLogger)
+	}
+	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	a.trayManager = a.newTrayManager()
 	if a.trayManager != nil {
@@ -247,11 +278,12 @@ func (a *App) startup(ctx context.Context) {
 	a.catchUpCancel = catchUpCancel
 	selfEchoRegistry := a.newSelfEchoRegistry()
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
-		FilePath:  animeDataPath,
-		Parser:    a.newSnapshotParser(),
-		Store:     a.newSnapshotStore(a.bridgeDB),
-		Publisher: a.eventBus,
-		Logger:    anime.NewStdLogger(),
+		FilePath:     animeDataPath,
+		Parser:       a.newSnapshotParser(),
+		Store:        a.newSnapshotStore(a.bridgeDB),
+		Publisher:    a.eventBus,
+		Logger:       anime.NewStdLogger(),
+		SharedLogger: a.sharedLogger,
 	})
 	a.animeStartupCoordinator.StartAsync(catchUpContext)
 	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
@@ -260,6 +292,7 @@ func (a *App) startup(ctx context.Context) {
 		Store:            a.newSnapshotStore(a.bridgeDB),
 		Publisher:        a.eventBus,
 		Logger:           anime.NewStdLogger(),
+		SharedLogger:     a.sharedLogger,
 		SelfEchoRegistry: selfEchoRegistry,
 		RetryDelay:       100 * time.Millisecond,
 	})
@@ -269,10 +302,11 @@ func (a *App) startup(ctx context.Context) {
 		Bus:              a.eventBus,
 		Publisher:        a.eventBus,
 		Logger:           anime.NewStdLogger(),
+		SharedLogger:     a.sharedLogger,
 		SelfEchoRegistry: selfEchoRegistry,
 	})
 	a.animeUpdateWriter.StartAsync(catchUpContext)
-	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB))
+	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB), a.sharedLogger)
 	a.syncChangelogRecorder.Start(catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
@@ -298,7 +332,7 @@ func (a *App) startup(ctx context.Context) {
 		return a.httpServer.EffectiveAddress()
 	})
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
-	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore)
+	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{
 		DeviceService: deviceService,
@@ -309,6 +343,7 @@ func (a *App) startup(ctx context.Context) {
 		DeviceAdmin:   deviceService.(device.AdminService),
 		Conflicts:     conflictService,
 		RealtimeHub:   a.realtimeHub,
+		Logger:        a.sharedLogger,
 	})
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
@@ -436,4 +471,11 @@ func (a *App) GetPairingToken() string {
 		return fmt.Sprintf("token persist failed: %s", err.Error())
 	}
 	return token
+}
+
+func (a *App) GetRecentLogs() []sharedlogger.LogEntry {
+	if a.memLogger == nil {
+		return []sharedlogger.LogEntry{}
+	}
+	return a.memLogger.Recent()
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Button, Spinner, Alert, Separator } from '@heroui/react';
 import { TriggerReconcile } from '../wailsjs/go/main/App';
 import { BridgeStatus } from './components/BridgeStatus';
+import { ObservabilityPanel } from './components/ObservabilityPanel';
 import { PairingPanel } from './components/PairingPanel';
 
 function App() {
@@ -30,6 +31,8 @@ function App() {
                 <BridgeStatus />
 
                 <PairingPanel />
+
+                <ObservabilityPanel />
 
                 {/* Sync Card */}
                 <Card>

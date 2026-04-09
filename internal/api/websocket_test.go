@@ -11,6 +11,7 @@ import (
 
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 	"github.com/gorilla/websocket"
 )
@@ -73,9 +74,11 @@ func TestWebSocketWithBearerReceivesSyncRequired(t *testing.T) {
 func TestWebSocketBroadcastsAnimeChangedToConnectedClients(t *testing.T) {
 	t.Parallel()
 
+	logger := &recordingAPILogger{}
 	hub, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		Logger:        logger,
 	})
 	defer cleanup()
 
@@ -108,6 +111,11 @@ func TestWebSocketBroadcastsAnimeChangedToConnectedClients(t *testing.T) {
 
 	if got, want := strings.TrimSpace(string(msg.Payload)), `{"nombre":"Bleach"}`; got != want {
 		t.Fatalf("expected payload %s, got %s", want, got)
+	}
+
+	entries := logger.entries()
+	if len(entries) == 0 || entries[0].Domain != "websocket" || entries[0].Level != sharedlogger.LevelInfo {
+		t.Fatalf("expected websocket info log, got %#v", entries)
 	}
 }
 

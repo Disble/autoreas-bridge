@@ -53,6 +53,7 @@ func NewHandler(config Config) http.Handler {
 		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
 			Authenticate: h.authenticateWebSocket,
 			Hub:          config.RealtimeHub,
+			Logger:       config.Logger,
 		}))
 	}
 	h.mux = mux

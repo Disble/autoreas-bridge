@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 type UpdateWriter interface {
@@ -28,6 +29,7 @@ type UpdateWriterConfig struct {
 	Bus              events.Bus
 	Publisher        EventPublisher
 	Logger           WarningLogger
+	SharedLogger     sharedlogger.Logger
 	SelfEchoRegistry SelfEchoRegistry
 	QueueSize        int
 	AppendLine       func(path string, payload []byte) error
@@ -38,6 +40,7 @@ type updateWriter struct {
 	bus              events.Bus
 	publisher        EventPublisher
 	logger           WarningLogger
+	sharedLogger     sharedlogger.Logger
 	selfEchoRegistry SelfEchoRegistry
 	queueSize        int
 	appendLine       func(path string, payload []byte) error
@@ -58,6 +61,7 @@ func NewUpdateWriter(config UpdateWriterConfig) UpdateWriter {
 		bus:              config.Bus,
 		publisher:        config.Publisher,
 		logger:           config.Logger,
+		sharedLogger:     config.SharedLogger,
 		selfEchoRegistry: config.SelfEchoRegistry,
 		queueSize:        config.QueueSize,
 		appendLine:       config.AppendLine,
@@ -160,6 +164,7 @@ func (w *updateWriter) run(ctx context.Context) {
 }
 
 func (w *updateWriter) processUpdate(request writeRequest) {
+	log := newDomainLogger("anime", w.sharedLogger, w.logger)
 	var err error
 	if w.selfEchoRegistry != nil {
 		w.selfEchoRegistry.Remember(request.payload)
@@ -177,9 +182,7 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 				Err:     wrapped.Error(),
 			})
 		}
-		if w.logger != nil {
-			w.logger.Warnf("%v", wrapped)
-		}
+		log.Warnf("%v", wrapped)
 		w.setErr(wrapped)
 		err = wrapped
 	} else if w.publisher != nil {
@@ -187,6 +190,7 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 			AnimeID: request.animeID,
 			Payload: append([]byte(nil), request.payload...),
 		})
+		log.Infof("appended update and published anime.changed for %s", request.animeID)
 	}
 
 	if request.result != nil {

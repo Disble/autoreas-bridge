@@ -14,6 +14,10 @@ export function GetPairingToken() {
   return window['go']['main']['App']['GetPairingToken']();
 }
 
+export function GetRecentLogs() {
+  return window['go']['main']['App']['GetRecentLogs']();
+}
+
 export function GetSQLiteStatus() {
   return window['go']['main']['App']['GetSQLiteStatus']();
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
@@ -14,7 +15,8 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 
 	bus := events.NewBus()
 	store := &stubChangelogStore{}
-	recorder := NewChangelogRecorder(bus, store)
+	logger := &recordingSyncLogger{}
+	recorder := NewChangelogRecorder(bus, store, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	recorder.Start(ctx)
@@ -40,6 +42,11 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	}
 	if store.lastEvent.ChangedAtMs == 0 {
 		t.Fatal("expected changed timestamp to be stamped")
+	}
+
+	entries := logger.entries()
+	if len(entries) == 0 || entries[0].Domain != "sync" || entries[0].Level != sharedlogger.LevelInfo {
+		t.Fatalf("expected sync info log for changelog insert, got %#v", entries)
 	}
 
 	recorder.Stop()
@@ -70,7 +77,8 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	bus := events.NewBus()
 	wantErr := errors.New("sqlite locked")
 	store := &stubChangelogStore{err: wantErr}
-	recorder := NewChangelogRecorder(bus, store)
+	logger := &recordingSyncLogger{}
+	recorder := NewChangelogRecorder(bus, store, logger)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	recorder.Start(ctx)
@@ -83,6 +91,11 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 
 	if !errors.Is(recorder.Err(), wantErr) {
 		t.Fatalf("expected recorder err %v, got %v", wantErr, recorder.Err())
+	}
+
+	entries := logger.entries()
+	if len(entries) == 0 || entries[len(entries)-1].Level != sharedlogger.LevelError {
+		t.Fatalf("expected sync error log for insert failure, got %#v", entries)
 	}
 
 	recorder.Stop()

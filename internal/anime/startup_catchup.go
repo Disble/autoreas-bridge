@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 type SnapshotStore interface {
@@ -42,6 +43,7 @@ type StartupCoordinatorConfig struct {
 	Store         SnapshotStore
 	Publisher     EventPublisher
 	Logger        WarningLogger
+	SharedLogger  sharedlogger.Logger
 	PollInterval  time.Duration
 	FileExists    func(path string) bool
 	OpenFile      func(path string) (io.ReadCloser, error)
@@ -54,6 +56,7 @@ type startupCoordinator struct {
 	store         SnapshotStore
 	publisher     EventPublisher
 	logger        WarningLogger
+	sharedLogger  sharedlogger.Logger
 	pollInterval  time.Duration
 	fileExists    func(path string) bool
 	openFile      func(path string) (io.ReadCloser, error)
@@ -74,6 +77,7 @@ func NewStartupCoordinator(config StartupCoordinatorConfig) StartupCoordinator {
 		store:         config.Store,
 		publisher:     config.Publisher,
 		logger:        config.Logger,
+		sharedLogger:  config.SharedLogger,
 		pollInterval:  config.PollInterval,
 		fileExists:    config.FileExists,
 		openFile:      config.OpenFile,
@@ -148,6 +152,7 @@ func (c *startupCoordinator) run(ctx context.Context) {
 		if c.logger != nil {
 			c.logger.Warnf("Esperando datos: %s", c.filePath)
 		}
+		newDomainLogger("system", c.sharedLogger, c.logger).Warnf("Esperando datos: %s", c.filePath)
 
 		select {
 		case <-ctx.Done():
@@ -159,24 +164,31 @@ func (c *startupCoordinator) run(ctx context.Context) {
 }
 
 func (c *startupCoordinator) catchUp(ctx context.Context) error {
+	log := newDomainLogger("anime", c.sharedLogger, c.logger)
+	log.Infof("starting startup catch-up for %s", c.filePath)
+
 	file, err := c.openFile(c.filePath)
 	if err != nil {
+		log.Errorf("failed to open startup catch-up file %s: %v", c.filePath, err)
 		return fmt.Errorf("open anime data file %q: %w", c.filePath, err)
 	}
 	defer file.Close()
 
 	current, warnings, err := c.parser.Parse(file)
 	if err != nil {
+		log.Errorf("failed to parse startup catch-up file %s: %v", c.filePath, err)
 		return fmt.Errorf("parse anime snapshots: %w", err)
 	}
 	for _, warning := range warnings {
 		if c.logger != nil {
 			c.logger.Warnf("warning parsing %s line %d: %s", c.filePath, warning.Line, warning.Reason)
 		}
+		log.Warnf("warning parsing %s line %d: %s", c.filePath, warning.Line, warning.Reason)
 	}
 
 	baseline, err := c.store.ListSnapshots(ctx)
 	if err != nil {
+		log.Errorf("failed to read baseline snapshots: %v", err)
 		return fmt.Errorf("list baseline snapshots: %w", err)
 	}
 
@@ -187,8 +199,10 @@ func (c *startupCoordinator) catchUp(ctx context.Context) error {
 		}
 		c.publisher.Publish(delta)
 	}
+	log.Infof("startup catch-up published %d deltas and %d prunes", len(deltas), len(pruneIDs))
 
 	if err := c.store.ReplaceBaseline(ctx, current, pruneIDs); err != nil {
+		log.Errorf("failed to replace startup baseline: %v", err)
 		return fmt.Errorf("replace baseline snapshots: %w", err)
 	}
 

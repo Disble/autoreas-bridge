@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 type pendingChangelogStore interface {
@@ -16,14 +17,19 @@ type ChangelogRecorder struct {
 	bus   events.Bus
 	store pendingChangelogStore
 	now   func() time.Time
+	log   sharedlogger.Logger
 
 	mu          sync.Mutex
 	err         error
 	unsubscribe func()
 }
 
-func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore) *ChangelogRecorder {
-	return &ChangelogRecorder{bus: bus, store: store, now: time.Now}
+func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore, loggers ...sharedlogger.Logger) *ChangelogRecorder {
+	recorder := &ChangelogRecorder{bus: bus, store: store, now: time.Now}
+	if len(loggers) > 0 {
+		recorder.log = loggers[0]
+	}
+	return recorder
 }
 
 func (r *ChangelogRecorder) Start(ctx context.Context) {
@@ -48,9 +54,16 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 			Status:        changelogStatusPending,
 			ChangedAtMs:   now().UnixMilli(),
 		}); err != nil {
+			if r.log != nil {
+				r.log.Errorf("sync", "failed to record pending changelog for %s: %v", changed.AnimeID, err)
+			}
 			r.mu.Lock()
 			r.err = err
 			r.mu.Unlock()
+			return
+		}
+		if r.log != nil {
+			r.log.Infof("sync", "recorded pending changelog for %s", changed.AnimeID)
 		}
 	})
 }

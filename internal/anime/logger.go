@@ -1,8 +1,18 @@
 package anime
 
-import "log"
+import (
+	"log"
+
+	sharedlogger "autoreas-bridge/internal/logger"
+)
 
 type stdLogger struct{}
+
+type domainLogger struct {
+	domain string
+	shared sharedlogger.Logger
+	warn   WarningLogger
+}
 
 func NewStdLogger() WarningLogger {
 	return stdLogger{}
@@ -10,4 +20,32 @@ func NewStdLogger() WarningLogger {
 
 func (stdLogger) Warnf(format string, args ...any) {
 	log.Printf("WARN: "+format, args...)
+}
+
+func newDomainLogger(domain string, shared sharedlogger.Logger, warnings WarningLogger) domainLogger {
+	return domainLogger{domain: domain, shared: shared, warn: warnings}
+}
+
+func (l domainLogger) Infof(format string, args ...any) {
+	if l.shared != nil {
+		l.shared.Infof(l.domain, format, args...)
+	}
+}
+
+func (l domainLogger) Warnf(format string, args ...any) {
+	if l.shared != nil {
+		l.shared.Warnf(l.domain, format, args...)
+	}
+	if l.warn != nil {
+		l.warn.Warnf(format, args...)
+	}
+}
+
+func (l domainLogger) Errorf(format string, args ...any) {
+	if l.shared != nil {
+		l.shared.Errorf(l.domain, format, args...)
+	}
+	if l.warn != nil {
+		l.warn.Warnf(format, args...)
+	}
 }

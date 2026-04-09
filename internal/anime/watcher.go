@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	sharedlogger "autoreas-bridge/internal/logger"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -36,6 +37,7 @@ type RuntimeWatcherConfig struct {
 	Store            SnapshotStore
 	Publisher        EventPublisher
 	Logger           WarningLogger
+	SharedLogger     sharedlogger.Logger
 	SelfEchoRegistry SelfEchoRegistry
 	DebounceWindow   time.Duration
 	RetryDelay       time.Duration
@@ -52,6 +54,7 @@ type runtimeWatcher struct {
 	store            SnapshotStore
 	publisher        EventPublisher
 	logger           WarningLogger
+	sharedLogger     sharedlogger.Logger
 	selfEchoRegistry SelfEchoRegistry
 	debounceWindow   time.Duration
 	retryDelay       time.Duration
@@ -75,6 +78,7 @@ func NewRuntimeWatcher(config RuntimeWatcherConfig) RuntimeWatcher {
 		store:            config.Store,
 		publisher:        config.Publisher,
 		logger:           config.Logger,
+		sharedLogger:     config.SharedLogger,
 		selfEchoRegistry: config.SelfEchoRegistry,
 		debounceWindow:   config.DebounceWindow,
 		retryDelay:       config.RetryDelay,
@@ -189,9 +193,7 @@ func (w *runtimeWatcher) serveLoop(ctx context.Context, backend FileWatcher, tim
 			if !ok {
 				return true, nil
 			}
-			if w.logger != nil {
-				w.logger.Warnf("watch runtime changes: %v", err)
-			}
+			newDomainLogger("anime", w.sharedLogger, w.logger).Warnf("watch runtime changes: %v", err)
 			w.waitRetry(ctx)
 			return true, nil
 		}
@@ -199,9 +201,7 @@ func (w *runtimeWatcher) serveLoop(ctx context.Context, backend FileWatcher, tim
 }
 
 func (w *runtimeWatcher) retryOrSetErr(ctx context.Context, err error) {
-	if w.logger != nil {
-		w.logger.Warnf("%v", err)
-	}
+	newDomainLogger("anime", w.sharedLogger, w.logger).Warnf("%v", err)
 	if !w.waitRetry(ctx) {
 		w.setErr(err)
 	}
@@ -220,24 +220,29 @@ func (w *runtimeWatcher) waitRetry(ctx context.Context) bool {
 }
 
 func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
+	log := newDomainLogger("anime", w.sharedLogger, w.logger)
 	file, err := w.openFile(w.filePath)
 	if err != nil {
+		log.Errorf("failed to open runtime watcher file %s: %v", w.filePath, err)
 		return fmt.Errorf("open anime data file %q: %w", w.filePath, err)
 	}
 	defer file.Close()
 
 	current, warnings, err := w.parser.Parse(file)
 	if err != nil {
+		log.Errorf("failed to parse runtime watcher file %s: %v", w.filePath, err)
 		return fmt.Errorf("parse anime snapshots: %w", err)
 	}
 	for _, warning := range warnings {
 		if w.logger != nil {
 			w.logger.Warnf("warning parsing %s line %d: %s", w.filePath, warning.Line, warning.Reason)
 		}
+		log.Warnf("warning parsing %s line %d: %s", w.filePath, warning.Line, warning.Reason)
 	}
 
 	baseline, err := w.store.ListSnapshots(ctx)
 	if err != nil {
+		log.Errorf("failed to load runtime watcher baseline: %v", err)
 		return fmt.Errorf("list baseline snapshots: %w", err)
 	}
 
@@ -251,8 +256,12 @@ func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 		}
 		w.publisher.Publish(delta)
 	}
+	if len(deltas) > 0 || len(pruneIDs) > 0 {
+		log.Infof("runtime watcher published %d deltas and %d prunes", len(deltas), len(pruneIDs))
+	}
 
 	if err := w.store.ReplaceBaseline(ctx, current, pruneIDs); err != nil {
+		log.Errorf("failed to replace runtime watcher baseline: %v", err)
 		return fmt.Errorf("replace baseline snapshots: %w", err)
 	}
 
