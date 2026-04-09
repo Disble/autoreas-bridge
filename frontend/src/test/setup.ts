@@ -1,5 +1,18 @@
 import '@testing-library/jest-dom/vitest';
 
+declare global {
+  interface Window {
+    go?: {
+      main?: {
+        App?: Record<string, (...args: never[]) => unknown>;
+      };
+    };
+    runtime?: {
+      EventsOnMultiple?: (...args: unknown[]) => () => void;
+    };
+  }
+}
+
 class ResizeObserverMock {
     observe() {}
     unobserve() {}
