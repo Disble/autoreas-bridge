@@ -19,7 +19,7 @@ func TestTriggerServicePublishesSyncRequestedEvent(t *testing.T) {
 		}
 	})
 
-	service := NewTriggerService(bus)
+	service := NewTriggerService(bus, nil)
 	if err := service.TriggerReconcile(context.Background()); err != nil {
 		t.Fatalf("trigger reconcile: %v", err)
 	}

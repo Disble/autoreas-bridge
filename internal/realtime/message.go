@@ -5,6 +5,8 @@ import "encoding/json"
 const (
 	MessageTypeSyncRequired = "sync_required"
 	MessageTypeAnimeChanged = "anime_changed"
+	MessageTypeAnimeCreated = "anime_created"
+	MessageTypeAnimeDeleted = "anime_deleted"
 
 	SyncReasonConnectionGapAssumed = "connection_gap_assumed"
 )
@@ -18,4 +20,9 @@ type AnimeChangedMessage struct {
 	Type    string          `json:"type"`
 	AnimeID string          `json:"anime_id"`
 	Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+type AnimeIDMessage struct {
+	Type    string `json:"type"`
+	AnimeID string `json:"anime_id"`
 }

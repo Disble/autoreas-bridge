@@ -11,6 +11,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/realtime"
@@ -444,6 +445,44 @@ func TestAppStartupStartsHTTPServerWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder:  func(events.Bus, changelogPendingStore) changelogRecorder { return &stubAppChangelogRecorder{} },
+		newDeviceStore:        func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService:      func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.Status == nil {
+				t.Fatal("expected startup to wire status service into http server config")
+			}
+			if config.Conflicts == nil {
+				t.Fatal("expected startup to wire conflict service into http server config")
+			}
+			return server
+		},
+	}
+
+	app.startup(context.Background())
+
+	if !server.started {
+		t.Fatal("expected startup to start http server")
+	}
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
 func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 	t.Parallel()
 
@@ -598,12 +637,28 @@ func (*stubAppDeviceStore) FindByAuthToken(context.Context, string) (device.Stor
 	return device.StoredDevice{}, nil
 }
 
+func (*stubAppDeviceStore) ListPairedDevices(context.Context) ([]device.StoredDevice, error) {
+	return nil, nil
+}
+
+func (*stubAppDeviceStore) DeletePairedDevice(context.Context, string) error {
+	return nil
+}
+
 func (stubAppDeviceService) PairDevice(context.Context, device.PairDeviceRequest) (device.PairedDevice, error) {
 	return device.PairedDevice{}, nil
 }
 
 func (stubAppDeviceService) AuthenticateToken(context.Context, string) (device.PairedDevice, error) {
 	return device.PairedDevice{}, nil
+}
+
+func (stubAppDeviceService) ListDevices(context.Context) ([]contracts.DeviceInfo, error) {
+	return nil, nil
+}
+
+func (stubAppDeviceService) RevokeDevice(context.Context, string) error {
+	return nil
 }
 
 func (s *stubAppHTTPServer) Start() error {
@@ -779,7 +834,7 @@ func TestTriggerReconcileReturnsErrorWhenSyncTriggerNil(t *testing.T) {
 func TestTriggerReconcileReturnsOkWhenSyncTriggerPublishes(t *testing.T) {
 	t.Parallel()
 	bus := events.NewBus()
-	syncTrigger := bridgeSync.NewTriggerService(bus)
+	syncTrigger := bridgeSync.NewTriggerService(bus, nil)
 	app := &App{syncTrigger: syncTrigger, ctx: context.Background()}
 	if got := app.TriggerReconcile(); got != "ok" {
 		t.Fatalf("expected %q, got %q", "ok", got)

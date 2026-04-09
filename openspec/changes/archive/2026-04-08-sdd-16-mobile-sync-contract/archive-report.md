@@ -1,0 +1,24 @@
+# Archive Report: sdd-16-mobile-sync-contract
+
+- Change name: sdd-16-mobile-sync-contract
+- Archived on: 2026-04-08
+- Commit: 6077f89
+- Branch: main
+- Verify verdict: PASS
+- Summary: Delivered the bridge/mobile sync contract needed by Autoreas Mobile, including normalized anime read APIs, incremental changelog APIs, reconcile responses with bridge changes, richer realtime events, device/conflict/status endpoints, and updated OpenAPI parity.
+- Files delivered:
+  - `internal/anime/mobile.go`
+  - `internal/anime/service.go`
+  - `internal/anime/domain/anime_raw.go`
+  - `internal/api/router.go`
+  - `internal/api/contracts/contracts.go`
+  - `internal/api/handlers/sync_handler.go`
+  - `internal/device/service.go`
+  - `internal/device/sqlite_store.go`
+  - `internal/sync/changelog_store.go`
+  - `internal/sync/changelog_recorder.go`
+  - `internal/sync/sqlite_bootstrap.go`
+  - `internal/realtime/message.go`
+  - `internal/realtime/hub.go`
+  - `docs/openapi.yaml`
+  - `tools/checkopenapi/main.go`

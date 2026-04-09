@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -15,12 +16,16 @@ type LegacyAnimeRaw struct {
 	Estado           LegacyNumberField    `json:"estado,omitempty"`
 	TotalCap         LegacyNumberField    `json:"totalcap,omitempty"`
 	Activo           LegacyBoolField      `json:"activo,omitempty"`
+	Primeravez       LegacyBoolField      `json:"primeravez,omitempty"`
 	FechaEstreno     LegacyDateField      `json:"fechaEstreno,omitempty"`
 	FechaUltCapVisto LegacyDateField      `json:"fechaUltCapVisto,omitempty"`
+	FechaCreacion    LegacyDateField      `json:"fechaCreacion,omitempty"`
+	FechaEliminacion LegacyDateField      `json:"fechaEliminacion,omitempty"`
 	Duracion         LegacyNumberField    `json:"duracion,omitempty"`
 	Tipo             LegacyNumberField    `json:"tipo,omitempty"`
 	Pagina           LegacyStringField    `json:"pagina,omitempty"`
 	Carpeta          LegacyStringField    `json:"carpeta,omitempty"`
+	Origen           LegacyStringField    `json:"origen,omitempty"`
 	Estudios         LegacyJSONArrayField `json:"estudios,omitempty"`
 	Generos          LegacyJSONArrayField `json:"generos,omitempty"`
 	Dia              LegacyStringField    `json:"dia,omitempty"`
@@ -132,6 +137,12 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if value, ok := raw["primeravez"]; ok {
+		if err := r.Primeravez.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal primeravez: %w", err)
+		}
+	}
+
 	if value, ok := raw["fechaEstreno"]; ok {
 		if err := r.FechaEstreno.UnmarshalJSON(value); err != nil {
 			return fmt.Errorf("unmarshal fechaEstreno: %w", err)
@@ -141,6 +152,18 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 	if value, ok := raw["fechaUltCapVisto"]; ok {
 		if err := r.FechaUltCapVisto.UnmarshalJSON(value); err != nil {
 			return fmt.Errorf("unmarshal fechaUltCapVisto: %w", err)
+		}
+	}
+
+	if value, ok := raw["fechaCreacion"]; ok {
+		if err := r.FechaCreacion.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal fechaCreacion: %w", err)
+		}
+	}
+
+	if value, ok := raw["fechaEliminacion"]; ok {
+		if err := r.FechaEliminacion.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal fechaEliminacion: %w", err)
 		}
 	}
 
@@ -165,6 +188,12 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 	if value, ok := raw["carpeta"]; ok {
 		if err := r.Carpeta.UnmarshalJSON(value); err != nil {
 			return fmt.Errorf("unmarshal carpeta: %w", err)
+		}
+	}
+
+	if value, ok := raw["origen"]; ok {
+		if err := r.Origen.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal origen: %w", err)
 		}
 	}
 
@@ -217,12 +246,16 @@ func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
 	assignOptionalField(fields, "estado", r.Estado.raw)
 	assignOptionalField(fields, "totalcap", r.TotalCap.raw)
 	assignOptionalField(fields, "activo", r.Activo.raw)
+	assignOptionalField(fields, "primeravez", r.Primeravez.raw)
 	assignOptionalField(fields, "fechaEstreno", r.FechaEstreno.raw)
 	assignOptionalField(fields, "fechaUltCapVisto", r.FechaUltCapVisto.raw)
+	assignOptionalField(fields, "fechaCreacion", r.FechaCreacion.raw)
+	assignOptionalField(fields, "fechaEliminacion", r.FechaEliminacion.raw)
 	assignOptionalField(fields, "duracion", r.Duracion.raw)
 	assignOptionalField(fields, "tipo", r.Tipo.raw)
 	assignOptionalField(fields, "pagina", r.Pagina.raw)
 	assignOptionalField(fields, "carpeta", r.Carpeta.raw)
+	assignOptionalField(fields, "origen", r.Origen.raw)
 	assignOptionalField(fields, "estudios", r.Estudios.raw)
 	assignOptionalField(fields, "generos", r.Generos.raw)
 	assignOptionalField(fields, "dia", r.Dia.raw)
@@ -353,11 +386,28 @@ func (f LegacyNumberField) Float64() *float64 {
 	return &value
 }
 
+func (f LegacyNumberField) Int() *int {
+	value := f.Float64()
+	if value == nil {
+		return nil
+	}
+	result := int(*value)
+	return &result
+}
+
 func (f *LegacyJSONArrayField) UnmarshalJSON(data []byte) error {
 	f.raw.set(data)
 	if !f.raw.IsValue() {
 		f.value = nil
 		return nil
+	}
+
+	var emptyString string
+	if err := json.Unmarshal(f.raw.bytes, &emptyString); err == nil {
+		if emptyString == "" {
+			f.value = nil
+			return nil
+		}
 	}
 
 	return json.Unmarshal(f.raw.bytes, &f.value)
@@ -413,6 +463,27 @@ func (r LegacyAnimeRaw) EstadoValue() *int {
 
 func (r LegacyAnimeRaw) TotalCapValue() *float64 {
 	return r.TotalCap.Float64()
+}
+
+func (r LegacyAnimeRaw) GenerosStrings() []string {
+	return rawMessagesToStrings(r.Generos.Values())
+}
+
+func (r LegacyAnimeRaw) EstudiosString() *string {
+	return joinLegacyStrings(r.Estudios.Values())
+}
+
+func (r LegacyAnimeRaw) PortadaPath() *string {
+	if len(r.Portada) == 0 {
+		return nil
+	}
+	var payload struct {
+		Path *string `json:"path"`
+	}
+	if err := json.Unmarshal(r.Portada, &payload); err != nil {
+		return nil
+	}
+	return payload.Path
 }
 
 func (r LegacyAnimeRaw) DiasStrings() []string {
@@ -570,6 +641,33 @@ func marshalJSONObject(fields map[string]json.RawMessage) ([]byte, error) {
 	buffer.WriteByte('}')
 
 	return buffer.Bytes(), nil
+}
+
+func rawMessagesToStrings(values []json.RawMessage) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	result := make([]string, 0, len(values))
+	for _, raw := range values {
+		var value string
+		if err := json.Unmarshal(raw, &value); err != nil {
+			continue
+		}
+		result = append(result, value)
+	}
+	if len(result) == 0 {
+		return []string{}
+	}
+	return result
+}
+
+func joinLegacyStrings(values []json.RawMessage) *string {
+	parts := rawMessagesToStrings(values)
+	if len(parts) == 0 {
+		return nil
+	}
+	joined := strings.Join(parts, ", ")
+	return &joined
 }
 
 func (r LegacyAnimeRaw) ToAnime() Anime {

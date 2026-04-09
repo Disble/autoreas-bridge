@@ -37,3 +37,19 @@ func TestAnimeChangedMessageJSON(t *testing.T) {
 		t.Fatalf("expected %s, got %s", want, got)
 	}
 }
+
+func TestAnimeIDMessageJSON(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(AnimeIDMessage{
+		Type:    MessageTypeAnimeCreated,
+		AnimeID: "anime-123",
+	})
+	if err != nil {
+		t.Fatalf("marshal anime created message: %v", err)
+	}
+
+	if got, want := string(payload), `{"type":"anime_created","anime_id":"anime-123"}`; got != want {
+		t.Fatalf("expected %s, got %s", want, got)
+	}
+}

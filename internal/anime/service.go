@@ -13,6 +13,7 @@ import (
 
 type snapshotLookup interface {
 	GetSnapshot(ctx context.Context, animeID string) (SnapshotRecord, error)
+	ListSnapshots(ctx context.Context) (map[string]SnapshotRecord, error)
 }
 
 type QueryService struct {
@@ -64,6 +65,35 @@ func (s *QueryService) GetEffectiveAnime(ctx context.Context, id string) (*contr
 		Activo:       activo,
 		SnapshotJSON: append([]byte(nil), record.CanonicalJSON...),
 	}, nil
+}
+
+func (s *QueryService) ListMobileAnimes(ctx context.Context) ([]contracts.MobileAnime, error) {
+	records, err := s.store.ListSnapshots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := sortedSnapshotIDs(records)
+	result := make([]contracts.MobileAnime, 0, len(ids))
+	for _, id := range ids {
+		item, err := mobileAnimeFromSnapshot(records[id].CanonicalJSON)
+		if err != nil {
+			return nil, fmt.Errorf("normalize snapshot %q: %w", id, err)
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contracts.MobileAnime, error) {
+	record, err := s.store.GetSnapshot(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	item, err := mobileAnimeFromSnapshot(record.CanonicalJSON)
+	if err != nil {
+		return nil, fmt.Errorf("normalize snapshot %q: %w", id, err)
+	}
+	return &item, nil
 }
 
 func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) error {

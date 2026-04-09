@@ -25,8 +25,22 @@ const (
 		CREATE TABLE IF NOT EXISTS changelog (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			anime_id TEXT NOT NULL,
-			payload_json TEXT,
-			status TEXT NOT NULL
+			change_type TEXT NOT NULL,
+			changed_fields_json TEXT NOT NULL,
+			snapshot_json TEXT,
+			status TEXT NOT NULL,
+			changed_at_ms INTEGER NOT NULL
+		)`
+	conflictsDDL = `
+		CREATE TABLE IF NOT EXISTS conflicts (
+			conflict_id TEXT PRIMARY KEY,
+			anime_id TEXT NOT NULL,
+			local_snapshot_json TEXT NOT NULL,
+			remote_snapshot_json TEXT NOT NULL,
+			detected_at_ms INTEGER NOT NULL,
+			status TEXT NOT NULL,
+			resolved_at_ms INTEGER,
+			resolution TEXT
 		)`
 	pairingTokensDDL = `
 		CREATE TABLE IF NOT EXISTS pairing_tokens (
@@ -130,6 +144,9 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 	if _, err := db.Exec(changelogDDL); err != nil {
 		return fmt.Errorf("ensure changelog schema: %w", err)
+	}
+	if _, err := db.Exec(conflictsDDL); err != nil {
+		return fmt.Errorf("ensure conflicts schema: %w", err)
 	}
 	if _, err := db.Exec(pairingTokensDDL); err != nil {
 		return fmt.Errorf("ensure pairing_tokens schema: %w", err)

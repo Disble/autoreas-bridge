@@ -75,4 +75,36 @@ func (s *SQLiteStore) FindByAuthToken(ctx context.Context, token string) (Stored
 	return device, nil
 }
 
+func (s *SQLiteStore) ListPairedDevices(ctx context.Context) ([]StoredDevice, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT device_id, name, auth_token, paired_at_ms
+		FROM devices
+		ORDER BY paired_at_ms ASC, device_id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list paired devices: %w", err)
+	}
+	defer rows.Close()
+
+	devices := []StoredDevice{}
+	for rows.Next() {
+		var item StoredDevice
+		if err := rows.Scan(&item.DeviceID, &item.Name, &item.AuthToken, &item.PairedAtMs); err != nil {
+			return nil, fmt.Errorf("scan paired device: %w", err)
+		}
+		devices = append(devices, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate paired devices: %w", err)
+	}
+	return devices, nil
+}
+
+func (s *SQLiteStore) DeletePairedDevice(ctx context.Context, deviceID string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM devices WHERE device_id = ?`, deviceID); err != nil {
+		return fmt.Errorf("delete paired device %q: %w", deviceID, err)
+	}
+	return nil
+}
+
 var _ Store = (*SQLiteStore)(nil)

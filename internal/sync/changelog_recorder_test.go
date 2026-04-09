@@ -29,11 +29,17 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	if store.lastEvent.AnimeID != event.AnimeID {
 		t.Fatalf("expected anime id %q, got %q", event.AnimeID, store.lastEvent.AnimeID)
 	}
-	if string(store.lastEvent.PayloadJSON) != string(event.Payload) {
-		t.Fatalf("expected payload %s, got %s", string(event.Payload), string(store.lastEvent.PayloadJSON))
+	if string(store.lastEvent.SnapshotJSON) != string(event.Payload) {
+		t.Fatalf("expected payload %s, got %s", string(event.Payload), string(store.lastEvent.SnapshotJSON))
 	}
 	if store.lastEvent.Status != "pending" {
 		t.Fatalf("expected status pending, got %q", store.lastEvent.Status)
+	}
+	if store.lastEvent.ChangeType != ChangelogTypeUpdate {
+		t.Fatalf("expected update change type, got %q", store.lastEvent.ChangeType)
+	}
+	if store.lastEvent.ChangedAtMs == 0 {
+		t.Fatal("expected changed timestamp to be stamped")
 	}
 
 	recorder.Stop()
@@ -77,6 +83,32 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 
 	if !errors.Is(recorder.Err(), wantErr) {
 		t.Fatalf("expected recorder err %v, got %v", wantErr, recorder.Err())
+	}
+
+	recorder.Stop()
+}
+
+func TestChangelogRecorderPersistsDeleteChangeType(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+	store := &stubChangelogStore{}
+	recorder := NewChangelogRecorder(bus, store)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	recorder.Start(ctx)
+
+	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", ChangeType: events.AnimeChangeTypeDelete})
+
+	eventuallySync(t, func() bool {
+		return store.insertCalls == 1
+	})
+
+	if store.lastEvent.ChangeType != ChangelogTypeDelete {
+		t.Fatalf("expected delete change type, got %q", store.lastEvent.ChangeType)
+	}
+	if store.lastEvent.SnapshotJSON != nil {
+		t.Fatalf("expected nil snapshot for delete, got %s", string(store.lastEvent.SnapshotJSON))
 	}
 
 	recorder.Stop()

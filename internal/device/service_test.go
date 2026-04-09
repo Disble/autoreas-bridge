@@ -150,3 +150,11 @@ func (s *stubStore) FindByAuthToken(context.Context, string) (StoredDevice, erro
 	}
 	return s.found, nil
 }
+
+func (s *stubStore) ListPairedDevices(context.Context) ([]StoredDevice, error) {
+	return nil, nil
+}
+
+func (s *stubStore) DeletePairedDevice(context.Context, string) error {
+	return nil
+}

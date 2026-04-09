@@ -2,22 +2,113 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 )
 
 type TriggerService struct {
-	bus events.Bus
+	bus   events.Bus
+	store changelogLookup
 }
 
-func NewTriggerService(bus events.Bus) *TriggerService {
-	return &TriggerService{bus: bus}
+type changelogLookup interface {
+	ListSinceTimestamp(ctx context.Context, sinceMs int64) ([]ChangelogEntry, error)
+	ListAfterID(ctx context.Context, lastID int64) ([]ChangelogEntry, error)
+	LastID(ctx context.Context) (int64, error)
+	LastChangedAt(ctx context.Context) (*int64, error)
+}
+
+func NewTriggerService(bus events.Bus, store changelogLookup) *TriggerService {
+	return &TriggerService{bus: bus, store: store}
 }
 
 func (s *TriggerService) TriggerReconcile(context.Context) error {
 	s.bus.Publish(events.SyncRequestedEvent{Requester: "rest-api"})
 	return nil
+}
+
+func (s *TriggerService) ListChangesSince(ctx context.Context, sinceMs int64) ([]contracts.AnimeChange, int64, error) {
+	if s.store == nil {
+		return []contracts.AnimeChange{}, 0, nil
+	}
+	entries, err := s.store.ListSinceTimestamp(ctx, sinceMs)
+	if err != nil {
+		return nil, 0, err
+	}
+	lastID, err := s.store.LastID(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	changes, _, err := toAnimeChanges(entries)
+	if err != nil {
+		return nil, 0, err
+	}
+	return changes, lastID, nil
+}
+
+func (s *TriggerService) ListChangesAfterID(ctx context.Context, lastID int64) ([]contracts.AnimeChange, int64, error) {
+	if s.store == nil {
+		return []contracts.AnimeChange{}, 0, nil
+	}
+	entries, err := s.store.ListAfterID(ctx, lastID)
+	if err != nil {
+		return nil, 0, err
+	}
+	newLastID, err := s.store.LastID(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	changes, _, err := toAnimeChanges(entries)
+	if err != nil {
+		return nil, 0, err
+	}
+	return changes, newLastID, nil
+}
+
+func (s *TriggerService) LastChangedAt(ctx context.Context) (*int64, error) {
+	if s.store == nil {
+		return nil, nil
+	}
+	return s.store.LastChangedAt(ctx)
+}
+
+func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, error) {
+	changes := make([]contracts.AnimeChange, 0, len(entries))
+	var lastID int64
+	for _, entry := range entries {
+		change := contracts.AnimeChange{
+			ID:            entry.ID,
+			RecordID:      entry.AnimeID,
+			ChangeType:    entry.ChangeType,
+			ChangedFields: append([]string(nil), entry.ChangedFields...),
+			Timestamp:     entry.ChangedAtMs,
+		}
+		if len(entry.SnapshotJSON) > 0 {
+			snapshot, err := animeSnapshotToContract(entry.SnapshotJSON)
+			if err != nil {
+				return nil, 0, err
+			}
+			change.Snapshot = snapshot
+		}
+		changes = append(changes, change)
+		lastID = entry.ID
+	}
+	return changes, lastID, nil
+}
+
+func animeSnapshotToContract(payload []byte) (*contracts.MobileAnime, error) {
+	var snapshot contracts.MobileAnime
+	if err := json.Unmarshal(payload, &snapshot); err == nil && snapshot.ID != "" {
+		return &snapshot, nil
+	}
+	parsed, err := anime.MobileAnimeFromSnapshotForSync(payload)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 var _ contracts.SyncTriggerService = (*TriggerService)(nil)

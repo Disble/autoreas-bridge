@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/device"
@@ -45,9 +47,12 @@ func TestSyncHandlerReturnsAccepted(t *testing.T) {
 			stubs.triggerCalls++
 			return nil
 		},
+		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
+			return []AnimeChange{{RecordID: "anime-1", ChangeType: "update", Timestamp: 123}}, 1, nil
+		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[]}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -58,6 +63,14 @@ func TestSyncHandlerReturnsAccepted(t *testing.T) {
 
 	if stubs.triggerCalls != 1 {
 		t.Fatalf("expected reconcile trigger once, got %d calls", stubs.triggerCalls)
+	}
+
+	var payload ReconcileResponse
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Status != "accepted" || len(payload.BridgeChanges) != 1 {
+		t.Fatalf("unexpected reconcile response %#v", payload)
 	}
 }
 

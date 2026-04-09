@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: Autoreas Bridge API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     REST API exposed by the Autoreas Bridge desktop application on 0.0.0.0:8080.
-    Used by mobile clients to pair, sync anime state, and receive real-time events.
+    Used by mobile clients to pair, bootstrap local SQLite state, fetch incremental
+    bridge changelogs, patch anime state, inspect bridge status, and receive real-time events.
 
-    Excluded endpoints (always return 405 — intentionally undocumented):
+    Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
 
@@ -16,7 +17,10 @@ x-websocket:
     WebSocket endpoint for real-time anime change events.
     Authentication: Bearer token via Authorization header OR ?token= query param.
     On connect, server sends: {"type":"sync_required","reason":"connection_gap_assumed"}
-    Broadcasts: {"type":"anime_changed","anime_id":"<id>","payload":<object>}
+    Broadcasts:
+      - {"type":"anime_changed","anime_id":"<id>","payload":<object>}
+      - {"type":"anime_created","anime_id":"<id>"}
+      - {"type":"anime_deleted","anime_id":"<id>"}
   responses:
     101: Upgrade success
     401: Authentication failure
@@ -54,6 +58,175 @@ components:
           type: string
           example: accepted
 
+    AnimeDay:
+      type: object
+      required: [dia, orden]
+      properties:
+        dia:
+          type: string
+        orden:
+          type: integer
+
+    Anime:
+      type: object
+      required: [_id, nombre, estado, nrocapvisto, activo, primeravez, dias, generos]
+      properties:
+        _id:
+          type: string
+        nombre:
+          type: string
+        estado:
+          type: integer
+          minimum: 0
+          maximum: 3
+        nrocapvisto:
+          type: number
+          minimum: 0
+        totalcap:
+          type: integer
+          nullable: true
+        activo:
+          type: integer
+          minimum: 0
+          maximum: 1
+        primeravez:
+          type: integer
+          minimum: 0
+          maximum: 1
+        dias:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimeDay'
+        generos:
+          type: array
+          items:
+            type: string
+        tipo:
+          type: integer
+          nullable: true
+        fechaUltCapVisto:
+          type: integer
+          nullable: true
+        fechaEstreno:
+          type: integer
+          nullable: true
+        fechaCreacion:
+          type: integer
+          nullable: true
+        fechaEliminacion:
+          type: integer
+          nullable: true
+        portada:
+          type: string
+          nullable: true
+        pagina:
+          type: string
+          nullable: true
+        carpeta:
+          type: string
+          nullable: true
+        estudios:
+          type: string
+          nullable: true
+        origen:
+          type: string
+          nullable: true
+        duracion:
+          type: integer
+          nullable: true
+
+    AnimeChange:
+      type: object
+      required: [record_id, change_type, changed_fields, timestamp]
+      properties:
+        record_id:
+          type: string
+        change_type:
+          type: string
+          enum: [create, update, delete]
+        changed_fields:
+          type: array
+          items:
+            type: string
+        snapshot:
+          $ref: '#/components/schemas/Anime'
+        timestamp:
+          type: integer
+
+    DeviceInfo:
+      type: object
+      required: [device_id, device_name, paired_at_ms]
+      properties:
+        device_id:
+          type: string
+        device_name:
+          type: string
+        paired_at_ms:
+          type: integer
+
+    ConflictInfo:
+      type: object
+      required: [conflict_id, anime_id, detected_at_ms, status]
+      properties:
+        conflict_id:
+          type: string
+        anime_id:
+          type: string
+        detected_at_ms:
+          type: integer
+        status:
+          type: string
+
+    BridgeStatus:
+      type: object
+      required: [status, last_changelog_id]
+      properties:
+        status:
+          type: string
+        last_changelog_id:
+          type: integer
+        last_changed_at_ms:
+          type: integer
+          nullable: true
+        server_address:
+          type: string
+
+    ReconcileRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+        last_changelog_id:
+          type: integer
+        pending_operations:
+          type: array
+          items:
+            type: object
+            properties:
+              anime_id:
+                type: string
+              operation:
+                type: string
+              payload:
+                type: object
+              created_at:
+                type: integer
+
+    ReconcileResponse:
+      type: object
+      required: [status, bridge_changes, conflicts]
+      properties:
+        status:
+          type: string
+        bridge_changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnimeChange'
+        conflicts:
+          type: array
+          items:
+            type: object
+
 paths:
   /api/devices/pair:
     post:
@@ -73,10 +246,8 @@ paths:
               properties:
                 pairing_token:
                   type: string
-                  description: One-time token shown in the Bridge pairing panel
                 device_name:
                   type: string
-                  description: Human-readable name for this device
       responses:
         '201':
           description: Device paired successfully
@@ -92,7 +263,6 @@ paths:
                     type: string
                   auth_token:
                     type: string
-                    description: Bearer token for authenticated endpoints
         '400':
           description: Invalid request body or pairing request
           content:
@@ -112,7 +282,127 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/devices:
+    get:
+      summary: List paired devices
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Paired devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceInfo'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/devices/{id}:
+    delete:
+      summary: Revoke a paired device
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusOK'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/animes:
+    get:
+      summary: List all effective animes
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Full effective anime snapshot list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Anime'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/animes/{id}:
+    get:
+      summary: Fetch one anime by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Normalized anime snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Anime'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Anime not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Patch anime state
       description: |
@@ -127,7 +417,6 @@ paths:
           required: true
           schema:
             type: string
-          description: Legacy anime ID from animes.dat
       requestBody:
         required: false
         content:
@@ -139,21 +428,13 @@ paths:
                   type: integer
                   minimum: 0
                   maximum: 3
-                  description: |
-                    Watch state:
-                      0 = not started
-                      1 = completed
-                      2 = watching
-                      3 = dropped
                 nrocapvisto:
                   type: number
                   minimum: 0
-                  description: Episode number last watched (fractional allowed)
                 dias:
                   type: array
                   items:
                     type: string
-                  description: Days of the week the anime airs
       responses:
         '200':
           description: Patch applied successfully
@@ -186,21 +467,162 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/sync/reconcile:
-    post:
-      summary: Trigger sync reconciliation
-      description: |
-        Triggers an immediate reconciliation pass between animes.dat and the SQLite store.
-        Accepted asynchronously — the response does not wait for reconciliation to complete.
+  /api/status:
+    get:
+      summary: Get bridge status
       security:
         - BearerAuth: []
+      responses:
+        '200':
+          description: Bridge status payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeStatus'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/conflicts:
+    get:
+      summary: List pending conflicts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [conflicts]
+                properties:
+                  conflicts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConflictInfo'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/conflicts/{id}/resolve:
+    post:
+      summary: Resolve a pending conflict
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conflict resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusOK'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Conflict not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/animes/changes:
+    get:
+      summary: List bridge changes after a timestamp
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Incremental bridge changelog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes, last_changelog_id]
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnimeChange'
+                  last_changelog_id:
+                    type: integer
+        '400':
+          description: Invalid query string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/sync/reconcile:
+    post:
+      summary: Trigger sync reconciliation and fetch bridge changes
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
       responses:
         '202':
           description: Reconciliation accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StatusAccepted'
+                $ref: '#/components/schemas/ReconcileResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: Missing or invalid Bearer token
           content:

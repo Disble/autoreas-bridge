@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/device"
@@ -16,10 +18,11 @@ type Handler struct {
 	patchAnime    http.Handler
 	syncReconcile http.Handler
 	mux           *http.ServeMux
+	config        Config
 }
 
 func NewHandler(config Config) http.Handler {
-	h := &Handler{deviceService: config.DeviceService}
+	h := &Handler{deviceService: config.DeviceService, config: config}
 	h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
 		Authenticate: h.authenticate,
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
@@ -38,8 +41,13 @@ func NewHandler(config Config) http.Handler {
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
+	mux.HandleFunc("/api/devices", h.handleDevices)
+	mux.HandleFunc("/api/devices/", h.handleDeviceByID)
 	mux.HandleFunc("/api/animes", h.handleAnimes)
 	mux.HandleFunc("/api/animes/", h.handleAnimeByID)
+	mux.HandleFunc("/api/status", h.handleStatus)
+	mux.HandleFunc("/api/conflicts", h.handleConflicts)
+	mux.HandleFunc("/api/conflicts/", h.handleConflictByID)
 	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
 	if config.RealtimeHub != nil {
 		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
@@ -100,6 +108,29 @@ func (h *Handler) handleAnimes(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
+	if r.Method == http.MethodGet && r.URL.Path == "/api/animes/changes" {
+		if _, ok := h.authenticate(w, r); !ok {
+			return
+		}
+		h.handleAnimeChanges(w, r)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if r.Method == http.MethodGet {
+		if h.config.AnimeQuery == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "anime query unavailable")
+			return
+		}
+		items, err := h.config.AnimeQuery.ListMobileAnimes(r.Context())
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "list animes failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+		return
+	}
 	writeMethodNotAllowed(w)
 }
 
@@ -109,8 +140,31 @@ func (h *Handler) handleAnimeByID(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if animeID == "changes" {
+		h.handleAnimeChanges(w, r)
+		return
+	}
 
 	switch r.Method {
+	case http.MethodGet:
+		if _, ok := h.authenticate(w, r); !ok {
+			return
+		}
+		if h.config.AnimeQuery == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "anime query unavailable")
+			return
+		}
+		item, err := h.config.AnimeQuery.GetMobileAnime(r.Context(), animeID)
+		if err != nil {
+			if errors.Is(err, ErrAnimeNotFound) {
+				writeJSONError(w, http.StatusNotFound, "anime not found")
+				return
+			}
+			writeJSONError(w, http.StatusInternalServerError, "get anime failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+		return
 	case http.MethodDelete:
 		writeMethodNotAllowed(w)
 		return
@@ -130,6 +184,133 @@ func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.syncReconcile.ServeHTTP(w, r)
+}
+
+func (h *Handler) handleAnimeChanges(w http.ResponseWriter, r *http.Request) {
+	if h.config.SyncTrigger == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "sync service unavailable")
+		return
+	}
+	since, err := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("since")), 10, 64)
+	if err != nil && strings.TrimSpace(r.URL.Query().Get("since")) != "" {
+		writeJSONError(w, http.StatusBadRequest, "invalid since query")
+		return
+	}
+	changes, lastID, err := h.config.SyncTrigger.ListChangesSince(r.Context(), since)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "list changes failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"changes": changes, "last_changelog_id": lastID})
+}
+
+func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if h.config.Status == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "status service unavailable")
+		return
+	}
+	status, err := h.config.Status.GetStatus(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "get status failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handler) handleDevices(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if h.config.DeviceAdmin == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "device admin unavailable")
+		return
+	}
+	devices, err := h.config.DeviceAdmin.ListDevices(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "list devices failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, devices)
+}
+
+func (h *Handler) handleDeviceByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if h.config.DeviceAdmin == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "device admin unavailable")
+		return
+	}
+	deviceID := strings.TrimPrefix(r.URL.Path, "/api/devices/")
+	if deviceID == "" || deviceID == r.URL.Path {
+		http.NotFound(w, r)
+		return
+	}
+	if err := h.config.DeviceAdmin.RevokeDevice(r.Context(), deviceID); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "revoke device failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleConflicts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if h.config.Conflicts == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "conflict service unavailable")
+		return
+	}
+	conflicts, err := h.config.Conflicts.ListConflicts(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "list conflicts failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"conflicts": conflicts})
+}
+
+func (h *Handler) handleConflictByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if _, ok := h.authenticate(w, r); !ok {
+		return
+	}
+	if h.config.Conflicts == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "conflict service unavailable")
+		return
+	}
+	conflictID := strings.TrimPrefix(r.URL.Path, "/api/conflicts/")
+	conflictID = strings.TrimSuffix(conflictID, "/resolve")
+	if conflictID == "" || conflictID == r.URL.Path {
+		http.NotFound(w, r)
+		return
+	}
+	if err := h.config.Conflicts.ResolveConflict(r.Context(), conflictID, time.Now()); err != nil {
+		writeJSONError(w, http.StatusNotFound, "conflict not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {

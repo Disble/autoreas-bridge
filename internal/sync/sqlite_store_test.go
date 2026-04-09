@@ -17,8 +17,11 @@ func TestSyncSQLiteProviderReusesBootstrappedHandle(t *testing.T) {
 	}
 
 	entry := ChangelogEntry{
-		AnimeID:     "anime-provider",
-		PayloadJSON: []byte(`{"_id":"anime-provider","nombre":"Provider"}`),
+		AnimeID:       "anime-provider",
+		ChangeType:    ChangelogTypeCreate,
+		ChangedFields: []string{"nombre"},
+		SnapshotJSON:  []byte(`{"_id":"anime-provider","nombre":"Provider"}`),
+		ChangedAtMs:   1710000000123,
 	}
 	if err := store.InsertPending(context.Background(), entry); err != nil {
 		t.Fatalf("insert pending through shared provider: %v", err)

@@ -83,7 +83,9 @@ func normalizePaths(raw []string) []string {
 		"/ws":         true,
 	}
 	normalize := map[string]string{
-		"/api/animes/": "/api/animes/{id}",
+		"/api/animes/":    "/api/animes/{id}",
+		"/api/devices/":   "/api/devices/{id}",
+		"/api/conflicts/": "/api/conflicts/{id}/resolve",
 	}
 
 	seen := map[string]bool{}

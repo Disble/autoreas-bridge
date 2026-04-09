@@ -81,6 +81,25 @@ func TestMemoryHubBroadcastDoesNotBlockWithSlowClient(t *testing.T) {
 	}
 }
 
+func TestMemoryHubBroadcastsCreateAndDeleteEventTypes(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	client := newRecordingClient("client-1")
+	if err := hub.Register(context.Background(), client); err != nil {
+		t.Fatalf("register client: %v", err)
+	}
+	consumeControlMessage(t, client.Receive(t))
+
+	hub.BroadcastAnimeChanged(context.Background(), events.AnimeChangedEvent{AnimeID: "anime-created", ChangeType: events.AnimeChangeTypeCreate})
+	hub.BroadcastAnimeChanged(context.Background(), events.AnimeChangedEvent{AnimeID: "anime-deleted", ChangeType: events.AnimeChangeTypeDelete})
+
+	assertAnimeIDPayload(t, client.Receive(t), MessageTypeAnimeCreated, "anime-created")
+	assertAnimeIDPayload(t, client.Receive(t), MessageTypeAnimeDeleted, "anime-deleted")
+}
+
 type recordingClient struct {
 	id       string
 	received chan []byte
@@ -172,6 +191,22 @@ func assertAnimeChangedPayload(t *testing.T, payload []byte, wantAnimeID string)
 		t.Fatalf("expected message type %q, got %q", MessageTypeAnimeChanged, msg.Type)
 	}
 
+	if msg.AnimeID != wantAnimeID {
+		t.Fatalf("expected anime id %q, got %q", wantAnimeID, msg.AnimeID)
+	}
+}
+
+func assertAnimeIDPayload(t *testing.T, payload []byte, wantType string, wantAnimeID string) {
+	t.Helper()
+
+	var msg AnimeIDMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		t.Fatalf("unmarshal anime id message: %v", err)
+	}
+
+	if msg.Type != wantType {
+		t.Fatalf("expected message type %q, got %q", wantType, msg.Type)
+	}
 	if msg.AnimeID != wantAnimeID {
 		t.Fatalf("expected anime id %q, got %q", wantAnimeID, msg.AnimeID)
 	}

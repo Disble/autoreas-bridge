@@ -3,9 +3,15 @@ package sync
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 )
 
-const changelogStatusPending = "pending"
+const (
+	changelogStatusPending = "pending"
+	ChangelogTypeCreate    = "create"
+	ChangelogTypeUpdate    = "update"
+	ChangelogTypeDelete    = "delete"
+)
 
 type SyncSQLiteProvider interface {
 	DB() *sql.DB
@@ -20,9 +26,13 @@ type sqliteStore struct {
 }
 
 type ChangelogEntry struct {
-	AnimeID     string
-	PayloadJSON []byte
-	Status      string
+	ID            int64
+	AnimeID       string
+	ChangeType    string
+	ChangedFields []string
+	SnapshotJSON  []byte
+	Status        string
+	ChangedAtMs   int64
 }
 
 func NewSyncSQLiteProvider(db *sql.DB) SyncSQLiteProvider {
@@ -45,5 +55,22 @@ func normalizePendingChangelogEntry(entry ChangelogEntry) ChangelogEntry {
 	if entry.Status == "" {
 		entry.Status = changelogStatusPending
 	}
+	if entry.ChangeType == "" {
+		entry.ChangeType = ChangelogTypeUpdate
+	}
+	if entry.ChangedFields == nil {
+		entry.ChangedFields = []string{}
+	}
 	return entry
+}
+
+func marshalChangedFields(fields []string) string {
+	if fields == nil {
+		fields = []string{}
+	}
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
 }

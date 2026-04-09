@@ -126,15 +126,26 @@ func (h *MemoryHub) Unregister(clientID string) {
 }
 
 func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
-	message := mustJSON(AnimeChangedMessage{
-		Type:    MessageTypeAnimeChanged,
-		AnimeID: event.AnimeID,
-		Payload: json.RawMessage(append([]byte(nil), event.Payload...)),
-	})
+	message := buildAnimeEventMessage(event)
 
 	select {
 	case h.broadcasts <- message:
 	default:
+	}
+}
+
+func buildAnimeEventMessage(event events.AnimeChangedEvent) []byte {
+	switch event.ChangeType {
+	case events.AnimeChangeTypeCreate:
+		return mustJSON(AnimeIDMessage{Type: MessageTypeAnimeCreated, AnimeID: event.AnimeID})
+	case events.AnimeChangeTypeDelete:
+		return mustJSON(AnimeIDMessage{Type: MessageTypeAnimeDeleted, AnimeID: event.AnimeID})
+	default:
+		return mustJSON(AnimeChangedMessage{
+			Type:    MessageTypeAnimeChanged,
+			AnimeID: event.AnimeID,
+			Payload: json.RawMessage(append([]byte(nil), event.Payload...)),
+		})
 	}
 }
 

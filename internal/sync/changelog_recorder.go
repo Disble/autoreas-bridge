@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"sync"
+	"time"
 
 	"autoreas-bridge/internal/events"
 )
@@ -14,6 +15,7 @@ type pendingChangelogStore interface {
 type ChangelogRecorder struct {
 	bus   events.Bus
 	store pendingChangelogStore
+	now   func() time.Time
 
 	mu          sync.Mutex
 	err         error
@@ -21,7 +23,7 @@ type ChangelogRecorder struct {
 }
 
 func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore) *ChangelogRecorder {
-	return &ChangelogRecorder{bus: bus, store: store}
+	return &ChangelogRecorder{bus: bus, store: store, now: time.Now}
 }
 
 func (r *ChangelogRecorder) Start(ctx context.Context) {
@@ -30,10 +32,21 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 		if !ok {
 			return
 		}
+		now := r.now
+		if now == nil {
+			now = time.Now
+		}
+		changeType := changed.ChangeType
+		if changeType == "" {
+			changeType = events.AnimeChangeTypeUpdate
+		}
 		if err := r.store.InsertPending(ctx, ChangelogEntry{
-			AnimeID:     changed.AnimeID,
-			PayloadJSON: changed.Payload,
-			Status:      changelogStatusPending,
+			AnimeID:       changed.AnimeID,
+			ChangeType:    changeType,
+			ChangedFields: append([]string(nil), changed.ChangedFields...),
+			SnapshotJSON:  append([]byte(nil), changed.Payload...),
+			Status:        changelogStatusPending,
+			ChangedAtMs:   now().UnixMilli(),
 		}); err != nil {
 			r.mu.Lock()
 			r.err = err

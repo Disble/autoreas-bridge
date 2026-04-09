@@ -18,6 +18,9 @@ type EffectiveAnime = contracts.EffectiveAnime
 type AnimeQueryService = contracts.AnimeQueryService
 type AnimeWriteService = contracts.AnimeWriteService
 type SyncTriggerService = contracts.SyncTriggerService
+type StatusService = contracts.StatusService
+type DeviceAdminService = contracts.DeviceAdminService
+type ConflictService = contracts.ConflictService
 
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
@@ -27,6 +30,9 @@ type Config struct {
 	AnimeQuery    AnimeQueryService
 	AnimeWrite    AnimeWriteService
 	SyncTrigger   SyncTriggerService
+	Status        StatusService
+	DeviceAdmin   DeviceAdminService
+	Conflicts     ConflictService
 	RealtimeHub   realtime.Hub
 }
 

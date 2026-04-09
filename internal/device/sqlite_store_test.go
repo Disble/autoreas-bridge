@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -57,6 +58,48 @@ func TestSQLiteStoreRejectsUnknownPairingToken(t *testing.T) {
 	err := store.ConsumePairingToken(context.Background(), "missing", 100)
 	if err == nil {
 		t.Fatal("expected unknown pairing token error")
+	}
+}
+
+func TestSQLiteStoreListsAndDeletesPairedDevices(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	devices := []StoredDevice{
+		{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "token-1", PairedAtMs: 100},
+		{DeviceID: "device-2", Name: "Pixel Tablet", AuthToken: "token-2", PairedAtMs: 200},
+	}
+	for _, item := range devices {
+		if err := store.InsertPairedDevice(ctx, item); err != nil {
+			t.Fatalf("insert device: %v", err)
+		}
+	}
+
+	listed, err := store.ListPairedDevices(ctx)
+	if err != nil {
+		t.Fatalf("list paired devices: %v", err)
+	}
+	if len(listed) != 2 {
+		t.Fatalf("expected 2 devices, got %d", len(listed))
+	}
+
+	if err := store.DeletePairedDevice(ctx, "device-1"); err != nil {
+		t.Fatalf("delete paired device: %v", err)
+	}
+
+	listed, err = store.ListPairedDevices(ctx)
+	if err != nil {
+		t.Fatalf("list paired devices after delete: %v", err)
+	}
+	if len(listed) != 1 || listed[0].DeviceID != "device-2" {
+		t.Fatalf("expected only device-2 to remain, got %#v", listed)
+	}
+
+	if _, err := store.FindByAuthToken(ctx, "token-1"); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected revoked token to fail auth with ErrUnauthorized, got %v", err)
 	}
 }
 

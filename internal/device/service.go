@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"autoreas-bridge/internal/api/contracts"
 )
 
 var (
@@ -38,11 +40,18 @@ type Store interface {
 	ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64) error
 	InsertPairedDevice(ctx context.Context, device StoredDevice) error
 	FindByAuthToken(ctx context.Context, token string) (StoredDevice, error)
+	ListPairedDevices(ctx context.Context) ([]StoredDevice, error)
+	DeletePairedDevice(ctx context.Context, deviceID string) error
 }
 
 type AuthService interface {
 	PairDevice(ctx context.Context, req PairDeviceRequest) (PairedDevice, error)
 	AuthenticateToken(ctx context.Context, token string) (PairedDevice, error)
+}
+
+type AdminService interface {
+	ListDevices(ctx context.Context) ([]contracts.DeviceInfo, error)
+	RevokeDevice(ctx context.Context, id string) error
 }
 
 type Service struct {
@@ -153,6 +162,26 @@ func (s *Service) AuthenticateToken(ctx context.Context, token string) (PairedDe
 	}, nil
 }
 
+func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, error) {
+	devices, err := s.store.ListPairedDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]contracts.DeviceInfo, 0, len(devices))
+	for _, item := range devices {
+		result = append(result, contracts.DeviceInfo{
+			DeviceID:   item.DeviceID,
+			DeviceName: item.Name,
+			PairedAtMs: item.PairedAtMs,
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) RevokeDevice(ctx context.Context, id string) error {
+	return s.store.DeletePairedDevice(ctx, id)
+}
+
 func randomHexToken(size int) (string, error) {
 	buf := make([]byte, size)
 	if _, err := rand.Read(buf); err != nil {
@@ -162,3 +191,4 @@ func randomHexToken(size int) (string, error) {
 }
 
 var _ AuthService = (*Service)(nil)
+var _ AdminService = (*Service)(nil)

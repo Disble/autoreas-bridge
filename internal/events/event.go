@@ -4,6 +4,10 @@ const (
 	EventNameAnimeChanged         = "anime.changed"
 	EventNameAnimeUpdateRequested = "anime.update_requested"
 	EventNameSyncRequested        = "sync.requested"
+
+	AnimeChangeTypeCreate = "create"
+	AnimeChangeTypeUpdate = "update"
+	AnimeChangeTypeDelete = "delete"
 )
 
 type Event interface {
@@ -11,8 +15,10 @@ type Event interface {
 }
 
 type AnimeChangedEvent struct {
-	AnimeID string
-	Payload []byte
+	AnimeID       string
+	Payload       []byte
+	ChangeType    string
+	ChangedFields []string
 }
 
 func (e AnimeChangedEvent) Name() string {

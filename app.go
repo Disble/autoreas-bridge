@@ -290,13 +290,24 @@ func (a *App) startup(ctx context.Context) {
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	animeQuery := anime.NewQueryService(snapshotStore)
 	animeWrite := anime.NewWriteService(snapshotStore, a.eventBus)
-	syncTrigger := bridgeSync.NewTriggerService(a.eventBus)
+	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
+	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
+		if a.httpServer == nil {
+			return ""
+		}
+		return a.httpServer.EffectiveAddress()
+	})
+	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
+	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{
 		DeviceService: deviceService,
 		AnimeQuery:    animeQuery,
 		AnimeWrite:    animeWrite,
 		SyncTrigger:   syncTrigger,
+		Status:        statusService,
+		DeviceAdmin:   deviceService.(device.AdminService),
+		Conflicts:     conflictService,
 		RealtimeHub:   a.realtimeHub,
 	})
 	if err := a.httpServer.Start(); err != nil {
