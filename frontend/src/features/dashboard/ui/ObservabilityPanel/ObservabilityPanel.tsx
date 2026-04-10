@@ -12,8 +12,8 @@ export function ObservabilityPanel() {
         <Card.Description>Bridge runtime log feed</Card.Description>
       </Card.Header>
       <Card.Content className="p-0">
-        <ScrollShadow className="max-h-80 px-4 pb-4" hideScrollBar>
-          <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+        <ScrollShadow className="max-h-[32rem] px-4 pb-4 2xl:max-h-[40rem]" hideScrollBar>
+          <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto 2xl:max-h-[40rem]">
             {entries.length === 0 ? (
               <div className="py-4 text-center">
                 <Chip color="default" variant="soft">No logs yet</Chip>
