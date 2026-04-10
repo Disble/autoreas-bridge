@@ -1,5 +1,5 @@
 import { Button, Card, Chip } from '@heroui/react';
-import QRCode from 'react-qr-code';
+import { PairingQrCode } from './pairing-panel.helpers';
 import { usePairingPanel } from './use-pairing-panel';
 
 export function PairingPanel() {
@@ -22,7 +22,7 @@ export function PairingPanel() {
         {qrValue ? (
           <div className="flex justify-center">
             <div className="rounded-xl bg-white p-3">
-              <QRCode id="pairing-qr" size={160} value={qrValue} />
+              <PairingQrCode id="pairing-qr" size={160} value={qrValue} />
             </div>
           </div>
         ) : null}
