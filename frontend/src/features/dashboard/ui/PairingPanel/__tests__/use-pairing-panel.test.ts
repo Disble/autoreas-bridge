@@ -5,6 +5,12 @@ const getEffectiveAddressMock = vi.fn();
 const getPairingTokenMock = vi.fn();
 const writeTextMock = vi.fn();
 
+vi.mock('qrcode', () => ({
+  default: {
+    toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
+  },
+}));
+
 vi.mock('../../../dashboard.bindings', () => ({
   getEffectiveAddress: () => getEffectiveAddressMock(),
   getPairingToken: () => getPairingTokenMock(),
@@ -33,15 +39,16 @@ describe('usePairingPanel', () => {
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
+      expect(result.current.qrImageUrl).toBe('data:image/png;base64,http://192.168.1.10:8080');
     });
 
+    expect(result.current.token).toBe('token-123');
     expect(result.current.ip).toBe('192.168.1.10');
     expect(result.current.port).toBe('8080');
-    expect(result.current.qrValue).toBe('http://192.168.1.10:8080');
+    expect(result.current.qrImageUrl).toBe('data:image/png;base64,http://192.168.1.10:8080');
   });
 
   it('copies the token and clears feedback after the timeout', async () => {
-    vi.useFakeTimers();
     getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
     getPairingTokenMock.mockResolvedValueOnce('token-123');
     writeTextMock.mockResolvedValueOnce(undefined);
@@ -53,12 +60,11 @@ describe('usePairingPanel', () => {
 
     const { result } = renderHook(() => usePairingPanel());
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(result.current.token).toBe('token-123');
     });
 
-    expect(result.current.token).toBe('token-123');
+    vi.useFakeTimers();
 
     await act(async () => {
       await result.current.onCopyToken();

@@ -1,6 +1,10 @@
-import QRCodeLib from 'react-qr-code';
-import type { ParsedEffectiveAddress } from './pairing-panel.types';
-import type { PairingQrCodeComponent, PairingQrCodeModule } from './pairing-panel.types';
+import QRCode from 'qrcode';
+import type { ParsedEffectiveAddress, PairingQrImageOptions } from './pairing-panel.types';
+
+export const DEFAULT_PAIRING_QR_OPTIONS: PairingQrImageOptions = {
+  margin: 1,
+  width: 160,
+};
 
 /**
  * Splits the effective Wails address into IP and port segments.
@@ -24,27 +28,9 @@ export function buildPairingQrValue(address: ParsedEffectiveAddress) {
 }
 
 /**
- * Resolves the `react-qr-code` export shape so the desktop WebView can use either
- * the direct callable export or the nested `QRCode` export exposed by the bundler interop layer.
+ * Generates a QR image data URL that is safe to render in Wails desktop using a plain `<img>`.
+ * This avoids the WebView-specific rendering issues we hit with `react-qr-code`.
  */
-export function resolvePairingQrCodeComponent(
-  qrCodeModule: PairingQrCodeComponent | PairingQrCodeModule,
-): PairingQrCodeComponent {
-  if (typeof qrCodeModule === 'function') {
-    return qrCodeModule;
-  }
-
-  if (typeof qrCodeModule.default === 'function') {
-    return qrCodeModule.default;
-  }
-
-  if (typeof qrCodeModule.QRCode === 'function') {
-    return qrCodeModule.QRCode;
-  }
-
-  throw new Error('react-qr-code export shape is unsupported');
+export function buildPairingQrImageUrl(value: string, options: PairingQrImageOptions = DEFAULT_PAIRING_QR_OPTIONS) {
+  return QRCode.toDataURL(value, options);
 }
-
-export const PairingQrCode = resolvePairingQrCodeComponent(
-  QRCodeLib as unknown as PairingQrCodeComponent | PairingQrCodeModule,
-);

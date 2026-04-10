@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { buildPairingQrValue, parseEffectiveAddress, resolvePairingQrCodeComponent } from '../pairing-panel.helpers';
-import type { PairingQrCodeComponent } from '../pairing-panel.types';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('qrcode', () => ({
+  default: {
+    toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
+  },
+}));
+
+import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from '../pairing-panel.helpers';
 
 describe('parseEffectiveAddress', () => {
   it('splits ip and port from a valid address', () => {
@@ -28,32 +34,10 @@ describe('buildPairingQrValue', () => {
   });
 });
 
-describe('resolvePairingQrCodeComponent', () => {
-  it('returns the direct function export when the module is callable', () => {
-    const directComponent: PairingQrCodeComponent = function DirectComponent() {
-      return null;
-    };
-
-    expect(resolvePairingQrCodeComponent(directComponent)).toBe(directComponent);
-  });
-
-  it('returns the default export when the module exposes it that way', () => {
-    const defaultComponent: PairingQrCodeComponent = function DefaultComponent() {
-      return null;
-    };
-
-    expect(resolvePairingQrCodeComponent({ default: defaultComponent })).toBe(defaultComponent);
-  });
-
-  it('returns the nested QRCode export when the module exposes it that way', () => {
-    const nestedComponent: PairingQrCodeComponent = function NestedComponent() {
-      return null;
-    };
-
-    expect(resolvePairingQrCodeComponent({ QRCode: nestedComponent })).toBe(nestedComponent);
-  });
-
-  it('throws when no supported export exists', () => {
-    expect(() => resolvePairingQrCodeComponent({})).toThrow('react-qr-code export shape is unsupported');
+describe('buildPairingQrImageUrl', () => {
+  it('returns a qr image data url', async () => {
+    await expect(buildPairingQrImageUrl('http://192.168.1.10:8080')).resolves.toBe(
+      'data:image/png;base64,http://192.168.1.10:8080',
+    );
   });
 });

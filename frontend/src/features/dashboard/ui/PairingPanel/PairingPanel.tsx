@@ -1,9 +1,8 @@
 import { Button, Card, Chip } from '@heroui/react';
-import { PairingQrCode } from './pairing-panel.helpers';
 import { usePairingPanel } from './use-pairing-panel';
 
 export function PairingPanel() {
-  const { copied, ip, onCopyToken, port, qrValue, token } = usePairingPanel();
+  const { copied, ip, onCopyToken, port, qrImageUrl, token } = usePairingPanel();
 
   return (
     <Card>
@@ -19,10 +18,10 @@ export function PairingPanel() {
           </Chip>
         </div>
 
-        {qrValue ? (
+        {qrImageUrl ? (
           <div className="flex justify-center">
             <div className="rounded-xl bg-white p-3">
-              <PairingQrCode id="pairing-qr" size={160} value={qrValue} />
+              <img alt="Pairing QR" className="size-40" id="pairing-qr" src={qrImageUrl} />
             </div>
           </div>
         ) : null}
