@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getRecentLogs, subscribeToEvent } from '../../dashboard.bindings';
 import { OBSERVABILITY_EVENT_NAME } from './observability-panel.constants';
-import { keepRecentEntries } from './observability-panel.helpers';
-import type { ObservabilityLogEntry } from './observability-panel.types';
+import { keepRecentEntries, toObservabilityPanelViewModel } from './observability-panel.helpers';
+import type { ObservabilityLogEntry, ObservabilityPanelViewModel } from './observability-panel.types';
 
 export function useObservabilityPanel() {
   // 1. Refs
@@ -41,6 +41,6 @@ export function useObservabilityPanel() {
   }, []);
 
   return {
-    entries,
+    entries: entries.map(toObservabilityPanelViewModel) satisfies ObservabilityPanelViewModel[],
   };
 }

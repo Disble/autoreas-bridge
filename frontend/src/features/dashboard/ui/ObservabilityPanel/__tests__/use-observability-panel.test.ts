@@ -30,7 +30,7 @@ describe('useObservabilityPanel', () => {
       expect(result.current.entries).toHaveLength(1);
     });
 
-    expect(result.current.entries[0]?.message).toBe('booted');
+    expect(result.current.entries[0]?.entry.message).toBe('booted');
     expect(eventsOnMock).toHaveBeenCalledWith(OBSERVABILITY_EVENT_NAME, expect.any(Function));
   });
 
@@ -53,6 +53,6 @@ describe('useObservabilityPanel', () => {
       handler?.({ timestamp: '2026-04-08T00:01:00Z', domain: 'sync', level: 'warn', message: 'queued reconcile' });
     });
 
-    expect(result.current.entries[0]?.message).toBe('queued reconcile');
+    expect(result.current.entries[0]?.entry.message).toBe('queued reconcile');
   });
 });
