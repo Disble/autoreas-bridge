@@ -1,19 +1,68 @@
-# README
+# Autoreas Bridge
 
-## About
+Autoreas Bridge acts as a seamless, local-first synchronization bridge between the legacy Autoreas Desktop application and its companion devices over a local WiFi network. 
 
-This is the official Wails React-TS template.
+By observing and interacting directly with the legacy app's underlying data store (`animes.dat`), the Bridge achieves bi-directional synchronization without altering a single byte of the original Autoreas Desktop source code.
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## Key Features
 
-## Live Development
+- **Local Network Synchronization:** Real-time peer-to-peer sync locally. No cloud servers or internet access required.
+- **Non-Destructive Legacy Integration:** Custom parser and file watcher natively integrate with the legacy NeDB file (`animes.dat`).
+- **Intelligent Conflict Resolution:** Utilizes an embedded SQLite database to track changelogs and perform CRDT-like semantic reconciliation to prevent data loss.
+- **Concurrent Write Protection:** Employs an append-only, single-threaded write queue to safely update the legacy database on Windows without concurrent file locks.
+- **Real-Time & Peer-to-Peer:** Exposes a local REST API and WebSocket server for real-time state updates with a secure device pairing system via QR codes and permanent auth tokens.
+- **Lightweight Desktop App:** Built with Go and Wails v2 (React/Vite frontend). Runs silently in the Windows system tray with a low memory footprint (~15MB idle). Provides a clean UI for managing paired devices, viewing sync logs, and resolving conflicts manually.
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## Architecture
 
-## Building
+This project strictly adheres to **Hexagonal Architecture (Ports & Adapters)** on the backend and enforces a **Strict Smart Hooks / Dumb UI** pattern on the frontend. 
 
-To build a redistributable, production mode package, use `wails build`.
+For architectural deep dives, see:
+- [Architecture Overview](docs/architecture.md)
+- [Design Document](docs/autoreas-bridge-design-doc.md)
+
+## Tech Stack
+
+- **Backend:** Go 1.21+, SQLite, Wails v2, Event Bus
+- **Frontend:** React, Vite, Tailwind CSS v4, HeroUI
+- **Tooling:** Bun, Lefthook (Pre-commit)
+
+## Development
+
+### Prerequisites
+
+- [Go](https://go.dev/dl/) 1.21+
+- [Bun](https://bun.sh/) or Node.js
+- [Wails CLI](https://wails.io/docs/gettingstarted/installation)
+
+### Running Locally
+
+To run in live development mode, run the following in the project root:
+
+```bash
+wails dev
+```
+
+This will run a Vite development server that provides very fast hot reload of your frontend changes, along with the Go backend. A local inspector is available at `http://localhost:34115`.
+
+### Testing
+
+Tests are an integral part of this project.
+
+- **Frontend:** Run `bun run test` in the `frontend/` directory (requires colocated `__tests__/` for all helpers/hooks).
+- **Backend:** Run `go test ./...` in the project root.
+
+### Building for Production
+
+To build a redistributable, production-ready executable package:
+
+```bash
+wails build
+```
+
+## Contributing
+
+This project relies on **Spec-Driven Development (SDD)** orchestrated via `.atl` and `openspec/`. 
+All major changes must pass through a structured flow of: `Explore -> Propose -> Spec -> Design -> Tasks -> Apply -> Verify -> Archive`. Direct feature commits without SDD artifacts will fail the pipeline.
+
+Ensure your code passes all `lefthook` pre-commit checks before pushing.
