@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"github.com/fsnotify/fsnotify"
 )
@@ -132,15 +133,37 @@ func TestRuntimeWatcherCoalescesBurstEventsIntoSingleProcessingCycle(t *testing.
 
 	assertPublishedAnimeChanged(t, publisher.events()[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
 
+	// Verify published events carry a CorrelationID from the watcher cycle
+	published := publisher.events()
+	changedEvt, ok := published[0].(events.AnimeChangedEvent)
+	if !ok {
+		t.Fatalf("expected AnimeChangedEvent, got %T", published[0])
+	}
+	if changedEvt.CorrelationID == "" {
+		t.Fatal("expected published event to carry a CorrelationID from watcher cycle")
+	}
+
 	entries := shared.entries()
 	foundPublishedInfo := false
+	var watcherEntry sharedlogger.LogEntry
 	for _, entry := range entries {
 		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo {
 			foundPublishedInfo = true
+			watcherEntry = entry
 		}
 	}
 	if !foundPublishedInfo {
 		t.Fatalf("expected anime info log for published deltas, got %#v", entries)
+	}
+
+	if watcherEntry.EventType != "anime.watcher" {
+		t.Fatalf("expected watcher log EventType 'anime.watcher', got %q", watcherEntry.EventType)
+	}
+	if watcherEntry.DurationMs < 0 {
+		t.Fatalf("expected watcher log DurationMs >= 0, got %d", watcherEntry.DurationMs)
+	}
+	if watcherEntry.CorrelationID == "" {
+		t.Fatal("expected watcher log to have a CorrelationID")
 	}
 
 	cancel()

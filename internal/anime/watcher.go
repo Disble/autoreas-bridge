@@ -10,6 +10,7 @@ import (
 
 	sharedlogger "autoreas-bridge/internal/logger"
 	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
 )
 
 type FileWatcher interface {
@@ -221,6 +222,9 @@ func (w *runtimeWatcher) waitRetry(ctx context.Context) bool {
 
 func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 	log := newDomainLogger("anime", w.sharedLogger, w.logger)
+	start := time.Now()
+	correlationID := uuid.NewString()
+
 	file, err := w.openFile(w.filePath)
 	if err != nil {
 		log.Errorf("failed to open runtime watcher file %s: %v", w.filePath, err)
@@ -254,10 +258,16 @@ func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 		if w.selfEchoRegistry != nil && len(delta.Payload) > 0 && w.selfEchoRegistry.ConsumeIfPresent(delta.Payload) {
 			continue
 		}
+		delta.CorrelationID = correlationID
 		w.publisher.Publish(delta)
 	}
 	if len(deltas) > 0 || len(pruneIDs) > 0 {
-		log.Infof("runtime watcher published %d deltas and %d prunes", len(deltas), len(pruneIDs))
+		elapsed := time.Since(start)
+		log.Logf(sharedlogger.LevelInfo, sharedlogger.Fields{
+			EventType:     "anime.watcher",
+			DurationMs:    elapsed.Milliseconds(),
+			CorrelationID: correlationID,
+		}, "runtime watcher published %d deltas and %d prunes", len(deltas), len(pruneIDs))
 	}
 
 	if err := w.store.ReplaceBaseline(ctx, current, pruneIDs); err != nil {

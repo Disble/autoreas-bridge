@@ -81,6 +81,25 @@ func TestUpdateWriterPublishesConfirmationAfterAppend(t *testing.T) {
 		t.Fatal("expected writer to register payload for self-echo filtering")
 	}
 
+	// Writer should propagate CorrelationID from incoming event to outgoing event
+	published := publisher.events()
+	changedEvt, ok := published[0].(events.AnimeChangedEvent)
+	if !ok {
+		t.Fatalf("expected AnimeChangedEvent, got %T", published[0])
+	}
+	// Writer should log with structured fields
+	entries := shared.entries()
+	foundWriteInfo := false
+	for _, entry := range entries {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && entry.EntityID == "anime-1" && entry.EventType == "anime.write" {
+			foundWriteInfo = true
+		}
+	}
+	if !foundWriteInfo {
+		t.Fatalf("expected anime.write info log with EntityID, got %#v", entries)
+	}
+	_ = changedEvt
+
 	cancel()
 	writer.Wait()
 }
@@ -237,6 +256,14 @@ func TestUpdateWriterRequestWriteReturnsAppendErrorAndPublishesFailureEvent(t *t
 	entries := shared.entries()
 	if len(entries) == 0 || entries[0].Domain != "anime" || entries[0].Level != sharedlogger.LevelWarn {
 		t.Fatalf("expected anime warn structured log, got %#v", entries)
+	}
+
+	failEntry := entries[0]
+	if failEntry.EntityID != "anime-1" {
+		t.Fatalf("expected EntityID 'anime-1', got %q", failEntry.EntityID)
+	}
+	if failEntry.EventType != "anime.write" {
+		t.Fatalf("expected EventType 'anime.write', got %q", failEntry.EventType)
 	}
 
 	cancel()

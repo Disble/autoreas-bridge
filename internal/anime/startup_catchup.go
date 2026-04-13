@@ -165,6 +165,7 @@ func (c *startupCoordinator) run(ctx context.Context) {
 
 func (c *startupCoordinator) catchUp(ctx context.Context) error {
 	log := newDomainLogger("anime", c.sharedLogger, c.logger)
+	start := time.Now()
 	log.Infof("starting startup catch-up for %s", c.filePath)
 
 	file, err := c.openFile(c.filePath)
@@ -199,7 +200,11 @@ func (c *startupCoordinator) catchUp(ctx context.Context) error {
 		}
 		c.publisher.Publish(delta)
 	}
-	log.Infof("startup catch-up published %d deltas and %d prunes", len(deltas), len(pruneIDs))
+	elapsed := time.Since(start)
+	log.Logf(sharedlogger.LevelInfo, sharedlogger.Fields{
+		EventType:  "anime.catchup",
+		DurationMs: elapsed.Milliseconds(),
+	}, "startup catch-up published %d deltas and %d prunes", len(deltas), len(pruneIDs))
 
 	if err := c.store.ReplaceBaseline(ctx, current, pruneIDs); err != nil {
 		log.Errorf("failed to replace startup baseline: %v", err)

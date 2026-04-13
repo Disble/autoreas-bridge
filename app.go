@@ -229,12 +229,9 @@ func (a *App) startup(ctx context.Context) {
 	if a.emitFn == nil {
 		a.emitFn = defaultObservabilityEmit
 	}
-	if a.eventBus == nil {
-		a.eventBus = events.NewBus()
-	}
 	if a.memLogger == nil {
 		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
-			Capacity: 200,
+			Capacity: 500,
 			OnWriteFn: func(entry sharedlogger.LogEntry) {
 				if a.ctx == nil || a.emitFn == nil {
 					return
@@ -245,6 +242,9 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.sharedLogger == nil {
 		a.sharedLogger = sharedlogger.NewFanoutLogger(sharedlogger.NewStdoutLogger(nil), a.memLogger)
+	}
+	if a.eventBus == nil {
+		a.eventBus = events.NewInstrumentedBus(events.NewBus(), a.sharedLogger)
 	}
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()

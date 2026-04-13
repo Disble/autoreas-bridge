@@ -20,6 +20,7 @@ type AnimeChangedEvent struct {
 	Payload       []byte
 	ChangeType    string
 	ChangedFields []string
+	CorrelationID string
 }
 
 func (e AnimeChangedEvent) Name() string {
@@ -27,8 +28,9 @@ func (e AnimeChangedEvent) Name() string {
 }
 
 type AnimeUpdateRequestedEvent struct {
-	AnimeID string
-	Payload []byte
+	AnimeID       string
+	Payload       []byte
+	CorrelationID string
 }
 
 func (e AnimeUpdateRequestedEvent) Name() string {
@@ -36,9 +38,10 @@ func (e AnimeUpdateRequestedEvent) Name() string {
 }
 
 type AnimeWriteFailedEvent struct {
-	AnimeID string
-	Path    string
-	Err     string
+	AnimeID       string
+	Path          string
+	Err           string
+	CorrelationID string
 }
 
 func (e AnimeWriteFailedEvent) Name() string {
@@ -50,7 +53,8 @@ func (e AnimeWriteFailedEvent) EventName() string {
 }
 
 type SyncRequestedEvent struct {
-	Requester string
+	Requester     string
+	CorrelationID string
 }
 
 func (e SyncRequestedEvent) Name() string {

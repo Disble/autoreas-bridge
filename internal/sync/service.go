@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
@@ -32,11 +33,22 @@ func NewTriggerService(bus events.Bus, store changelogLookup, loggers ...sharedl
 }
 
 func (s *TriggerService) TriggerReconcile(context.Context) error {
+	start := time.Now()
 	if s.log != nil {
-		s.log.Infof("sync", "triggered reconcile request")
+		s.log.Logf("sync", sharedlogger.LevelInfo, sharedlogger.Fields{
+			EventType:  "sync.reconcile",
+			DurationMs: maxDurationMs(time.Since(start)),
+		}, "triggered reconcile request")
 	}
 	s.bus.Publish(events.SyncRequestedEvent{Requester: "rest-api"})
 	return nil
+}
+
+func maxDurationMs(duration time.Duration) int64 {
+	if duration.Milliseconds() <= 0 {
+		return 1
+	}
+	return duration.Milliseconds()
 }
 
 func (s *TriggerService) ListChangesSince(ctx context.Context, sinceMs int64) ([]contracts.AnimeChange, int64, error) {

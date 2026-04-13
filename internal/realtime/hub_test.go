@@ -41,12 +41,31 @@ func TestMemoryHubBroadcastsAnimeChangedToRegisteredClients(t *testing.T) {
 	if len(entries) == 0 || entries[0].Domain != "websocket" {
 		t.Fatalf("expected websocket logs, got %#v", entries)
 	}
+
+	// Find broadcast log and verify it includes client count in metadata
+	var broadcastEntry *sharedlogger.LogEntry
+	for i, entry := range entries {
+		if entry.EventType == "websocket.broadcast" {
+			broadcastEntry = &entries[i]
+			break
+		}
+	}
+	if broadcastEntry == nil {
+		t.Fatalf("expected log entry with EventType 'websocket.broadcast', got %#v", entries)
+	}
+	if broadcastEntry.EntityID != "anime-123" {
+		t.Fatalf("expected broadcast EntityID 'anime-123', got %q", broadcastEntry.EntityID)
+	}
+	if broadcastEntry.Metadata == nil || broadcastEntry.Metadata["clientCount"] == nil {
+		t.Fatalf("expected broadcast metadata to include clientCount, got %v", broadcastEntry.Metadata)
+	}
 }
 
 func TestMemoryHubUnregisterRemovesClientAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 2, ClientBuffer: 2})
+	logger := &recordingRealtimeLogger{}
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 2, ClientBuffer: 2, Logger: logger})
 	t.Cleanup(func() { _ = hub.Close() })
 
 	client := newRecordingClient("client-1")
@@ -60,6 +79,36 @@ func TestMemoryHubUnregisterRemovesClientAndIsIdempotent(t *testing.T) {
 
 	if got := hub.ClientCount(); got != 0 {
 		t.Fatalf("expected client count 0, got %d", got)
+	}
+
+	entries := logger.entries()
+	var registerEntry *sharedlogger.LogEntry
+	var unregisterEntry *sharedlogger.LogEntry
+	for i, entry := range entries {
+		switch entry.EventType {
+		case "websocket.register":
+			registerEntry = &entries[i]
+		case "websocket.unregister":
+			unregisterEntry = &entries[i]
+		}
+	}
+	if registerEntry == nil {
+		t.Fatalf("expected websocket.register log entry, got %#v", entries)
+	}
+	if registerEntry.EntityID != "client-1" {
+		t.Fatalf("expected register EntityID 'client-1', got %q", registerEntry.EntityID)
+	}
+	if registerEntry.Metadata == nil || registerEntry.Metadata["clientCount"] == nil {
+		t.Fatalf("expected register metadata clientCount, got %#v", registerEntry.Metadata)
+	}
+	if unregisterEntry == nil {
+		t.Fatalf("expected websocket.unregister log entry, got %#v", entries)
+	}
+	if unregisterEntry.EntityID != "client-1" {
+		t.Fatalf("expected unregister EntityID 'client-1', got %q", unregisterEntry.EntityID)
+	}
+	if unregisterEntry.Metadata == nil || unregisterEntry.Metadata["clientCount"] != 0 {
+		t.Fatalf("expected unregister metadata clientCount=0, got %#v", unregisterEntry.Metadata)
 	}
 }
 
@@ -160,6 +209,10 @@ type recordingRealtimeLogger struct {
 	entriesList []sharedlogger.LogEntry
 }
 
+func (l *recordingRealtimeLogger) Debugf(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelDebug})
+}
+
 func (l *recordingRealtimeLogger) Infof(domain, format string, args ...any) {
 	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelInfo})
 }
@@ -170,6 +223,18 @@ func (l *recordingRealtimeLogger) Warnf(domain, format string, args ...any) {
 
 func (l *recordingRealtimeLogger) Errorf(domain, format string, args ...any) {
 	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError})
+}
+
+func (l *recordingRealtimeLogger) Logf(domain, level string, fields sharedlogger.Fields, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{
+		Domain:        domain,
+		Level:         level,
+		CorrelationID: fields.CorrelationID,
+		EntityID:      fields.EntityID,
+		EventType:     fields.EventType,
+		DurationMs:    fields.DurationMs,
+		Metadata:      fields.Metadata,
+	})
 }
 
 func (l *recordingRealtimeLogger) entries() []sharedlogger.LogEntry {

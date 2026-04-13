@@ -55,7 +55,11 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 			ChangedAtMs:   now().UnixMilli(),
 		}); err != nil {
 			if r.log != nil {
-				r.log.Errorf("sync", "failed to record pending changelog for %s: %v", changed.AnimeID, err)
+				r.log.Logf("sync", sharedlogger.LevelError, sharedlogger.Fields{
+					EntityID:      changed.AnimeID,
+					EventType:     "sync.changelog",
+					CorrelationID: changed.CorrelationID,
+				}, "failed to record pending changelog for %s: %v", changed.AnimeID, err)
 			}
 			r.mu.Lock()
 			r.err = err
@@ -63,7 +67,11 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 			return
 		}
 		if r.log != nil {
-			r.log.Infof("sync", "recorded pending changelog for %s", changed.AnimeID)
+			r.log.Logf("sync", sharedlogger.LevelInfo, sharedlogger.Fields{
+				EntityID:      changed.AnimeID,
+				EventType:     "sync.changelog",
+				CorrelationID: changed.CorrelationID,
+			}, "recorded pending changelog for %s", changed.AnimeID)
 		}
 	})
 }

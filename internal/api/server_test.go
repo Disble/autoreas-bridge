@@ -55,6 +55,10 @@ type recordingAPILogger struct {
 	entriesList []sharedlogger.LogEntry
 }
 
+func (l *recordingAPILogger) Debugf(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelDebug})
+}
+
 func (l *recordingAPILogger) Infof(domain, format string, args ...any) {
 	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelInfo})
 }
@@ -65,6 +69,18 @@ func (l *recordingAPILogger) Warnf(domain, format string, args ...any) {
 
 func (l *recordingAPILogger) Errorf(domain, format string, args ...any) {
 	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError})
+}
+
+func (l *recordingAPILogger) Logf(domain, level string, fields sharedlogger.Fields, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{
+		Domain:        domain,
+		Level:         level,
+		CorrelationID: fields.CorrelationID,
+		EntityID:      fields.EntityID,
+		EventType:     fields.EventType,
+		DurationMs:    fields.DurationMs,
+		Metadata:      fields.Metadata,
+	})
 }
 
 func (l *recordingAPILogger) entries() []sharedlogger.LogEntry {

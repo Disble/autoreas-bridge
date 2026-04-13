@@ -39,10 +39,22 @@ func TestTriggerServicePublishesSyncRequestedEvent(t *testing.T) {
 	if len(entries) != 1 || entries[0].Domain != "sync" || entries[0].Level != sharedlogger.LevelInfo {
 		t.Fatalf("expected sync info log, got %#v", entries)
 	}
+
+	reconcileEntry := entries[0]
+	if reconcileEntry.EventType != "sync.reconcile" {
+		t.Fatalf("expected EventType 'sync.reconcile', got %q", reconcileEntry.EventType)
+	}
+	if reconcileEntry.DurationMs <= 0 {
+		t.Fatalf("expected DurationMs > 0, got %d", reconcileEntry.DurationMs)
+	}
 }
 
 type recordingSyncLogger struct {
 	entriesList []sharedlogger.LogEntry
+}
+
+func (l *recordingSyncLogger) Debugf(domain, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelDebug})
 }
 
 func (l *recordingSyncLogger) Infof(domain, format string, args ...any) {
@@ -55,6 +67,18 @@ func (l *recordingSyncLogger) Warnf(domain, format string, args ...any) {
 
 func (l *recordingSyncLogger) Errorf(domain, format string, args ...any) {
 	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError})
+}
+
+func (l *recordingSyncLogger) Logf(domain, level string, fields sharedlogger.Fields, format string, args ...any) {
+	l.entriesList = append(l.entriesList, sharedlogger.LogEntry{
+		Domain:        domain,
+		Level:         level,
+		CorrelationID: fields.CorrelationID,
+		EntityID:      fields.EntityID,
+		EventType:     fields.EventType,
+		DurationMs:    fields.DurationMs,
+		Metadata:      fields.Metadata,
+	})
 }
 
 func (l *recordingSyncLogger) entries() []sharedlogger.LogEntry {

@@ -107,11 +107,16 @@ func (h *MemoryHub) Register(ctx context.Context, client Client) error {
 		h.mu.Lock()
 	}
 	h.clients[client.ID()] = state
+	clientCount := len(h.clients)
 	h.mu.Unlock()
 
 	go h.runClient(state)
 	if h.logger != nil {
-		h.logger.Infof("websocket", "registered client %s", client.ID())
+		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
+			EntityID:  client.ID(),
+			EventType: "websocket.register",
+			Metadata:  map[string]any{"clientCount": clientCount},
+		}, "registered client %s", client.ID())
 	}
 	return h.enqueueClientMessage(state, mustJSON(ControlMessage{
 		Type:   MessageTypeSyncRequired,
@@ -125,19 +130,33 @@ func (h *MemoryHub) Unregister(clientID string) {
 	if state != nil {
 		delete(h.clients, clientID)
 	}
+	clientCount := len(h.clients)
 	h.mu.Unlock()
 
 	if state != nil {
 		if h.logger != nil {
-			h.logger.Infof("websocket", "unregistered client %s", clientID)
+			h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
+				EntityID:  clientID,
+				EventType: "websocket.unregister",
+				Metadata:  map[string]any{"clientCount": clientCount},
+			}, "unregistered client %s", clientID)
 		}
 		h.unregisterState(state)
 	}
 }
 
 func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
+	h.mu.RLock()
+	clientCount := len(h.clients)
+	h.mu.RUnlock()
+
 	if h.logger != nil {
-		h.logger.Infof("websocket", "broadcast anime.changed for %s", event.AnimeID)
+		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
+			EntityID:      event.AnimeID,
+			EventType:     "websocket.broadcast",
+			CorrelationID: event.CorrelationID,
+			Metadata:      map[string]any{"clientCount": clientCount},
+		}, "broadcast anime.changed for %s", event.AnimeID)
 	}
 	message := buildAnimeEventMessage(event)
 

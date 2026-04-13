@@ -59,11 +59,16 @@ func TestStartupCoordinatorStartsAsyncAndWaitsForGhostFile(t *testing.T) {
 		t.Fatal("expected store not to be queried while file is missing")
 	}
 
-	if len(logger.messages()) == 0 {
-		t.Fatal("expected waiting logger message for missing file")
-	}
+	waitFor(t, 200*time.Millisecond, func() bool {
+		return len(logger.messages()) > 0
+	}, "expected waiting logger message for missing file")
 
-	entries := shared.entries()
+	var entries []sharedlogger.LogEntry
+	waitFor(t, 200*time.Millisecond, func() bool {
+		entries = shared.entries()
+		return len(entries) > 0
+	}, "expected system warning entry for missing file")
+
 	if len(entries) == 0 || entries[0].Domain != "system" || entries[0].Level != sharedlogger.LevelWarn {
 		t.Fatalf("expected system warning entry for missing file, got %#v", entries)
 	}
@@ -162,9 +167,11 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 
 	foundCatchupInfo := false
 	foundParseWarn := false
+	var catchupEntry sharedlogger.LogEntry
 	for _, entry := range entries {
 		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && strings.Contains(entry.Message, "catch-up") {
 			foundCatchupInfo = true
+			catchupEntry = entry
 		}
 		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelWarn && strings.Contains(entry.Message, "warning parsing") {
 			foundParseWarn = true
@@ -176,6 +183,13 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 	}
 	if !foundParseWarn {
 		t.Fatalf("expected parse warning log, got %#v", entries)
+	}
+
+	if catchupEntry.EventType != "anime.catchup" {
+		t.Fatalf("expected catch-up log EventType 'anime.catchup', got %q", catchupEntry.EventType)
+	}
+	if catchupEntry.DurationMs < 0 {
+		t.Fatalf("expected catch-up log DurationMs >= 0, got %d", catchupEntry.DurationMs)
 	}
 }
 
@@ -316,6 +330,12 @@ type recordingSharedLogger struct {
 	log []sharedlogger.LogEntry
 }
 
+func (l *recordingSharedLogger) Debugf(domain, format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.log = append(l.log, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelDebug, Message: fmt.Sprintf(format, args...)})
+}
+
 func (l *recordingSharedLogger) Infof(domain, format string, args ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -332,6 +352,21 @@ func (l *recordingSharedLogger) Errorf(domain, format string, args ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.log = append(l.log, sharedlogger.LogEntry{Domain: domain, Level: sharedlogger.LevelError, Message: fmt.Sprintf(format, args...)})
+}
+
+func (l *recordingSharedLogger) Logf(domain, level string, fields sharedlogger.Fields, format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.log = append(l.log, sharedlogger.LogEntry{
+		Domain:        domain,
+		Level:         level,
+		Message:       fmt.Sprintf(format, args...),
+		CorrelationID: fields.CorrelationID,
+		EntityID:      fields.EntityID,
+		EventType:     fields.EventType,
+		DurationMs:    fields.DurationMs,
+		Metadata:      fields.Metadata,
+	})
 }
 
 func (l *recordingSharedLogger) entries() []sharedlogger.LogEntry {
@@ -380,5 +415,21 @@ func assertPublishedDelete(t *testing.T, event events.Event, wantID string) {
 
 	if changed.Payload != nil {
 		t.Fatalf("expected nil payload delete event, got %s", string(changed.Payload))
+	}
+}
+
+func waitFor(t *testing.T, timeout time.Duration, condition func() bool, failureMessage string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !condition() {
+		t.Fatal(failureMessage)
 	}
 }

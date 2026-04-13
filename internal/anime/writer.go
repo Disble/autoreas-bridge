@@ -19,9 +19,10 @@ type UpdateWriter interface {
 }
 
 type writeRequest struct {
-	animeID string
-	payload []byte
-	result  chan<- error
+	animeID       string
+	payload       []byte
+	correlationID string
+	result        chan<- error
 }
 
 type UpdateWriterConfig struct {
@@ -95,8 +96,9 @@ func (w *updateWriter) StartAsync(ctx context.Context) {
 			}
 
 			request := writeRequest{
-				animeID: update.AnimeID,
-				payload: append([]byte(nil), update.Payload...),
+				animeID:       update.AnimeID,
+				payload:       append([]byte(nil), update.Payload...),
+				correlationID: update.CorrelationID,
 			}
 
 			select {
@@ -177,20 +179,30 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 		wrapped := fmt.Errorf("append anime update for %q at %q: %w", request.animeID, w.filePath, appendErr)
 		if w.publisher != nil {
 			w.publisher.Publish(events.AnimeWriteFailedEvent{
-				AnimeID: request.animeID,
-				Path:    w.filePath,
-				Err:     wrapped.Error(),
+				AnimeID:       request.animeID,
+				Path:          w.filePath,
+				Err:           wrapped.Error(),
+				CorrelationID: request.correlationID,
 			})
 		}
-		log.Warnf("%v", wrapped)
+		log.Logf(sharedlogger.LevelWarn, sharedlogger.Fields{
+			EntityID:      request.animeID,
+			EventType:     "anime.write",
+			CorrelationID: request.correlationID,
+		}, "%v", wrapped)
 		w.setErr(wrapped)
 		err = wrapped
 	} else if w.publisher != nil {
 		w.publisher.Publish(events.AnimeChangedEvent{
-			AnimeID: request.animeID,
-			Payload: append([]byte(nil), request.payload...),
+			AnimeID:       request.animeID,
+			Payload:       append([]byte(nil), request.payload...),
+			CorrelationID: request.correlationID,
 		})
-		log.Infof("appended update and published anime.changed for %s", request.animeID)
+		log.Logf(sharedlogger.LevelInfo, sharedlogger.Fields{
+			EntityID:      request.animeID,
+			EventType:     "anime.write",
+			CorrelationID: request.correlationID,
+		}, "appended update and published anime.changed for %s", request.animeID)
 	}
 
 	if request.result != nil {

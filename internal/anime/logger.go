@@ -49,3 +49,14 @@ func (l domainLogger) Errorf(format string, args ...any) {
 		l.warn.Warnf(format, args...)
 	}
 }
+
+func (l domainLogger) Logf(level string, fields sharedlogger.Fields, format string, args ...any) {
+	if l.shared != nil {
+		l.shared.Logf(l.domain, level, fields, format, args...)
+	}
+	if level == sharedlogger.LevelWarn || level == sharedlogger.LevelError {
+		if l.warn != nil {
+			l.warn.Warnf(format, args...)
+		}
+	}
+}

@@ -2,7 +2,7 @@ package logger
 
 import "sync"
 
-const defaultMemLoggerCapacity = 200
+const defaultMemLoggerCapacity = 500
 
 type MemLoggerConfig struct {
 	Capacity  int
@@ -29,16 +29,24 @@ func NewMemLogger(config MemLoggerConfig) *MemLogger {
 	}
 }
 
+func (l *MemLogger) Debugf(domain, format string, args ...any) {
+	l.WriteEntry(newEntry(domain, LevelDebug, Fields{}, format, args...))
+}
+
 func (l *MemLogger) Infof(domain, format string, args ...any) {
-	l.WriteEntry(newEntry(domain, LevelInfo, format, args...))
+	l.WriteEntry(newEntry(domain, LevelInfo, Fields{}, format, args...))
 }
 
 func (l *MemLogger) Warnf(domain, format string, args ...any) {
-	l.WriteEntry(newEntry(domain, LevelWarn, format, args...))
+	l.WriteEntry(newEntry(domain, LevelWarn, Fields{}, format, args...))
 }
 
 func (l *MemLogger) Errorf(domain, format string, args ...any) {
-	l.WriteEntry(newEntry(domain, LevelError, format, args...))
+	l.WriteEntry(newEntry(domain, LevelError, Fields{}, format, args...))
+}
+
+func (l *MemLogger) Logf(domain, level string, fields Fields, format string, args ...any) {
+	l.WriteEntry(newEntry(domain, level, fields, format, args...))
 }
 
 func (l *MemLogger) WriteEntry(entry LogEntry) {

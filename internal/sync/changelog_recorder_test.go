@@ -49,6 +49,14 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 		t.Fatalf("expected sync info log for changelog insert, got %#v", entries)
 	}
 
+	insertEntry := entries[0]
+	if insertEntry.EntityID != "anime-1" {
+		t.Fatalf("expected EntityID 'anime-1', got %q", insertEntry.EntityID)
+	}
+	if insertEntry.EventType != "sync.changelog" {
+		t.Fatalf("expected EventType 'sync.changelog', got %q", insertEntry.EventType)
+	}
+
 	recorder.Stop()
 }
 
