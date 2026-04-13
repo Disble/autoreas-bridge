@@ -10,7 +10,7 @@ By observing and interacting directly with the legacy app's underlying data stor
 - **Non-Destructive Legacy Integration:** Custom parser and file watcher natively integrate with the legacy NeDB file (`animes.dat`).
 - **Intelligent Conflict Resolution:** Utilizes an embedded SQLite database to track changelogs and perform CRDT-like semantic reconciliation to prevent data loss.
 - **Concurrent Write Protection:** Employs an append-only, single-threaded write queue to safely update the legacy database on Windows without concurrent file locks.
-- **Real-Time & Peer-to-Peer:** Exposes a local REST API and WebSocket server for real-time state updates with a secure device pairing system via QR codes and permanent auth tokens.
+- **Real-Time & Peer-to-Peer:** Exposes a local REST API and WebSocket server for real-time state updates with device pairing based on raw LAN IP + QR/Token, using one-shot pairing tokens and persistent auth tokens.
 - **Lightweight Desktop App:** Built with Go and Wails v2 (React/Vite frontend). Runs silently in the Windows system tray with a low memory footprint (~15MB idle). Provides a clean UI for managing paired devices, viewing sync logs, and resolving conflicts manually.
 
 ## Architecture

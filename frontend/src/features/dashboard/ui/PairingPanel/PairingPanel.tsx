@@ -8,7 +8,7 @@ export function PairingPanel() {
     <Card>
       <Card.Header>
         <Card.Title>Pair a Device</Card.Title>
-        <Card.Description>Scan the QR code from Autoreas Mobile or enter the token manually</Card.Description>
+        <Card.Description>Scan the QR code from Autoreas Mobile, or use the token below as a manual fallback</Card.Description>
       </Card.Header>
       <Card.Content className="flex flex-col gap-4">
         <div className="flex items-center gap-3">

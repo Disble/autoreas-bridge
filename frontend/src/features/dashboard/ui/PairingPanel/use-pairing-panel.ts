@@ -17,7 +17,15 @@ export function usePairingPanel() {
 
   // 5. Derived State (useMemo)
   const parsedAddress = useMemo(() => parseEffectiveAddress(address), [address]);
-  const qrValue = useMemo(() => buildPairingQrValue(parsedAddress), [parsedAddress]);
+  const qrValue = useMemo(
+    () =>
+      buildPairingQrValue({
+        ip: parsedAddress.ip,
+        port: parsedAddress.port,
+        token,
+      }),
+    [parsedAddress.ip, parsedAddress.port, token],
+  );
   const hasQrValue = useMemo(() => qrValue.length > 0, [qrValue]);
 
   // 6. Callbacks (useCallback calling pure helpers)

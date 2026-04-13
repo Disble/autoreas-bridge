@@ -25,19 +25,27 @@ describe('parseEffectiveAddress', () => {
 });
 
 describe('buildPairingQrValue', () => {
-  it('builds the http url when ip and port exist', () => {
-    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '8080' })).toBe('http://192.168.1.10:8080');
+  it('builds the canonical pairing deep link when ip, port, and token exist', () => {
+    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '8080', token: 'token-123' })).toBe(
+      'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
+    );
   });
 
   it('returns an empty string when the address is incomplete', () => {
-    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '' })).toBe('');
+    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '', token: 'token-123' })).toBe('');
+  });
+
+  it('returns an empty string when the token is missing', () => {
+    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '8080', token: '' })).toBe('');
   });
 });
 
 describe('buildPairingQrImageUrl', () => {
   it('returns a qr image data url', async () => {
-    await expect(buildPairingQrImageUrl('http://192.168.1.10:8080')).resolves.toBe(
-      'data:image/png;base64,http://192.168.1.10:8080',
+    await expect(
+      buildPairingQrImageUrl('autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123'),
+    ).resolves.toBe(
+      'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
     );
   });
 });

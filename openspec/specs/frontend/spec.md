@@ -32,23 +32,30 @@ The Bridge Status Panel MUST display the current health of the SQLite database a
 
 ### Requirement: Pairing Panel
 
-The Pairing Panel MUST display the raw LAN IP address, port, a copyable token, and a QR code encoding the HTTP URL for mobile device pairing.
+The Pairing Panel MUST display the raw LAN IP address, port, a copyable one-time pairing token, and a QR code encoding the canonical mobile deep link for device pairing.
 
 #### Scenario: Pairing IP Visibility
 - GIVEN the bridge is running on a local network
 - WHEN the Pairing Panel is rendered
 - THEN the IP address shown MUST be the raw LAN IP (not "localhost")
+- AND the port MUST remain visible next to that IP
 
 #### Scenario: QR Code Rendering
 - GIVEN the bridge is running on a local network at `{ip}` and `{port}`
+- AND the Pairing Panel has generated `{pairing_token}`
 - WHEN the Pairing Panel renders the QR code
-- THEN the QR code MUST encode the exact HTTP URL `http://{ip}:{port}`
+- THEN the QR code MUST encode the exact deep link `autoreas-mobile://pair?v=1&ip={ip}&port={port}&token={pairing_token}`
+
+#### Scenario: QR withheld until the contract is complete
+- GIVEN the Pairing Panel does not yet have a complete IP, port, or pairing token
+- WHEN the QR payload is derived
+- THEN the panel MUST NOT render a QR payload for an incomplete pairing contract
 
 #### Scenario: Token Generation
 - GIVEN the user requests to pair a device
 - WHEN the Pairing Panel requests a token
 - THEN a one-time token string MUST be generated and displayed
-- AND the token MUST be copyable
+- AND the token MUST be copyable as a manual fallback path
 
 ### Requirement: Wails Binding - GetSQLiteStatus
 

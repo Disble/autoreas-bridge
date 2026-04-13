@@ -136,6 +136,22 @@ The system MUST emit realtime events that let the mobile client react to updates
 - THEN the system applies them through the same validation and write path used by REST reconcile
 - AND the bridge emits `anime_changed` after the write is accepted
 
+### Requirement: Device pairing distinguishes one-shot pairing from persistent authentication
+
+The system MUST accept a one-time `pairing_token` to enroll a device and MUST return a persistent `auth_token` for all subsequent authenticated requests.
+
+#### Scenario: Pair device with one-time pairing token
+- GIVEN the bridge has generated a one-time pairing token for the pairing panel
+- WHEN a mobile client sends `POST /api/devices/pair` with `{"pairing_token":"...","device_name":"AutoreasMobile"}`
+- THEN the bridge SHALL validate and consume that pairing token
+- AND the response SHALL include `device_id`, `device_name`, and `auth_token`
+
+#### Scenario: QR payload carries pairing token only
+- GIVEN the bridge renders a QR code for device pairing
+- WHEN the QR payload is generated
+- THEN the payload SHALL include the one-time `pairing_token`
+- AND the payload SHALL NOT include `auth_token`
+
 ### Requirement: GET /api/status Bridge Diagnostics
 
 The system MUST expose an authenticated `GET /api/status` endpoint for lightweight diagnostics.

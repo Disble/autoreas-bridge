@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import type { ParsedEffectiveAddress, PairingQrImageOptions } from './pairing-panel.types';
+import type { PairingQrImageOptions, PairingQrPayloadInput, ParsedEffectiveAddress } from './pairing-panel.types';
 
 export const DEFAULT_PAIRING_QR_OPTIONS: PairingQrImageOptions = {
   margin: 1,
@@ -21,10 +21,21 @@ export function parseEffectiveAddress(address: string): ParsedEffectiveAddress {
 
 /**
  * Builds the QR payload for device pairing.
- * The mobile app expects a raw HTTP URL only when both IP and port are present.
+ * The mobile app expects the canonical versioned deep link only when IP, port, and token are present.
  */
-export function buildPairingQrValue(address: ParsedEffectiveAddress) {
-  return address.ip && address.port ? `http://${address.ip}:${address.port}` : '';
+export function buildPairingQrValue(payload: PairingQrPayloadInput) {
+  if (!payload.ip || !payload.port || !payload.token) {
+    return '';
+  }
+
+  const searchParams = new URLSearchParams({
+    v: '1',
+    ip: payload.ip,
+    port: payload.port,
+    token: payload.token,
+  });
+
+  return `autoreas-mobile://pair?${searchParams.toString()}`;
 }
 
 /**

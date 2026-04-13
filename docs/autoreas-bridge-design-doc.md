@@ -223,14 +223,15 @@ Modelo inspirado en Syncthing. Principio: nunca se pierde data silenciosamente.
 
 ### 4.9 Seguridad
 
-Token de pairing permanente:
+Semántica oficial de autenticación:
 
-- Generado desde el Web UI del bridge al parear un nuevo dispositivo.
-- Enviado como header `Authorization: Bearer <token>` en cada request.
-- Permanente hasta revocación manual desde el Web UI.
-- Un token por dispositivo.
+- `pairing_token`: token de un solo uso generado desde el Web UI del bridge para iniciar el alta del dispositivo.
+- `auth_token`: token persistente devuelto por el bridge al completar el pairing y usado luego como `Authorization: Bearer <auth_token>` en requests REST/WS.
+- El QR v1 transporta `pairing_token`, nunca `auth_token`.
 
-Justificación: red WiFi doméstica, dispositivos personales. Un token permanente es el balance correcto entre seguridad y usabilidad.
+Contrato QR v1:
+
+`autoreas-mobile://pair?v=1&ip={LAN_IP}&port={PORT}&token={PAIRING_TOKEN}`
 
 ### 4.10 API REST
 
@@ -258,7 +259,7 @@ Solo los campos incluidos en el body se actualizan. Campos no listados en esta t
 
 **Dispositivos:**
 
-- `POST /api/devices/pair` — Parear nuevo dispositivo.
+- `POST /api/devices/pair` — Parear nuevo dispositivo usando `pairing_token` y devolver `auth_token` persistente.
 - `DELETE /api/devices/:id` — Revocar acceso.
 - `GET /api/devices` — Lista de dispositivos pareados.
 

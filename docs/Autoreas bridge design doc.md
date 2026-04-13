@@ -82,7 +82,7 @@ El sistema tiene tres zonas:
 
 **Zona PC (Windows):** Autoreas Desktop coexiste con Autoreas Bridge. Desktop lee y escribe `animes.dat` normalmente, sin saber que el bridge existe. Bridge observa ese mismo archivo, detecta cambios, y los propaga a la red local.
 
-**Zona WiFi LAN:** Canal de comunicación entre Bridge y la app móvil. Bridge se anuncia por mDNS y expone una REST API + WebSocket. Sin internet.
+**Zona WiFi LAN:** Canal de comunicación entre Bridge y la app móvil. Bridge expone una REST API + WebSocket, muestra IP/puerto efectivo y publica QR/Token como mecanismo principal de pairing. Sin internet.
 
 **Zona Tablet (fuera del scope):** La futura app Autoreas Mobile Android. Se conectará al Bridge para sincronizar datos.
 
@@ -96,7 +96,7 @@ graph TB
             SE["Sync engine<br/><i>Conflictos + changelog</i>"]
             DB["SQLite<br/><i>changelog, tokens, devices</i>"]
             API["REST API + WebSocket"]
-            MDNS["mDNS"]
+            DISC["IP local + QR/Token"]
             UI["React Web UI<br/><i>Ventana nativa Wails</i>"]
             TS["Token store"]
         end
@@ -115,7 +115,7 @@ graph TB
     FW --> DB
     SE --> API
     API --> PROTO
-    MDNS --> PROTO
+    DISC --> PROTO
     PROTO --> TABLET
 
     style TABLET stroke-dasharray: 5 5
@@ -295,7 +295,7 @@ sequenceDiagram
         B->>T: Responde {changelog_bridge, conflicts: []}
         T->>T: Aplica cambios de bridge
     else Con conflicto
-        B->>B: Reconciliación semántica + guarda perdedor
+        B->>B: Last-write-wins + guarda perdedor
         B->>T: Responde {changelog_bridge, conflicts: [...]}
         T->>T: Aplica versión ganadora
     end
@@ -342,7 +342,7 @@ Si el WebSocket cae (tablet sale de la red, PC entra en sleep), ambos siguen acu
 Modelo inspirado en Syncthing. Principio: nunca se pierde data silenciosamente.
 
 1. **Solo un lado cambió un registro:** Se aplica el cambio. No hay conflicto.
-2. **Ambos lados cambiaron el mismo registro:** Gana la reconciliación semántica (`MAX(local, remote)` para progreso, omitiendo timestamps ingenuos que generarían stale overwrites). La versión perdedora se guarda en la tabla `conflicts`.
+2. **Ambos lados cambiaron el mismo registro:** Gana el timestamp más reciente (last-write-wins). La versión perdedora se guarda en la tabla `conflicts`.
 3. **Un lado eliminó y el otro modificó:** La modificación gana. El registro se preserva. La eliminación se registra como conflicto.
 4. Todos los conflictos son visibles en el Web UI para revisión manual.
 
@@ -362,9 +362,11 @@ flowchart TD
 
 ### 4.8 Descubrimiento de dispositivos
 
-**Principal: IP local + QR/Token.** El bridge expone su IP/puerto efectivo y un QR para que la tablet se conecte sin depender de discovery multicast.
+**Principal: IP local + QR/Token.** El bridge debe exponer la IP/puerto efectivo y un QR de pairing como mecanismo principal para mobile.
 
-**mDNS: despriorizado / best-effort futuro.** Puede explorarse más adelante como mejora de conveniencia, pero deja de ser requisito del flujo principal porque la experiencia mobile real mostró mejor confiabilidad con IP explícita.
+**Contrato QR v1:** `autoreas-mobile://pair?v=1&ip={LAN_IP}&port={PORT}&token={PAIRING_TOKEN}`.
+
+**mDNS: despriorizado / best-effort futuro.** Puede evaluarse después como mejora de conveniencia, pero deja de ser parte crítica del flujo porque la estrategia explícita por IP + QR/Token es la referencia de pairing.
 
 ### 4.9 Seguridad
 
@@ -373,10 +375,6 @@ Semántica oficial de autenticación:
 - `pairing_token`: token de un solo uso generado desde el Web UI del bridge para iniciar el alta del dispositivo.
 - `auth_token`: token persistente devuelto por el bridge al completar el pairing y usado luego como `Authorization: Bearer <auth_token>` en requests REST/WS.
 - El QR v1 transporta `pairing_token`, nunca `auth_token`.
-
-Contrato QR v1:
-
-`autoreas-mobile://pair?v=1&ip={LAN_IP}&port={PORT}&token={PAIRING_TOKEN}`
 
 ```mermaid
 sequenceDiagram
@@ -406,13 +404,8 @@ sequenceDiagram
 
 - `GET /api/animes` — Lista completa.
 - `GET /api/animes/:id` — Detalle por ID.
-- `PATCH /api/animes/:id` — Actualizar campos (`nrocapvisto`, `estado`, `dias`, `primeravez`).
-| `nrocapvisto` | number | >= 0 (fraccional permitido) |
-| `estado` | number | 0, 1, 2 o 3 únicamente |
-| `dias` | array | Cada elemento: `{dia: string, orden: number}`. Se admiten valores custom del usuario |
-| `primeravez` | boolean | true o false |
-
-Solo los campos incluidos en el body se actualizan. Campos no listados en esta tabla son rechazados (400 Bad Request). Los timestamps de modificación y progreso (`fechaUltCapVisto`, `fechaEstreno`) son generados y estampados automáticamente por el backend de Go, no se aceptan del cliente.
+- `PATCH /api/animes/:id` — Actualizar campos (MVP: `nrocapvisto`, `fechaUltCapVisto`).
+- `GET /api/animes/changes?since=<timestamp>` — Changelog desde un timestamp.
 
 **Sync:**
 
@@ -420,7 +413,7 @@ Solo los campos incluidos en el body se actualizan. Campos no listados en esta t
 
 **Dispositivos:**
 
-- `POST /api/devices/pair` — Parear nuevo dispositivo.
+- `POST /api/devices/pair` — Parear nuevo dispositivo usando `pairing_token` y devolver `auth_token` persistente.
 - `DELETE /api/devices/:id` — Revocar acceso.
 - `GET /api/devices` — Lista de dispositivos pareados.
 
@@ -474,7 +467,7 @@ stateDiagram-v2
 | Corrupción de `animes.dat` por escritura concurrente | Muy baja | Alto | Check de actividad reciente + abort en colisión + backup antes de cada escritura |
 | Parser de NeDB no cubre edge cases | Baja | Medio | Usar el archivo real de producción (~800 registros) como suite de tests desde el día uno |
 | Wails v2 → v3 migración futura | Media | Medio | v2 tiene mantenimiento activo (última release: marzo 2026). Migración sería incremental |
-| mDNS bloqueado por firewall de Windows | Media | Bajo | Riesgo aceptado porque el flujo principal usa IP local + QR/Token; mDNS queda como mejora opcional futura |
+| mDNS bloqueado por firewall de Windows | Media | Bajo | Documentar configuración necesaria. Fallback IP manual en post-MVP |
 | Relojes desincronizados entre PC y tablet | Baja | Medio | Usar timestamps relativos al último sync, no absolutos |
 
 ### 5.2 Costes
@@ -545,14 +538,14 @@ El desarrollo se organiza en fases con criterios de entrada y salida claros. Cad
 
 **Objetivo:** Implementar la reconciliación y resolución de conflictos.
 
-**Entregable:** Endpoint `POST /api/sync/reconcile` que intercambia changelogs y resuelve conflictos con reconciliación semántica CRDT-like. Tabla de conflictos funcional.
+**Entregable:** Endpoint `POST /api/sync/reconcile` que intercambia changelogs y resuelve conflictos con last-write-wins. Tabla de conflictos funcional.
 
 **Criterios de salida:**
 
 | Métrica | Objetivo | Cómo se valida |
 |---|---|---|
 | Reconciliación sin conflicto | Aplica todos los cambios correctamente | Test: generar changelogs no-conflictivos en ambos lados, reconciliar, verificar estado final |
-| Reconciliación Semántica | Progreso nunca retrocede y gana el mayor valor | Test: generar conflicto simulando memoria vieja, verificar que gana el update correcto |
+| Last-write-wins | Gana el timestamp más reciente | Test: generar conflicto con timestamps conocidos, verificar ganador |
 | Preservación de perdedor | Versión perdedora en tabla conflicts | Test: generar conflicto, verificar que `GET /api/conflicts` devuelve ambas versiones |
 | Delete vs modify | Modificación gana | Test: un lado elimina, otro modifica, verificar que el registro se preserva |
 | Tiempo de reconciliación | <100ms para 50 cambios | Benchmark con changelogs sintéticos de 50 entradas |

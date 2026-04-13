@@ -37,7 +37,7 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Pair a Device' })).toBeInTheDocument();
-    expect(screen.getByText('Scan the QR code from Autoreas Mobile or enter the token manually')).toBeInTheDocument();
+    expect(screen.getByText('Scan the QR code from Autoreas Mobile, or use the token below as a manual fallback')).toBeInTheDocument();
   });
 
   it('renders the observability route', async () => {
