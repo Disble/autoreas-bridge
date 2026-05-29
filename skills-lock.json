@@ -5,6 +5,12 @@
       "source": "heroui-inc/heroui",
       "sourceType": "github",
       "computedHash": "eb416399a9856a04152d36ef07396274e3bf0fff8f12f3e09bf610e5625dd58d"
+    },
+    "wallaby-cli": {
+      "source": "wallabyjs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/wallaby-cli/SKILL.md",
+      "computedHash": "5a2ce4685c1ddd9ebd19fb19b618685af89468bf50bcf1741431ed9fd91cd480"
     }
   }
 }
