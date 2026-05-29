@@ -53,9 +53,12 @@ describe('ObservabilityPanel', () => {
     expect(screen.getByText('entity: anime-7')).toBeInTheDocument();
     expect(screen.getByText('corr: corr-123')).toBeInTheDocument();
     expect(screen.getByText('512ms')).toBeInTheDocument();
-    expect(screen.getByText('method: GET')).toBeInTheDocument();
-    expect(screen.getByText('path: /api/animes')).toBeInTheDocument();
-    expect(screen.getByText('status: 200')).toBeInTheDocument();
+    expect(screen.getByText('method')).toBeInTheDocument();
+    expect(screen.getByText('GET')).toBeInTheDocument();
+    expect(screen.getByText('path')).toBeInTheDocument();
+    expect(screen.getByText('/api/animes')).toBeInTheDocument();
+    expect(screen.getByText('status')).toBeInTheDocument();
+    expect(screen.getByText('200')).toBeInTheDocument();
   });
 
   it('shows the empty state when there are no log entries', () => {
@@ -63,6 +66,6 @@ describe('ObservabilityPanel', () => {
 
     render(<ObservabilityPanel />);
 
-    expect(screen.getByText('No logs yet')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for runtime events\u2026')).toBeInTheDocument();
   });
 });

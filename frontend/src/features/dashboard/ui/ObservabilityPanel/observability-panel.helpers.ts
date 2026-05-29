@@ -13,7 +13,7 @@ export function keepRecentEntries(entries: ObservabilityLogEntry[]) {
  * Maps backend log levels to the semantic HeroUI chip colors.
  * This keeps log rendering declarative and avoids UI-specific branching in the component.
  */
-export function getLogLevelColor(level?: string): 'default' | 'success' | 'warning' | 'danger' {
+export function getLogLevelColor(level?: string): 'accent' | 'default' | 'success' | 'warning' | 'danger' {
   switch ((level ?? '').toLowerCase()) {
     case 'info':
       return 'success';
@@ -21,8 +21,58 @@ export function getLogLevelColor(level?: string): 'default' | 'success' | 'warni
       return 'warning';
     case 'error':
       return 'danger';
+    case 'debug':
+      return 'accent';
     default:
       return 'default';
+  }
+}
+
+/**
+ * Extracts the time portion (HH:mm:ss) from an ISO 8601 timestamp.
+ * Keeps the log feed scannable without full date noise.
+ */
+export function formatTimestamp(timestamp: string): string {
+  return timestamp.slice(11, 19);
+}
+
+/**
+ * Maps known runtime domains to distinct HeroUI chip colors.
+ * Color-coding domains lets operators scan the log feed by source at a glance.
+ */
+export function getDomainColor(domain: string): 'accent' | 'default' | 'success' | 'warning' | 'danger' {
+  switch (domain.toLowerCase()) {
+    case 'sync':
+      return 'accent';
+    case 'bus':
+      return 'default';
+    case 'websocket':
+      return 'warning';
+    case 'anime':
+      return 'success';
+    case 'api':
+      return 'danger';
+    default:
+      return 'default';
+  }
+}
+
+/**
+ * Returns a Tailwind left-border class matching the log level severity.
+ * Provides a quick vertical scan indicator like traditional log viewers.
+ */
+export function getLogLevelAccentClass(level?: string): string {
+  switch ((level ?? '').toLowerCase()) {
+    case 'info':
+      return 'border-l-emerald-500';
+    case 'warn':
+      return 'border-l-amber-500';
+    case 'error':
+      return 'border-l-red-500';
+    case 'debug':
+      return 'border-l-violet-500';
+    default:
+      return 'border-l-zinc-600';
   }
 }
 
@@ -60,12 +110,14 @@ export function formatMetadataLabel(key: string, value: string) {
  * Builds the compact summary labels shown next to each log header.
  * Prefixes make dense structured fields scannable without forcing the user to infer meaning.
  */
-export function getSummaryLabels(entry: ObservabilityLogEntry) {
+export function getSummaryLabels(entry: ObservabilityLogEntry): string[] {
+  const durationLabel = formatDurationLabel(entry.durationMs);
+
   return [
     ...(entry.eventType ? [`event: ${entry.eventType}`] : []),
     ...(entry.entityId ? [`entity: ${entry.entityId}`] : []),
     ...(entry.correlationId ? [`corr: ${entry.correlationId}`] : []),
-    ...(formatDurationLabel(entry.durationMs) ? [formatDurationLabel(entry.durationMs)] : []),
+    ...(durationLabel ? [durationLabel] : []),
   ];
 }
 

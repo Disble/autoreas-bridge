@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   formatDurationLabel,
   formatMetadataLabel,
+  formatTimestamp,
+  getDomainColor,
+  getLogLevelAccentClass,
   getLogLevelColor,
   getMetadataEntries,
   keepRecentEntries,
@@ -30,8 +33,12 @@ describe('getLogLevelColor', () => {
     expect(getLogLevelColor('warn')).toBe('warning');
   });
 
+  it('maps debug to accent', () => {
+    expect(getLogLevelColor('debug')).toBe('accent');
+  });
+
   it('falls back to default for unknown levels', () => {
-    expect(getLogLevelColor('debug')).toBe('default');
+    expect(getLogLevelColor('trace')).toBe('default');
   });
 });
 
@@ -41,7 +48,7 @@ describe('formatDurationLabel', () => {
   });
 
   it('returns null when duration is missing', () => {
-    expect(formatDurationLabel(undefined)).toBeNull();
+    expect(formatDurationLabel()).toBeNull();
   });
 });
 
@@ -79,6 +86,51 @@ describe('getMetadataEntries', () => {
 describe('formatMetadataLabel', () => {
   it('formats metadata pairs with a readable label', () => {
     expect(formatMetadataLabel('eventName', 'anime.changed')).toBe('eventName: anime.changed');
+  });
+});
+
+describe('formatTimestamp', () => {
+  it('extracts time portion from ISO timestamp', () => {
+    expect(formatTimestamp('2026-04-13T18:09:15Z')).toBe('18:09:15');
+  });
+
+  it('extracts time from timestamps with milliseconds', () => {
+    expect(formatTimestamp('2026-04-13T08:01:02.123Z')).toBe('08:01:02');
+  });
+});
+
+describe('getDomainColor', () => {
+  it.each([
+    ['sync', 'accent'],
+    ['bus', 'default'],
+    ['websocket', 'warning'],
+    ['anime', 'success'],
+    ['api', 'danger'],
+  ] as const)('maps %s to %s', (domain, expected) => {
+    expect(getDomainColor(domain)).toBe(expected);
+  });
+
+  it('falls back to default for unknown domains', () => {
+    expect(getDomainColor('unknown')).toBe('default');
+  });
+});
+
+describe('getLogLevelAccentClass', () => {
+  it.each([
+    ['info', 'border-l-emerald-500'],
+    ['warn', 'border-l-amber-500'],
+    ['error', 'border-l-red-500'],
+    ['debug', 'border-l-violet-500'],
+  ] as const)('returns correct accent for %s', (level, expected) => {
+    expect(getLogLevelAccentClass(level)).toBe(expected);
+  });
+
+  it('returns zinc border for unknown levels', () => {
+    expect(getLogLevelAccentClass('trace')).toBe('border-l-zinc-600');
+  });
+
+  it('returns zinc border when level is undefined', () => {
+    expect(getLogLevelAccentClass()).toBe('border-l-zinc-600');
   });
 });
 
