@@ -26,16 +26,17 @@ type ConflictService = contracts.ConflictService
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
 type Config struct {
-	Addr          string
-	DeviceService device.AuthService
-	AnimeQuery    AnimeQueryService
-	AnimeWrite    AnimeWriteService
-	SyncTrigger   SyncTriggerService
-	Status        StatusService
-	DeviceAdmin   DeviceAdminService
-	Conflicts     ConflictService
-	RealtimeHub   realtime.Hub
-	Logger        sharedlogger.Logger
+	Addr                   string
+	DeviceService          device.AuthService
+	AnimeQuery             AnimeQueryService
+	AnimeWrite             AnimeWriteService
+	SyncTrigger            SyncTriggerService
+	Status                 StatusService
+	DeviceAdmin            DeviceAdminService
+	Conflicts              ConflictService
+	RealtimeHub            realtime.Hub
+	Logger                 sharedlogger.Logger
+	OnPairingTokenConsumed func()
 }
 
 type Server interface {

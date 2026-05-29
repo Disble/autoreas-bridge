@@ -14,15 +14,16 @@ import (
 )
 
 type Handler struct {
-	deviceService device.AuthService
-	patchAnime    http.Handler
-	syncReconcile http.Handler
-	mux           *http.ServeMux
-	config        Config
+	deviceService          device.AuthService
+	patchAnime             http.Handler
+	syncReconcile          http.Handler
+	mux                    *http.ServeMux
+	config                 Config
+	onPairingTokenConsumed func()
 }
 
 func NewHandler(config Config) http.Handler {
-	h := &Handler{deviceService: config.DeviceService, config: config}
+	h := &Handler{deviceService: config.DeviceService, config: config, onPairingTokenConsumed: config.OnPairingTokenConsumed}
 	h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
 		Authenticate: h.authenticate,
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
@@ -137,6 +138,9 @@ func (h *Handler) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 		"device_name": paired.Name,
 		"auth_token":  paired.AuthToken,
 	})
+	if h.onPairingTokenConsumed != nil {
+		h.onPairingTokenConsumed()
+	}
 }
 
 func (h *Handler) handleAnimes(w http.ResponseWriter, r *http.Request) {

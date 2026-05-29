@@ -116,6 +116,54 @@ func TestPairDeviceReturnsCreatedAndBearerToken(t *testing.T) {
 	}
 }
 
+func TestPairDeviceEmitsTokenConsumedSignalAfterSuccessfulPair(t *testing.T) {
+	t.Parallel()
+
+	refreshCalls := 0
+	handler := NewHandler(Config{
+		DeviceService: stubDeviceService{
+			paired: device.PairedDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token-123"},
+		},
+		OnPairingTokenConsumed: func() {
+			refreshCalls++
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/devices/pair", strings.NewReader(`{"pairing_token":"pair-123","device_name":"Galaxy Tab"}`))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, res.Code)
+	}
+	if refreshCalls != 1 {
+		t.Fatalf("expected token consumed callback once, got %d", refreshCalls)
+	}
+}
+
+func TestPairDeviceDoesNotEmitTokenConsumedSignalOnFailure(t *testing.T) {
+	t.Parallel()
+
+	refreshCalls := 0
+	handler := NewHandler(Config{
+		DeviceService: stubDeviceService{pairErr: device.ErrInvalidPairingToken},
+		OnPairingTokenConsumed: func() {
+			refreshCalls++
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/devices/pair", strings.NewReader(`{"pairing_token":"pair-123","device_name":"Galaxy Tab"}`))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, res.Code)
+	}
+	if refreshCalls != 0 {
+		t.Fatalf("expected token consumed callback to stay at 0, got %d", refreshCalls)
+	}
+}
+
 func TestGetAnimesRequiresBearerToken(t *testing.T) {
 	t.Parallel()
 

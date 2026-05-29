@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getEffectiveAddress, getPairingToken } from '../../dashboard.bindings';
+import { getEffectiveAddress, getPairingToken, subscribeToEvent } from '../../dashboard.bindings';
+import { PAIRING_TOKEN_CONSUMED_EVENT_NAME } from './pairing-panel.constants';
 import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from './pairing-panel.helpers';
 
 export function usePairingPanel() {
@@ -29,6 +30,13 @@ export function usePairingPanel() {
   const hasQrValue = useMemo(() => qrValue.length > 0, [qrValue]);
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const refreshPairingToken = useCallback(async () => {
+    setToken('');
+    setQrImageUrl('');
+    const nextToken = await getPairingToken();
+    setToken(nextToken);
+  }, []);
+
   const onCopyToken = useCallback(async () => {
     if (!token) {
       return;
@@ -44,6 +52,16 @@ export function usePairingPanel() {
     void getEffectiveAddress().then(setAddress);
     void getPairingToken().then(setToken);
   }, []);
+
+  useEffect(() => {
+    const stop = subscribeToEvent(PAIRING_TOKEN_CONSUMED_EVENT_NAME, () => {
+      void refreshPairingToken();
+    });
+
+    return () => {
+      stop?.();
+    };
+  }, [refreshPairingToken]);
 
   useEffect(() => {
     if (!hasQrValue) {

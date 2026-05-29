@@ -66,6 +66,7 @@ type App struct {
 }
 
 const observabilityEventName = "observability.log"
+const pairingTokenConsumedEventName = "pairing.token-consumed"
 
 func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...interface{}) {
 	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
@@ -344,6 +345,12 @@ func (a *App) startup(ctx context.Context) {
 		Conflicts:     conflictService,
 		RealtimeHub:   a.realtimeHub,
 		Logger:        a.sharedLogger,
+		OnPairingTokenConsumed: func() {
+			if a.ctx == nil || a.emitFn == nil {
+				return
+			}
+			a.emitFn(a.ctx, pairingTokenConsumedEventName)
+		},
 	})
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err

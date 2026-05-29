@@ -73,7 +73,7 @@ export function getRecentLogs() {
   });
 }
 
-export function subscribeToEvent(eventName: string, callback: (entry: ObservabilityLogEntry) => void) {
+export function subscribeToEvent<TPayload = ObservabilityLogEntry>(eventName: string, callback: (entry: TPayload) => void) {
   let unsubscribe: () => void = () => {};
   let active = true;
 

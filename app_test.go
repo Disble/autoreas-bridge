@@ -556,6 +556,45 @@ func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
 	}
 }
 
+func TestAppStartupWiresPairingTokenConsumedCallbackIntoHTTPServer(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	emittedEvents := []string{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.OnPairingTokenConsumed == nil {
+				t.Fatal("expected startup to wire pairing-token-consumed callback into http server config")
+			}
+			config.OnPairingTokenConsumed()
+			return server
+		},
+		emitFn: func(_ context.Context, eventName string, _ ...interface{}) {
+			emittedEvents = append(emittedEvents, eventName)
+		},
+	}
+
+	app.startup(context.Background())
+
+	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+		t.Fatalf("expected last emitted event %q, got %#v", pairingTokenConsumedEventName, emittedEvents)
+	}
+}
+
 func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 	t.Parallel()
 
