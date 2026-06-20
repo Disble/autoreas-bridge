@@ -28,6 +28,25 @@ function BridgeMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function NetworkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect height="14" rx="1.2" width="18" x="3" y="4" />
+      <path d="M7 9h10" />
+      <path d="M7 13h6" />
+    </svg>
+  );
+}
+
 function DashboardIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -107,6 +126,7 @@ function ObservabilityIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
+  { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },

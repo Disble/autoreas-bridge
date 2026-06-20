@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ObservabilityLogEntry } from '../../contracts/observability.types';
 import type { ObservabilityLogSource } from '../../../infrastructure/observability-log-source';
 import { connectNetworkStore, resetNetworkStore, useNetworkStore } from '../network-store';
+import { selectFilteredRows } from '../network-store.helpers';
 
 function entry(overrides: Partial<ObservabilityLogEntry>): ObservabilityLogEntry {
   return {
@@ -138,5 +139,64 @@ describe('network-store', () => {
     expect(unsubscribeMock).toHaveBeenCalledTimes(1);
     expect(useNetworkStore.getState().selectedId).toBeNull();
     expect(useNetworkStore.getState().buffer).toEqual([]);
+  });
+
+  it('a realistic set of http.request entries (no correlationId) renders N distinct rows end-to-end via connectNetworkStore + selectFilteredRows', async () => {
+    const recent = [
+      entry({ timestamp: 't1', metadata: { method: 'GET', path: '/sync', status: 200 } }),
+      entry({ timestamp: 't2', metadata: { method: 'POST', path: '/pair', status: 201 } }),
+      entry({ timestamp: 't3', metadata: { method: 'GET', path: '/status', status: 200 } }),
+    ];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const disconnect = connectNetworkStore(source);
+
+    await vi.waitFor(() => {
+      expect(useNetworkStore.getState().buffer).toHaveLength(3);
+    });
+
+    const { buffer, query, statusFilter } = useNetworkStore.getState();
+    const rows = selectFilteredRows(buffer, query, statusFilter);
+
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.path)).toEqual(['/sync', '/pair', '/status']);
+
+    disconnect();
+  });
+
+  it('does not double-render an entry replayed via getRecentLogs AND re-delivered on the live stream before seed resolves', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const sharedEntry = entry({ timestamp: 't1', metadata: { method: 'GET', path: '/sync', status: 200 } });
+
+    let resolveRecentLogs: ((value: readonly ObservabilityLogEntry[]) => void) | undefined;
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockImplementation(
+        () =>
+          new Promise<readonly ObservabilityLogEntry[]>((resolve) => {
+            resolveRecentLogs = resolve;
+          }),
+      ),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+
+    // Live stream redelivers the same entry BEFORE the recent-logs replay resolves.
+    liveHandler?.(sharedEntry);
+    resolveRecentLogs?.([sharedEntry]);
+
+    await vi.waitFor(() => {
+      expect(useNetworkStore.getState().buffer.length).toBeGreaterThan(0);
+    });
+
+    const { buffer, query, statusFilter } = useNetworkStore.getState();
+    const rows = selectFilteredRows(buffer, query, statusFilter);
+
+    expect(rows).toHaveLength(1);
+
+    disconnect();
   });
 });

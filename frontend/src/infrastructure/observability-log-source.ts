@@ -31,6 +31,16 @@ function hasRuntimeBindings(): boolean {
   return Boolean(window.runtime);
 }
 
+/**
+ * isWailsRuntimeAvailable reports whether the Go bindings + event runtime are
+ * present right now (synchronous, non-polling). Feature hooks use this to
+ * render a capture-unavailable Null Object state instead of an ambiguous
+ * empty-state when running in a plain browser / Vite dev context.
+ */
+export function isWailsRuntimeAvailable(): boolean {
+  return hasGoBindings() && hasRuntimeBindings();
+}
+
 function waitForBindings(isReady: () => boolean): Promise<boolean> {
   if (isReady()) {
     return Promise.resolve(true);

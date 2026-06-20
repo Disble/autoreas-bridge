@@ -2,15 +2,50 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import App from '../../App';
+import { resetNetworkStore } from '../../shared/store/network-store';
 
 describe('App routing', () => {
   afterEach(() => {
     cleanup();
+    resetNetworkStore();
   });
 
-  it('redirects the root path to the dashboard route', async () => {
+  it('redirects the root path to the network route', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Network' })).toBeInTheDocument();
+  });
+
+  it('renders the network route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Network' })).toBeInTheDocument();
+  });
+
+  it('renders Network as the first nav item', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const navLinks = await screen.findAllByRole('link', { name: 'Network' });
+
+    expect(navLinks.length).toBeGreaterThan(0);
+    expect(navLinks[0]).toHaveAttribute('href', '/network');
+  });
+
+  it('renders the dashboard route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
         <App />
       </MemoryRouter>,
     );
