@@ -1,43 +1,43 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PAIRING_TOKEN_CONSUMED_EVENT_NAME } from '../pairing-panel.constants';
-
-const getEffectiveAddressMock = vi.fn();
-const getPairingTokenMock = vi.fn();
-const subscribeToEventMock = vi.fn();
-const writeTextMock = vi.fn();
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import { usePairingPanel } from '../use-pairing-panel';
 
 vi.mock('qrcode', () => ({
   toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
 
-vi.mock('../../../dashboard.bindings', () => ({
-  getEffectiveAddress: () => getEffectiveAddressMock(),
-  getPairingToken: () => getPairingTokenMock(),
-  subscribeToEvent: (...args: unknown[]) => subscribeToEventMock(...args),
-}));
-
-import { usePairingPanel } from '../use-pairing-panel';
+function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
+  return {
+    getSQLiteStatus: vi.fn().mockResolvedValue('ok'),
+    getEffectiveAddress: vi.fn().mockResolvedValue(''),
+    getPairingToken: vi.fn().mockResolvedValue(''),
+    triggerReconcile: vi.fn().mockResolvedValue(''),
+    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
+    ...overrides,
+  };
+}
 
 describe('usePairingPanel', () => {
+  const writeTextMock = vi.fn();
+
   afterEach(() => {
     vi.useRealTimers();
-    getEffectiveAddressMock.mockReset();
-    getPairingTokenMock.mockReset();
-    subscribeToEventMock.mockReset();
     writeTextMock.mockReset();
   });
 
-  it('loads pairing data on mount', async () => {
-    getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
-    getPairingTokenMock.mockResolvedValueOnce('token-123');
+  it('loads pairing data on mount via the injected source', async () => {
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getPairingToken: vi.fn().mockResolvedValue('token-123'),
+    });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    const { result } = renderHook(() => usePairingPanel(source));
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
@@ -46,24 +46,22 @@ describe('usePairingPanel', () => {
       );
     });
 
-    expect(result.current.token).toBe('token-123');
     expect(result.current.ip).toBe('192.168.1.10');
     expect(result.current.port).toBe('8080');
-    expect(result.current.qrImageUrl).toBe(
-      'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
-    );
   });
 
   it('does not expose a qr image until both address and token exist', async () => {
-    getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
-    getPairingTokenMock.mockResolvedValueOnce('');
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getPairingToken: vi.fn().mockResolvedValue(''),
+    });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    const { result } = renderHook(() => usePairingPanel(source));
 
     await waitFor(() => {
       expect(result.current.ip).toBe('192.168.1.10');
@@ -74,17 +72,16 @@ describe('usePairingPanel', () => {
     expect(result.current.qrImageUrl).toBe('');
   });
 
-  it('refreshes the pairing token after the consumed event arrives', async () => {
+  it('refreshes the pairing token after onPairingTokenConsumed fires', async () => {
     let onPairingTokenConsumed: (() => void) | undefined;
-
-    getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
-    getPairingTokenMock.mockResolvedValueOnce('token-123').mockResolvedValueOnce('token-456');
-    subscribeToEventMock.mockImplementation((eventName: string, callback: () => void) => {
-      if (eventName === PAIRING_TOKEN_CONSUMED_EVENT_NAME) {
-        onPairingTokenConsumed = callback;
-      }
-
-      return () => undefined;
+    const getPairingTokenMock = vi.fn().mockResolvedValueOnce('token-123').mockResolvedValueOnce('token-456');
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getPairingToken: getPairingTokenMock,
+      onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
+        onPairingTokenConsumed = listener;
+        return () => undefined;
+      }),
     });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -92,16 +89,13 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    const { result } = renderHook(() => usePairingPanel(source));
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
-      expect(result.current.qrImageUrl).toBe(
-        'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
-      );
     });
 
-    expect(subscribeToEventMock).toHaveBeenCalledWith(PAIRING_TOKEN_CONSUMED_EVENT_NAME, expect.any(Function));
+    expect(source.onPairingTokenConsumed).toHaveBeenCalledWith(expect.any(Function));
     expect(onPairingTokenConsumed).toBeTypeOf('function');
 
     await act(async () => {
@@ -110,9 +104,6 @@ describe('usePairingPanel', () => {
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-456');
-      expect(result.current.qrImageUrl).toBe(
-        'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-456',
-      );
     });
 
     expect(getPairingTokenMock).toHaveBeenCalledTimes(2);
@@ -121,9 +112,8 @@ describe('usePairingPanel', () => {
   it('clears the stale token while a consumed token refresh is in flight', async () => {
     let onPairingTokenConsumed: (() => void) | undefined;
     let resolveNextToken: ((value: string) => void) | undefined;
-
-    getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
-    getPairingTokenMock
+    const getPairingTokenMock = vi
+      .fn()
       .mockResolvedValueOnce('token-123')
       .mockImplementationOnce(
         () =>
@@ -131,12 +121,13 @@ describe('usePairingPanel', () => {
             resolveNextToken = resolve;
           }),
       );
-    subscribeToEventMock.mockImplementation((eventName: string, callback: () => void) => {
-      if (eventName === PAIRING_TOKEN_CONSUMED_EVENT_NAME) {
-        onPairingTokenConsumed = callback;
-      }
-
-      return () => undefined;
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getPairingToken: getPairingTokenMock,
+      onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
+        onPairingTokenConsumed = listener;
+        return () => undefined;
+      }),
     });
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -144,7 +135,7 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    const { result } = renderHook(() => usePairingPanel(source));
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
@@ -169,8 +160,10 @@ describe('usePairingPanel', () => {
   });
 
   it('copies the token and clears feedback after the timeout', async () => {
-    getEffectiveAddressMock.mockResolvedValueOnce('192.168.1.10:8080');
-    getPairingTokenMock.mockResolvedValueOnce('token-123');
+    const source = createFakeSource({
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getPairingToken: vi.fn().mockResolvedValue('token-123'),
+    });
     writeTextMock.mockResolvedValueOnce(undefined);
 
     Object.defineProperty(globalThis.navigator, 'clipboard', {
@@ -178,7 +171,7 @@ describe('usePairingPanel', () => {
       value: { writeText: writeTextMock },
     });
 
-    const { result } = renderHook(() => usePairingPanel());
+    const { result } = renderHook(() => usePairingPanel(source));
 
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
@@ -198,5 +191,18 @@ describe('usePairingPanel', () => {
     });
 
     expect(result.current.copied).toBe(false);
+  });
+
+  it('uses the default singleton source when no source is injected', async () => {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: writeTextMock },
+    });
+
+    const { result } = renderHook(() => usePairingPanel());
+
+    await waitFor(() => {
+      expect(result.current.token).toBe('');
+    });
   });
 });

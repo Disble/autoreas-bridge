@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { getRecentLogs, subscribeToEvent } from '../../dashboard.bindings';
-import { OBSERVABILITY_EVENT_NAME } from './observability-panel.constants';
+import { observabilityLogSource } from '../../../../infrastructure/observability-log-source';
+import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
 import { keepRecentEntries, toObservabilityPanelViewModel } from './observability-panel.helpers';
 import type { ObservabilityLogEntry, ObservabilityPanelViewModel } from './observability-panel.types';
 
 /** Subscribes to runtime log events and exposes a capped, ordered entry buffer. */
-export function useObservabilityPanel() {
+export function useObservabilityPanel(source: ObservabilityLogSource = observabilityLogSource) {
   // 1. Refs
 
   // 2. State
@@ -23,23 +23,23 @@ export function useObservabilityPanel() {
   useEffect(() => {
     let active = true;
 
-    const stop = subscribeToEvent(OBSERVABILITY_EVENT_NAME, (entry: ObservabilityLogEntry) => {
+    const unsubscribe = source.subscribe((entry: ObservabilityLogEntry) => {
       setEntries((currentEntries) => keepRecentEntries([...currentEntries, entry]));
     });
 
-    void getRecentLogs().then((recentEntries) => {
+    void source.getRecentLogs().then((recentEntries) => {
       if (!active) {
         return;
       }
 
-      setEntries(keepRecentEntries(recentEntries));
+      setEntries(keepRecentEntries([...recentEntries]));
     });
 
     return () => {
       active = false;
-      stop?.();
+      unsubscribe();
     };
-  }, []);
+  }, [source]);
 
   return {
     entries: entries.map(toObservabilityPanelViewModel) satisfies ObservabilityPanelViewModel[],

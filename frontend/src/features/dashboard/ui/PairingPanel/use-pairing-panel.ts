@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getEffectiveAddress, getPairingToken, subscribeToEvent } from '../../dashboard.bindings';
-import { PAIRING_TOKEN_CONSUMED_EVENT_NAME } from './pairing-panel.constants';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from './pairing-panel.helpers';
 
 /** Loads pairing address and token, builds the QR image, and handles copy + refresh. */
-export function usePairingPanel() {
+export function usePairingPanel(source: BridgeRuntimeSource = bridgeRuntimeSource) {
   // 1. Refs
 
   // 2. State
@@ -34,9 +34,9 @@ export function usePairingPanel() {
   const refreshPairingToken = useCallback(async () => {
     setToken('');
     setQrImageUrl('');
-    const nextToken = await getPairingToken();
+    const nextToken = await source.getPairingToken();
     setToken(nextToken);
-  }, []);
+  }, [source]);
 
   const onCopyToken = useCallback(async () => {
     if (!token) {
@@ -50,19 +50,19 @@ export function usePairingPanel() {
 
   // 7. Effects
   useEffect(() => {
-    void getEffectiveAddress().then(setAddress);
-    void getPairingToken().then(setToken);
-  }, []);
+    void source.getEffectiveAddress().then(setAddress);
+    void source.getPairingToken().then(setToken);
+  }, [source]);
 
   useEffect(() => {
-    const stop = subscribeToEvent(PAIRING_TOKEN_CONSUMED_EVENT_NAME, () => {
+    const unsubscribe = source.onPairingTokenConsumed(() => {
       void refreshPairingToken();
     });
 
     return () => {
-      stop?.();
+      unsubscribe();
     };
-  }, [refreshPairingToken]);
+  }, [refreshPairingToken, source]);
 
   useEffect(() => {
     if (!hasQrValue) {

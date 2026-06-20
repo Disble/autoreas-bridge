@@ -1,32 +1,39 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-
-const triggerReconcileMock = vi.fn();
-
-vi.mock('../../../dashboard.bindings', () => ({
-  triggerReconcile: () => triggerReconcileMock(),
-}));
-
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import { useBridgeDashboard } from '../use-bridge-dashboard';
+
+function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
+  return {
+    getSQLiteStatus: vi.fn().mockResolvedValue(''),
+    getEffectiveAddress: vi.fn().mockResolvedValue(''),
+    getPairingToken: vi.fn().mockResolvedValue(''),
+    triggerReconcile: vi.fn().mockResolvedValue(''),
+    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
+    ...overrides,
+  };
+}
 
 describe('useBridgeDashboard', () => {
   it('starts idle', () => {
-    const { result } = renderHook(() => useBridgeDashboard());
+    const source = createFakeSource();
+    const { result } = renderHook(() => useBridgeDashboard(source));
 
     expect(result.current.isSyncing).toBe(false);
     expect(result.current.syncResult).toBe('');
   });
 
-  it('reconciles and stores the returned result', async () => {
+  it('reconciles via the injected source and stores the returned result', async () => {
     let resolvePromise: ((value: string) => void) | undefined;
+    const source = createFakeSource({
+      triggerReconcile: vi.fn().mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          resolvePromise = resolve;
+        }),
+      ),
+    });
 
-    triggerReconcileMock.mockReturnValueOnce(
-      new Promise<string>((resolve) => {
-        resolvePromise = resolve;
-      }),
-    );
-
-    const { result } = renderHook(() => useBridgeDashboard());
+    const { result } = renderHook(() => useBridgeDashboard(source));
 
     let syncPromise: Promise<void> | undefined;
 
@@ -41,8 +48,15 @@ describe('useBridgeDashboard', () => {
       await syncPromise;
     });
 
-    expect(triggerReconcileMock).toHaveBeenCalledTimes(1);
+    expect(source.triggerReconcile).toHaveBeenCalledTimes(1);
     expect(result.current.isSyncing).toBe(false);
     expect(result.current.syncResult).toBe('done');
+  });
+
+  it('uses the default singleton source when no source is injected', () => {
+    const { result } = renderHook(() => useBridgeDashboard());
+
+    expect(result.current.isSyncing).toBe(false);
+    expect(result.current.syncResult).toBe('');
   });
 });

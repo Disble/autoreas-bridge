@@ -1,19 +1,24 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-
-const getSQLiteStatusMock = vi.fn();
-
-vi.mock('../../../dashboard.bindings', () => ({
-  getSQLiteStatus: () => getSQLiteStatusMock(),
-}));
-
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import { useBridgeStatusCard } from '../use-bridge-status-card';
 
-describe('useBridgeStatusCard', () => {
-  it('loads the sqlite status on mount', async () => {
-    getSQLiteStatusMock.mockResolvedValueOnce('ok');
+function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
+  return {
+    getSQLiteStatus: vi.fn().mockResolvedValue(''),
+    getEffectiveAddress: vi.fn().mockResolvedValue(''),
+    getPairingToken: vi.fn().mockResolvedValue(''),
+    triggerReconcile: vi.fn().mockResolvedValue(''),
+    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
+    ...overrides,
+  };
+}
 
-    const { result } = renderHook(() => useBridgeStatusCard());
+describe('useBridgeStatusCard', () => {
+  it('loads the sqlite status on mount via the injected source', async () => {
+    const source = createFakeSource({ getSQLiteStatus: vi.fn().mockResolvedValue('ok') });
+
+    const { result } = renderHook(() => useBridgeStatusCard(source));
 
     expect(result.current.isLoading).toBe(true);
 
@@ -23,5 +28,13 @@ describe('useBridgeStatusCard', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.statusTone).toBe('success');
+    expect(source.getSQLiteStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the default singleton source when no source is injected', () => {
+    const { result } = renderHook(() => useBridgeStatusCard());
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.sqliteStatus).toBe('');
   });
 });

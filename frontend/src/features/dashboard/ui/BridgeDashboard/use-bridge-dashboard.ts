@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { triggerReconcile } from '../../dashboard.bindings';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 
 /** Drives the dashboard reconcile action, exposing sync state and the trigger callback. */
-export function useBridgeDashboard() {
+export function useBridgeDashboard(source: BridgeRuntimeSource = bridgeRuntimeSource) {
   // 1. Refs
 
   // 2. State
@@ -21,13 +22,13 @@ export function useBridgeDashboard() {
     setSyncResult('');
 
     try {
-      const result = await triggerReconcile();
+      const result = await source.triggerReconcile();
 
       setSyncResult(result);
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [source]);
 
   // 7. Effects
 

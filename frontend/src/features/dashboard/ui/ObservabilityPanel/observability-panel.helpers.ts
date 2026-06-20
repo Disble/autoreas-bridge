@@ -5,7 +5,7 @@ import type { ObservabilityLogEntry } from './observability-panel.types';
  * Trims the log buffer to the in-memory retention limit.
  * The dashboard only needs the most recent events to stay responsive.
  */
-export function keepRecentEntries(entries: ObservabilityLogEntry[]) {
+export function keepRecentEntries(entries: readonly ObservabilityLogEntry[]) {
   return entries.slice(-MAX_LOG_ENTRIES);
 }
 

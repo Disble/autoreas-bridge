@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getSQLiteStatus } from '../../dashboard.bindings';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import { getSQLiteStatusTone, isSQLiteStatusLoading } from './bridge-status-card.helpers';
 
 /** Loads the SQLite status from the backend and derives its display tone. */
-export function useBridgeStatusCard() {
+export function useBridgeStatusCard(source: BridgeRuntimeSource = bridgeRuntimeSource) {
   // 1. Refs
 
   // 2. State
@@ -21,8 +22,8 @@ export function useBridgeStatusCard() {
 
   // 7. Effects
   useEffect(() => {
-    void getSQLiteStatus().then(setSqliteStatus);
-  }, []);
+    void source.getSQLiteStatus().then(setSqliteStatus);
+  }, [source]);
 
   return {
     sqliteStatus,
