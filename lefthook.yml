@@ -4,6 +4,9 @@ pre-commit:
     - name: frontend-lint
       run: bun --cwd="frontend" run lint
 
+    - name: frontend-typecheck
+      run: bun --cwd="frontend" run typecheck
+
     - name: frontend-test
       run: bun --cwd="frontend" run test
 

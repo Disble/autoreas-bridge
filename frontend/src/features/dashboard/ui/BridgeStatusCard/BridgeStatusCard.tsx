@@ -1,6 +1,7 @@
 import { Card, Chip, Spinner } from '@heroui/react';
 import { useBridgeStatusCard } from './use-bridge-status-card';
 
+/** Card showing the live SQLite connection status of the bridge backend. */
 export function BridgeStatusCard() {
   const { isLoading, sqliteStatus, statusTone } = useBridgeStatusCard();
 

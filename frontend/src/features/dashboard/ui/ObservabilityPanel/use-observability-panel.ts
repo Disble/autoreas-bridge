@@ -4,6 +4,7 @@ import { OBSERVABILITY_EVENT_NAME } from './observability-panel.constants';
 import { keepRecentEntries, toObservabilityPanelViewModel } from './observability-panel.helpers';
 import type { ObservabilityLogEntry, ObservabilityPanelViewModel } from './observability-panel.types';
 
+/** Subscribes to runtime log events and exposes a capped, ordered entry buffer. */
 export function useObservabilityPanel() {
   // 1. Refs
 

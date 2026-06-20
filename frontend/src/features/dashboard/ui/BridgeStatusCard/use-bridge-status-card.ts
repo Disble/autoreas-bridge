@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getSQLiteStatus } from '../../dashboard.bindings';
 import { getSQLiteStatusTone, isSQLiteStatusLoading } from './bridge-status-card.helpers';
 
+/** Loads the SQLite status from the backend and derives its display tone. */
 export function useBridgeStatusCard() {
   // 1. Refs
 

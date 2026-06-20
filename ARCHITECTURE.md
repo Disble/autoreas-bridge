@@ -98,12 +98,35 @@ If any frontend `.ts` or `.tsx` file exceeds 500 lines, refactor it immediately.
 * Keep hook tests focused on behavior through public return values.
 * Dumb UI tests should validate behavior/conditional rendering, not CSS trivia.
 
-## 10. LLM Enforcement Barriers
+## 10. Deterministic Enforcement Barriers
 
-To keep the architecture mechanically enforced:
+Architecture described only in prose is a promise, not a guarantee. Every
+constraint below is now enforced by a linter and gated by `lefthook` before a
+commit lands — deterministic first, transversal by default.
+
+### Frontend (ESLint v9 flat config — `frontend/eslint.config.js`)
+
+Rules live in the colocated `frontend/eslint/` module. They enforce:
+* **Delivery purity:** `App.tsx` / `app/**` cannot import Wails bindings, React hooks, or feature hooks.
+* **Dumb UI:** feature `.tsx` cannot import Wails bindings or use `useEffect`/`useLayoutEffect`.
+* **Hook anatomy:** `useMemo` → `useCallback` → `useEffect` ordering; hooks end with a `return`.
+* **Strict colocation:** no inline interfaces/types/consts/helpers/Zod in views & hooks; tests live in `__tests__/`; feature folders are `kebab-case` (`check-file`).
+* **Type contracts:** every `*Props` field is `readonly`; props parameters use `Readonly<Props>` at the boundary.
+* **Public JSDoc:** exported hooks, helpers, constants, types, and schemas require documentation.
+* **Transversal hygiene:** no circular imports (`import-x/no-cycle`), cognitive complexity & duplication (`sonarjs`), React anti-patterns (`react-doctor`, advisory), 500-line max.
+* **Type safety:** `no-undef` is delegated to TypeScript; `bun run typecheck` runs in the gate.
+
+### Backend (golangci-lint `depguard` — `.golangci.yml`)
+
+The Hexagonal / Ports & Adapters boundaries are enforced deterministically:
+* **Domain purity:** `internal/anime/domain` cannot import `net/http`, `database/sql`, or the Wails runtime.
+* **Ports stay free of adapters:** `internal/api/contracts` cannot import `internal/api/handlers` or transport/persistence drivers.
+* **Transport confinement:** the Wails runtime stays in the composition root (`app.go`/`main.go`); no `internal/**` package may import it.
+
+### Other barriers
+
 * **Generators:** complex feature scaffolding should come from `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
-* **ESLint:** rules enforce max-lines, delivery purity, strict colocation, readonly props, and helper documentation.
-* **Instruction Files:** `AGENTS.md` and `CLAUDE.md` repeat the same frontend constraints so future agents start with the right mental model.
+* **Instruction Files:** `AGENTS.md` and `CLAUDE.md` repeat the same constraints so future agents start with the right mental model.
 
 ---
 *If in doubt, prefer a feature folder under `frontend/src/features/` over adding logic to `App.tsx` or `components/`.*

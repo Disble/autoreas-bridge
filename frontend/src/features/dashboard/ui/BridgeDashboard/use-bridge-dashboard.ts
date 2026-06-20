@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import { triggerReconcile } from '../../dashboard.bindings';
+
+/** Drives the dashboard reconcile action, exposing sync state and the trigger callback. */
 export function useBridgeDashboard() {
   // 1. Refs
 

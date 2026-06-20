@@ -3,6 +3,7 @@ import { getEffectiveAddress, getPairingToken, subscribeToEvent } from '../../da
 import { PAIRING_TOKEN_CONSUMED_EVENT_NAME } from './pairing-panel.constants';
 import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from './pairing-panel.helpers';
 
+/** Loads pairing address and token, builds the QR image, and handles copy + refresh. */
 export function usePairingPanel() {
   // 1. Refs
 

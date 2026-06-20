@@ -1,6 +1,7 @@
 import { Button, Card, Chip } from '@heroui/react';
 import { usePairingPanel } from './use-pairing-panel';
 
+/** Panel rendering the pairing token, address, and QR code for mobile clients. */
 export function PairingPanel() {
   const { copied, ip, onCopyToken, port, qrImageUrl, token } = usePairingPanel();
 

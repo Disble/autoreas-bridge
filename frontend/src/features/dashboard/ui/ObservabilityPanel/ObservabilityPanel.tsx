@@ -2,6 +2,7 @@ import { Card, Chip, ScrollShadow } from '@heroui/react';
 import { formatTimestamp, getDomainColor, getLogLevelAccentClass, getLogLevelColor } from './observability-panel.helpers';
 import { useObservabilityPanel } from './use-observability-panel';
 
+/** Panel that streams and renders the most recent structured runtime logs. */
 export function ObservabilityPanel() {
   const { entries } = useObservabilityPanel();
 

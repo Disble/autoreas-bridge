@@ -12,6 +12,7 @@ import {
 import { hasSyncResult } from './bridge-dashboard.helpers';
 import { useBridgeDashboard } from './use-bridge-dashboard';
 
+/** Top-level dashboard view composing the status, pairing, and observability panels. */
 export function BridgeDashboard() {
   const { isSyncing, onTriggerSync, syncResult } = useBridgeDashboard();
 

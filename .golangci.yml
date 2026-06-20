@@ -10,3 +10,56 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - depguard
+
+linters-settings:
+  depguard:
+    # Architectural boundaries for the Hexagonal / Ports & Adapters target
+    # declared in AGENTS.md. These rules make the layering DETERMINISTIC: the
+    # domain stays pure, ports stay free of their adapters, and the Wails
+    # desktop transport stays confined to the composition root (app.go/main.go).
+    # Each rule is green against the current code and exists to prevent
+    # regressions, not to force a refactor.
+    rules:
+      # Domain purity: internal/anime/domain models legacy anime state and its
+      # state machine. It must stay free of transport (HTTP, Wails) and
+      # persistence drivers (database/sql) so it can be constructed, compared,
+      # and tested in isolation by every other layer.
+      domain-purity:
+        files:
+          - "**/internal/anime/domain/**"
+        deny:
+          - pkg: "net/http"
+            desc: "internal/anime/domain is transport-free; HTTP belongs in internal/api/handlers"
+          - pkg: "database/sql"
+            desc: "internal/anime/domain is persistence-free; storage concerns belong in an adapter, not the domain"
+          - pkg: "github.com/wailsapp/wails/v2"
+            desc: "internal/anime/domain must not depend on the Wails desktop runtime; keep the domain transport-free"
+
+      # Ports stay free of their adapters: internal/api/contracts declares the
+      # request/response shapes and interfaces (ports). It must not import the
+      # handler adapters that implement them, nor transport/persistence drivers.
+      contracts-are-ports:
+        files:
+          - "**/internal/api/contracts/**"
+        deny:
+          - pkg: "autoreas-bridge/internal/api/handlers"
+            desc: "internal/api/contracts defines ports; it must not depend on the handler adapters that implement them"
+          - pkg: "net/http"
+            desc: "internal/api/contracts is a transport-free port; HTTP wiring belongs in internal/api/handlers"
+          - pkg: "database/sql"
+            desc: "internal/api/contracts is a persistence-free port; storage concerns belong in an adapter"
+          - pkg: "github.com/wailsapp/wails/v2"
+            desc: "internal/api/contracts must not depend on the Wails desktop runtime"
+
+      # Transport confinement: the Wails desktop runtime is a delivery/transport
+      # detail. Confining it to the composition root (app.go, main.go) keeps
+      # every internal package buildable and testable without the desktop shell,
+      # and stops a future second delivery surface from leaking Wails types into
+      # domain or wiring code.
+      wails-confined-to-edge:
+        files:
+          - "**/internal/**"
+        deny:
+          - pkg: "github.com/wailsapp/wails/v2"
+            desc: "the Wails runtime must stay in the composition root (app.go/main.go); inject runtime access into internal packages instead of importing Wails there"
