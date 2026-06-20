@@ -1,17 +1,14 @@
 import { Chip } from '@heroui/react';
-import { NETWORK_DETAIL_EMPTY_MESSAGE } from '../NetworkPanel/network-panel.constants';
-import {
-  formatNetworkDuration,
-  getNetworkRowName,
-  getNetworkStatusLabel,
-  getNetworkStatusTone,
-  toHeroChipColor,
-} from '../NetworkPanel/network-panel.helpers';
-import type { NetworkDetailProps } from '../NetworkPanel/network-panel.types';
+import { NETWORK_DETAIL_EMPTY_MESSAGE, NETWORK_DETAIL_TAB_LABELS } from '../NetworkPanel/network-panel.constants';
+import { getNetworkDetailTabButtonClass, getNetworkDomainColor, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
+import type { NetworkDetailProps, NetworkDetailTab } from '../NetworkPanel/network-panel.types';
+import { NetworkDetailGeneral } from './NetworkDetailGeneral';
+import { NetworkDetailMetadata } from './NetworkDetailMetadata';
+import { NetworkDetailTrace } from './NetworkDetailTrace';
 
-/** Dumb detail panel for the selected Network row. Renders an empty prompt when nothing is selected. */
-export function NetworkDetail({ row }: Readonly<NetworkDetailProps>) {
-  if (row === null) {
+/** Dumb tabbed detail inspector for the selected Network entry. Renders an empty prompt when nothing is selected. */
+export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }: Readonly<NetworkDetailProps>) {
+  if (detail === null) {
     return (
       <div className="rounded-xl border border-divider/60 bg-content1/30 p-4 text-center text-default-400">
         <span className="text-sm">{NETWORK_DETAIL_EMPTY_MESSAGE}</span>
@@ -19,49 +16,54 @@ export function NetworkDetail({ row }: Readonly<NetworkDetailProps>) {
     );
   }
 
+  const { message, domain, level, timeLabel, fields, metadataEntries, traceEntries } = detail;
+  const hasTrace = traceEntries.length > 0;
+  const visibleTabs: readonly NetworkDetailTab[] = hasTrace ? ['general', 'metadata', 'trace'] : ['general', 'metadata'];
+  const activeTab = !hasTrace && detailTab === 'trace' ? 'general' : detailTab;
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-divider/60 bg-content1/30 p-4">
-      <header className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-sm font-medium text-foreground">{getNetworkRowName(row)}</span>
-        <Chip color={toHeroChipColor(getNetworkStatusTone(row.status))} size="sm" variant="soft">
-          <Chip.Label id={`network-detail-status-${row.correlationId}`}>{getNetworkStatusLabel(row.status)}</Chip.Label>
-        </Chip>
+      <header className="flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-sm font-medium text-foreground">{message}</span>
+          <button
+            aria-label="Close detail inspector"
+            className="shrink-0 rounded p-1 text-default-400 hover:bg-white/[0.06] hover:text-foreground"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Chip color={getNetworkDomainColor(domain)} size="sm" variant="soft">
+            <Chip.Label id="network-detail-domain">{domain}</Chip.Label>
+          </Chip>
+          <Chip color={getNetworkLevelColor(level)} size="sm" variant="soft">
+            <Chip.Label id="network-detail-level">{level}</Chip.Label>
+          </Chip>
+          <span className="font-mono text-xs text-default-500">{timeLabel}</span>
+        </div>
       </header>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div>
-          <span className="block text-xs text-default-500">Method</span>
-          <span className="block text-sm text-foreground">{row.method || '—'}</span>
-        </div>
-        <div>
-          <span className="block text-xs text-default-500">Type</span>
-          <span className="block text-sm text-foreground">{row.domain}</span>
-        </div>
-        <div>
-          <span className="block text-xs text-default-500">Duration</span>
-          <span className="block text-sm text-foreground">{formatNetworkDuration(row.durationMs)}</span>
-        </div>
-        <div>
-          <span className="block text-xs text-default-500">Started</span>
-          <span className="block text-sm text-foreground">{row.startedAt}</span>
-        </div>
+      <div aria-label="Detail inspector tabs" className="flex items-center gap-1 border-b border-divider/40 pb-1" role="tablist">
+        {visibleTabs.map((tab) => (
+          <button
+            aria-selected={activeTab === tab}
+            className={getNetworkDetailTabButtonClass(activeTab === tab)}
+            key={tab}
+            onClick={() => onDetailTabChange(tab)}
+            role="tab"
+            type="button"
+          >
+            {NETWORK_DETAIL_TAB_LABELS[tab]}
+          </button>
+        ))}
       </div>
 
-      {row.events.length > 0 ? (
-        <div className="mt-1">
-          <span className="block text-xs text-default-500">Events ({row.events.length})</span>
-          <ul className="mt-1 flex flex-col gap-1">
-            {row.events.map((event) => (
-              <li
-                className="truncate text-xs text-default-400"
-                key={`${event.timestamp}-${event.eventType ?? 'none'}-${event.message}`}
-              >
-                {event.timestamp} — {event.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      {activeTab === 'general' ? <NetworkDetailGeneral fields={fields} /> : null}
+      {activeTab === 'metadata' ? <NetworkDetailMetadata metadataEntries={metadataEntries} /> : null}
+      {activeTab === 'trace' && hasTrace ? <NetworkDetailTrace traceEntries={traceEntries} /> : null}
     </div>
   );
 }

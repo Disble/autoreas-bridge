@@ -107,30 +107,11 @@ function PairingIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function ObservabilityIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <path d="m4 7 4 4-4 4" />
-      <path d="M12 17h8" />
-    </svg>
-  );
-}
-
 const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },
-  { to: '/observability', label: 'Logs', Icon: ObservabilityIcon },
 ];
 
 const railItemClass = ({ isActive }: { isActive: boolean }) =>

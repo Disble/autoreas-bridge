@@ -75,14 +75,24 @@ describe('App routing', () => {
     expect(screen.getByText('Scan the QR code from Autoreas Mobile, or use the token below as a manual fallback')).toBeInTheDocument();
   });
 
-  it('renders the observability route', async () => {
+  it('falls through to not found for the removed observability path', async () => {
     render(
       <MemoryRouter initialEntries={['/observability']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Observability' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('does not render a Logs navigation entry', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
   });
 
   it('renders a not found route for unknown paths', async () => {

@@ -1,55 +1,70 @@
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
-import { NETWORK_CAPTURE_UNAVAILABLE_MESSAGE, NETWORK_LOADING_STATE_MESSAGE } from './network-panel.constants';
+import { NETWORK_CAPTURE_UNAVAILABLE_MESSAGE } from './network-panel.constants';
 import type { NetworkPanelProps } from './network-panel.types';
 import { useNetworkPanel } from './use-network-panel';
 
 /**
  * NetworkPanel is the DevTools-Network-style master/detail container: a
- * filter bar + request table on the left, the selected request's detail on
- * the right. All data flows from `useNetworkPanel`; this component only renders.
+ * filter toolbar + dense per-entry log table on the left, the selected
+ * entry's tabbed inspector on the right, and a bottom status bar
+ * summarizing entry/error/shown counts. All data flows from
+ * `useNetworkPanel`; this component only renders.
  */
 export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
   const {
     rows,
-    selectedRow,
+    selectedId,
+    selectedDetail,
     query,
-    statusFilter,
+    levelFilter,
+    domainFilter,
+    detailTab,
     isLoading,
     captureUnavailable,
+    entryCount,
+    errorCount,
+    shownCount,
     onSelect,
     onQueryChange,
-    onStatusFilterChange,
+    onLevelFilterChange,
+    onDomainFilterChange,
+    onDetailTabChange,
+    onClose,
+    scrollRef,
+    onTableScroll,
   } = useNetworkPanel(source);
 
   return (
     <div className="flex flex-col gap-4">
       <NetworkFilterBar
+        domainFilter={domainFilter}
+        levelFilter={levelFilter}
+        onDomainFilterChange={onDomainFilterChange}
+        onLevelFilterChange={onLevelFilterChange}
         onQueryChange={onQueryChange}
-        onStatusFilterChange={onStatusFilterChange}
         query={query}
-        statusFilter={statusFilter}
       />
 
-      {isLoading ? (
-        <div className="rounded-xl border border-divider/60 bg-content1/30 py-10 text-center text-default-400">
-          <span className="text-sm">{NETWORK_LOADING_STATE_MESSAGE}</span>
+      {captureUnavailable ? (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+          {NETWORK_CAPTURE_UNAVAILABLE_MESSAGE}
         </div>
-      ) : (
-        <>
-          {captureUnavailable ? (
-            <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-              {NETWORK_CAPTURE_UNAVAILABLE_MESSAGE}
-            </div>
-          ) : null}
+      ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-            <NetworkTable onSelect={onSelect} rows={rows} selectedId={selectedRow?.correlationId ?? null} />
-            <NetworkDetail row={selectedRow} />
-          </div>
-        </>
-      )}
+      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <NetworkTable isLoading={isLoading} onScroll={onTableScroll} onSelect={onSelect} rows={rows} scrollRef={scrollRef} selectedId={selectedId} />
+        <NetworkDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
+      </div>
+
+      <footer className="flex items-center gap-1.5 rounded-lg border border-divider/40 bg-content1/20 px-3 py-1.5 text-[11px] text-default-400">
+        <span>{entryCount} entries</span>
+        <span aria-hidden="true">·</span>
+        <span>{errorCount} errors</span>
+        <span aria-hidden="true">·</span>
+        <span>{shownCount} shown</span>
+      </footer>
     </div>
   );
 }

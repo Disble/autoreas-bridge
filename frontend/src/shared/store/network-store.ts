@@ -17,6 +17,8 @@ export const useNetworkStore = create<NetworkStoreState>((set) => ({
   selectedId: null,
   query: '',
   statusFilter: 'all',
+  levelFilter: 'all',
+  domainFilter: 'all',
   ingest: (entry) =>
     set((state) => ({
       buffer: keepRecent([...state.buffer, entry], MAX_LOG_ENTRIES),
@@ -25,6 +27,8 @@ export const useNetworkStore = create<NetworkStoreState>((set) => ({
   select: (id) => set({ selectedId: id }),
   setQuery: (query) => set({ query }),
   setStatusFilter: (statusFilter) => set({ statusFilter }),
+  setLevelFilter: (levelFilter) => set({ levelFilter }),
+  setDomainFilter: (domainFilter) => set({ domainFilter }),
 }));
 
 /**
@@ -70,5 +74,7 @@ export function resetNetworkStore(): void {
     selectedId: null,
     query: '',
     statusFilter: 'all',
+    levelFilter: 'all',
+    domainFilter: 'all',
   });
 }

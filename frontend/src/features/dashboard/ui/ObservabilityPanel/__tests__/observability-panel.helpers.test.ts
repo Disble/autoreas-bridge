@@ -90,12 +90,19 @@ describe('formatMetadataLabel', () => {
 });
 
 describe('formatTimestamp', () => {
-  it('extracts time portion from ISO timestamp', () => {
-    expect(formatTimestamp('2026-04-13T18:09:15Z')).toBe('18:09:15');
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const localTime = (iso: string) => {
+    const date = new Date(iso);
+
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  };
+
+  it('formats the time portion in the local timezone', () => {
+    expect(formatTimestamp('2026-04-13T18:09:15Z')).toBe(localTime('2026-04-13T18:09:15Z'));
   });
 
-  it('extracts time from timestamps with milliseconds', () => {
-    expect(formatTimestamp('2026-04-13T08:01:02.123Z')).toBe('08:01:02');
+  it('drops milliseconds', () => {
+    expect(formatTimestamp('2026-04-13T08:01:02.123Z')).toBe(localTime('2026-04-13T08:01:02.123Z'));
   });
 });
 

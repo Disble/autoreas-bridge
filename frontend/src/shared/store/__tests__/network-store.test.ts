@@ -33,6 +33,8 @@ describe('network-store', () => {
     expect(state.selectedId).toBeNull();
     expect(state.query).toBe('');
     expect(state.statusFilter).toBe('all');
+    expect(state.levelFilter).toBe('all');
+    expect(state.domainFilter).toBe('all');
   });
 
   it('ingest appends an entry and caps the buffer at 200', () => {
@@ -76,6 +78,32 @@ describe('network-store', () => {
 
     expect(useNetworkStore.getState().query).toBe('sync');
     expect(useNetworkStore.getState().statusFilter).toBe('error');
+  });
+
+  it('setLevelFilter updates the level filter state independent of statusFilter', () => {
+    const { setLevelFilter } = useNetworkStore.getState();
+
+    setLevelFilter('error');
+
+    expect(useNetworkStore.getState().levelFilter).toBe('error');
+  });
+
+  it('setDomainFilter updates the domain filter state independent of other filters', () => {
+    const { setDomainFilter } = useNetworkStore.getState();
+
+    setDomainFilter('sync');
+
+    expect(useNetworkStore.getState().domainFilter).toBe('sync');
+  });
+
+  it('select keys selection on a per-entry id (not just correlationId)', () => {
+    const { select } = useNetworkStore.getState();
+
+    select('__row_1');
+    expect(useNetworkStore.getState().selectedId).toBe('__row_1');
+
+    select(null);
+    expect(useNetworkStore.getState().selectedId).toBeNull();
   });
 
   it('connectNetworkStore seeds from getRecentLogs then subscribes to live ingest', async () => {
@@ -133,12 +161,15 @@ describe('network-store', () => {
 
     connectNetworkStore(sourceWithUnsubscribe);
     useNetworkStore.getState().select('c1');
+    useNetworkStore.getState().setDomainFilter('sync');
 
     resetNetworkStore();
 
     expect(unsubscribeMock).toHaveBeenCalledTimes(1);
     expect(useNetworkStore.getState().selectedId).toBeNull();
     expect(useNetworkStore.getState().buffer).toEqual([]);
+    expect(useNetworkStore.getState().levelFilter).toBe('all');
+    expect(useNetworkStore.getState().domainFilter).toBe('all');
   });
 
   it('a realistic set of http.request entries (no correlationId) renders N distinct rows end-to-end via connectNetworkStore + selectFilteredRows', async () => {

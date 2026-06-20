@@ -1,5 +1,5 @@
 import type { ObservabilityLogEntry } from '../contracts/observability.types';
-import type { NetworkRequestRow, NetworkStatusFilter } from './network-store.types';
+import type { NetworkDomainFilter, NetworkLevelFilter, NetworkRequestRow, NetworkStatusFilter } from './network-store.types';
 
 let perEntrySequence = 0;
 const perEntryIdByEntry = new WeakMap<ObservabilityLogEntry, string>();
@@ -181,4 +181,90 @@ export function selectRowById(buffer: readonly ObservabilityLogEntry[], id: stri
   }
 
   return foldByCorrelationId(buffer).find((row) => row.correlationId === id) ?? null;
+}
+
+function matchesEntryQuery(entry: ObservabilityLogEntry, query: string): boolean {
+  if (query === '') {
+    return true;
+  }
+
+  const normalizedQuery = query.toLowerCase();
+  const path = readMetadataString(entry.metadata, 'path') ?? '';
+
+  return (
+    entry.message.toLowerCase().includes(normalizedQuery) ||
+    entry.domain.toLowerCase().includes(normalizedQuery) ||
+    (entry.eventType ?? '').toLowerCase().includes(normalizedQuery) ||
+    path.toLowerCase().includes(normalizedQuery)
+  );
+}
+
+function matchesEntryLevelFilter(entry: ObservabilityLogEntry, levelFilter: NetworkLevelFilter): boolean {
+  if (levelFilter === 'all') {
+    return true;
+  }
+
+  const level = (entry.level ?? 'info').toLowerCase();
+
+  return level === levelFilter;
+}
+
+function matchesEntryDomainFilter(entry: ObservabilityLogEntry, domainFilter: NetworkDomainFilter): boolean {
+  if (domainFilter === 'all') {
+    return true;
+  }
+
+  return entry.domain.toLowerCase() === domainFilter.toLowerCase();
+}
+
+/**
+ * EntryWithId pairs a raw log entry with its stable per-entry identity, the
+ * shape `selectEntryViewRows` and `selectEntryById` operate on. The Network
+ * table renders one row per entry (NOT folded by correlationId) — only the
+ * detail panel's trace section uses `foldByCorrelationId`.
+ */
+export interface EntryWithId {
+  readonly id: string;
+  readonly entry: ObservabilityLogEntry;
+}
+
+/**
+ * selectEntryViewRows returns one row per raw log entry (never folded),
+ * filtered by free-text query (message/domain/eventType/path,
+ * case-insensitive), by level, and by domain (defaults to `'all'`, i.e. no
+ * domain filtering). Pure — never mutates `buffer`. Each row carries a
+ * stable per-entry id used for selection and detail lookup.
+ */
+export function selectEntryViewRows(
+  buffer: readonly ObservabilityLogEntry[],
+  query: string,
+  levelFilter: NetworkLevelFilter,
+  domainFilter: NetworkDomainFilter = 'all',
+): readonly EntryWithId[] {
+  const rows: EntryWithId[] = [];
+
+  for (const entry of buffer) {
+    if (
+      matchesEntryQuery(entry, query) &&
+      matchesEntryLevelFilter(entry, levelFilter) &&
+      matchesEntryDomainFilter(entry, domainFilter)
+    ) {
+      rows.push({ id: perEntryRowId(entry), entry });
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * selectEntryById returns the raw log entry whose stable per-entry id
+ * matches `id`, or null when `id` is null or no entry matches. Used by the
+ * detail inspector to resolve the selected row independent of filtering.
+ */
+export function selectEntryById(buffer: readonly ObservabilityLogEntry[], id: string | null): ObservabilityLogEntry | null {
+  if (id === null) {
+    return null;
+  }
+
+  return buffer.find((entry) => perEntryRowId(entry) === id) ?? null;
 }

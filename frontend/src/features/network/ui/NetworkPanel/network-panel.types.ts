@@ -1,7 +1,13 @@
+import type { RefObject } from 'react';
 import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
-import type { NetworkRequestRow, NetworkStatusFilter } from '../../../../shared/store/network-store.types';
+import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
+import type { EntryWithId } from '../../../../shared/store/network-store.helpers';
+import type { NetworkDomainFilter, NetworkLevelFilter } from '../../../../shared/store/network-store.types';
 
-export type { NetworkStatusFilter };
+export type { EntryWithId, NetworkDomainFilter, NetworkLevelFilter };
+
+/** Active tab in the DevTools-style detail inspector. */
+export type NetworkDetailTab = 'general' | 'metadata' | 'trace';
 
 /**
  * Props for the top-level NetworkPanel container. `source` is optional and
@@ -11,45 +17,77 @@ export interface NetworkPanelProps {
   readonly source?: ObservabilityLogSource;
 }
 
-/** Visual tone derived from a row's HTTP status, used for status chip coloring. */
-export type NetworkRowStatusTone = 'success' | 'warning' | 'danger' | 'pending';
-
 /** HeroUI Chip color tokens supported by the project's design system. */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
-/** Presentation-ready shape of a single Network row, with derived labels for rendering. */
-export interface NetworkRowViewModel {
+/** Presentation-ready shape of a single Network row, one per raw log entry. */
+export interface NetworkEntryViewModel {
   readonly id: string;
-  readonly name: string;
-  readonly method: string;
+  readonly timeLabel: string;
+  readonly domain: string;
+  readonly level: string;
+  readonly message: string;
   readonly statusLabel: string;
-  readonly statusTone: NetworkRowStatusTone;
-  readonly type: string;
   readonly durationLabel: string;
+}
+
+/** Presentation-ready shape of a trace sibling line in the detail inspector. */
+export interface NetworkTraceEntryViewModel {
+  readonly id: string;
+  readonly timeLabel: string;
+  readonly domain: string;
+  readonly message: string;
+  readonly isSelected: boolean;
+}
+
+/** Presentation-ready shape of the selected entry's detail inspector. */
+export interface NetworkDetailViewModel {
+  readonly entry: ObservabilityLogEntry;
+  readonly timeLabel: string;
+  readonly domain: string;
+  readonly level: string;
+  readonly message: string;
+  readonly fields: ReadonlyArray<readonly [string, string]>;
+  readonly metadataEntries: ReadonlyArray<readonly [string, string]>;
+  readonly traceEntries: readonly NetworkTraceEntryViewModel[];
 }
 
 /** Props for the dumb NetworkTable presentational component. */
 export interface NetworkTableProps {
-  readonly rows: readonly NetworkRowViewModel[];
+  readonly rows: readonly NetworkEntryViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
+  readonly isLoading: boolean;
+  readonly scrollRef: RefObject<HTMLDivElement | null>;
+  readonly onScroll: () => void;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */
 export interface NetworkFilterBarProps {
   readonly query: string;
-  readonly statusFilter: NetworkStatusFilter;
+  readonly levelFilter: NetworkLevelFilter;
+  readonly domainFilter: NetworkDomainFilter;
   readonly onQueryChange: (query: string) => void;
-  readonly onStatusFilterChange: (statusFilter: NetworkStatusFilter) => void;
+  readonly onLevelFilterChange: (levelFilter: NetworkLevelFilter) => void;
+  readonly onDomainFilterChange: (domainFilter: NetworkDomainFilter) => void;
 }
 
 /** Props for the dumb NetworkDetail presentational component. */
 export interface NetworkDetailProps {
-  readonly row: NetworkRequestRow | null;
+  readonly detail: NetworkDetailViewModel | null;
+  readonly detailTab: NetworkDetailTab;
+  readonly onDetailTabChange: (tab: NetworkDetailTab) => void;
+  readonly onClose: () => void;
 }
 
-/** A status-filter dropdown option (`network-panel.constants.ts`). */
-export interface NetworkStatusFilterOption {
-  readonly value: NetworkStatusFilter;
+/** A level-filter pill option (`network-panel.constants.ts`). */
+export interface NetworkLevelFilterOption {
+  readonly value: NetworkLevelFilter;
+  readonly label: string;
+}
+
+/** A domain-filter pill option (`network-panel.constants.ts`). */
+export interface NetworkDomainFilterOption {
+  readonly value: NetworkDomainFilter;
   readonly label: string;
 }

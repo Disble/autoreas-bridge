@@ -41,7 +41,7 @@ describe('useNetworkPanel', () => {
     const { result } = renderHook(() => useNetworkPanel(source));
 
     expect(result.current.rows).toEqual([]);
-    expect(result.current.selectedRow).toBeNull();
+    expect(result.current.selectedEntry).toBeNull();
     expect(result.current.isLoading).toBe(true);
 
     act(() => {
@@ -49,10 +49,10 @@ describe('useNetworkPanel', () => {
     });
   });
 
-  it('exposes filtered rows mapped from the replayed entries once getRecentLogs resolves', async () => {
+  it('exposes one row per entry mapped from the replayed entries once getRecentLogs resolves', async () => {
     const recent = [
-      entry({ timestamp: 't1', metadata: { method: 'GET', path: '/sync', status: 200 } }),
-      entry({ timestamp: 't2', metadata: { method: 'POST', path: '/pair', status: 201 } }),
+      entry({ timestamp: 't1', domain: 'anime', message: 'publishing anime.changed', eventType: 'anime.publish' }),
+      entry({ timestamp: 't2', eventType: 'http.request', metadata: { method: 'GET', path: '/sync', status: 200 } }),
     ];
     const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
 
@@ -63,11 +63,25 @@ describe('useNetworkPanel', () => {
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.rows.map((row) => row.name)).toEqual(['/sync', '/pair']);
+    expect(result.current.rows.map((row) => row.message)).toEqual(['publishing anime.changed', 'GET /sync']);
   });
 
-  it('onSelect sets selectedRow to the matching row', async () => {
-    const recent = [entry({ timestamp: 't1', metadata: { method: 'GET', path: '/sync', status: 200 } })];
+  it('does NOT fold rows by correlationId — entries sharing a correlationId still render as separate rows', async () => {
+    const recent = [
+      entry({ timestamp: 't1', correlationId: 'c1', message: 'first' }),
+      entry({ timestamp: 't2', correlationId: 'c1', message: 'second' }),
+    ];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await vi.waitFor(() => {
+      expect(result.current.rows).toHaveLength(2);
+    });
+  });
+
+  it('onSelect sets selectedEntry to the matching entry detail', async () => {
+    const recent = [entry({ timestamp: 't1', message: 'hello' })];
     const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
 
     const { result } = renderHook(() => useNetworkPanel(source));
@@ -82,13 +96,13 @@ describe('useNetworkPanel', () => {
       result.current.onSelect(rowId);
     });
 
-    expect(result.current.selectedRow?.correlationId).toBe(rowId);
+    expect(result.current.selectedEntry?.message).toBe('hello');
   });
 
   it('onQueryChange narrows the rows to those matching the query', async () => {
     const recent = [
-      entry({ timestamp: 't1', metadata: { method: 'GET', path: '/sync', status: 200 } }),
-      entry({ timestamp: 't2', metadata: { method: 'POST', path: '/pair', status: 201 } }),
+      entry({ timestamp: 't1', message: 'syncing catalogue' }),
+      entry({ timestamp: 't2', message: 'pairing device' }),
     ];
     const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
 
@@ -103,13 +117,13 @@ describe('useNetworkPanel', () => {
     });
 
     expect(result.current.rows).toHaveLength(1);
-    expect(result.current.rows[0].name).toBe('/pair');
+    expect(result.current.rows[0].message).toBe('pairing device');
   });
 
-  it('onStatusFilterChange narrows rows to the matching status bucket', async () => {
+  it('onLevelFilterChange narrows rows to the matching level', async () => {
     const recent = [
-      entry({ timestamp: 't1', metadata: { method: 'GET', path: '/ok', status: 200 } }),
-      entry({ timestamp: 't2', metadata: { method: 'GET', path: '/fail', status: 500 } }),
+      entry({ timestamp: 't1', level: 'info', message: 'ok' }),
+      entry({ timestamp: 't2', level: 'error', message: 'boom' }),
     ];
     const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
 
@@ -120,11 +134,11 @@ describe('useNetworkPanel', () => {
     });
 
     act(() => {
-      result.current.onStatusFilterChange('error');
+      result.current.onLevelFilterChange('error');
     });
 
     expect(result.current.rows).toHaveLength(1);
-    expect(result.current.rows[0].name).toBe('/fail');
+    expect(result.current.rows[0].message).toBe('boom');
   });
 
   it('reports captureUnavailable as false once loading finishes when the Wails runtime is present', async () => {
@@ -158,5 +172,112 @@ describe('useNetworkPanel', () => {
     });
 
     expect(result.current.captureUnavailable).toBe(true);
+  });
+
+  it('defaults detailTab to "general"', async () => {
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue([]) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    expect(result.current.detailTab).toBe('general');
+  });
+
+  it('onDetailTabChange switches the active detail tab', async () => {
+    const recent = [entry({ timestamp: 't1', message: 'hello' })];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await vi.waitFor(() => {
+      expect(result.current.rows).toHaveLength(1);
+    });
+
+    act(() => {
+      result.current.onSelect(result.current.rows[0].id);
+    });
+
+    act(() => {
+      result.current.onDetailTabChange('metadata');
+    });
+
+    expect(result.current.detailTab).toBe('metadata');
+  });
+
+  it('resets detailTab to "general" whenever the selected id changes', async () => {
+    const recent = [
+      entry({ timestamp: 't1', message: 'first' }),
+      entry({ timestamp: 't2', message: 'second' }),
+    ];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await vi.waitFor(() => {
+      expect(result.current.rows).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.onSelect(result.current.rows[0].id);
+    });
+    act(() => {
+      result.current.onDetailTabChange('trace');
+    });
+
+    expect(result.current.detailTab).toBe('trace');
+
+    act(() => {
+      result.current.onSelect(result.current.rows[1].id);
+    });
+
+    expect(result.current.detailTab).toBe('general');
+  });
+
+  it('onDomainFilterChange narrows rows to the matching domain', async () => {
+    const recent = [
+      entry({ timestamp: 't1', domain: 'sync', message: 'syncing' }),
+      entry({ timestamp: 't2', domain: 'anime', message: 'publishing' }),
+    ];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await vi.waitFor(() => {
+      expect(result.current.rows).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.onDomainFilterChange('sync');
+    });
+
+    expect(result.current.rows).toHaveLength(1);
+    expect(result.current.rows[0].message).toBe('syncing');
+    expect(result.current.domainFilter).toBe('sync');
+  });
+
+  it('derives entryCount, errorCount, and shownCount independent of active filters', async () => {
+    const recent = [
+      entry({ timestamp: 't1', level: 'info', message: 'ok' }),
+      entry({ timestamp: 't2', level: 'error', message: 'boom' }),
+      entry({ timestamp: 't3', level: 'error', message: 'kaboom' }),
+    ];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await vi.waitFor(() => {
+      expect(result.current.rows).toHaveLength(3);
+    });
+
+    expect(result.current.entryCount).toBe(3);
+    expect(result.current.errorCount).toBe(2);
+    expect(result.current.shownCount).toBe(3);
+
+    act(() => {
+      result.current.onLevelFilterChange('error');
+    });
+
+    expect(result.current.entryCount).toBe(3);
+    expect(result.current.errorCount).toBe(2);
+    expect(result.current.shownCount).toBe(2);
   });
 });

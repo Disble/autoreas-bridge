@@ -1,5 +1,6 @@
 import { MAX_LOG_ENTRIES } from './observability-panel.constants';
 import type { ObservabilityLogEntry } from './observability-panel.types';
+import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 
 /**
  * Trims the log buffer to the in-memory retention limit.
@@ -29,11 +30,12 @@ export function getLogLevelColor(level?: string): 'accent' | 'default' | 'succes
 }
 
 /**
- * Extracts the time portion (HH:mm:ss) from an ISO 8601 timestamp.
- * Keeps the log feed scannable without full date noise.
+ * Formats a timestamp as a local-timezone HH:mm:ss, delegating to the shared
+ * {@link formatLocalTime} so the log feed shows the computer's own timezone
+ * rather than the backend's UTC.
  */
 export function formatTimestamp(timestamp: string): string {
-  return timestamp.slice(11, 19);
+  return formatLocalTime(timestamp);
 }
 
 /**
