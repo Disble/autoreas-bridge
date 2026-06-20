@@ -56,6 +56,20 @@ func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]Chang
 	return scanChangelogEntries(rows)
 }
 
+func (s *ChangelogStore) ListPending(ctx context.Context) ([]ChangelogEntry, error) {
+	rows, err := s.provider.DB().QueryContext(ctx, `
+		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
+		FROM changelog
+		WHERE status = ?
+		ORDER BY changed_at_ms DESC, id DESC
+	`, changelogStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("list pending changelog rows: %w", err)
+	}
+	defer rows.Close()
+	return scanChangelogEntries(rows)
+}
+
 func (s *ChangelogStore) LastID(ctx context.Context) (int64, error) {
 	var lastID sql.NullInt64
 	if err := s.provider.DB().QueryRowContext(ctx, `SELECT MAX(id) FROM changelog`).Scan(&lastID); err != nil {

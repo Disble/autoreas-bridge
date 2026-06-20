@@ -10,6 +10,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
@@ -485,4 +486,22 @@ func (a *App) GetRecentLogs() []sharedlogger.LogEntry {
 		return []sharedlogger.LogEntry{}
 	}
 	return a.memLogger.Recent()
+}
+
+func (a *App) GetSyncingAnimeItems() []contracts.SyncingAnimeItem {
+	if a.syncTrigger == nil {
+		return []contracts.SyncingAnimeItem{}
+	}
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	items, err := a.syncTrigger.ListPendingAnimeSyncs(ctx)
+	if err != nil {
+		return []contracts.SyncingAnimeItem{}
+	}
+
+	return items
 }

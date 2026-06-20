@@ -14,6 +14,10 @@ export function GetPairingToken() {
   return window['go']['main']['App']['GetPairingToken']();
 }
 
+export function GetSyncingAnimeItems() {
+  return window['go']['main']['App']['GetSyncingAnimeItems']();
+}
+
 export function GetRecentLogs() {
   return window['go']['main']['App']['GetRecentLogs']();
 }

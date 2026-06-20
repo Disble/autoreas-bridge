@@ -1,3 +1,34 @@
+export namespace contracts {
+	
+	export class SyncingAnimeItem {
+	    animeId: string;
+	    title: string;
+	    changeType: string;
+	    pendingChanges: number;
+	    changedFields: string[];
+	    progressCurrent?: number;
+	    progressTotal?: number;
+	    lastChangedAtMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncingAnimeItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.animeId = source["animeId"];
+	        this.title = source["title"];
+	        this.changeType = source["changeType"];
+	        this.pendingChanges = source["pendingChanges"];
+	        this.changedFields = source["changedFields"];
+	        this.progressCurrent = source["progressCurrent"];
+	        this.progressTotal = source["progressTotal"];
+	        this.lastChangedAtMs = source["lastChangedAtMs"];
+	    }
+	}
+
+}
+
 export namespace logger {
 	
 	export class LogEntry {

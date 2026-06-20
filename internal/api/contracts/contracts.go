@@ -43,6 +43,17 @@ type AnimeChange struct {
 	Timestamp     int64        `json:"timestamp"`
 }
 
+type SyncingAnimeItem struct {
+	AnimeID         string   `json:"animeId"`
+	Title           string   `json:"title"`
+	ChangeType      string   `json:"changeType"`
+	PendingChanges  int      `json:"pendingChanges"`
+	ChangedFields   []string `json:"changedFields"`
+	ProgressCurrent *float64 `json:"progressCurrent,omitempty"`
+	ProgressTotal   *int     `json:"progressTotal,omitempty"`
+	LastChangedAtMs int64    `json:"lastChangedAtMs"`
+}
+
 type ReconcileRequest struct {
 	DeviceID          string             `json:"device_id"`
 	LastChangelogID   int64              `json:"last_changelog_id"`

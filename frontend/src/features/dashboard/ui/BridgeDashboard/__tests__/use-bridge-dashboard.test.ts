@@ -8,6 +8,7 @@ function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeR
     getSQLiteStatus: vi.fn().mockResolvedValue(''),
     getEffectiveAddress: vi.fn().mockResolvedValue(''),
     getPairingToken: vi.fn().mockResolvedValue(''),
+    getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
     triggerReconcile: vi.fn().mockResolvedValue(''),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
@@ -21,6 +22,7 @@ describe('useBridgeDashboard', () => {
 
     expect(result.current.isSyncing).toBe(false);
     expect(result.current.syncResult).toBe('');
+    expect(result.current.syncingAnimeRefreshToken).toBe(0);
   });
 
   it('reconciles via the injected source and stores the returned result', async () => {
@@ -51,6 +53,7 @@ describe('useBridgeDashboard', () => {
     expect(source.triggerReconcile).toHaveBeenCalledTimes(1);
     expect(result.current.isSyncing).toBe(false);
     expect(result.current.syncResult).toBe('done');
+    expect(result.current.syncingAnimeRefreshToken).toBe(1);
   });
 
   it('uses the default singleton source when no source is injected', () => {
@@ -58,5 +61,6 @@ describe('useBridgeDashboard', () => {
 
     expect(result.current.isSyncing).toBe(false);
     expect(result.current.syncResult).toBe('');
+    expect(result.current.syncingAnimeRefreshToken).toBe(0);
   });
 });

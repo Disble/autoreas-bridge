@@ -20,6 +20,7 @@ type TriggerService struct {
 type changelogLookup interface {
 	ListSinceTimestamp(ctx context.Context, sinceMs int64) ([]ChangelogEntry, error)
 	ListAfterID(ctx context.Context, lastID int64) ([]ChangelogEntry, error)
+	ListPending(ctx context.Context) ([]ChangelogEntry, error)
 	LastID(ctx context.Context) (int64, error)
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
@@ -94,6 +95,61 @@ func (s *TriggerService) LastChangedAt(ctx context.Context) (*int64, error) {
 		return nil, nil
 	}
 	return s.store.LastChangedAt(ctx)
+}
+
+func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts.SyncingAnimeItem, error) {
+	if s.store == nil {
+		return []contracts.SyncingAnimeItem{}, nil
+	}
+
+	entries, err := s.store.ListPending(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]contracts.SyncingAnimeItem, 0, len(entries))
+	counts := map[string]int{}
+	seen := map[string]int{}
+
+	for _, entry := range entries {
+		counts[entry.AnimeID]++
+		if _, ok := seen[entry.AnimeID]; ok {
+			continue
+		}
+
+		item := contracts.SyncingAnimeItem{
+			AnimeID:         entry.AnimeID,
+			Title:           entry.AnimeID,
+			ChangeType:      entry.ChangeType,
+			PendingChanges:  1,
+			ChangedFields:   append([]string(nil), entry.ChangedFields...),
+			LastChangedAtMs: entry.ChangedAtMs,
+		}
+
+		if len(entry.SnapshotJSON) > 0 {
+			snapshot, snapshotErr := animeSnapshotToContract(entry.SnapshotJSON)
+			if snapshotErr == nil && snapshot != nil {
+				if snapshot.Nombre != "" {
+					item.Title = snapshot.Nombre
+				}
+				progressCurrent := snapshot.NroCapVisto
+				item.ProgressCurrent = &progressCurrent
+				if snapshot.TotalCap != nil {
+					progressTotal := *snapshot.TotalCap
+					item.ProgressTotal = &progressTotal
+				}
+			}
+		}
+
+		seen[entry.AnimeID] = len(items)
+		items = append(items, item)
+	}
+
+	for animeID, count := range counts {
+		items[seen[animeID]].PendingChanges = count
+	}
+
+	return items, nil
 }
 
 func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, error) {

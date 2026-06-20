@@ -2,6 +2,7 @@ import { Alert, Button, Spinner } from '@heroui/react';
 import { BridgeStatusCard } from '../BridgeStatusCard/BridgeStatusCard';
 import { ObservabilityPanel } from '../ObservabilityPanel/ObservabilityPanel';
 import { PairingPanel } from '../PairingPanel/PairingPanel';
+import { SyncingAnimePanel } from '../SyncingAnimePanel/SyncingAnimePanel';
 import {
   BRIDGE_DASHBOARD_SUBTITLE,
   BRIDGE_DASHBOARD_SYNC_IDLE_LABEL,
@@ -14,7 +15,7 @@ import { useBridgeDashboard } from './use-bridge-dashboard';
 
 /** Top-level dashboard view composing the status, pairing, and observability panels. */
 export function BridgeDashboard() {
-  const { isSyncing, onTriggerSync, syncResult } = useBridgeDashboard();
+  const { isSyncing, onTriggerSync, syncResult, syncingAnimeRefreshToken } = useBridgeDashboard();
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,6 +55,10 @@ export function BridgeDashboard() {
         <div className="min-w-0">
           <PairingPanel />
         </div>
+      </div>
+
+      <div className="min-w-0">
+        <SyncingAnimePanel refreshToken={syncingAnimeRefreshToken} />
       </div>
 
       <div className="min-w-0">

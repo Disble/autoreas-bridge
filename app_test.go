@@ -1018,7 +1018,68 @@ func TestGetPairingTokenReturns32CharHexAndPersists(t *testing.T) {
 	}
 }
 
+func TestGetSyncingAnimeItemsReturnsEmptyWhenSyncTriggerNil(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+
+	got := app.GetSyncingAnimeItems()
+	if len(got) != 0 {
+		t.Fatalf("expected empty syncing anime list, got %#v", got)
+	}
+}
+
+func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
+	t.Parallel()
+
+	current := 12.0
+	store := stubPendingLookup{pending: []bridgeSync.ChangelogEntry{{
+		ID:            1,
+		AnimeID:       "anime-9",
+		ChangeType:    bridgeSync.ChangelogTypeUpdate,
+		ChangedFields: []string{"nrocapvisto"},
+		SnapshotJSON:  []byte(`{"_id":"anime-9","nombre":"Frieren","nrocapvisto":12}`),
+		ChangedAtMs:   1710000000123,
+	}}}
+	app := &App{syncTrigger: bridgeSync.NewTriggerService(events.NewBus(), store), ctx: context.Background()}
+
+	got := app.GetSyncingAnimeItems()
+	if len(got) != 1 {
+		t.Fatalf("expected one syncing anime item, got %#v", got)
+	}
+	if got[0].AnimeID != "anime-9" || got[0].Title != "Frieren" {
+		t.Fatalf("unexpected syncing anime payload: %#v", got[0])
+	}
+	if got[0].ProgressCurrent == nil || *got[0].ProgressCurrent != current {
+		t.Fatalf("expected progress current %v, got %#v", current, got[0].ProgressCurrent)
+	}
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+type stubPendingLookup struct {
+	pending []bridgeSync.ChangelogEntry
+}
+
+func (s stubPendingLookup) ListSinceTimestamp(context.Context, int64) ([]bridgeSync.ChangelogEntry, error) {
+	return nil, nil
+}
+
+func (s stubPendingLookup) ListAfterID(context.Context, int64) ([]bridgeSync.ChangelogEntry, error) {
+	return nil, nil
+}
+
+func (s stubPendingLookup) ListPending(context.Context) ([]bridgeSync.ChangelogEntry, error) {
+	return append([]bridgeSync.ChangelogEntry(nil), s.pending...), nil
+}
+
+func (s stubPendingLookup) LastID(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
+	return nil, nil
+}
 
 type spyDeviceStore struct {
 	stubAppDeviceStore

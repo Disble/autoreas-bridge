@@ -208,6 +208,39 @@ func TestSQLiteChangelogStoreListsChangesAfterID(t *testing.T) {
 	}
 }
 
+func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	ctx := context.Background()
+
+	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
+		t.Fatalf("insert first pending changelog: %v", err)
+	}
+	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"_id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
+		t.Fatalf("insert second pending changelog: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO changelog (anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
+		VALUES ('anime-3', 'update', '[]', '{"_id":"anime-3"}', 'applied', 500)
+	`); err != nil {
+		t.Fatalf("insert applied changelog row: %v", err)
+	}
+
+	got, err := store.ListPending(ctx)
+	if err != nil {
+		t.Fatalf("list pending changelog rows: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 pending rows, got %d", len(got))
+	}
+	if got[0].AnimeID != "anime-2" || got[1].AnimeID != "anime-1" {
+		t.Fatalf("expected newest-first pending rows, got %#v", got)
+	}
+}
+
 func countChangelogRows(t *testing.T, db *sql.DB) int {
 	t.Helper()
 

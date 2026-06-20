@@ -9,6 +9,7 @@ export function useBridgeDashboard(source: BridgeRuntimeSource = bridgeRuntimeSo
   // 2. State
   const [syncResult, setSyncResult] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncingAnimeRefreshToken, setSyncingAnimeRefreshToken] = useState(0);
 
   // 3. Context/3rd Party Hooks
 
@@ -25,6 +26,7 @@ export function useBridgeDashboard(source: BridgeRuntimeSource = bridgeRuntimeSo
       const result = await source.triggerReconcile();
 
       setSyncResult(result);
+      setSyncingAnimeRefreshToken((currentToken) => currentToken + 1);
     } finally {
       setIsSyncing(false);
     }
@@ -35,6 +37,7 @@ export function useBridgeDashboard(source: BridgeRuntimeSource = bridgeRuntimeSo
   return {
     syncResult,
     isSyncing,
+    syncingAnimeRefreshToken,
     onTriggerSync,
   };
 }

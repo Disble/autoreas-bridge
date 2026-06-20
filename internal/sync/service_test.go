@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 )
@@ -48,6 +49,107 @@ func TestTriggerServicePublishesSyncRequestedEvent(t *testing.T) {
 		t.Fatalf("expected DurationMs > 0, got %d", reconcileEntry.DurationMs)
 	}
 }
+
+func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), stubPendingLookup{
+		pending: []ChangelogEntry{
+			{
+				ID:            3,
+				AnimeID:       "anime-1",
+				ChangeType:    ChangelogTypeUpdate,
+				ChangedFields: []string{"nrocapvisto", "estado"},
+				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":18,"totalcap":24}`),
+				ChangedAtMs:   300,
+			},
+			{
+				ID:            2,
+				AnimeID:       "anime-1",
+				ChangeType:    ChangelogTypeUpdate,
+				ChangedFields: []string{"nrocapvisto"},
+				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":17,"totalcap":24}`),
+				ChangedAtMs:   200,
+			},
+			{
+				ID:            1,
+				AnimeID:       "anime-2",
+				ChangeType:    ChangelogTypeDelete,
+				ChangedFields: []string{"activo"},
+				SnapshotJSON:  nil,
+				ChangedAtMs:   100,
+			},
+		},
+	})
+
+	got, err := service.ListPendingAnimeSyncs(context.Background())
+	if err != nil {
+		t.Fatalf("list pending anime syncs: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 anime sync items, got %d", len(got))
+	}
+
+	first := got[0]
+	if first.AnimeID != "anime-1" {
+		t.Fatalf("expected first anime to be anime-1, got %#v", first)
+	}
+	if first.Title != "Dungeon Meshi" {
+		t.Fatalf("expected title to come from latest snapshot, got %#v", first)
+	}
+	if first.PendingChanges != 2 {
+		t.Fatalf("expected pending count 2, got %#v", first)
+	}
+	if first.ProgressCurrent == nil || *first.ProgressCurrent != 18 {
+		t.Fatalf("expected progress current 18, got %#v", first.ProgressCurrent)
+	}
+	if first.ProgressTotal == nil || *first.ProgressTotal != 24 {
+		t.Fatalf("expected progress total 24, got %#v", first.ProgressTotal)
+	}
+
+	second := got[1]
+	if second.AnimeID != "anime-2" {
+		t.Fatalf("expected second anime to be anime-2, got %#v", second)
+	}
+	if second.Title != "anime-2" {
+		t.Fatalf("expected sparse snapshot to fall back to anime id, got %#v", second)
+	}
+}
+
+type stubPendingLookup struct {
+	pending []ChangelogEntry
+}
+
+func (s stubPendingLookup) ListSinceTimestamp(context.Context, int64) ([]ChangelogEntry, error) {
+	return nil, nil
+}
+
+func (s stubPendingLookup) ListAfterID(context.Context, int64) ([]ChangelogEntry, error) {
+	return nil, nil
+}
+
+func (s stubPendingLookup) ListPending(context.Context) ([]ChangelogEntry, error) {
+	return append([]ChangelogEntry(nil), s.pending...), nil
+}
+
+func (s stubPendingLookup) LastID(context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
+	return nil, nil
+}
+
+var _ interface {
+	ListSinceTimestamp(context.Context, int64) ([]ChangelogEntry, error)
+	ListAfterID(context.Context, int64) ([]ChangelogEntry, error)
+	ListPending(context.Context) ([]ChangelogEntry, error)
+	LastID(context.Context) (int64, error)
+	LastChangedAt(context.Context) (*int64, error)
+} = stubPendingLookup{}
+
+var _ = contracts.SyncingAnimeItem{}
 
 type recordingSyncLogger struct {
 	entriesList []sharedlogger.LogEntry
