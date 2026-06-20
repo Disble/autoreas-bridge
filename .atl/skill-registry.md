@@ -15,6 +15,7 @@
 | --- | --- | --- |
 | `bridge-testing` | `skills/bridge-testing` | Tests del parser legacy, event bus, watcher, SQLite, sync y API usando boundaries reales |
 | `bridge-debugging` | `skills/bridge-debugging` | Investigación de bugs y regresiones en filesystem, SQLite, parser y sync |
+| `frontend-theme` | `skills/frontend-theme` | Theming y tokens de color del frontend (HeroUI v3 + Tailwind v4): elegir utilities que SÍ renderizan, estados activo/hover/focus, y debug de "no se ve el color/fondo" |
 
 ## User-level skills (deduplicated, non-SDD)
 
