@@ -49,7 +49,7 @@ export function toSyncingAnimePanelViewModel(item: SyncingAnime): SyncingAnimePa
     changeTone: changePresentation.tone,
     queueLabel: formatSyncingAnimeQueueLabel(item.pendingChanges),
     progressLabel: formatSyncingAnimeProgress(item.progressCurrent, item.progressTotal),
-    changedFields: item.changedFields,
+    changedFields: item.changedFields ?? [],
     lastUpdatedLabel: formatLocalDateTime(new Date(item.lastChangedAtMs).toISOString()),
   };
 }

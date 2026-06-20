@@ -53,6 +53,19 @@ describe('toSyncingAnimePanelViewModel', () => {
     });
   });
 
+  it('normalizes null changedFields to an empty array', () => {
+    const item = {
+      animeId: 'anime-9',
+      title: 'Frieren',
+      changeType: 'delete',
+      pendingChanges: 1,
+      changedFields: null as unknown as string[],
+      lastChangedAtMs: Date.UTC(2026, 5, 20, 19, 0, 0),
+    };
+
+    expect(toSyncingAnimePanelViewModel(item as SyncingAnime).changedFields).toEqual([]);
+  });
+
   it('falls back to the anime id when title is empty and keeps progress empty when unknown', () => {
     const item: SyncingAnime = {
       animeId: 'anime-9',

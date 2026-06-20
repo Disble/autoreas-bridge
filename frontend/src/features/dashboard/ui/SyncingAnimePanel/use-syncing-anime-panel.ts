@@ -32,14 +32,24 @@ export function useSyncingAnimePanel(
 
     setIsLoading(true);
 
-    void source.getSyncingAnimeItems().then((nextItems) => {
-      if (!active) {
-        return;
-      }
+    void source
+      .getSyncingAnimeItems()
+      .then((nextItems) => {
+        if (!active) {
+          return;
+        }
 
-      setItems(nextItems);
-      setIsLoading(false);
-    });
+        setItems(nextItems);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setItems([]);
+        setIsLoading(false);
+      });
 
     return () => {
       active = false;

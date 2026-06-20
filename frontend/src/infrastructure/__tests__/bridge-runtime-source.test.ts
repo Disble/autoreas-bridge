@@ -21,6 +21,7 @@ describe('bridge-runtime-source', () => {
     const statusPromise = source.getSQLiteStatus();
     const addressPromise = source.getEffectiveAddress();
     const tokenPromise = source.getPairingToken();
+    const animePromise = source.getSyncingAnimeItems();
     const reconcilePromise = source.triggerReconcile();
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -28,7 +29,21 @@ describe('bridge-runtime-source', () => {
     await expect(statusPromise).resolves.toBe('runtime unavailable');
     await expect(addressPromise).resolves.toBe('');
     await expect(tokenPromise).resolves.toBe('');
+    await expect(animePromise).resolves.toEqual([]);
     await expect(reconcilePromise).resolves.toBe('runtime unavailable');
+  });
+
+  it('resolves degraded defaults when the App exists but a specific binding is missing', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const animePromise = source.getSyncingAnimeItems();
+
+    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(animePromise).resolves.toEqual([]);
   });
 
   it('calls GetSQLiteStatus once Go bindings become ready', async () => {

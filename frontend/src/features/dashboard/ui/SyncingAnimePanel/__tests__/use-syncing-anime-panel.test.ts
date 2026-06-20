@@ -85,4 +85,18 @@ describe('useSyncingAnimePanel', () => {
       expect(result.current.items).toEqual([]);
     });
   });
+
+  it('recovers to an empty list when the source rejects', async () => {
+    const source = createFakeSource({
+      getSyncingAnimeItems: vi.fn().mockRejectedValue(new Error('binding unavailable')),
+    });
+
+    const { result } = renderHook(() => useSyncingAnimePanel({ refreshToken: 0 }, source));
+
+    await waitFor(() => {
+      expect(result.current.isEmpty).toBe(true);
+    });
+
+    expect(result.current.items).toEqual([]);
+  });
 });

@@ -32,8 +32,9 @@ export interface BridgeRuntimeSource {
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
 }
 
-function hasGoBindings(): boolean {
-  return Boolean(window.go?.main?.App);
+function hasGoBinding(name: string): boolean {
+  const app = window.go?.main?.App;
+  return typeof app === 'object' && app !== null && typeof (app as Record<string, unknown>)[name] === 'function';
 }
 
 function hasRuntimeBindings(): boolean {
@@ -105,27 +106,27 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
 
   sharedSource = {
     getSQLiteStatus() {
-      return waitForBindings(hasGoBindings).then((isReady) => {
+      return waitForBindings(() => hasGoBinding('GetSQLiteStatus')).then((isReady) => {
         return isReady ? GetSQLiteStatus() : 'runtime unavailable';
       });
     },
     getEffectiveAddress() {
-      return waitForBindings(hasGoBindings).then((isReady) => {
+      return waitForBindings(() => hasGoBinding('GetEffectiveAddress')).then((isReady) => {
         return isReady ? GetEffectiveAddress() : '';
       });
     },
     getPairingToken() {
-      return waitForBindings(hasGoBindings).then((isReady) => {
+      return waitForBindings(() => hasGoBinding('GetPairingToken')).then((isReady) => {
         return isReady ? GetPairingToken() : '';
       });
     },
     getSyncingAnimeItems() {
-      return waitForBindings(hasGoBindings).then((isReady) => {
+      return waitForBindings(() => hasGoBinding('GetSyncingAnimeItems')).then((isReady) => {
         return isReady ? (GetSyncingAnimeItems() as Promise<readonly SyncingAnime[]>) : Promise.resolve([]);
       });
     },
     triggerReconcile() {
-      return waitForBindings(hasGoBindings).then((isReady) => {
+      return waitForBindings(() => hasGoBinding('TriggerReconcile')).then((isReady) => {
         return isReady ? TriggerReconcile() : 'runtime unavailable';
       });
     },
