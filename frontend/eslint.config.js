@@ -144,6 +144,11 @@ export default [
     },
     rules: {
       ...reactDoctorWarnRules,
+      // React Compiler is not installed or configured in this project
+      // (no babel-plugin-react-compiler, no vite.config.ts plugin). Until it
+      // is adopted, useCallback/useMemo are still required to keep effect
+      // dependencies stable, so this rule only produces false positives.
+      'react-doctor/react-compiler-no-manual-memoization': 'off',
     },
   },
   {

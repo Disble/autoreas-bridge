@@ -28,7 +28,7 @@ export function usePairingPanel() {
       }),
     [parsedAddress.ip, parsedAddress.port, token],
   );
-  const hasQrValue = useMemo(() => qrValue.length > 0, [qrValue]);
+  const hasQrValue = qrValue.length > 0;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const refreshPairingToken = useCallback(async () => {

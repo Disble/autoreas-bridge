@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router';
-import { BridgeDashboard } from './features/dashboard';
+import { BridgeDashboard } from './features/dashboard/ui/BridgeDashboard/BridgeDashboard';
 import { AppLayout } from './app/AppLayout';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';

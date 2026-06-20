@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('qrcode', () => ({
-  default: {
-    toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
-  },
+  toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
 
 import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } from '../pairing-panel.helpers';

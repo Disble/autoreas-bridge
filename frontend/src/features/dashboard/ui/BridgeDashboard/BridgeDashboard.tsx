@@ -1,7 +1,7 @@
 import { Alert, Button, Spinner } from '@heroui/react';
-import { BridgeStatusCard } from '../BridgeStatusCard';
-import { ObservabilityPanel } from '../ObservabilityPanel';
-import { PairingPanel } from '../PairingPanel';
+import { BridgeStatusCard } from '../BridgeStatusCard/BridgeStatusCard';
+import { ObservabilityPanel } from '../ObservabilityPanel/ObservabilityPanel';
+import { PairingPanel } from '../PairingPanel/PairingPanel';
 import {
   BRIDGE_DASHBOARD_SUBTITLE,
   BRIDGE_DASHBOARD_SYNC_IDLE_LABEL,

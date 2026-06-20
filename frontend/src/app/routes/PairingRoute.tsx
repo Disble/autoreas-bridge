@@ -1,4 +1,4 @@
-import { PairingPanel } from '../../features/dashboard/ui/PairingPanel';
+import { PairingPanel } from '../../features/dashboard/ui/PairingPanel/PairingPanel';
 
 export function PairingRoute() {
   return (

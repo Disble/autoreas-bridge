@@ -1,4 +1,4 @@
-import QRCode from 'qrcode';
+import { toDataURL } from 'qrcode';
 import type { PairingQrImageOptions, PairingQrPayloadInput, ParsedEffectiveAddress } from './pairing-panel.types';
 
 export const DEFAULT_PAIRING_QR_OPTIONS: PairingQrImageOptions = {
@@ -43,5 +43,5 @@ export function buildPairingQrValue(payload: PairingQrPayloadInput) {
  * This avoids the WebView-specific rendering issues we hit with `react-qr-code`.
  */
 export function buildPairingQrImageUrl(value: string, options: PairingQrImageOptions = DEFAULT_PAIRING_QR_OPTIONS) {
-  return QRCode.toDataURL(value, options);
+  return toDataURL(value, options);
 }

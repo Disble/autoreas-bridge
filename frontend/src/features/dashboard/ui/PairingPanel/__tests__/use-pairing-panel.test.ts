@@ -8,9 +8,7 @@ const subscribeToEventMock = vi.fn();
 const writeTextMock = vi.fn();
 
 vi.mock('qrcode', () => ({
-  default: {
-    toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
-  },
+  toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
 
 vi.mock('../../../dashboard.bindings', () => ({

@@ -1,4 +1,4 @@
-import { BridgeStatusCard } from '../../features/dashboard/ui/BridgeStatusCard';
+import { BridgeStatusCard } from '../../features/dashboard/ui/BridgeStatusCard/BridgeStatusCard';
 
 export function BridgeStatusRoute() {
   return (

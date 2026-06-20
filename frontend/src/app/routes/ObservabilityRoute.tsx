@@ -1,4 +1,4 @@
-import { ObservabilityPanel } from '../../features/dashboard/ui/ObservabilityPanel';
+import { ObservabilityPanel } from '../../features/dashboard/ui/ObservabilityPanel/ObservabilityPanel';
 
 export function ObservabilityRoute() {
   return (
