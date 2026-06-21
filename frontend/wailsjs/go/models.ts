@@ -1,5 +1,27 @@
 export namespace contracts {
 	
+	export class AnimeListItem {
+	    id: string;
+	    nombre: string;
+	    estado: number;
+	    nrocapvisto: number;
+	    totalcap?: number;
+	    activo: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeListItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.nombre = source["nombre"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.totalcap = source["totalcap"];
+	        this.activo = source["activo"];
+	    }
+	}
 	export class SyncingAnimeItem {
 	    animeId: string;
 	    title: string;
@@ -9,6 +31,7 @@ export namespace contracts {
 	    progressCurrent?: number;
 	    progressTotal?: number;
 	    lastChangedAtMs: number;
+	    activo: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyncingAnimeItem(source);
@@ -24,6 +47,7 @@ export namespace contracts {
 	        this.progressCurrent = source["progressCurrent"];
 	        this.progressTotal = source["progressTotal"];
 	        this.lastChangedAtMs = source["lastChangedAtMs"];
+	        this.activo = source["activo"];
 	    }
 	}
 

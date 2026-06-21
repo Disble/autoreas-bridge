@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"time"
 
 	"autoreas-bridge/internal/anime"
@@ -107,28 +108,30 @@ func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts
 		return nil, err
 	}
 
-	items := make([]contracts.SyncingAnimeItem, 0, len(entries))
-	counts := map[string]int{}
-	seen := map[string]int{}
-
+	groups := make(map[string][]ChangelogEntry, len(entries))
 	for _, entry := range entries {
-		counts[entry.AnimeID]++
-		if _, ok := seen[entry.AnimeID]; ok {
-			continue
-		}
+		groups[entry.AnimeID] = append(groups[entry.AnimeID], entry)
+	}
 
+	items := make([]contracts.SyncingAnimeItem, 0, len(groups))
+	for animeID, group := range groups {
+		latest := latestChangelogEntry(group)
 		item := contracts.SyncingAnimeItem{
-			AnimeID:         entry.AnimeID,
-			Title:           entry.AnimeID,
-			ChangeType:      entry.ChangeType,
-			PendingChanges:  1,
-			ChangedFields:   append([]string(nil), entry.ChangedFields...),
-			LastChangedAtMs: entry.ChangedAtMs,
+			AnimeID:         animeID,
+			Title:           animeID,
+			ChangeType:      latest.ChangeType,
+			PendingChanges:  len(group),
+			ChangedFields:   append([]string(nil), latest.ChangedFields...),
+			LastChangedAtMs: latest.ChangedAtMs,
 		}
 
-		if len(entry.SnapshotJSON) > 0 {
-			snapshot, snapshotErr := animeSnapshotToContract(entry.SnapshotJSON)
+		if len(latest.SnapshotJSON) > 0 {
+			snapshot, snapshotErr := animeSnapshotToContract(latest.SnapshotJSON)
 			if snapshotErr == nil && snapshot != nil {
+				if snapshot.Activo == 0 {
+					continue
+				}
+				item.Activo = snapshot.Activo
 				if snapshot.Nombre != "" {
 					item.Title = snapshot.Nombre
 				}
@@ -141,15 +144,27 @@ func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts
 			}
 		}
 
-		seen[entry.AnimeID] = len(items)
 		items = append(items, item)
 	}
 
-	for animeID, count := range counts {
-		items[seen[animeID]].PendingChanges = count
-	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].AnimeID < items[j].AnimeID
+	})
 
 	return items, nil
+}
+
+func latestChangelogEntry(entries []ChangelogEntry) ChangelogEntry {
+	if len(entries) == 0 {
+		return ChangelogEntry{}
+	}
+	latest := entries[0]
+	for _, entry := range entries[1:] {
+		if entry.ChangedAtMs > latest.ChangedAtMs {
+			latest = entry
+		}
+	}
+	return latest
 }
 
 func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, error) {

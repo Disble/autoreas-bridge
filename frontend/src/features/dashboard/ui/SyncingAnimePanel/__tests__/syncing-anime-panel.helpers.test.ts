@@ -41,6 +41,7 @@ describe('toSyncingAnimePanelViewModel', () => {
       progressCurrent: 18,
       progressTotal: 24,
       lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 15, 0),
+      activo: 1,
     };
 
     expect(toSyncingAnimePanelViewModel(item)).toMatchObject({
@@ -61,6 +62,7 @@ describe('toSyncingAnimePanelViewModel', () => {
       pendingChanges: 1,
       changedFields: null as unknown as string[],
       lastChangedAtMs: Date.UTC(2026, 5, 20, 19, 0, 0),
+      activo: 0,
     };
 
     expect(toSyncingAnimePanelViewModel(item as SyncingAnime).changedFields).toEqual([]);
@@ -74,6 +76,7 @@ describe('toSyncingAnimePanelViewModel', () => {
       pendingChanges: 1,
       changedFields: [],
       lastChangedAtMs: Date.UTC(2026, 5, 20, 19, 0, 0),
+      activo: 0,
     };
 
     expect(toSyncingAnimePanelViewModel(item)).toMatchObject({

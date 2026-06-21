@@ -1038,7 +1038,7 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 		AnimeID:       "anime-9",
 		ChangeType:    bridgeSync.ChangelogTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"_id":"anime-9","nombre":"Frieren","nrocapvisto":12}`),
+		SnapshotJSON:  []byte(`{"_id":"anime-9","nombre":"Frieren","nrocapvisto":12,"activo":true}`),
 		ChangedAtMs:   1710000000123,
 	}}}
 	app := &App{syncTrigger: bridgeSync.NewTriggerService(events.NewBus(), store), ctx: context.Background()}

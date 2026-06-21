@@ -9,6 +9,7 @@ function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeR
     getEffectiveAddress: vi.fn().mockResolvedValue(''),
     getPairingToken: vi.fn().mockResolvedValue(''),
     getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
+    getAnimes: vi.fn().mockResolvedValue([]),
     triggerReconcile: vi.fn().mockResolvedValue(''),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
@@ -28,6 +29,7 @@ describe('useSyncingAnimePanel', () => {
           progressCurrent: 18,
           progressTotal: 24,
           lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 15, 0),
+          activo: 1,
         },
       ]),
     });
@@ -54,8 +56,9 @@ describe('useSyncingAnimePanel', () => {
             changeType: 'update',
             pendingChanges: 1,
             changedFields: ['estado'],
-            progressCurrent: 12,
-            lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 30, 0),
+          progressCurrent: 12,
+          lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 30, 0),
+          activo: 1,
           },
         ]),
     });

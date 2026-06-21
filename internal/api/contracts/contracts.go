@@ -52,6 +52,16 @@ type SyncingAnimeItem struct {
 	ProgressCurrent *float64 `json:"progressCurrent,omitempty"`
 	ProgressTotal   *int     `json:"progressTotal,omitempty"`
 	LastChangedAtMs int64    `json:"lastChangedAtMs"`
+	Activo          int      `json:"activo"`
+}
+
+type AnimeListItem struct {
+	ID          string  `json:"id"`
+	Nombre      string  `json:"nombre"`
+	Estado      int     `json:"estado"`
+	NroCapVisto float64 `json:"nrocapvisto"`
+	TotalCap    *int    `json:"totalcap,omitempty"`
+	Activo      int     `json:"activo"`
 }
 
 type ReconcileRequest struct {
@@ -121,6 +131,7 @@ type AnimeQueryService interface {
 	GetEffectiveAnime(ctx context.Context, id string) (*EffectiveAnime, error)
 	ListMobileAnimes(ctx context.Context) ([]MobileAnime, error)
 	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
+	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
 }
 
 type AnimeWriteService interface {

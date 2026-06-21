@@ -50,6 +50,44 @@ func TestTriggerServicePublishesSyncRequestedEvent(t *testing.T) {
 	}
 }
 
+func TestTriggerServiceListPendingAnimeSyncsFiltersInactiveAnimes(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), stubPendingLookup{
+		pending: []ChangelogEntry{
+			{
+				ID:            2,
+				AnimeID:       "anime-active",
+				ChangeType:    ChangelogTypeUpdate,
+				ChangedFields: []string{"nrocapvisto"},
+				SnapshotJSON:  []byte(`{"_id":"anime-active","nombre":"Active Anime","nrocapvisto":5,"activo":true}`),
+				ChangedAtMs:   200,
+			},
+			{
+				ID:            1,
+				AnimeID:       "anime-inactive",
+				ChangeType:    ChangelogTypeUpdate,
+				ChangedFields: []string{"activo"},
+				SnapshotJSON:  []byte(`{"_id":"anime-inactive","nombre":"Inactive Anime","nrocapvisto":3,"activo":false}`),
+				ChangedAtMs:   100,
+			},
+		},
+	})
+
+	got, err := service.ListPendingAnimeSyncs(context.Background())
+	if err != nil {
+		t.Fatalf("list pending anime syncs: %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 active anime sync item, got %d", len(got))
+	}
+
+	if got[0].AnimeID != "anime-active" {
+		t.Fatalf("expected only active anime, got %#v", got[0])
+	}
+}
+
 func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +98,7 @@ func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 				AnimeID:       "anime-1",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto", "estado"},
-				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":18,"totalcap":24}`),
+				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":18,"totalcap":24,"activo":true}`),
 				ChangedAtMs:   300,
 			},
 			{
@@ -68,7 +106,7 @@ func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 				AnimeID:       "anime-1",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto"},
-				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":17,"totalcap":24}`),
+				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":17,"totalcap":24,"activo":true}`),
 				ChangedAtMs:   200,
 			},
 			{

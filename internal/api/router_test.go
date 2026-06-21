@@ -373,6 +373,10 @@ func (s stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contrac
 	return s.item, nil
 }
 
+func (s stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.AnimeListItem, error) {
+	return nil, nil
+}
+
 type stubSyncService struct {
 	changes []contracts.AnimeChange
 	lastID  int64

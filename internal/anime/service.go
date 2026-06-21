@@ -91,6 +91,30 @@ func (s *QueryService) ListMobileAnimes(ctx context.Context) ([]contracts.Mobile
 	return result, nil
 }
 
+func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeListItem, error) {
+	records, err := s.store.ListSnapshots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := sortedSnapshotIDs(records)
+	result := make([]contracts.AnimeListItem, 0, len(ids))
+	for _, id := range ids {
+		item, err := mobileAnimeFromSnapshot(records[id].CanonicalJSON)
+		if err != nil {
+			return nil, fmt.Errorf("normalize snapshot %q: %w", id, err)
+		}
+		result = append(result, contracts.AnimeListItem{
+			ID:          item.ID,
+			Nombre:      item.Nombre,
+			Estado:      item.Estado,
+			NroCapVisto: item.NroCapVisto,
+			TotalCap:    item.TotalCap,
+			Activo:      item.Activo,
+		})
+	}
+	return result, nil
+}
+
 func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contracts.MobileAnime, error) {
 	record, err := s.store.GetSnapshot(ctx, id)
 	if err != nil {

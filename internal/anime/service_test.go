@@ -157,6 +157,47 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	}
 }
 
+func TestQueryServiceListAnimeItemsReturnsActiveAndInactive(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-active", `{"_id":"anime-active","nombre":"Active Anime","nrocapvisto":5,"estado":2,"totalcap":12,"activo":true}`)
+	seedAnimeSnapshot(t, store, "anime-inactive", `{"_id":"anime-inactive","nombre":"Inactive Anime","nrocapvisto":3,"estado":0,"activo":false}`)
+
+	service := anime.NewQueryService(store)
+	got, err := service.ListAnimeItems(ctx)
+	if err != nil {
+		t.Fatalf("list anime items: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 anime items, got %d", len(got))
+	}
+
+	byID := make(map[string]contracts.AnimeListItem)
+	for _, item := range got {
+		byID[item.ID] = item
+	}
+
+	active, ok := byID["anime-active"]
+	if !ok {
+		t.Fatal("expected anime-active in results")
+	}
+	if active.Activo != 1 {
+		t.Fatalf("expected active activo 1, got %d", active.Activo)
+	}
+	if active.TotalCap == nil || *active.TotalCap != 12 {
+		t.Fatalf("expected totalcap 12, got %#v", active.TotalCap)
+	}
+
+	inactive, ok := byID["anime-inactive"]
+	if !ok {
+		t.Fatal("expected anime-inactive in results")
+	}
+	if inactive.Activo != 0 {
+		t.Fatalf("expected inactive activo 0, got %d", inactive.Activo)
+	}
+}
+
 func TestQueryServiceGetEffectiveAnimeReturnsNotFoundForZombie(t *testing.T) {
 	service := anime.NewQueryService(openAnimeServiceTestStore(t))
 	_, err := service.GetEffectiveAnime(context.Background(), "zombie-1")

@@ -84,6 +84,30 @@ function StatusIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function AnimeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect height="20" rx="2" width="20" x="2" y="2" />
+      <path d="M7 2v20" />
+      <path d="M17 2v20" />
+      <path d="M2 12h20" />
+      <path d="M2 7h5" />
+      <path d="M2 17h5" />
+      <path d="M17 17h5" />
+      <path d="M17 7h5" />
+    </svg>
+  );
+}
+
 function PairingIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -110,6 +134,7 @@ function PairingIcon(props: SVGProps<SVGSVGElement>) {
 const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
+  { to: '/animes', label: 'Animes', Icon: AnimeIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },
 ];

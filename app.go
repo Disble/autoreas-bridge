@@ -64,6 +64,7 @@ type App struct {
 	catchUpCancel           context.CancelFunc
 	deviceStore             device.Store
 	newToken                func() (string, error)
+	animeQuery              contracts.AnimeQueryService
 }
 
 const observabilityEventName = "observability.log"
@@ -324,7 +325,7 @@ func (a *App) startup(ctx context.Context) {
 		})
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
-	animeQuery := anime.NewQueryService(snapshotStore)
+	a.animeQuery = anime.NewQueryService(snapshotStore)
 	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
@@ -338,7 +339,7 @@ func (a *App) startup(ctx context.Context) {
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{
 		DeviceService: deviceService,
-		AnimeQuery:    animeQuery,
+		AnimeQuery:    a.animeQuery,
 		AnimeWrite:    animeWrite,
 		SyncTrigger:   syncTrigger,
 		Status:        statusService,
@@ -501,6 +502,27 @@ func (a *App) GetSyncingAnimeItems() []contracts.SyncingAnimeItem {
 	items, err := a.syncTrigger.ListPendingAnimeSyncs(ctx)
 	if err != nil {
 		return []contracts.SyncingAnimeItem{}
+	}
+
+	return items
+}
+
+// GetAnimes returns the full anime catalog from the local snapshot store,
+// including both active and inactive animes. Degrades to an empty slice when
+// the query service is unavailable.
+func (a *App) GetAnimes() []contracts.AnimeListItem {
+	if a.animeQuery == nil {
+		return []contracts.AnimeListItem{}
+	}
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	items, err := a.animeQuery.ListAnimeItems(ctx)
+	if err != nil {
+		return []contracts.AnimeListItem{}
 	}
 
 	return items

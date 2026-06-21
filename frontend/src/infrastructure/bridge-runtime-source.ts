@@ -1,4 +1,5 @@
 import {
+  GetAnimes,
   GetEffectiveAddress,
   GetPairingToken,
   GetSyncingAnimeItems,
@@ -6,6 +7,7 @@ import {
   TriggerReconcile,
 } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
+import type { Anime } from '../shared/contracts/anime.types';
 import type { SyncingAnime } from '../shared/contracts/syncing-anime.types';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
@@ -27,6 +29,7 @@ export interface BridgeRuntimeSource {
   readonly getEffectiveAddress: () => Promise<string>;
   readonly getPairingToken: () => Promise<string>;
   readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
+  readonly getAnimes: () => Promise<readonly Anime[]>;
   readonly triggerReconcile: () => Promise<string>;
   /** Fires when the active pairing token is consumed. Returns an unsubscribe fn. */
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
@@ -123,6 +126,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     getSyncingAnimeItems() {
       return waitForBindings(() => hasGoBinding('GetSyncingAnimeItems')).then((isReady) => {
         return isReady ? (GetSyncingAnimeItems() as Promise<readonly SyncingAnime[]>) : Promise.resolve([]);
+      });
+    },
+    getAnimes() {
+      return waitForBindings(() => hasGoBinding('GetAnimes')).then((isReady) => {
+        return isReady ? (GetAnimes() as Promise<readonly Anime[]>) : Promise.resolve([]);
       });
     },
     triggerReconcile() {
