@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -8,6 +10,50 @@ import (
 
 	sharedlogger "autoreas-bridge/internal/logger"
 )
+
+// hijackableResponseWriter is a ResponseWriter that also implements http.Hijacker,
+// mirroring the real net/http server writer that gorilla/websocket needs to hijack
+// during a WebSocket upgrade.
+type hijackableResponseWriter struct {
+	http.ResponseWriter
+	hijacked bool
+}
+
+func (w *hijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.hijacked = true
+	return nil, nil, nil
+}
+
+// TestRequestLoggingMiddlewarePreservesHijacker guards the WebSocket upgrade path:
+// the status-recording wrapper MUST still expose http.Hijacker, otherwise
+// gorilla/websocket's Upgrade fails with a 500 ("response does not implement
+// http.Hijacker") and realtime sync never connects.
+func TestRequestLoggingMiddlewarePreservesHijacker(t *testing.T) {
+	t.Parallel()
+
+	logger := &recordingAPILogger{}
+	var sawHijacker bool
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			return
+		}
+		sawHijacker = true
+		_, _, _ = hj.Hijack()
+	})
+	handler := RequestLoggingMiddleware(inner, logger)
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	base := &hijackableResponseWriter{ResponseWriter: httptest.NewRecorder()}
+	handler.ServeHTTP(base, req)
+
+	if !sawHijacker {
+		t.Fatal("expected wrapped ResponseWriter to implement http.Hijacker for the WebSocket upgrade")
+	}
+	if !base.hijacked {
+		t.Fatal("expected Hijack to delegate to the underlying ResponseWriter")
+	}
+}
 
 func TestRequestLoggingMiddlewareLogsMethodPathStatusDuration(t *testing.T) {
 	t.Parallel()
