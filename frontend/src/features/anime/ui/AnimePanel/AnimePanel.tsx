@@ -1,4 +1,5 @@
 import { Card, Chip, Spinner } from '@heroui/react';
+import { AnimeFilterBar } from '../AnimeFilterBar/AnimeFilterBar';
 import type { AnimePanelProps } from './anime-panel.types';
 import {
   ANIME_PANEL_EMPTY_MESSAGE,
@@ -8,11 +9,41 @@ import { useAnimePanel } from './use-anime-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
 export function AnimePanel(props: Readonly<AnimePanelProps>) {
-  const { isEmpty, isLoading, items } = useAnimePanel(props);
+  const {
+    isEmpty,
+    isLoading,
+    items,
+    filters,
+    estadoOptions,
+    activoOptions,
+    tipoOptions,
+    diaOptions,
+    generoOptions,
+    onQueryChange,
+    onEstadoChange,
+    onActivoChange,
+    onTipoChange,
+    onDiaChange,
+    onGenerosChange,
+  } = useAnimePanel(props);
 
   return (
     <Card className={props.className}>
       <Card.Content className="flex flex-col gap-4">
+        <AnimeFilterBar
+          filters={filters}
+          estadoOptions={estadoOptions}
+          activoOptions={activoOptions}
+          tipoOptions={tipoOptions}
+          diaOptions={diaOptions}
+          generoOptions={generoOptions}
+          onQueryChange={onQueryChange}
+          onEstadoChange={onEstadoChange}
+          onActivoChange={onActivoChange}
+          onTipoChange={onTipoChange}
+          onDiaChange={onDiaChange}
+          onGenerosChange={onGenerosChange}
+        />
         {isLoading ? (
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
             <Spinner size="sm" />
@@ -44,6 +75,7 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
                   </div>
                   <Chip
                     color={item.status === 'active' ? 'success' : 'default'}
+                    data-testid={`anime-status-${item.id}`}
                     size="sm"
                     variant="soft"
                   >

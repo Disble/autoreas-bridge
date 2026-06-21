@@ -1,9 +1,10 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import {
+  ANIME_FILTER_ALL_VALUE,
   ANIME_STATUS_ACTIVE_LABEL,
   ANIME_STATUS_INACTIVE_LABEL,
 } from './anime-panel.constants';
-import type { AnimeStatus, AnimeViewModel } from './anime-panel.types';
+import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel } from './anime-panel.types';
 
 /**
  * Maps the backend `activo` flag (1 = active, 0 = inactive/absent) to a
@@ -51,3 +52,148 @@ export function sortAnimesByName(a: Anime, b: Anime): number {
   }
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
+
+/**
+ * Normalizes a free-text query by trimming whitespace and lowercasing it.
+ * Empty queries match every item.
+ */
+export function normalizeAnimeQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+/**
+ * Returns true when the anime name contains the normalized query.
+ */
+export function matchesAnimeQuery(item: Anime, query: string): boolean {
+  const normalized = normalizeAnimeQuery(query);
+
+  if (normalized.length === 0) {
+    return true;
+  }
+
+  return item.nombre.toLowerCase().includes(normalized);
+}
+
+/**
+ * Returns true when the anime `estado` matches the selected filter value.
+ */
+export function matchesAnimeEstado(item: Anime, value: string): boolean {
+  if (value === ANIME_FILTER_ALL_VALUE) {
+    return true;
+  }
+
+  return item.estado === Number(value);
+}
+
+/**
+ * Returns true when the anime `activo` flag matches the selected filter value.
+ */
+export function matchesAnimeActivo(item: Anime, value: string): boolean {
+  if (value === ANIME_FILTER_ALL_VALUE) {
+    return true;
+  }
+
+  return item.activo === Number(value);
+}
+
+/**
+ * Returns true when the anime `tipo` matches the selected filter value.
+ */
+export function matchesAnimeTipo(item: Anime, value: string): boolean {
+  if (value === ANIME_FILTER_ALL_VALUE) {
+    return true;
+  }
+
+  return item.tipo === Number(value);
+}
+
+/**
+ * Returns true when the anime has at least one of the selected days.
+ */
+export function matchesAnimeDia(item: Anime, value: string): boolean {
+  if (value === ANIME_FILTER_ALL_VALUE) {
+    return true;
+  }
+
+  return item.dias.some((dia) => dia.toLowerCase() === value.toLowerCase());
+}
+
+/**
+ * Returns true when the anime has at least one of the selected genres.
+ */
+export function matchesAnimeGeneros(item: Anime, values: readonly string[]): boolean {
+  if (values.length === 0) {
+    return true;
+  }
+
+  const selected = new Set(values.map((value) => value.toLowerCase()));
+
+  return item.generos.some((genero) => selected.has(genero.toLowerCase()));
+}
+
+/**
+ * Filters a list of animes according to the current filter state.
+ */
+export function filterAnimes(
+  items: readonly Anime[],
+  filters: AnimeFilterState,
+): readonly Anime[] {
+  return items.filter(
+    (item) =>
+      matchesAnimeQuery(item, filters.query) &&
+      matchesAnimeEstado(item, filters.estado) &&
+      matchesAnimeActivo(item, filters.activo) &&
+      matchesAnimeTipo(item, filters.tipo) &&
+      matchesAnimeDia(item, filters.dia) &&
+      matchesAnimeGeneros(item, filters.generos),
+  );
+}
+
+function uniqueSortedStrings(values: readonly string[]): readonly string[] {
+  const unique = new Set<string>();
+
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      unique.add(trimmed);
+    }
+  }
+
+  return Array.from(unique).sort((a, b) => a.localeCompare(b));
+}
+
+function toDynamicOptions(values: readonly string[]): readonly AnimeFilterOption[] {
+  return [
+    { value: ANIME_FILTER_ALL_VALUE, label: 'All' },
+    ...uniqueSortedStrings(values).map((value) => ({ value, label: value })),
+  ];
+}
+
+/**
+ * Builds the "tipo" filter options from the actual catalog values, prepending
+ * an "All" option.
+ */
+export function getUniqueTipoOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
+  return toDynamicOptions(items.map((item) => (item.tipo === undefined ? '' : String(item.tipo))));
+}
+
+/**
+ * Builds the "día" filter options from the actual catalog values, prepending
+ * an "All" option.
+ */
+export function getUniqueDiaOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
+  return toDynamicOptions(items.flatMap((item) => item.dias));
+}
+
+/**
+ * Builds the "género" filter options from the actual catalog values.
+ * Genres use a multi-select, so no "All" option is prepended.
+ */
+export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
+  return uniqueSortedStrings(items.flatMap((item) => item.generos)).map((value) => ({
+    value,
+    label: value,
+  }));
+}
+
+

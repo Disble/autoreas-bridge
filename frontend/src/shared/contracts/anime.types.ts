@@ -9,4 +9,7 @@ export interface Anime {
   readonly nrocapvisto: number;
   readonly totalcap?: number;
   readonly activo: number;
+  readonly tipo?: number;
+  readonly dias: readonly string[];
+  readonly generos: readonly string[];
 }

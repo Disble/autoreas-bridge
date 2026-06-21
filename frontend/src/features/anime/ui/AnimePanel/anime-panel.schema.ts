@@ -11,4 +11,7 @@ export const animeSchema = z.object({
   nrocapvisto: z.number(),
   totalcap: z.number().optional(),
   activo: z.number(),
+  tipo: z.number().optional(),
+  dias: z.array(z.string()).default([]),
+  generos: z.array(z.string()).default([]),
 });

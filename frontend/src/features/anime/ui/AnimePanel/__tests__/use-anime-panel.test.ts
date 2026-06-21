@@ -11,6 +11,8 @@ const animeA: Anime = {
   nrocapvisto: 5,
   totalcap: 12,
   activo: 1,
+  dias: [],
+  generos: [],
 };
 
 const animeB: Anime = {
@@ -19,6 +21,8 @@ const animeB: Anime = {
   estado: 0,
   nrocapvisto: 1,
   activo: 0,
+  dias: [],
+  generos: [],
 };
 
 function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource {

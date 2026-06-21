@@ -14,6 +14,8 @@ const baseAnime: Anime = {
   nrocapvisto: 12,
   totalcap: 28,
   activo: 1,
+  dias: [],
+  generos: [],
 };
 
 describe('toAnimeStatus', () => {

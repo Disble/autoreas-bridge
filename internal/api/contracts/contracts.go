@@ -56,12 +56,15 @@ type SyncingAnimeItem struct {
 }
 
 type AnimeListItem struct {
-	ID          string  `json:"id"`
-	Nombre      string  `json:"nombre"`
-	Estado      int     `json:"estado"`
-	NroCapVisto float64 `json:"nrocapvisto"`
-	TotalCap    *int    `json:"totalcap,omitempty"`
-	Activo      int     `json:"activo"`
+	ID          string   `json:"id"`
+	Nombre      string   `json:"nombre"`
+	Estado      int      `json:"estado"`
+	NroCapVisto float64  `json:"nrocapvisto"`
+	TotalCap    *int     `json:"totalcap,omitempty"`
+	Activo      int      `json:"activo"`
+	Tipo        *int     `json:"tipo,omitempty"`
+	Dias        []string `json:"dias"`
+	Generos     []string `json:"generos"`
 }
 
 type ReconcileRequest struct {

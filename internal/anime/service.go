@@ -110,9 +110,23 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			NroCapVisto: item.NroCapVisto,
 			TotalCap:    item.TotalCap,
 			Activo:      item.Activo,
+			Tipo:        item.Tipo,
+			Dias:        extractDayNames(item.Dias),
+			Generos:     item.Generos,
 		})
 	}
 	return result, nil
+}
+
+func extractDayNames(days []contracts.MobileAnimeDay) []string {
+	if len(days) == 0 {
+		return []string{}
+	}
+	result := make([]string, 0, len(days))
+	for _, day := range days {
+		result = append(result, day.Dia)
+	}
+	return result
 }
 
 func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contracts.MobileAnime, error) {

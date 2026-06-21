@@ -7,6 +7,9 @@ export namespace contracts {
 	    nrocapvisto: number;
 	    totalcap?: number;
 	    activo: number;
+	    tipo?: number;
+	    dias: string[];
+	    generos: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AnimeListItem(source);
@@ -20,6 +23,9 @@ export namespace contracts {
 	        this.nrocapvisto = source["nrocapvisto"];
 	        this.totalcap = source["totalcap"];
 	        this.activo = source["activo"];
+	        this.tipo = source["tipo"];
+	        this.dias = source["dias"];
+	        this.generos = source["generos"];
 	    }
 	}
 	export class SyncingAnimeItem {
