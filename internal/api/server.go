@@ -152,7 +152,56 @@ func (s *HTTPServer) EffectiveAddress() string {
 	return net.JoinHostPort(effectiveHost, port)
 }
 
+// outboundProbeAddress is an off-machine address used only to ask the OS routing
+// table which local interface (and IP) would carry outbound traffic. No packets
+// are sent to it.
+const outboundProbeAddress = "8.8.8.8:80"
+
+// resolveEffectiveHost returns the LAN IPv4 a device on the same network (e.g. the
+// mobile app) can use to reach this bridge. It prefers the IP of the interface that
+// carries the default route — the real Wi-Fi/Ethernet adapter — exactly the way the
+// OS and other apps resolve "my network IP". It only scans interfaces as a fallback.
+// This deliberately avoids virtual adapters (Hyper-V/WSL "Default Switch", Docker)
+// which enumerate first but are unreachable from a phone.
 func resolveEffectiveHost() (string, error) {
+	return chooseEffectiveHost(preferredOutboundIP(net.Dial), resolveHostFromInterfaces)
+}
+
+// chooseEffectiveHost prefers the routed outbound IP and only falls back to an
+// interface scan when no outbound route is available (e.g. the machine is offline).
+func chooseEffectiveHost(outboundIP string, fallback func() (string, error)) (string, error) {
+	if outboundIP != "" {
+		return outboundIP, nil
+	}
+	return fallback()
+}
+
+// preferredOutboundIP asks the OS routing table which local IPv4 would be used to
+// reach an off-machine address. The UDP socket only resolves the route; no packets
+// are sent. Returns "" when offline or when the resolved address is not a usable IPv4.
+func preferredOutboundIP(dial func(network, address string) (net.Conn, error)) string {
+	conn, err := dial("udp", outboundProbeAddress)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	udpAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || udpAddr.IP == nil {
+		return ""
+	}
+
+	ipv4 := udpAddr.IP.To4()
+	if ipv4 == nil || ipv4.IsLoopback() {
+		return ""
+	}
+
+	return ipv4.String()
+}
+
+// resolveHostFromInterfaces scans network interfaces for the first active,
+// non-loopback IPv4. Used only as a fallback when the routing probe is unavailable.
+func resolveHostFromInterfaces() (string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return "", err

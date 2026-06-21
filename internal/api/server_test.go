@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +11,90 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
 )
+
+type fakeOutboundConn struct {
+	net.Conn
+	local  net.Addr
+	closed bool
+}
+
+func (c *fakeOutboundConn) LocalAddr() net.Addr { return c.local }
+
+func (c *fakeOutboundConn) Close() error {
+	c.closed = true
+	return nil
+}
+
+func TestChooseEffectiveHostPrefersRoutedOutboundIP(t *testing.T) {
+	t.Parallel()
+
+	host, err := chooseEffectiveHost("192.168.2.172", func() (string, error) {
+		t.Fatalf("fallback interface scan must not run when an outbound IP exists")
+		return "", nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if host != "192.168.2.172" {
+		t.Fatalf("expected routed outbound IP, got %q", host)
+	}
+}
+
+func TestChooseEffectiveHostFallsBackWhenNoOutboundIP(t *testing.T) {
+	t.Parallel()
+
+	host, err := chooseEffectiveHost("", func() (string, error) {
+		return "10.0.0.5", nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if host != "10.0.0.5" {
+		t.Fatalf("expected fallback host, got %q", host)
+	}
+}
+
+func TestPreferredOutboundIPReturnsRoutedIPv4(t *testing.T) {
+	t.Parallel()
+
+	conn := &fakeOutboundConn{local: &net.UDPAddr{IP: net.ParseIP("192.168.2.172"), Port: 54321}}
+	got := preferredOutboundIP(func(network, address string) (net.Conn, error) {
+		if network != "udp" {
+			t.Fatalf("expected a udp routing probe, got network %q", network)
+		}
+		return conn, nil
+	})
+
+	if got != "192.168.2.172" {
+		t.Fatalf("expected routed LAN IPv4, got %q", got)
+	}
+	if !conn.closed {
+		t.Fatalf("expected the routing probe socket to be closed")
+	}
+}
+
+func TestPreferredOutboundIPReturnsEmptyOnDialError(t *testing.T) {
+	t.Parallel()
+
+	got := preferredOutboundIP(func(network, address string) (net.Conn, error) {
+		return nil, errors.New("network is unreachable")
+	})
+	if got != "" {
+		t.Fatalf("expected empty host when offline, got %q", got)
+	}
+}
+
+func TestPreferredOutboundIPIgnoresLoopback(t *testing.T) {
+	t.Parallel()
+
+	conn := &fakeOutboundConn{local: &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 1}}
+	got := preferredOutboundIP(func(network, address string) (net.Conn, error) {
+		return conn, nil
+	})
+	if got != "" {
+		t.Fatalf("expected empty host for loopback route, got %q", got)
+	}
+}
 
 func TestHTTPServerEffectiveAddressUsesResolvedHostAndPort(t *testing.T) {
 	t.Parallel()
