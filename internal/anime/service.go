@@ -104,18 +104,29 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			return nil, fmt.Errorf("normalize snapshot %q: %w", id, err)
 		}
 		result = append(result, contracts.AnimeListItem{
-			ID:          item.ID,
-			Nombre:      item.Nombre,
-			Estado:      item.Estado,
-			NroCapVisto: item.NroCapVisto,
-			TotalCap:    item.TotalCap,
-			Activo:      item.Activo,
-			Tipo:        item.Tipo,
-			Dias:        extractDayNames(item.Dias),
-			Generos:     item.Generos,
+			ID:              item.ID,
+			Nombre:          item.Nombre,
+			Estado:          item.Estado,
+			NroCapVisto:     item.NroCapVisto,
+			TotalCap:        item.TotalCap,
+			Activo:          item.Activo,
+			Tipo:            item.Tipo,
+			Dias:            extractDayNames(item.Dias),
+			Generos:         item.Generos,
+			HasDownloadPage: hasNonEmptyLegacyString(item.Pagina),
+			HasFolder:       hasNonEmptyLegacyString(item.Carpeta),
 		})
 	}
 	return result, nil
+}
+
+// hasNonEmptyLegacyString reports whether a legacy optional string field (e.g.
+// MobileAnime.Pagina/Carpeta) is present and non-empty. Mirrors the same
+// nil-or-empty presence check already used by the download decision engine
+// (internal/download/decision.go) so the AnimePanel gap indicator and the
+// download skip logic agree on what counts as "missing".
+func hasNonEmptyLegacyString(value *string) bool {
+	return value != nil && *value != ""
 }
 
 func extractDayNames(days []contracts.MobileAnimeDay) []string {

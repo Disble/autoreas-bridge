@@ -7,7 +7,11 @@ export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
 
+export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
+
 export function GetEffectiveAddress():Promise<string>;
+
+export function GetJDStatus():Promise<contracts.JDStatus>;
 
 export function GetPairingToken():Promise<string>;
 
@@ -15,6 +19,18 @@ export function GetRecentLogs():Promise<Array<logger.LogEntry>>;
 
 export function GetSQLiteStatus():Promise<string>;
 
+export function GetScheduleConfig():Promise<contracts.ScheduleConfig>;
+
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
+
+export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
+
+export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
+
+export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;
+
+export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
+
+export function TriggerDownloadCheck():Promise<string>;
 
 export function TriggerReconcile():Promise<string>;

@@ -10,8 +10,16 @@ export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
 }
 
+export function GetDownloadConfig() {
+  return window['go']['main']['App']['GetDownloadConfig']();
+}
+
 export function GetEffectiveAddress() {
   return window['go']['main']['App']['GetEffectiveAddress']();
+}
+
+export function GetJDStatus() {
+  return window['go']['main']['App']['GetJDStatus']();
 }
 
 export function GetPairingToken() {
@@ -26,8 +34,32 @@ export function GetSQLiteStatus() {
   return window['go']['main']['App']['GetSQLiteStatus']();
 }
 
+export function GetScheduleConfig() {
+  return window['go']['main']['App']['GetScheduleConfig']();
+}
+
 export function GetSyncingAnimeItems() {
   return window['go']['main']['App']['GetSyncingAnimeItems']();
+}
+
+export function ListDownloadRuns() {
+  return window['go']['main']['App']['ListDownloadRuns']();
+}
+
+export function SetHosterPriority(arg1, arg2) {
+  return window['go']['main']['App']['SetHosterPriority'](arg1, arg2);
+}
+
+export function SetJDConfig(arg1) {
+  return window['go']['main']['App']['SetJDConfig'](arg1);
+}
+
+export function SetScheduleConfig(arg1) {
+  return window['go']['main']['App']['SetScheduleConfig'](arg1);
+}
+
+export function TriggerDownloadCheck() {
+  return window['go']['main']['App']['TriggerDownloadCheck']();
 }
 
 export function TriggerReconcile() {

@@ -32,4 +32,21 @@ if (typeof window !== 'undefined') {
         configurable: true,
         value: ResizeObserverMock,
     });
+
+    if (typeof window.matchMedia !== 'function') {
+        Object.defineProperty(window, 'matchMedia', {
+            writable: true,
+            configurable: true,
+            value: (query: string) => ({
+                matches: false,
+                media: query,
+                onchange: null,
+                addListener: () => {},
+                removeListener: () => {},
+                addEventListener: () => {},
+                removeEventListener: () => {},
+                dispatchEvent: () => false,
+            }),
+        });
+    }
 }

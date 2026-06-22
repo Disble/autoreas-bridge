@@ -10,6 +10,8 @@ export namespace contracts {
 	    tipo?: number;
 	    dias: string[];
 	    generos: string[];
+	    hasDownloadPage: boolean;
+	    hasFolder: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AnimeListItem(source);
@@ -26,8 +28,204 @@ export namespace contracts {
 	        this.tipo = source["tipo"];
 	        this.dias = source["dias"];
 	        this.generos = source["generos"];
+	        this.hasDownloadPage = source["hasDownloadPage"];
+	        this.hasFolder = source["hasFolder"];
 	    }
 	}
+	export class HosterPriorityItem {
+	    hoster: string;
+	    priority: number;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HosterPriorityItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hoster = source["hoster"];
+	        this.priority = source["priority"];
+	        this.enabled = source["enabled"];
+	    }
+	}
+	export class ScheduleConfig {
+	    mode: string;
+	    dailyTimeHHMM: string;
+	    enabled: boolean;
+	    lastRunAtMs: number;
+	    lastRunStatus: string;
+	    nextRunAtMs: number;
+	    running: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScheduleConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.dailyTimeHHMM = source["dailyTimeHHMM"];
+	        this.enabled = source["enabled"];
+	        this.lastRunAtMs = source["lastRunAtMs"];
+	        this.lastRunStatus = source["lastRunStatus"];
+	        this.nextRunAtMs = source["nextRunAtMs"];
+	        this.running = source["running"];
+	    }
+	}
+	export class JDStatus {
+	    email: string;
+	    hasPassword: boolean;
+	    deviceName: string;
+	    exePathOverride: string;
+	    defaultDestDir: string;
+	    lastSeenStatus: string;
+	    lastSeenAtMs: number;
+	    lastDecryptError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JDStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.email = source["email"];
+	        this.hasPassword = source["hasPassword"];
+	        this.deviceName = source["deviceName"];
+	        this.exePathOverride = source["exePathOverride"];
+	        this.defaultDestDir = source["defaultDestDir"];
+	        this.lastSeenStatus = source["lastSeenStatus"];
+	        this.lastSeenAtMs = source["lastSeenAtMs"];
+	        this.lastDecryptError = source["lastDecryptError"];
+	    }
+	}
+	export class DownloadConfig {
+	    jd: JDStatus;
+	    schedule: ScheduleConfig;
+	    hosterPriority: HosterPriorityItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jd = this.convertValues(source["jd"], JDStatus);
+	        this.schedule = this.convertValues(source["schedule"], ScheduleConfig);
+	        this.hosterPriority = this.convertValues(source["hosterPriority"], HosterPriorityItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ManualLink {
+	    anime: string;
+	    episode: number;
+	    links: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ManualLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.anime = source["anime"];
+	        this.episode = source["episode"];
+	        this.links = source["links"];
+	    }
+	}
+	export class DownloadRunView {
+	    runId: string;
+	    startedAtMs: number;
+	    finishedAtMs?: number;
+	    trigger: string;
+	    animesChecked: number;
+	    episodesFound: number;
+	    episodesDownloaded: number;
+	    episodesFailed: number;
+	    skippedCount: number;
+	    jdAvailable: boolean;
+	    status: string;
+	    errorSummary?: string;
+	    manualLinks?: ManualLink[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadRunView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.startedAtMs = source["startedAtMs"];
+	        this.finishedAtMs = source["finishedAtMs"];
+	        this.trigger = source["trigger"];
+	        this.animesChecked = source["animesChecked"];
+	        this.episodesFound = source["episodesFound"];
+	        this.episodesDownloaded = source["episodesDownloaded"];
+	        this.episodesFailed = source["episodesFailed"];
+	        this.skippedCount = source["skippedCount"];
+	        this.jdAvailable = source["jdAvailable"];
+	        this.status = source["status"];
+	        this.errorSummary = source["errorSummary"];
+	        this.manualLinks = this.convertValues(source["manualLinks"], ManualLink);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class JDConfigInput {
+	    email: string;
+	    plaintextPassword?: string;
+	    deviceName: string;
+	    exePathOverride: string;
+	    defaultDestDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JDConfigInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.email = source["email"];
+	        this.plaintextPassword = source["plaintextPassword"];
+	        this.deviceName = source["deviceName"];
+	        this.exePathOverride = source["exePathOverride"];
+	        this.defaultDestDir = source["defaultDestDir"];
+	    }
+	}
+	
+	
+	
 	export class SyncingAnimeItem {
 	    animeId: string;
 	    title: string;

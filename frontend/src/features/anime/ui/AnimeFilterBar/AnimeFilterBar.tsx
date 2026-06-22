@@ -13,12 +13,14 @@ export function AnimeFilterBar(props: Readonly<AnimeFilterBarProps>) {
     tipoOptions,
     diaOptions,
     generoOptions,
+    gapOptions,
     onQueryChange,
     onEstadoChange,
     onActivoChange,
     onTipoChange,
     onDiaChange,
     onGenerosChange,
+    onGapChange,
   } = props;
 
   return (
@@ -116,6 +118,29 @@ export function AnimeFilterBar(props: Readonly<AnimeFilterBarProps>) {
           <Select.Popover>
             <ListBox>
               {diaOptions.map((option) => (
+                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                  {option.label}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+
+        <Select
+          aria-label="Filter by download gap"
+          placeholder="Download gap"
+          value={filters.gap}
+          onChange={(value) => onGapChange(value?.toString() ?? 'all')}
+        >
+          <Label>Download gap</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {gapOptions.map((option) => (
                 <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
                   {option.label}
                   <ListBox.ItemIndicator />

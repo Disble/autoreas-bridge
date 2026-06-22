@@ -22,18 +22,21 @@ function createHookReturn(overrides = {}) {
       tipo: ANIME_FILTER_ALL_VALUE,
       dia: ANIME_FILTER_ALL_VALUE,
       generos: [],
+      gap: ANIME_FILTER_ALL_VALUE,
     },
     estadoOptions: [],
     activoOptions: [],
     tipoOptions: [],
     diaOptions: [],
     generoOptions: [],
+    gapOptions: [],
     onQueryChange: vi.fn(),
     onEstadoChange: vi.fn(),
     onActivoChange: vi.fn(),
     onTipoChange: vi.fn(),
     onDiaChange: vi.fn(),
     onGenerosChange: vi.fn(),
+    onGapChange: vi.fn(),
     ...overrides,
   };
 }
@@ -87,5 +90,57 @@ describe('AnimePanel', () => {
     render(<AnimePanel />);
 
     expect(screen.getByText('Loading animes...')).toBeInTheDocument();
+  });
+
+  it('renders a gap badge for animes missing a download page or folder', () => {
+    useAnimePanelMock.mockReturnValue(
+      createHookReturn({
+        isEmpty: false,
+        items: [
+          {
+            id: 'anime-gap',
+            nombre: 'Gap Anime',
+            estado: 2,
+            progressLabel: '1 / 12',
+            status: 'active',
+            statusLabel: 'Active',
+            hasDownloadPage: false,
+            hasFolder: true,
+            hasDownloadGap: true,
+            gapLabel: 'Missing page',
+          },
+        ],
+      }),
+    );
+
+    render(<AnimePanel />);
+
+    expect(screen.getByTestId('anime-gap-anime-gap')).toHaveTextContent('Missing page');
+  });
+
+  it('does not render a gap badge for animes with both page and folder', () => {
+    useAnimePanelMock.mockReturnValue(
+      createHookReturn({
+        isEmpty: false,
+        items: [
+          {
+            id: 'anime-complete',
+            nombre: 'Complete Anime',
+            estado: 2,
+            progressLabel: '1 / 12',
+            status: 'active',
+            statusLabel: 'Active',
+            hasDownloadPage: true,
+            hasFolder: true,
+            hasDownloadGap: false,
+            gapLabel: undefined,
+          },
+        ],
+      }),
+    );
+
+    render(<AnimePanel />);
+
+    expect(screen.queryByTestId('anime-gap-anime-complete')).not.toBeInTheDocument();
   });
 });

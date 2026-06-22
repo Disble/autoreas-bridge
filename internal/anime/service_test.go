@@ -198,6 +198,74 @@ func TestQueryServiceListAnimeItemsReturnsActiveAndInactive(t *testing.T) {
 	}
 }
 
+// TestQueryServiceListAnimeItemsDerivesDownloadGapBooleans covers download-orchestration
+// spec "Missing Pagina/Carpeta Surfaced as Actionable State" (UI retrievability half):
+// AnimeListItem.HasDownloadPage/HasFolder must be derivable read-only by the desktop
+// AnimePanel without exposing the raw Pagina/Carpeta strings.
+func TestQueryServiceListAnimeItemsDerivesDownloadGapBooleans(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-present", `{"_id":"anime-present","nombre":"Has Both","nrocapvisto":1,"activo":true,"pagina":"https://jkanime.net/has-both/","carpeta":"C:\\anime\\has-both"}`)
+	seedAnimeSnapshot(t, store, "anime-absent", `{"_id":"anime-absent","nombre":"Has Neither","nrocapvisto":1,"activo":true}`)
+	seedAnimeSnapshot(t, store, "anime-empty", `{"_id":"anime-empty","nombre":"Has Empty Strings","nrocapvisto":1,"activo":true,"pagina":"","carpeta":""}`)
+	seedAnimeSnapshot(t, store, "anime-null", `{"_id":"anime-null","nombre":"Has Explicit Null","nrocapvisto":1,"activo":true,"pagina":null,"carpeta":null}`)
+
+	service := anime.NewQueryService(store)
+	got, err := service.ListAnimeItems(ctx)
+	if err != nil {
+		t.Fatalf("list anime items: %v", err)
+	}
+
+	byID := make(map[string]contracts.AnimeListItem)
+	for _, item := range got {
+		byID[item.ID] = item
+	}
+
+	present, ok := byID["anime-present"]
+	if !ok {
+		t.Fatal("expected anime-present in results")
+	}
+	if !present.HasDownloadPage {
+		t.Fatal("expected HasDownloadPage true when pagina is a non-empty string")
+	}
+	if !present.HasFolder {
+		t.Fatal("expected HasFolder true when carpeta is a non-empty string")
+	}
+
+	absent, ok := byID["anime-absent"]
+	if !ok {
+		t.Fatal("expected anime-absent in results")
+	}
+	if absent.HasDownloadPage {
+		t.Fatal("expected HasDownloadPage false when pagina is absent from the raw payload")
+	}
+	if absent.HasFolder {
+		t.Fatal("expected HasFolder false when carpeta is absent from the raw payload")
+	}
+
+	empty, ok := byID["anime-empty"]
+	if !ok {
+		t.Fatal("expected anime-empty in results")
+	}
+	if empty.HasDownloadPage {
+		t.Fatal("expected HasDownloadPage false when pagina is an empty string")
+	}
+	if empty.HasFolder {
+		t.Fatal("expected HasFolder false when carpeta is an empty string")
+	}
+
+	null, ok := byID["anime-null"]
+	if !ok {
+		t.Fatal("expected anime-null in results")
+	}
+	if null.HasDownloadPage {
+		t.Fatal("expected HasDownloadPage false when pagina is explicit null")
+	}
+	if null.HasFolder {
+		t.Fatal("expected HasFolder false when carpeta is explicit null")
+	}
+}
+
 func TestQueryServiceGetEffectiveAnimeReturnsNotFoundForZombie(t *testing.T) {
 	service := anime.NewQueryService(openAnimeServiceTestStore(t))
 	_, err := service.GetEffectiveAnime(context.Background(), "zombie-1")

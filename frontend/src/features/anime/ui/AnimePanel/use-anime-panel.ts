@@ -8,6 +8,7 @@ import {
   ANIME_ESTADO_OPTIONS,
   ANIME_FILTER_ALL_VALUE,
   ANIME_FILTER_DEBOUNCE_MS,
+  ANIME_GAP_OPTIONS,
 } from './anime-panel.constants';
 import {
   filterAnimes,
@@ -36,6 +37,7 @@ export function useAnimePanel(
     tipo: ANIME_FILTER_ALL_VALUE,
     dia: ANIME_FILTER_ALL_VALUE,
     generos: [],
+    gap: ANIME_FILTER_ALL_VALUE,
   });
 
   // 3. Context/3rd Party Hooks
@@ -82,6 +84,9 @@ export function useAnimePanel(
 
     setFilters((previous) => ({ ...previous, generos }));
   }, []);
+  const onGapChange = useCallback((gap: string) => {
+    setFilters((previous) => ({ ...previous, gap }));
+  }, []);
 
   // 7. Effects
   useEffect(() => {
@@ -123,11 +128,13 @@ export function useAnimePanel(
     tipoOptions,
     diaOptions,
     generoOptions,
+    gapOptions: ANIME_GAP_OPTIONS,
     onQueryChange,
     onEstadoChange,
     onActivoChange,
     onTipoChange,
     onDiaChange,
     onGenerosChange,
+    onGapChange,
   };
 }

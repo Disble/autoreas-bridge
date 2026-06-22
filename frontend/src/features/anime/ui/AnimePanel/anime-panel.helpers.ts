@@ -1,6 +1,11 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import {
   ANIME_FILTER_ALL_VALUE,
+  ANIME_GAP_COMPLETE_VALUE,
+  ANIME_GAP_LABEL_MISSING_BOTH,
+  ANIME_GAP_LABEL_MISSING_FOLDER,
+  ANIME_GAP_LABEL_MISSING_PAGE,
+  ANIME_GAP_MISSING_VALUE,
   ANIME_STATUS_ACTIVE_LABEL,
   ANIME_STATUS_INACTIVE_LABEL,
 } from './anime-panel.constants';
@@ -26,10 +31,29 @@ export function formatAnimeProgress(current: number, total?: number): string {
 }
 
 /**
+ * Returns a human-readable gap label describing which download prerequisite
+ * (page, folder, or both) is missing. Returns `undefined` when neither is
+ * missing — callers use this to decide whether to render a gap badge at all.
+ */
+export function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): string | undefined {
+  if (!hasDownloadPage && !hasFolder) {
+    return ANIME_GAP_LABEL_MISSING_BOTH;
+  }
+  if (!hasDownloadPage) {
+    return ANIME_GAP_LABEL_MISSING_PAGE;
+  }
+  if (!hasFolder) {
+    return ANIME_GAP_LABEL_MISSING_FOLDER;
+  }
+  return undefined;
+}
+
+/**
  * Converts a runtime Anime DTO into the view model rendered by AnimePanel.
  */
 export function toAnimeViewModel(anime: Anime): AnimeViewModel {
   const status = toAnimeStatus(anime.activo);
+  const gapLabel = getAnimeGapLabel(anime.hasDownloadPage, anime.hasFolder);
 
   return {
     id: anime.id,
@@ -38,6 +62,10 @@ export function toAnimeViewModel(anime: Anime): AnimeViewModel {
     progressLabel: formatAnimeProgress(anime.nrocapvisto, anime.totalcap),
     status,
     statusLabel: status === 'active' ? ANIME_STATUS_ACTIVE_LABEL : ANIME_STATUS_INACTIVE_LABEL,
+    hasDownloadPage: anime.hasDownloadPage,
+    hasFolder: anime.hasFolder,
+    hasDownloadGap: gapLabel !== undefined,
+    gapLabel,
   };
 }
 
@@ -132,6 +160,29 @@ export function matchesAnimeGeneros(item: Anime, values: readonly string[]): boo
 }
 
 /**
+ * Returns true when the anime matches the selected download-gap filter value:
+ * `all` matches everything, `missing` matches animes missing a page and/or
+ * folder, `complete` matches animes that have both.
+ */
+export function matchesAnimeGap(item: Anime, value: string): boolean {
+  if (value === ANIME_FILTER_ALL_VALUE) {
+    return true;
+  }
+
+  const hasGap = !item.hasDownloadPage || !item.hasFolder;
+
+  if (value === ANIME_GAP_MISSING_VALUE) {
+    return hasGap;
+  }
+
+  if (value === ANIME_GAP_COMPLETE_VALUE) {
+    return !hasGap;
+  }
+
+  return true;
+}
+
+/**
  * Filters a list of animes according to the current filter state.
  */
 export function filterAnimes(
@@ -145,7 +196,8 @@ export function filterAnimes(
       matchesAnimeActivo(item, filters.activo) &&
       matchesAnimeTipo(item, filters.tipo) &&
       matchesAnimeDia(item, filters.dia) &&
-      matchesAnimeGeneros(item, filters.generos),
+      matchesAnimeGeneros(item, filters.generos) &&
+      matchesAnimeGap(item, filters.gap),
   );
 }
 

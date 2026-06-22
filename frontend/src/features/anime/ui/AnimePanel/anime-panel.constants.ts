@@ -67,3 +67,39 @@ export const ANIME_TIPO_OPTIONS: readonly AnimeFilterOption[] = [
   { value: '1', label: 'Película' },
   { value: '2', label: 'OVA' },
 ];
+
+/**
+ * Sentinel value for the download gap filter meaning "only animes missing a
+ * download page and/or folder".
+ */
+export const ANIME_GAP_MISSING_VALUE = 'missing';
+
+/**
+ * Sentinel value for the download gap filter meaning "only animes with both
+ * a download page and a folder configured".
+ */
+export const ANIME_GAP_COMPLETE_VALUE = 'complete';
+
+/**
+ * Options for the download gap filter select.
+ */
+export const ANIME_GAP_OPTIONS: readonly AnimeFilterOption[] = [
+  { value: ANIME_FILTER_ALL_VALUE, label: 'All' },
+  { value: ANIME_GAP_MISSING_VALUE, label: 'Missing page/folder' },
+  { value: ANIME_GAP_COMPLETE_VALUE, label: 'Complete' },
+];
+
+/**
+ * Badge label shown when only the download page is missing.
+ */
+export const ANIME_GAP_LABEL_MISSING_PAGE = 'Missing page';
+
+/**
+ * Badge label shown when only the download folder is missing.
+ */
+export const ANIME_GAP_LABEL_MISSING_FOLDER = 'Missing folder';
+
+/**
+ * Badge label shown when both the download page and folder are missing.
+ */
+export const ANIME_GAP_LABEL_MISSING_BOTH = 'Missing page & folder';

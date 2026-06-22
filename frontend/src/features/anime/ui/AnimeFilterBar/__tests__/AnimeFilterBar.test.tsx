@@ -16,18 +16,21 @@ function createProps(overrides = {}) {
       tipo: ANIME_FILTER_ALL_VALUE,
       dia: ANIME_FILTER_ALL_VALUE,
       generos: [],
+      gap: ANIME_FILTER_ALL_VALUE,
     },
     estadoOptions: ANIME_ESTADO_OPTIONS,
     activoOptions: ANIME_ACTIVO_OPTIONS,
     tipoOptions: [],
     diaOptions: [],
     generoOptions: [],
+    gapOptions: [],
     onQueryChange: vi.fn(),
     onEstadoChange: vi.fn(),
     onActivoChange: vi.fn(),
     onTipoChange: vi.fn(),
     onDiaChange: vi.fn(),
     onGenerosChange: vi.fn(),
+    onGapChange: vi.fn(),
     ...overrides,
   };
 }
@@ -69,5 +72,11 @@ describe('AnimeFilterBar', () => {
     const { container } = render(<AnimeFilterBar {...createProps()} />);
 
     expect(container.querySelector('section[aria-label="Anime filters"]')).toBeInTheDocument();
+  });
+
+  it('renders the download gap filter control', () => {
+    const { container } = render(<AnimeFilterBar {...createProps()} />);
+
+    expect(container.querySelector('[aria-label="Filter by download gap"]')).toBeInTheDocument();
   });
 });

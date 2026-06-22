@@ -1,0 +1,121 @@
+import { Button, Chip, EmptyState, Skeleton } from '@heroui/react';
+import { useRunHistoryPanel } from './use-run-history-panel';
+import type { RunHistoryPanelProps, RunHistoryRowViewModel } from './run-history-panel.types';
+
+/**
+ * RunHistoryPanel renders the master/detail download run history view: a
+ * selectable list of past runs on the left, and the selected run's details
+ * (including any `manualLinks` recorded for `jd_offline` runs) on the
+ * right. All Wails calls and selection state live in the colocated
+ * `useRunHistoryPanel` hook; this component is presentation-only.
+ */
+export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
+  const { viewModel, selectRun } = useRunHistoryPanel();
+
+  if (viewModel.status === 'loading') {
+    return (
+      <section aria-label="Loading download run history" className={className}>
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
+        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
+      </section>
+    );
+  }
+
+  if (viewModel.status === 'error') {
+    return (
+      <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
+        {viewModel.errorMessage ?? 'Failed to load download run history.'}
+      </p>
+    );
+  }
+
+  if (viewModel.status === 'empty') {
+    return (
+      <EmptyState className={className}>
+        <EmptyState.Root>No download runs yet. Trigger a check or wait for the next scheduled run.</EmptyState.Root>
+      </EmptyState>
+    );
+  }
+
+  return (
+    <section aria-label="Download run history" className={`grid gap-4 sm:grid-cols-2 ${className ?? ''}`}>
+      <ul aria-label="Run history list" className="flex flex-col gap-2">
+        {viewModel.rows.map((row: RunHistoryRowViewModel) => (
+          <li key={row.runId}>
+            <Button
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-divider/60 bg-content1/60 px-3 py-2 text-left text-sm"
+              variant="outline"
+              onPress={() => selectRun(row.runId)}
+            >
+              <span className="flex flex-col">
+                <span className="font-medium text-foreground">{row.startedLabel}</span>
+                <span className="text-xs text-muted">{row.trigger}</span>
+              </span>
+              <Chip color={row.statusLabel === 'ok' ? 'success' : 'default'} size="sm" variant="soft">
+                <Chip.Label>{row.statusLabel}</Chip.Label>
+              </Chip>
+            </Button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="rounded-lg border border-divider/60 bg-content1/40 p-4">
+        {viewModel.selectedRun === undefined ? (
+          <p className="text-sm text-muted">Select a run to see its details.</p>
+        ) : (
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-foreground">Run {viewModel.selectedRun.runId}</span>
+              <Chip color={viewModel.selectedRun.status === 'ok' ? 'success' : 'default'} size="sm" variant="soft">
+                <Chip.Label>{viewModel.selectedRun.status}</Chip.Label>
+              </Chip>
+            </div>
+            <dl className="grid grid-cols-2 gap-2 text-muted">
+              <dt>Animes checked</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.animesChecked}</dd>
+              <dt>Episodes found</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.episodesFound}</dd>
+              <dt>Episodes downloaded</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.episodesDownloaded}</dd>
+              <dt>Episodes failed</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.episodesFailed}</dd>
+              <dt>Skipped</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.skippedCount}</dd>
+            </dl>
+
+            {viewModel.selectedRun.errorSummary !== undefined && (
+              <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-danger">
+                {viewModel.selectedRun.errorSummary}
+              </p>
+            )}
+
+            {viewModel.selectedRun.manualLinks !== undefined && viewModel.selectedRun.manualLinks.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="font-medium text-foreground">Manual links (JDownloader was offline)</span>
+                <ul className="flex flex-col gap-2">
+                  {viewModel.selectedRun.manualLinks.map((link) => (
+                    <li key={`${link.anime}-${link.episode}`} className="rounded-lg border border-divider/60 p-2">
+                      <p className="font-medium text-foreground">
+                        <span>{link.anime}</span> — Episode {link.episode}
+                      </p>
+                      <ul className="flex flex-col gap-1">
+                        {link.links.map((url) => (
+                          <li key={url}>
+                            <a className="text-primary underline" href={url} rel="noreferrer" target="_blank">
+                              {url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
