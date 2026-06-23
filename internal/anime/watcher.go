@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/notification"
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 )
@@ -45,6 +46,11 @@ type RuntimeWatcherConfig struct {
 	OpenFile         func(path string) (io.ReadCloser, error)
 	WatcherFactory   func() (FileWatcher, error)
 	TimerFactory     func() DebounceTimer
+	// Notifier surfaces the watcher's single terminal-failure moment as a
+	// user-facing notification (design.md §2.2, ADR-29-2), mirroring
+	// download.ServiceDeps.Notifier. Optional: a nil Notifier is a safe
+	// no-op.
+	Notifier notification.Notifier
 }
 
 type runtimeWatcher struct {
@@ -62,6 +68,7 @@ type runtimeWatcher struct {
 	openFile         func(path string) (io.ReadCloser, error)
 	watcherFactory   func() (FileWatcher, error)
 	timerFactory     func() DebounceTimer
+	notifier         notification.Notifier
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -86,6 +93,7 @@ func NewRuntimeWatcher(config RuntimeWatcherConfig) RuntimeWatcher {
 		openFile:         config.OpenFile,
 		watcherFactory:   config.WatcherFactory,
 		timerFactory:     config.TimerFactory,
+		notifier:         config.Notifier,
 	}
 
 	if watcher.debounceWindow <= 0 {
@@ -165,6 +173,7 @@ func (w *runtimeWatcher) run(ctx context.Context) {
 		_ = timer.Stop()
 		if terminalErr != nil {
 			w.setErr(terminalErr)
+			w.notify(ctx, terminalErr)
 			return
 		}
 		if !restart {
@@ -282,6 +291,28 @@ func (w *runtimeWatcher) setErr(err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.err = err
+}
+
+// notify surfaces the watcher's single terminal-failure moment as a
+// user-facing error Notification (design.md §2.2, ADR-29-2). It is called
+// exactly once per watcher lifecycle, immediately after setErr at the
+// unique terminal exit in run() -- the transient, self-healing path in
+// serveLoop deliberately does not call this. A nil Notifier is a safe
+// no-op; a Notify error is discarded (the Dispatcher already isolates
+// adapter failures, and a notify failure MUST NOT change the watcher's
+// terminal outcome). CorrelationID is empty: no id is minted at this seam
+// (ADR-29-4).
+func (w *runtimeWatcher) notify(ctx context.Context, terminalErr error) {
+	if w.notifier == nil {
+		return
+	}
+	_ = w.notifier.Notify(ctx, notification.Notification{
+		Source:    "anime",
+		Level:     notification.LevelError,
+		Title:     "Anime watcher stopped",
+		Body:      fmt.Sprintf("the bridge stopped tracking anime data changes: %v", terminalErr),
+		Timestamp: time.Now(),
+	})
 }
 
 type fsnotifyAdapter struct{ Watcher *fsnotify.Watcher }

@@ -92,15 +92,21 @@ func defaultObservabilityEmit(ctx context.Context, eventName string, optionalDat
 
 // defaultNotifier builds the default Notifier: a Dispatcher fanning out to
 // the UI-toast adapter (reusing the same emit-fn mechanism as
-// defaultObservabilityEmit) and the build-tag-selected desktop-toast
-// adapter. loggers is accepted for parity with other new* constructors
-// (e.g. newChangelogRecorder) and future observability hooks; the dispatcher
-// itself does not require a logger today.
+// defaultObservabilityEmit), the build-tag-selected desktop-toast adapter,
+// and -- when a non-nil shared logger is supplied -- the SDD-29 log-forward
+// adapter mirroring every notification into the observability log stream
+// (design.md §2.4, ADR-29-3). loggers was accepted for parity with other
+// new* constructors (e.g. newChangelogRecorder) and "future observability
+// hooks"; this is that hook.
 func defaultNotifier(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
-	return notification.NewDispatcher(
+	adapters := []notification.Adapter{
 		notification.NewUIToastAdapter(emit),
 		notification.NewDesktopToastAdapter(),
-	)
+	}
+	if len(loggers) > 0 && loggers[0] != nil {
+		adapters = append(adapters, notification.NewLogForwardAdapter(loggers[0]))
+	}
+	return notification.NewDispatcher(adapters...)
 }
 
 type tracerBulletRunner interface {
@@ -337,6 +343,12 @@ func (a *App) startup(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
+	// a.notifier MUST be constructed before the runtime watcher factory call
+	// below, since RuntimeWatcherConfig.Notifier (SDD-29) captures a.notifier
+	// by value at construction time -- moved up from its previous position
+	// (originally after the watcher build) to actually satisfy the ordering
+	// design.md §2.2/§8 assumed already held.
+	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
 	selfEchoRegistry := a.newSelfEchoRegistry()
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:     animeDataPath,
@@ -356,6 +368,7 @@ func (a *App) startup(ctx context.Context) {
 		SharedLogger:     a.sharedLogger,
 		SelfEchoRegistry: selfEchoRegistry,
 		RetryDelay:       100 * time.Millisecond,
+		Notifier:         a.notifier,
 	})
 	a.animeRuntimeWatcher.StartAsync(catchUpContext)
 	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
@@ -372,7 +385,6 @@ func (a *App) startup(ctx context.Context) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
 	deviceService := a.newDeviceService(deviceStore)
-	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
 	a.realtimeHub = a.newRealtimeHub(ctx)
 	if a.realtimeHub != nil {
 		a.eventBus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
@@ -411,6 +423,15 @@ func (a *App) startup(ctx context.Context) {
 				return
 			}
 			a.emitFn(a.ctx, pairingTokenConsumedEventName)
+			if a.notifier != nil {
+				_ = a.notifier.Notify(a.ctx, notification.Notification{
+					Source:    "device",
+					Level:     notification.LevelSuccess,
+					Title:     "Device paired",
+					Body:      "A mobile device successfully paired with this bridge.",
+					Timestamp: time.Now(),
+				})
+			}
 		},
 	})
 	if err := a.httpServer.Start(); err != nil {

@@ -277,6 +277,109 @@ func TestAppStartupDefaultsNewNotifierWhenOverrideAbsent(t *testing.T) {
 	}
 }
 
+func TestDefaultNotifierRegistersLogForwardAdapterWhenLoggerIsNonNil(t *testing.T) {
+	t.Parallel()
+
+	logger := &recordingSharedAppLogger{}
+	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {}, logger)
+
+	// Notify's aggregate error is ignored here -- the desktop-toast adapter
+	// can fail in a headless test environment (e.g. no CoInitialize), which
+	// is unrelated to the log-forward wiring under test; Dispatcher already
+	// isolates that failure from the other adapters (design.md §1).
+	_ = notifier.Notify(context.Background(), notification.Notification{
+		Title: "x", Level: notification.LevelInfo, Source: "test",
+	})
+
+	if got := len(logger.entries); got != 1 {
+		t.Fatalf("expected the log-forward adapter to write exactly 1 log entry, got %d", got)
+	}
+}
+
+func TestDefaultNotifierDoesNotRegisterLogForwardAdapterWhenLoggerIsNil(t *testing.T) {
+	t.Parallel()
+
+	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {})
+
+	// Must not panic when Notify is invoked with zero loggers; this exercises
+	// the nil-logger guard in defaultNotifier (no log-forward adapter
+	// registered, so there is nothing to assert on a logger -- the absence
+	// of a panic and of a logger dependency is the assertion).
+	_ = notifier.Notify(context.Background(), notification.Notification{
+		Title: "x", Level: notification.LevelInfo, Source: "test",
+	})
+}
+
+func TestDefaultNotifierDoesNotRegisterLogForwardAdapterWhenLoggerArgIsNilValue(t *testing.T) {
+	t.Parallel()
+
+	var nilLogger sharedlogger.Logger
+	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {}, nilLogger)
+
+	// Must not panic when Notify is invoked; the nil logger guard in
+	// defaultNotifier means the log-forward adapter is never registered.
+	_ = notifier.Notify(context.Background(), notification.Notification{
+		Title: "x", Level: notification.LevelInfo, Source: "test",
+	})
+}
+
+func TestAppStartupThreadsNotifierIntoRuntimeWatcherConfig(t *testing.T) {
+	t.Parallel()
+
+	fakeNotifier := &stubAppNotifier{}
+	var receivedConfig anime.RuntimeWatcherConfig
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher: func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
+			receivedConfig = config
+			return &stubAppRuntimeWatcher{}
+		},
+		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
+		newUpdateWriter:     func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:   func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newNotifier: func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+			return fakeNotifier
+		},
+	}
+
+	app.startup(context.Background())
+
+	if receivedConfig.Notifier != fakeNotifier {
+		t.Fatalf("expected the watcher factory to receive a.notifier as RuntimeWatcherConfig.Notifier, got %#v", receivedConfig.Notifier)
+	}
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
+// recordingSharedAppLogger is a minimal sharedlogger.Logger test double used
+// to assert defaultNotifier wires the log-forward adapter into the
+// Dispatcher when a non-nil logger is supplied.
+type recordingSharedAppLogger struct {
+	entries []string
+}
+
+func (l *recordingSharedAppLogger) Debugf(domain, format string, args ...any) {}
+func (l *recordingSharedAppLogger) Infof(domain, format string, args ...any) {
+	l.entries = append(l.entries, format)
+}
+func (l *recordingSharedAppLogger) Warnf(domain, format string, args ...any)  {}
+func (l *recordingSharedAppLogger) Errorf(domain, format string, args ...any) {}
+func (l *recordingSharedAppLogger) Logf(domain, level string, fields sharedlogger.Fields, format string, args ...any) {
+	l.entries = append(l.entries, format)
+}
+
 func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	t.Parallel()
 
@@ -690,8 +793,170 @@ func TestAppStartupWiresPairingTokenConsumedCallbackIntoHTTPServer(t *testing.T)
 
 	app.startup(context.Background())
 
+	found := false
+	for _, eventName := range emittedEvents {
+		if eventName == pairingTokenConsumedEventName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected bare event %q to be emitted, got %#v", pairingTokenConsumedEventName, emittedEvents)
+	}
+}
+
+func TestAppStartupPairingTokenConsumedCallbackEmitsSuccessNotificationBesideBareEvent(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	emittedEvents := []string{}
+	fakeNotifier := &recordingAppNotifier{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.OnPairingTokenConsumed == nil {
+				t.Fatal("expected startup to wire pairing-token-consumed callback into http server config")
+			}
+			config.OnPairingTokenConsumed()
+			return server
+		},
+		newNotifier: func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+			return fakeNotifier
+		},
+		emitFn: func(_ context.Context, eventName string, _ ...interface{}) {
+			emittedEvents = append(emittedEvents, eventName)
+		},
+	}
+
+	app.startup(context.Background())
+
 	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
-		t.Fatalf("expected last emitted event %q, got %#v", pairingTokenConsumedEventName, emittedEvents)
+		t.Fatalf("expected bare event %q still emitted, got %#v", pairingTokenConsumedEventName, emittedEvents)
+	}
+
+	if got := len(fakeNotifier.received); got != 1 {
+		t.Fatalf("expected exactly 1 notification delivered, got %d: %#v", got, fakeNotifier.received)
+	}
+
+	n := fakeNotifier.received[0]
+	if n.Source != "device" {
+		t.Fatalf("expected Source %q, got %q", "device", n.Source)
+	}
+	if n.Level != notification.LevelSuccess {
+		t.Fatalf("expected Level %q, got %q", notification.LevelSuccess, n.Level)
+	}
+	if n.CorrelationID != "" {
+		t.Fatalf("expected empty CorrelationID, got %q", n.CorrelationID)
+	}
+	if n.Timestamp.IsZero() {
+		t.Fatal("expected a non-zero Timestamp on the device pairing notification")
+	}
+}
+
+func TestAppStartupPairingTokenConsumedCallbackSurvivesNotifierError(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	emittedEvents := []string{}
+	erroringNotifier := &erroringAppNotifier{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.OnPairingTokenConsumed == nil {
+				t.Fatal("expected startup to wire pairing-token-consumed callback into http server config")
+			}
+			config.OnPairingTokenConsumed()
+			return server
+		},
+		newNotifier: func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+			return erroringNotifier
+		},
+		emitFn: func(_ context.Context, eventName string, _ ...interface{}) {
+			emittedEvents = append(emittedEvents, eventName)
+		},
+	}
+
+	app.startup(context.Background())
+
+	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+		t.Fatalf("expected bare event still emitted despite Notify error, got %#v", emittedEvents)
+	}
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
+func TestAppStartupPairingTokenConsumedCallbackIsSafeWithNilNotifier(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	emittedEvents := []string{}
+	app := &App{
+		bootstrapBridgeDB:     func() (*sql.DB, error) { return &sql.DB{}, nil },
+		resolveAnimeDataPath:  func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
+		newSnapshotParser:     func() anime.SnapshotParser { return &stubAppParser{} },
+		newSnapshotStore:      func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
+		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator { return &stubAppCoordinator{} },
+		newRuntimeWatcher:     func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newSelfEchoRegistry:   anime.NewSelfEchoRegistry,
+		newUpdateWriter:       func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:     func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+			return &stubAppChangelogRecorder{}
+		},
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newHTTPServer: func(config api.Config) api.Server {
+			if config.OnPairingTokenConsumed == nil {
+				t.Fatal("expected startup to wire pairing-token-consumed callback into http server config")
+			}
+			config.OnPairingTokenConsumed()
+			return server
+		},
+		newNotifier: func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+			return nil
+		},
+		emitFn: func(_ context.Context, eventName string, _ ...interface{}) {
+			emittedEvents = append(emittedEvents, eventName)
+		},
+	}
+
+	app.startup(context.Background())
+
+	if emittedEvents[len(emittedEvents)-1] != pairingTokenConsumedEventName {
+		t.Fatalf("expected bare event still emitted with nil notifier, got %#v", emittedEvents)
+	}
+	if app.startupErr != nil {
+		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
 	}
 }
 
@@ -839,6 +1104,26 @@ type stubAppNotifier struct{}
 
 func (*stubAppNotifier) Notify(context.Context, notification.Notification) error {
 	return nil
+}
+
+// recordingAppNotifier records every delivered Notification so app-level
+// producer seams (e.g. the pairing-token-consumed callback) can be asserted
+// without depending on the real Dispatcher fan-out.
+type recordingAppNotifier struct {
+	received []notification.Notification
+}
+
+func (n *recordingAppNotifier) Notify(_ context.Context, notif notification.Notification) error {
+	n.received = append(n.received, notif)
+	return nil
+}
+
+// erroringAppNotifier always fails Notify, proving producer call sites
+// treat a Notify error as non-fatal to their own feature logic.
+type erroringAppNotifier struct{}
+
+func (*erroringAppNotifier) Notify(context.Context, notification.Notification) error {
+	return errors.New("notify boom")
 }
 
 func (*stubAppChangelogStore) InsertPending(context.Context, bridgeSync.ChangelogEntry) error {
