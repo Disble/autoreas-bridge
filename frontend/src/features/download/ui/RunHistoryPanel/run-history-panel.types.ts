@@ -26,5 +26,12 @@ export interface RunHistoryPanelViewModel {
   readonly errorMessage?: string;
 }
 
+/** Internal hook state consolidating the run-history load result into a single object. */
+export interface RunHistoryPanelState {
+  readonly runs: readonly DownloadRunView[];
+  readonly hasLoaded: boolean;
+  readonly errorMessage: string | undefined;
+}
+
 /** Re-export for callers rendering manual-link rows in the detail pane. */
 export type { ManualLink };

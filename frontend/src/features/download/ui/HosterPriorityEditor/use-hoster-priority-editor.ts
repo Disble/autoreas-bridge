@@ -8,7 +8,10 @@ import {
   toHosterPriorityEditorViewModel,
   toHosterPriorityRequestItems,
 } from './hoster-priority-editor.helpers';
-import type { HosterPriorityDropPosition } from './hoster-priority-editor.types';
+import type {
+  HosterPriorityDropPosition,
+  HosterPriorityEditorState,
+} from './hoster-priority-editor.types';
 
 /**
  * useHosterPriorityEditor loads the persisted hoster priority order for
@@ -20,10 +23,12 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
   // 1. Refs
 
   // 2. State
-  const [rawItems, setRawItems] = useState<readonly HosterPriorityItem[]>([]);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const [state, setState] = useState<HosterPriorityEditorState>({
+    items: [],
+    hasLoaded: false,
+    isSaving: false,
+    errorMessage: undefined,
+  });
 
   // 3. Context/3rd Party Hooks
 
@@ -34,24 +39,25 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
   // 6. Callbacks (useCallback calling pure helpers)
   const reorder = useCallback(
     async (draggedKey: string, targetKey: string, dropPosition: HosterPriorityDropPosition) => {
-      const previousItems = rawItems;
-      const nextItems = moveHosterPriorityItem(rawItems, draggedKey, targetKey, dropPosition);
+      const previousItems = state.items;
+      const nextItems = moveHosterPriorityItem(state.items, draggedKey, targetKey, dropPosition);
 
-      setRawItems(nextItems);
-      setIsSaving(true);
-      setErrorMessage(undefined);
+      setState((prev) => ({ ...prev, items: nextItems, isSaving: true, errorMessage: undefined }));
 
       try {
         const rows = toHosterPriorityEditorViewModel(nextItems, { isSaving: false }).items;
         await source.setHosterPriority(HOSTER_PRIORITY_DEFAULT_SITE, toHosterPriorityRequestItems(rows));
+        setState((prev) => ({ ...prev, isSaving: false }));
       } catch (error) {
-        setRawItems(previousItems);
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to save hoster priority');
-      } finally {
-        setIsSaving(false);
+        setState((prev) => ({
+          ...prev,
+          items: previousItems,
+          isSaving: false,
+          errorMessage: error instanceof Error ? error.message : 'Failed to save hoster priority',
+        }));
       }
     },
-    [rawItems, source],
+    [state.items, source],
   );
 
   // 7. Effects
@@ -60,21 +66,22 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
 
     source
       .getDownloadConfig()
-      .then((config) => {
+      .then((config) => ({ items: config.hosterPriority, errorMessage: undefined }))
+      .catch((error: unknown) => ({
+        items: [] as readonly HosterPriorityItem[],
+        errorMessage: error instanceof Error ? error.message : 'Failed to load hoster priority',
+      }))
+      .then((outcome) => {
         if (!active) {
           return;
         }
 
-        setRawItems(config.hosterPriority);
-        setHasLoaded(true);
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to load hoster priority');
-        setHasLoaded(true);
+        setState((prev) => ({
+          ...prev,
+          items: outcome.items,
+          hasLoaded: true,
+          errorMessage: outcome.errorMessage,
+        }));
       });
 
     return () => {
@@ -82,14 +89,17 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
     };
   }, [source]);
 
-  const viewModel = toHosterPriorityEditorViewModel(rawItems, { isSaving, errorMessage });
-  const status = !hasLoaded && errorMessage === undefined ? 'loading' : viewModel.status;
+  const viewModel = toHosterPriorityEditorViewModel(state.items, {
+    isSaving: state.isSaving,
+    errorMessage: state.errorMessage,
+  });
+  const status = !state.hasLoaded && state.errorMessage === undefined ? 'loading' : viewModel.status;
 
   return {
     status,
     items: viewModel.items,
-    isSaving,
-    errorMessage,
+    isSaving: state.isSaving,
+    errorMessage: state.errorMessage,
     reorder,
   };
 }

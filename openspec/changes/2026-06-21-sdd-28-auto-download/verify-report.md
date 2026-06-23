@@ -39,11 +39,10 @@ All 65 implementation tasks (Phases 1–7) plus 4 integration/verification tasks
 
 ## Warnings (PASS WITH WARNINGS rationale)
 
-`bun run lint` reports 6 advisory ESLint warnings (0 errors; the gate passes — the lint script is `eslint .` without `--max-warnings 0`):
-- 2 NEW, introduced by this change: `react-doctor/no-cascading-set-state` ("4 setState calls in one useEffect") in `features/download/ui/HosterPriorityEditor/use-hoster-priority-editor.ts:58` and `features/download/ui/RunHistoryPanel/use-run-history-panel.ts:34` — both initialize derived UI state from a single fetch; functionally correct, minor redraw smell.
-- 4 pre-existing, unrelated to this change.
+`bun run lint` reports 4 advisory ESLint warnings (0 errors; the gate passes — the lint script is `eslint .` without `--max-warnings 0`):
+- 4 pre-existing, unrelated to this change (`features/anime/ui/AnimePanel/use-anime-panel.ts`, `features/dashboard/ui/SyncingAnimePanel/use-syncing-anime-panel.ts`).
 
-Recommended (non-blocking) follow-up: consolidate the cascading `setState` calls in the two new download hooks (single state object or `useReducer`) to clear the advisory.
+Follow-up RESOLVED: the 2 `react-doctor/no-cascading-set-state` advisories originally introduced by this change (in the HosterPriorityEditor and RunHistoryPanel hooks) were cleared by consolidating each hook's load + mutation state into a single state object and collapsing the effect to one `setState` per outcome. The hook-internal `State` interfaces were moved to the colocated `*.types.ts` files to satisfy strict colocation. All 330 frontend tests still pass; typecheck clean.
 
 ## Notes
 

@@ -30,6 +30,14 @@ export interface HosterPriorityEditorViewModelOptions {
   readonly errorMessage?: string;
 }
 
+/** Internal hook state consolidating load + optimistic-save concerns into a single object. */
+export interface HosterPriorityEditorState {
+  readonly items: readonly HosterPriorityItem[];
+  readonly hasLoaded: boolean;
+  readonly isSaving: boolean;
+  readonly errorMessage: string | undefined;
+}
+
 /** Where the dragged item lands relative to the drop target, mirroring react-aria's `ItemDropTarget.dropPosition`. */
 export type HosterPriorityDropPosition = 'before' | 'after';
 

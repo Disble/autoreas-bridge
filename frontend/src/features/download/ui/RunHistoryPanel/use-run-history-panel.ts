@@ -3,6 +3,7 @@ import { downloadRuntimeSource } from '../../../../infrastructure/download-runti
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
 import { toRunHistoryPanelViewModel } from './run-history-panel.helpers';
+import type { RunHistoryPanelState } from './run-history-panel.types';
 
 /**
  * useRunHistoryPanel loads the download run history and exposes a
@@ -14,9 +15,11 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   // 1. Refs
 
   // 2. State
-  const [runs, setRuns] = useState<readonly DownloadRunView[]>([]);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const [state, setState] = useState<RunHistoryPanelState>({
+    runs: [],
+    hasLoaded: false,
+    errorMessage: undefined,
+  });
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
@@ -36,25 +39,17 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
 
     source
       .listDownloadRuns()
-      .then((nextRuns) => {
+      .then((nextRuns) => ({ runs: nextRuns, errorMessage: undefined }))
+      .catch((error: unknown) => ({
+        runs: [] as readonly DownloadRunView[],
+        errorMessage: error instanceof Error ? error.message : 'Failed to load download run history',
+      }))
+      .then((outcome) => {
         if (!active) {
           return;
         }
 
-        setRuns(nextRuns);
-        setErrorMessage(undefined);
-      })
-      .catch((error: unknown) => {
-        if (!active) {
-          return;
-        }
-
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to load download run history');
-      })
-      .finally(() => {
-        if (active) {
-          setHasLoaded(true);
-        }
+        setState({ runs: outcome.runs, hasLoaded: true, errorMessage: outcome.errorMessage });
       });
 
     return () => {
@@ -62,11 +57,11 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     };
   }, [source]);
 
-  const baseViewModel = toRunHistoryPanelViewModel(runs, selectedRunId);
+  const baseViewModel = toRunHistoryPanelViewModel(state.runs, selectedRunId);
   const viewModel =
-    errorMessage !== undefined
-      ? { ...baseViewModel, status: 'error' as const, errorMessage }
-      : !hasLoaded
+    state.errorMessage !== undefined
+      ? { ...baseViewModel, status: 'error' as const, errorMessage: state.errorMessage }
+      : !state.hasLoaded
         ? { ...baseViewModel, status: 'loading' as const }
         : baseViewModel;
 
