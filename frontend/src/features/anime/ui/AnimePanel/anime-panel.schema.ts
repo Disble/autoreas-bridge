@@ -14,4 +14,6 @@ export const animeSchema = z.object({
   tipo: z.number().optional(),
   dias: z.array(z.string()).default([]),
   generos: z.array(z.string()).default([]),
+  hasDownloadPage: z.boolean().default(false),
+  hasFolder: z.boolean().default(false),
 });

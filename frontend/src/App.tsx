@@ -3,6 +3,7 @@ import { BridgeDashboard } from './features/dashboard/ui/BridgeDashboard/BridgeD
 import { AppLayout } from './app/AppLayout';
 import { AnimeRoute } from './app/routes/AnimeRoute';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
+import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NetworkRoute } from './app/routes/NetworkRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';
 import { PairingRoute } from './app/routes/PairingRoute';
@@ -15,6 +16,7 @@ function App() {
                 <Route path="/network" element={<NetworkRoute />} />
                 <Route path="/dashboard" element={<BridgeDashboard />} />
                 <Route path="/animes" element={<AnimeRoute />} />
+                <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />
                 <Route path="/pairing" element={<PairingRoute />} />
                 <Route path="*" element={<NotFoundRoute />} />

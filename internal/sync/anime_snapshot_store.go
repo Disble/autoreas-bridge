@@ -21,7 +21,7 @@ func NewAnimeSnapshotStore(db *sql.DB) *AnimeSnapshotStore {
 }
 
 func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (map[string]anime.SnapshotRecord, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash FROM anime_snapshots`)
+	rows, err := s.db.QueryContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash, modified_at FROM anime_snapshots`)
 	if err != nil {
 		return nil, fmt.Errorf("query anime snapshots: %w", err)
 	}
@@ -31,7 +31,7 @@ func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (map[string]anim
 	for rows.Next() {
 		var record anime.SnapshotRecord
 		var snapshotJSON string
-		if err := rows.Scan(&record.AnimeID, &snapshotJSON, &record.Hash); err != nil {
+		if err := rows.Scan(&record.AnimeID, &snapshotJSON, &record.Hash, &record.ModifiedAt); err != nil {
 			return nil, fmt.Errorf("scan anime snapshot: %w", err)
 		}
 		record.CanonicalJSON = []byte(snapshotJSON)
@@ -59,12 +59,13 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 	for _, id := range animeSnapshotIDs(current) {
 		record := current[id]
 		if _, execErr := tx.ExecContext(ctx, `
-			INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash)
-			VALUES (?, ?, ?)
+			INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
+			VALUES (?, ?, ?, ?)
 			ON CONFLICT(anime_id) DO UPDATE SET
 				snapshot_json = excluded.snapshot_json,
-				snapshot_hash = excluded.snapshot_hash
-		`, record.AnimeID, string(record.CanonicalJSON), record.Hash); execErr != nil {
+				snapshot_hash = excluded.snapshot_hash,
+				modified_at = excluded.modified_at
+		`, record.AnimeID, string(record.CanonicalJSON), record.Hash, record.ModifiedAt); execErr != nil {
 			err = fmt.Errorf("upsert anime snapshot %q: %w", record.AnimeID, execErr)
 			return err
 		}
@@ -95,7 +96,7 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 func (s *AnimeSnapshotStore) GetSnapshot(ctx context.Context, animeID string) (anime.SnapshotRecord, error) {
 	var record anime.SnapshotRecord
 	var snapshotJSON string
-	err := s.db.QueryRowContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash FROM anime_snapshots WHERE anime_id = ?`, animeID).Scan(&record.AnimeID, &snapshotJSON, &record.Hash)
+	err := s.db.QueryRowContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash, modified_at FROM anime_snapshots WHERE anime_id = ?`, animeID).Scan(&record.AnimeID, &snapshotJSON, &record.Hash, &record.ModifiedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return anime.SnapshotRecord{}, contracts.ErrAnimeNotFound

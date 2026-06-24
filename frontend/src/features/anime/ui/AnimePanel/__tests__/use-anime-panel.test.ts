@@ -13,6 +13,8 @@ const animeA: Anime = {
   activo: 1,
   dias: [],
   generos: [],
+  hasDownloadPage: true,
+  hasFolder: true,
 };
 
 const animeB: Anime = {
@@ -23,6 +25,8 @@ const animeB: Anime = {
   activo: 0,
   dias: [],
   generos: [],
+  hasDownloadPage: false,
+  hasFolder: true,
 };
 
 function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource {
@@ -78,5 +82,29 @@ describe('useAnimePanel', () => {
     await waitFor(() => expect(result.current.isEmpty).toBe(true));
 
     expect(result.current.items).toEqual([]);
+  });
+
+  it('exposes a gap filter and onGapChange callback defaulting to "all"', async () => {
+    const source = createSource([animeA, animeB]);
+    const { result } = renderHook(() => useAnimePanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.filters.gap).toBe('all');
+    expect(typeof result.current.onGapChange).toBe('function');
+    expect(result.current.items).toHaveLength(2);
+  });
+
+  it('filters out complete animes when the gap filter is set to "missing"', async () => {
+    const source = createSource([animeA, animeB]);
+    const { result } = renderHook(() => useAnimePanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    result.current.onGapChange('missing');
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    expect(result.current.items[0].id).toBe('anime-b');
+    expect(result.current.items[0].hasDownloadGap).toBe(true);
   });
 });

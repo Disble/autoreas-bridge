@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { NotificationToasts } from './NotificationToasts';
 
 type NavItem = {
   readonly to: string;
@@ -108,6 +109,25 @@ function AnimeIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
 function PairingIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -135,6 +155,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/animes', label: 'Animes', Icon: AnimeIcon },
+  { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },
 ];
@@ -157,6 +178,7 @@ const tabItemClass = ({ isActive }: { isActive: boolean }) =>
 export function AppLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <NotificationToasts />
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-divider/60 bg-background/85 px-4 backdrop-blur md:hidden">
         <div className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
           <BridgeMark className="size-4" />

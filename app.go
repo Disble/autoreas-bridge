@@ -12,8 +12,13 @@ import (
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/download"
+	"autoreas-bridge/internal/download/filesystem"
+	"autoreas-bridge/internal/download/schedule"
+	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -41,6 +46,7 @@ type App struct {
 	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
 	newDeviceStore          func(db *sql.DB) device.Store
 	newDeviceService        func(store device.Store) device.AuthService
+	newNotifier             func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub          func(ctx context.Context) realtime.Hub
 	newHTTPServer           func(config api.Config) api.Server
 	newTrayManager          func() tray.TrayManager
@@ -65,6 +71,13 @@ type App struct {
 	deviceStore             device.Store
 	newToken                func() (string, error)
 	animeQuery              contracts.AnimeQueryService
+	notifier                notification.Notifier
+	newDownloadStore        func(db *sql.DB) download.DownloadStore
+	newDownloadService      func(deps download.ServiceDeps) *download.Service
+	newDownloadScheduler    func(deps schedule.Deps) schedule.Scheduler
+	downloadStore           download.DownloadStore
+	downloadService         *download.Service
+	downloadScheduler       schedule.Scheduler
 }
 
 const observabilityEventName = "observability.log"
@@ -75,6 +88,25 @@ func defaultObservabilityEmit(ctx context.Context, eventName string, optionalDat
 		return
 	}
 	wruntime.EventsEmit(ctx, eventName, optionalData...)
+}
+
+// defaultNotifier builds the default Notifier: a Dispatcher fanning out to
+// the UI-toast adapter (reusing the same emit-fn mechanism as
+// defaultObservabilityEmit), the build-tag-selected desktop-toast adapter,
+// and -- when a non-nil shared logger is supplied -- the SDD-29 log-forward
+// adapter mirroring every notification into the observability log stream
+// (design.md §2.4, ADR-29-3). loggers was accepted for parity with other
+// new* constructors (e.g. newChangelogRecorder) and "future observability
+// hooks"; this is that hook.
+func defaultNotifier(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+	adapters := []notification.Adapter{
+		notification.NewUIToastAdapter(emit),
+		notification.NewDesktopToastAdapter(),
+	}
+	if len(loggers) > 0 && loggers[0] != nil {
+		adapters = append(adapters, notification.NewLogForwardAdapter(loggers[0]))
+	}
+	return notification.NewDispatcher(adapters...)
 }
 
 type tracerBulletRunner interface {
@@ -118,6 +150,9 @@ func NewApp() *App {
 	app.newDeviceService = func(store device.Store) device.AuthService {
 		return device.NewService(store)
 	}
+	app.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+		return defaultNotifier(emit, loggers...)
+	}
 	app.newRealtimeHub = func(ctx context.Context) realtime.Hub {
 		return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: app.sharedLogger})
 	}
@@ -132,6 +167,15 @@ func NewApp() *App {
 	}
 	app.newTracerBulletSink = func() tracerbullet.TraceSink {
 		return tracerbullet.NewStdoutSink()
+	}
+	app.newDownloadStore = func(db *sql.DB) download.DownloadStore {
+		return download.NewSQLiteStore(db)
+	}
+	app.newDownloadService = func(deps download.ServiceDeps) *download.Service {
+		return download.NewService(deps)
+	}
+	app.newDownloadScheduler = func(deps schedule.Deps) schedule.Scheduler {
+		return schedule.NewScheduler(deps)
 	}
 	app.emitFn = defaultObservabilityEmit
 	app.hideWindow = wruntime.WindowHide
@@ -194,6 +238,11 @@ func (a *App) startup(ctx context.Context) {
 			return device.NewService(store)
 		}
 	}
+	if a.newNotifier == nil {
+		a.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+			return defaultNotifier(emit, loggers...)
+		}
+	}
 	if a.newRealtimeHub == nil {
 		a.newRealtimeHub = func(ctx context.Context) realtime.Hub {
 			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: a.sharedLogger})
@@ -215,6 +264,21 @@ func (a *App) startup(ctx context.Context) {
 	if a.newTracerBulletSink == nil {
 		a.newTracerBulletSink = func() tracerbullet.TraceSink {
 			return tracerbullet.NewStdoutSink()
+		}
+	}
+	if a.newDownloadStore == nil {
+		a.newDownloadStore = func(db *sql.DB) download.DownloadStore {
+			return download.NewSQLiteStore(db)
+		}
+	}
+	if a.newDownloadService == nil {
+		a.newDownloadService = func(deps download.ServiceDeps) *download.Service {
+			return download.NewService(deps)
+		}
+	}
+	if a.newDownloadScheduler == nil {
+		a.newDownloadScheduler = func(deps schedule.Deps) schedule.Scheduler {
+			return schedule.NewScheduler(deps)
 		}
 	}
 	if a.hideWindow == nil {
@@ -279,6 +343,12 @@ func (a *App) startup(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
+	// a.notifier MUST be constructed before the runtime watcher factory call
+	// below, since RuntimeWatcherConfig.Notifier (SDD-29) captures a.notifier
+	// by value at construction time -- moved up from its previous position
+	// (originally after the watcher build) to actually satisfy the ordering
+	// design.md §2.2/§8 assumed already held.
+	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
 	selfEchoRegistry := a.newSelfEchoRegistry()
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:     animeDataPath,
@@ -298,6 +368,7 @@ func (a *App) startup(ctx context.Context) {
 		SharedLogger:     a.sharedLogger,
 		SelfEchoRegistry: selfEchoRegistry,
 		RetryDelay:       100 * time.Millisecond,
+		Notifier:         a.notifier,
 	})
 	a.animeRuntimeWatcher.StartAsync(catchUpContext)
 	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
@@ -326,7 +397,24 @@ func (a *App) startup(ctx context.Context) {
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	a.animeQuery = anime.NewQueryService(snapshotStore)
+	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
+	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
+	// already constructed by this point (app.go:351).
+	//
+	// OCCObserveOnly is set TRUE for the staged rollout (docs/sync-occ-mobile-contract.md):
+	// until Autoreas Mobile starts echoing the `base` version token, an existing
+	// record edited by an old client arrives with base=nil and would otherwise be
+	// recorded as a (non-applied) conflict -- a regression for current clients.
+	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
+	// to false to enable full enforcement once mobile ships the `base` echo.
+	animeWrite.SetDeps(anime.WriteServiceDeps{
+		Conflicts:      conflictService,
+		Notifier:       a.notifier,
+		Logger:         a.sharedLogger,
+		OCCObserveOnly: true,
+	})
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
@@ -334,7 +422,6 @@ func (a *App) startup(ctx context.Context) {
 		}
 		return a.httpServer.EffectiveAddress()
 	})
-	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{
@@ -352,17 +439,102 @@ func (a *App) startup(ctx context.Context) {
 				return
 			}
 			a.emitFn(a.ctx, pairingTokenConsumedEventName)
+			if a.notifier != nil {
+				_ = a.notifier.Notify(a.ctx, notification.Notification{
+					Source:    "device",
+					Level:     notification.LevelSuccess,
+					Title:     "Device paired",
+					Body:      "A mobile device successfully paired with this bridge.",
+					Timestamp: time.Now(),
+				})
+			}
 		},
 	})
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
 		return
 	}
+
+	a.startDownloadOrchestration(ctx)
+}
+
+// startDownloadOrchestration wires the SDD-28 download bounded context (design.md §3/§6/§8,
+// PR4b Phase 6): DownloadStore -> Service -> Scheduler, reconciling any zombie "running" row
+// left behind by a previous crash BEFORE the scheduler's loop starts (design §8 crash-zombie
+// reconciliation). Failures here are logged and degrade to a nil downloadScheduler/Service --
+// they NEVER fail overall app startup, since auto-download is an optional feature layered on
+// top of the core sync/anime bounded contexts.
+func (a *App) startDownloadOrchestration(ctx context.Context) {
+	if a.bridgeDB == nil {
+		return
+	}
+
+	a.downloadStore = a.newDownloadStore(a.bridgeDB)
+
+	registry := download.NewStaticRegistry()
+	registry.Register(jkanime.New(nil))
+
+	hosterResolver := download.NewHosterResolver(func(site string) []download.HosterPriorityEntry {
+		entries, err := a.downloadStore.ListHosterPriority(ctx, site)
+		if err != nil {
+			return nil
+		}
+		return entries
+	})
+
+	a.downloadService = a.newDownloadService(download.ServiceDeps{
+		Animes:       a.animeQuery,
+		Sites:        registry,
+		Hosters:      hosterResolver,
+		JD:           newReconfigurableJDClient(a.downloadStore),
+		Counter:      filesystem.NewEpisodeCounter(),
+		Flattener:    filesystem.NewFlattener(),
+		Store:        a.downloadStore,
+		Notifier:     a.notifier,
+		Bus:          a.eventBus,
+		Logger:       a.sharedLogger,
+		JDDeviceName: a.downloadJDDeviceName(ctx),
+	})
+
+	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
+		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
+	}
+
+	a.downloadScheduler = a.newDownloadScheduler(schedule.Deps{
+		Store: a.downloadStore,
+		Clock: schedule.NewRealClock(),
+		Run: func(runCtx context.Context, trigger string) error {
+			if a.downloadService == nil {
+				return nil
+			}
+			_, err := a.downloadService.RunOnce(runCtx, trigger)
+			return err
+		},
+		Log: a.sharedLogger,
+	})
+	a.downloadScheduler.Start(ctx)
+}
+
+// downloadJDDeviceName reads the configured MyJDownloader device name from the store so the
+// Service's liveness gate (EnsureOnline) targets the right device; "" degrades to "no device
+// configured yet" rather than failing startup.
+func (a *App) downloadJDDeviceName(ctx context.Context) string {
+	if a.downloadStore == nil {
+		return ""
+	}
+	cfg, err := a.downloadStore.GetJDConfig(ctx)
+	if err != nil {
+		return ""
+	}
+	return cfg.DeviceName
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
+	}
+	if a.downloadScheduler != nil {
+		a.downloadScheduler.Stop()
 	}
 	if a.httpServer != nil {
 		_ = a.httpServer.Shutdown(ctx)

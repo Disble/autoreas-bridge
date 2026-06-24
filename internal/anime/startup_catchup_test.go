@@ -142,9 +142,11 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 		t.Fatalf("expected store replace to run once, got %d", store.replaceCalls())
 	}
 
+	// SDD-30 ADR-30-3b: a baseline record absent from the latest parse is
+	// soft-deleted (Activo=0 + FechaEliminacion), never physically pruned.
 	pruneIDs := store.lastPruneIDs()
-	if len(pruneIDs) != 1 || pruneIDs[0] != "gone" {
-		t.Fatalf("expected prune ids [gone], got %v", pruneIDs)
+	if len(pruneIDs) != 0 {
+		t.Fatalf("expected no prune ids (soft-delete only), got %v", pruneIDs)
 	}
 
 	published := publisher.events()
@@ -154,7 +156,7 @@ func TestStartupCoordinatorProcessesAppearingFileDiffsAndPrunesDeletes(t *testin
 
 	assertPublishedAnimeChanged(t, published[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
 	assertPublishedAnimeChanged(t, published[1], "new", `{"_id":"new","nombre":"Brand New","nrocapvisto":3}`)
-	assertPublishedDelete(t, published[2], "gone")
+	assertPublishedSoftDelete(t, published[2], "gone", "Removed")
 
 	if len(logger.messages()) == 0 {
 		t.Fatal("expected parser warnings to be logged")
@@ -401,7 +403,11 @@ func assertPublishedAnimeChanged(t *testing.T, event events.Event, wantID string
 	}
 }
 
-func assertPublishedDelete(t *testing.T, event events.Event, wantID string) {
+// assertPublishedSoftDelete verifies a catch-up delta for a baseline record
+// absent from the latest parse is a soft-delete UPDATE (SDD-30 ADR-30-3b):
+// non-nil payload carrying activo=false + fechaEliminacion, never a
+// nil-payload physical delete event.
+func assertPublishedSoftDelete(t *testing.T, event events.Event, wantID, wantNombre string) {
 	t.Helper()
 
 	changed, ok := event.(events.AnimeChangedEvent)
@@ -413,8 +419,15 @@ func assertPublishedDelete(t *testing.T, event events.Event, wantID string) {
 		t.Fatalf("expected anime id %q, got %q", wantID, changed.AnimeID)
 	}
 
-	if changed.Payload != nil {
-		t.Fatalf("expected nil payload delete event, got %s", string(changed.Payload))
+	if len(changed.Payload) == 0 {
+		t.Fatal("expected soft-delete payload to be non-nil/non-empty")
+	}
+
+	payload := string(changed.Payload)
+	for _, want := range []string{`"activo":false`, `"fechaEliminacion"`, `"nombre":"` + wantNombre + `"`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("expected soft-delete payload to contain %q, got %s", want, payload)
+		}
 	}
 }
 

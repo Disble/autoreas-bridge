@@ -32,6 +32,12 @@ type MobileAnime struct {
 	Estudios         *string          `json:"estudios,omitempty"`
 	Origen           *string          `json:"origen,omitempty"`
 	Duracion         *int             `json:"duracion,omitempty"`
+	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
+	// ADR-30-1/30-5) so the mobile client can round-trip it back as
+	// AnimePatch.Base on its next write. Always present (not a pointer):
+	// pre-migration rows read back 0, which is itself a legitimate base
+	// value (fast-forward path), so there is no "absent" state to model here.
+	ModifiedAt int64 `json:"modified_at"`
 }
 
 type AnimeChange struct {
@@ -65,6 +71,15 @@ type AnimeListItem struct {
 	Tipo        *int     `json:"tipo,omitempty"`
 	Dias        []string `json:"dias"`
 	Generos     []string `json:"generos"`
+	// HasDownloadPage reports whether the legacy `pagina` field is present and
+	// non-empty. Read-only anime-data-quality signal for the desktop AnimePanel
+	// gap indicator (download-orchestration spec "Missing Pagina/Carpeta
+	// Surfaced as Actionable State"). Deliberately does NOT expose the raw URL.
+	HasDownloadPage bool `json:"hasDownloadPage"`
+	// HasFolder reports whether the legacy `carpeta` field is present and
+	// non-empty. Same read-only gap-indicator purpose as HasDownloadPage;
+	// deliberately does NOT expose the raw filesystem path.
+	HasFolder bool `json:"hasFolder"`
 }
 
 type ReconcileRequest struct {
@@ -101,10 +116,26 @@ type DeviceInfo struct {
 }
 
 type ConflictInfo struct {
-	ConflictID   string `json:"conflict_id"`
-	AnimeID      string `json:"anime_id"`
-	DetectedAtMs int64  `json:"detected_at_ms"`
-	Status       string `json:"status"`
+	ConflictID         string `json:"conflict_id"`
+	AnimeID            string `json:"anime_id"`
+	DetectedAtMs       int64  `json:"detected_at_ms"`
+	Status             string `json:"status"`
+	LocalSnapshotJSON  []byte `json:"local_snapshot_json,omitempty"`
+	RemoteSnapshotJSON []byte `json:"remote_snapshot_json,omitempty"`
+}
+
+// ConflictRecord is the write-side DTO for a detected non-blocking sync
+// conflict (SDD-30 ADR-30-4): the bridge's currently-stored snapshot
+// (LocalSnapshotJSON) and the divergent value the mobile client attempted to
+// write (RemoteSnapshotJSON), both preserved verbatim for later manual
+// resolution. Always inserted with status='pending' (resolution happens via
+// ConflictService.ResolveConflict, out of scope for SDD-30 per design.md).
+type ConflictRecord struct {
+	ConflictID         string
+	AnimeID            string
+	LocalSnapshotJSON  []byte
+	RemoteSnapshotJSON []byte
+	DetectedAtMs       int64
 }
 
 type StatusInfo struct {
@@ -121,6 +152,10 @@ type AnimePatch struct {
 	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
 	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
 	Dias             []string `json:"dias,omitempty"`
+	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
+	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
+	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.
+	Base *int64 `json:"base,omitempty"`
 }
 
 type EffectiveAnime struct {
@@ -160,4 +195,87 @@ type DeviceAdminService interface {
 type ConflictService interface {
 	ListConflicts(ctx context.Context) ([]ConflictInfo, error)
 	ResolveConflict(ctx context.Context, id string, at time.Time) error
+}
+
+// HosterPriorityItem mirrors a single download_hoster_priority row at the App/Wails boundary
+// (SDD-28 design.md §3.6/§4, PR4b Phase 6). It is the contracts-layer twin of
+// download.HosterPriorityEntry -- defined separately here so internal/api/contracts never
+// imports internal/download (composition root only wires the two together in app.go).
+type HosterPriorityItem struct {
+	Hoster   string `json:"hoster"`
+	Priority int    `json:"priority"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// DownloadConfig is the read-model the frontend uses to render the download settings screen
+// (SDD-28 design.md §4.3/§7, PR4b Phase 6): JD config (password never in cleartext), schedule
+// config, and the per-site hoster priority ordering.
+type DownloadConfig struct {
+	JD             JDStatus             `json:"jd"`
+	Schedule       ScheduleConfig       `json:"schedule"`
+	HosterPriority []HosterPriorityItem `json:"hosterPriority"`
+}
+
+// JDStatus is the UI-facing view of MyJDownloader connectivity/config (SDD-28 design.md §4.3,
+// PoC #12 quirk: ListDevices, not Connect, is the only liveness proof). The password is NEVER
+// exposed in cleartext -- HasPassword is the only signal the UI ever sees.
+type JDStatus struct {
+	Email           string `json:"email"`
+	HasPassword     bool   `json:"hasPassword"`
+	DeviceName      string `json:"deviceName"`
+	ExePathOverride string `json:"exePathOverride"`
+	DefaultDestDir  string `json:"defaultDestDir"`
+	LastSeenStatus  string `json:"lastSeenStatus"`
+	LastSeenAtMs    int64  `json:"lastSeenAtMs"`
+	LastDecryptErr  string `json:"lastDecryptError,omitempty"`
+}
+
+// JDConfigInput is the write-model SetJDConfig accepts from the UI. PlaintextPassword is a
+// pointer so the UI can edit email/device without re-entering the password (nil leaves the
+// existing encrypted blob untouched, design §4.3 "edit email/device without re-entering
+// password").
+type JDConfigInput struct {
+	Email             string  `json:"email"`
+	PlaintextPassword *string `json:"plaintextPassword,omitempty"`
+	DeviceName        string  `json:"deviceName"`
+	ExePathOverride   string  `json:"exePathOverride"`
+	DefaultDestDir    string  `json:"defaultDestDir"`
+}
+
+// ScheduleConfig is the UI-facing twin of download.ScheduleConfig (SDD-28 design.md §3.5/§3.6).
+type ScheduleConfig struct {
+	Mode          string `json:"mode"`
+	DailyTimeHHMM string `json:"dailyTimeHHMM"`
+	Enabled       bool   `json:"enabled"`
+	LastRunAtMs   int64  `json:"lastRunAtMs"`
+	LastRunStatus string `json:"lastRunStatus"`
+	NextRunAtMs   int64  `json:"nextRunAtMs"`
+	Running       bool   `json:"running"`
+}
+
+// ManualLink mirrors download.ManualLink at the App/Wails boundary (jd_offline degradation,
+// design.md §8 "Manual-links persistence for JD-offline").
+type ManualLink struct {
+	Anime   string   `json:"anime"`
+	Episode int      `json:"episode"`
+	Links   []string `json:"links"`
+}
+
+// DownloadRunView is the UI-facing twin of download.DownloadRun (SDD-28 design.md §4/§8 run
+// lifecycle and status taxonomy). FinishedAtMs is a pointer so the UI can distinguish a still-
+// running row (nil) from a terminal one.
+type DownloadRunView struct {
+	RunID              string       `json:"runId"`
+	StartedAtMs        int64        `json:"startedAtMs"`
+	FinishedAtMs       *int64       `json:"finishedAtMs,omitempty"`
+	Trigger            string       `json:"trigger"`
+	AnimesChecked      int          `json:"animesChecked"`
+	EpisodesFound      int          `json:"episodesFound"`
+	EpisodesDownloaded int          `json:"episodesDownloaded"`
+	EpisodesFailed     int          `json:"episodesFailed"`
+	SkippedCount       int          `json:"skippedCount"`
+	JDAvailable        bool         `json:"jdAvailable"`
+	Status             string       `json:"status"`
+	ErrorSummary       string       `json:"errorSummary,omitempty"`
+	ManualLinks        []ManualLink `json:"manualLinks,omitempty"`
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	downloadconfig "autoreas-bridge/internal/download/config"
 	_ "modernc.org/sqlite"
 )
 
@@ -21,7 +22,8 @@ const (
 		CREATE TABLE IF NOT EXISTS anime_snapshots (
 			anime_id TEXT PRIMARY KEY,
 			snapshot_json TEXT NOT NULL,
-			snapshot_hash TEXT NOT NULL
+			snapshot_hash TEXT NOT NULL,
+			modified_at INTEGER NOT NULL DEFAULT 0
 		)`
 	changelogDDL = `
 		CREATE TABLE IF NOT EXISTS changelog (
@@ -57,6 +59,55 @@ const (
 			auth_token TEXT NOT NULL UNIQUE,
 			paired_at_ms INTEGER NOT NULL
 		)`
+	downloadHosterPriorityDDL = `
+		CREATE TABLE IF NOT EXISTS download_hoster_priority (
+			site     TEXT    NOT NULL,
+			hoster   TEXT    NOT NULL,
+			priority INTEGER NOT NULL,
+			enabled  INTEGER NOT NULL DEFAULT 1,
+			PRIMARY KEY (site, hoster)
+		)`
+	downloadJDConfigDDL = `
+		CREATE TABLE IF NOT EXISTS download_jd_config (
+			id                       INTEGER PRIMARY KEY CHECK (id = 1),
+			myjd_email               TEXT,
+			myjd_password_encrypted  BLOB,
+			device_name              TEXT,
+			exe_path_override        TEXT,
+			default_dest_dir         TEXT,
+			last_seen_status         TEXT,
+			last_seen_at_ms          INTEGER,
+			last_decrypt_error       TEXT
+		)`
+	downloadScheduleConfigDDL = `
+		CREATE TABLE IF NOT EXISTS download_schedule_config (
+			id              INTEGER PRIMARY KEY CHECK (id = 1),
+			mode            TEXT    NOT NULL DEFAULT 'in_process',
+			daily_time_hhmm TEXT,
+			enabled         INTEGER NOT NULL DEFAULT 0,
+			last_run_at_ms  INTEGER,
+			last_run_status TEXT,
+			next_run_at_ms  INTEGER
+		)`
+	downloadRunsDDL = `
+		CREATE TABLE IF NOT EXISTS download_runs (
+			run_id              TEXT PRIMARY KEY,
+			started_at_ms       INTEGER NOT NULL,
+			finished_at_ms      INTEGER,
+			trigger             TEXT NOT NULL,
+			animes_checked      INTEGER NOT NULL DEFAULT 0,
+			episodes_found      INTEGER NOT NULL DEFAULT 0,
+			episodes_downloaded INTEGER NOT NULL DEFAULT 0,
+			episodes_failed     INTEGER NOT NULL DEFAULT 0,
+			skipped_count       INTEGER NOT NULL DEFAULT 0,
+			jd_available        INTEGER NOT NULL DEFAULT 0,
+			status              TEXT NOT NULL,
+			error_summary       TEXT,
+			manual_links_json   TEXT
+		)`
+	downloadRunsStartedAtIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_download_runs_started_at ON download_runs(started_at_ms DESC)`
+	defaultHosterPrioritySite = "jkanime"
 )
 
 type SQLiteBootstrap struct {
@@ -141,8 +192,8 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
-	if _, err := db.Exec(animeSnapshotsDDL); err != nil {
-		return fmt.Errorf("ensure anime_snapshots schema: %w", err)
+	if err := ensureAnimeSnapshotsSchema(db); err != nil {
+		return err
 	}
 	if err := ensureChangelogSchema(db); err != nil {
 		return err
@@ -156,7 +207,151 @@ func initializeBridgeDB(db *sql.DB) error {
 	if _, err := db.Exec(devicesDDL); err != nil {
 		return fmt.Errorf("ensure devices schema: %w", err)
 	}
+	if _, err := db.Exec(downloadHosterPriorityDDL); err != nil {
+		return fmt.Errorf("ensure download_hoster_priority schema: %w", err)
+	}
+	if err := ensureDownloadJDConfigSchema(db); err != nil {
+		return err
+	}
+	if _, err := db.Exec(downloadScheduleConfigDDL); err != nil {
+		return fmt.Errorf("ensure download_schedule_config schema: %w", err)
+	}
+	if _, err := db.Exec(downloadRunsDDL); err != nil {
+		return fmt.Errorf("ensure download_runs schema: %w", err)
+	}
+	if _, err := db.Exec(downloadRunsStartedAtIndexDDL); err != nil {
+		return fmt.Errorf("ensure download_runs started_at index: %w", err)
+	}
+	if err := seedDefaultHosterPriorityIfEmpty(db); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+// ensureAnimeSnapshotsSchema follows the verified ensureChangelogSchema column-introspection
+// precedent (SDD-30, ADR-30-1/§7): a missing table is created fresh with modified_at already
+// present; an already-migrated table is a noop; a legacy 3-column table (anime_id, snapshot_json,
+// snapshot_hash) gets the new modified_at column added in place via a SAFE additive ALTER TABLE
+// (no data rewrite needed -- pre-existing rows read back modified_at=0, a valid OCC base per
+// design.md §7). Any other column set is rejected as unsupported.
+func ensureAnimeSnapshotsSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "anime_snapshots")
+	if err != nil {
+		return fmt.Errorf("inspect anime_snapshots schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(animeSnapshotsDDL); err != nil {
+			return fmt.Errorf("ensure anime_snapshots schema: %w", err)
+		}
+		return nil
+	}
+	if containsColumn(columns, "modified_at") {
+		return nil
+	}
+	if isLegacyAnimeSnapshotsSchema(columns) {
+		if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN modified_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported anime_snapshots schema columns: %v", columns)
+}
+
+func isLegacyAnimeSnapshotsSchema(columns []string) bool {
+	if len(columns) != 3 {
+		return false
+	}
+	legacy := map[string]bool{"anime_id": false, "snapshot_json": false, "snapshot_hash": false}
+	for _, column := range columns {
+		if _, ok := legacy[column]; !ok {
+			return false
+		}
+		legacy[column] = true
+	}
+	for _, present := range legacy {
+		if !present {
+			return false
+		}
+	}
+	return true
+}
+
+func containsColumn(columns []string, target string) bool {
+	for _, column := range columns {
+		if column == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureDownloadJDConfigSchema follows the verified ensureChangelogSchema column-introspection
+// precedent: a missing table is created fresh; any future column addition (e.g. a cached-devices
+// column) would extend this function with a transactional rename->create->copy->drop migration
+// rather than an in-place ALTER (design.md §4.2).
+func ensureDownloadJDConfigSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "download_jd_config")
+	if err != nil {
+		return fmt.Errorf("inspect download_jd_config schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(downloadJDConfigDDL); err != nil {
+			return fmt.Errorf("ensure download_jd_config schema: %w", err)
+		}
+		return nil
+	}
+	if !isCurrentDownloadJDConfigSchema(columns) {
+		return fmt.Errorf("unsupported download_jd_config schema columns: %v", columns)
+	}
+	return nil
+}
+
+func isCurrentDownloadJDConfigSchema(columns []string) bool {
+	required := map[string]bool{
+		"id":                      false,
+		"myjd_email":              false,
+		"myjd_password_encrypted": false,
+		"device_name":             false,
+		"exe_path_override":       false,
+		"default_dest_dir":        false,
+		"last_seen_status":        false,
+		"last_seen_at_ms":         false,
+		"last_decrypt_error":      false,
+	}
+	for _, column := range columns {
+		if _, ok := required[column]; ok {
+			required[column] = true
+		}
+	}
+	for _, present := range required {
+		if !present {
+			return false
+		}
+	}
+	return true
+}
+
+// seedDefaultHosterPriorityIfEmpty seeds the validated PoC defaults (Mediafire=0, Mega=1) for the
+// jkanime site the first time download_hoster_priority is empty, per download-config spec
+// "First run seeds defaults". It never overwrites an existing user-configured ordering.
+func seedDefaultHosterPriorityIfEmpty(db *sql.DB) error {
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite).Scan(&count); err != nil {
+		return fmt.Errorf("count download_hoster_priority for site %q: %w", defaultHosterPrioritySite, err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	for _, entry := range downloadconfig.DefaultHosterPrioritySeed {
+		if _, err := db.Exec(`
+			INSERT INTO download_hoster_priority (site, hoster, priority, enabled)
+			VALUES (?, ?, ?, 1)
+		`, defaultHosterPrioritySite, entry.Hoster, entry.Priority); err != nil {
+			return fmt.Errorf("seed default hoster priority %q for site %q: %w", entry.Hoster, defaultHosterPrioritySite, err)
+		}
+	}
 	return nil
 }
 

@@ -57,6 +57,54 @@ func TestSQLiteAnimeSnapshotStoreReplaceBaselineUpsertsAndPrunes(t *testing.T) {
 	}
 }
 
+func TestSQLiteAnimeSnapshotStoreReplaceBaselinePersistsModifiedAt(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewAnimeSnapshotStore(db)
+	ctx := context.Background()
+
+	payload := []byte(`{"_id":"anime-1","nombre":"Token","nrocapvisto":1}`)
+	seed := map[string]anime.SnapshotRecord{
+		"anime-1": {AnimeID: "anime-1", CanonicalJSON: payload, Hash: anime.HashSnapshot(payload), ModifiedAt: 12345},
+	}
+	if err := store.ReplaceBaseline(ctx, seed, nil); err != nil {
+		t.Fatalf("seed baseline: %v", err)
+	}
+
+	got, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if got.ModifiedAt != 12345 {
+		t.Fatalf("expected round-tripped ModifiedAt 12345, got %d", got.ModifiedAt)
+	}
+
+	listed, err := store.ListSnapshots(ctx)
+	if err != nil {
+		t.Fatalf("list snapshots: %v", err)
+	}
+	if listed["anime-1"].ModifiedAt != 12345 {
+		t.Fatalf("expected listed ModifiedAt 12345, got %d", listed["anime-1"].ModifiedAt)
+	}
+
+	updatedPayload := []byte(`{"_id":"anime-1","nombre":"Token Updated","nrocapvisto":2}`)
+	update := map[string]anime.SnapshotRecord{
+		"anime-1": {AnimeID: "anime-1", CanonicalJSON: updatedPayload, Hash: anime.HashSnapshot(updatedPayload), ModifiedAt: 99999},
+	}
+	if err := store.ReplaceBaseline(ctx, update, nil); err != nil {
+		t.Fatalf("replace baseline: %v", err)
+	}
+
+	got, err = store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot after update: %v", err)
+	}
+	if got.ModifiedAt != 99999 {
+		t.Fatalf("expected updated ModifiedAt 99999, got %d", got.ModifiedAt)
+	}
+}
+
 func TestSQLiteAnimeSnapshotStoreGetSnapshot(t *testing.T) {
 	t.Parallel()
 

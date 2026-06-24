@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import {
   formatAnimeProgress,
+  matchesAnimeGap,
   sortAnimesByName,
   toAnimeStatus,
   toAnimeViewModel,
 } from '../anime-panel.helpers';
+import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VALUE } from '../anime-panel.constants';
 
 const baseAnime: Anime = {
   id: 'anime-1',
@@ -16,6 +18,8 @@ const baseAnime: Anime = {
   activo: 1,
   dias: [],
   generos: [],
+  hasDownloadPage: true,
+  hasFolder: true,
 };
 
 describe('toAnimeStatus', () => {
@@ -53,6 +57,10 @@ describe('toAnimeViewModel', () => {
       progressLabel: '12 / 28',
       status: 'active',
       statusLabel: 'Active',
+      hasDownloadPage: true,
+      hasFolder: true,
+      hasDownloadGap: false,
+      gapLabel: undefined,
     });
   });
 
@@ -61,6 +69,54 @@ describe('toAnimeViewModel', () => {
 
     expect(viewModel.status).toBe('inactive');
     expect(viewModel.statusLabel).toBe('Inactive');
+  });
+
+  it('flags a download gap when the page is missing', () => {
+    const viewModel = toAnimeViewModel({ ...baseAnime, hasDownloadPage: false });
+
+    expect(viewModel.hasDownloadGap).toBe(true);
+    expect(viewModel.gapLabel).toBe('Missing page');
+  });
+
+  it('flags a download gap when the folder is missing', () => {
+    const viewModel = toAnimeViewModel({ ...baseAnime, hasFolder: false });
+
+    expect(viewModel.hasDownloadGap).toBe(true);
+    expect(viewModel.gapLabel).toBe('Missing folder');
+  });
+
+  it('flags a download gap mentioning both when page and folder are missing', () => {
+    const viewModel = toAnimeViewModel({ ...baseAnime, hasDownloadPage: false, hasFolder: false });
+
+    expect(viewModel.hasDownloadGap).toBe(true);
+    expect(viewModel.gapLabel).toBe('Missing page & folder');
+  });
+
+  it('has no gap label when both page and folder are present', () => {
+    const viewModel = toAnimeViewModel(baseAnime);
+
+    expect(viewModel.hasDownloadGap).toBe(false);
+    expect(viewModel.gapLabel).toBeUndefined();
+  });
+});
+
+describe('matchesAnimeGap', () => {
+  const complete = { ...baseAnime };
+  const missingPage = { ...baseAnime, hasDownloadPage: false };
+
+  it('matches everything when the filter is "all"', () => {
+    expect(matchesAnimeGap(complete, ANIME_FILTER_ALL_VALUE)).toBe(true);
+    expect(matchesAnimeGap(missingPage, ANIME_FILTER_ALL_VALUE)).toBe(true);
+  });
+
+  it('matches only animes missing a page or folder when filter is "missing"', () => {
+    expect(matchesAnimeGap(missingPage, ANIME_GAP_MISSING_VALUE)).toBe(true);
+    expect(matchesAnimeGap(complete, ANIME_GAP_MISSING_VALUE)).toBe(false);
+  });
+
+  it('matches only animes with both page and folder when filter is "complete"', () => {
+    expect(matchesAnimeGap(complete, ANIME_GAP_COMPLETE_VALUE)).toBe(true);
+    expect(matchesAnimeGap(missingPage, ANIME_GAP_COMPLETE_VALUE)).toBe(false);
   });
 });
 

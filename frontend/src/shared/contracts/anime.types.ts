@@ -12,4 +12,8 @@ export interface Anime {
   readonly tipo?: number;
   readonly dias: readonly string[];
   readonly generos: readonly string[];
+  /** True when the legacy `pagina` (download source page) field is present and non-empty. */
+  readonly hasDownloadPage: boolean;
+  /** True when the legacy `carpeta` (download destination folder) field is present and non-empty. */
+  readonly hasFolder: boolean;
 }

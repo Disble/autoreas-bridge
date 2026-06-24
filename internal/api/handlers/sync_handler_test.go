@@ -261,6 +261,45 @@ func TestDecodePendingOperationPatch(t *testing.T) {
 			},
 			want: AnimePatch{Estado: intPtr(2), NroCapVisto: floatPtr(10.5), FechaUltCapVisto: int64Ptr(1710000000123), Dias: []string{"Lunes", "Miercoles"}},
 		},
+		// SDD-30 ADR-30-2/30-5: decodePendingOperationPatch re-marshals
+		// Payload and runs it through decodeAnimePatch unchanged (zero
+		// handler-level OCC logic added) -- base round-trips exactly like
+		// every other field, including the legitimate zero value.
+		{
+			name: "round-trips explicit base token",
+			op: contracts.PendingOperation{
+				AnimeID:   "anime-1",
+				Operation: "update",
+				Payload: map[string]any{
+					"nrocapvisto": float64(10.5),
+					"base":        float64(1710000000123),
+				},
+			},
+			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(1710000000123)},
+		},
+		{
+			name: "round-trips explicit zero base token",
+			op: contracts.PendingOperation{
+				AnimeID:   "anime-1",
+				Operation: "update",
+				Payload: map[string]any{
+					"nrocapvisto": float64(10.5),
+					"base":        float64(0),
+				},
+			},
+			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)},
+		},
+		{
+			name: "base omitted decodes to nil",
+			op: contracts.PendingOperation{
+				AnimeID:   "anime-1",
+				Operation: "update",
+				Payload: map[string]any{
+					"nrocapvisto": float64(10.5),
+				},
+			},
+			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: nil},
+		},
 		{
 			name: "rejects missing anime id",
 			op: contracts.PendingOperation{
@@ -325,6 +364,9 @@ func equalAnimePatch(got AnimePatch, want AnimePatch) bool {
 		return false
 	}
 	if !equalInt64Pointers(got.FechaUltCapVisto, want.FechaUltCapVisto) {
+		return false
+	}
+	if !equalInt64Pointers(got.Base, want.Base) {
 		return false
 	}
 	if len(got.Dias) != len(want.Dias) {

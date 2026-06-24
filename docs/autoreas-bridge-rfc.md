@@ -275,6 +275,8 @@ Inspirado en Syncthing. Ambos dispositivos son peers. Cada uno mantiene su propi
 
 #### Al reconectarse (reconciliación)
 
+> **Superseded (SDD-30):** la regla CRDT-`MAX(local, remote)` descrita abajo fue **descartada y removida** (nunca se cableó en producción). El modelo vigente es **OCC no-bloqueante**: token de versión `modified_at`, conflictos que preservan ambas versiones, resolución del usuario, y un capítulo **puede** bajar (corrección). Este texto queda como registro histórico del diseño original.
+
 ```mermaid
 sequenceDiagram
     participant B as Bridge (PC)

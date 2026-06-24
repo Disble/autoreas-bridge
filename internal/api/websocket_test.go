@@ -271,10 +271,12 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 		"type":              "reconcile",
 		"device_id":         "device-1",
 		"last_changelog_id": 0,
+		// base:0 matches seedWebSocketAnimeSnapshot's default ModifiedAt --
+		// fast-forward, not an SDD-30 old-client safe path.
 		"pending_operations": []map[string]any{{
 			"anime_id":   "anime-1",
 			"operation":  "update",
-			"payload":    map[string]any{"nrocapvisto": 664.0},
+			"payload":    map[string]any{"nrocapvisto": 664.0, "base": 0},
 			"created_at": 1710000000123,
 		}},
 	}

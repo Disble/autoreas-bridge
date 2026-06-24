@@ -19,12 +19,14 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
     tipoOptions,
     diaOptions,
     generoOptions,
+    gapOptions,
     onQueryChange,
     onEstadoChange,
     onActivoChange,
     onTipoChange,
     onDiaChange,
     onGenerosChange,
+    onGapChange,
   } = useAnimePanel(props);
 
   return (
@@ -37,12 +39,14 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
           tipoOptions={tipoOptions}
           diaOptions={diaOptions}
           generoOptions={generoOptions}
+          gapOptions={gapOptions}
           onQueryChange={onQueryChange}
           onEstadoChange={onEstadoChange}
           onActivoChange={onActivoChange}
           onTipoChange={onTipoChange}
           onDiaChange={onDiaChange}
           onGenerosChange={onGenerosChange}
+          onGapChange={onGapChange}
         />
         {isLoading ? (
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
@@ -73,14 +77,26 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
                     <h3 className="truncate text-sm font-semibold text-foreground">{item.nombre}</h3>
                     <p className="mt-1 text-xs text-muted">{item.progressLabel}</p>
                   </div>
-                  <Chip
-                    color={item.status === 'active' ? 'success' : 'default'}
-                    data-testid={`anime-status-${item.id}`}
-                    size="sm"
-                    variant="soft"
-                  >
-                    <Chip.Label>{item.statusLabel}</Chip.Label>
-                  </Chip>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {item.hasDownloadGap ? (
+                      <Chip
+                        color="warning"
+                        data-testid={`anime-gap-${item.id}`}
+                        size="sm"
+                        variant="soft"
+                      >
+                        <Chip.Label>{item.gapLabel}</Chip.Label>
+                      </Chip>
+                    ) : null}
+                    <Chip
+                      color={item.status === 'active' ? 'success' : 'default'}
+                      data-testid={`anime-status-${item.id}`}
+                      size="sm"
+                      variant="soft"
+                    >
+                      <Chip.Label>{item.statusLabel}</Chip.Label>
+                    </Chip>
+                  </div>
                 </div>
               </li>
             ))}
