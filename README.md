@@ -52,28 +52,6 @@ Tests are an integral part of this project.
 - **Frontend:** Run `bun run test` in the `frontend/` directory (requires colocated `__tests__/` for all helpers/hooks).
 - **Backend:** Run `go test ./...` in the project root.
 
-#### Running the race detector (`go test -race`) on Windows
-
-`go test -race` requires cgo and a **GCC/Clang-style** C compiler. On Windows the
-Go toolchain does **not** work with MSVC's `cl.exe`, and a compiler path
-containing spaces (e.g. `C:\Program Files (x86)\...`) breaks the cgo invocation.
-If `go env CC` points at `cl.exe`, `-race` will fail with a cgo/compiler error
-(the normal `go build`/`go test` still work — the SQLite driver is pure-Go).
-
-To enable `-race` locally, install [MinGW-w64](https://www.mingw-w64.org/) (e.g.
-via `winget install -e --id MartinStorsjo.LLVM-MinGW` or MSYS2) into a
-space-free path and point the toolchain at it:
-
-```bash
-go env -w CC=C:/mingw64/bin/gcc.exe
-go env -w CXX=C:/mingw64/bin/g++.exe
-go test ./... -race
-```
-
-Alternatively run the race detector under WSL or CI, where a GCC toolchain is
-already present. The pre-commit gate does **not** run `-race`, so this is only
-needed for local race investigation.
-
 ### Building for Production
 
 To build a redistributable, production-ready executable package:
