@@ -104,6 +104,18 @@ func decodeAnimePatch(r *http.Request) (AnimePatch, error) {
 		patch.Dias = dias
 	}
 
+	// SDD-30 ADR-30-2/30-5: base is the mobile client's last-known modified_at
+	// OCC token. Absent from the wire entirely -> Base stays nil (old client,
+	// safe-path semantics in WriteService.PatchAnime). Present -> decoded as-is,
+	// including 0, which is a legitimate (pre-migration) token value.
+	if rawBase, ok := payload["base"]; ok {
+		var base int64
+		if err := json.Unmarshal(rawBase, &base); err != nil {
+			return AnimePatch{}, errors.New("invalid base")
+		}
+		patch.Base = &base
+	}
+
 	return patch, nil
 }
 

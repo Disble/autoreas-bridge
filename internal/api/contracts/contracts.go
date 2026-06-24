@@ -32,6 +32,12 @@ type MobileAnime struct {
 	Estudios         *string          `json:"estudios,omitempty"`
 	Origen           *string          `json:"origen,omitempty"`
 	Duracion         *int             `json:"duracion,omitempty"`
+	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
+	// ADR-30-1/30-5) so the mobile client can round-trip it back as
+	// AnimePatch.Base on its next write. Always present (not a pointer):
+	// pre-migration rows read back 0, which is itself a legitimate base
+	// value (fast-forward path), so there is no "absent" state to model here.
+	ModifiedAt int64 `json:"modified_at"`
 }
 
 type AnimeChange struct {
@@ -110,10 +116,26 @@ type DeviceInfo struct {
 }
 
 type ConflictInfo struct {
-	ConflictID   string `json:"conflict_id"`
-	AnimeID      string `json:"anime_id"`
-	DetectedAtMs int64  `json:"detected_at_ms"`
-	Status       string `json:"status"`
+	ConflictID         string `json:"conflict_id"`
+	AnimeID            string `json:"anime_id"`
+	DetectedAtMs       int64  `json:"detected_at_ms"`
+	Status             string `json:"status"`
+	LocalSnapshotJSON  []byte `json:"local_snapshot_json,omitempty"`
+	RemoteSnapshotJSON []byte `json:"remote_snapshot_json,omitempty"`
+}
+
+// ConflictRecord is the write-side DTO for a detected non-blocking sync
+// conflict (SDD-30 ADR-30-4): the bridge's currently-stored snapshot
+// (LocalSnapshotJSON) and the divergent value the mobile client attempted to
+// write (RemoteSnapshotJSON), both preserved verbatim for later manual
+// resolution. Always inserted with status='pending' (resolution happens via
+// ConflictService.ResolveConflict, out of scope for SDD-30 per design.md).
+type ConflictRecord struct {
+	ConflictID         string
+	AnimeID            string
+	LocalSnapshotJSON  []byte
+	RemoteSnapshotJSON []byte
+	DetectedAtMs       int64
 }
 
 type StatusInfo struct {
@@ -130,6 +152,10 @@ type AnimePatch struct {
 	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
 	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
 	Dias             []string `json:"dias,omitempty"`
+	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
+	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
+	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.
+	Base *int64 `json:"base,omitempty"`
 }
 
 type EffectiveAnime struct {

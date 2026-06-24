@@ -67,7 +67,9 @@ func TestPatchAnimeWaitsForDurableAppendBeforeReturning(t *testing.T) {
 		AnimeWrite:    writeService,
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":10.5}`))
+	// base:0 matches the seeded snapshot's ModifiedAt (0, default for
+	// pre-OCC-migration rows) -- a fast-forward, not an old-client safe path.
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":10.5,"base":0}`))
 	req.Header.Set("Authorization", "Bearer good-token")
 	res := httptest.NewRecorder()
 	requestDone := make(chan struct{})
@@ -152,7 +154,9 @@ func TestSyncReconcileAppliesPendingOperationsToAnimeDataFile(t *testing.T) {
 		SyncTrigger:   reconcileStubSyncService{},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":664},"created_at":1710000000123}]}`))
+	// base:0 matches the seeded snapshot's ModifiedAt (0, default for
+	// pre-OCC-migration rows) -- a fast-forward, not an old-client safe path.
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":664,"base":0},"created_at":1710000000123}]}`))
 	req.Header.Set("Authorization", "Bearer good-token")
 	res := httptest.NewRecorder()
 

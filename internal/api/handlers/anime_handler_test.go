@@ -268,6 +268,63 @@ func TestPatchAnimeHandlerRejectsExtendedJsonTimestampObject(t *testing.T) {
 	}
 }
 
+// TestPatchAnimeHandlerDecodesBaseToken covers SDD-30 ADR-30-2/30-5: a patch
+// payload carrying an explicit "base" OCC token decodes into AnimePatch.Base
+// (including the legitimate zero value), and a payload omitting "base"
+// entirely decodes to a nil Base -- the wire-level distinction the
+// WriteService gate depends on to tell "old client" apart from "explicit
+// base 0".
+func TestPatchAnimeHandlerDecodesBaseToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     string
+		wantBase *int64
+	}{
+		{name: "explicit positive base", body: `{"nrocapvisto":1,"base":1710000000123}`, wantBase: int64Ptr(1710000000123)},
+		{name: "explicit zero base", body: `{"nrocapvisto":1,"base":0}`, wantBase: int64Ptr(0)},
+		{name: "base omitted entirely", body: `{"nrocapvisto":1}`, wantBase: nil},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stubs := newAnimeHandlerStubs()
+			stubs.effectiveAnime = &EffectiveAnime{ID: "anime-1"}
+			handler := NewPatchAnimeHandler(PatchAnimeConfig{
+				Authenticate: stubs.authenticate(true),
+				QueryAnime:   stubs.queryAnime,
+				PatchAnime:   stubs.patchAnime,
+				IsNotFound:   func(error) bool { return false },
+			})
+
+			req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(tt.body))
+			res := httptest.NewRecorder()
+
+			handler.ServeHTTP(res, req)
+
+			if res.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, res.Code, res.Body.String())
+			}
+
+			gotBase := stubs.patchedPatch.Base
+			switch {
+			case tt.wantBase == nil:
+				if gotBase != nil {
+					t.Fatalf("expected nil base, got %d", *gotBase)
+				}
+			case gotBase == nil:
+				t.Fatalf("expected base %d, got nil", *tt.wantBase)
+			case *gotBase != *tt.wantBase:
+				t.Fatalf("expected base %d, got %d", *tt.wantBase, *gotBase)
+			}
+		})
+	}
+}
+
 var errAnimeNotFound = errors.New("anime not found")
 
 type animeHandlerStubs struct {

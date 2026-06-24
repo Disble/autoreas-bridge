@@ -22,7 +22,8 @@ const (
 		CREATE TABLE IF NOT EXISTS anime_snapshots (
 			anime_id TEXT PRIMARY KEY,
 			snapshot_json TEXT NOT NULL,
-			snapshot_hash TEXT NOT NULL
+			snapshot_hash TEXT NOT NULL,
+			modified_at INTEGER NOT NULL DEFAULT 0
 		)`
 	changelogDDL = `
 		CREATE TABLE IF NOT EXISTS changelog (
@@ -191,8 +192,8 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
-	if _, err := db.Exec(animeSnapshotsDDL); err != nil {
-		return fmt.Errorf("ensure anime_snapshots schema: %w", err)
+	if err := ensureAnimeSnapshotsSchema(db); err != nil {
+		return err
 	}
 	if err := ensureChangelogSchema(db); err != nil {
 		return err
@@ -226,6 +227,63 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+// ensureAnimeSnapshotsSchema follows the verified ensureChangelogSchema column-introspection
+// precedent (SDD-30, ADR-30-1/§7): a missing table is created fresh with modified_at already
+// present; an already-migrated table is a noop; a legacy 3-column table (anime_id, snapshot_json,
+// snapshot_hash) gets the new modified_at column added in place via a SAFE additive ALTER TABLE
+// (no data rewrite needed -- pre-existing rows read back modified_at=0, a valid OCC base per
+// design.md §7). Any other column set is rejected as unsupported.
+func ensureAnimeSnapshotsSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "anime_snapshots")
+	if err != nil {
+		return fmt.Errorf("inspect anime_snapshots schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(animeSnapshotsDDL); err != nil {
+			return fmt.Errorf("ensure anime_snapshots schema: %w", err)
+		}
+		return nil
+	}
+	if containsColumn(columns, "modified_at") {
+		return nil
+	}
+	if isLegacyAnimeSnapshotsSchema(columns) {
+		if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN modified_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("unsupported anime_snapshots schema columns: %v", columns)
+}
+
+func isLegacyAnimeSnapshotsSchema(columns []string) bool {
+	if len(columns) != 3 {
+		return false
+	}
+	legacy := map[string]bool{"anime_id": false, "snapshot_json": false, "snapshot_hash": false}
+	for _, column := range columns {
+		if _, ok := legacy[column]; !ok {
+			return false
+		}
+		legacy[column] = true
+	}
+	for _, present := range legacy {
+		if !present {
+			return false
+		}
+	}
+	return true
+}
+
+func containsColumn(columns []string, target string) bool {
+	for _, column := range columns {
+		if column == target {
+			return true
+		}
+	}
+	return false
 }
 
 // ensureDownloadJDConfigSchema follows the verified ensureChangelogSchema column-introspection

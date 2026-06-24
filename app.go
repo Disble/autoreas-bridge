@@ -397,7 +397,18 @@ func (a *App) startup(ctx context.Context) {
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	a.animeQuery = anime.NewQueryService(snapshotStore)
+	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
+	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
+	// already constructed by this point (app.go:351). OCCObserveOnly stays
+	// at its default (false, full enforcement) pending a future staged
+	// rollout decision.
+	animeWrite.SetDeps(anime.WriteServiceDeps{
+		Conflicts: conflictService,
+		Notifier:  a.notifier,
+		Logger:    a.sharedLogger,
+	})
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
@@ -405,7 +416,6 @@ func (a *App) startup(ctx context.Context) {
 		}
 		return a.httpServer.EffectiveAddress()
 	})
-	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.newHTTPServer(api.Config{

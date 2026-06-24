@@ -127,6 +127,8 @@ func TestWebSocketReconcileEndToEndUpdatesFileSnapshotChangelogAndBroadcast(t *t
 		t.Fatalf("expected sync_required, got %#v", control)
 	}
 
+	// base:0 matches seedSyncE2ESnapshot's default ModifiedAt -- fast-forward,
+	// not an SDD-30 old-client safe path.
 	if err := conn.WriteJSON(map[string]any{
 		"type":              "reconcile",
 		"device_id":         "device-1",
@@ -134,7 +136,7 @@ func TestWebSocketReconcileEndToEndUpdatesFileSnapshotChangelogAndBroadcast(t *t
 		"pending_operations": []map[string]any{{
 			"anime_id":   "anime-1",
 			"operation":  "update",
-			"payload":    map[string]any{"nrocapvisto": 664.0},
+			"payload":    map[string]any{"nrocapvisto": 664.0, "base": 0},
 			"created_at": 1710000000123,
 		}},
 	}); err != nil {
@@ -316,6 +318,8 @@ func TestWebSocketReconcileEndToEndPreservesFirstWriteDuringWatcherLag(t *testin
 		t.Fatalf("read sync_required: %v", err)
 	}
 
+	// base:0 matches seedSyncE2ESnapshot's default ModifiedAt -- fast-forward,
+	// not an SDD-30 old-client safe path.
 	if err := conn.WriteJSON(map[string]any{
 		"type":              "reconcile",
 		"device_id":         "device-1",
@@ -323,13 +327,17 @@ func TestWebSocketReconcileEndToEndPreservesFirstWriteDuringWatcherLag(t *testin
 		"pending_operations": []map[string]any{{
 			"anime_id":   "anime-1",
 			"operation":  "update",
-			"payload":    map[string]any{"nrocapvisto": 664.0},
+			"payload":    map[string]any{"nrocapvisto": 664.0, "base": 0},
 			"created_at": 1710000000123,
 		}},
 	}); err != nil {
 		t.Fatalf("write first websocket reconcile message: %v", err)
 	}
 
+	// base:1710000000123 matches the ModifiedAt stamped by the first write
+	// above (writeService.SetNow is pinned to that instant, and
+	// stampModifiedAt(0, now) == now() here) -- the second op is a genuine
+	// fast-forward on top of the first confirmed write, not a divergence.
 	if err := conn.WriteJSON(map[string]any{
 		"type":              "reconcile",
 		"device_id":         "device-1",
@@ -337,7 +345,7 @@ func TestWebSocketReconcileEndToEndPreservesFirstWriteDuringWatcherLag(t *testin
 		"pending_operations": []map[string]any{{
 			"anime_id":   "anime-1",
 			"operation":  "update",
-			"payload":    map[string]any{"dias": []string{"Martes", "Miercoles"}},
+			"payload":    map[string]any{"dias": []string{"Martes", "Miercoles"}, "base": 1710000000123},
 			"created_at": 1710000000124,
 		}},
 	}); err != nil {

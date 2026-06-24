@@ -267,6 +267,106 @@ func TestEnsureDownloadJDConfigSchemaIsIdempotentColumnIntrospection(t *testing.
 	}
 }
 
+func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE anime_snapshots (
+			anime_id TEXT PRIMARY KEY,
+			snapshot_json TEXT NOT NULL,
+			snapshot_hash TEXT NOT NULL
+		);
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("create legacy anime_snapshots schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash)
+		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece"}', 'deadbeef');
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("insert legacy anime_snapshots row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with migration: %v", err)
+	}
+	defer db.Close()
+
+	columns := readTableColumns(t, db, "anime_snapshots")
+	if !containsString(columns, "modified_at") {
+		t.Fatalf("expected migrated anime_snapshots schema to contain column %q, got %#v", "modified_at", columns)
+	}
+
+	var animeID string
+	var modifiedAt int64
+	if err := db.QueryRow(`SELECT anime_id, modified_at FROM anime_snapshots WHERE anime_id = 'anime-1'`).Scan(&animeID, &modifiedAt); err != nil {
+		t.Fatalf("query migrated anime_snapshots row: %v", err)
+	}
+	if animeID != "anime-1" {
+		t.Fatalf("expected anime_id anime-1, got %q", animeID)
+	}
+	if modifiedAt != 0 {
+		t.Fatalf("expected pre-existing row to read back modified_at=0, got %d", modifiedAt)
+	}
+}
+
+func TestEnsureAnimeSnapshotsSchemaCreatesFreshTableWithModifiedAt(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	columns := readTableColumns(t, db, "anime_snapshots")
+	for _, required := range []string{"anime_id", "snapshot_json", "snapshot_hash", "modified_at"} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected fresh anime_snapshots to contain column %q, got %#v", required, columns)
+		}
+	}
+}
+
+func TestEnsureAnimeSnapshotsSchemaIsIdempotentWhenAlreadyMigrated(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	before := readTableColumns(t, db, "anime_snapshots")
+	if err := ensureAnimeSnapshotsSchema(db); err != nil {
+		t.Fatalf("ensure anime_snapshots schema again: %v", err)
+	}
+	after := readTableColumns(t, db, "anime_snapshots")
+	if len(before) != len(after) {
+		t.Fatalf("expected column-introspection migration to be idempotent, before=%#v after=%#v", before, after)
+	}
+}
+
+func TestEnsureAnimeSnapshotsSchemaRejectsUnsupportedSchema(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite db: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(`CREATE TABLE anime_snapshots (anime_id TEXT PRIMARY KEY, unexpected_column TEXT)`); err != nil {
+		t.Fatalf("create unsupported anime_snapshots schema: %v", err)
+	}
+
+	if err := ensureAnimeSnapshotsSchema(db); err == nil {
+		t.Fatal("expected ensureAnimeSnapshotsSchema to reject unsupported schema columns")
+	}
+}
+
 func TestBootstrapBridgeDBReturnsPathInErrorContext(t *testing.T) {
 	t.Parallel()
 

@@ -137,6 +137,13 @@ components:
         duracion:
           type: integer
           nullable: true
+        modified_at:
+          type: integer
+          description: |
+            Bridge-private, strictly-monotonic optimistic-concurrency version
+            token (SDD-30). Echo this value back as `base` on the next patch
+            for this anime so the bridge can fast-forward instead of treating
+            the write as a divergent conflict.
 
     AnimeChange:
       type: object
@@ -190,6 +197,20 @@ components:
           type: integer
         status:
           type: string
+        local_snapshot_json:
+          type: string
+          format: byte
+          nullable: true
+          description: |
+            Base64-encoded canonical anime JSON as it stood on the bridge
+            when the conflict was detected (SDD-30 ADR-30-4).
+        remote_snapshot_json:
+          type: string
+          format: byte
+          nullable: true
+          description: |
+            Base64-encoded canonical anime JSON the mobile client attempted
+            to write, which diverged from local_snapshot_json (SDD-30 ADR-30-4).
 
     BridgeStatus:
       type: object
@@ -455,6 +476,18 @@ paths:
                   type: array
                   items:
                     type: string
+                base:
+                  type: integer
+                  nullable: true
+                  description: |
+                    SDD-30 ADR-30-2/30-5: the modified_at OCC token the client
+                    last observed for this anime (echoed from the Anime
+                    schema's modified_at field). Omit entirely for an old
+                    client that has never seen a token (treated as a safe
+                    path, never a silent overwrite); send the last-known
+                    value, including 0, otherwise. A mismatch never blocks
+                    the write -- both values are kept and a conflict is
+                    recorded for manual resolution.
       responses:
         '200':
           description: Patch applied successfully
