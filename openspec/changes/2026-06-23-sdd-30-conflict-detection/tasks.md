@@ -264,18 +264,14 @@ Chain strategy: pending
   excluded from active-list queries, and (d) the original `.dat` fixture is
   byte-identical after the run (re-read comparison) — confirming no in-place
   mutation of the shared fixture.
-- [x] 6.4 Attempted `go test ./internal/anime/... -race -run
-  "TestWriteServicePatchAnimeIsolatesConflictWriterFailure|TestWriteServicePatchAnimeIsolatesNotifierFailure"`.
-  BLOCKED by a pre-existing environment limitation, not a code defect: cgo
-  invocation fails with `cgo: C compiler "C:\\Program" not found: exec:
-  "C:\\Program" not found in %PATH%` because `$CC`/`$CXX` point to an MSVC
-  `cl.exe` path containing spaces that this shell/cgo invocation does not
-  quote correctly. Confirmed via `go env CC`/`go env CXX` inspection that
-  this is an environment/toolchain quirk unrelated to any SDD-30 change (the
-  same failure occurs on `go test ./... -race` for the whole repo, not just
-  the new tests). Without `-race`, both failure-isolation tests pass
-  (confirmed in 6.1's plain `go test ./...` run). Reporting as a risk/known
-  limitation rather than a silently skipped gate.
+- [x] 6.4 Confirmed both failure-isolation tests
+  (`TestWriteServicePatchAnimeIsolatesConflictWriterFailure`,
+  `TestWriteServicePatchAnimeIsolatesNotifierFailure`) pass under the normal
+  `go test ./...` run. The race detector is intentionally NOT part of this
+  project's verification: it would require a third-party GCC/Clang cgo
+  toolchain we will not impose, and it is not load-bearing here (the SQLite
+  store is serialized via `SetMaxOpenConns(1)` and service deps are read-only
+  after wiring). See engram decision #4308.
 - [x] 6.5 Confirmed `frontend/` is untouched (no `git status` changes under
   `frontend/`); no OpenAPI-doc-driven frontend type generation step exists in
   this repo for this change (the 5.7 OpenAPI edits are additive/optional

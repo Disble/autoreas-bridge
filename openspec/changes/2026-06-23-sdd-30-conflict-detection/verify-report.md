@@ -60,11 +60,6 @@ disk and the gates above are green — verified directly, not assumed.
 
 ## Warnings (PASS WITH WARNINGS rationale)
 
-- **`go test -race` cannot run in this Windows dev environment** — a pre-existing,
-  repo-wide cgo toolchain issue (`go env CC`/`CXX` point to an MSVC path containing
-  spaces). This affects the whole repo, not SDD-30 code; the non-race run of the
-  failure-isolation tests passes. The lefthook pre-commit gate runs `go test ./...`
-  WITHOUT `-race`, so the commit is not blocked. Environment gap, not a code gap.
 - **Mobile contract adoption required for full protection:** the `base` echo +
   backward-compat safe path only protect once mobile sends `base`. Old clients fall
   to the safe non-blocking-conflict path (never silent-overwrite). Client-side

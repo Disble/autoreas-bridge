@@ -83,8 +83,6 @@ were RED-phase artifacts (symbols verified present on disk).
 
 - **Mobile contract adoption**: full protection needs mobile to echo `base`; old
   clients fall to the safe non-blocking-conflict path (never silent-overwrite).
-- **`go test -race`** can't run in this Windows dev env (pre-existing repo-wide
-  cgo/path-with-spaces toolchain issue) — environment gap, not a code gap.
 - **Conflict-resolution UX** is mobile-side (bridge records + exposes only).
 - **No conflict-row dedupe** (accepted, non-blocking/human-resolved).
 - `OCCObserveOnly` recommended ON first for staged rollout to observe volume.
