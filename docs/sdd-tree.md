@@ -55,6 +55,7 @@
 - **Criterio de Éxito:** Emitir evento simulado en el Bus -> verificar inserción en SQLite.
 
 ### SDD-08: Motor Lógico de Reconciliación (Semántico CRDT-like)
+> **SUPERSEDED por SDD-30 (removido).** Este motor CRDT-`MAX` nunca se cableó en producción y su código (`internal/sync/reconcile.go`) fue eliminado. El modelo vigente es **OCC no-bloqueante** (token `modified_at` + detección de conflictos + resolución del usuario). La regla `MAX` fue descartada: un capítulo PUEDE bajar (corrección legítima). El texto de abajo queda como registro histórico del plan original.
 - **Spec:** Función pura. Recibe Changelog Local y Changelog Remoto. Regla de **Reconciliación Semántica**: El progreso de un anime (`nrocapvisto`) nunca retrocede. Usa la regla `MAX(local.nrocapvisto, remote.nrocapvisto)`, ignorando el timestamp de LWW (para evadir "Stale Overwrites" si la app legacy escribe desde una memoria "vieja" porque estaba abierta). Debe soportar progreso fraccional (`0.5`). Si el Remoto gana, emite un evento `AnimeUpdateRequestedEvent` para que el Dominio Anime escriba.
 - **Criterio de Éxito:** 100% test coverage con matrices de estado cruzado, incluyendo casos con `0.5`, demostrando que una escritura *stale* local no borra progreso remoto mayor aunque el local tenga timestamp más reciente. Cero dependencias de BD o Red.
 
