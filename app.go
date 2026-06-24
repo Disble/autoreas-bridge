@@ -401,13 +401,19 @@ func (a *App) startup(ctx context.Context) {
 	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
 	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
-	// already constructed by this point (app.go:351). OCCObserveOnly stays
-	// at its default (false, full enforcement) pending a future staged
-	// rollout decision.
+	// already constructed by this point (app.go:351).
+	//
+	// OCCObserveOnly is set TRUE for the staged rollout (docs/sync-occ-mobile-contract.md):
+	// until Autoreas Mobile starts echoing the `base` version token, an existing
+	// record edited by an old client arrives with base=nil and would otherwise be
+	// recorded as a (non-applied) conflict -- a regression for current clients.
+	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
+	// to false to enable full enforcement once mobile ships the `base` echo.
 	animeWrite.SetDeps(anime.WriteServiceDeps{
-		Conflicts: conflictService,
-		Notifier:  a.notifier,
-		Logger:    a.sharedLogger,
+		Conflicts:      conflictService,
+		Notifier:       a.notifier,
+		Logger:         a.sharedLogger,
+		OCCObserveOnly: true,
 	})
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
