@@ -322,6 +322,99 @@ func TestSQLiteStoreGetScheduleConfigReturnsDisabledDefaultWhenNeverSet(t *testi
 	if got.Enabled {
 		t.Fatal("expected schedule to default to disabled (rollback-safe dormant state)")
 	}
+	if got.EnabledWeekdays != 127 {
+		t.Fatalf("expected EnabledWeekdays to default to 127 (all days) when no row exists, got %d", got.EnabledWeekdays)
+	}
+}
+
+// TestSQLiteStoreGetScheduleConfigDefaultsEnabledWeekdaysTo127WhenColumnIsNull asserts the
+// backward-compat read-path default for a legacy row that was persisted (via a direct SQL
+// insert simulating a pre-existing row, or a SetScheduleConfig predating this column) with
+// enabled_weekdays left NULL -- it MUST read back as 127 (all days enabled), per design.md
+// "NULL column defaults to 127 in the READ path".
+func TestSQLiteStoreGetScheduleConfigDefaultsEnabledWeekdaysTo127WhenColumnIsNull(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	// Simulate a legacy row: insert directly via SQL, bypassing SetScheduleConfig, leaving
+	// enabled_weekdays NULL (its column default -- no DEFAULT clause in the DDL).
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO download_schedule_config (id, mode, daily_time_hhmm, enabled)
+		VALUES (1, 'in_process', '09:00', 1)
+	`); err != nil {
+		t.Fatalf("insert legacy-shaped row: %v", err)
+	}
+
+	got, err := store.GetScheduleConfig(ctx)
+	if err != nil {
+		t.Fatalf("GetScheduleConfig: %v", err)
+	}
+	if got.EnabledWeekdays != 127 {
+		t.Fatalf("expected EnabledWeekdays = 127 for a NULL column, got %d", got.EnabledWeekdays)
+	}
+}
+
+// TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsArbitraryMask asserts SetScheduleConfig
+// persists the EXACT mask passed and GetScheduleConfig returns it unchanged -- no upgrade to
+// 127, no loss of bits (design.md "Round-trip preserves an arbitrary weekday subset").
+func TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsArbitraryMask(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	// Thu(4)/Fri(5)/Sat(6)/Sun(0) per time.Weekday encoding.
+	const mask byte = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 0)
+
+	if err := store.SetScheduleConfig(ctx, ScheduleConfig{
+		Mode:            "in_process",
+		DailyTimeHHMM:   "09:00",
+		Enabled:         true,
+		EnabledWeekdays: mask,
+	}); err != nil {
+		t.Fatalf("SetScheduleConfig: %v", err)
+	}
+
+	got, err := store.GetScheduleConfig(ctx)
+	if err != nil {
+		t.Fatalf("GetScheduleConfig: %v", err)
+	}
+	if got.EnabledWeekdays != mask {
+		t.Fatalf("expected EnabledWeekdays = %d, got %d", mask, got.EnabledWeekdays)
+	}
+}
+
+// TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsEmptyMask asserts an explicit EMPTY
+// mask (0, "no day enabled") round-trips as 0 -- it must NOT be silently upgraded to 127
+// (design.md "Round-trip preserves an empty weekday set"; the 127 default applies ONLY to a
+// NULL/absent column, never to an explicitly-persisted 0).
+func TestSQLiteStoreScheduleConfigEnabledWeekdaysRoundTripsEmptyMask(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	if err := store.SetScheduleConfig(ctx, ScheduleConfig{
+		Mode:            "in_process",
+		DailyTimeHHMM:   "09:00",
+		Enabled:         true,
+		EnabledWeekdays: 0,
+	}); err != nil {
+		t.Fatalf("SetScheduleConfig: %v", err)
+	}
+
+	got, err := store.GetScheduleConfig(ctx)
+	if err != nil {
+		t.Fatalf("GetScheduleConfig: %v", err)
+	}
+	if got.EnabledWeekdays != 0 {
+		t.Fatalf("expected EnabledWeekdays = 0 (explicit empty mask), got %d", got.EnabledWeekdays)
+	}
 }
 
 // --- download_runs: OpenRun / FinalizeRun / ListRuns ---

@@ -22,6 +22,7 @@ const baseConfig: DownloadConfig = {
     lastRunStatus: '',
     nextRunAtMs: 0,
     running: false,
+    enabledWeekdays: 127,
   },
   hosterPriority: [
     { hoster: 'mega', priority: 0, enabled: true },

@@ -12,6 +12,7 @@ const baseConfig: ScheduleConfig = {
   lastRunStatus: 'ok',
   nextRunAtMs: 1_700_086_400_000,
   running: false,
+  enabledWeekdays: 127,
 };
 
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -77,6 +78,21 @@ describe('useSchedulePanel', () => {
     });
 
     expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
+  });
+
+  it('setWeekdays persists the new weekday mask while preserving enabled/dailyTimeHHMM', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setWeekdays(96);
+    });
+
+    expect(source.setScheduleConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ enabledWeekdays: 96, enabled: true, dailyTimeHHMM: '03:30' }),
+    );
   });
 
   it('surfaces a saveErrorMessage when setScheduleConfig rejects, without crashing', async () => {

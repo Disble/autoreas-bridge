@@ -40,6 +40,7 @@ const EMPTY_SCHEDULE_CONFIG: ScheduleConfig = {
   lastRunStatus: '',
   nextRunAtMs: 0,
   running: false,
+  enabledWeekdays: 127,
 };
 
 const EMPTY_DOWNLOAD_CONFIG: DownloadConfig = {

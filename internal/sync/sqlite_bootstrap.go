@@ -81,13 +81,14 @@ const (
 		)`
 	downloadScheduleConfigDDL = `
 		CREATE TABLE IF NOT EXISTS download_schedule_config (
-			id              INTEGER PRIMARY KEY CHECK (id = 1),
-			mode            TEXT    NOT NULL DEFAULT 'in_process',
-			daily_time_hhmm TEXT,
-			enabled         INTEGER NOT NULL DEFAULT 0,
-			last_run_at_ms  INTEGER,
-			last_run_status TEXT,
-			next_run_at_ms  INTEGER
+			id               INTEGER PRIMARY KEY CHECK (id = 1),
+			mode             TEXT    NOT NULL DEFAULT 'in_process',
+			daily_time_hhmm  TEXT,
+			enabled          INTEGER NOT NULL DEFAULT 0,
+			last_run_at_ms   INTEGER,
+			last_run_status  TEXT,
+			next_run_at_ms   INTEGER,
+			enabled_weekdays INTEGER
 		)`
 	downloadRunsDDL = `
 		CREATE TABLE IF NOT EXISTS download_runs (
@@ -213,8 +214,8 @@ func initializeBridgeDB(db *sql.DB) error {
 	if err := ensureDownloadJDConfigSchema(db); err != nil {
 		return err
 	}
-	if _, err := db.Exec(downloadScheduleConfigDDL); err != nil {
-		return fmt.Errorf("ensure download_schedule_config schema: %w", err)
+	if err := ensureDownloadScheduleConfigSchema(db); err != nil {
+		return err
 	}
 	if _, err := db.Exec(downloadRunsDDL); err != nil {
 		return fmt.Errorf("ensure download_runs schema: %w", err)
@@ -330,6 +331,34 @@ func isCurrentDownloadJDConfigSchema(columns []string) bool {
 		}
 	}
 	return true
+}
+
+// ensureDownloadScheduleConfigSchema follows the verified ensureAnimeSnapshotsSchema
+// column-introspection + additive-ALTER precedent (SDD download-schedule-weekdays design
+// "SQLite migration follows the ensureAnimeSnapshotsSchema introspection + ALTER precedent"): a
+// missing table is created fresh with enabled_weekdays already present; an already-migrated
+// table is a noop; a legacy table (the original 7-column DDL, no enabled_weekdays) gets the
+// column added in place via a SAFE additive ALTER TABLE -- nullable, no DEFAULT, so pre-existing
+// rows read back enabled_weekdays=NULL, which the download store layer maps to 127 (all days
+// enabled) on read, preserving today's every-day firing behavior with zero data rewrite.
+func ensureDownloadScheduleConfigSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "download_schedule_config")
+	if err != nil {
+		return fmt.Errorf("inspect download_schedule_config schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(downloadScheduleConfigDDL); err != nil {
+			return fmt.Errorf("ensure download_schedule_config schema: %w", err)
+		}
+		return nil
+	}
+	if containsColumn(columns, "enabled_weekdays") {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE download_schedule_config ADD COLUMN enabled_weekdays INTEGER`); err != nil {
+		return fmt.Errorf("migrate legacy download_schedule_config schema: %w", err)
+	}
+	return nil
 }
 
 // seedDefaultHosterPriorityIfEmpty seeds the validated PoC defaults (Mediafire=0, Mega=1) for the

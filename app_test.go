@@ -1594,6 +1594,75 @@ func TestSetScheduleConfigPersistsViaStore(t *testing.T) {
 	}
 }
 
+// TestSetScheduleConfigMapsEnabledWeekdaysIntoDomainStore asserts SetScheduleConfig maps
+// contracts.ScheduleConfig.EnabledWeekdays (int) into the domain ScheduleConfig.EnabledWeekdays
+// (byte) 1:1 (SDD download-schedule-weekdays design "App bindings map the field 1:1 both
+// directions"), including the boundary values 0 (empty mask) and 127 (all days).
+func TestSetScheduleConfigMapsEnabledWeekdaysIntoDomainStore(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   int
+		want byte
+	}{
+		{name: "all days enabled (127)", in: 127, want: 127},
+		{name: "empty mask (0)", in: 0, want: 0},
+		{name: "arbitrary mask", in: 21, want: 21}, // bits 0,2,4
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeAppDownloadStore{}
+			app := &App{ctx: context.Background(), downloadStore: store}
+
+			got := app.SetScheduleConfig(contracts.ScheduleConfig{
+				Mode:            "in_process",
+				DailyTimeHHMM:   "09:00",
+				Enabled:         true,
+				EnabledWeekdays: tc.in,
+			})
+			if got != "ok" {
+				t.Fatalf("expected ok, got %q", got)
+			}
+			if store.setScheduleConfigCfg.EnabledWeekdays != tc.want {
+				t.Fatalf("expected domain EnabledWeekdays = %d, got %d", tc.want, store.setScheduleConfigCfg.EnabledWeekdays)
+			}
+		})
+	}
+}
+
+// TestGetScheduleConfigMapsEnabledWeekdaysFromDomainStore asserts GetScheduleConfig /
+// toContractsScheduleConfig maps the domain ScheduleConfig.EnabledWeekdays (byte) back into the
+// contract's int field 1:1, including the boundary values 0 and 127.
+func TestGetScheduleConfigMapsEnabledWeekdaysFromDomainStore(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   byte
+		want int
+	}{
+		{name: "all days enabled (127)", in: 127, want: 127},
+		{name: "empty mask (0)", in: 0, want: 0},
+		{name: "arbitrary mask", in: 21, want: 21},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeAppDownloadStore{
+				scheduleConfig: download.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "09:00", Enabled: true, EnabledWeekdays: tc.in},
+			}
+			app := &App{ctx: context.Background(), downloadStore: store}
+
+			got := app.GetScheduleConfig()
+			if got.EnabledWeekdays != tc.want {
+				t.Fatalf("expected contract EnabledWeekdays = %d, got %d", tc.want, got.EnabledWeekdays)
+			}
+		})
+	}
+}
+
 func TestTriggerDownloadCheckDelegatesToScheduler(t *testing.T) {
 	t.Parallel()
 	sched := &fakeAppScheduler{}

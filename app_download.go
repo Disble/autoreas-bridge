@@ -235,12 +235,13 @@ func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
 	}
 
 	domainCfg := download.ScheduleConfig{
-		Mode:          cfg.Mode,
-		DailyTimeHHMM: cfg.DailyTimeHHMM,
-		Enabled:       cfg.Enabled,
-		LastRunAtMs:   cfg.LastRunAtMs,
-		LastRunStatus: cfg.LastRunStatus,
-		NextRunAtMs:   cfg.NextRunAtMs,
+		Mode:            cfg.Mode,
+		DailyTimeHHMM:   cfg.DailyTimeHHMM,
+		Enabled:         cfg.Enabled,
+		LastRunAtMs:     cfg.LastRunAtMs,
+		LastRunStatus:   cfg.LastRunStatus,
+		NextRunAtMs:     cfg.NextRunAtMs,
+		EnabledWeekdays: byte(cfg.EnabledWeekdays),
 	}
 
 	if err := a.downloadStore.SetScheduleConfig(a.downloadCtx(), domainCfg); err != nil {
@@ -300,13 +301,14 @@ func (a *App) toContractsScheduleConfig(cfg download.ScheduleConfig) contracts.S
 		running = a.downloadScheduler.Status(a.downloadCtx()).Running
 	}
 	return contracts.ScheduleConfig{
-		Mode:          cfg.Mode,
-		DailyTimeHHMM: cfg.DailyTimeHHMM,
-		Enabled:       cfg.Enabled,
-		LastRunAtMs:   cfg.LastRunAtMs,
-		LastRunStatus: cfg.LastRunStatus,
-		NextRunAtMs:   cfg.NextRunAtMs,
-		Running:       running,
+		Mode:            cfg.Mode,
+		DailyTimeHHMM:   cfg.DailyTimeHHMM,
+		Enabled:         cfg.Enabled,
+		LastRunAtMs:     cfg.LastRunAtMs,
+		LastRunStatus:   cfg.LastRunStatus,
+		NextRunAtMs:     cfg.NextRunAtMs,
+		Running:         running,
+		EnabledWeekdays: int(cfg.EnabledWeekdays),
 	}
 }
 

@@ -59,13 +59,19 @@ export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntime
   );
 
   const setEnabled = useCallback(
-    (enabled: boolean) => save({ enabled, dailyTimeHHMM: config.dailyTimeHHMM }),
-    [config.dailyTimeHHMM, save],
+    (enabled: boolean) => save({ enabled, dailyTimeHHMM: config.dailyTimeHHMM, enabledWeekdays: config.enabledWeekdays }),
+    [config.dailyTimeHHMM, config.enabledWeekdays, save],
   );
 
   const setDailyTime = useCallback(
-    (dailyTimeHHMM: string) => save({ enabled: config.enabled, dailyTimeHHMM }),
-    [config.enabled, save],
+    (dailyTimeHHMM: string) => save({ enabled: config.enabled, dailyTimeHHMM, enabledWeekdays: config.enabledWeekdays }),
+    [config.enabled, config.enabledWeekdays, save],
+  );
+
+  const setWeekdays = useCallback(
+    (enabledWeekdays: number) =>
+      save({ enabled: config.enabled, dailyTimeHHMM: config.dailyTimeHHMM, enabledWeekdays }),
+    [config.dailyTimeHHMM, config.enabled, save],
   );
 
   // 7. Effects
@@ -82,5 +88,6 @@ export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntime
     saveErrorMessage,
     setEnabled,
     setDailyTime,
+    setWeekdays,
   };
 }

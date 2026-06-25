@@ -21,13 +21,18 @@ type JDConfig struct {
 
 // ScheduleConfig is the singleton in-process scheduler configuration (download_schedule_config,
 // id=1). Mode is reserved for future evolution; only "in_process" is implemented (design §3.5).
+// EnabledWeekdays is a 7-bit mask (bit i = time.Weekday(i), bit0=Sunday..bit6=Saturday; all-days
+// = 127) restricting which weekdays the scheduler is allowed to fire on (SDD
+// download-schedule-weekdays design "Weekday encoding"). A legacy/absent value is read back as
+// 127 by the store layer (NULL -> all days enabled), never by this struct's zero value.
 type ScheduleConfig struct {
-	Mode          string
-	DailyTimeHHMM string
-	Enabled       bool
-	LastRunAtMs   int64
-	LastRunStatus string
-	NextRunAtMs   int64
+	Mode            string
+	DailyTimeHHMM   string
+	Enabled         bool
+	LastRunAtMs     int64
+	LastRunStatus   string
+	NextRunAtMs     int64
+	EnabledWeekdays byte
 }
 
 // ManualLink is the typed shape persisted to download_runs.manual_links_json when a run

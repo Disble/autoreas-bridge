@@ -39,6 +39,7 @@ describe('download-runtime-source', () => {
         lastRunStatus: '',
         nextRunAtMs: 0,
         running: false,
+        enabledWeekdays: 127,
       },
       hosterPriority: [],
     });

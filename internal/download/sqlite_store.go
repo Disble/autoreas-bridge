@@ -246,34 +246,47 @@ func (s *SQLiteStore) recordDecryptError(ctx context.Context, decryptErr error) 
 
 // --- Schedule config (download_schedule_config, singleton id=1) ---
 
+// scheduleConfigAllWeekdaysEnabled is the backward-compat read-path default applied when
+// enabled_weekdays is NULL (legacy/absent column data) or when no row exists at all (design.md
+// "NULL column defaults to 127 in the READ path (not stored-127)") -- it preserves the
+// pre-existing every-day firing behavior with zero migration of existing rows required.
+const scheduleConfigAllWeekdaysEnabled = 127
+
 func (s *SQLiteStore) GetScheduleConfig(ctx context.Context) (ScheduleConfig, error) {
 	var (
-		mode          string
-		dailyTime     sql.NullString
-		enabled       int
-		lastRunAtMs   sql.NullInt64
-		lastRunStatus sql.NullString
-		nextRunAtMs   sql.NullInt64
+		mode            string
+		dailyTime       sql.NullString
+		enabled         int
+		lastRunAtMs     sql.NullInt64
+		lastRunStatus   sql.NullString
+		nextRunAtMs     sql.NullInt64
+		enabledWeekdays sql.NullInt64
 	)
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT mode, daily_time_hhmm, enabled, last_run_at_ms, last_run_status, next_run_at_ms
+		SELECT mode, daily_time_hhmm, enabled, last_run_at_ms, last_run_status, next_run_at_ms, enabled_weekdays
 		FROM download_schedule_config WHERE id = 1
-	`).Scan(&mode, &dailyTime, &enabled, &lastRunAtMs, &lastRunStatus, &nextRunAtMs)
+	`).Scan(&mode, &dailyTime, &enabled, &lastRunAtMs, &lastRunStatus, &nextRunAtMs, &enabledWeekdays)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ScheduleConfig{Mode: "in_process", Enabled: false}, nil
+		return ScheduleConfig{Mode: "in_process", Enabled: false, EnabledWeekdays: scheduleConfigAllWeekdaysEnabled}, nil
 	}
 	if err != nil {
 		return ScheduleConfig{}, fmt.Errorf("get schedule config: %w", err)
 	}
 
+	weekdays := byte(scheduleConfigAllWeekdaysEnabled)
+	if enabledWeekdays.Valid {
+		weekdays = byte(enabledWeekdays.Int64)
+	}
+
 	return ScheduleConfig{
-		Mode:          mode,
-		DailyTimeHHMM: dailyTime.String,
-		Enabled:       enabled != 0,
-		LastRunAtMs:   lastRunAtMs.Int64,
-		LastRunStatus: lastRunStatus.String,
-		NextRunAtMs:   nextRunAtMs.Int64,
+		Mode:            mode,
+		DailyTimeHHMM:   dailyTime.String,
+		Enabled:         enabled != 0,
+		LastRunAtMs:     lastRunAtMs.Int64,
+		LastRunStatus:   lastRunStatus.String,
+		NextRunAtMs:     nextRunAtMs.Int64,
+		EnabledWeekdays: weekdays,
 	}, nil
 }
 
@@ -288,13 +301,14 @@ func (s *SQLiteStore) SetScheduleConfig(ctx context.Context, cfg ScheduleConfig)
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO download_schedule_config (id, mode, daily_time_hhmm, enabled)
-		VALUES (1, ?, ?, ?)
+		INSERT INTO download_schedule_config (id, mode, daily_time_hhmm, enabled, enabled_weekdays)
+		VALUES (1, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			mode = excluded.mode,
 			daily_time_hhmm = excluded.daily_time_hhmm,
-			enabled = excluded.enabled
-	`, mode, cfg.DailyTimeHHMM, enabled)
+			enabled = excluded.enabled,
+			enabled_weekdays = excluded.enabled_weekdays
+	`, mode, cfg.DailyTimeHHMM, enabled, cfg.EnabledWeekdays)
 	if err != nil {
 		return fmt.Errorf("set schedule config: %w", err)
 	}

@@ -243,14 +243,17 @@ type JDConfigInput struct {
 }
 
 // ScheduleConfig is the UI-facing twin of download.ScheduleConfig (SDD-28 design.md §3.5/§3.6).
+// EnabledWeekdays is a 7-bit mask (bit0=Sunday..bit6=Saturday; all-days=127) restricting which
+// weekdays the scheduler may fire on (SDD download-schedule-weekdays design "Weekday encoding").
 type ScheduleConfig struct {
-	Mode          string `json:"mode"`
-	DailyTimeHHMM string `json:"dailyTimeHHMM"`
-	Enabled       bool   `json:"enabled"`
-	LastRunAtMs   int64  `json:"lastRunAtMs"`
-	LastRunStatus string `json:"lastRunStatus"`
-	NextRunAtMs   int64  `json:"nextRunAtMs"`
-	Running       bool   `json:"running"`
+	Mode            string `json:"mode"`
+	DailyTimeHHMM   string `json:"dailyTimeHHMM"`
+	Enabled         bool   `json:"enabled"`
+	LastRunAtMs     int64  `json:"lastRunAtMs"`
+	LastRunStatus   string `json:"lastRunStatus"`
+	NextRunAtMs     int64  `json:"nextRunAtMs"`
+	Running         bool   `json:"running"`
+	EnabledWeekdays int    `json:"enabledWeekdays"`
 }
 
 // ManualLink mirrors download.ManualLink at the App/Wails boundary (jd_offline degradation,

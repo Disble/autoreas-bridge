@@ -36,6 +36,13 @@ import (
 // active run").
 var ErrRunInProgress = errors.New("schedule: a download run is already in progress")
 
+// ErrNoEnabledWeekday is returned by nextDailyBoundaryAfter when the weekday mask has no bit
+// set (an explicit empty set) or no enabled weekday is found within 7 day-advancements (which,
+// since a byte mask has only 7 distinct weekday bits, is equivalent to an empty mask -- design
+// download-schedule-weekdays "Empty Weekday Set Disables Scheduling"). The loop() caller treats
+// this identically to the existing !cfg.Enabled / parse-error idle-recheck path: it never fires.
+var ErrNoEnabledWeekday = errors.New("schedule: no enabled weekday in mask")
+
 const (
 	// defaultIdleInterval is how often a disabled (or misconfigured) schedule is re-checked
 	// so a UI enable/edit takes effect without an app restart (design.md §6 "Mechanics").
@@ -323,9 +330,12 @@ func (s *scheduler) loop(ctx context.Context) {
 			continue
 		}
 
-		next, err := nextDailyBoundaryAfter(s.clock.Now(), cfg.DailyTimeHHMM, s.clock.Now().Location())
+		next, err := nextDailyBoundaryAfter(s.clock.Now(), cfg.DailyTimeHHMM, cfg.EnabledWeekdays, s.clock.Now().Location())
 		if err != nil {
-			s.logf("schedule: invalid daily_time_hhmm %q, retrying after idle interval: %v", cfg.DailyTimeHHMM, err)
+			// ErrNoEnabledWeekday (empty weekday set) is treated the SAME as a disabled
+			// schedule or a parse error -- idle re-check, never fire (design.md "Empty Weekday
+			// Set Disables Scheduling").
+			s.logf("schedule: cannot compute next boundary for daily_time_hhmm %q, retrying after idle interval: %v", cfg.DailyTimeHHMM, err)
 			if !s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) {
 				return
 			}
@@ -387,12 +397,24 @@ func (s *scheduler) logf(format string, args ...any) {
 
 var _ Scheduler = (*scheduler)(nil)
 
+// maxWeekdayAdvancementIterations bounds the day-by-day search for an enabled weekday at 7 --
+// a byte mask has exactly 7 distinct weekday bits, so 7 iterations is always enough to either
+// land on an enabled day or conclusively determine the mask has none set (design.md "Bounded
+// Next-Run Advancement").
+const maxWeekdayAdvancementIterations = 7
+
 // nextDailyBoundaryAfter computes the next instant at which the wall-clock time hhmm (format
-// "HH:MM", 24h) occurs strictly after `now`, interpreted in `loc` (design.md §6 "compute the
-// next daily_time_hhmm boundary"). If hhmm has already passed today (or equals `now` exactly),
-// it rolls to tomorrow -- a boundary that is exactly "now" is, by definition, the next due
-// tick, not the current instant, so it must roll forward to remain a future boundary.
-func nextDailyBoundaryAfter(now time.Time, hhmm string, loc *time.Location) (time.Time, error) {
+// "HH:MM", 24h) occurs strictly after `now`, interpreted in `loc`, AND lands on a weekday
+// enabled in `mask` (design.md §6 "compute the next daily_time_hhmm boundary"; SDD
+// download-schedule-weekdays design "nextDailyBoundaryAfter gains the mask and iterates <=7
+// days"). If hhmm has already passed today (or equals `now` exactly), it rolls to tomorrow --
+// a boundary that is exactly "now" is, by definition, the next due tick, not the current
+// instant, so it must roll forward to remain a future boundary. mask is a 7-bit weekday set
+// (bit i = time.Weekday(i), bit0=Sunday..bit6=Saturday); once the same-day-or-rolled candidate
+// is computed, the function advances day-by-day (capped at maxWeekdayAdvancementIterations)
+// until it lands on a bit set in mask. An empty mask (or no match within the cap, which for a
+// 7-bit mask is equivalent to empty) returns ErrNoEnabledWeekday.
+func nextDailyBoundaryAfter(now time.Time, hhmm string, mask byte, loc *time.Location) (time.Time, error) {
 	hour, minute, err := parseHHMM(hhmm)
 	if err != nil {
 		return time.Time{}, err
@@ -405,7 +427,14 @@ func nextDailyBoundaryAfter(now time.Time, hhmm string, loc *time.Location) (tim
 		candidate = candidate.AddDate(0, 0, 1)
 	}
 
-	return candidate, nil
+	for i := 0; i < maxWeekdayAdvancementIterations; i++ {
+		if mask&(1<<uint(candidate.Weekday())) != 0 {
+			return candidate, nil
+		}
+		candidate = candidate.AddDate(0, 0, 1)
+	}
+
+	return time.Time{}, ErrNoEnabledWeekday
 }
 
 // parseHHMM parses a strict 24h "HH:MM" string (design §3.6 ScheduleConfig.DailyTimeHHMM).

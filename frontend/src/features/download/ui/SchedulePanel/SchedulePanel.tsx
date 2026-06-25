@@ -1,15 +1,17 @@
-import { Card, Chip, Input, Label, Skeleton, Switch, TextField } from '@heroui/react';
+import { Alert, Card, Chip, Input, Label, Skeleton, Switch, TextField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { useSchedulePanel } from './use-schedule-panel';
+import { WEEKDAY_OPTIONS } from './schedule-panel.constants';
+import { weekdayValuesToMask } from './schedule-panel.helpers';
 import type { SchedulePanelProps } from './schedule-panel.types';
 
 /**
  * SchedulePanel renders the in-process scheduler's enabled toggle, daily
- * run time, and live next/last-run status. All Wails calls and persistence
- * logic live in the colocated `useSchedulePanel` hook; this component is
- * presentation-only.
+ * run time, weekday restriction, and live next/last-run status. All Wails
+ * calls and persistence logic live in the colocated `useSchedulePanel` hook;
+ * this component is presentation-only.
  */
 export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
-  const { status, viewModel, isSaving, saveErrorMessage, setEnabled, setDailyTime } = useSchedulePanel();
+  const { status, viewModel, isSaving, saveErrorMessage, setEnabled, setDailyTime, setWeekdays } = useSchedulePanel();
 
   if (status === 'loading') {
     return (
@@ -32,7 +34,7 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
     <Card className={className}>
       <Card.Header>
         <Card.Title>Download schedule</Card.Title>
-        <Card.Description>Automatically check for new episodes once a day.</Card.Description>
+        <Card.Description>Automatically check for new episodes on the selected days.</Card.Description>
       </Card.Header>
       <Card.Content className="flex flex-col gap-4">
         {saveErrorMessage !== undefined && (
@@ -62,6 +64,35 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
             onChange={(event) => setDailyTime(event.target.value)}
           />
         </TextField>
+
+        <div className="flex flex-col gap-2">
+          <Label>Run on these days</Label>
+          <ToggleButtonGroup
+            aria-label="Days of the week the schedule runs on"
+            isDetached
+            isDisabled={isSaving || !viewModel.enabled}
+            onSelectionChange={(keys) => setWeekdays(weekdayValuesToMask([...keys].map(String)))}
+            selectedKeys={viewModel.selectedWeekdayValues}
+            selectionMode="multiple"
+            size="sm"
+          >
+            {WEEKDAY_OPTIONS.map((option) => (
+              <ToggleButton id={option.value} key={option.value}>
+                {option.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
+
+        {viewModel.willNeverRun && (
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>No days selected</Alert.Title>
+              <Alert.Description>The schedule is enabled but won&apos;t run until you pick at least one day.</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
 
         <div className="flex flex-col gap-1 text-sm text-muted">
           <div className="flex items-center gap-2">

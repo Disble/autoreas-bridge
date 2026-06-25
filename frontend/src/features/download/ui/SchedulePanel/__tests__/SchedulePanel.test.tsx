@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SchedulePanel } from '../SchedulePanel';
 import { useSchedulePanel } from '../use-schedule-panel';
+import type { SchedulePanelViewModel } from '../schedule-panel.types';
 
 vi.mock('../use-schedule-panel', () => ({
   useSchedulePanel: vi.fn(),
@@ -9,14 +10,32 @@ vi.mock('../use-schedule-panel', () => ({
 
 const mockedUseSchedulePanel = vi.mocked(useSchedulePanel);
 
-const baseViewModel = {
+const baseViewModel: SchedulePanelViewModel = {
   enabled: true,
   dailyTimeHHMM: '03:30',
   running: false,
   lastRunLabel: '1/1/2024, 12:00:00 AM',
   lastRunStatus: 'ok',
   nextRunLabel: '1/2/2024, 12:00:00 AM',
+  enabledWeekdays: 127,
+  selectedWeekdayValues: ['1', '2', '3', '4', '5', '6', '0'],
+  willNeverRun: false,
 };
+
+type HookReturn = ReturnType<typeof useSchedulePanel>;
+
+function mockHook(overrides: Partial<HookReturn> = {}): void {
+  mockedUseSchedulePanel.mockReturnValue({
+    status: 'ready',
+    viewModel: baseViewModel,
+    isSaving: false,
+    saveErrorMessage: undefined,
+    setEnabled: vi.fn(),
+    setDailyTime: vi.fn(),
+    setWeekdays: vi.fn(),
+    ...overrides,
+  });
+}
 
 describe('SchedulePanel', () => {
   afterEach(() => {
@@ -24,14 +43,7 @@ describe('SchedulePanel', () => {
   });
 
   it('renders a loading skeleton while the status is "loading"', () => {
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'loading',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled: vi.fn(),
-      setDailyTime: vi.fn(),
-    });
+    mockHook({ status: 'loading' });
 
     render(<SchedulePanel />);
 
@@ -39,14 +51,7 @@ describe('SchedulePanel', () => {
   });
 
   it('renders an error message when the status is "error"', () => {
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'error',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled: vi.fn(),
-      setDailyTime: vi.fn(),
-    });
+    mockHook({ status: 'error' });
 
     render(<SchedulePanel />);
 
@@ -54,14 +59,7 @@ describe('SchedulePanel', () => {
   });
 
   it('renders last/next run labels and status', () => {
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'ready',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled: vi.fn(),
-      setDailyTime: vi.fn(),
-    });
+    mockHook();
 
     render(<SchedulePanel />);
 
@@ -71,14 +69,7 @@ describe('SchedulePanel', () => {
   });
 
   it('shows a "Running now" indicator when running is true', () => {
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'ready',
-      viewModel: { ...baseViewModel, running: true },
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled: vi.fn(),
-      setDailyTime: vi.fn(),
-    });
+    mockHook({ viewModel: { ...baseViewModel, running: true } });
 
     render(<SchedulePanel />);
 
@@ -87,14 +78,7 @@ describe('SchedulePanel', () => {
 
   it('calls setEnabled when the enabled switch is toggled', () => {
     const setEnabled = vi.fn();
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'ready',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled,
-      setDailyTime: vi.fn(),
-    });
+    mockHook({ setEnabled });
 
     render(<SchedulePanel />);
 
@@ -105,14 +89,7 @@ describe('SchedulePanel', () => {
 
   it('calls setDailyTime when the time input changes', () => {
     const setDailyTime = vi.fn();
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'ready',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: undefined,
-      setEnabled: vi.fn(),
-      setDailyTime,
-    });
+    mockHook({ setDailyTime });
 
     render(<SchedulePanel />);
 
@@ -121,15 +98,38 @@ describe('SchedulePanel', () => {
     expect(setDailyTime).toHaveBeenCalledWith('05:00');
   });
 
+  it('renders a weekday toggle for each day', () => {
+    mockHook();
+
+    render(<SchedulePanel />);
+
+    for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('calls setWeekdays with the updated mask when a day is toggled off', () => {
+    const setWeekdays = vi.fn();
+    mockHook({ setWeekdays });
+
+    render(<SchedulePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sun' }));
+
+    // Starting from all-days (127), deselecting Sunday (bit 0) yields 126.
+    expect(setWeekdays).toHaveBeenCalledWith(126);
+  });
+
+  it('shows a warning when the schedule is enabled but no day is selected', () => {
+    mockHook({ viewModel: { ...baseViewModel, willNeverRun: true, selectedWeekdayValues: [] } });
+
+    render(<SchedulePanel />);
+
+    expect(screen.getByText(/no days selected/i)).toBeInTheDocument();
+  });
+
   it('shows a save error message when saveErrorMessage is set', () => {
-    mockedUseSchedulePanel.mockReturnValue({
-      status: 'ready',
-      viewModel: baseViewModel,
-      isSaving: false,
-      saveErrorMessage: 'save failed',
-      setEnabled: vi.fn(),
-      setDailyTime: vi.fn(),
-    });
+    mockHook({ saveErrorMessage: 'save failed' });
 
     render(<SchedulePanel />);
 

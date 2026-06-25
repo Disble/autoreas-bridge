@@ -112,10 +112,14 @@ func (s *fakeConfigStore) MarkScheduleRun(_ context.Context, lastAtMs int64, sta
 
 // --- 5.1: enabled/disabled gating + next-boundary computation -------------------------------
 
+// allWeekdaysMask mirrors design.md's all-days bitmask (bit0=Sunday..bit6=Saturday, 127 =
+// 0b1111111) -- used throughout these tests to assert all-days parity with legacy behavior.
+const allWeekdaysMask byte = 127
+
 func TestNextDailyBoundaryAfterReturnsTodayWhenTimeNotYetPassed(t *testing.T) {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,7 +133,7 @@ func TestNextDailyBoundaryAfterReturnsTodayWhenTimeNotYetPassed(t *testing.T) {
 func TestNextDailyBoundaryAfterRollsToTomorrowWhenTimeAlreadyPassedToday(t *testing.T) {
 	now := time.Date(2026, 6, 22, 15, 0, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,7 +147,7 @@ func TestNextDailyBoundaryAfterRollsToTomorrowWhenTimeAlreadyPassedToday(t *test
 func TestNextDailyBoundaryAfterIsExactlyNowRollsToTomorrow(t *testing.T) {
 	now := time.Date(2026, 6, 22, 14, 30, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +161,7 @@ func TestNextDailyBoundaryAfterIsExactlyNowRollsToTomorrow(t *testing.T) {
 func TestNextDailyBoundaryAfterRejectsMalformedHHMM(t *testing.T) {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 
-	if _, err := nextDailyBoundaryAfter(now, "not-a-time", now.Location()); err == nil {
+	if _, err := nextDailyBoundaryAfter(now, "not-a-time", allWeekdaysMask, now.Location()); err == nil {
 		t.Fatal("expected an error for a malformed HH:MM string, got nil")
 	}
 }
@@ -173,11 +177,11 @@ func TestNextDailyBoundaryAfterIsTimezoneSaneAcrossLocations(t *testing.T) {
 		t.Skipf("tzdata unavailable in this environment: %v", err)
 	}
 
-	nextUTC, err := nextDailyBoundaryAfter(utc, "09:00", time.UTC)
+	nextUTC, err := nextDailyBoundaryAfter(utc, "09:00", allWeekdaysMask, time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error (UTC): %v", err)
 	}
-	nextNY, err := nextDailyBoundaryAfter(utc.In(tzNY), "09:00", tzNY)
+	nextNY, err := nextDailyBoundaryAfter(utc.In(tzNY), "09:00", allWeekdaysMask, tzNY)
 	if err != nil {
 		t.Fatalf("unexpected error (NY): %v", err)
 	}
@@ -187,6 +191,96 @@ func TestNextDailyBoundaryAfterIsTimezoneSaneAcrossLocations(t *testing.T) {
 	}
 	if nextNY.Location().String() != tzNY.String() {
 		t.Fatalf("boundary location = %v, want %v", nextNY.Location(), tzNY)
+	}
+}
+
+// --- Weekday-mask cases (SDD download-schedule-weekdays) --------------------------------------
+
+func TestNextDailyBoundaryAfterWeekdayMaskCases(t *testing.T) {
+	// 2026-06-22 is a Monday (time.Weekday Monday=1); 2026-06-24 is Wednesday (3);
+	// 2026-06-25 is Thursday (4).
+	loc := time.UTC
+
+	tests := []struct {
+		name string
+		now  time.Time
+		hhmm string
+		mask byte
+		want time.Time
+	}{
+		{
+			name: "today enabled and before configured time -> same-day candidate, zero advancement",
+			now:  time.Date(2026, 6, 24, 8, 0, 0, 0, loc), // Wednesday
+			hhmm: "14:30",
+			mask: 1 << time.Wednesday,
+			want: time.Date(2026, 6, 24, 14, 30, 0, 0, loc),
+		},
+		{
+			name: "today disabled, next enabled day later in week -> advances day-by-day",
+			now:  time.Date(2026, 6, 25, 8, 0, 0, 0, loc), // Thursday
+			hhmm: "09:00",
+			mask: 1 << time.Saturday,
+			want: time.Date(2026, 6, 27, 9, 0, 0, 0, loc), // Saturday
+		},
+		{
+			name: "wrap across week boundary: only Wednesday enabled, today Thursday -> next Wednesday",
+			now:  time.Date(2026, 6, 25, 8, 0, 0, 0, loc), // Thursday
+			hhmm: "09:00",
+			mask: 1 << time.Wednesday,
+			want: time.Date(2026, 7, 1, 9, 0, 0, 0, loc), // following Wednesday
+		},
+		{
+			name: "all-7-bits mask -> identical fire timing to legacy daily behavior (today, before time)",
+			now:  time.Date(2026, 6, 22, 8, 0, 0, 0, loc), // Monday
+			hhmm: "09:00",
+			mask: allWeekdaysMask,
+			want: time.Date(2026, 6, 22, 9, 0, 0, 0, loc),
+		},
+		{
+			name: "all-7-bits mask -> identical fire timing to legacy daily behavior (time already passed, rolls to tomorrow)",
+			now:  time.Date(2026, 6, 22, 10, 0, 0, 0, loc), // Monday
+			hhmm: "09:00",
+			mask: allWeekdaysMask,
+			want: time.Date(2026, 6, 23, 9, 0, 0, 0, loc),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := nextDailyBoundaryAfter(tc.now, tc.hhmm, tc.mask, loc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !got.Equal(tc.want) {
+				t.Fatalf("next boundary = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNextDailyBoundaryAfterReturnsErrNoEnabledWeekdayForEmptyMask(t *testing.T) {
+	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+
+	_, err := nextDailyBoundaryAfter(now, "09:00", 0, now.Location())
+	if !errors.Is(err, ErrNoEnabledWeekday) {
+		t.Fatalf("expected ErrNoEnabledWeekday for an empty mask, got %v", err)
+	}
+}
+
+func TestNextDailyBoundaryAfterAdvancementIsCappedAtSevenIterations(t *testing.T) {
+	// A mask with exactly one bit set requires AT MOST 7 day-advancements to find it (it is
+	// guaranteed to be found within a week) -- this exercises the boundary case at the cap
+	// without ever exceeding it.
+	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC) // Monday, AFTER the target time
+	mask := byte(1 << time.Monday)
+
+	got, err := nextDailyBoundaryAfter(now, "09:00", mask, now.Location())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := time.Date(2026, 6, 29, 9, 0, 0, 0, time.UTC) // next Monday, exactly 7 days later
+	if !got.Equal(want) {
+		t.Fatalf("next boundary = %v, want %v (advancement must be capped at 7 iterations)", got, want)
 	}
 }
 
@@ -228,9 +322,53 @@ func TestSchedulerDoesNotInvokeRunCallbackWhenScheduleDisabled(t *testing.T) {
 	}
 }
 
+// TestSchedulerNeverFiresWhenEnabledWeekdaysMaskIsEmpty asserts the loop() ErrNoEnabledWeekday
+// path is handled identically to the existing !cfg.Enabled / parse-error idle-recheck path: an
+// enabled schedule with an EMPTY weekday mask must idle-poll and NEVER invoke run (design.md
+// "Empty Weekday Set Disables Scheduling"; SDD download-schedule-weekdays design "loop() ...
+// on ErrNoEnabledWeekday it takes the SAME path as !cfg.Enabled / parse-error").
+func TestSchedulerNeverFiresWhenEnabledWeekdaysMaskIsEmpty(t *testing.T) {
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: 0}}
+	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
+
+	var calls int32
+	var mu sync.Mutex
+	run := func(_ context.Context, _ string) error {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return nil
+	}
+
+	sched := NewScheduler(Deps{
+		Store: store,
+		Clock: clock,
+		Run:   run,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sched.Start(ctx)
+
+	// Drive at least one idle-poll iteration: an empty weekday mask must produce an idle
+	// timer (the ErrNoEnabledWeekday path), not a due-boundary timer, and firing it must NEVER
+	// invoke run.
+	waitForTimer(t, clock)
+	clock.lastTimer().fire(clock.Now())
+
+	waitForTimer(t, clock)
+	cancel()
+	sched.Stop()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("run callback invoked %d times with an empty weekday mask, want 0", calls)
+	}
+}
+
 func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
-	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00"}}
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
 	clock := newFakeClock(now)
 
 	called := make(chan string, 1)
@@ -279,7 +417,7 @@ func waitForTimer(t *testing.T, clock *fakeClock) {
 
 func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
 	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
-	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00"}}
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
 	clock := newFakeClock(now)
 
 	release := make(chan struct{})
