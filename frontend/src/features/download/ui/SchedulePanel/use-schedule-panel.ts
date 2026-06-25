@@ -47,7 +47,16 @@ export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntime
       setSaveErrorMessage(undefined);
 
       try {
-        await source.setScheduleConfig(toScheduleSaveRequest(config, edits));
+        const result = await source.setScheduleConfig(toScheduleSaveRequest(config, edits));
+
+        // The Wails binding reports outcome as a string ("ok" or a human-readable
+        // reason) rather than throwing, so a non-"ok" result must be surfaced
+        // explicitly — otherwise a rejected save reverts silently with no feedback.
+        if (result !== 'ok') {
+          setSaveErrorMessage(result || 'Failed to save schedule config');
+          return;
+        }
+
         await refresh();
       } catch (error) {
         setSaveErrorMessage(error instanceof Error ? error.message : 'Failed to save schedule config');

@@ -95,6 +95,36 @@ describe('useSchedulePanel', () => {
     );
   });
 
+  it('surfaces the backend reason when setScheduleConfig resolves a non-"ok" result', async () => {
+    const source = createSource({ setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable') });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setEnabled(true);
+    });
+
+    expect(result.current.saveErrorMessage).toBe('download store unavailable');
+  });
+
+  it('does not flip the view model when the save is rejected by a non-"ok" result', async () => {
+    const source = createSource({
+      getScheduleConfig: vi.fn().mockResolvedValue({ ...baseConfig, enabled: false }),
+      setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable'),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setEnabled(true);
+    });
+
+    expect(result.current.viewModel.enabled).toBe(false);
+    expect(source.getScheduleConfig).toHaveBeenCalledTimes(1); // no refresh after a failed save
+  });
+
   it('surfaces a saveErrorMessage when setScheduleConfig rejects, without crashing', async () => {
     const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('save failed')) });
     const { result } = renderHook(() => useSchedulePanel(source));
