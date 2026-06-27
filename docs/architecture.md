@@ -80,5 +80,6 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 - Los módulos complejos de UI deben vivir bajo `frontend/src/features/` con colocation estricta (`index.ts`, `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, opcional `*.schema.ts`, y `__tests__/`).
 - Los `.tsx` de `frontend/src/features/` son **dumb UI**: HeroUI React + Tailwind, sin Wails bindings, sin `useEffect`, sin lógica de negocio.
 - Los hooks (`use-*.ts`) concentran orquestación, efectos y acceso a bindings Wails siguiendo la anatomía estricta definida en `AGENTS.md`.
+- Las pantallas que renderizan estado de runtime compartido usan read-models de Zustand en `frontend/src/shared/store/`. Los Wails bindings siguen encapsulados en `frontend/src/infrastructure/*-source.ts`; el store centraliza snapshots, selección e invalidación por eventos. Downloads usa `download-runtime-store` para que Schedule y Run History reaccionen al mismo flujo `download.run_started` / `download.run_progress` / `download.run_finished` sin duplicar suscripciones ni reglas de refresco por panel.
 - Los helpers exportados requieren JSDoc y las props en `*.types.ts` deben ser `readonly`.
 - Cuando haga falta scaffolding de una feature nueva, debe usarse `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` en vez de crear carpetas complejas manualmente.

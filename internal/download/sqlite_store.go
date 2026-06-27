@@ -357,6 +357,46 @@ func (s *SQLiteStore) OpenRun(ctx context.Context, run DownloadRun) error {
 	return nil
 }
 
+// UpdateRunProgress refreshes the non-terminal counters of a running row without setting
+// finished_at_ms or pruning history. FinalizeRun remains the only terminal transition.
+func (s *SQLiteStore) UpdateRunProgress(ctx context.Context, run DownloadRun) error {
+	manualLinksJSON, err := encodeManualLinks(run.ManualLinks)
+	if err != nil {
+		return fmt.Errorf("encode progress manual links for run %q: %w", run.RunID, err)
+	}
+
+	jdAvailable := 0
+	if run.JDAvailable {
+		jdAvailable = 1
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE download_runs SET
+			animes_checked = ?,
+			episodes_found = ?,
+			episodes_downloaded = ?,
+			episodes_failed = ?,
+			skipped_count = ?,
+			jd_available = ?,
+			error_summary = ?,
+			manual_links_json = ?
+		WHERE run_id = ? AND finished_at_ms IS NULL
+	`, run.AnimesChecked, run.EpisodesFound, run.EpisodesDownloaded, run.EpisodesFailed,
+		run.SkippedCount, jdAvailable, nullableString(run.ErrorSummary), manualLinksJSON, run.RunID)
+	if err != nil {
+		return fmt.Errorf("update run progress %q: %w", run.RunID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update run progress %q rows affected: %w", run.RunID, err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("update run progress %q: no running run found with that run_id", run.RunID)
+	}
+	return nil
+}
+
 // FinalizeRun writes the terminal row AND prunes download_runs to the most-recent
 // config.RunRetentionLimit (200) rows, in the SAME transaction (design §4.5/§8, ADR-RETENTION).
 func (s *SQLiteStore) FinalizeRun(ctx context.Context, run DownloadRun) error {

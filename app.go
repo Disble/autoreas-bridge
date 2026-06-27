@@ -83,6 +83,12 @@ type App struct {
 const observabilityEventName = "observability.log"
 const pairingTokenConsumedEventName = "pairing.token-consumed"
 
+var downloadRuntimeEventNames = [...]string{
+	events.EventNameDownloadRunStarted,
+	events.EventNameDownloadRunProgress,
+	events.EventNameDownloadRunFinished,
+}
+
 func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...interface{}) {
 	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
 		return
@@ -313,6 +319,7 @@ func (a *App) startup(ctx context.Context) {
 	if a.eventBus == nil {
 		a.eventBus = events.NewInstrumentedBus(events.NewBus(), a.sharedLogger)
 	}
+	a.registerDownloadRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	a.trayManager = a.newTrayManager()
@@ -503,12 +510,12 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 	a.downloadScheduler = a.newDownloadScheduler(schedule.Deps{
 		Store: a.downloadStore,
 		Clock: schedule.NewRealClock(),
-		Run: func(runCtx context.Context, trigger string) error {
+		Run: func(runCtx context.Context, trigger string) (string, error) {
 			if a.downloadService == nil {
-				return nil
+				return "", nil
 			}
-			_, err := a.downloadService.RunOnce(runCtx, trigger)
-			return err
+			result, err := a.downloadService.RunOnce(runCtx, trigger)
+			return result.Status, err
 		},
 		Log: a.sharedLogger,
 	})
@@ -527,6 +534,25 @@ func (a *App) downloadJDDeviceName(ctx context.Context) string {
 		return ""
 	}
 	return cfg.DeviceName
+}
+
+func (a *App) registerDownloadRuntimeEventBridge(ctx context.Context) {
+	if a.eventBus == nil || a.emitFn == nil {
+		return
+	}
+	for _, eventName := range downloadRuntimeEventNames {
+		eventName := eventName
+		a.eventBus.Subscribe(eventName, func(event events.Event) {
+			emitCtx := a.ctx
+			if emitCtx == nil {
+				emitCtx = ctx
+			}
+			if emitCtx == nil || a.emitFn == nil {
+				return
+			}
+			a.emitFn(emitCtx, event.Name(), event)
+		})
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {

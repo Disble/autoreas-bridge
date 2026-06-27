@@ -89,6 +89,12 @@ func (c *fakeClock) lastTimer() *fakeTimer {
 	return c.timers[len(c.timers)-1]
 }
 
+func (c *fakeClock) timerCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.timers)
+}
+
 // fakeConfigStore is an in-memory ConfigReader/ConfigWriter fake (no SQLite dependency).
 type fakeConfigStore struct {
 	mu  sync.Mutex
@@ -290,11 +296,11 @@ func TestSchedulerDoesNotInvokeRunCallbackWhenScheduleDisabled(t *testing.T) {
 
 	var calls int32
 	var mu sync.Mutex
-	run := func(_ context.Context, _ string) error {
+	run := func(_ context.Context, _ string) (string, error) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{
@@ -333,11 +339,11 @@ func TestSchedulerNeverFiresWhenEnabledWeekdaysMaskIsEmpty(t *testing.T) {
 
 	var calls int32
 	var mu sync.Mutex
-	run := func(_ context.Context, _ string) error {
+	run := func(_ context.Context, _ string) (string, error) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{
@@ -372,9 +378,9 @@ func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 	clock := newFakeClock(now)
 
 	called := make(chan string, 1)
-	run := func(_ context.Context, trigger string) error {
+	run := func(_ context.Context, trigger string) (string, error) {
 		called <- trigger
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -398,6 +404,92 @@ func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 	}
 }
 
+func TestSchedulerReReadsConfigImmediatelyAfterScheduleSave(t *testing.T) {
+	now := time.Date(2026, 6, 22, 9, 59, 15, 0, time.UTC)
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
+	clock := newFakeClock(now)
+
+	called := make(chan string, 1)
+	run := func(_ context.Context, trigger string) (string, error) {
+		called <- trigger
+		return "ok", nil
+	}
+
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+
+	waitForTimer(t, clock)
+	firstTimerCount := clock.timerCount()
+
+	store.mu.Lock()
+	store.cfg.Enabled = true
+	store.mu.Unlock()
+	sched.NotifyConfigChanged()
+	waitForTimerCount(t, clock, firstTimerCount+1)
+
+	clock.set(time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC))
+	clock.lastTimer().fire(clock.Now())
+
+	select {
+	case trigger := <-called:
+		if trigger != "scheduled" {
+			t.Fatalf("trigger = %q, want scheduled", trigger)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for scheduled run after config-change wakeup")
+	}
+}
+
+func TestScheduledTickMarksLastRunAfterCompletion(t *testing.T) {
+	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
+	clock := newFakeClock(now)
+
+	sched := NewScheduler(Deps{
+		Store: store,
+		Clock: clock,
+		Run: func(_ context.Context, trigger string) (string, error) {
+			if trigger != "scheduled" {
+				t.Fatalf("trigger = %q, want scheduled", trigger)
+			}
+			return "partial", nil
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+
+	waitForTimer(t, clock)
+	firedAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+	clock.set(firedAt)
+	clock.lastTimer().fire(clock.Now())
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		lastRunAtMs := store.cfg.LastRunAtMs
+		lastRunStatus := store.cfg.LastRunStatus
+		nextRunAtMs := store.cfg.NextRunAtMs
+		store.mu.Unlock()
+
+		if lastRunAtMs == firedAt.UnixMilli() && lastRunStatus == "partial" && nextRunAtMs > firedAt.UnixMilli() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	t.Fatalf("scheduled run mark = lastAt %d status %q nextAt %d, want lastAt %d status partial and future nextAt",
+		store.cfg.LastRunAtMs, store.cfg.LastRunStatus, store.cfg.NextRunAtMs, firedAt.UnixMilli())
+}
+
 // waitForTimer polls (real, short, bounded) until the fake clock has created at least one
 // timer. This is necessary because Start() launches a goroutine and we must synchronize with
 // it without sleeping on the FAKE clock (which only the scheduler advances logically).
@@ -413,6 +505,18 @@ func waitForTimer(t *testing.T, clock *fakeClock) {
 	t.Fatal("timed out waiting for scheduler to create a timer")
 }
 
+func waitForTimerCount(t *testing.T, clock *fakeClock, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if clock.timerCount() >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for scheduler to create timer #%d", want)
+}
+
 // --- 5.3: concurrent-run guard ----------------------------------------------------------------
 
 func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
@@ -422,13 +526,13 @@ func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
 
 	release := make(chan struct{})
 	started := make(chan string, 4)
-	run := func(ctx context.Context, trigger string) error {
+	run := func(ctx context.Context, trigger string) (string, error) {
 		started <- trigger
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -473,12 +577,12 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
 	release := make(chan struct{})
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -512,6 +616,45 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 	close(release)
 }
 
+func TestTriggerNowReturnsAfterAcceptingRunWithoutWaitingForCompletion(t *testing.T) {
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false}}
+	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
+
+	release := make(chan struct{})
+	runStarted := make(chan struct{})
+	run := func(ctx context.Context, _ string) (string, error) {
+		close(runStarted)
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return "ok", nil
+	}
+
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+	waitForTimer(t, clock)
+
+	if err := sched.TriggerNow(context.Background(), "manual"); err != nil {
+		t.Fatalf("TriggerNow error = %v, want nil", err)
+	}
+
+	select {
+	case <-runStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for accepted manual run to start")
+	}
+	if !sched.Status(context.Background()).Running {
+		t.Fatal("expected TriggerNow to leave an observable running state before completion")
+	}
+
+	close(release)
+}
+
 // --- 5.5/5.6: bounded Stop() drain + run max-duration guard -----------------------------------
 
 func TestStopReturnsWithinDrainBoundEvenWithAnInFlightRun(t *testing.T) {
@@ -519,10 +662,10 @@ func TestStopReturnsWithinDrainBoundEvenWithAnInFlightRun(t *testing.T) {
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
 	runStarted := make(chan struct{})
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		close(runStarted)
 		<-ctx.Done() // honors cancellation -- never returns on its own in this test
-		return ctx.Err()
+		return "error", ctx.Err()
 	}
 
 	sched := NewScheduler(Deps{
@@ -564,9 +707,9 @@ func TestRunExceedingMaxDurationReleasesTheConcurrentRunGuard(t *testing.T) {
 	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false}}
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		<-ctx.Done() // simulates a wedged run; only the max-duration deadline unblocks it
-		return ctx.Err()
+		return "error", ctx.Err()
 	}
 
 	sched := NewScheduler(Deps{
@@ -615,7 +758,7 @@ func TestNextLastRunAccessorsReflectScheduleConfigAfterMarkScheduleRun(t *testin
 	}}
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
-	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: func(context.Context, string) error { return nil }})
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: func(context.Context, string) (string, error) { return "ok", nil }})
 
 	status := sched.Status(context.Background())
 	if status.LastRunAtMs != 1000 || status.LastRunStatus != "ok" || status.NextRunAtMs != 2000 {

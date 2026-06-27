@@ -200,6 +200,7 @@ type svcFakeDownloadStore struct {
 	jdConfig    JDConfig
 	scheduleCfg ScheduleConfig
 	runs        map[string]DownloadRun
+	progress    []DownloadRun
 	openRunErr  error
 }
 
@@ -299,6 +300,14 @@ func (s *svcFakeDownloadStore) FinalizeRun(ctx context.Context, run DownloadRun)
 	return nil
 }
 
+func (s *svcFakeDownloadStore) UpdateRunProgress(ctx context.Context, run DownloadRun) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runs[run.RunID] = run
+	s.progress = append(s.progress, run)
+	return nil
+}
+
 func (s *svcFakeDownloadStore) ListRuns(ctx context.Context, limit int) ([]DownloadRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -318,6 +327,14 @@ func (s *svcFakeDownloadStore) getRun(runID string) (DownloadRun, bool) {
 	defer s.mu.Unlock()
 	r, ok := s.runs[runID]
 	return r, ok
+}
+
+func (s *svcFakeDownloadStore) progressSnapshots() []DownloadRun {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]DownloadRun, len(s.progress))
+	copy(out, s.progress)
+	return out
 }
 
 var _ DownloadStore = (*svcFakeDownloadStore)(nil)
@@ -407,6 +424,7 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 		{
 			ID:      "anime-ok",
 			Nombre:  "OK Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/ok-anime/"),
 			Carpeta: ptrStr(okFolder),
@@ -414,6 +432,7 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 		{
 			ID:      "anime-broken",
 			Nombre:  "Broken Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/broken-anime/"),
 			Carpeta: ptrStr(t.TempDir()),
@@ -475,6 +494,7 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 		{
 			ID:      "anime-1",
 			Nombre:  "Some Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/anime/"),
 			Carpeta: ptrStr(t.TempDir()),
@@ -538,8 +558,106 @@ func TestRunOnceReturnsNoAnimesTodayWhenNoneActiveToday(t *testing.T) {
 		{
 			ID:      "anime-1",
 			Nombre:  "Not Today Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: otherDia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/anime/"),
+			Carpeta: ptrStr(t.TempDir()),
+		},
+	}}
+
+	svc := NewService(deps)
+	result, err := svc.RunOnce(context.Background(), "scheduled")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != "no_animes_today" {
+		t.Fatalf("expected run status %q, got %q", "no_animes_today", result.Status)
+	}
+}
+
+func TestRunOnceNotifiesWhenRunStarts(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+	deps.Animes = &svcFakeAnimeQuery{}
+
+	svc := NewService(deps)
+	result, err := svc.RunOnce(context.Background(), "manual")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != RunStatusNoAnimesToday {
+		t.Fatalf("expected status %q, got %q", RunStatusNoAnimesToday, result.Status)
+	}
+
+	notifications := notifier.notifications()
+	if len(notifications) == 0 {
+		t.Fatal("expected a run-start notification")
+	}
+	got := notifications[0]
+	if got.Title != "Download run started" {
+		t.Fatalf("expected start notification title, got %q", got.Title)
+	}
+	if got.Level != notification.LevelInfo {
+		t.Fatalf("expected info notification level, got %q", got.Level)
+	}
+	if got.Source != "download" || got.CorrelationID != "run-fixed" {
+		t.Fatalf("unexpected start notification metadata: %#v", got)
+	}
+}
+
+func TestRunOnceMarksScheduledLastRunBeforeFinishedEvent(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	store := deps.Store.(*svcFakeDownloadStore)
+	store.scheduleCfg.NextRunAtMs = 1_800_000_000_000
+	deps.Animes = &svcFakeAnimeQuery{}
+
+	finishedSeen := make(chan ScheduleConfig, 1)
+	deps.Bus.Subscribe(events.EventNameDownloadRunFinished, func(events.Event) {
+		cfg, _ := store.GetScheduleConfig(context.Background())
+		finishedSeen <- cfg
+	})
+
+	svc := NewService(deps)
+	result, err := svc.RunOnce(context.Background(), "scheduled")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != RunStatusNoAnimesToday {
+		t.Fatalf("expected run status %q, got %q", RunStatusNoAnimesToday, result.Status)
+	}
+
+	select {
+	case cfg := <-finishedSeen:
+		if cfg.LastRunAtMs != deps.Clock().UnixMilli() || cfg.LastRunStatus != RunStatusNoAnimesToday {
+			t.Fatalf("schedule config at finished event = %#v, want last run marked with status %q", cfg, RunStatusNoAnimesToday)
+		}
+		if cfg.NextRunAtMs != 1_800_000_000_000 {
+			t.Fatalf("next run changed to %d, want preserved value", cfg.NextRunAtMs)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for download.run_finished event")
+	}
+}
+
+func TestRunOnceReturnsNoAnimesTodayWhenOnlyInactiveAnimeMatchesToday(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	dia := todayDiaName(now)
+
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
+		{
+			ID:      "anime-inactive",
+			Nombre:  "Inactive Today Anime",
+			Activo:  0,
+			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
+			Pagina:  ptrStr("https://jkanime.net/inactive-anime/"),
 			Carpeta: ptrStr(t.TempDir()),
 		},
 	}}
@@ -584,6 +702,7 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 		{
 			ID:      "anime-1",
 			Nombre:  "Some Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/anime/"),
 			Carpeta: ptrStr(destFolder),
@@ -689,6 +808,7 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		{
 			ID:      "anime-movie",
 			Nombre:  "A Movie",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Tipo:    ptrInt(1), // Pelicula -> unsupported, skipped
 			Pagina:  ptrStr("https://jkanime.net/movie/"),
@@ -697,6 +817,7 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		{
 			ID:     "anime-no-folder",
 			Nombre: "No Folder Anime",
+			Activo: 1,
 			Dias:   []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina: ptrStr("https://jkanime.net/no-folder/"),
 			// Carpeta intentionally nil -> missing_carpeta skip
@@ -704,6 +825,7 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		{
 			ID:      "anime-serie",
 			Nombre:  "A Serie",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/serie/"),
 			Carpeta: ptrStr(destFolder),
@@ -780,6 +902,7 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 		{
 			ID:      "anime-1",
 			Nombre:  "Some Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/anime/"),
 			Carpeta: ptrStr(destFolder),
@@ -818,6 +941,62 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 	}
 }
 
+func TestRunOncePersistsProgressBeforeFinalStatus(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	dia := todayDiaName(now)
+
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/anime/": {LatestEpisode: 1, EpisodePageURL: "https://jkanime.net/anime/1/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/anime/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+
+	destFolder := t.TempDir()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:      "anime-1",
+		Nombre:  "Some Anime",
+		Activo:  1,
+		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
+		Pagina:  ptrStr("https://jkanime.net/anime/"),
+		Carpeta: ptrStr(destFolder),
+	}}}
+	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+
+	bus := events.NewBus()
+	progressEvents := 0
+	bus.Subscribe(events.EventNameDownloadRunProgress, func(event events.Event) {
+		progressEvents++
+	})
+	deps.Bus = bus
+
+	svc := NewService(deps)
+	if _, err := svc.RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	snapshots := deps.Store.(*svcFakeDownloadStore).progressSnapshots()
+	if len(snapshots) == 0 {
+		t.Fatal("expected at least one persisted progress snapshot before finalization")
+	}
+	last := snapshots[len(snapshots)-1]
+	if last.AnimesChecked != 1 || last.EpisodesFound != 1 || last.EpisodesDownloaded != 1 {
+		t.Fatalf("expected downloaded episode progress before final status, got %#v", last)
+	}
+	if progressEvents == 0 {
+		t.Fatal("expected download.run_progress to be published for UI refresh")
+	}
+}
+
 // --- notifier failure must not fail the run (fan-out isolation at the Service level) ---
 
 func TestRunOnceSurvivesNotifierFailure(t *testing.T) {
@@ -845,6 +1024,7 @@ func TestRunOnceSurvivesNotifierFailure(t *testing.T) {
 		{
 			ID:      "anime-1",
 			Nombre:  "Some Anime",
+			Activo:  1,
 			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 			Pagina:  ptrStr("https://jkanime.net/anime/"),
 			Carpeta: ptrStr(destFolder),

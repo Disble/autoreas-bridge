@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRunView } from '../../../../shared/contracts/download.types';
+import { connectDownloadRuntimeStore, useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store';
 import { toRunHistoryPanelViewModel } from './run-history-panel.helpers';
-import type { RunHistoryPanelState } from './run-history-panel.types';
 
 /**
  * useRunHistoryPanel loads the download run history and exposes a
@@ -15,14 +14,14 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   // 1. Refs
 
   // 2. State
-  const [state, setState] = useState<RunHistoryPanelState>({
-    runs: [],
-    hasLoaded: false,
-    errorMessage: undefined,
-  });
-  const [selectedRunId, setSelectedRunId] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
+  const runs = useDownloadRuntimeStore((state) => state.runHistory);
+  const hasLoaded = useDownloadRuntimeStore((state) => state.runHistoryHasLoaded);
+  const errorMessage = useDownloadRuntimeStore((state) => state.runHistoryErrorMessage);
+  const selectedRunId = useDownloadRuntimeStore((state) => state.selectedRunId);
+  const refreshRunHistory = useDownloadRuntimeStore((state) => state.refreshRunHistory);
+  const storeSelectRun = useDownloadRuntimeStore((state) => state.selectRun);
 
   // 4. Queries/Mutations
 
@@ -30,38 +29,23 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
 
   // 6. Callbacks (useCallback calling pure helpers)
   const selectRun = useCallback((runId: string) => {
-    setSelectedRunId(runId);
-  }, []);
+    storeSelectRun(runId);
+  }, [storeSelectRun]);
 
   // 7. Effects
   useEffect(() => {
-    let active = true;
-
-    source
-      .listDownloadRuns()
-      .then((nextRuns) => ({ runs: nextRuns, errorMessage: undefined }))
-      .catch((error: unknown) => ({
-        runs: [] as readonly DownloadRunView[],
-        errorMessage: error instanceof Error ? error.message : 'Failed to load download run history',
-      }))
-      .then((outcome) => {
-        if (!active) {
-          return;
-        }
-
-        setState({ runs: outcome.runs, hasLoaded: true, errorMessage: outcome.errorMessage });
-      });
-
-    return () => {
-      active = false;
-    };
+    connectDownloadRuntimeStore(source);
   }, [source]);
 
-  const baseViewModel = toRunHistoryPanelViewModel(state.runs, selectedRunId);
+  useEffect(() => {
+    void refreshRunHistory(source);
+  }, [refreshRunHistory, source]);
+
+  const baseViewModel = toRunHistoryPanelViewModel(runs, selectedRunId);
   const viewModel =
-    state.errorMessage !== undefined
-      ? { ...baseViewModel, status: 'error' as const, errorMessage: state.errorMessage }
-      : !state.hasLoaded
+    errorMessage !== undefined
+      ? { ...baseViewModel, status: 'error' as const, errorMessage }
+      : !hasLoaded
         ? { ...baseViewModel, status: 'loading' as const }
         : baseViewModel;
 

@@ -8,6 +8,7 @@ import (
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/jdownloader"
 	jd "github.com/rkosegi/jdownloader-go/jdownloader"
+	"go.uber.org/zap"
 )
 
 // reconfigurableJDClient wraps the real jdownloader.JDClient adapter behind a lazily
@@ -56,11 +57,15 @@ func (c *reconfigurableJDClient) client(ctx context.Context) (jdownloader.JDClie
 	}
 
 	launcher := jdownloader.NewExeLauncher()
-	client := jd.NewClient(cfg.Email, password, nil)
+	client := newJDownloaderClient(cfg.Email, password)
 	c.inner = jdownloader.New(client, launcher)
 	c.configEmail = cfg.Email
 	c.configDevice = cfg.DeviceName
 	return c.inner, nil
+}
+
+func newJDownloaderClient(email string, password string) jd.JdClient {
+	return jd.NewClient(email, password, zap.NewNop().Sugar())
 }
 
 func (c *reconfigurableJDClient) Connect(ctx context.Context) error {
@@ -246,6 +251,9 @@ func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
 
 	if err := a.downloadStore.SetScheduleConfig(a.downloadCtx(), domainCfg); err != nil {
 		return err.Error()
+	}
+	if a.downloadScheduler != nil {
+		a.downloadScheduler.NotifyConfigChanged()
 	}
 	return "ok"
 }

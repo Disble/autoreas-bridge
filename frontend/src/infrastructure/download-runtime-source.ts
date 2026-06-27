@@ -8,6 +8,7 @@ import {
   SetScheduleConfig,
   TriggerDownloadCheck,
 } from '../../wailsjs/go/main/App';
+import { EventsOn } from '../../wailsjs/runtime/runtime';
 import type {
   DownloadConfig,
   DownloadRunView,
@@ -21,6 +22,7 @@ import type {
 export const DOWNLOAD_BINDINGS_POLL_MS = 50;
 /** Maximum time (ms) to wait for the Wails runtime before degrading to a safe default. */
 export const DOWNLOAD_BINDINGS_TIMEOUT_MS = 5000;
+const DOWNLOAD_RUN_EVENT_NAMES = ['download.run_started', 'download.run_progress', 'download.run_finished'] as const;
 
 const EMPTY_JD_STATUS: JDStatus = {
   email: '',
@@ -53,10 +55,9 @@ let sharedSource: DownloadRuntimeSource | null = null;
 
 /**
  * DownloadRuntimeSource is the request/reply port for every download
- * settings/history Wails binding. No live event subscription lives here —
- * the run-in-progress signal is read by re-polling `getDownloadConfig`/
- * `listDownloadRuns`, and cross-cutting notices arrive via the shared
- * `notification.push` toast surface, not a feature-owned event.
+ * settings/history Wails binding. Run-history freshness comes from the
+ * backend's run lifecycle events, with each event causing a safe re-fetch
+ * through `listDownloadRuns`.
  */
 export interface DownloadRuntimeSource {
   readonly getDownloadConfig: () => Promise<DownloadConfig>;
@@ -67,6 +68,7 @@ export interface DownloadRuntimeSource {
   readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<string>;
   readonly triggerDownloadCheck: () => Promise<string>;
   readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
+  readonly subscribeRunEvents: (listener: () => void) => () => void;
 }
 
 function hasGoBinding(name: string): boolean {
@@ -98,6 +100,10 @@ function waitForBindings(isReady: () => boolean): Promise<boolean> {
   });
 }
 
+function hasRuntimeBindings(): boolean {
+  return Boolean(window.runtime);
+}
+
 /**
  * createDownloadRuntimeSource returns the singleton runtime-backed download
  * source. Degrades to safe empty defaults when the Wails runtime is
@@ -107,6 +113,37 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
   if (sharedSource !== null) {
     return sharedSource;
   }
+
+  const runListeners = new Set<() => void>();
+  let runtimeUnsubscribes: readonly (() => void)[] = [];
+
+  const handleRunEvent = () => {
+    for (const listener of runListeners) {
+      listener();
+    }
+  };
+
+  const releaseRunRuntimeListeners = () => {
+    if (runtimeUnsubscribes.length === 0) {
+      return;
+    }
+
+    const unsubscribes = runtimeUnsubscribes;
+    runtimeUnsubscribes = [];
+    for (const unsubscribe of unsubscribes) {
+      unsubscribe();
+    }
+  };
+
+  const ensureRunRuntimeListeners = () => {
+    void waitForBindings(hasRuntimeBindings).then((isReady) => {
+      if (!isReady || runtimeUnsubscribes.length > 0 || runListeners.size === 0) {
+        return;
+      }
+
+      runtimeUnsubscribes = DOWNLOAD_RUN_EVENT_NAMES.map((eventName) => EventsOn(eventName, handleRunEvent));
+    });
+  };
 
   sharedSource = {
     getDownloadConfig() {
@@ -148,6 +185,25 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
       return waitForBindings(() => hasGoBinding('ListDownloadRuns')).then((isReady) => {
         return isReady ? (ListDownloadRuns() as Promise<readonly DownloadRunView[]>) : Promise.resolve([]);
       });
+    },
+    subscribeRunEvents(listener) {
+      runListeners.add(listener);
+      ensureRunRuntimeListeners();
+
+      let subscribed = true;
+
+      return () => {
+        if (!subscribed) {
+          return;
+        }
+
+        subscribed = false;
+        runListeners.delete(listener);
+
+        if (runListeners.size === 0) {
+          releaseRunRuntimeListeners();
+        }
+      };
     },
   };
 

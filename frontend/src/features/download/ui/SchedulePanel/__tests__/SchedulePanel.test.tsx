@@ -28,10 +28,13 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
   mockedUseSchedulePanel.mockReturnValue({
     status: 'ready',
     viewModel: baseViewModel,
+    dailyTimeDraft: baseViewModel.dailyTimeHHMM,
     isSaving: false,
     saveErrorMessage: undefined,
     setEnabled: vi.fn(),
     setDailyTime: vi.fn(),
+    setDailyTimeDraft: vi.fn(),
+    commitDailyTime: vi.fn(),
     setWeekdays: vi.fn(),
     ...overrides,
   });
@@ -87,15 +90,41 @@ describe('SchedulePanel', () => {
     expect(setEnabled).toHaveBeenCalledWith(false);
   });
 
-  it('calls setDailyTime when the time input changes', () => {
+  it('nests the switch control inside the clickable switch button so the toggle itself is pressable', () => {
+    mockHook();
+
+    const { container } = render(<SchedulePanel />);
+
+    const content = container.querySelector('[data-slot="switch-content"]');
+    const control = container.querySelector('[data-slot="switch-control"]');
+
+    expect(content).not.toBeNull();
+    expect(control).not.toBeNull();
+    expect(content).toContainElement(control as HTMLElement);
+  });
+
+  it('updates the daily time draft while typing without saving immediately', () => {
+    const setDailyTimeDraft = vi.fn();
     const setDailyTime = vi.fn();
-    mockHook({ setDailyTime });
+    mockHook({ setDailyTime, setDailyTimeDraft });
 
     render(<SchedulePanel />);
 
     fireEvent.change(screen.getByLabelText(/daily run time/i), { target: { value: '05:00' } });
 
-    expect(setDailyTime).toHaveBeenCalledWith('05:00');
+    expect(setDailyTimeDraft).toHaveBeenCalledWith('05:00');
+    expect(setDailyTime).not.toHaveBeenCalled();
+  });
+
+  it('commits the daily time when the input loses focus', () => {
+    const commitDailyTime = vi.fn();
+    mockHook({ commitDailyTime });
+
+    render(<SchedulePanel />);
+
+    fireEvent.blur(screen.getByLabelText(/daily run time/i));
+
+    expect(commitDailyTime).toHaveBeenCalledTimes(1);
   });
 
   it('renders a weekday toggle for each day', () => {

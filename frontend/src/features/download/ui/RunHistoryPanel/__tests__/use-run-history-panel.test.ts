@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
+import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store';
 
 const runs: readonly DownloadRunView[] = [
   {
@@ -44,11 +45,16 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     listDownloadRuns: vi.fn().mockResolvedValue(runs),
+    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
 
 describe('useRunHistoryPanel', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+  });
+
   it('starts in the loading status', () => {
     const source = createSource();
     const { result } = renderHook(() => useRunHistoryPanel(source));
@@ -91,5 +97,32 @@ describe('useRunHistoryPanel', () => {
 
     expect(result.current.viewModel.selectedRun?.runId).toBe('run-2');
     expect(result.current.viewModel.selectedRun?.manualLinks).toHaveLength(1);
+  });
+
+  it('reloads runs when a download run lifecycle event invalidates the store', async () => {
+    let listener: (() => void) | undefined;
+    const firstRuns = [runs[0]] as const;
+    const secondRuns = runs;
+    const listDownloadRuns = vi.fn().mockResolvedValueOnce(firstRuns).mockResolvedValueOnce(secondRuns);
+    const unsubscribe = vi.fn();
+    const subscribeRunEvents = vi.fn().mockImplementation((nextListener: () => void) => {
+      listener = nextListener;
+      return unsubscribe;
+    });
+    const source = createSource({ listDownloadRuns, subscribeRunEvents });
+
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(1));
+
+    await act(async () => {
+      listener?.();
+    });
+
+    await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(2));
+    expect(listDownloadRuns).toHaveBeenCalledTimes(2);
+
+    resetDownloadRuntimeStore();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

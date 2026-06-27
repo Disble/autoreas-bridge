@@ -11,7 +11,17 @@ import type { SchedulePanelProps } from './schedule-panel.types';
  * this component is presentation-only.
  */
 export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
-  const { status, viewModel, isSaving, saveErrorMessage, setEnabled, setDailyTime, setWeekdays } = useSchedulePanel();
+  const {
+    status,
+    viewModel,
+    dailyTimeDraft,
+    isSaving,
+    saveErrorMessage,
+    setEnabled,
+    setDailyTimeDraft,
+    commitDailyTime,
+    setWeekdays,
+  } = useSchedulePanel();
 
   if (status === 'loading') {
     return (
@@ -43,15 +53,13 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
           </p>
         )}
 
-        <Switch
-          isDisabled={isSaving}
-          isSelected={viewModel.enabled}
-          onChange={(isSelected) => setEnabled(isSelected)}
-        >
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <Switch.Content aria-label="Enable scheduled downloads">Enable scheduled downloads</Switch.Content>
+        <Switch isDisabled={isSaving} isSelected={viewModel.enabled} onChange={(isSelected) => setEnabled(isSelected)}>
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            Enable scheduled downloads
+          </Switch.Content>
         </Switch>
 
         <TextField>
@@ -60,8 +68,9 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
             disabled={isSaving || !viewModel.enabled}
             fullWidth
             type="time"
-            value={viewModel.dailyTimeHHMM}
-            onChange={(event) => setDailyTime(event.target.value)}
+            value={dailyTimeDraft}
+            onBlur={() => void commitDailyTime()}
+            onChange={(event) => setDailyTimeDraft(event.target.value)}
           />
         </TextField>
 

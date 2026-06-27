@@ -84,7 +84,9 @@ type ConfigStore interface {
 // RunFunc is the injected run-callback seam (design.md §3.9). Phase 6 wires the real
 // download.Service.RunOnce(ctx, trigger) here; trigger is "scheduled" or "manual". The
 // scheduler does NOT depend on download.Service directly -- only on this func signature.
-type RunFunc func(ctx context.Context, trigger string) error
+// The returned status is persisted for scheduled runs so the Schedule panel's Last run state
+// reflects the actual terminal download outcome.
+type RunFunc func(ctx context.Context, trigger string) (string, error)
 
 // Status is the next/last-run/last-status snapshot surfaced to the Wails bindings (Phase 6)
 // and UI (design-scheduler spec "Next-Run/Last-Run/Last-Status Surfaced").
@@ -116,6 +118,7 @@ type Deps struct {
 type Scheduler interface {
 	Start(ctx context.Context)
 	Stop()
+	NotifyConfigChanged()
 	TriggerNow(ctx context.Context, trigger string) error
 	Status(ctx context.Context) Status
 }
@@ -131,6 +134,7 @@ type scheduler struct {
 	maxRunDuration    time.Duration
 
 	running atomic.Bool
+	wake    chan struct{}
 
 	startOnce sync.Once
 	loopDone  chan struct{}
@@ -153,6 +157,7 @@ func NewScheduler(deps Deps) Scheduler {
 		shutdownDrainWait: deps.ShutdownDrainWait,
 		maxRunDuration:    deps.MaxRunDuration,
 		loopDone:          make(chan struct{}),
+		wake:              make(chan struct{}, 1),
 	}
 	if s.idleInterval <= 0 {
 		s.idleInterval = defaultIdleInterval
@@ -164,6 +169,17 @@ func NewScheduler(deps Deps) Scheduler {
 		s.maxRunDuration = defaultMaxRunDuration
 	}
 	return s
+}
+
+// NotifyConfigChanged wakes the scheduler loop so a just-saved schedule is re-read immediately
+// instead of waiting for the disabled/misconfigured idle poll interval. This matters for the UI
+// flow where users set the next run one minute ahead; a 30s idle wait can otherwise miss that
+// minute and roll the next boundary to tomorrow.
+func (s *scheduler) NotifyConfigChanged() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
 }
 
 // Start begins the in-process loop (design.md §6 "Mechanics"). Safe to call once; subsequent
@@ -216,14 +232,18 @@ func (s *scheduler) Stop() {
 	})
 }
 
-// TriggerNow runs an immediate check out-of-band (design.md §3.5), respecting the
-// concurrent-run guard. It returns ErrRunInProgress if a run is already active.
+// TriggerNow starts an immediate check out-of-band (design.md §3.5), respecting the
+// concurrent-run guard. It returns ErrRunInProgress if a run is already active and otherwise
+// returns as soon as the run has been accepted, so UI callers can keep rendering the provisional
+// running row while the pipeline continues in the background.
 func (s *scheduler) TriggerNow(ctx context.Context, trigger string) error {
 	runCtx, doneChan, ok := s.acquire(ctx)
 	if !ok {
 		return ErrRunInProgress
 	}
-	s.executeRun(runCtx, doneChan, trigger)
+	go func() {
+		_, _ = s.executeRun(runCtx, doneChan, trigger)
+	}()
 	return nil
 }
 
@@ -272,7 +292,7 @@ func (s *scheduler) acquire(ctx context.Context) (runCtx context.Context, done c
 // and clears the run bookkeeping exactly once. It is shared by TriggerNow (synchronous caller)
 // and the scheduled-tick path (loop runs it in its own goroutine so the loop can keep ticking
 // — design.md never requires the loop to block on a run's completion before re-arming).
-func (s *scheduler) executeRun(runCtx context.Context, doneChan chan struct{}, trigger string) {
+func (s *scheduler) executeRun(runCtx context.Context, doneChan chan struct{}, trigger string) (string, error) {
 	cancel := func() {
 		s.mu.Lock()
 		c := s.runCancel
@@ -286,13 +306,14 @@ func (s *scheduler) executeRun(runCtx context.Context, doneChan chan struct{}, t
 	defer s.releaseGuard(doneChan)
 
 	if s.run == nil {
-		return
+		return "", nil
 	}
 
-	err := s.run(runCtx, trigger)
+	status, err := s.run(runCtx, trigger)
 	if err != nil {
 		s.logf("schedule: run (trigger=%s) returned an error: %v", trigger, err)
 	}
+	return status, err
 }
 
 // releaseGuard clears the `running` flag and run bookkeeping IF this call owns the current
@@ -317,14 +338,14 @@ func (s *scheduler) loop(ctx context.Context) {
 		cfg, err := s.store.GetScheduleConfig(ctx)
 		if err != nil {
 			s.logf("schedule: failed to read schedule config, retrying after idle interval: %v", err)
-			if !s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) {
+			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
 				return
 			}
 			continue
 		}
 
 		if !cfg.Enabled {
-			if !s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) {
+			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
 				return
 			}
 			continue
@@ -336,14 +357,18 @@ func (s *scheduler) loop(ctx context.Context) {
 			// schedule or a parse error -- idle re-check, never fire (design.md "Empty Weekday
 			// Set Disables Scheduling").
 			s.logf("schedule: cannot compute next boundary for daily_time_hhmm %q, retrying after idle interval: %v", cfg.DailyTimeHHMM, err)
-			if !s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) {
+			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
 				return
 			}
 			continue
 		}
 
-		if !s.sleepUntil(ctx, next) {
+		sleep := s.sleepUntil(ctx, next)
+		if sleep == sleepCancelled {
 			return
+		}
+		if sleep == sleepWoken {
+			continue
 		}
 		if ctx.Err() != nil {
 			return
@@ -362,17 +387,49 @@ func (s *scheduler) fireScheduledTick(ctx context.Context) {
 		s.logf("schedule: scheduled tick skipped -- a run is already in progress")
 		return
 	}
+	startedAt := s.clock.Now()
 	// Run synchronously within the tick: the loop re-arms its timer on the NEXT iteration
 	// after the run finishes, which is correct for a daily cadence (there is no benefit to
 	// racing the next day's boundary against an in-flight run, and it keeps the guard's
 	// happens-before relationship with the loop simple and race-free).
-	s.executeRun(runCtx, doneChan, "scheduled")
+	status, err := s.executeRun(runCtx, doneChan, "scheduled")
+	s.markScheduledRun(ctx, startedAt, status, err)
 }
 
-// sleepUntil waits (via the injected Clock/Timer seam) until `at`, returning false if ctx was
-// cancelled first. It NEVER calls time.Sleep directly -- this is the seam that makes the whole
-// loop unit-testable with a fake clock (PR4a brief).
-func (s *scheduler) sleepUntil(ctx context.Context, at time.Time) bool {
+func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, status string, runErr error) {
+	if status == "" {
+		if runErr != nil {
+			status = "error"
+		} else {
+			status = "ok"
+		}
+	}
+
+	nextAtMs := int64(0)
+	if cfg, err := s.store.GetScheduleConfig(ctx); err == nil && cfg.Enabled {
+		if next, nextErr := nextDailyBoundaryAfter(s.clock.Now(), cfg.DailyTimeHHMM, cfg.EnabledWeekdays, s.clock.Now().Location()); nextErr == nil {
+			nextAtMs = next.UnixMilli()
+		}
+	}
+
+	if err := s.store.MarkScheduleRun(ctx, startedAt.UnixMilli(), status, nextAtMs); err != nil {
+		s.logf("schedule: failed to mark scheduled run result: %v", err)
+	}
+}
+
+type sleepResult int
+
+const (
+	sleepCancelled sleepResult = iota
+	sleepElapsed
+	sleepWoken
+)
+
+// sleepUntil waits (via the injected Clock/Timer seam) until `at`, returning whether the timer
+// elapsed, the context was cancelled, or a config-change wakeup requested an immediate re-read.
+// It NEVER calls time.Sleep directly -- this is the seam that makes the whole loop unit-testable
+// with a fake clock (PR4a brief).
+func (s *scheduler) sleepUntil(ctx context.Context, at time.Time) sleepResult {
 	d := at.Sub(s.clock.Now())
 	if d < 0 {
 		d = 0
@@ -382,9 +439,11 @@ func (s *scheduler) sleepUntil(ctx context.Context, at time.Time) bool {
 
 	select {
 	case <-ctx.Done():
-		return false
+		return sleepCancelled
+	case <-s.wake:
+		return sleepWoken
 	case <-timer.C():
-		return true
+		return sleepElapsed
 	}
 }
 

@@ -445,6 +445,43 @@ func TestSQLiteStoreOpenRunWritesProvisionalRunningStatus(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreUpdateRunProgressRefreshesRunningCounters(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	if err := store.OpenRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
+		t.Fatalf("OpenRun: %v", err)
+	}
+
+	if err := store.UpdateRunProgress(ctx, DownloadRun{
+		RunID:              "run-1",
+		StartedAtMs:        100,
+		Trigger:            "manual",
+		AnimesChecked:      2,
+		EpisodesFound:      2,
+		EpisodesDownloaded: 1,
+		JDAvailable:        true,
+		Status:             "running",
+	}); err != nil {
+		t.Fatalf("UpdateRunProgress: %v", err)
+	}
+
+	runs, err := store.ListRuns(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListRuns: %v", err)
+	}
+	got := runs[0]
+	if got.FinishedAtMs != nil || got.Status != "running" {
+		t.Fatalf("expected run to remain non-terminal running, got %#v", got)
+	}
+	if got.AnimesChecked != 2 || got.EpisodesFound != 2 || got.EpisodesDownloaded != 1 || !got.JDAvailable {
+		t.Fatalf("expected live progress counters to persist, got %#v", got)
+	}
+}
+
 func TestSQLiteStoreFinalizeRunSetsTerminalStatusAndFinishedAt(t *testing.T) {
 	t.Parallel()
 

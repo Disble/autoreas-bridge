@@ -102,6 +102,9 @@ type DownloadStore interface {
 	OpenRun(ctx context.Context, run DownloadRun) error
 	// FinalizeRun writes the terminal row AND prunes download_runs to the most-recent
 	// RUN_RETENTION_LIMIT (200) rows in the SAME transaction (design §4.5/§8, ADR-RETENTION).
+	// UpdateRunProgress refreshes counters for the still-running row so UI details can show live
+	// progress before FinalizeRun writes the terminal status.
+	UpdateRunProgress(ctx context.Context, run DownloadRun) error
 	FinalizeRun(ctx context.Context, run DownloadRun) error
 	ListRuns(ctx context.Context, limit int) ([]DownloadRun, error)
 	// ReconcileInterruptedRuns finalizes every non-terminal row (finished_at_ms IS NULL) as

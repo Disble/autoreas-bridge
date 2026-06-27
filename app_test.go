@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -867,6 +868,60 @@ func TestAppStartupPairingTokenConsumedCallbackEmitsSuccessNotificationBesideBar
 	}
 }
 
+func TestRegisterDownloadRuntimeEventBridgeEmitsRunLifecycleEventsToWailsRuntime(t *testing.T) {
+	t.Parallel()
+
+	type emittedEvent struct {
+		name    string
+		payload any
+	}
+
+	emitted := []emittedEvent{}
+	bus := events.NewBus()
+	app := &App{
+		ctx:      context.Background(),
+		eventBus: bus,
+		emitFn: func(_ context.Context, eventName string, optionalData ...interface{}) {
+			var payload any
+			if len(optionalData) > 0 {
+				payload = optionalData[0]
+			}
+			emitted = append(emitted, emittedEvent{name: eventName, payload: payload})
+		},
+	}
+
+	app.registerDownloadRuntimeEventBridge(context.Background())
+
+	started := events.DownloadRunStartedEvent{RunID: "run-1", Trigger: "manual", CorrelationID: "run-1"}
+	progress := events.DownloadRunProgressEvent{RunID: "run-1", CorrelationID: "run-1"}
+	finished := events.DownloadRunFinishedEvent{RunID: "run-1", Status: "ok", CorrelationID: "run-1"}
+	bus.Publish(started)
+	bus.Publish(progress)
+	bus.Publish(finished)
+
+	if len(emitted) != 3 {
+		t.Fatalf("expected 3 runtime events, got %d: %#v", len(emitted), emitted)
+	}
+	if emitted[0].name != events.EventNameDownloadRunStarted {
+		t.Fatalf("expected first event %q, got %q", events.EventNameDownloadRunStarted, emitted[0].name)
+	}
+	if got, ok := emitted[0].payload.(events.DownloadRunStartedEvent); !ok || got != started {
+		t.Fatalf("expected started payload %#v, got %#v", started, emitted[0].payload)
+	}
+	if emitted[1].name != events.EventNameDownloadRunProgress {
+		t.Fatalf("expected second event %q, got %q", events.EventNameDownloadRunProgress, emitted[1].name)
+	}
+	if got, ok := emitted[1].payload.(events.DownloadRunProgressEvent); !ok || got != progress {
+		t.Fatalf("expected progress payload %#v, got %#v", progress, emitted[1].payload)
+	}
+	if emitted[2].name != events.EventNameDownloadRunFinished {
+		t.Fatalf("expected third event %q, got %q", events.EventNameDownloadRunFinished, emitted[2].name)
+	}
+	if got, ok := emitted[2].payload.(events.DownloadRunFinishedEvent); !ok || got != finished {
+		t.Fatalf("expected finished payload %#v, got %#v", finished, emitted[2].payload)
+	}
+}
+
 func TestAppStartupPairingTokenConsumedCallbackSurvivesNotifierError(t *testing.T) {
 	t.Parallel()
 
@@ -1583,7 +1638,8 @@ func TestSetJDConfigPersistsViaStore(t *testing.T) {
 func TestSetScheduleConfigPersistsViaStore(t *testing.T) {
 	t.Parallel()
 	store := &fakeAppDownloadStore{}
-	app := &App{ctx: context.Background(), downloadStore: store}
+	sched := &fakeAppScheduler{}
+	app := &App{ctx: context.Background(), downloadStore: store, downloadScheduler: sched}
 
 	got := app.SetScheduleConfig(contracts.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "20:30", Enabled: true})
 	if got != "ok" {
@@ -1591,6 +1647,9 @@ func TestSetScheduleConfigPersistsViaStore(t *testing.T) {
 	}
 	if store.setScheduleConfigCfg.DailyTimeHHMM != "20:30" {
 		t.Fatalf("expected schedule config to be persisted, got %#v", store.setScheduleConfigCfg)
+	}
+	if sched.notifyConfigChangedCalls != 1 {
+		t.Fatalf("expected scheduler config-change notification once, got %d", sched.notifyConfigChangedCalls)
 	}
 }
 
@@ -1710,6 +1769,24 @@ func TestListDownloadRunsDelegatesToStore(t *testing.T) {
 	}
 }
 
+func TestNewJDownloaderClientSuppliesNonNilLogger(t *testing.T) {
+	t.Parallel()
+
+	client := newJDownloaderClient("user@example.com", "secret")
+	value := reflect.ValueOf(client)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		t.Fatalf("expected concrete pointer client, got %T", client)
+	}
+
+	logField := value.Elem().FieldByName("log")
+	if !logField.IsValid() {
+		t.Fatal("expected jdownloader client to expose internal log field")
+	}
+	if logField.IsNil() {
+		t.Fatal("expected jdownloader client logger to be non-nil")
+	}
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 // fakeAppDownloadStore is a minimal in-memory download.DownloadStore fake for app.go binding
@@ -1771,6 +1848,10 @@ func (f *fakeAppDownloadStore) MarkScheduleRun(context.Context, int64, string, i
 
 func (f *fakeAppDownloadStore) OpenRun(context.Context, download.DownloadRun) error { return nil }
 
+func (f *fakeAppDownloadStore) UpdateRunProgress(context.Context, download.DownloadRun) error {
+	return nil
+}
+
 func (f *fakeAppDownloadStore) FinalizeRun(context.Context, download.DownloadRun) error { return nil }
 
 func (f *fakeAppDownloadStore) ListRuns(context.Context, int) ([]download.DownloadRun, error) {
@@ -1785,14 +1866,17 @@ var _ download.DownloadStore = (*fakeAppDownloadStore)(nil)
 
 // fakeAppScheduler is a minimal schedule.Scheduler fake for app.go binding tests.
 type fakeAppScheduler struct {
-	triggerNowCalls int
-	triggerNowErr   error
-	status          schedule.Status
+	triggerNowCalls          int
+	notifyConfigChangedCalls int
+	triggerNowErr            error
+	status                   schedule.Status
 }
 
 func (f *fakeAppScheduler) Start(context.Context) {}
 
 func (f *fakeAppScheduler) Stop() {}
+
+func (f *fakeAppScheduler) NotifyConfigChanged() { f.notifyConfigChangedCalls++ }
 
 func (f *fakeAppScheduler) TriggerNow(context.Context, string) error {
 	f.triggerNowCalls++

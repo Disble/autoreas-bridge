@@ -17,6 +17,7 @@ const (
 // (design §14.1 -- a backend event is not a user notification).
 const (
 	EventNameDownloadRunStarted        = "download.run_started"
+	EventNameDownloadRunProgress       = "download.run_progress"
 	EventNameDownloadRunFinished       = "download.run_finished"
 	EventNameDownloadEpisodeAvailable  = "download.episode_available"
 	EventNameDownloadEpisodeDownloaded = "download.episode_downloaded"
@@ -85,6 +86,17 @@ type DownloadRunStartedEvent struct {
 
 func (e DownloadRunStartedEvent) Name() string {
 	return EventNameDownloadRunStarted
+}
+
+// DownloadRunProgressEvent is published after the running download_runs row has been refreshed
+// with the latest counters, so UI detail panes can re-fetch and show progress before finalization.
+type DownloadRunProgressEvent struct {
+	RunID         string
+	CorrelationID string
+}
+
+func (e DownloadRunProgressEvent) Name() string {
+	return EventNameDownloadRunProgress
 }
 
 // DownloadRunFinishedEvent is published when a download run reaches a terminal status (one of

@@ -65,6 +65,49 @@ describe('download-runtime-source', () => {
     await expect(resultPromise).resolves.toBe('runtime unavailable');
   });
 
+  it('degrades subscribeRunEvents to a no-op unsubscribe when the runtime is unavailable', async () => {
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const source = createDownloadRuntimeSource();
+    const listener = vi.fn();
+
+    const unsubscribe = source.subscribeRunEvents(listener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(() => unsubscribe()).not.toThrow();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('subscribes to download run lifecycle/progress events and forwards them to listeners', async () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      });
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const source = createDownloadRuntimeSource();
+    const listener = vi.fn();
+    const unsubscribe = source.subscribeRunEvents(listener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    handlers.get('download.run_started')?.({ runId: 'run-1' });
+    handlers.get('download.run_progress')?.({ runId: 'run-1' });
+    handlers.get('download.run_finished')?.({ runId: 'run-1', status: 'ok' });
+
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_started', expect.any(Function), -1);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_progress', expect.any(Function), -1);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('download.run_finished', expect.any(Function), -1);
+
+    unsubscribe();
+  });
+
   it('forwards getDownloadConfig to the live Wails binding once the runtime is ready', async () => {
     const config = {
       jd: {

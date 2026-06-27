@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeNextRunAtMs,
   maskToWeekdayValues,
   toSchedulePanelViewModel,
   toScheduleSaveRequest,
@@ -33,10 +34,12 @@ describe('toSchedulePanelViewModel', () => {
     expect(viewModel.lastRunLabel).toBe(new Date(1_700_000_000_000).toLocaleString());
   });
 
-  it('formats nextRunAtMs as a locale date-time string', () => {
-    const viewModel = toSchedulePanelViewModel(baseConfig);
+  it('computes the next-run label from the enabled config, not from the persisted timestamp', () => {
+    const now = new Date(2024, 0, 1, 12, 0, 0); // Mon noon; baseConfig runs 03:30 every day
+    const viewModel = toSchedulePanelViewModel(baseConfig, now);
 
-    expect(viewModel.nextRunLabel).toBe(new Date(1_700_086_400_000).toLocaleString());
+    const expected = new Date(2024, 0, 2, 3, 30, 0, 0); // 03:30 already passed Mon -> Tue
+    expect(viewModel.nextRunLabel).toBe(expected.toLocaleString());
   });
 
   it('renders "Never" for lastRunLabel when lastRunAtMs is 0', () => {
@@ -91,6 +94,38 @@ describe('maskToWeekdayValues / weekdayValuesToMask', () => {
 
   it('ignores unknown ids when folding to a mask', () => {
     expect(weekdayValuesToMask(['nope', '4'])).toBe(1 << 4);
+  });
+});
+
+describe('computeNextRunAtMs', () => {
+  const allDays = 127;
+
+  it('returns today when the time is still ahead and today is enabled', () => {
+    const now = new Date(2024, 0, 1, 8, 0, 0); // Mon 08:00
+
+    expect(computeNextRunAtMs(now, '22:30', allDays)).toBe(new Date(2024, 0, 1, 22, 30, 0, 0).getTime());
+  });
+
+  it('rolls to the next enabled day when today\'s time has already passed', () => {
+    const now = new Date(2024, 0, 1, 23, 0, 0); // Mon 23:00, past 22:30
+
+    expect(computeNextRunAtMs(now, '22:30', allDays)).toBe(new Date(2024, 0, 2, 22, 30, 0, 0).getTime());
+  });
+
+  it('skips disabled weekdays (Thu+Fri+Sat+Sun from a Monday)', () => {
+    const now = new Date(2024, 0, 1, 12, 0, 0); // Mon
+    const mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 0); // Thu, Fri, Sat, Sun
+
+    expect(computeNextRunAtMs(now, '22:30', mask)).toBe(new Date(2024, 0, 4, 22, 30, 0, 0).getTime()); // Thu Jan 4
+  });
+
+  it('returns null for an empty or invalid time', () => {
+    expect(computeNextRunAtMs(new Date(), '', allDays)).toBeNull();
+    expect(computeNextRunAtMs(new Date(), '99:99', allDays)).toBeNull();
+  });
+
+  it('returns null when no weekday is enabled', () => {
+    expect(computeNextRunAtMs(new Date(), '22:30', 0)).toBeNull();
   });
 });
 

@@ -13,6 +13,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn().mockResolvedValue('ok'),
     listDownloadRuns: vi.fn(),
+    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
