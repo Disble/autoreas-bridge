@@ -32,6 +32,11 @@ import (
 // the shared/generic nature of this notifier (ADR-NOTIF-1).
 const desktopToastAppID = "Autoreas Bridge"
 
+var (
+	setDesktopToastAppData = toast.SetAppData
+	pushDesktopToast       = func(appID string, xml string) error { return wintoast.Push(appID, xml) }
+)
+
 // DesktopToastAdapter delivers a proper native Windows desktop notification
 // via the COM API (no PowerShell). Delivered() reports whether the most
 // recent Deliver call successfully reached the OS toast pipeline; it exists
@@ -56,6 +61,11 @@ func (a *DesktopToastAdapter) Deliver(ctx context.Context, n Notification) error
 		return nil
 	}
 
+	if err := setDesktopToastAppData(toast.AppData{AppID: desktopToastAppID}); err != nil {
+		a.delivered = false
+		return fmt.Errorf("desktop toast app data: %w", err)
+	}
+
 	notification := toast.Notification{
 		AppID:    desktopToastAppID,
 		Title:    n.Title,
@@ -70,7 +80,7 @@ func (a *DesktopToastAdapter) Deliver(ctx context.Context, n Notification) error
 		return fmt.Errorf("desktop toast build xml: %w", err)
 	}
 
-	if err := wintoast.Push(notification.AppID, xmlBuf.String()); err != nil {
+	if err := pushDesktopToast(notification.AppID, xmlBuf.String()); err != nil {
 		a.delivered = false
 		return fmt.Errorf("desktop toast push: %w", err)
 	}
