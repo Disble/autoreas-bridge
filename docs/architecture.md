@@ -93,7 +93,9 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 - `lefthook.yml` ejecuta `bun --cwd="frontend" run filesize:warning` como ruta de visibilidad temprana para TS/TSX sin debilitar el error existente de ESLint al superar 500 líneas efectivas.
 - `lefthook.yml` ejecuta `go run ./tools/checkgofilesize` como validador determinístico propio del repositorio antes de `golangci-lint`.
 - `tools/checkgofilesize/baseline.yaml` carries temporary no-growth ceilings for legacy Go debt.
+- `tools/checkgofilesize/baseline.yaml` debe permanecer vacío (`files: []`). Cualquier entrada existente es una excepción activa que debe eliminarse en cuanto el archivo llegue a `<=500` líneas efectivas.
 - Un archivo Go nuevo, renombrado o ya reducido a `<=500` líneas efectivas no puede recibir entrada de baseline.
-- Cuando un archivo legacy baja de tamaño, el mismo PR debe bajar su techo en baseline. Cuando llega a `<=500`, la entrada se elimina.
-- La meta final es cero deuda permanente por encima de 500 líneas efectivas. Las entradas de baseline existen solo como migración temporal.
+- Cuando un archivo con deuda baja de tamaño, el mismo PR debe bajar su techo en baseline. Cuando llega a `<=500`, la entrada se elimina.
+- La meta final es cero deuda permanente por encima de 500 líneas efectivas.
 - Los comentarios de relleno, renombrados para fingir código generado y flags ad-hoc para saltear el hook están prohibidos.
+- Para los detalles de implementación, ver `docs/file-size-policy.md`.

@@ -20,7 +20,8 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 8. Go and frontend files share the same warning-at-400 and hard-fail-above-500 effective-line policy.
 9. `go run ./tools/checkgofilesize` is part of the repo-owned pre-commit gate.
 10. `bun --cwd="frontend" run filesize:warning` is the advisory frontend visibility path and MUST stay non-blocking while ESLint remains the `>500` hard-fail path.
-11. Legacy oversized Go files may stay only through `tools/checkgofilesize/baseline.yaml` with no-growth ceilings that shrink with refactors and disappear at `<=500` effective lines.
+11. `tools/checkgofilesize/baseline.yaml` is expected to be empty (`files: []`). Temporary oversized Go files are not accepted as permanent state; any exception must shrink and disappear at `<=500` effective lines.
+12. For implementation details, see `docs/file-size-policy.md`.
 
 ## Frontend Architecture Constraints
 
