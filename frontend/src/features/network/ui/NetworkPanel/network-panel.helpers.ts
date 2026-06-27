@@ -1,10 +1,8 @@
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
 import { formatLocalDateTime, formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 import {
-  NETWORK_ACTIVE_PILL_CLASS,
   NETWORK_EMPTY_LABEL,
   NETWORK_HTTP_EVENT_TYPE,
-  NETWORK_INACTIVE_PILL_CLASS,
   NETWORK_LEVEL_ACCENT_BORDER_CLASS,
 } from './network-panel.constants';
 import type {
@@ -72,27 +70,6 @@ export function getNetworkDomainColor(domain: string): HeroChipColor {
       return 'danger';
     default:
       return 'default';
-  }
-}
-
-/**
- * Maps a log level to a small Tailwind background-color class for the
- * DevTools-style colored dot rendered in `NetworkTable`, mirroring
- * `getNetworkLevelColor`'s semantic palette (info=success, debug=accent,
- * warn=warning, error=danger).
- */
-export function getNetworkLevelDotClass(level: string | undefined): string {
-  switch (getNetworkLevelLabel(level).toLowerCase()) {
-    case 'info':
-      return 'bg-success';
-    case 'warn':
-      return 'bg-warning';
-    case 'error':
-      return 'bg-danger';
-    case 'debug':
-      return 'bg-accent';
-    default:
-      return 'bg-default';
   }
 }
 
@@ -281,25 +258,4 @@ export function toNetworkDetailViewModel(
  */
 export function getNetworkLevelAccentBorderClass(level: string): string {
   return NETWORK_LEVEL_ACCENT_BORDER_CLASS[level.toLowerCase()] ?? 'border-l-divider';
-}
-
-/**
- * Builds the Tailwind class string for a detail-inspector tab button,
- * highlighting the active tab. Lives here so `NetworkDetail.tsx` stays a dumb
- * component free of root-level logic.
- */
-export function getNetworkDetailTabButtonClass(isActive: boolean): string {
-  return `rounded-md px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/50 ${
-    isActive ? NETWORK_ACTIVE_PILL_CLASS : NETWORK_INACTIVE_PILL_CLASS
-  }`;
-}
-
-/**
- * Builds the Tailwind class string for a filter pill, highlighting the active
- * option. Shared by the domain and level pill rows in `NetworkFilterBar`.
- */
-export function getNetworkFilterPillClass(isActive: boolean): string {
-  return `rounded-full px-2.5 py-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/50 ${
-    isActive ? NETWORK_ACTIVE_PILL_CLASS : NETWORK_INACTIVE_PILL_CLASS
-  }`;
 }

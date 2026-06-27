@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.2"
+  version: "1.0.4"
   scope: project
   updates: living
 ---
@@ -59,14 +59,22 @@ These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetwork
 
 - React Aria `usePress` **responds to native `.click()` / `fireEvent.click`** (virtual press) — selection, tab change, and `CloseButton.onPress` fire without `@testing-library/user-event` (not installed).
 - A single-select `ToggleButtonGroup` exposes its options as **`role="radio"`**, not `role="button"`. Query accordingly.
-- **`Table.ScrollContainer` scrolls HORIZONTALLY only** (`@apply scrollbar overflow-x-auto`). For a vertical/live feed: wrap the `Table` in your own `overflow-y-auto` scroller (ref + `onScroll` go there) with `[scrollbar-gutter:stable]` so the scrollbar does NOT cover the secondary-variant rounded header corner. On `ScrollContainer` use **`overflow-x-clip`** (NOT `overflow-x-hidden`) + `w-full` on `Table.Content`.
-  - **CSS overflow promotion gotcha:** if one axis is `hidden`/`auto`/`scroll` and the other is `visible`, the `visible` axis is promoted to `auto` — silently turning `ScrollContainer` into a competing vertical scroller that steals scroll and breaks your wrapper's stick-to-bottom. `clip` is exempt from this promotion, so `overflow-x-clip` keeps the Y axis truly `visible` and leaves your wrapper as the sole scroller. Never put `max-h` on `ScrollContainer`.
+### HeroUI Table sizing & scrolling — verified facts
+
+- **App shell uses PAGE-level scroll.** `AppLayout`'s `<main>` has no `overflow`; the root is `min-h-screen`, so the window scrolls. No app-level internal scroll container.
+- **`.table-root` is `display:grid` with `grid-template-columns: minmax(0,1fr)` — a hard width boundary.** If table content is wider than the boundary it overflows; `Table.ScrollContainer` (`overflow-x-auto`) then shows a horizontal scrollbar. **Setting `overflow-x-clip` on it instead CLIPS the last column (data loss) — verified, do NOT do that.**
+  - **Fix: make the table fit.** `Table.Content` → `className="w-full table-fixed"` and give each `Table.Column` an explicit width (e.g. `w-[92px]`), leaving the one flexible column (Message) widthless to take the remainder. Cells truncate with `block truncate` (no `max-w` needed under `table-fixed`). Result: no horizontal scrollbar, no clipping.
+- **`Table.ScrollContainer` scrolls HORIZONTALLY only** (`@apply overflow-x-auto`) and is a plain function component (no `forwardRef`). For a vertical/live feed, wrap `Table` in your own `max-h-… overflow-y-auto` div and keep `scrollRef` on THAT div (it is the vertical scroller — confirmed by an internal scrollbar in the running app).
+- **Stick-to-bottom (CURRENT approach, pending final runtime confirmation):** in a `useLayoutEffect` on `[rows]`, set `wrapper.scrollTop = wrapper.scrollHeight` both synchronously and inside one `requestAnimationFrame` (to survive any post-render scroll reset). A jsdom regression test mocks geometry via `Object.defineProperty(node,'scrollHeight'|'clientHeight'|'scrollTop', …)` and asserts `scrollTop` reaches `scrollHeight`.
+- **What did NOT work (do NOT retry):** `scrollTop` on the wrapper **while guarded by a `pinned` flag updated from `onScroll`** (the guard was false when entries arrived, blocking every scroll — this was the real cause of the failures, not the scroll mechanism); `bottom sentinel + scrollIntoView({block:'nearest'})`; `overflow-x-hidden` on `ScrollContainer` (CSS promotes Y to `auto`, creating a competing scroller); `overflow-x-clip` (clips the last column); `[scrollbar-gutter:stable]` alone for the header-corner overlap; resolving the scroll node via `querySelector('[data-slot="table-scroll-container"]')`.
 
 ## Keeping this skill alive
 
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
-- `1.0.2` — Deepened the scroll guidance: use `overflow-x-clip` (not `hidden`) on `ScrollContainer` to avoid CSS overflow promotion creating a competing scroller; add `[scrollbar-gutter:stable]` to the wrapper so the scrollbar doesn't cover the rounded header corner.
-- `1.0.1` — Corrected `Table.ScrollContainer` scroll guidance: it's horizontal-only; use an own `overflow-y-auto` wrapper for vertical/live feeds and `overflow-x-hidden`+`w-full` to avoid a stray horizontal scrollbar. Fixed broken stick-to-bottom + unwanted horizontal scroll in the network table.
+- `1.0.4` — Root-caused the scroll failures: the `pinned` guard (updated from `onScroll`) was false when entries arrived, blocking every auto-scroll regardless of mechanism. Removed the guard (feed always sticks to bottom for now) and reverted to `scrollTop` (sync + rAF). Fixed column clipping with `table-fixed` + per-column widths (replacing the harmful `overflow-x-clip`). Removed the sentinel/`scrollIntoView` approach and its jsdom stub. Autoscroll pending final user confirmation.
+- `1.0.3` — (superseded) Claimed a bottom sentinel + `scrollIntoView` fixed stick-to-bottom. It did NOT; see 1.0.4.
+- `1.0.2` — (superseded) Claimed `overflow-x-clip` + `[scrollbar-gutter:stable]` fixed stick-to-bottom. It did NOT; see 1.0.3.
+- `1.0.1` — (superseded) Claimed an `overflow-y-auto` wrapper with `scrollTop` fixed stick-to-bottom. It did NOT; see 1.0.3.
 - `1.0.0` — Initial guide. Captured stack, component mapping, level/domain color conventions, and React-Aria-in-jsdom testing notes after the `network` feature migration to HeroUI (1/8 → 8/8).

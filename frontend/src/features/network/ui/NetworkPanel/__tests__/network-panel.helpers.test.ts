@@ -5,13 +5,10 @@ import {
   countErrorEntries,
   formatNetworkDuration,
   getNetworkLevelColor,
-  getNetworkLevelDotClass,
   getNetworkLevelLabel,
   getNetworkStatusLabel,
   getNetworkDomainColor,
   getNetworkLevelAccentBorderClass,
-  getNetworkDetailTabButtonClass,
-  getNetworkFilterPillClass,
   toNetworkEntryViewModel,
 } from '../network-panel.helpers';
 
@@ -54,28 +51,6 @@ describe('getNetworkLevelColor', () => {
 
   it('defaults missing level to the info color', () => {
     expect(getNetworkLevelColor(undefined)).toBe('success');
-  });
-});
-
-describe('getNetworkLevelDotClass', () => {
-  it('maps info to a success-colored dot', () => {
-    expect(getNetworkLevelDotClass('info')).toBe('bg-success');
-  });
-
-  it('maps debug to an accent-colored dot', () => {
-    expect(getNetworkLevelDotClass('debug')).toBe('bg-accent');
-  });
-
-  it('maps warn to a warning-colored dot', () => {
-    expect(getNetworkLevelDotClass('warn')).toBe('bg-warning');
-  });
-
-  it('maps error to a danger-colored dot', () => {
-    expect(getNetworkLevelDotClass('error')).toBe('bg-danger');
-  });
-
-  it('defaults missing level to the info dot', () => {
-    expect(getNetworkLevelDotClass(undefined)).toBe('bg-success');
   });
 });
 
@@ -203,19 +178,5 @@ describe('getNetworkLevelAccentBorderClass', () => {
 
   it('falls back to a neutral divider border for unknown levels', () => {
     expect(getNetworkLevelAccentBorderClass('trace')).toBe('border-l-divider');
-  });
-});
-
-describe('getNetworkDetailTabButtonClass', () => {
-  it('applies the active highlight only when active', () => {
-    expect(getNetworkDetailTabButtonClass(true)).toContain('text-white');
-    expect(getNetworkDetailTabButtonClass(false)).not.toContain('text-white');
-  });
-});
-
-describe('getNetworkFilterPillClass', () => {
-  it('applies the active highlight only when active', () => {
-    expect(getNetworkFilterPillClass(true)).toContain('text-white');
-    expect(getNetworkFilterPillClass(false)).not.toContain('text-white');
   });
 });

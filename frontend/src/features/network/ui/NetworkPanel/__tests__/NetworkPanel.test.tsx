@@ -140,7 +140,7 @@ describe('NetworkPanel', () => {
 
     await screen.findByText('syncing catalogue');
 
-    screen.getByRole('button', { name: 'Sync' }).click();
+    screen.getByRole('radio', { name: 'Sync' }).click();
 
     expect(await screen.findByText('syncing catalogue')).toBeInTheDocument();
     expect(screen.queryByText('publishing anime.changed')).not.toBeInTheDocument();

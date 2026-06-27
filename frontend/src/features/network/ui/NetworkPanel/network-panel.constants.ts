@@ -56,16 +56,3 @@ export const NETWORK_LEVEL_ACCENT_BORDER_CLASS: Readonly<Record<string, string>>
   debug: 'border-l-accent',
 };
 
-/**
- * Tailwind classes for an active (selected) filter pill / inspector tab — a
- * clearly visible fill + ring. Uses core white-alpha utilities (not the
- * `primary` theme token, which this HeroUI v3 + Tailwind v4 setup does not emit
- * as a solid `bg-primary`) so the active state is unmistakable on the dark UI.
- */
-export const NETWORK_ACTIVE_PILL_CLASS = 'bg-white/15 text-white ring-1 ring-inset ring-white/30 shadow-sm';
-
-/** Tailwind classes for an inactive filter pill / inspector tab, including the hover affordance. */
-export const NETWORK_INACTIVE_PILL_CLASS = 'text-default-400 hover:bg-white/[0.06] hover:text-foreground';
-
-/** Distance (px) from the bottom within which the table counts as "pinned", so new entries auto-scroll it to the bottom (stick-to-bottom). */
-export const NETWORK_STICK_TO_BOTTOM_THRESHOLD_PX = 24;

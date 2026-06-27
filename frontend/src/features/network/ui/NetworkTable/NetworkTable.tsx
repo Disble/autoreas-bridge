@@ -1,86 +1,77 @@
-import { getNetworkLevelAccentBorderClass, getNetworkLevelDotClass } from '../NetworkPanel/network-panel.helpers';
+import { Chip, Table } from '@heroui/react';
+import { getNetworkDomainColor, getNetworkLevelAccentBorderClass, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
 import { NETWORK_EMPTY_STATE_MESSAGE, NETWORK_LOADING_STATE_MESSAGE } from '../NetworkPanel/network-panel.constants';
 import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
 
-/** Dumb dense table rendering the filtered per-entry Network rows (DevTools-Network density). Selection is driven entirely by props. */
-export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef, onScroll }: Readonly<NetworkTableProps>) {
-  if (isLoading) {
-    return (
-      <div className="rounded-xl border border-divider/60 bg-content1/30 py-10 text-center text-default-400">
-        <span className="text-sm">{NETWORK_LOADING_STATE_MESSAGE}</span>
-      </div>
-    );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-divider/60 bg-content1/30 py-10 text-center text-default-400">
-        <span className="text-sm">{NETWORK_EMPTY_STATE_MESSAGE}</span>
-      </div>
-    );
-  }
-
+/** Dumb dense data grid rendering the filtered per-entry Network rows on HeroUI Table (React Aria), DevTools-Network density. Selection is driven entirely by props. The wrapper (`scrollRef`) is the vertical scroller for the live feed. */
+export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef }: Readonly<NetworkTableProps>) {
   return (
-    <div className="max-h-[32rem] overflow-auto rounded-xl border border-divider/60 2xl:max-h-[40rem]" onScroll={onScroll} ref={scrollRef}>
-      <table aria-label="Network log entries" className="w-full">
-        <thead className="sticky top-0 z-10">
-          <tr className="border-b border-divider/60 bg-content1/90 text-[11px] font-medium text-muted backdrop-blur-sm">
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Time
-            </th>
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Domain
-            </th>
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Level
-            </th>
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Message
-            </th>
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Status
-            </th>
-            <th className="px-2.5 py-1 text-left" scope="col">
-              Duration
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              aria-selected={row.id === selectedId}
-              className={`cursor-pointer border-b border-l-2 border-divider/40 text-xs transition-colors last:border-b-0 hover:bg-white/[0.03] ${getNetworkLevelAccentBorderClass(
-                row.level,
-              )} ${row.id === selectedId ? 'bg-primary/10' : ''}`}
-              key={row.id}
-              onClick={() => onSelect(row.id)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onSelect(row.id);
-                }
-              }}
-              tabIndex={0}
+    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]" data-network-scroll ref={scrollRef}>
+      <Table aria-label="Network log entries" variant="secondary">
+        <Table.ScrollContainer>
+          <Table.Content
+            aria-label="Network log entries"
+            className="w-full table-fixed"
+            onSelectionChange={(keys) => {
+              if (keys === 'all') {
+                return;
+              }
+
+              const [first] = keys;
+
+              if (first !== undefined) {
+                onSelect(String(first));
+              }
+            }}
+            selectedKeys={selectedId === null ? [] : [selectedId]}
+            selectionMode="single"
+          >
+            <Table.Header>
+              <Table.Column className="w-[92px]" isRowHeader>
+                Time
+              </Table.Column>
+              <Table.Column className="w-[120px]">Domain</Table.Column>
+              <Table.Column className="w-[104px]">Level</Table.Column>
+              <Table.Column>Message</Table.Column>
+              <Table.Column className="w-[88px]">Status</Table.Column>
+              <Table.Column className="w-[104px]">Duration</Table.Column>
+            </Table.Header>
+            <Table.Body renderEmptyState={() => (
+              <span className="text-sm text-default-400">{isLoading ? NETWORK_LOADING_STATE_MESSAGE : NETWORK_EMPTY_STATE_MESSAGE}</span>
+            )}
             >
-              <td className="whitespace-nowrap px-2.5 py-1 font-mono text-[11px] text-default-500">{row.timeLabel}</td>
-              <td className="px-2.5 py-1">
-                <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-default-400">{row.domain}</span>
-              </td>
-              <td className="px-2.5 py-1">
-                <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-default-400">
-                  <span aria-hidden="true" className={`inline-block size-1.5 rounded-full ${getNetworkLevelDotClass(row.level)}`} />
-                  {row.level}
-                </span>
-              </td>
-              <td className="max-w-[28rem] truncate px-2.5 py-1 text-foreground" title={row.message}>
-                {row.message}
-              </td>
-              <td className="whitespace-nowrap px-2.5 py-1 font-mono text-[11px] text-default-500">{row.statusLabel}</td>
-              <td className="whitespace-nowrap px-2.5 py-1 font-mono text-[11px] text-default-500">{row.durationLabel}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              {rows.map((row) => (
+                <Table.Row className={`border-l-2 ${getNetworkLevelAccentBorderClass(row.level)}`} id={row.id} key={row.id}>
+                  <Table.Cell>
+                    <span className="font-mono text-[11px] text-default-500">{row.timeLabel}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Chip color={getNetworkDomainColor(row.domain)} size="sm" variant="soft">
+                      {row.domain}
+                    </Chip>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Chip color={getNetworkLevelColor(row.level)} size="sm" variant="soft">
+                      {row.level}
+                    </Chip>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="block truncate text-foreground" title={row.message}>
+                      {row.message}
+                    </span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="font-mono text-[11px] text-default-500">{row.statusLabel}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="font-mono text-[11px] text-default-500">{row.durationLabel}</span>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
     </div>
   );
 }
