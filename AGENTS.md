@@ -41,11 +41,20 @@
 - Real fixtures in `resources/autoreas-data/animes.dat` MUST be preferred when validating parser compatibility or legacy schema assumptions.
 - Never mutate `resources/autoreas-data/*.dat` in place during tests; copy to temp locations first.
 
+## Cross-Cutting File Size Policy
+
+- Go and frontend files share a 500 effective-line architecture policy.
+- The Go gate is repo-owned and enforced with `go run ./tools/checkgofilesize` through `lefthook.yml`.
+- Existing oversized Go files may stay only when `tools/checkgofilesize/baseline.yaml` records a no-growth ceiling.
+- New Go files, renamed Go files, and files already at `<=500` effective lines MUST NOT receive baseline entries.
+- Shrink the file or shrink the baseline ceiling in the same PR when legacy Go debt gets smaller. Remove the baseline entry once deterministic counting reaches `<=500` effective lines.
+- Comment padding, fake generated-path tricks, and ad-hoc hook flags are forbidden loopholes.
+
 ## Pre-commit Gate
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
 - The gate is intentionally **complete**, not partial: frontend lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
-- Repo-owned validators live in `tools/checkgofmt` and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
+- Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
 - An active change MUST have `proposal.md`, `design.md`, `tasks.md`, at least one `spec.md`, and a `verify-report.md` whose verdict is `PASS` or `PASS WITH WARNINGS`.
 

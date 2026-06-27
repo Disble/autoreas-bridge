@@ -1,0 +1,47 @@
+# Baseline maintenance rules:
+# - Shrink ceilings in the same PR when a legacy file gets smaller.
+# - Remove the entry as soon as deterministic counting reaches 500 effective lines or fewer.
+# - Do not add entries for new files, renamed files, or files already within policy.
+version: 1
+default_max_effective_lines: 500
+exclude_paths:
+  - .git/**
+  - node_modules/**
+  - vendor/**
+exclude_file_patterns:
+  - "**/*.pb.go"
+  - "**/*_generated.go"
+files:
+  - path: app.go
+    max_effective_lines: 635
+    reason: legacy composition-root baseline
+  - path: app_test.go
+    max_effective_lines: 1595
+    reason: legacy integration baseline
+  - path: internal/anime/domain/anime_raw.go
+    max_effective_lines: 584
+    reason: legacy parser baseline
+  - path: internal/anime/domain/anime_raw_test.go
+    max_effective_lines: 525
+    reason: legacy parser test baseline
+  - path: internal/anime/service_test.go
+    max_effective_lines: 729
+    reason: legacy anime service test baseline
+  - path: internal/anime/watcher_test.go
+    max_effective_lines: 515
+    reason: legacy watcher test baseline
+  - path: internal/api/sync_e2e_test.go
+    max_effective_lines: 522
+    reason: legacy sync e2e baseline
+  - path: internal/download/schedule/scheduler_test.go
+    max_effective_lines: 595
+    reason: legacy scheduler test baseline
+  - path: internal/download/service_test.go
+    max_effective_lines: 865
+    reason: legacy download service test baseline
+  - path: internal/download/sqlite_store_test.go
+    max_effective_lines: 604
+    reason: legacy sqlite store test baseline
+  - path: internal/sync/sqlite_bootstrap_test.go
+    max_effective_lines: 511
+    reason: legacy sqlite bootstrap test baseline

@@ -83,3 +83,15 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 - Las pantallas que renderizan estado de runtime compartido usan read-models de Zustand en `frontend/src/shared/store/`. Los Wails bindings siguen encapsulados en `frontend/src/infrastructure/*-source.ts`; el store centraliza snapshots, selección e invalidación por eventos. Downloads usa `download-runtime-store` para que Schedule y Run History reaccionen al mismo flujo `download.run_started` / `download.run_progress` / `download.run_finished` sin duplicar suscripciones ni reglas de refresco por panel.
 - Los helpers exportados requieren JSDoc y las props en `*.types.ts` deben ser `readonly`.
 - Cuando haga falta scaffolding de una feature nueva, debe usarse `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` en vez de crear carpetas complejas manualmente.
+
+---
+
+## 6. Política Transversal de Tamaño de Archivo
+
+- Go and frontend source files follow a shared 500 effective-line ceiling.
+- El conteo efectivo excluye líneas en blanco y líneas de comentario puro para que la regla mida complejidad real y no ruido de formato.
+- `lefthook.yml` ejecuta `go run ./tools/checkgofilesize` como validador determinístico propio del repositorio antes de `golangci-lint`.
+- `tools/checkgofilesize/baseline.yaml` carries temporary no-growth ceilings for legacy Go debt.
+- Un archivo Go nuevo, renombrado o ya reducido a `<=500` líneas efectivas no puede recibir entrada de baseline.
+- Cuando un archivo legacy baja de tamaño, el mismo PR debe bajar su techo en baseline. Cuando llega a `<=500`, la entrada se elimina.
+- Los comentarios de relleno, renombrados para fingir código generado y flags ad-hoc para saltear el hook están prohibidos.

@@ -13,6 +13,9 @@ pre-commit:
     - name: gofmt
       run: go run ./tools/checkgofmt
 
+    - name: go-filesize
+      run: go run ./tools/checkgofilesize
+
     - name: golangci-lint
       run: golangci-lint run
 
