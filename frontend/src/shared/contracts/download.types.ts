@@ -49,6 +49,8 @@ export interface ScheduleConfig {
   readonly lastRunStatus: string;
   readonly nextRunAtMs: number;
   readonly running: boolean;
+  /** 7-bit weekday mask (bit0=Sunday..bit6=Saturday; all-days=127) restricting which days fire. */
+  readonly enabledWeekdays: number;
 }
 
 /**

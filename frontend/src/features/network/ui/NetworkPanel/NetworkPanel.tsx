@@ -1,3 +1,4 @@
+import { Alert } from '@heroui/react';
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
@@ -33,7 +34,6 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     onDetailTabChange,
     onClose,
     scrollRef,
-    onTableScroll,
   } = useNetworkPanel(source);
 
   return (
@@ -48,13 +48,16 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
       />
 
       {captureUnavailable ? (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-          {NETWORK_CAPTURE_UNAVAILABLE_MESSAGE}
-        </div>
+        <Alert status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Description>{NETWORK_CAPTURE_UNAVAILABLE_MESSAGE}</Alert.Description>
+          </Alert.Content>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <NetworkTable isLoading={isLoading} onScroll={onTableScroll} onSelect={onSelect} rows={rows} scrollRef={scrollRef} selectedId={selectedId} />
+        <NetworkTable isLoading={isLoading} onSelect={onSelect} rows={rows} scrollRef={scrollRef} selectedId={selectedId} />
         <NetworkDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>
 

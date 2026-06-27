@@ -11,6 +11,7 @@ func TestDownloadEventConstantsMatchObservabilitySpecNames(t *testing.T) {
 
 	cases := map[string]string{
 		"EventNameDownloadRunStarted":        EventNameDownloadRunStarted,
+		"EventNameDownloadRunProgress":       EventNameDownloadRunProgress,
 		"EventNameDownloadRunFinished":       EventNameDownloadRunFinished,
 		"EventNameDownloadEpisodeAvailable":  EventNameDownloadEpisodeAvailable,
 		"EventNameDownloadEpisodeDownloaded": EventNameDownloadEpisodeDownloaded,
@@ -21,6 +22,7 @@ func TestDownloadEventConstantsMatchObservabilitySpecNames(t *testing.T) {
 
 	want := map[string]string{
 		"EventNameDownloadRunStarted":        "download.run_started",
+		"EventNameDownloadRunProgress":       "download.run_progress",
 		"EventNameDownloadRunFinished":       "download.run_finished",
 		"EventNameDownloadEpisodeAvailable":  "download.episode_available",
 		"EventNameDownloadEpisodeDownloaded": "download.episode_downloaded",

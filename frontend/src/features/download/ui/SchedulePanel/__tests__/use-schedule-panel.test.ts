@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
 import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store';
 
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',
@@ -12,6 +13,7 @@ const baseConfig: ScheduleConfig = {
   lastRunStatus: 'ok',
   nextRunAtMs: 1_700_086_400_000,
   running: false,
+  enabledWeekdays: 127,
 };
 
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -24,11 +26,16 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     listDownloadRuns: vi.fn(),
+    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
 
 describe('useSchedulePanel', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+  });
+
   it('starts in the loading status', () => {
     const source = createSource();
     const { result } = renderHook(() => useSchedulePanel(source));
@@ -79,6 +86,81 @@ describe('useSchedulePanel', () => {
     expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
   });
 
+  it('setDailyTimeDraft updates the editable time without persisting on each keypress', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    act(() => {
+      result.current.setDailyTimeDraft('05:00');
+    });
+
+    expect(result.current.dailyTimeDraft).toBe('05:00');
+    expect(source.setScheduleConfig).not.toHaveBeenCalled();
+  });
+
+  it('commitDailyTime persists the draft once editing finishes', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    act(() => {
+      result.current.setDailyTimeDraft('05:00');
+    });
+    await act(async () => {
+      await result.current.commitDailyTime();
+    });
+
+    expect(source.setScheduleConfig).toHaveBeenCalledWith(expect.objectContaining({ dailyTimeHHMM: '05:00' }));
+  });
+
+  it('setWeekdays persists the new weekday mask while preserving enabled/dailyTimeHHMM', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setWeekdays(96);
+    });
+
+    expect(source.setScheduleConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ enabledWeekdays: 96, enabled: true, dailyTimeHHMM: '03:30' }),
+    );
+  });
+
+  it('surfaces the backend reason when setScheduleConfig resolves a non-"ok" result', async () => {
+    const source = createSource({ setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable') });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setEnabled(true);
+    });
+
+    expect(result.current.saveErrorMessage).toBe('download store unavailable');
+  });
+
+  it('does not flip the view model when the save is rejected by a non-"ok" result', async () => {
+    const source = createSource({
+      getScheduleConfig: vi.fn().mockResolvedValue({ ...baseConfig, enabled: false }),
+      setScheduleConfig: vi.fn().mockResolvedValue('download store unavailable'),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.setEnabled(true);
+    });
+
+    expect(result.current.viewModel.enabled).toBe(false);
+    expect(source.getScheduleConfig).toHaveBeenCalledTimes(1); // no refresh after a failed save
+  });
+
   it('surfaces a saveErrorMessage when setScheduleConfig rejects, without crashing', async () => {
     const source = createSource({ setScheduleConfig: vi.fn().mockRejectedValue(new Error('save failed')) });
     const { result } = renderHook(() => useSchedulePanel(source));
@@ -108,5 +190,30 @@ describe('useSchedulePanel', () => {
     });
 
     expect(result.current.viewModel.enabled).toBe(false);
+  });
+
+  it('refreshes the view model when a download run lifecycle event invalidates the store', async () => {
+    let listener: (() => void) | undefined;
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...baseConfig, lastRunAtMs: 0, lastRunStatus: '' })
+        .mockResolvedValueOnce({ ...baseConfig, lastRunAtMs: 1_700_000_123_000, lastRunStatus: 'ok' }),
+      subscribeRunEvents: vi.fn((nextListener: () => void) => {
+        listener = nextListener;
+        return () => undefined;
+      }),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.viewModel.lastRunLabel).toBe('Never');
+
+    await act(async () => {
+      listener?.();
+    });
+
+    await waitFor(() => expect(result.current.viewModel.lastRunStatus).toBe('ok'));
+    expect(result.current.viewModel.lastRunLabel).toBe(new Date(1_700_000_123_000).toLocaleString());
   });
 });

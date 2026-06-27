@@ -56,6 +56,7 @@ export namespace contracts {
 	    lastRunStatus: string;
 	    nextRunAtMs: number;
 	    running: boolean;
+	    enabledWeekdays: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ScheduleConfig(source);
@@ -70,6 +71,7 @@ export namespace contracts {
 	        this.lastRunStatus = source["lastRunStatus"];
 	        this.nextRunAtMs = source["nextRunAtMs"];
 	        this.running = source["running"];
+	        this.enabledWeekdays = source["enabledWeekdays"];
 	    }
 	}
 	export class JDStatus {

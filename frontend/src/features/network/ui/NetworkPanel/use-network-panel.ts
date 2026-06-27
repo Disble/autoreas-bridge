@@ -4,7 +4,6 @@ import type { ObservabilityLogSource } from '../../../../infrastructure/observab
 import { connectNetworkStore, useNetworkStore } from '../../../../shared/store/network-store';
 import { selectEntryById, selectEntryViewRows } from '../../../../shared/store/network-store.helpers';
 import { countEntries, countErrorEntries, toNetworkDetailViewModel, toNetworkEntryViewModel } from './network-panel.helpers';
-import { NETWORK_STICK_TO_BOTTOM_THRESHOLD_PX } from './network-panel.constants';
 import type { NetworkDetailTab, NetworkDomainFilter, NetworkLevelFilter } from './network-panel.types';
 
 /**
@@ -19,7 +18,6 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
   // 1. Refs
   const previousSelectedIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const pinnedToBottomRef = useRef(true);
 
   // 2. State
   const [isLoading, setIsLoading] = useState(true);
@@ -71,16 +69,6 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
   );
   const onDetailTabChange = useCallback((nextTab: NetworkDetailTab) => setDetailTab(nextTab), []);
   const onClose = useCallback(() => select(null), [select]);
-  const onTableScroll = useCallback(() => {
-    const node = scrollRef.current;
-
-    if (node === null) {
-      return;
-    }
-
-    const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
-    pinnedToBottomRef.current = distanceFromBottom <= NETWORK_STICK_TO_BOTTOM_THRESHOLD_PX;
-  }, []);
 
   // 7. Effects
   useEffect(() => {
@@ -108,14 +96,25 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
     }
   }, [selectedId]);
 
+  // Live feed sticks to the bottom on every new batch. scrollRef is the
+  // vertical scroller wrapping the HeroUI Table; we set scrollTop both
+  // synchronously (pre-paint) and on the next frame to survive any post-render
+  // scroll reset from the underlying React Aria Table.
   useLayoutEffect(() => {
     const node = scrollRef.current;
 
-    if (node === null || !pinnedToBottomRef.current) {
+    if (node === null) {
       return;
     }
 
-    node.scrollTop = node.scrollHeight;
+    const stickToBottom = () => {
+      node.scrollTop = node.scrollHeight;
+    };
+
+    stickToBottom();
+    const frame = requestAnimationFrame(stickToBottom);
+
+    return () => cancelAnimationFrame(frame);
   }, [rows, isLoading]);
 
   return {
@@ -139,6 +138,5 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
     onDetailTabChange,
     onClose,
     scrollRef,
-    onTableScroll,
   };
 }

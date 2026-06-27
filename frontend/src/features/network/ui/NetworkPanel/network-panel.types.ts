@@ -59,7 +59,6 @@ export interface NetworkTableProps {
   readonly onSelect: (id: string) => void;
   readonly isLoading: boolean;
   readonly scrollRef: RefObject<HTMLDivElement | null>;
-  readonly onScroll: () => void;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */

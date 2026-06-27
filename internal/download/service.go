@@ -153,8 +153,11 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	s.logf(logger.LevelInfo, runID, "", "download.run_started", nil,
 		"download run %s started (trigger=%s)", runID, trigger)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
+	s.notify(ctx, notification.LevelInfo, runID,
+		"Download run started", fmt.Sprintf("Download check started (%s).", trigger))
 
 	result := s.execute(ctx, runID, startedAt, trigger, &run)
+	s.markScheduledRun(ctx, trigger, startedAt, &run)
 
 	s.logf(logger.LevelInfo, runID, "", "download.run_finished", map[string]any{
 		"status":              run.Status,
@@ -192,6 +195,7 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 	jdOnline := s.ensureJDOnline(ctx)
 	run.JDAvailable = jdOnline
 	s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: jdOnline, CorrelationID: runID})
+	s.recordProgress(ctx, run)
 
 	var (
 		anyFailed    bool
@@ -203,6 +207,7 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 
 		if outcome.skipped {
 			run.SkippedCount++
+			s.recordProgress(ctx, run)
 			continue
 		}
 
@@ -211,6 +216,7 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 		run.EpisodesDownloaded += outcome.episodesDownloaded
 		run.EpisodesFailed += outcome.episodesFailed
 		run.ManualLinks = append(run.ManualLinks, outcome.manualLinks...)
+		s.recordProgress(ctx, run)
 
 		if outcome.failed {
 			anyFailed = true
@@ -246,7 +252,7 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 }
 
 // listActiveAnimesToday reads every MobileAnime via the READ-ONLY AnimeQueryService and filters
-// to those whose Dias contains today's Spanish weekday name (design §2.2/§5; ADR-5 -- this
+// to active rows whose Dias contains today's Spanish weekday name (design §2.2/§5; ADR-5 -- this
 // function never imports or calls AnimeWriteService).
 func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.MobileAnime, error) {
 	if s.deps.Animes == nil {
@@ -262,6 +268,9 @@ func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.Mobile
 
 	active := make([]contracts.MobileAnime, 0, len(all))
 	for _, anime := range all {
+		if anime.Activo != 1 {
+			continue
+		}
 		for _, d := range anime.Dias {
 			if d.Dia == today {
 				active = append(active, anime)
@@ -496,6 +505,34 @@ func (s *Service) finalize(ctx context.Context, run *DownloadRun) {
 	}
 }
 
+func (s *Service) recordProgress(ctx context.Context, run *DownloadRun) {
+	if s.deps.Store == nil {
+		return
+	}
+	if err := s.deps.Store.UpdateRunProgress(ctx, *run); err != nil {
+		s.logf(logger.LevelWarn, run.RunID, "", "download.run_progress", nil,
+			"failed to update run %s progress: %v", run.RunID, err)
+		return
+	}
+	s.publish(events.DownloadRunProgressEvent{RunID: run.RunID, CorrelationID: run.RunID})
+}
+
+func (s *Service) markScheduledRun(ctx context.Context, trigger string, startedAt time.Time, run *DownloadRun) {
+	if trigger != "scheduled" || s.deps.Store == nil {
+		return
+	}
+
+	nextRunAtMs := int64(0)
+	if cfg, err := s.deps.Store.GetScheduleConfig(ctx); err == nil {
+		nextRunAtMs = cfg.NextRunAtMs
+	}
+
+	if err := s.deps.Store.MarkScheduleRun(ctx, startedAt.UnixMilli(), run.Status, nextRunAtMs); err != nil {
+		s.logf(logger.LevelWarn, run.RunID, "", "download.schedule_mark_failed", nil,
+			"failed to mark scheduled run %s: %v", run.RunID, err)
+	}
+}
+
 // publish fans a download.* domain event out to the Bus (design.md §8 "Download Events on the
 // Event Bus"). This is DISTINCT from notify's user-facing Notifier calls (design §14.1 -- a
 // backend event is not a user notification); both are emitted for the same notable moments where
@@ -514,14 +551,17 @@ func (s *Service) notify(ctx context.Context, level notification.Level, runID, t
 	// Notifier failures must never fail the run (Notifier's own contract already requires
 	// fan-out isolation internally; this call site additionally never propagates the error to
 	// RunOnce's caller).
-	_ = s.deps.Notifier.Notify(ctx, notification.Notification{
+	if err := s.deps.Notifier.Notify(ctx, notification.Notification{
 		Title:         title,
 		Body:          body,
 		Level:         level,
 		Source:        "download",
 		CorrelationID: runID,
 		Timestamp:     s.deps.Clock(),
-	})
+	}); err != nil {
+		s.logf(logger.LevelWarn, runID, "", "download.notification_failed", nil,
+			"download notification %q failed: %v", title, err)
+	}
 }
 
 func (s *Service) logf(level, runID, animeID, eventType string, metadata map[string]any, format string, args ...any) {

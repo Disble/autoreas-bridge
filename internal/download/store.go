@@ -21,13 +21,18 @@ type JDConfig struct {
 
 // ScheduleConfig is the singleton in-process scheduler configuration (download_schedule_config,
 // id=1). Mode is reserved for future evolution; only "in_process" is implemented (design §3.5).
+// EnabledWeekdays is a 7-bit mask (bit i = time.Weekday(i), bit0=Sunday..bit6=Saturday; all-days
+// = 127) restricting which weekdays the scheduler is allowed to fire on (SDD
+// download-schedule-weekdays design "Weekday encoding"). A legacy/absent value is read back as
+// 127 by the store layer (NULL -> all days enabled), never by this struct's zero value.
 type ScheduleConfig struct {
-	Mode          string
-	DailyTimeHHMM string
-	Enabled       bool
-	LastRunAtMs   int64
-	LastRunStatus string
-	NextRunAtMs   int64
+	Mode            string
+	DailyTimeHHMM   string
+	Enabled         bool
+	LastRunAtMs     int64
+	LastRunStatus   string
+	NextRunAtMs     int64
+	EnabledWeekdays byte
 }
 
 // ManualLink is the typed shape persisted to download_runs.manual_links_json when a run
@@ -97,6 +102,9 @@ type DownloadStore interface {
 	OpenRun(ctx context.Context, run DownloadRun) error
 	// FinalizeRun writes the terminal row AND prunes download_runs to the most-recent
 	// RUN_RETENTION_LIMIT (200) rows in the SAME transaction (design §4.5/§8, ADR-RETENTION).
+	// UpdateRunProgress refreshes counters for the still-running row so UI details can show live
+	// progress before FinalizeRun writes the terminal status.
+	UpdateRunProgress(ctx context.Context, run DownloadRun) error
 	FinalizeRun(ctx context.Context, run DownloadRun) error
 	ListRuns(ctx context.Context, limit int) ([]DownloadRun, error)
 	// ReconcileInterruptedRuns finalizes every non-terminal row (finished_at_ms IS NULL) as

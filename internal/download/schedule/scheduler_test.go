@@ -89,6 +89,12 @@ func (c *fakeClock) lastTimer() *fakeTimer {
 	return c.timers[len(c.timers)-1]
 }
 
+func (c *fakeClock) timerCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.timers)
+}
+
 // fakeConfigStore is an in-memory ConfigReader/ConfigWriter fake (no SQLite dependency).
 type fakeConfigStore struct {
 	mu  sync.Mutex
@@ -112,10 +118,14 @@ func (s *fakeConfigStore) MarkScheduleRun(_ context.Context, lastAtMs int64, sta
 
 // --- 5.1: enabled/disabled gating + next-boundary computation -------------------------------
 
+// allWeekdaysMask mirrors design.md's all-days bitmask (bit0=Sunday..bit6=Saturday, 127 =
+// 0b1111111) -- used throughout these tests to assert all-days parity with legacy behavior.
+const allWeekdaysMask byte = 127
+
 func TestNextDailyBoundaryAfterReturnsTodayWhenTimeNotYetPassed(t *testing.T) {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,7 +139,7 @@ func TestNextDailyBoundaryAfterReturnsTodayWhenTimeNotYetPassed(t *testing.T) {
 func TestNextDailyBoundaryAfterRollsToTomorrowWhenTimeAlreadyPassedToday(t *testing.T) {
 	now := time.Date(2026, 6, 22, 15, 0, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,7 +153,7 @@ func TestNextDailyBoundaryAfterRollsToTomorrowWhenTimeAlreadyPassedToday(t *test
 func TestNextDailyBoundaryAfterIsExactlyNowRollsToTomorrow(t *testing.T) {
 	now := time.Date(2026, 6, 22, 14, 30, 0, 0, time.UTC)
 
-	next, err := nextDailyBoundaryAfter(now, "14:30", now.Location())
+	next, err := nextDailyBoundaryAfter(now, "14:30", allWeekdaysMask, now.Location())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +167,7 @@ func TestNextDailyBoundaryAfterIsExactlyNowRollsToTomorrow(t *testing.T) {
 func TestNextDailyBoundaryAfterRejectsMalformedHHMM(t *testing.T) {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 
-	if _, err := nextDailyBoundaryAfter(now, "not-a-time", now.Location()); err == nil {
+	if _, err := nextDailyBoundaryAfter(now, "not-a-time", allWeekdaysMask, now.Location()); err == nil {
 		t.Fatal("expected an error for a malformed HH:MM string, got nil")
 	}
 }
@@ -173,11 +183,11 @@ func TestNextDailyBoundaryAfterIsTimezoneSaneAcrossLocations(t *testing.T) {
 		t.Skipf("tzdata unavailable in this environment: %v", err)
 	}
 
-	nextUTC, err := nextDailyBoundaryAfter(utc, "09:00", time.UTC)
+	nextUTC, err := nextDailyBoundaryAfter(utc, "09:00", allWeekdaysMask, time.UTC)
 	if err != nil {
 		t.Fatalf("unexpected error (UTC): %v", err)
 	}
-	nextNY, err := nextDailyBoundaryAfter(utc.In(tzNY), "09:00", tzNY)
+	nextNY, err := nextDailyBoundaryAfter(utc.In(tzNY), "09:00", allWeekdaysMask, tzNY)
 	if err != nil {
 		t.Fatalf("unexpected error (NY): %v", err)
 	}
@@ -190,17 +200,107 @@ func TestNextDailyBoundaryAfterIsTimezoneSaneAcrossLocations(t *testing.T) {
 	}
 }
 
+// --- Weekday-mask cases (SDD download-schedule-weekdays) --------------------------------------
+
+func TestNextDailyBoundaryAfterWeekdayMaskCases(t *testing.T) {
+	// 2026-06-22 is a Monday (time.Weekday Monday=1); 2026-06-24 is Wednesday (3);
+	// 2026-06-25 is Thursday (4).
+	loc := time.UTC
+
+	tests := []struct {
+		name string
+		now  time.Time
+		hhmm string
+		mask byte
+		want time.Time
+	}{
+		{
+			name: "today enabled and before configured time -> same-day candidate, zero advancement",
+			now:  time.Date(2026, 6, 24, 8, 0, 0, 0, loc), // Wednesday
+			hhmm: "14:30",
+			mask: 1 << time.Wednesday,
+			want: time.Date(2026, 6, 24, 14, 30, 0, 0, loc),
+		},
+		{
+			name: "today disabled, next enabled day later in week -> advances day-by-day",
+			now:  time.Date(2026, 6, 25, 8, 0, 0, 0, loc), // Thursday
+			hhmm: "09:00",
+			mask: 1 << time.Saturday,
+			want: time.Date(2026, 6, 27, 9, 0, 0, 0, loc), // Saturday
+		},
+		{
+			name: "wrap across week boundary: only Wednesday enabled, today Thursday -> next Wednesday",
+			now:  time.Date(2026, 6, 25, 8, 0, 0, 0, loc), // Thursday
+			hhmm: "09:00",
+			mask: 1 << time.Wednesday,
+			want: time.Date(2026, 7, 1, 9, 0, 0, 0, loc), // following Wednesday
+		},
+		{
+			name: "all-7-bits mask -> identical fire timing to legacy daily behavior (today, before time)",
+			now:  time.Date(2026, 6, 22, 8, 0, 0, 0, loc), // Monday
+			hhmm: "09:00",
+			mask: allWeekdaysMask,
+			want: time.Date(2026, 6, 22, 9, 0, 0, 0, loc),
+		},
+		{
+			name: "all-7-bits mask -> identical fire timing to legacy daily behavior (time already passed, rolls to tomorrow)",
+			now:  time.Date(2026, 6, 22, 10, 0, 0, 0, loc), // Monday
+			hhmm: "09:00",
+			mask: allWeekdaysMask,
+			want: time.Date(2026, 6, 23, 9, 0, 0, 0, loc),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := nextDailyBoundaryAfter(tc.now, tc.hhmm, tc.mask, loc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !got.Equal(tc.want) {
+				t.Fatalf("next boundary = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNextDailyBoundaryAfterReturnsErrNoEnabledWeekdayForEmptyMask(t *testing.T) {
+	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+
+	_, err := nextDailyBoundaryAfter(now, "09:00", 0, now.Location())
+	if !errors.Is(err, ErrNoEnabledWeekday) {
+		t.Fatalf("expected ErrNoEnabledWeekday for an empty mask, got %v", err)
+	}
+}
+
+func TestNextDailyBoundaryAfterAdvancementIsCappedAtSevenIterations(t *testing.T) {
+	// A mask with exactly one bit set requires AT MOST 7 day-advancements to find it (it is
+	// guaranteed to be found within a week) -- this exercises the boundary case at the cap
+	// without ever exceeding it.
+	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC) // Monday, AFTER the target time
+	mask := byte(1 << time.Monday)
+
+	got, err := nextDailyBoundaryAfter(now, "09:00", mask, now.Location())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := time.Date(2026, 6, 29, 9, 0, 0, 0, time.UTC) // next Monday, exactly 7 days later
+	if !got.Equal(want) {
+		t.Fatalf("next boundary = %v, want %v (advancement must be capped at 7 iterations)", got, want)
+	}
+}
+
 func TestSchedulerDoesNotInvokeRunCallbackWhenScheduleDisabled(t *testing.T) {
 	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false, DailyTimeHHMM: "10:00"}}
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
 	var calls int32
 	var mu sync.Mutex
-	run := func(_ context.Context, _ string) error {
+	run := func(_ context.Context, _ string) (string, error) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{
@@ -228,15 +328,59 @@ func TestSchedulerDoesNotInvokeRunCallbackWhenScheduleDisabled(t *testing.T) {
 	}
 }
 
+// TestSchedulerNeverFiresWhenEnabledWeekdaysMaskIsEmpty asserts the loop() ErrNoEnabledWeekday
+// path is handled identically to the existing !cfg.Enabled / parse-error idle-recheck path: an
+// enabled schedule with an EMPTY weekday mask must idle-poll and NEVER invoke run (design.md
+// "Empty Weekday Set Disables Scheduling"; SDD download-schedule-weekdays design "loop() ...
+// on ErrNoEnabledWeekday it takes the SAME path as !cfg.Enabled / parse-error").
+func TestSchedulerNeverFiresWhenEnabledWeekdaysMaskIsEmpty(t *testing.T) {
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: 0}}
+	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
+
+	var calls int32
+	var mu sync.Mutex
+	run := func(_ context.Context, _ string) (string, error) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		return "ok", nil
+	}
+
+	sched := NewScheduler(Deps{
+		Store: store,
+		Clock: clock,
+		Run:   run,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sched.Start(ctx)
+
+	// Drive at least one idle-poll iteration: an empty weekday mask must produce an idle
+	// timer (the ErrNoEnabledWeekday path), not a due-boundary timer, and firing it must NEVER
+	// invoke run.
+	waitForTimer(t, clock)
+	clock.lastTimer().fire(clock.Now())
+
+	waitForTimer(t, clock)
+	cancel()
+	sched.Stop()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("run callback invoked %d times with an empty weekday mask, want 0", calls)
+	}
+}
+
 func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
-	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00"}}
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
 	clock := newFakeClock(now)
 
 	called := make(chan string, 1)
-	run := func(_ context.Context, trigger string) error {
+	run := func(_ context.Context, trigger string) (string, error) {
 		called <- trigger
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -260,6 +404,92 @@ func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 	}
 }
 
+func TestSchedulerReReadsConfigImmediatelyAfterScheduleSave(t *testing.T) {
+	now := time.Date(2026, 6, 22, 9, 59, 15, 0, time.UTC)
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
+	clock := newFakeClock(now)
+
+	called := make(chan string, 1)
+	run := func(_ context.Context, trigger string) (string, error) {
+		called <- trigger
+		return "ok", nil
+	}
+
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+
+	waitForTimer(t, clock)
+	firstTimerCount := clock.timerCount()
+
+	store.mu.Lock()
+	store.cfg.Enabled = true
+	store.mu.Unlock()
+	sched.NotifyConfigChanged()
+	waitForTimerCount(t, clock, firstTimerCount+1)
+
+	clock.set(time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC))
+	clock.lastTimer().fire(clock.Now())
+
+	select {
+	case trigger := <-called:
+		if trigger != "scheduled" {
+			t.Fatalf("trigger = %q, want scheduled", trigger)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for scheduled run after config-change wakeup")
+	}
+}
+
+func TestScheduledTickMarksLastRunAfterCompletion(t *testing.T) {
+	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
+	clock := newFakeClock(now)
+
+	sched := NewScheduler(Deps{
+		Store: store,
+		Clock: clock,
+		Run: func(_ context.Context, trigger string) (string, error) {
+			if trigger != "scheduled" {
+				t.Fatalf("trigger = %q, want scheduled", trigger)
+			}
+			return "partial", nil
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+
+	waitForTimer(t, clock)
+	firedAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+	clock.set(firedAt)
+	clock.lastTimer().fire(clock.Now())
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		lastRunAtMs := store.cfg.LastRunAtMs
+		lastRunStatus := store.cfg.LastRunStatus
+		nextRunAtMs := store.cfg.NextRunAtMs
+		store.mu.Unlock()
+
+		if lastRunAtMs == firedAt.UnixMilli() && lastRunStatus == "partial" && nextRunAtMs > firedAt.UnixMilli() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	t.Fatalf("scheduled run mark = lastAt %d status %q nextAt %d, want lastAt %d status partial and future nextAt",
+		store.cfg.LastRunAtMs, store.cfg.LastRunStatus, store.cfg.NextRunAtMs, firedAt.UnixMilli())
+}
+
 // waitForTimer polls (real, short, bounded) until the fake clock has created at least one
 // timer. This is necessary because Start() launches a goroutine and we must synchronize with
 // it without sleeping on the FAKE clock (which only the scheduler advances logically).
@@ -275,22 +505,34 @@ func waitForTimer(t *testing.T, clock *fakeClock) {
 	t.Fatal("timed out waiting for scheduler to create a timer")
 }
 
+func waitForTimerCount(t *testing.T, clock *fakeClock, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if clock.timerCount() >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for scheduler to create timer #%d", want)
+}
+
 // --- 5.3: concurrent-run guard ----------------------------------------------------------------
 
 func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
 	now := time.Date(2026, 6, 22, 9, 59, 0, 0, time.UTC)
-	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00"}}
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: "10:00", EnabledWeekdays: allWeekdaysMask}}
 	clock := newFakeClock(now)
 
 	release := make(chan struct{})
 	started := make(chan string, 4)
-	run := func(ctx context.Context, trigger string) error {
+	run := func(ctx context.Context, trigger string) (string, error) {
 		started <- trigger
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -335,12 +577,12 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
 	release := make(chan struct{})
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		select {
 		case <-release:
 		case <-ctx.Done():
 		}
-		return nil
+		return "ok", nil
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
@@ -374,6 +616,45 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 	close(release)
 }
 
+func TestTriggerNowReturnsAfterAcceptingRunWithoutWaitingForCompletion(t *testing.T) {
+	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false}}
+	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
+
+	release := make(chan struct{})
+	runStarted := make(chan struct{})
+	run := func(ctx context.Context, _ string) (string, error) {
+		close(runStarted)
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return "ok", nil
+	}
+
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sched.Start(ctx)
+	defer sched.Stop()
+	waitForTimer(t, clock)
+
+	if err := sched.TriggerNow(context.Background(), "manual"); err != nil {
+		t.Fatalf("TriggerNow error = %v, want nil", err)
+	}
+
+	select {
+	case <-runStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for accepted manual run to start")
+	}
+	if !sched.Status(context.Background()).Running {
+		t.Fatal("expected TriggerNow to leave an observable running state before completion")
+	}
+
+	close(release)
+}
+
 // --- 5.5/5.6: bounded Stop() drain + run max-duration guard -----------------------------------
 
 func TestStopReturnsWithinDrainBoundEvenWithAnInFlightRun(t *testing.T) {
@@ -381,10 +662,10 @@ func TestStopReturnsWithinDrainBoundEvenWithAnInFlightRun(t *testing.T) {
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
 	runStarted := make(chan struct{})
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		close(runStarted)
 		<-ctx.Done() // honors cancellation -- never returns on its own in this test
-		return ctx.Err()
+		return "error", ctx.Err()
 	}
 
 	sched := NewScheduler(Deps{
@@ -426,9 +707,9 @@ func TestRunExceedingMaxDurationReleasesTheConcurrentRunGuard(t *testing.T) {
 	store := &fakeConfigStore{cfg: download.ScheduleConfig{Enabled: false}}
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
-	run := func(ctx context.Context, _ string) error {
+	run := func(ctx context.Context, _ string) (string, error) {
 		<-ctx.Done() // simulates a wedged run; only the max-duration deadline unblocks it
-		return ctx.Err()
+		return "error", ctx.Err()
 	}
 
 	sched := NewScheduler(Deps{
@@ -477,7 +758,7 @@ func TestNextLastRunAccessorsReflectScheduleConfigAfterMarkScheduleRun(t *testin
 	}}
 	clock := newFakeClock(time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC))
 
-	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: func(context.Context, string) error { return nil }})
+	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: func(context.Context, string) (string, error) { return "ok", nil }})
 
 	status := sched.Status(context.Background())
 	if status.LastRunAtMs != 1000 || status.LastRunStatus != "ok" || status.NextRunAtMs != 2000 {

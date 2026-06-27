@@ -162,7 +162,7 @@ func TestBootstrapBridgeDBCreatesDownloadTables(t *testing.T) {
 	scheduleConfigColumns := readTableColumns(t, db, "download_schedule_config")
 	for _, required := range []string{
 		"id", "mode", "daily_time_hhmm", "enabled",
-		"last_run_at_ms", "last_run_status", "next_run_at_ms",
+		"last_run_at_ms", "last_run_status", "next_run_at_ms", "enabled_weekdays",
 	} {
 		if !containsString(scheduleConfigColumns, required) {
 			t.Fatalf("expected download_schedule_config to contain column %q, got %#v", required, scheduleConfigColumns)
@@ -264,6 +264,100 @@ func TestEnsureDownloadJDConfigSchemaIsIdempotentColumnIntrospection(t *testing.
 	after := readTableColumns(t, db, "download_jd_config")
 	if len(before) != len(after) {
 		t.Fatalf("expected column-introspection migration to be idempotent, before=%#v after=%#v", before, after)
+	}
+}
+
+func TestEnsureDownloadScheduleConfigSchemaCreatesFreshTableWithEnabledWeekdays(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	columns := readTableColumns(t, db, "download_schedule_config")
+	for _, required := range []string{
+		"id", "mode", "daily_time_hhmm", "enabled",
+		"last_run_at_ms", "last_run_status", "next_run_at_ms", "enabled_weekdays",
+	} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected fresh download_schedule_config to contain column %q, got %#v", required, columns)
+		}
+	}
+}
+
+func TestEnsureDownloadScheduleConfigSchemaIsIdempotentColumnIntrospection(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	before := readTableColumns(t, db, "download_schedule_config")
+	if err := ensureDownloadScheduleConfigSchema(db); err != nil {
+		t.Fatalf("ensure download_schedule_config schema again: %v", err)
+	}
+	after := readTableColumns(t, db, "download_schedule_config")
+	if len(before) != len(after) {
+		t.Fatalf("expected column-introspection migration to be idempotent, before=%#v after=%#v", before, after)
+	}
+}
+
+// TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema asserts a pre-existing
+// download_schedule_config table WITHOUT enabled_weekdays (the original DDL, before this SDD)
+// gets the column added in place via an additive ALTER, the existing row is preserved, and the
+// new column reads back as NULL (the store layer maps NULL->127, design.md "NULL column
+// defaults to 127 in the READ path").
+func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE download_schedule_config (
+			id              INTEGER PRIMARY KEY CHECK (id = 1),
+			mode            TEXT    NOT NULL DEFAULT 'in_process',
+			daily_time_hhmm TEXT,
+			enabled         INTEGER NOT NULL DEFAULT 0,
+			last_run_at_ms  INTEGER,
+			last_run_status TEXT,
+			next_run_at_ms  INTEGER
+		);
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("create legacy download_schedule_config schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO download_schedule_config (id, mode, daily_time_hhmm, enabled)
+		VALUES (1, 'in_process', '09:00', 1);
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("insert legacy download_schedule_config row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with migration: %v", err)
+	}
+	defer db.Close()
+
+	columns := readTableColumns(t, db, "download_schedule_config")
+	if !containsString(columns, "enabled_weekdays") {
+		t.Fatalf("expected migrated download_schedule_config schema to contain column %q, got %#v", "enabled_weekdays", columns)
+	}
+
+	var dailyTime string
+	var enabledWeekdays sql.NullInt64
+	if err := db.QueryRow(`SELECT daily_time_hhmm, enabled_weekdays FROM download_schedule_config WHERE id = 1`).
+		Scan(&dailyTime, &enabledWeekdays); err != nil {
+		t.Fatalf("query migrated download_schedule_config row: %v", err)
+	}
+	if dailyTime != "09:00" {
+		t.Fatalf("expected pre-existing daily_time_hhmm to be preserved, got %q", dailyTime)
+	}
+	if enabledWeekdays.Valid {
+		t.Fatalf("expected enabled_weekdays to read back NULL for a legacy row, got %v", enabledWeekdays.Int64)
 	}
 }
 

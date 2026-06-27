@@ -22,6 +22,7 @@ const baseConfig: DownloadConfig = {
     lastRunStatus: '',
     nextRunAtMs: 0,
     running: false,
+    enabledWeekdays: 127,
   },
   hosterPriority: [
     { hoster: 'mega', priority: 0, enabled: true },
@@ -39,6 +40,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     setHosterPriority: vi.fn().mockResolvedValue('ok'),
     triggerDownloadCheck: vi.fn(),
     listDownloadRuns: vi.fn(),
+    subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
