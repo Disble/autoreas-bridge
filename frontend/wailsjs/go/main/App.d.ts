@@ -25,6 +25,8 @@ export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
+export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
+
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
 
 export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;

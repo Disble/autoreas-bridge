@@ -131,6 +131,16 @@ type stubAppNotifier struct{}
 
 func (*stubAppNotifier) Notify(context.Context, notification.Notification) error { return nil }
 
+type stubAnimeLegacyPullService struct {
+	result contracts.AnimeLegacyPullResult
+	calls  int
+}
+
+func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacyPullResult {
+	s.calls++
+	return s.result
+}
+
 type recordingAppNotifier struct{ received []notification.Notification }
 
 func (n *recordingAppNotifier) Notify(_ context.Context, notif notification.Notification) error {

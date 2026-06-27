@@ -82,6 +82,14 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
+type AnimeLegacyPullResult struct {
+	Status       string `json:"status"`
+	Message      string `json:"message"`
+	UpdatedCount int    `json:"updatedCount"`
+	PrunedCount  int    `json:"prunedCount"`
+	WarningCount int    `json:"warningCount"`
+}
+
 type ReconcileRequest struct {
 	DeviceID          string             `json:"device_id"`
 	LastChangelogID   int64              `json:"last_changelog_id"`

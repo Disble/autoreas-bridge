@@ -1,3 +1,5 @@
+import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
+
 /**
  * Props for the AnimePanel component. The panel is self-contained and reads
  * the anime catalog from the Wails runtime, so it accepts no external data.
@@ -71,4 +73,30 @@ export interface AnimeFilterBarProps {
   readonly onDiaChange: (value: string) => void;
   readonly onGenerosChange: (values: readonly (string | number)[]) => void;
   readonly onGapChange: (value: string) => void;
+}
+
+/**
+ * View state returned by the AnimePanel hook.
+ */
+export interface AnimePanelState {
+  readonly items: readonly AnimeViewModel[];
+  readonly isLoading: boolean;
+  readonly isEmpty: boolean;
+  readonly filters: AnimeFilterState;
+  readonly estadoOptions: readonly AnimeFilterOption[];
+  readonly activoOptions: readonly AnimeFilterOption[];
+  readonly tipoOptions: readonly AnimeFilterOption[];
+  readonly diaOptions: readonly AnimeFilterOption[];
+  readonly generoOptions: readonly AnimeFilterOption[];
+  readonly gapOptions: readonly AnimeFilterOption[];
+  readonly onQueryChange: (query: string) => void;
+  readonly onEstadoChange: (value: string) => void;
+  readonly onActivoChange: (value: string) => void;
+  readonly onTipoChange: (value: string) => void;
+  readonly onDiaChange: (value: string) => void;
+  readonly onGenerosChange: (values: readonly (string | number)[]) => void;
+  readonly onGapChange: (value: string) => void;
+  readonly onPullFromLegacy: () => Promise<void>;
+  readonly isPullingFromLegacy: boolean;
+  readonly pullResult: AnimeLegacyPullResult | undefined;
 }

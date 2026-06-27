@@ -23,6 +23,7 @@ describe('bridge-runtime-source', () => {
     const tokenPromise = source.getPairingToken();
     const syncingAnimePromise = source.getSyncingAnimeItems();
     const animePromise = source.getAnimes();
+    const pullPromise = source.pullAnimesFromLegacy();
     const reconcilePromise = source.triggerReconcile();
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -32,6 +33,13 @@ describe('bridge-runtime-source', () => {
     await expect(tokenPromise).resolves.toBe('');
     await expect(syncingAnimePromise).resolves.toEqual([]);
     await expect(animePromise).resolves.toEqual([]);
+    await expect(pullPromise).resolves.toEqual({
+      message: 'runtime unavailable',
+      prunedCount: 0,
+      status: 'error',
+      updatedCount: 0,
+      warningCount: 0,
+    });
     await expect(reconcilePromise).resolves.toBe('runtime unavailable');
   });
 
@@ -118,6 +126,42 @@ describe('bridge-runtime-source', () => {
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(reconcilePromise).resolves.toBe('done');
+  });
+
+  it('calls PullAnimesFromLegacy once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const pullAnimesFromLegacyMock = vi.fn().mockResolvedValue({
+      message: 'Pulled 2 updates from legacy.',
+      prunedCount: 0,
+      status: 'ok',
+      updatedCount: 2,
+      warningCount: 0,
+    });
+    const triggerReconcileMock = vi.fn().mockResolvedValue('wrong path');
+
+    const pullPromise = source.pullAnimesFromLegacy();
+
+    window.go = {
+      main: {
+        App: {
+          PullAnimesFromLegacy: pullAnimesFromLegacyMock,
+          TriggerReconcile: triggerReconcileMock,
+        },
+      },
+    } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(pullPromise).resolves.toEqual({
+      message: 'Pulled 2 updates from legacy.',
+      prunedCount: 0,
+      status: 'ok',
+      updatedCount: 2,
+      warningCount: 0,
+    });
+    expect(pullAnimesFromLegacyMock).toHaveBeenCalledTimes(1);
+    expect(triggerReconcileMock).not.toHaveBeenCalled();
   });
 
   it('degrades onPairingTokenConsumed to a no-op unsubscribe when the runtime is absent', async () => {

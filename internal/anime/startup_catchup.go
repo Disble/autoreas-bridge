@@ -2,7 +2,6 @@ package anime
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -164,54 +163,18 @@ func (c *startupCoordinator) run(ctx context.Context) {
 }
 
 func (c *startupCoordinator) catchUp(ctx context.Context) error {
-	log := newDomainLogger("anime", c.sharedLogger, c.logger)
-	start := time.Now()
-	log.Infof("starting startup catch-up for %s", c.filePath)
-
-	file, err := c.openFile(c.filePath)
-	if err != nil {
-		log.Errorf("failed to open startup catch-up file %s: %v", c.filePath, err)
-		return fmt.Errorf("open anime data file %q: %w", c.filePath, err)
-	}
-	defer file.Close()
-
-	current, warnings, err := c.parser.Parse(file)
-	if err != nil {
-		log.Errorf("failed to parse startup catch-up file %s: %v", c.filePath, err)
-		return fmt.Errorf("parse anime snapshots: %w", err)
-	}
-	for _, warning := range warnings {
-		if c.logger != nil {
-			c.logger.Warnf("warning parsing %s line %d: %s", c.filePath, warning.Line, warning.Reason)
-		}
-		log.Warnf("warning parsing %s line %d: %s", c.filePath, warning.Line, warning.Reason)
-	}
-
-	baseline, err := c.store.ListSnapshots(ctx)
-	if err != nil {
-		log.Errorf("failed to read baseline snapshots: %v", err)
-		return fmt.Errorf("list baseline snapshots: %w", err)
-	}
-
-	deltas, pruneIDs := DiffSnapshots(current, baseline)
-	for _, delta := range deltas {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		c.publisher.Publish(delta)
-	}
-	elapsed := time.Since(start)
-	log.Logf(sharedlogger.LevelInfo, sharedlogger.Fields{
-		EventType:  "anime.catchup",
-		DurationMs: elapsed.Milliseconds(),
-	}, "startup catch-up published %d deltas and %d prunes", len(deltas), len(pruneIDs))
-
-	if err := c.store.ReplaceBaseline(ctx, current, pruneIDs); err != nil {
-		log.Errorf("failed to replace startup baseline: %v", err)
-		return fmt.Errorf("replace baseline snapshots: %w", err)
-	}
-
-	return nil
+	_, err := runSnapshotPullPipeline(ctx, snapshotPullPipelineConfig{
+		filePath:     c.filePath,
+		parser:       c.parser,
+		store:        c.store,
+		publisher:    c.publisher,
+		logger:       c.logger,
+		sharedLogger: c.sharedLogger,
+		openFile:     c.openFile,
+		eventType:    "anime.catchup",
+		logPrefix:    "startup catch-up",
+	})
+	return err
 }
 
 func (c *startupCoordinator) setErr(err error) {

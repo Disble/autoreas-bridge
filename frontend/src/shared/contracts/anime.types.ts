@@ -17,3 +17,15 @@ export interface Anime {
   /** True when the legacy `carpeta` (download destination folder) field is present and non-empty. */
   readonly hasFolder: boolean;
 }
+
+/** Status values returned by the manual bridge<-legacy anime pull. */
+export type AnimeLegacyPullStatus = 'ok' | 'error' | 'in_progress';
+
+/** Result returned by the manual bridge<-legacy anime pull. */
+export interface AnimeLegacyPullResult {
+  readonly status: AnimeLegacyPullStatus;
+  readonly message: string;
+  readonly updatedCount: number;
+  readonly prunedCount: number;
+  readonly warningCount: number;
+}

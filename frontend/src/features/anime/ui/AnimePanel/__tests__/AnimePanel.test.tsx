@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ANIME_FILTER_ALL_VALUE } from '../anime-panel.constants';
 
 const useAnimePanelMock = vi.fn();
@@ -37,11 +37,18 @@ function createHookReturn(overrides = {}) {
     onDiaChange: vi.fn(),
     onGenerosChange: vi.fn(),
     onGapChange: vi.fn(),
+    onPullFromLegacy: vi.fn(),
+    isPullingFromLegacy: false,
+    pullResult: undefined,
     ...overrides,
   };
 }
 
 describe('AnimePanel', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders active and inactive animes with status badges', () => {
     useAnimePanelMock.mockReturnValue(
       createHookReturn({
@@ -142,5 +149,37 @@ describe('AnimePanel', () => {
     render(<AnimePanel />);
 
     expect(screen.queryByTestId('anime-gap-anime-complete')).not.toBeInTheDocument();
+  });
+
+  it('renders a Pull from legacy action wired to the hook callback', () => {
+    const onPullFromLegacy = vi.fn();
+    useAnimePanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
+
+    const view = render(<AnimePanel />);
+
+    const button = within(view.container).getByRole('button', { name: 'Pull from legacy' });
+    fireEvent.click(button);
+
+    expect(onPullFromLegacy).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows pull progress and result feedback', () => {
+    useAnimePanelMock.mockReturnValue(
+      createHookReturn({
+        isPullingFromLegacy: true,
+        pullResult: {
+          message: 'Pulled 2 updates from legacy.',
+          prunedCount: 0,
+          status: 'ok',
+          updatedCount: 2,
+          warningCount: 0,
+        },
+      }),
+    );
+
+    render(<AnimePanel />);
+
+    expect(screen.getByRole('button', { name: 'Pulling from legacy...' })).toBeDisabled();
+    expect(screen.getByText('Pulled 2 updates from legacy.')).toBeInTheDocument();
   });
 });

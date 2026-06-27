@@ -46,6 +46,10 @@ export function ListDownloadRuns() {
   return window['go']['main']['App']['ListDownloadRuns']();
 }
 
+export function PullAnimesFromLegacy() {
+  return window['go']['main']['App']['PullAnimesFromLegacy']();
+}
+
 export function SetHosterPriority(arg1, arg2) {
   return window['go']['main']['App']['SetHosterPriority'](arg1, arg2);
 }

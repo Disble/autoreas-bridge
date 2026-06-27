@@ -9,6 +9,7 @@ import {
   ANIME_FILTER_ALL_VALUE,
   ANIME_FILTER_DEBOUNCE_MS,
   ANIME_GAP_OPTIONS,
+  ANIME_LEGACY_PULL_FAILED_RESULT,
 } from './anime-panel.constants';
 import {
   filterAnimes,
@@ -18,18 +19,20 @@ import {
   sortAnimesByName,
   toAnimeViewModel,
 } from './anime-panel.helpers';
-import type { AnimeFilterState, AnimePanelProps, AnimeViewModel } from './anime-panel.types';
+import type { AnimeFilterState, AnimePanelProps, AnimePanelState, AnimeViewModel } from './anime-panel.types';
 
 /** Drives the AnimePanel by fetching the full anime catalog from the runtime. */
 export function useAnimePanel(
   _props: Readonly<AnimePanelProps>,
   source: BridgeRuntimeSource = bridgeRuntimeSource,
-) {
+): AnimePanelState {
   // 1. Refs
 
   // 2. State
   const [items, setItems] = useState<readonly Anime[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPullingFromLegacy, setIsPullingFromLegacy] = useState(false);
+  const [pullResult, setPullResult] = useState<AnimePanelState['pullResult']>(undefined);
   const [filters, setFilters] = useState<AnimeFilterState>({
     query: '',
     estado: ANIME_FILTER_ALL_VALUE,
@@ -87,6 +90,23 @@ export function useAnimePanel(
   const onGapChange = useCallback((gap: string) => {
     setFilters((previous) => ({ ...previous, gap }));
   }, []);
+  const onPullFromLegacy = useCallback(async () => {
+    setIsPullingFromLegacy(true);
+
+    try {
+      const nextPullResult = await source.pullAnimesFromLegacy();
+      setPullResult(nextPullResult);
+
+      if (nextPullResult.status === 'ok') {
+        const nextItems = await source.getAnimes();
+        setItems(nextItems);
+      }
+    } catch {
+      setPullResult(ANIME_LEGACY_PULL_FAILED_RESULT);
+    } finally {
+      setIsPullingFromLegacy(false);
+    }
+  }, [source]);
 
   // 7. Effects
   useEffect(() => {
@@ -136,5 +156,8 @@ export function useAnimePanel(
     onDiaChange,
     onGenerosChange,
     onGapChange,
+    onPullFromLegacy,
+    isPullingFromLegacy,
+    pullResult,
   };
 }

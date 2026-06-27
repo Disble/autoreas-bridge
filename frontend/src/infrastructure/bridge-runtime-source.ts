@@ -2,12 +2,13 @@ import {
   GetAnimes,
   GetEffectiveAddress,
   GetPairingToken,
+  PullAnimesFromLegacy,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
   TriggerReconcile,
 } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
-import type { Anime } from '../shared/contracts/anime.types';
+import type { Anime, AnimeLegacyPullResult } from '../shared/contracts/anime.types';
 import type { SyncingAnime } from '../shared/contracts/syncing-anime.types';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
@@ -16,6 +17,13 @@ export const WAILS_BINDINGS_POLL_MS = 50;
 export const WAILS_BINDINGS_TIMEOUT_MS = 5000;
 
 const PAIRING_TOKEN_CONSUMED_EVENT_NAME = 'pairing.token-consumed';
+const RUNTIME_UNAVAILABLE_PULL_RESULT: AnimeLegacyPullResult = {
+  message: 'runtime unavailable',
+  prunedCount: 0,
+  status: 'error',
+  updatedCount: 0,
+  warningCount: 0,
+};
 
 let sharedSource: BridgeRuntimeSource | null = null;
 
@@ -30,6 +38,7 @@ export interface BridgeRuntimeSource {
   readonly getPairingToken: () => Promise<string>;
   readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
+  readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
   /** Fires when the active pairing token is consumed. Returns an unsubscribe fn. */
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
@@ -66,6 +75,26 @@ function waitForBindings(isReady: () => boolean): Promise<boolean> {
       }
     }, WAILS_BINDINGS_POLL_MS);
   });
+}
+
+function toAnimeLegacyPullResult(result: AnimeLegacyPullResult | { readonly status: string; readonly message: string; readonly updatedCount: number; readonly prunedCount: number; readonly warningCount: number }): AnimeLegacyPullResult {
+  if (result.status === 'ok' || result.status === 'error' || result.status === 'in_progress') {
+    return {
+      message: result.message,
+      prunedCount: result.prunedCount,
+      status: result.status,
+      updatedCount: result.updatedCount,
+      warningCount: result.warningCount,
+    };
+  }
+
+  return {
+    message: result.message,
+    prunedCount: result.prunedCount,
+    status: 'error',
+    updatedCount: result.updatedCount,
+    warningCount: result.warningCount,
+  };
 }
 
 /**
@@ -131,6 +160,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     getAnimes() {
       return waitForBindings(() => hasGoBinding('GetAnimes')).then((isReady) => {
         return isReady ? (GetAnimes() as Promise<readonly Anime[]>) : Promise.resolve([]);
+      });
+    },
+    pullAnimesFromLegacy() {
+      return waitForBindings(() => hasGoBinding('PullAnimesFromLegacy')).then((isReady) => {
+        return isReady ? PullAnimesFromLegacy().then(toAnimeLegacyPullResult) : RUNTIME_UNAVAILABLE_PULL_RESULT;
       });
     },
     triggerReconcile() {

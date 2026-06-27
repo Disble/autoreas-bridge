@@ -63,6 +63,9 @@ func (a *App) ensureRuntimeDependencies() {
 	if a.newStartupCoordinator == nil {
 		a.newStartupCoordinator = anime.NewStartupCoordinator
 	}
+	if a.newLegacyPullService == nil {
+		a.newLegacyPullService = anime.NewLegacyPullService
+	}
 	if a.newRuntimeWatcher == nil {
 		a.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
 			return anime.NewRuntimeWatcher(config)

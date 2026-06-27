@@ -32,6 +32,7 @@ type App struct {
 	newSnapshotParser       func() anime.SnapshotParser
 	newSnapshotStore        func(db *sql.DB) anime.SnapshotStore
 	newStartupCoordinator   func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
+	newLegacyPullService    func(config anime.LegacyPullServiceConfig) anime.LegacyPullService
 	newRuntimeWatcher       func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
 	newSelfEchoRegistry     func() anime.SelfEchoRegistry
 	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
@@ -52,6 +53,7 @@ type App struct {
 	quitApp                 func(context.Context)
 	eventBus                events.Bus
 	animeStartupCoordinator anime.StartupCoordinator
+	animeLegacyPull         anime.LegacyPullService
 	animeRuntimeWatcher     anime.RuntimeWatcher
 	animeUpdateWriter       anime.UpdateWriter
 	syncChangelogRecorder   changelogRecorder

@@ -50,6 +50,14 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		SharedLogger: a.sharedLogger,
 	})
 	a.animeStartupCoordinator.StartAsync(catchUpContext)
+	a.animeLegacyPull = a.newLegacyPullService(anime.LegacyPullServiceConfig{
+		FilePath:     animeDataPath,
+		Parser:       a.newSnapshotParser(),
+		Store:        a.newSnapshotStore(a.bridgeDB),
+		Publisher:    a.eventBus,
+		Logger:       anime.NewStdLogger(),
+		SharedLogger: a.sharedLogger,
+	})
 	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
 		FilePath:         animeDataPath,
 		Parser:           a.newSnapshotParser(),

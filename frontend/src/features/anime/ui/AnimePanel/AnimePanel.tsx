@@ -1,10 +1,11 @@
-import { Card, Chip, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Chip, Spinner } from '@heroui/react';
 import { AnimeFilterBar } from '../AnimeFilterBar/AnimeFilterBar';
 import type { AnimePanelProps } from './anime-panel.types';
 import {
   ANIME_PANEL_EMPTY_MESSAGE,
   ANIME_PANEL_EMPTY_TITLE,
 } from './anime-panel.constants';
+import { getAnimeLegacyPullAlertStatus } from './anime-panel.helpers';
 import { useAnimePanel } from './use-anime-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
@@ -27,6 +28,9 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
     onDiaChange,
     onGenerosChange,
     onGapChange,
+    onPullFromLegacy,
+    isPullingFromLegacy,
+    pullResult,
   } = useAnimePanel(props);
 
   return (
@@ -48,6 +52,23 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
           onGenerosChange={onGenerosChange}
           onGapChange={onGapChange}
         />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button
+            isDisabled={isLoading || isPullingFromLegacy}
+            isPending={isPullingFromLegacy}
+            onPress={onPullFromLegacy}
+            variant="secondary"
+          >
+            {isPullingFromLegacy ? 'Pulling from legacy...' : 'Pull from legacy'}
+          </Button>
+          {pullResult ? (
+            <Alert status={getAnimeLegacyPullAlertStatus(pullResult.status)}>
+              <Alert.Content>
+                <Alert.Description>{pullResult.message}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+        </div>
         {isLoading ? (
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
             <Spinner size="sm" />

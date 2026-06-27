@@ -284,6 +284,9 @@ func TestLegacyAnimeRawParsesRealFixtureWithoutMutatingOriginal(t *testing.T) {
 	sourcePath := filepath.Join("..", "..", "..", "resources", "autoreas-data", "animes.dat")
 	data, err := os.ReadFile(sourcePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("real Autoreas fixture not present at %s; resources/autoreas-data/*.dat is gitignored private data", sourcePath)
+		}
 		t.Fatalf("read fixture: %v", err)
 	}
 

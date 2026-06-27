@@ -225,17 +225,21 @@ func TestStartupCoordinatorRespectsCancellationWhileWaiting(t *testing.T) {
 }
 
 type stubSnapshotParser struct {
-	mu       sync.Mutex
-	count    int
-	records  map[string]SnapshotRecord
-	warnings []ParseWarning
-	err      error
+	mu           sync.Mutex
+	count        int
+	records      map[string]SnapshotRecord
+	warnings     []ParseWarning
+	err          error
+	beforeReturn func()
 }
 
 func (s *stubSnapshotParser) Parse(io.Reader) (map[string]SnapshotRecord, []ParseWarning, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.count++
+	if s.beforeReturn != nil {
+		s.beforeReturn()
+	}
 	return cloneSnapshotRecords(s.records), append([]ParseWarning(nil), s.warnings...), s.err
 }
 

@@ -1,4 +1,4 @@
-import type { Anime } from '../../../../shared/contracts/anime.types';
+import type { Anime, AnimeLegacyPullStatus } from '../../../../shared/contracts/anime.types';
 import {
   ANIME_FILTER_ALL_VALUE,
   ANIME_GAP_COMPLETE_VALUE,
@@ -10,6 +10,22 @@ import {
   ANIME_STATUS_INACTIVE_LABEL,
 } from './anime-panel.constants';
 import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel } from './anime-panel.types';
+
+/**
+ * Maps a manual legacy pull status to the matching HeroUI Alert semantic
+ * status so real failures are rendered as danger, not as a soft warning.
+ */
+export function getAnimeLegacyPullAlertStatus(status: AnimeLegacyPullStatus): 'success' | 'warning' | 'danger' {
+  if (status === 'ok') {
+    return 'success';
+  }
+
+  if (status === 'in_progress') {
+    return 'warning';
+  }
+
+  return 'danger';
+}
 
 /**
  * Maps the backend `activo` flag (1 = active, 0 = inactive/absent) to a
@@ -247,5 +263,4 @@ export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeF
     label: value,
   }));
 }
-
 
