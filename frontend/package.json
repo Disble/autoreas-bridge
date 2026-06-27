@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "filesize:warning": "node ./scripts/check-file-size-warnings.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "validate": "bun run lint && bun run typecheck",

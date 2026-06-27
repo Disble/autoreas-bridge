@@ -223,6 +223,92 @@ files:
 	}
 }
 
+func TestRunReportsWarningsWithoutFailing(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeGoFile(t, root, "warning_only.go", repeatedEffectiveLineFile(400))
+	writeGoFile(t, root, "warning_test.go", repeatedEffectiveLineFile(500))
+
+	manifestPath := filepath.Join(root, "baseline.yaml")
+	manifest := strings.TrimSpace(`
+version: 1
+default_max_effective_lines: 500
+files: []
+`)
+	if err := os.WriteFile(manifestPath, []byte(manifest+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() manifest error = %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := run(root, manifestPath, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run() error = %v, want nil", err)
+	}
+
+	message := stdout.String()
+	for _, want := range []string{
+		"Go file size warnings:",
+		"warning_only.go: 400 effective lines (warning threshold 400; hard limit 500)",
+		"warning_test.go: 500 effective lines (warning threshold 400; hard limit 500)",
+		"Go file size check passed.",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("run() stdout missing %q in %q", want, message)
+		}
+	}
+
+	if stderr.Len() != 0 {
+		t.Fatalf("run() stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunReportsWarningsAndFailuresTogether(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeGoFile(t, root, "warning_only.go", repeatedEffectiveLineFile(430))
+	writeGoFile(t, root, "new_over_limit.go", repeatedEffectiveLineFile(501))
+	writeGoFile(t, root, "legacy_growth.go", repeatedEffectiveLineFile(504))
+
+	manifestPath := filepath.Join(root, "baseline.yaml")
+	manifest := strings.TrimSpace(`
+version: 1
+default_max_effective_lines: 500
+files:
+  - path: legacy_growth.go
+    max_effective_lines: 503
+    reason: legacy debt
+`)
+	if err := os.WriteFile(manifestPath, []byte(manifest+"\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() manifest error = %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := run(root, manifestPath, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("run() error = nil, want failure")
+	}
+
+	stdoutMessage := stdout.String()
+	if !strings.Contains(stdoutMessage, "warning_only.go: 430 effective lines (warning threshold 400; hard limit 500)") {
+		t.Fatalf("run() stdout missing warning output in %q", stdoutMessage)
+	}
+
+	stderrMessage := stderr.String()
+	for _, want := range []string{
+		"new_over_limit.go: 501 effective lines (new file over 500; limit 500)",
+		"legacy_growth.go: 504 effective lines (baseline growth; ceiling 503)",
+		"Shrink the file below 500 or update the committed baseline only for approved legacy debt.",
+	} {
+		if !strings.Contains(stderrMessage, want) {
+			t.Fatalf("run() stderr missing %q in %q", want, stderrMessage)
+		}
+	}
+}
+
 func TestRunPassesForCurrentRepositoryBaseline(t *testing.T) {
 	t.Parallel()
 
@@ -317,6 +403,11 @@ func TestRepositoryHookRunsGoFileSizeBeforeGolangCILint(t *testing.T) {
 				t.Fatalf("go-filesize run = %q, want %q", job.Run, "go run ./tools/checkgofilesize")
 			}
 		}
+		if job.Name == "frontend-filesize-warning" {
+			if job.Run != "bun --cwd=\"frontend\" run filesize:warning" {
+				t.Fatalf("frontend-filesize-warning run = %q, want %q", job.Run, "bun --cwd=\"frontend\" run filesize:warning")
+			}
+		}
 		if job.Name == "golangci-lint" {
 			golangciIndex = index
 		}
@@ -339,6 +430,40 @@ func TestRepositoryHookRunsGoFileSizeBeforeGolangCILint(t *testing.T) {
 	}
 }
 
+func TestRepositoryHookRunsFrontendFileSizeWarningBeforeFrontendLint(t *testing.T) {
+	t.Parallel()
+
+	root := repoRootFromTest(t)
+	content := readRepoFile(t, root, "lefthook.yml")
+
+	var config lefthookConfig
+	if err := yaml.Unmarshal(content, &config); err != nil {
+		t.Fatalf("yaml.Unmarshal() error = %v", err)
+	}
+
+	jobs := config.PreCommit.Jobs
+	warningIndex := -1
+	lintIndex := -1
+	for index, job := range jobs {
+		if job.Name == "frontend-filesize-warning" {
+			warningIndex = index
+		}
+		if job.Name == "frontend-lint" {
+			lintIndex = index
+		}
+	}
+
+	if warningIndex == -1 {
+		t.Fatal("lefthook.yml is missing pre-commit job frontend-filesize-warning")
+	}
+	if lintIndex == -1 {
+		t.Fatal("lefthook.yml is missing pre-commit job frontend-lint")
+	}
+	if warningIndex > lintIndex {
+		t.Fatalf("frontend-filesize-warning job index = %d, want before frontend-lint index = %d", warningIndex, lintIndex)
+	}
+}
+
 func TestRepositoryPolicyDocsDescribeCrossCuttingGoFileSizeRule(t *testing.T) {
 	t.Parallel()
 
@@ -350,21 +475,21 @@ func TestRepositoryPolicyDocsDescribeCrossCuttingGoFileSizeRule(t *testing.T) {
 		{
 			path: "AGENTS.md",
 			snippets: []string{
-				"Go and frontend files share a 500 effective-line architecture policy",
+				"Go and frontend files share a warning threshold at 400 effective lines and a hard failure ceiling above 500 effective lines",
 				"Existing oversized Go files may stay only when `tools/checkgofilesize/baseline.yaml` records a no-growth ceiling",
 			},
 		},
 		{
 			path: "CLAUDE.md",
 			snippets: []string{
-				"Go and frontend files share the same 500 effective-line architecture policy",
+				"Go and frontend files share the same warning-at-400 and hard-fail-above-500 effective-line policy",
 				"`go run ./tools/checkgofilesize` is part of the repo-owned pre-commit gate",
 			},
 		},
 		{
 			path: filepath.Join("docs", "architecture.md"),
 			snippets: []string{
-				"Go and frontend source files follow a shared 500 effective-line ceiling",
+				"Go and frontend source files follow a shared warning threshold at 400 effective lines and a hard ceiling above 500 effective lines",
 				"`tools/checkgofilesize/baseline.yaml` carries temporary no-growth ceilings for legacy Go debt",
 			},
 		},
@@ -378,6 +503,20 @@ func TestRepositoryPolicyDocsDescribeCrossCuttingGoFileSizeRule(t *testing.T) {
 			requireFileContainsAll(t, readRepoFile(t, root, check.path), check.path, check.snippets...)
 		})
 	}
+}
+
+func TestRepositoryFrontendFileSizePolicyWiresWarningAndFailurePaths(t *testing.T) {
+	t.Parallel()
+
+	root := repoRootFromTest(t)
+	requireFileContainsAll(t, readRepoFile(t, root, filepath.Join("frontend", "package.json")), "frontend/package.json", []string{
+		"\"filesize:warning\": \"node ./scripts/check-file-size-warnings.mjs\"",
+		"\"lint\": \"eslint .\"",
+	}...)
+
+	requireFileContainsAll(t, readRepoFile(t, root, filepath.Join("frontend", "eslint.config.js")), "frontend/eslint.config.js", []string{
+		"'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }]",
+	}...)
 }
 
 func TestRepositoryBaselineDocumentsMaintenanceRule(t *testing.T) {

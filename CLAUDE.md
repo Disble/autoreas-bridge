@@ -17,9 +17,10 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 5. Load `bridge-testing` for bridge test work.
 6. Load `bridge-debugging` for regressions and boundary investigation.
 7. Prefer real fixture validation with `resources/autoreas-data/animes.dat` when parser compatibility matters.
-8. Go and frontend files share the same 500 effective-line architecture policy.
+8. Go and frontend files share the same warning-at-400 and hard-fail-above-500 effective-line policy.
 9. `go run ./tools/checkgofilesize` is part of the repo-owned pre-commit gate.
-10. Legacy oversized Go files may stay only through `tools/checkgofilesize/baseline.yaml` with no-growth ceilings that shrink with refactors and disappear at `<=500` effective lines.
+10. `bun --cwd="frontend" run filesize:warning` is the advisory frontend visibility path and MUST stay non-blocking while ESLint remains the `>500` hard-fail path.
+11. Legacy oversized Go files may stay only through `tools/checkgofilesize/baseline.yaml` with no-growth ceilings that shrink with refactors and disappear at `<=500` effective lines.
 
 ## Frontend Architecture Constraints
 

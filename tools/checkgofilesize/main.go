@@ -37,6 +37,13 @@ type violation struct {
 	Reason            string
 }
 
+type warningEntry struct {
+	Path             string
+	EffectiveLines   int
+	WarningThreshold int
+	HardLimit        int
+}
+
 func main() {
 	root, err := os.Getwd()
 	if err != nil {
@@ -55,9 +62,13 @@ func run(root string, manifestPath string, stdout io.Writer, stderr io.Writer) e
 		return writeError(stderr, "load baseline manifest", err)
 	}
 
-	violations, err := checkFiles(root, manifest)
+	warnings, violations, err := checkFiles(root, manifest)
 	if err != nil {
 		return writeError(stderr, "check Go file sizes", err)
+	}
+
+	if len(warnings) > 0 {
+		_, _ = fmt.Fprintln(stdout, formatWarnings(warnings))
 	}
 
 	if len(violations) == 0 {
@@ -120,10 +131,10 @@ func loadBaseline(root string, manifestPath string) (baselineManifest, error) {
 	return manifest, nil
 }
 
-func checkFiles(root string, manifest baselineManifest) ([]violation, error) {
+func checkFiles(root string, manifest baselineManifest) ([]warningEntry, []violation, error) {
 	counts, err := scanGoFiles(root, manifest)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	baseline := make(map[string]baselineEntry, len(manifest.Files))
@@ -135,8 +146,18 @@ func checkFiles(root string, manifest baselineManifest) ([]violation, error) {
 		}
 	}
 
+	warnings := make([]warningEntry, 0)
 	violations := make([]violation, 0)
 	for filePath, count := range counts {
+		if count >= 400 && count <= manifest.DefaultMaxEffectiveLines {
+			warnings = append(warnings, warningEntry{
+				Path:             filePath,
+				EffectiveLines:   count,
+				WarningThreshold: 400,
+				HardLimit:        manifest.DefaultMaxEffectiveLines,
+			})
+		}
+
 		if entry, exists := baseline[filePath]; exists {
 			if count > entry.MaxEffectiveLines {
 				violations = append(violations, violation{
@@ -159,11 +180,15 @@ func checkFiles(root string, manifest baselineManifest) ([]violation, error) {
 		}
 	}
 
+	sort.Slice(warnings, func(left int, right int) bool {
+		return warnings[left].Path < warnings[right].Path
+	})
+
 	sort.Slice(violations, func(left int, right int) bool {
 		return violations[left].Path < violations[right].Path
 	})
 
-	return violations, nil
+	return warnings, violations, nil
 }
 
 func scanGoFiles(root string, manifest baselineManifest) (map[string]int, error) {
@@ -326,6 +351,20 @@ func formatViolations(violations []violation) string {
 		builder.WriteString("\n")
 	}
 	builder.WriteString("Shrink the file below 500 or update the committed baseline only for approved legacy debt.")
+	return builder.String()
+}
+
+func formatWarnings(warnings []warningEntry) string {
+	builder := strings.Builder{}
+	builder.WriteString("Go file size warnings:\n")
+	for _, warning := range warnings {
+		builder.WriteString("- ")
+		builder.WriteString(warning.Path)
+		builder.WriteString(": ")
+		builder.WriteString(fmt.Sprintf("%d effective lines (warning threshold %d; hard limit %d)", warning.EffectiveLines, warning.WarningThreshold, warning.HardLimit))
+		builder.WriteString("\n")
+	}
+	builder.WriteString("Warnings do not fail the gate. Shrink the file before it crosses the hard limit.")
 	return builder.String()
 }
 

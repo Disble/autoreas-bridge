@@ -88,10 +88,12 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 
 ## 6. Política Transversal de Tamaño de Archivo
 
-- Go and frontend source files follow a shared 500 effective-line ceiling.
+- Go and frontend source files follow a shared warning threshold at 400 effective lines and a hard ceiling above 500 effective lines.
 - El conteo efectivo excluye líneas en blanco y líneas de comentario puro para que la regla mida complejidad real y no ruido de formato.
+- `lefthook.yml` ejecuta `bun --cwd="frontend" run filesize:warning` como ruta de visibilidad temprana para TS/TSX sin debilitar el error existente de ESLint al superar 500 líneas efectivas.
 - `lefthook.yml` ejecuta `go run ./tools/checkgofilesize` como validador determinístico propio del repositorio antes de `golangci-lint`.
 - `tools/checkgofilesize/baseline.yaml` carries temporary no-growth ceilings for legacy Go debt.
 - Un archivo Go nuevo, renombrado o ya reducido a `<=500` líneas efectivas no puede recibir entrada de baseline.
 - Cuando un archivo legacy baja de tamaño, el mismo PR debe bajar su techo en baseline. Cuando llega a `<=500`, la entrada se elimina.
+- La meta final es cero deuda permanente por encima de 500 líneas efectivas. Las entradas de baseline existen solo como migración temporal.
 - Los comentarios de relleno, renombrados para fingir código generado y flags ad-hoc para saltear el hook están prohibidos.

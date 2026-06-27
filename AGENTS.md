@@ -43,10 +43,12 @@
 
 ## Cross-Cutting File Size Policy
 
-- Go and frontend files share a 500 effective-line architecture policy.
+- Go and frontend files share a warning threshold at 400 effective lines and a hard failure ceiling above 500 effective lines.
 - The Go gate is repo-owned and enforced with `go run ./tools/checkgofilesize` through `lefthook.yml`.
+- The frontend warning path is `bun --cwd="frontend" run filesize:warning`; it must stay advisory-only and preserve the existing ESLint hard failure path at `>500`.
 - Existing oversized Go files may stay only when `tools/checkgofilesize/baseline.yaml` records a no-growth ceiling.
 - New Go files, renamed Go files, and files already at `<=500` effective lines MUST NOT receive baseline entries.
+- Zero permanent `>500` debt is the target end state. Baseline entries are temporary migration scaffolding and must disappear as files return to compliance.
 - Shrink the file or shrink the baseline ceiling in the same PR when legacy Go debt gets smaller. Remove the baseline entry once deterministic counting reaches `<=500` effective lines.
 - Comment padding, fake generated-path tricks, and ad-hoc hook flags are forbidden loopholes.
 
