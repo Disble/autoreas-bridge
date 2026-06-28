@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.5"
+  version: "1.0.6"
   scope: project
   updates: living
 ---
@@ -25,7 +25,7 @@ This is the project's UI source of truth. **The mandate: never hand-roll a `<div
 
 | Need | Use (HeroUI v3) | Do NOT |
 |------|-----------------|--------|
-| Heading / body text | Installed `@heroui/react@3.0.2` exports `Text` (`size="xl\|lg\|base\|sm\|xs"`, `variant="default\|muted\|success\|warning\|danger"`). Use `Typography` only after verifying the installed package exports it. | raw `<h1>/<p>` or unverified docs-only imports |
+| Heading / body text | Installed `@heroui/react@3.2.1` exports `Typography` (`type="h1".."h6" \| "body" \| "body-sm" \| "code"`, `color="muted"`). Verify `node_modules` exports when package versions drift. | raw `<h1>/<p>` or unverified stale-node_modules imports |
 | Text / search filter | `SearchField` (`.Group/.SearchIcon/.Input/.ClearButton`) or `Input` | raw `<input>` |
 | Single-select filter row | `ToggleButtonGroup` + `ToggleButton` (renders a **radiogroup** → `role="radio"`, `disallowEmptySelection`) | rows of `<button>` pills |
 | Dropdown select | `Select` + `ListBox` + `ListBox.Item` | raw `<select>` |
@@ -73,6 +73,7 @@ These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetwork
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.6` — Corrected the main-worktree package reality: `@heroui/react@3.2.1` exports `Typography`. A stale Codex worktree had `3.0.2` exports (`Text`), which broke `wails dev` on real `main`; always verify against the target worktree's installed package.
 - `1.0.5` — Corrected the text primitive for the installed package: `@heroui/react@3.0.2` exports `Text`, not `Typography`. Newer docs mention `Typography`, but installed code wins; verify exports before importing docs-only components.
 - `1.0.4` — Root-caused the scroll failures: the `pinned` guard (updated from `onScroll`) was false when entries arrived, blocking every auto-scroll regardless of mechanism. Removed the guard (feed always sticks to bottom for now) and reverted to `scrollTop` (sync + rAF). Fixed column clipping with `table-fixed` + per-column widths (replacing the harmful `overflow-x-clip`). Removed the sentinel/`scrollIntoView` approach and its jsdom stub. Autoscroll pending final user confirmation.
 - `1.0.3` — (superseded) Claimed a bottom sentinel + `scrollIntoView` fixed stick-to-bottom. It did NOT; see 1.0.4.
