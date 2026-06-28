@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -17,6 +19,20 @@ func TestGetDownloadConfigReturnsZeroValueWhenStoreNil(t *testing.T) {
 	got := app.GetDownloadConfig()
 	if got.JD.Email != "" || got.Schedule.Enabled || len(got.HosterPriority) != 0 {
 		t.Fatalf("expected zero-value DownloadConfig when store is nil, got %#v", got)
+	}
+}
+
+func TestGetDownloadConfigStoreNilSerializesEmptyHosterPriorityArray(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background()}
+	payload, err := json.Marshal(app.GetDownloadConfig())
+	if err != nil {
+		t.Fatalf("marshal download config: %v", err)
+	}
+
+	if got := string(payload); !strings.Contains(got, `"hosterPriority":[]`) {
+		t.Fatalf("expected hosterPriority to serialize as an empty array for frontend safety, got %s", got)
 	}
 }
 

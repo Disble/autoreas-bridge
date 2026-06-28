@@ -104,6 +104,13 @@ function hasRuntimeBindings(): boolean {
   return Boolean(window.runtime);
 }
 
+function normalizeDownloadConfig(config: DownloadConfig): DownloadConfig {
+  return {
+    ...config,
+    hosterPriority: Array.isArray(config.hosterPriority) ? config.hosterPriority : [],
+  };
+}
+
 /**
  * createDownloadRuntimeSource returns the singleton runtime-backed download
  * source. Degrades to safe empty defaults when the Wails runtime is
@@ -148,7 +155,9 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
   sharedSource = {
     getDownloadConfig() {
       return waitForBindings(() => hasGoBinding('GetDownloadConfig')).then((isReady) => {
-        return isReady ? (GetDownloadConfig() as Promise<DownloadConfig>) : Promise.resolve(EMPTY_DOWNLOAD_CONFIG);
+        return isReady
+          ? (GetDownloadConfig() as Promise<DownloadConfig>).then(normalizeDownloadConfig)
+          : Promise.resolve(EMPTY_DOWNLOAD_CONFIG);
       });
     },
     getJDStatus() {

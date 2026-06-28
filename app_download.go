@@ -132,24 +132,28 @@ func (errJDConfigUnavailableErr) Error() string { return "download: JD config st
 // downloadScheduler is nil, mirroring the existing GetPairingToken/GetSyncingAnimeItems
 // nil-degradation convention in app.go.
 
+func emptyDownloadConfig() contracts.DownloadConfig {
+	return contracts.DownloadConfig{HosterPriority: []contracts.HosterPriorityItem{}}
+}
+
 // GetDownloadConfig returns the current JD config, schedule config, and hoster priority
 // ordering for the download settings screen. Degrades to a zero-value DownloadConfig when the
 // download store is unavailable.
 func (a *App) GetDownloadConfig() contracts.DownloadConfig {
 	if a.downloadStore == nil {
-		return contracts.DownloadConfig{}
+		return emptyDownloadConfig()
 	}
 
 	ctx := a.downloadCtx()
 
 	jdCfg, err := a.downloadStore.GetJDConfig(ctx)
 	if err != nil {
-		return contracts.DownloadConfig{}
+		return emptyDownloadConfig()
 	}
 
 	scheduleCfg, err := a.downloadStore.GetScheduleConfig(ctx)
 	if err != nil {
-		return contracts.DownloadConfig{}
+		return emptyDownloadConfig()
 	}
 
 	hosterEntries, _ := a.downloadStore.ListHosterPriority(ctx, "jkanime")

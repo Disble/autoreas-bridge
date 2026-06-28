@@ -143,6 +143,42 @@ describe('download-runtime-source', () => {
     await expect(resultPromise).resolves.toEqual(config);
   });
 
+  it('normalizes null hosterPriority from Wails to an empty array', async () => {
+    const config = {
+      jd: {
+        email: '',
+        hasPassword: false,
+        deviceName: '',
+        exePathOverride: '',
+        defaultDestDir: '',
+        lastSeenStatus: '',
+        lastSeenAtMs: 0,
+      },
+      schedule: {
+        mode: '',
+        dailyTimeHHMM: '',
+        enabled: false,
+        lastRunAtMs: 0,
+        lastRunStatus: '',
+        nextRunAtMs: 0,
+        running: false,
+        enabledWeekdays: 0,
+      },
+      hosterPriority: null,
+    };
+
+    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
+    window.go = { main: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const source = createDownloadRuntimeSource();
+
+    const resultPromise = source.getDownloadConfig();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toMatchObject({ hosterPriority: [] });
+  });
+
   it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {
     const setHosterPriorityMock = vi.fn().mockResolvedValue('ok');
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
