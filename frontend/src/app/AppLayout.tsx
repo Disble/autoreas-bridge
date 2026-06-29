@@ -151,6 +151,31 @@ function PairingIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function OptionsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path d="M12 3v1" />
+      <path d="M12 20v1" />
+      <path d="M4.22 4.22l.71.71" />
+      <path d="M19.07 19.07l.71.71" />
+      <path d="M3 12h1" />
+      <path d="M20 12h1" />
+      <path d="M4.22 19.78l.71-.71" />
+      <path d="M19.07 4.93l.71-.71" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
 const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
@@ -158,6 +183,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },
+  { to: '/preferences', label: 'Opciones', Icon: OptionsIcon },
 ];
 
 const railItemClass = ({ isActive }: { isActive: boolean }) =>

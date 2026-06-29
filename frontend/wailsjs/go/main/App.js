@@ -38,6 +38,10 @@ export function GetScheduleConfig() {
   return window['go']['main']['App']['GetScheduleConfig']();
 }
 
+export function GetSeasonMode() {
+  return window['go']['main']['App']['GetSeasonMode']();
+}
+
 export function GetSyncingAnimeItems() {
   return window['go']['main']['App']['GetSyncingAnimeItems']();
 }
@@ -60,6 +64,10 @@ export function SetJDConfig(arg1) {
 
 export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
+}
+
+export function SetSeasonMode(arg1) {
+  return window['go']['main']['App']['SetSeasonMode'](arg1);
 }
 
 export function TriggerDownloadCheck() {

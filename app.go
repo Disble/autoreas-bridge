@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/preferences"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -73,6 +74,8 @@ type App struct {
 	downloadStore           download.DownloadStore
 	downloadService         *download.Service
 	downloadScheduler       schedule.Scheduler
+	newPreferencesStore     func(db *sql.DB) preferences.Store
+	preferencesStore        preferences.Store
 }
 
 const observabilityEventName = "observability.log"
@@ -136,6 +139,7 @@ func (a *App) startup(ctx context.Context) {
 	a.syncChangelogRecorder.Start(a.catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
+	a.preferencesStore = a.newPreferencesStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
 	a.realtimeHub = a.newRealtimeHub(ctx)
 	if a.realtimeHub != nil {

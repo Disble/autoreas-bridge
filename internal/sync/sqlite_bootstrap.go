@@ -226,6 +226,9 @@ func initializeBridgeDB(db *sql.DB) error {
 	if err := seedDefaultHosterPriorityIfEmpty(db); err != nil {
 		return err
 	}
+	if err := ensureAppSettingsSchema(db); err != nil {
+		return err
+	}
 
 	return nil
 }

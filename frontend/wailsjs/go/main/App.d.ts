@@ -21,6 +21,8 @@ export function GetSQLiteStatus():Promise<string>;
 
 export function GetScheduleConfig():Promise<contracts.ScheduleConfig>;
 
+export function GetSeasonMode():Promise<boolean>;
+
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
@@ -32,6 +34,8 @@ export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorit
 export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;
 
 export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
+
+export function SetSeasonMode(arg1:boolean):Promise<string>;
 
 export function TriggerDownloadCheck():Promise<string>;
 
