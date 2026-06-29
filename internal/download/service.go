@@ -28,6 +28,12 @@ import (
 	"autoreas-bridge/internal/notification"
 )
 
+// seasonModeDiaName is the legacy animes.dat sentinel value that marks an anime as a
+// "season-mode" title — selected only when the user has enabled "modo temporada" instead of
+// the normal weekday-based filter. Isolated here so the literal "Ver hoy" never appears more
+// than once in the codebase (design.md Decision 2).
+const seasonModeDiaName = "Ver hoy"
+
 // Run status taxonomy (design.md §8): exactly one of these terminal values is ever written by
 // FinalizeRun. "running" (defined in store.go's OpenRun default) is provisional-only and never
 // terminal.
@@ -77,6 +83,12 @@ type ServiceDeps struct {
 	// fast/no-op func so a slow_or_timeout path never actually blocks for
 	// config.FilesystemCompletionPollTimeout (30 minutes).
 	PollSleep func(d time.Duration)
+
+	// SeasonMode reports whether "modo temporada" is enabled. When nil (or in tests that do not
+	// set it) it defaults to always-false, i.e. normal weekday selection. Injected as a func —
+	// like every other ServiceDeps seam — so download never imports the preferences context
+	// (no cross-context coupling, ADR-5).
+	SeasonMode func(ctx context.Context) bool
 }
 
 // RunResult is the summary RunOnce returns to its caller (the scheduler's RunFunc closure, or a
@@ -103,6 +115,9 @@ func NewService(deps ServiceDeps) *Service {
 	}
 	if deps.PollSleep == nil {
 		deps.PollSleep = time.Sleep
+	}
+	if deps.SeasonMode == nil {
+		deps.SeasonMode = func(context.Context) bool { return false }
 	}
 	return &Service{deps: deps}
 }
@@ -264,7 +279,10 @@ func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.Mobile
 		return nil, fmt.Errorf("list mobile animes: %w", err)
 	}
 
-	today := config.SpanishWeekdayName(s.deps.Clock())
+	target := config.SpanishWeekdayName(s.deps.Clock())
+	if s.deps.SeasonMode(ctx) {
+		target = seasonModeDiaName
+	}
 
 	active := make([]contracts.MobileAnime, 0, len(all))
 	for _, anime := range all {
@@ -272,7 +290,7 @@ func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.Mobile
 			continue
 		}
 		for _, d := range anime.Dias {
-			if d.Dia == today {
+			if d.Dia == target {
 				active = append(active, anime)
 				break
 			}

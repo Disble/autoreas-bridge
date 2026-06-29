@@ -140,6 +140,16 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Bus:          a.eventBus,
 		Logger:       a.sharedLogger,
 		JDDeviceName: a.downloadJDDeviceName(ctx),
+		SeasonMode: func(ctx context.Context) bool {
+			if a.preferencesStore == nil {
+				return false
+			}
+			enabled, err := a.preferencesStore.SeasonMode(ctx)
+			if err != nil {
+				return false
+			}
+			return enabled
+		},
 	})
 	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
