@@ -80,9 +80,37 @@ func (s *legacyPullService) Pull(ctx context.Context) contracts.AnimeLegacyPullR
 
 	return contracts.AnimeLegacyPullResult{
 		Status:       "ok",
-		Message:      fmt.Sprintf("Pulled %d updates from legacy.", result.updatedCount),
+		Message:      buildLegacyPullMessage(result.updatedCount, result.prunedCount),
 		UpdatedCount: result.updatedCount,
 		PrunedCount:  result.prunedCount,
 		WarningCount: result.warningCount,
 	}
+}
+
+func buildLegacyPullMessage(updatedCount int, prunedCount int) string {
+	if updatedCount == 0 && prunedCount == 0 {
+		return "Bridge is already up to date with legacy."
+	}
+
+	parts := make([]string, 0, 2)
+	if updatedCount > 0 {
+		parts = append(parts, formatLegacyPullCount(updatedCount, "update"))
+	}
+	if prunedCount > 0 {
+		parts = append(parts, formatLegacyPullCount(prunedCount, "removal"))
+	}
+
+	if len(parts) == 1 {
+		return fmt.Sprintf("Pulled %s from legacy.", parts[0])
+	}
+
+	return fmt.Sprintf("Pulled %s and %s from legacy.", parts[0], parts[1])
+}
+
+func formatLegacyPullCount(count int, noun string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+
+	return fmt.Sprintf("%d %ss", count, noun)
 }

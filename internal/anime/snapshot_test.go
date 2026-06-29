@@ -82,6 +82,81 @@ func TestDiffSnapshotsBumpsModifiedAtForChangedRecord(t *testing.T) {
 	}
 }
 
+func TestDiffSnapshotsDetectsCanonicalOptionalFieldChanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		before string
+		after  string
+	}{
+		{
+			name:   "absent totalcap becomes numeric",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"totalcap":24}`,
+		},
+		{
+			name:   "pagina changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"pagina":"old"}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"pagina":"Netflix"}`,
+		},
+		{
+			name:   "carpeta changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"carpeta":"C:/Anime/Old"}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"carpeta":"C:/Anime/New"}`,
+		},
+		{
+			name:   "origen changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"origen":"novel"}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"origen":"manga"}`,
+		},
+		{
+			name:   "estudios changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"estudios":["Madhouse"]}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"estudios":["Bones"]}`,
+		},
+		{
+			name:   "generos changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"generos":["Drama"]}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"generos":["Action"]}`,
+		},
+		{
+			name:   "dias changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"dias":[{"dia":"Martes","orden":2}]}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"dias":[{"dia":"Lunes","orden":1}]}`,
+		},
+		{
+			name:   "portada changes",
+			before: `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"portada":{"type":"url","path":"old.jpg"}}`,
+			after:  `{"_id":"anime-1","nombre":"Test","nrocapvisto":1,"portada":{"type":"url","path":"new.jpg"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseline := map[string]SnapshotRecord{"anime-1": snapshotRecordFromPayload(t, tt.before)}
+			current := map[string]SnapshotRecord{"anime-1": snapshotRecordFromPayload(t, tt.after)}
+
+			deltas, pruneIDs := DiffSnapshots(current, baseline)
+
+			if len(pruneIDs) != 0 {
+				t.Fatalf("expected no prune ids for optional field change, got %v", pruneIDs)
+			}
+			if len(deltas) != 1 {
+				t.Fatalf("expected one delta for optional field change, got %+v", deltas)
+			}
+			assertSnapshotMatchesPayload(t, SnapshotRecord{
+				AnimeID:       deltas[0].AnimeID,
+				CanonicalJSON: deltas[0].Payload,
+				Hash:          HashSnapshot(deltas[0].Payload),
+			}, tt.after)
+		})
+	}
+}
+
 func TestDiffSnapshotsBumpsModifiedAtForNewRecord(t *testing.T) {
 	t.Parallel()
 

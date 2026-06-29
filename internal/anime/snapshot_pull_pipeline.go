@@ -32,18 +32,20 @@ func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineCon
 	start := time.Now()
 	log.Infof("starting %s for %s", config.logPrefix, config.filePath)
 
-	file, err := config.openFile(config.filePath)
+	baseline, err := config.store.ListSnapshots(ctx)
 	if err != nil {
-		log.Errorf("failed to open %s file %s: %v", config.logPrefix, config.filePath, err)
-		return snapshotPullPipelineResult{}, fmt.Errorf("open anime data file %q: %w", config.filePath, err)
+		log.Errorf("failed to read %s baseline snapshots: %v", config.logPrefix, err)
+		return snapshotPullPipelineResult{}, fmt.Errorf("list baseline snapshots: %w", err)
 	}
-	defer file.Close()
 
-	current, warnings, err := config.parser.Parse(file)
+	current, warnings, err := parseSnapshotFile(config)
 	if err != nil {
 		log.Errorf("failed to parse %s file %s: %v", config.logPrefix, config.filePath, err)
-		return snapshotPullPipelineResult{}, fmt.Errorf("parse anime snapshots: %w", err)
+		return snapshotPullPipelineResult{}, err
 	}
+
+	deltas, pruneIDs := DiffSnapshots(current, baseline)
+
 	for _, warning := range warnings {
 		if config.logger != nil {
 			config.logger.Warnf("warning parsing %s line %d: %s", config.filePath, warning.Line, warning.Reason)
@@ -51,13 +53,6 @@ func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineCon
 		log.Warnf("warning parsing %s line %d: %s", config.filePath, warning.Line, warning.Reason)
 	}
 
-	baseline, err := config.store.ListSnapshots(ctx)
-	if err != nil {
-		log.Errorf("failed to read %s baseline snapshots: %v", config.logPrefix, err)
-		return snapshotPullPipelineResult{}, fmt.Errorf("list baseline snapshots: %w", err)
-	}
-
-	deltas, pruneIDs := DiffSnapshots(current, baseline)
 	for _, delta := range deltas {
 		if ctx.Err() != nil {
 			return snapshotPullPipelineResult{}, ctx.Err()
@@ -81,4 +76,19 @@ func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineCon
 		prunedCount:  len(pruneIDs),
 		warningCount: len(warnings),
 	}, nil
+}
+
+func parseSnapshotFile(config snapshotPullPipelineConfig) (map[string]SnapshotRecord, []ParseWarning, error) {
+	file, err := config.openFile(config.filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open anime data file %q: %w", config.filePath, err)
+	}
+	defer file.Close()
+
+	current, warnings, err := config.parser.Parse(file)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse anime snapshots: %w", err)
+	}
+
+	return current, warnings, nil
 }
