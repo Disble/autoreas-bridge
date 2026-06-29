@@ -330,6 +330,19 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 		return animeRunOutcome{skipped: true}
 	}
 
+	onDiskCount := 0
+	if s.deps.Counter != nil {
+		onDiskCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
+	}
+	if anime.TotalCap != nil && *anime.TotalCap > 0 && *anime.TotalCap == onDiskCount {
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{
+			"reason":      "season_complete_on_disk",
+			"totalcap":    *anime.TotalCap,
+			"onDiskCount": onDiskCount,
+		}, "anime %s skipped online lookup: season already complete on disk (%d/%d)", anime.Nombre, onDiskCount, *anime.TotalCap)
+		return animeRunOutcome{}
+	}
+
 	source, err := s.deps.Sites.Resolve(*anime.Pagina)
 	if err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.skipped",
@@ -346,11 +359,6 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			"anime %s: list episodes failed: %v", anime.Nombre, err)
 		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
 		return animeRunOutcome{failed: true, failureKind: FailureKindHosterDown}
-	}
-
-	onDiskCount := 0
-	if s.deps.Counter != nil {
-		onDiskCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
 	}
 
 	if !NeedsDownload(listing.LatestEpisode, onDiskCount) {

@@ -2,11 +2,76 @@ package download
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/sites"
+	"autoreas-bridge/internal/events"
 )
+
+type spySiteRegistry struct {
+	mu           sync.Mutex
+	resolveCalls int
+	source       sites.EpisodeSource
+	err          error
+}
+
+func (r *spySiteRegistry) Resolve(pageURL string) (sites.EpisodeSource, error) {
+	r.mu.Lock()
+	r.resolveCalls++
+	r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.source, nil
+}
+
+func (r *spySiteRegistry) Register(source sites.EpisodeSource) {
+	r.source = source
+}
+
+func (r *spySiteRegistry) calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.resolveCalls
+}
+
+type spyEpisodeSource struct {
+	mu                sync.Mutex
+	listing           sites.EpisodeListing
+	extractLinks      []sites.DownloadLink
+	listEpisodesCalls int
+	extractCalls      int
+}
+
+func (s *spyEpisodeSource) Descriptor() sites.SiteDescriptor {
+	return sites.SiteDescriptor{Name: "jkanime", Priority: 0}
+}
+
+func (s *spyEpisodeSource) Matches(pageURL string) bool {
+	return true
+}
+
+func (s *spyEpisodeSource) ListEpisodes(ctx context.Context, pageURL string) (sites.EpisodeListing, error) {
+	s.mu.Lock()
+	s.listEpisodesCalls++
+	s.mu.Unlock()
+	return s.listing, nil
+}
+
+func (s *spyEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL string) ([]sites.DownloadLink, error) {
+	s.mu.Lock()
+	s.extractCalls++
+	s.mu.Unlock()
+	return s.extractLinks, nil
+}
+
+func (s *spyEpisodeSource) counts() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listEpisodesCalls, s.extractCalls
+}
 
 func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 	t.Parallel()
@@ -119,5 +184,105 @@ func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 	var _ contracts.AnimeQueryService = deps.Animes
 	if _, isWriter := deps.Animes.(contracts.AnimeWriteService); isWriter {
 		t.Fatal("ServiceDeps.Animes must not also satisfy AnimeWriteService -- download is read-only")
+	}
+}
+
+func TestProcessAnimeSkipsOnlineLookupWhenTotalCapMatchesOnDiskCount(t *testing.T) {
+	t.Parallel()
+
+	folder := t.TempDir()
+	deps := baseDeps(t)
+	deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 12}, recursive: map[string]int{folder: 12}}
+	source := &spyEpisodeSource{
+		listing:      sites.EpisodeListing{LatestEpisode: 13, EpisodePageURL: "https://jkanime.net/anime/13/"},
+		extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/13", Hoster: "Mediafire"}},
+	}
+	registry := &spySiteRegistry{source: source}
+	deps.Sites = registry
+
+	var availableEvents int
+	deps.Bus.Subscribe(events.EventNameDownloadEpisodeAvailable, func(e events.Event) {
+		availableEvents++
+	})
+
+	anime := contracts.MobileAnime{
+		ID:       "anime-1",
+		Nombre:   "Some Anime",
+		Activo:   1,
+		Pagina:   ptrStr("https://jkanime.net/anime/"),
+		Carpeta:  ptrStr(folder),
+		TotalCap: ptrInt(12),
+	}
+
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, false)
+
+	if got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 || got.episodesFailed != 0 || len(got.manualLinks) != 0 {
+		t.Fatalf("expected empty outcome for fully downloaded season, got %#v", got)
+	}
+	if registry.calls() != 0 {
+		t.Fatalf("expected Resolve not to be called, got %d calls", registry.calls())
+	}
+	if listCalls, extractCalls := source.counts(); listCalls != 0 || extractCalls != 0 {
+		t.Fatalf("expected no online source calls, got ListEpisodes=%d ExtractLinks=%d", listCalls, extractCalls)
+	}
+	if availableEvents != 0 {
+		t.Fatalf("expected no episode-available events, got %d", availableEvents)
+	}
+}
+
+func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		totalCap *int
+	}{
+		{name: "nil_totalcap", totalCap: nil},
+		{name: "zero_totalcap", totalCap: ptrInt(0)},
+		{name: "different_totalcap", totalCap: ptrInt(12)},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			folder := t.TempDir()
+			deps := baseDeps(t)
+			deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 11}, recursive: map[string]int{folder: 11}}
+			source := &spyEpisodeSource{
+				listing:      sites.EpisodeListing{LatestEpisode: 12, EpisodePageURL: "https://jkanime.net/anime/12/"},
+				extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/12", Hoster: "Mediafire"}},
+			}
+			registry := &spySiteRegistry{source: source}
+			deps.Sites = registry
+
+			var availableEvents int
+			deps.Bus.Subscribe(events.EventNameDownloadEpisodeAvailable, func(e events.Event) {
+				availableEvents++
+			})
+
+			anime := contracts.MobileAnime{
+				ID:       "anime-1",
+				Nombre:   "Some Anime",
+				Activo:   1,
+				Pagina:   ptrStr("https://jkanime.net/anime/"),
+				Carpeta:  ptrStr(folder),
+				TotalCap: tc.totalCap,
+			}
+
+			got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, false)
+
+			if registry.calls() != 1 {
+				t.Fatalf("expected Resolve to be called once, got %d calls", registry.calls())
+			}
+			if listCalls, extractCalls := source.counts(); listCalls != 1 || extractCalls != 1 {
+				t.Fatalf("expected online flow to continue, got ListEpisodes=%d ExtractLinks=%d", listCalls, extractCalls)
+			}
+			if availableEvents != 1 {
+				t.Fatalf("expected one episode-available event, got %d", availableEvents)
+			}
+			if len(got.manualLinks) != 1 || got.manualLinks[0].Episode != 12 {
+				t.Fatalf("expected manual-link outcome for episode 12, got %#v", got)
+			}
+		})
 	}
 }
