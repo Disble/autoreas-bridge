@@ -1,3 +1,3 @@
 /** Helper text displayed below the season mode toggle. */
 export const SEASON_MODE_HELPER_TEXT =
-  'Ver animes se abre con la sección de Estrenos desplegada en Ver hoy.';
+  'When on, scheduled downloads grab the "Ver hoy" set instead of the shows airing today.';

@@ -13,7 +13,7 @@ export interface WeekdayOption {
   readonly bit: number;
 }
 
-/** View model rendered by `SchedulePanel`, derived from `ScheduleConfig`. */
+/** View model rendered by `SchedulePanel`, derived from `ScheduleConfig` and preferences. */
 export interface SchedulePanelViewModel {
   readonly enabled: boolean;
   readonly dailyTimeHHMM: string;
@@ -26,6 +26,8 @@ export interface SchedulePanelViewModel {
   readonly selectedWeekdayValues: readonly string[];
   /** True when the schedule is enabled but NO weekday is selected — it will never fire. */
   readonly willNeverRun: boolean;
+  /** True when season mode is active — each run downloads the "Ver hoy" set. */
+  readonly seasonModeActive: boolean;
 }
 
 /** The user-editable subset of `ScheduleConfig` the form can change. */

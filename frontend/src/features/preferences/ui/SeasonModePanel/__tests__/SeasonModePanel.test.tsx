@@ -27,14 +27,24 @@ describe('SeasonModePanel', () => {
     cleanup();
   });
 
-  it('renders the helper text "Ver animes se abre con la sección de Estrenos desplegada en Ver hoy."', () => {
+  it('renders the English helper text', () => {
     mockHook();
 
     render(<SeasonModePanel />);
 
     expect(
-      screen.getByText('Ver animes se abre con la sección de Estrenos desplegada en Ver hoy.'),
+      screen.getByText('When on, scheduled downloads grab the "Ver hoy" set instead of the shows airing today.'),
     ).toBeInTheDocument();
+  });
+
+  it('does NOT render the old Spanish helper sentence', () => {
+    mockHook();
+
+    render(<SeasonModePanel />);
+
+    expect(
+      screen.queryByText('Ver animes se abre con la sección de Estrenos desplegada en Ver hoy.'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders the toggle label "Desactivado" when season mode is false', () => {

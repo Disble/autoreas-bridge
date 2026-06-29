@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
+import type { PreferencesSource } from '../../../../infrastructure/preferences-source';
+import { preferencesSource } from '../../../../infrastructure/preferences-source';
 import { connectDownloadRuntimeStore, useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store';
+import { usePreferencesStore } from '../../../../shared/store/preferences-store';
 import { toSchedulePanelViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
 import type { ScheduleSaveEdits } from './schedule-panel.types';
 
@@ -11,7 +14,10 @@ import type { ScheduleSaveEdits } from './schedule-panel.types';
  * `ScheduleConfig` via `setScheduleConfig`, refreshing the view model
  * afterward.
  */
-export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntimeSource) {
+export function useSchedulePanel(
+  source: DownloadRuntimeSource = downloadRuntimeSource,
+  prefSource: PreferencesSource = preferencesSource,
+) {
   // 1. Refs
 
   // 2. State
@@ -24,6 +30,8 @@ export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntime
   const hasLoaded = useDownloadRuntimeStore((state) => state.scheduleHasLoaded);
   const loadErrorMessage = useDownloadRuntimeStore((state) => state.scheduleErrorMessage);
   const refreshSchedule = useDownloadRuntimeStore((state) => state.refreshSchedule);
+  const seasonMode = usePreferencesStore((state) => state.seasonMode);
+  const refreshPreferences = usePreferencesStore((state) => state.refresh);
 
   // 4. Queries/Mutations
 
@@ -100,11 +108,15 @@ export function useSchedulePanel(source: DownloadRuntimeSource = downloadRuntime
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    void refreshPreferences(prefSource);
+  }, [refreshPreferences, prefSource]);
+
   const status = !hasLoaded ? 'loading' : loadErrorMessage !== undefined ? 'error' : 'ready';
 
   return {
     status,
-    viewModel: toSchedulePanelViewModel(config),
+    viewModel: { ...toSchedulePanelViewModel(config), seasonModeActive: seasonMode },
     dailyTimeDraft,
     isSaving,
     saveErrorMessage,

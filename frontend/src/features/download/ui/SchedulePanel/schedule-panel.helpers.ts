@@ -88,7 +88,10 @@ function toNextRunLabel(config: ScheduleConfig, now: Date): string {
  * a `willNeverRun` flag for the enabled-but-no-days edge case. `now` is injected
  * for deterministic testing and defaults to the current instant.
  */
-export function toSchedulePanelViewModel(config: ScheduleConfig, now: Date = new Date()): SchedulePanelViewModel {
+export function toSchedulePanelViewModel(
+  config: ScheduleConfig,
+  now: Date = new Date(),
+): Omit<SchedulePanelViewModel, 'seasonModeActive'> {
   return {
     enabled: config.enabled,
     dailyTimeHHMM: config.dailyTimeHHMM,

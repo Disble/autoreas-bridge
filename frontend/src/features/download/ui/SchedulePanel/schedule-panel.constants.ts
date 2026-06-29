@@ -19,6 +19,13 @@ export const WEEKDAY_OPTIONS: readonly WeekdayOption[] = [
   { value: '0', label: 'Sun', bit: 0 },
 ];
 
+/** Title for the season-mode informational banner shown above the schedule controls. */
+export const SEASON_MODE_BANNER_TITLE = 'Season mode is on';
+
+/** Description for the season-mode informational banner. */
+export const SEASON_MODE_BANNER_DESCRIPTION =
+  'Each run downloads the "Ver hoy" set, regardless of the days selected below.';
+
 /** Safe default schedule config shown before the first `getScheduleConfig` resolves. */
 export const SCHEDULE_PANEL_EMPTY_CONFIG: ScheduleConfig = {
   mode: 'in_process',

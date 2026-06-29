@@ -20,6 +20,7 @@ const baseViewModel: SchedulePanelViewModel = {
   enabledWeekdays: 127,
   selectedWeekdayValues: ['1', '2', '3', '4', '5', '6', '0'],
   willNeverRun: false,
+  seasonModeActive: false,
 };
 
 type HookReturn = ReturnType<typeof useSchedulePanel>;
@@ -163,5 +164,44 @@ describe('SchedulePanel', () => {
     render(<SchedulePanel />);
 
     expect(screen.getByText('save failed')).toBeInTheDocument();
+  });
+
+  it('renders the season mode banner when seasonModeActive is true', () => {
+    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: true } });
+
+    render(<SchedulePanel />);
+
+    expect(screen.getByText('Season mode is on')).toBeInTheDocument();
+    expect(
+      screen.getByText('Each run downloads the "Ver hoy" set, regardless of the days selected below.'),
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT render the season mode banner when seasonModeActive is false', () => {
+    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: false } });
+
+    render(<SchedulePanel />);
+
+    expect(screen.queryByText('Season mode is on')).not.toBeInTheDocument();
+  });
+
+  it('still renders the weekday selector when seasonModeActive is true', () => {
+    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: true } });
+
+    render(<SchedulePanel />);
+
+    for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('still renders the weekday selector when seasonModeActive is false', () => {
+    mockHook({ viewModel: { ...baseViewModel, seasonModeActive: false } });
+
+    render(<SchedulePanel />);
+
+    for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
   });
 });

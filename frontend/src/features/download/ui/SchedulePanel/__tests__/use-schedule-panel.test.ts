@@ -2,8 +2,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
+import type { PreferencesSource } from '../../../../../infrastructure/preferences-source';
 import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store';
+import { resetPreferencesStore } from '../../../../../shared/store/preferences-store';
 
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',
@@ -31,9 +33,19 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
   };
 }
 
+function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
+  return {
+    getSeasonMode: vi.fn().mockResolvedValue(false),
+    setSeasonMode: vi.fn().mockResolvedValue('ok'),
+    ...overrides,
+  };
+}
+
 describe('useSchedulePanel', () => {
   afterEach(() => {
     resetDownloadRuntimeStore();
+    resetPreferencesStore();
+    vi.clearAllMocks();
   });
 
   it('starts in the loading status', () => {
@@ -215,5 +227,34 @@ describe('useSchedulePanel', () => {
 
     await waitFor(() => expect(result.current.viewModel.lastRunStatus).toBe('ok'));
     expect(result.current.viewModel.lastRunLabel).toBe(new Date(1_700_000_123_000).toLocaleString());
+  });
+
+  it('calls preferences refresh on mount', async () => {
+    const source = createSource();
+    const preferencesSource = createPreferencesSource();
+
+    renderHook(() => useSchedulePanel(source, preferencesSource));
+
+    await waitFor(() => expect(preferencesSource.getSeasonMode).toHaveBeenCalledTimes(1));
+  });
+
+  it('seasonModeActive is true when the preferences store reports seasonMode true', async () => {
+    const source = createSource();
+    const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+
+    const { result } = renderHook(() => useSchedulePanel(source, preferencesSource));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(true));
+  });
+
+  it('seasonModeActive is false when the preferences store reports seasonMode false', async () => {
+    const source = createSource();
+    const preferencesSource = createPreferencesSource({ getSeasonMode: vi.fn().mockResolvedValue(false) });
+
+    const { result } = renderHook(() => useSchedulePanel(source, preferencesSource));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(false));
   });
 });

@@ -1,6 +1,6 @@
 import { Alert, Card, Chip, Input, Label, Skeleton, Switch, TextField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { useSchedulePanel } from './use-schedule-panel';
-import { WEEKDAY_OPTIONS } from './schedule-panel.constants';
+import { SEASON_MODE_BANNER_DESCRIPTION, SEASON_MODE_BANNER_TITLE, WEEKDAY_OPTIONS } from './schedule-panel.constants';
 import { weekdayValuesToMask } from './schedule-panel.helpers';
 import type { SchedulePanelProps } from './schedule-panel.types';
 
@@ -51,6 +51,16 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
           <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
             {saveErrorMessage}
           </p>
+        )}
+
+        {viewModel.seasonModeActive && (
+          <Alert status="default">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{SEASON_MODE_BANNER_TITLE}</Alert.Title>
+              <Alert.Description>{SEASON_MODE_BANNER_DESCRIPTION}</Alert.Description>
+            </Alert.Content>
+          </Alert>
         )}
 
         <Switch isDisabled={isSaving} isSelected={viewModel.enabled} onChange={(isSelected) => setEnabled(isSelected)}>
