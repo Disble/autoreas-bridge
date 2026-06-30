@@ -23,6 +23,7 @@ type Hub interface {
 	Register(ctx context.Context, client Client) error
 	Unregister(clientID string)
 	BroadcastAnimeChanged(ctx context.Context, event events.AnimeChangedEvent)
+	BroadcastPreferencesChanged(ctx context.Context, seasonMode bool)
 }
 
 type MemoryHubConfig struct {
@@ -159,6 +160,28 @@ func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeC
 		}, "broadcast anime.changed for %s", event.AnimeID)
 	}
 	message := buildAnimeEventMessage(event)
+
+	select {
+	case h.broadcasts <- message:
+	default:
+	}
+}
+
+func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bool) {
+	h.mu.RLock()
+	clientCount := len(h.clients)
+	h.mu.RUnlock()
+
+	if h.logger != nil {
+		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
+			EventType: "websocket.broadcast",
+			Metadata:  map[string]any{"clientCount": clientCount, "seasonMode": seasonMode},
+		}, "broadcast preferences.changed (seasonMode=%v)", seasonMode)
+	}
+	message := mustJSON(PreferencesChangedMessage{
+		Type:       MessageTypePreferencesChanged,
+		SeasonMode: seasonMode,
+	})
 
 	select {
 	case h.broadcasts <- message:

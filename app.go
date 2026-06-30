@@ -177,7 +177,7 @@ func (a *App) startup(ctx context.Context) {
 			return ""
 		}
 		return a.httpServer.EffectiveAddress()
-	})
+	}, a.seasonModeReader())
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
 	a.httpServer = a.buildHTTPServer(deviceService, animeWrite, conflictService, statusService, syncTrigger)

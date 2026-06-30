@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/preferences"
 )
@@ -142,6 +143,71 @@ func TestSetSeasonModeReturnsErrStringOnStoreError(t *testing.T) {
 	got := app.SetSeasonMode(true)
 	if got != "write failure" {
 		t.Fatalf("expected %q, got %q", "write failure", got)
+	}
+}
+
+// ── realtime broadcast wiring (mobile season-mode sync) ─────────────────────────────
+
+func TestSetSeasonModeBroadcastsToRealtimeHub(t *testing.T) {
+	t.Parallel()
+
+	hub := &stubAppRealtimeHub{seasonModes: make(chan bool, 1)}
+	app := &App{
+		ctx:              context.Background(),
+		preferencesStore: &fakePreferencesStore{},
+		realtimeHub:      hub,
+	}
+
+	if got := app.SetSeasonMode(true); got != "ok" {
+		t.Fatalf("SetSeasonMode: expected %q, got %q", "ok", got)
+	}
+
+	select {
+	case enabled := <-hub.seasonModes:
+		if !enabled {
+			t.Fatal("expected broadcast seasonMode=true, got false")
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected SetSeasonMode to broadcast a preferences change over the realtime hub")
+	}
+}
+
+func TestSetSeasonModeDoesNotBroadcastWhenPersistFails(t *testing.T) {
+	t.Parallel()
+
+	hub := &stubAppRealtimeHub{seasonModes: make(chan bool, 1)}
+	app := &App{
+		ctx:              context.Background(),
+		preferencesStore: &fakePreferencesStore{setErr: errors.New("write failure")},
+		realtimeHub:      hub,
+	}
+
+	if got := app.SetSeasonMode(true); got != "write failure" {
+		t.Fatalf("expected %q, got %q", "write failure", got)
+	}
+
+	select {
+	case <-hub.seasonModes:
+		t.Fatal("expected NO broadcast when the persist write fails")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestSetSeasonModeDoesNotPanicWhenRealtimeHubNil(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("SetSeasonMode panicked with nil realtime hub: %v", r)
+		}
+	}()
+
+	app := &App{
+		ctx:              context.Background(),
+		preferencesStore: &fakePreferencesStore{},
+	}
+	if got := app.SetSeasonMode(true); got != "ok" {
+		t.Fatalf("expected %q, got %q", "ok", got)
 	}
 }
 

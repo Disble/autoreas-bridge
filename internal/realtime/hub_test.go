@@ -156,6 +156,30 @@ func TestMemoryHubBroadcastsCreateAndDeleteEventTypes(t *testing.T) {
 	assertAnimeIDPayload(t, client.Receive(t), MessageTypeAnimeDeleted, "anime-deleted")
 }
 
+func TestMemoryHubBroadcastsPreferencesChangedToRegisteredClients(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 4, ClientBuffer: 4})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	first := newRecordingClient("client-1")
+	second := newRecordingClient("client-2")
+	if err := hub.Register(context.Background(), first); err != nil {
+		t.Fatalf("register first client: %v", err)
+	}
+	if err := hub.Register(context.Background(), second); err != nil {
+		t.Fatalf("register second client: %v", err)
+	}
+
+	consumeControlMessage(t, first.Receive(t))
+	consumeControlMessage(t, second.Receive(t))
+
+	hub.BroadcastPreferencesChanged(context.Background(), true)
+
+	assertPreferencesChangedPayload(t, first.Receive(t), true)
+	assertPreferencesChangedPayload(t, second.Receive(t), true)
+}
+
 type recordingClient struct {
 	id       string
 	received chan []byte
@@ -287,6 +311,22 @@ func assertAnimeChangedPayload(t *testing.T, payload []byte, wantAnimeID string)
 
 	if msg.AnimeID != wantAnimeID {
 		t.Fatalf("expected anime id %q, got %q", wantAnimeID, msg.AnimeID)
+	}
+}
+
+func assertPreferencesChangedPayload(t *testing.T, payload []byte, wantSeasonMode bool) {
+	t.Helper()
+
+	var msg PreferencesChangedMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		t.Fatalf("unmarshal preferences changed message: %v", err)
+	}
+
+	if msg.Type != MessageTypePreferencesChanged {
+		t.Fatalf("expected message type %q, got %q", MessageTypePreferencesChanged, msg.Type)
+	}
+	if msg.SeasonMode != wantSeasonMode {
+		t.Fatalf("expected season mode %v, got %v", wantSeasonMode, msg.SeasonMode)
 	}
 }
 

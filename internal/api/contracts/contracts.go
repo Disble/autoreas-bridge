@@ -151,6 +151,11 @@ type StatusInfo struct {
 	LastChangelogID int64  `json:"last_changelog_id"`
 	LastChangedAtMs *int64 `json:"last_changed_at_ms,omitempty"`
 	ServerAddress   string `json:"server_address,omitempty"`
+	// SeasonMode echoes the bridge-owned global season-mode flag so a mobile
+	// client can hydrate its global season-mode state on a cold GET /api/status
+	// read. Always present: false is the canonical default (matches the
+	// preferences store missing-row sentinel), so there is no "absent" state.
+	SeasonMode bool `json:"season_mode"`
 }
 
 var ErrAnimeNotFound = errors.New("anime not found")
