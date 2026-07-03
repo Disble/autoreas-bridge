@@ -132,7 +132,7 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
       `getAnimeDetail` field: `use-anime-panel.test.ts`, `use-bridge-dashboard.test.ts`,
       `use-bridge-status-card.test.ts`, `use-pairing-panel.test.ts`,
       `use-syncing-anime-panel.test.ts`.)
-- [ ] **Orchestrator commits slice 1** on `feat/catalog-history` once every gate above is green.
+- [x] **Orchestrator committed slice 1** as `4237339` on `feat/catalog-history`, full gate green.
       No UI surface is touched in this slice — desktop detail data ships with zero frontend risk
       (design Decision 6).
 
@@ -216,7 +216,7 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
 - [x] Catalog renders renamed with unchanged filter/search behavior; detail reachable from Catalog.
 - [x] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
 - [x] `tsc` clean.
-- [ ] **Orchestrator commits slice 2** on `feat/catalog-history` — green even before History
+- [x] **Orchestrator committed slice 2** as `ad12128` on `feat/catalog-history` — green even before History
       exists (detail works from Catalog alone, per design Decision 6).
 
 ## Slice 3 — History lens (~300 lines)
@@ -274,15 +274,17 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
       control switches lenses, detail reachable from History, nav still 7 entries.
 - [x] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
 - [x] `tsc` clean.
-- [ ] **Orchestrator commits slice 3** on `feat/catalog-history` — final slice, only adds a lens +
+- [x] **Orchestrator committed slice 3** as `aba9cf1` on `feat/catalog-history` — final slice, only adds a lens +
       route over the slice-2 hub (design Decision 6).
 
 ## Phase 4 — Close (orchestrator, after slice 3)
-- [ ] `go test ./...` GREEN, `bun --cwd=frontend run test` GREEN, full pre-commit gate green
-      (gofmt, golangci-lint, `go vet`, `go run ./tools/checkgofilesize`, ESLint, `tsc`,
-      `bun run filesize:warning`, sdd-gate, openapi).
-- [ ] Confirm all three commits landed on `feat/catalog-history` in order (slice 1 → 2 → 3), each
-      independently green per its own Phase N.x Verify step.
+- [x] `go test ./...` GREEN, `bun --cwd=frontend run test` GREEN (61 files / 463 tests), full
+      pre-commit gate green on every slice commit (gofmt, golangci-lint, `go vet`,
+      `go run ./tools/checkgofilesize`, ESLint, `tsc`, `bun run filesize:warning`, sdd-gate,
+      openapi).
+- [x] Confirmed all three commits landed on `feat/catalog-history` in order:
+      slice 1 `4237339` → slice 2 `ad12128` → slice 3 `aba9cf1`, each independently green per its
+      own Phase N.x Verify step (12/12 gates on each commit).
 - [ ] Archive DEFERRED (matches repo practice for sdd-33/sdd-34): stays under `openspec/changes/`
       until a later archive pass, typically post-merge. Delta specs at
       `specs/anime-detail/spec.md`, `specs/anime-history/spec.md`, `specs/anime/spec.md` to be
