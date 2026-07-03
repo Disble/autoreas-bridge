@@ -222,50 +222,58 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
 ## Slice 3 — History lens (~300 lines)
 
 ### Phase 3.1 — Decision: History content model + timeline ordering (spec: Anime History / "History Read Model")
-- [ ] Resolve design's open assumption before writing the list hook: History includes every anime
+- [x] Resolve design's open assumption before writing the list hook: History includes every anime
       that HAS at least one `repetir` entry OR has in-progress watch state (`nrocapvisto` > 0 and
       `nrocapvisto` < `totalcap`) — i.e. "has progress or repetition history," not "all animes."
       Timeline ordering within a card: most-recent `fechaRepeticion` first (desc), matching design's
       assumed default. Record this decision inline as a code comment in the helpers file (not a
       separate doc) since it is a behavior-defining choice, not self-evident from the code.
-- [ ] RED: `frontend/src/features/history/ui/HistoryList/__tests__/history-list.helpers.test.ts`
+- [x] RED: `frontend/src/features/history/ui/HistoryList/__tests__/history-list.helpers.test.ts`
       (or hook-level test) encoding the above filter + ordering rule against sample `AnimeDetail`-
       shaped fixtures (empty repetir, single-entry, multi-entry, no-progress-no-repetir excluded).
 
 ### Phase 3.2 — `features/history/` list (spec: Anime History / "History Read Model", "Read-only")
-- [ ] Scaffold via `bun --cwd=frontend run generate:feature history HistoryList`.
-- [ ] GREEN: `use-history-list.ts` — owns fetch (reuse `getAnimes`/existing catalog source plus
+- [x] Scaffold via `bun --cwd=frontend run generate:feature history HistoryList`.
+- [x] GREEN: `use-history-list.ts` — owns fetch (reuse `getAnimes`/existing catalog source plus
       per-item `repetir` from list data — confirm whether the slim `getAnimes` payload already
       carries progress fields `nrocapvisto`/`totalcap`; if `repetir` is NOT on the slim list DTO
       per design Decision 4, the History list must fetch progress/repetition summary through a
       route that includes it — document and resolve this data-source gap explicitly as part of
-      this task, not silently assume availability).
-- [ ] GREEN: `history-list.helpers.ts` (JSDoc'd) implementing the Phase 3.1 filter/ordering
+      this task, not silently assume availability). RESOLVED: `getAnimes()` already carries
+      `nrocapvisto`/`totalcap` (progress); `repetir` is genuinely absent from the slim DTO. Two-step
+      fetch implemented in `loadHistoryEntries` (`history-list.helpers.ts`): cheap prefilter over
+      `getAnimes()` by nonzero progress (`isHistoryDetailCandidate`), then per-candidate
+      `getAnimeDetail(id)` to obtain `repetir` and apply the full membership rule. No new Go
+      endpoint added. Documented known limitation: an anime with CURRENT `nrocapvisto === 0` but
+      prior `repetir` history from an earlier cycle is not detected (would require either a bulk
+      repetition field on the slim DTO — rejected by design Decision 4 — or fetching detail for the
+      entire catalog, which does not scale).
+- [x] GREEN: `history-list.helpers.ts` (JSDoc'd) implementing the Phase 3.1 filter/ordering
       decision.
-- [ ] RED + GREEN: `HistoryList.tsx` (or per-item `HistoryCard`) dumb render of progress (watched/
+- [x] RED + GREEN: `HistoryList.tsx` (or per-item `HistoryCard`) dumb render of progress (watched/
       total) and repetition count per entry, English UI chrome (spec: "History labels render in
       English"), preserving Spanish data literals verbatim where they originate from Legacy data
       (spec: "Data literals stay Spanish").
-- [ ] Test: no write/patch/reconcile call is triggered by any History interaction (spec: "History
+- [x] Test: no write/patch/reconcile call is triggered by any History interaction (spec: "History
       surface is read-only") — assert the hook exposes no mutation callable, only navigation to
       detail.
 
 ### Phase 3.3 — Segmented Catalog/History control + routes (spec: Anime History / "Reached Without an 8th Bottom-Nav Tab")
-- [ ] RED: routing/component test — segmented control renders on `/catalog` and `/catalog/history`
+- [x] RED: routing/component test — segmented control renders on `/catalog` and `/catalog/history`
       only (not on `/catalog/detail/:id`), switching lens without altering the nav.
-- [ ] GREEN: segmented control component (colocated under `features/catalog/` as the host lens
+- [x] GREEN: segmented control component (colocated under `features/catalog/` as the host lens
       switcher, per design Decision 2 — it lives with neither lens's data, only the switch UI) +
       `<Route path="/catalog/history" element={<HistoryRoute />} />` in `App.tsx`.
-- [ ] GREEN: `HistoryRoute` (thin composition in `app/routes/`) rendering `<HistoryList />`, drill-
+- [x] GREEN: `HistoryRoute` (thin composition in `app/routes/`) rendering `<HistoryList />`, drill-
       down to `/catalog/detail/:id` via the SAME shared `AnimeDetail` from slice 2.
-- [ ] Test: bottom nav entry count is still exactly 7 after this slice (spec scenario, direct
+- [x] Test: bottom nav entry count is still exactly 7 after this slice (spec scenario, direct
       assertion against `NAV_ITEMS.length`).
 
 ### Phase 3.4 — Verify slice 3
-- [ ] `bun --cwd=frontend run test` GREEN — History lists real progress/repetition data, segmented
+- [x] `bun --cwd=frontend run test` GREEN — History lists real progress/repetition data, segmented
       control switches lenses, detail reachable from History, nav still 7 entries.
-- [ ] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
-- [ ] `tsc` clean.
+- [x] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
+- [x] `tsc` clean.
 - [ ] **Orchestrator commits slice 3** on `feat/catalog-history` — final slice, only adds a lens +
       route over the slice-2 hub (design Decision 6).
 

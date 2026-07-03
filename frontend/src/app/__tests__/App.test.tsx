@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import App from '../../App';
+import { NAV_ITEMS } from '../AppLayout';
 import { resetNetworkStore } from '../../shared/store/network-store';
 
 describe('App routing', () => {
@@ -149,6 +150,42 @@ describe('App routing', () => {
     );
 
     expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
+  });
+
+  it('renders the history route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/history']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('radio', { name: 'History' })).toBeInTheDocument();
+  });
+
+  it('renders the segmented Catalog/History control on /catalog', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('radio', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'History' })).toBeInTheDocument();
+  });
+
+  it('does not render the segmented Catalog/History control on the shared detail route', () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/detail/anime-1']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('radio', { name: 'Catalog' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'History' })).not.toBeInTheDocument();
+  });
+
+  it('keeps exactly 7 primary navigation entries after History is introduced', () => {
+    expect(NAV_ITEMS.length).toBe(7);
   });
 
   it('renders a not found route for unknown paths', async () => {

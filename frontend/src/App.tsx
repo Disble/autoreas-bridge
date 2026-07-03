@@ -3,6 +3,7 @@ import { BridgeDashboard } from './features/dashboard/ui/BridgeDashboard/BridgeD
 import { AppLayout } from './app/AppLayout';
 import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
 import { CatalogRoute } from './app/routes/CatalogRoute';
+import { HistoryRoute } from './app/routes/HistoryRoute';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NetworkRoute } from './app/routes/NetworkRoute';
@@ -18,6 +19,7 @@ function App() {
                 <Route path="/network" element={<NetworkRoute />} />
                 <Route path="/dashboard" element={<BridgeDashboard />} />
                 <Route path="/catalog" element={<CatalogRoute />} />
+                <Route path="/catalog/history" element={<HistoryRoute />} />
                 <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />

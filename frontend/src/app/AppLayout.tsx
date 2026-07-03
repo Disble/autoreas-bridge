@@ -176,7 +176,8 @@ function OptionsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-const NAV_ITEMS: readonly NavItem[] = [
+/** Fixed 7-entry nav shared by the desktop rail and the mobile tab bar. History is reached as a lens under Catalog, not an 8th entry here. */
+export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/catalog', label: 'Catalog', Icon: CatalogIcon },
