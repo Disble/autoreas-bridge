@@ -6,8 +6,8 @@ import {
   sortAnimesByName,
   toAnimeStatus,
   toAnimeViewModel,
-} from '../anime-panel.helpers';
-import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VALUE } from '../anime-panel.constants';
+} from '../catalog-panel.helpers';
+import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VALUE } from '../catalog-panel.constants';
 
 const baseAnime: Anime = {
   id: 'anime-1',

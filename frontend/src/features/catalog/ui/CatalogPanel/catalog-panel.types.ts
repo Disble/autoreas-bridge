@@ -1,10 +1,10 @@
 import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 
 /**
- * Props for the AnimePanel component. The panel is self-contained and reads
+ * Props for the CatalogPanel component. The panel is self-contained and reads
  * the anime catalog from the Wails runtime, so it accepts no external data.
  */
-export interface AnimePanelProps {
+export interface CatalogPanelProps {
   readonly className?: string;
 }
 
@@ -14,7 +14,7 @@ export interface AnimePanelProps {
 export type AnimeStatus = 'active' | 'inactive';
 
 /**
- * View model consumed by the AnimePanel UI.
+ * View model consumed by the CatalogPanel UI.
  */
 export interface AnimeViewModel {
   readonly id: string;
@@ -56,9 +56,9 @@ export interface AnimeFilterState {
 }
 
 /**
- * Props for the dumb AnimeFilterBar component.
+ * Props for the dumb CatalogFilterBar component.
  */
-export interface AnimeFilterBarProps {
+export interface CatalogFilterBarProps {
   readonly filters: AnimeFilterState;
   readonly estadoOptions: readonly AnimeFilterOption[];
   readonly activoOptions: readonly AnimeFilterOption[];
@@ -76,9 +76,9 @@ export interface AnimeFilterBarProps {
 }
 
 /**
- * View state returned by the AnimePanel hook.
+ * View state returned by the CatalogPanel hook.
  */
-export interface AnimePanelState {
+export interface CatalogPanelState {
   readonly items: readonly AnimeViewModel[];
   readonly isLoading: boolean;
   readonly isEmpty: boolean;

@@ -1,15 +1,16 @@
 import { Alert, Button, Card, Chip, Spinner } from '@heroui/react';
-import { AnimeFilterBar } from '../AnimeFilterBar/AnimeFilterBar';
-import type { AnimePanelProps } from './anime-panel.types';
+import { Link } from 'react-router';
+import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
+import type { CatalogPanelProps } from './catalog-panel.types';
 import {
-  ANIME_PANEL_EMPTY_MESSAGE,
-  ANIME_PANEL_EMPTY_TITLE,
-} from './anime-panel.constants';
-import { getAnimeLegacyPullAlertStatus } from './anime-panel.helpers';
-import { useAnimePanel } from './use-anime-panel';
+  CATALOG_PANEL_EMPTY_MESSAGE,
+  CATALOG_PANEL_EMPTY_TITLE,
+} from './catalog-panel.constants';
+import { getAnimeLegacyPullAlertStatus } from './catalog-panel.helpers';
+import { useCatalogPanel } from './use-catalog-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
-export function AnimePanel(props: Readonly<AnimePanelProps>) {
+export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
   const {
     isEmpty,
     isLoading,
@@ -31,12 +32,12 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
     onPullFromLegacy,
     isPullingFromLegacy,
     pullResult,
-  } = useAnimePanel(props);
+  } = useCatalogPanel(props);
 
   return (
     <Card className={props.className}>
       <Card.Content className="flex flex-col gap-4">
-        <AnimeFilterBar
+        <CatalogFilterBar
           filters={filters}
           estadoOptions={estadoOptions}
           activoOptions={activoOptions}
@@ -78,8 +79,8 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
 
         {isEmpty ? (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">{ANIME_PANEL_EMPTY_TITLE}</p>
-            <p className="mt-2 text-sm text-muted">{ANIME_PANEL_EMPTY_MESSAGE}</p>
+            <p className="text-sm font-medium text-foreground">{CATALOG_PANEL_EMPTY_TITLE}</p>
+            <p className="mt-2 text-sm text-muted">{CATALOG_PANEL_EMPTY_MESSAGE}</p>
           </div>
         ) : null}
 
@@ -94,10 +95,10 @@ export function AnimePanel(props: Readonly<AnimePanelProps>) {
                 className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
+                  <Link className="min-w-0 flex-1" to={`/catalog/detail/${item.id}`}>
                     <h3 className="truncate text-sm font-semibold text-foreground">{item.nombre}</h3>
                     <p className="mt-1 text-xs text-muted">{item.progressLabel}</p>
-                  </div>
+                  </Link>
                   <div className="flex flex-wrap items-center gap-2">
                     {item.hasDownloadGap ? (
                       <Chip

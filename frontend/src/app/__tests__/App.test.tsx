@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import App from '../../App';
@@ -103,6 +103,52 @@ describe('App routing', () => {
     );
 
     expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+  });
+
+  it('renders Catalog as the renamed nav entry pointing to /catalog', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
+    const catalogLink = within(nav).getByRole('link', { name: 'Catalog' });
+
+    expect(catalogLink).toHaveAttribute('href', '/catalog');
+    expect(within(nav).queryByRole('link', { name: 'Animes' })).not.toBeInTheDocument();
+  });
+
+  it('keeps exactly 7 primary navigation entries after the Catalog rename', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
+
+    expect(within(nav).getAllByRole('link')).toHaveLength(7);
+  });
+
+  it('renders the catalog route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Catalog' })).toBeInTheDocument();
+  });
+
+  it('resolves /catalog/detail/:id to the shared AnimeDetail component', () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/detail/anime-1']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
   });
 
   it('renders a not found route for unknown paths', async () => {

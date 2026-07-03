@@ -10,7 +10,7 @@ import {
   ANIME_FILTER_DEBOUNCE_MS,
   ANIME_GAP_OPTIONS,
   ANIME_LEGACY_PULL_FAILED_RESULT,
-} from './anime-panel.constants';
+} from './catalog-panel.constants';
 import {
   filterAnimes,
   getUniqueDiaOptions,
@@ -18,21 +18,21 @@ import {
   getUniqueTipoOptions,
   sortAnimesByName,
   toAnimeViewModel,
-} from './anime-panel.helpers';
-import type { AnimeFilterState, AnimePanelProps, AnimePanelState, AnimeViewModel } from './anime-panel.types';
+} from './catalog-panel.helpers';
+import type { AnimeFilterState, CatalogPanelProps, CatalogPanelState, AnimeViewModel } from './catalog-panel.types';
 
-/** Drives the AnimePanel by fetching the full anime catalog from the runtime. */
-export function useAnimePanel(
-  _props: Readonly<AnimePanelProps>,
+/** Drives the CatalogPanel by fetching the full anime catalog from the runtime. */
+export function useCatalogPanel(
+  _props: Readonly<CatalogPanelProps>,
   source: BridgeRuntimeSource = bridgeRuntimeSource,
-): AnimePanelState {
+): CatalogPanelState {
   // 1. Refs
 
   // 2. State
   const [items, setItems] = useState<readonly Anime[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPullingFromLegacy, setIsPullingFromLegacy] = useState(false);
-  const [pullResult, setPullResult] = useState<AnimePanelState['pullResult']>(undefined);
+  const [pullResult, setPullResult] = useState<CatalogPanelState['pullResult']>(undefined);
   const [filters, setFilters] = useState<AnimeFilterState>({
     query: '',
     estado: ANIME_FILTER_ALL_VALUE,

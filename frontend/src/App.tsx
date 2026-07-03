@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { BridgeDashboard } from './features/dashboard/ui/BridgeDashboard/BridgeDashboard';
 import { AppLayout } from './app/AppLayout';
-import { AnimeRoute } from './app/routes/AnimeRoute';
+import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
+import { CatalogRoute } from './app/routes/CatalogRoute';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NetworkRoute } from './app/routes/NetworkRoute';
@@ -16,7 +17,8 @@ function App() {
                 <Route index element={<Navigate replace to="/network" />} />
                 <Route path="/network" element={<NetworkRoute />} />
                 <Route path="/dashboard" element={<BridgeDashboard />} />
-                <Route path="/animes" element={<AnimeRoute />} />
+                <Route path="/catalog" element={<CatalogRoute />} />
+                <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />
                 <Route path="/pairing" element={<PairingRoute />} />

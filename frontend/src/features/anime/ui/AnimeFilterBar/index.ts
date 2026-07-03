@@ -1,1 +1,0 @@
-export { AnimeFilterBar } from './AnimeFilterBar';

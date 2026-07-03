@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
-import { useAnimePanel } from '../use-anime-panel';
+import { useCatalogPanel } from '../use-catalog-panel';
 
 const animeA: Anime = {
   id: 'anime-a',
@@ -51,10 +51,10 @@ function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource
   };
 }
 
-describe('useAnimePanel', () => {
+describe('useCatalogPanel', () => {
   it('returns loading initially', () => {
     const source = createSource([animeA]);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isEmpty).toBe(false);
@@ -63,7 +63,7 @@ describe('useAnimePanel', () => {
 
   it('returns sorted view models after loading', async () => {
     const source = createSource([animeB, animeA]);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -76,7 +76,7 @@ describe('useAnimePanel', () => {
 
   it('returns empty when the source returns an empty list', async () => {
     const source = createSource([]);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isEmpty).toBe(true));
 
@@ -85,7 +85,7 @@ describe('useAnimePanel', () => {
 
   it('returns empty when the source rejects', async () => {
     const source = createSource([], true);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isEmpty).toBe(true));
 
@@ -94,7 +94,7 @@ describe('useAnimePanel', () => {
 
   it('exposes a gap filter and onGapChange callback defaulting to "all"', async () => {
     const source = createSource([animeA, animeB]);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -105,7 +105,7 @@ describe('useAnimePanel', () => {
 
   it('filters out complete animes when the gap filter is set to "missing"', async () => {
     const source = createSource([animeA, animeB]);
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -128,7 +128,7 @@ describe('useAnimePanel', () => {
       updatedCount: 1,
       warningCount: 0,
     });
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -144,7 +144,7 @@ describe('useAnimePanel', () => {
   it('exposes a safe error result when pull from legacy fails', async () => {
     const source = createSource([animeA]);
     vi.mocked(source.pullAnimesFromLegacy).mockRejectedValueOnce(new Error('boom'));
-    const { result } = renderHook(() => useAnimePanel({}, source));
+    const { result } = renderHook(() => useCatalogPanel({}, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 

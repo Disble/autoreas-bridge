@@ -85,7 +85,7 @@ function StatusIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function AnimeIcon(props: SVGProps<SVGSVGElement>) {
+function CatalogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       fill="none"
@@ -179,7 +179,7 @@ function OptionsIcon(props: SVGProps<SVGSVGElement>) {
 const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
-  { to: '/animes', label: 'Animes', Icon: AnimeIcon },
+  { to: '/catalog', label: 'Catalog', Icon: CatalogIcon },
   { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },

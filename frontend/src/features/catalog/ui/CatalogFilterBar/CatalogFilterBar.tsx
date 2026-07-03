@@ -1,11 +1,11 @@
 import { Input, Label, ListBox, Select } from '@heroui/react';
-import type { AnimeFilterBarProps } from './anime-filter-bar.types';
+import type { CatalogFilterBarProps } from './catalog-filter-bar.types';
 
 /**
  * Renders the search box and advanced filter controls for the anime catalog.
  * All state and callbacks are controlled by the parent hook.
  */
-export function AnimeFilterBar(props: Readonly<AnimeFilterBarProps>) {
+export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
   const {
     filters,
     estadoOptions,

@@ -1,1 +1,0 @@
-export { AnimePanel } from './AnimePanel';

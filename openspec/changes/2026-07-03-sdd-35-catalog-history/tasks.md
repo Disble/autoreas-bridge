@@ -139,70 +139,83 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
 ## Slice 2 — Catalog rename + shared Detail scaffold (~150 lines)
 
 ### Phase 2.1 — Rename `features/anime/` → `features/catalog/` (spec: Anime / "Catalog Surface Naming and Navigation Entry")
-- [ ] RED: adjust existing colocated tests under
+- [x] RED: adjust existing colocated tests under
       `frontend/src/features/anime/ui/{AnimePanel,AnimeFilterBar}/__tests__/` to their post-rename
       import paths/names as a mechanical rename (git tracks it as a move) —
       `AnimePanel` → `CatalogPanel`, `AnimeFilterBar` → `CatalogFilterBar`, folder
       `features/anime/` → `features/catalog/`. This is a rename, not new behavior: the RED step is
       "tests fail to compile/resolve at old paths," GREEN is "tests pass at new paths with
       identical assertions."
-- [ ] GREEN: perform the rename (folder + component identifiers + imports). Backend identifiers
+- [x] GREEN: perform the rename (folder + component identifiers + imports). Backend identifiers
       (`GetAnimes` binding, `AnimeListItem`, `ListAnimeItems`, `getAnimes` source method) stay
       UNCHANGED per design Decision 5 — confirm no occurrence of the rename touches
       `bridge-runtime-source.ts`'s `getAnimes` method name or `anime.types.ts`'s `Anime` interface
-      name.
-- [ ] Confirm `search-filters.md` / `soft-delete.md` behavior is unaffected (spec scenario) — run
+      name. DEVIATION (scoped, low-risk): also renamed the Panel/FilterBar-specific colocated file
+      names (`anime-panel.*` → `catalog-panel.*`, `anime-filter-bar.types.ts` →
+      `catalog-filter-bar.types.ts`) and their 1:1 component-attached type names
+      (`AnimePanelProps`/`AnimePanelState`/`AnimeFilterBarProps` → `CatalogPanelProps`/
+      `CatalogPanelState`/`CatalogFilterBarProps`, `ANIME_PANEL_*` constants →
+      `CATALOG_PANEL_*`) to keep colocated file names honest post-rename (generator convention:
+      kebab file names mirror the component). Kept unchanged: domain-shaped names that mirror
+      "Anime" data itself, not panel identity (`AnimeViewModel`, `AnimeStatus`, `AnimeFilterState`,
+      `AnimeFilterOption`, all `matchesAnime*`/`toAnimeViewModel` helper names, `ANIME_ESTADO_
+      OPTIONS`/`ANIME_ACTIVO_OPTIONS`/`ANIME_GAP_*`/etc.) — consistent with backend `Anime`/
+      `AnimeListItem` staying unchanged.
+- [x] Confirm `search-filters.md` / `soft-delete.md` behavior is unaffected (spec scenario) — run
       the renamed `CatalogFilterBar`/`CatalogPanel` test suites unchanged in assertions, only
       import paths differ.
 
 ### Phase 2.2 — Nav label + route rename (spec: Anime / "Section label reads Catalog")
-- [ ] RED: update/add a test asserting `AppLayout`'s `NAV_ITEMS` renders label "Catalog" (not
+- [x] RED: update/add a test asserting `AppLayout`'s `NAV_ITEMS` renders label "Catalog" (not
       "Animes") for the `/catalog` entry, and that the nav still has exactly 7 entries (spec:
       Anime History / "Bottom nav entry count unchanged" — this precondition holds already since
       slice 2 renames, not adds, an entry).
-- [ ] GREEN: `frontend/src/app/AppLayout.tsx` — change `NAV_ITEMS` entry
-      `{ to: '/animes', label: 'Animes', ... }` → `{ to: '/catalog', label: 'Catalog', ... }`.
-- [ ] GREEN: `frontend/src/App.tsx` — change `<Route path="/animes" element={<AnimeRoute />} />`
+- [x] GREEN: `frontend/src/app/AppLayout.tsx` — change `NAV_ITEMS` entry
+      `{ to: '/animes', label: 'Animes', ... }` → `{ to: '/catalog', label: 'Catalog', ... }`
+      (also renamed the local `AnimeIcon` function to `CatalogIcon` for naming consistency).
+- [x] GREEN: `frontend/src/App.tsx` — change `<Route path="/animes" element={<AnimeRoute />} />`
       to `<Route path="/catalog" element={<CatalogRoute />} />` (import renamed from
       `./app/routes/AnimeRoute`); rename `frontend/src/app/routes/AnimeRoute.tsx` →
       `CatalogRoute.tsx`, header copy "Animes" → "Catalog" / "Browse the synchronized anime
       inventory" (English, per design Decision 5).
 
 ### Phase 2.3 — `features/anime-detail/` scaffold (spec: Anime Detail / "Shared Detail Component Across Catalog and History")
-- [ ] Scaffold via `bun --cwd=frontend run generate:feature anime-detail AnimeDetail` (repo
+- [x] Scaffold via `bun --cwd=frontend run generate:feature anime-detail AnimeDetail` (repo
       convention — do not hand-scaffold) producing
       `frontend/src/features/anime-detail/ui/AnimeDetail/{AnimeDetail.tsx,use-anime-detail.ts,
       anime-detail.helpers.ts,anime-detail.types.ts,anime-detail.constants.ts,index.ts,
       __tests__/}`.
-- [ ] RED: `__tests__/use-anime-detail.test.ts` — loading, loaded (with populated `repetir`),
+- [x] RED: `__tests__/use-anime-detail.test.ts` — loading, loaded (with populated `repetir`),
       null/not-found, and runtime-unavailable states, calling `bridgeRuntimeSource.getAnimeDetail`.
-- [ ] GREEN: `use-anime-detail.ts` — hook owns the `getAnimeDetail(id)` fetch + effect (strict hook
+      Documented inline that runtime-unavailable and not-found are the same code path since
+      `bridgeRuntimeSource.getAnimeDetail` degrades to `null` for both (never rejects).
+- [x] GREEN: `use-anime-detail.ts` — hook owns the `getAnimeDetail(id)` fetch + effect (strict hook
       anatomy: imports, signature, refs, state, context/3rd-party hooks, queries/mutations,
       derived state, callbacks, effects, return).
-- [ ] RED: `__tests__/anime-detail.helpers.test.ts` — view-model mapping from `AnimeDetail` DTO,
+- [x] RED: `__tests__/anime-detail.helpers.test.ts` — view-model mapping from `AnimeDetail` DTO,
       including empty-vs-populated `repetir` timeline shaping.
-- [ ] GREEN: `anime-detail.helpers.ts` with JSDoc on every exported helper.
-- [ ] RED: `__tests__/AnimeDetail.test.tsx` — dumb render assertion only (HeroUI + Tailwind, no
+- [x] GREEN: `anime-detail.helpers.ts` with JSDoc on every exported helper.
+- [x] RED: `__tests__/AnimeDetail.test.tsx` — dumb render assertion only (HeroUI + Tailwind, no
       Wails calls, no `useEffect` in the `.tsx`).
-- [ ] GREEN: `AnimeDetail.tsx` consuming `use-anime-detail`'s view model, all `*Props` fields
+- [x] GREEN: `AnimeDetail.tsx` consuming `use-anime-detail`'s view model, all `*Props` fields
       `readonly`.
 
 ### Phase 2.4 — Route + drill-down from Catalog (spec: Anime Detail / "Shared Detail Component")
-- [ ] RED: routing test asserting `/catalog/detail/:id` resolves to the shared detail (static
+- [x] RED: routing test asserting `/catalog/detail/:id` resolves to the shared detail (static
       `detail/` prefix per design Decision 1 — prevents `:id` shadowing the future `/catalog/history`
       segment).
-- [ ] GREEN: `frontend/src/app/routes/AnimeDetailRoute.tsx` (thin composition — `useParams` for
+- [x] GREEN: `frontend/src/app/routes/AnimeDetailRoute.tsx` (thin composition — `useParams` for
       `:id`, renders `<AnimeDetail animeId={id} />`; permitted under `app/**` "delivery/composition
       only" since `useParams` is routing composition, not state/effect or a Wails call) + nested
       `<Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />` in `App.tsx`.
-- [ ] GREEN: `CatalogPanel`/`CatalogFilterBar` (or their row-item component) navigates to
+- [x] GREEN: `CatalogPanel`/`CatalogFilterBar` (or their row-item component) navigates to
       `/catalog/detail/:id` via `Link`/`useNavigate` for a selected anime.
 
 ### Phase 2.5 — Verify slice 2
-- [ ] `bun --cwd=frontend run test` GREEN (renamed Catalog suites + new anime-detail suites).
-- [ ] Catalog renders renamed with unchanged filter/search behavior; detail reachable from Catalog.
-- [ ] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
-- [ ] `tsc` clean.
+- [x] `bun --cwd=frontend run test` GREEN (renamed Catalog suites + new anime-detail suites).
+- [x] Catalog renders renamed with unchanged filter/search behavior; detail reachable from Catalog.
+- [x] `bun --cwd=frontend run filesize:warning` advisory pass; ESLint hard-fail-500 clean.
+- [x] `tsc` clean.
 - [ ] **Orchestrator commits slice 2** on `feat/catalog-history` — green even before History
       exists (detail works from Catalog alone, per design Decision 6).
 

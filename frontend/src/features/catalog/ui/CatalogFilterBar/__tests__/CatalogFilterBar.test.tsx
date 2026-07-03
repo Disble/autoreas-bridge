@@ -1,11 +1,11 @@
 import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AnimeFilterBar } from '../AnimeFilterBar';
+import { CatalogFilterBar } from '../CatalogFilterBar';
 import {
   ANIME_ACTIVO_OPTIONS,
   ANIME_ESTADO_OPTIONS,
   ANIME_FILTER_ALL_VALUE,
-} from '../../AnimePanel/anime-panel.constants';
+} from '../../CatalogPanel/catalog-panel.constants';
 
 function createProps(overrides = {}) {
   return {
@@ -42,16 +42,16 @@ function getSearchInput(container: HTMLElement): HTMLInputElement {
   return inputs[0] as HTMLInputElement;
 }
 
-describe('AnimeFilterBar', () => {
+describe('CatalogFilterBar', () => {
   it('renders the search input', () => {
-    const { container } = render(<AnimeFilterBar {...createProps()} />);
+    const { container } = render(<CatalogFilterBar {...createProps()} />);
 
     expect(getSearchInput(container)).toBeInTheDocument();
   });
 
   it('calls onQueryChange when the user types', () => {
     const props = createProps();
-    const { container } = render(<AnimeFilterBar {...props} />);
+    const { container } = render(<CatalogFilterBar {...props} />);
 
     fireEvent.change(getSearchInput(container), {
       target: { value: 'Frieren' },
@@ -62,20 +62,20 @@ describe('AnimeFilterBar', () => {
 
   it('displays the current query', () => {
     const { container } = render(
-      <AnimeFilterBar {...createProps({ filters: { query: 'Frieren' } })} />,
+      <CatalogFilterBar {...createProps({ filters: { query: 'Frieren' } })} />,
     );
 
     expect(getSearchInput(container).value).toBe('Frieren');
   });
 
   it('renders the filter section', () => {
-    const { container } = render(<AnimeFilterBar {...createProps()} />);
+    const { container } = render(<CatalogFilterBar {...createProps()} />);
 
     expect(container.querySelector('section[aria-label="Anime filters"]')).toBeInTheDocument();
   });
 
   it('renders the download gap filter control', () => {
-    const { container } = render(<AnimeFilterBar {...createProps()} />);
+    const { container } = render(<CatalogFilterBar {...createProps()} />);
 
     expect(container.querySelector('[aria-label="Filter by download gap"]')).toBeInTheDocument();
   });

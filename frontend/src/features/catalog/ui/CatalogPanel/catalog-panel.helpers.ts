@@ -8,8 +8,8 @@ import {
   ANIME_GAP_MISSING_VALUE,
   ANIME_STATUS_ACTIVE_LABEL,
   ANIME_STATUS_INACTIVE_LABEL,
-} from './anime-panel.constants';
-import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel } from './anime-panel.types';
+} from './catalog-panel.constants';
+import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel } from './catalog-panel.types';
 
 /**
  * Maps a manual legacy pull status to the matching HeroUI Alert semantic
@@ -65,7 +65,7 @@ export function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): 
 }
 
 /**
- * Converts a runtime Anime DTO into the view model rendered by AnimePanel.
+ * Converts a runtime Anime DTO into the view model rendered by CatalogPanel.
  */
 export function toAnimeViewModel(anime: Anime): AnimeViewModel {
   const status = toAnimeStatus(anime.activo);

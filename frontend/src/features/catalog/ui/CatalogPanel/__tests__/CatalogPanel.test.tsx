@@ -1,14 +1,15 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ANIME_FILTER_ALL_VALUE } from '../anime-panel.constants';
+import { MemoryRouter } from 'react-router';
+import { ANIME_FILTER_ALL_VALUE } from '../catalog-panel.constants';
 
-const useAnimePanelMock = vi.fn();
+const useCatalogPanelMock = vi.fn();
 
-vi.mock('../use-anime-panel', () => ({
-  useAnimePanel: () => useAnimePanelMock(),
+vi.mock('../use-catalog-panel', () => ({
+  useCatalogPanel: () => useCatalogPanelMock(),
 }));
 
-import { AnimePanel } from '../AnimePanel';
+import { CatalogPanel } from '../CatalogPanel';
 
 function createHookReturn(overrides = {}) {
   return {
@@ -44,13 +45,13 @@ function createHookReturn(overrides = {}) {
   };
 }
 
-describe('AnimePanel', () => {
+describe('CatalogPanel', () => {
   afterEach(() => {
     cleanup();
   });
 
   it('renders active and inactive animes with status badges', () => {
-    useAnimePanelMock.mockReturnValue(
+    useCatalogPanelMock.mockReturnValue(
       createHookReturn({
         isEmpty: false,
         items: [
@@ -74,7 +75,11 @@ describe('AnimePanel', () => {
       }),
     );
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('Active Anime')).toBeInTheDocument();
     expect(screen.getByText('Inactive Anime')).toBeInTheDocument();
@@ -84,23 +89,31 @@ describe('AnimePanel', () => {
   });
 
   it('renders the empty state when no animes are available', () => {
-    useAnimePanelMock.mockReturnValue(createHookReturn({ isEmpty: true, items: [] }));
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ isEmpty: true, items: [] }));
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('No animes found')).toBeInTheDocument();
   });
 
   it('renders the loading state', () => {
-    useAnimePanelMock.mockReturnValue(createHookReturn({ isLoading: true, isEmpty: false, items: [] }));
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, isEmpty: false, items: [] }));
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('Loading animes...')).toBeInTheDocument();
   });
 
   it('renders a gap badge for animes missing a download page or folder', () => {
-    useAnimePanelMock.mockReturnValue(
+    useCatalogPanelMock.mockReturnValue(
       createHookReturn({
         isEmpty: false,
         items: [
@@ -120,13 +133,17 @@ describe('AnimePanel', () => {
       }),
     );
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByTestId('anime-gap-anime-gap')).toHaveTextContent('Missing page');
   });
 
   it('does not render a gap badge for animes with both page and folder', () => {
-    useAnimePanelMock.mockReturnValue(
+    useCatalogPanelMock.mockReturnValue(
       createHookReturn({
         isEmpty: false,
         items: [
@@ -146,16 +163,24 @@ describe('AnimePanel', () => {
       }),
     );
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.queryByTestId('anime-gap-anime-complete')).not.toBeInTheDocument();
   });
 
   it('renders a Pull from legacy action wired to the hook callback', () => {
     const onPullFromLegacy = vi.fn();
-    useAnimePanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
 
-    const view = render(<AnimePanel />);
+    const view = render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     const button = within(view.container).getByRole('button', { name: 'Pull from legacy' });
     fireEvent.click(button);
@@ -164,7 +189,7 @@ describe('AnimePanel', () => {
   });
 
   it('shows pull progress and result feedback', () => {
-    useAnimePanelMock.mockReturnValue(
+    useCatalogPanelMock.mockReturnValue(
       createHookReturn({
         isPullingFromLegacy: true,
         pullResult: {
@@ -177,9 +202,42 @@ describe('AnimePanel', () => {
       }),
     );
 
-    render(<AnimePanel />);
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByRole('button', { name: 'Pulling from legacy...' })).toBeDisabled();
     expect(screen.getByText('Pulled 2 updates from legacy.')).toBeInTheDocument();
+  });
+
+  it('links each anime row to its shared detail route', () => {
+    useCatalogPanelMock.mockReturnValue(
+      createHookReturn({
+        isEmpty: false,
+        items: [
+          {
+            id: 'anime-active',
+            nombre: 'Active Anime',
+            estado: 2,
+            progressLabel: '10 / 24',
+            status: 'active',
+            statusLabel: 'Active',
+          },
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /Active Anime/ })).toHaveAttribute(
+      'href',
+      '/catalog/detail/anime-active',
+    );
   });
 });
