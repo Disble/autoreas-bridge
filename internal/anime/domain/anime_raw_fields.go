@@ -185,6 +185,29 @@ func (f LegacyAnimeDaysField) Values() []LegacyAnimeDay {
 	return values
 }
 
+func (f *LegacyRepetirField) UnmarshalJSON(data []byte) error {
+	f.raw.set(data)
+	if !f.raw.IsValue() {
+		f.val = nil
+		return nil
+	}
+
+	return json.Unmarshal(f.raw.bytes, &f.val)
+}
+
+func (f LegacyRepetirField) MarshalJSON() ([]byte, error) { return f.raw.marshal(), nil }
+func (f LegacyRepetirField) IsZero() bool                 { return f.raw.IsAbsent() }
+
+func (f LegacyRepetirField) Values() []LegacyRepeticion {
+	if !f.raw.IsValue() {
+		return nil
+	}
+
+	values := make([]LegacyRepeticion, len(f.val))
+	copy(values, f.val)
+	return values
+}
+
 func newLegacyNumberField(value float64) LegacyNumberField {
 	return LegacyNumberField{
 		raw:   rawField{state: rawFieldValue, bytes: mustMarshalJSON(value)},

@@ -178,6 +178,70 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	}
 }
 
+func TestQueryServiceGetMobileAnimeProjectsRepetirTimeline(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-repeated", `{
+		"_id":"anime-repeated",
+		"nombre":"Repeated Anime",
+		"nrocapvisto":1,
+		"repetir":[{
+			"numrepeticion":0,
+			"nrocapvisto":1,
+			"estado":2,
+			"fechaCreacion":{"$$date":1610685499207},
+			"fechaRepeticion":{"$$date":1618271545221}
+		}]
+	}`)
+
+	service := anime.NewQueryService(store)
+	got, err := service.GetMobileAnime(ctx, "anime-repeated")
+	if err != nil {
+		t.Fatalf("get mobile anime: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected anime, got nil")
+	}
+	if len(got.Repetir) != 1 {
+		t.Fatalf("expected 1 repetir entry, got %d: %#v", len(got.Repetir), got.Repetir)
+	}
+
+	entry := got.Repetir[0]
+	if entry.NumRepeticion != 0 {
+		t.Fatalf("expected numrepeticion 0, got %d", entry.NumRepeticion)
+	}
+	if entry.Estado != 2 {
+		t.Fatalf("expected estado 2, got %d", entry.Estado)
+	}
+	if entry.FechaCreacion == nil || *entry.FechaCreacion != 1610685499207 {
+		t.Fatalf("expected fechaCreacion 1610685499207, got %#v", entry.FechaCreacion)
+	}
+	if entry.FechaRepeticion == nil || *entry.FechaRepeticion != 1618271545221 {
+		t.Fatalf("expected fechaRepeticion 1618271545221, got %#v", entry.FechaRepeticion)
+	}
+}
+
+func TestQueryServiceGetMobileAnimeReturnsEmptyRepetirWhenAbsent(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-no-repeat", `{"_id":"anime-no-repeat","nombre":"No Repeat","nrocapvisto":1}`)
+
+	service := anime.NewQueryService(store)
+	got, err := service.GetMobileAnime(ctx, "anime-no-repeat")
+	if err != nil {
+		t.Fatalf("get mobile anime: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected anime, got nil")
+	}
+	if got.Repetir == nil {
+		t.Fatal("expected non-nil empty Repetir slice, got nil")
+	}
+	if len(got.Repetir) != 0 {
+		t.Fatalf("expected empty Repetir slice, got %#v", got.Repetir)
+	}
+}
+
 func TestQueryServiceListAnimeItemsReturnsActiveAndInactive(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)

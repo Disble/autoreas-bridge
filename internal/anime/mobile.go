@@ -40,6 +40,7 @@ func mobileAnimeFromSnapshot(payload []byte, modifiedAt int64) (contracts.Mobile
 		Estudios:         raw.EstudiosString(),
 		Origen:           raw.Origen.String(),
 		Duracion:         raw.Duracion.Int(),
+		Repetir:          raw.Repeticiones(),
 		ModifiedAt:       modifiedAt,
 	}
 

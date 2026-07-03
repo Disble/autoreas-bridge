@@ -146,6 +146,32 @@ func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacy
 	return s.result
 }
 
+// stubAnimeQueryService is a minimal contracts.AnimeQueryService double for
+// app_runtime_test.go's GetAnimeDetail cases. Only GetMobileAnime is
+// exercised by those tests; the other methods return zero values.
+type stubAnimeQueryService struct {
+	mobileAnime *contracts.MobileAnime
+	err         error
+}
+
+func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
+	return nil, nil
+}
+
+func (s *stubAnimeQueryService) ListMobileAnimes(context.Context) ([]contracts.MobileAnime, error) {
+	return nil, nil
+}
+
+func (s *stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contracts.MobileAnime, error) {
+	return s.mobileAnime, s.err
+}
+
+func (s *stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.AnimeListItem, error) {
+	return nil, nil
+}
+
+var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
+
 type recordingAppNotifier struct{ received []notification.Notification }
 
 func (n *recordingAppNotifier) Notify(_ context.Context, notif notification.Notification) error {

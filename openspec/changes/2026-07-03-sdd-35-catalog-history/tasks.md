@@ -15,36 +15,36 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
 ## Slice 1 — Backend data / DTO / binding (~250 lines)
 
 ### Phase 1.0 — Baseline
-- [ ] Run `go test ./internal/anime/... ./...` and confirm GREEN before any change. Note current
+- [x] Run `go test ./internal/anime/... ./...` and confirm GREEN before any change. Note current
       `anime_raw_roundtrip_test.go` / `anime_raw_refactor_approval_test.go` pass — this is the
       "before" snapshot the round-trip proof compares against.
 
 ### Phase 1.1 — Typed `repetir` field (spec: Anime Detail / "Typed Repetir Field on Legacy Anime Raw")
-- [ ] RED: `internal/anime/domain/anime_raw_fields_test.go` (new or appended) —
+- [x] RED: `internal/anime/domain/anime_raw_fields_test.go` (new or appended) —
       `TestLegacyRepetirFieldAbsent`, `TestLegacyRepetirFieldNull`, `TestLegacyRepetirFieldEmptyArray`,
       `TestLegacyRepetirFieldSingleEntry`, `TestLegacyRepetirFieldMultiEntry`,
       `TestLegacyRepetirFieldNullFechaDegradesToNilTime`, and
       `TestLegacyRepetirFieldMalformedNonArrayFailsLoud` (mirrors the existing
       `TestLegacyFieldWrappersRejectInvalidTypes` fail-loud posture for sibling fields).
-- [ ] GREEN: `internal/anime/domain/anime_raw_fields.go` — add `LegacyRepeticion` struct
+- [x] GREEN: `internal/anime/domain/anime_raw_fields.go` — add `LegacyRepeticion` struct
       (`NumRepeticion`/`NroCapVisto`/`Estado` as `LegacyNumberField`, five `Fecha*` as
       `LegacyDateField`, mirroring `LegacyAnimeDaysField`'s tri-state pattern) and
       `LegacyRepetirField` (`raw rawField` + `val []LegacyRepeticion`) with
       `UnmarshalJSON`/`MarshalJSON`/`IsZero`/`Values()`.
-- [ ] GREEN: `internal/anime/domain/anime_raw.go` — add `Repetir LegacyRepetirField` to
+- [x] GREEN: `internal/anime/domain/anime_raw.go` — add `Repetir LegacyRepetirField` to
       `LegacyAnimeRaw`, wire it in `UnmarshalJSON` alongside sibling fields, and add
       `assignOptionalField(fields, "repetir", r.Repetir.raw)` in `MarshalJSON` (placed with the
       other `assignOptionalField` calls — ordering after `extraFields` copy is what preserves the
       round-trip, per design Decision 3).
-- [ ] Confirm `anime_raw_roundtrip_test.go` + `anime_raw_refactor_approval_test.go` still pass
+- [x] Confirm `anime_raw_roundtrip_test.go` + `anime_raw_refactor_approval_test.go` still pass
       UNCHANGED (no test file edits) — this is the round-trip regression proof for promoting
       `repetir` out of `extraFields`.
 
 ### Phase 1.2 — Fixture validation (real-boundary test, `bridge-testing` convention)
-- [ ] RED: real-fixture test parsing `resources/autoreas-data/animes.dat` (795 records) —
+- [x] RED: real-fixture test parsing `resources/autoreas-data/animes.dat` (795 records) —
       assert all 795 parse without error, exactly 743 project to an empty `Repeticiones()` slice,
       exactly 52 project to a non-empty slice (matches design's verified fixture facts).
-- [ ] GREEN: `internal/anime/domain/anime_raw_projection.go` — add
+- [x] GREEN: `internal/anime/domain/anime_raw_projection.go` — add
       `func (r LegacyAnimeRaw) Repeticiones() []MobileRepeticion` (mirrors `EstudiosString`/
       `DiasStrings`), converting `LegacyRepeticion` entries to the contract DTO, dates via the
       same `timeToMillis`-style seam used in `internal/anime/mobile.go` (note: projection package
@@ -53,27 +53,27 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
       helpers, not in `mobile.go`).
 
 ### Phase 1.3 — `MobileAnime.Repetir` contract + service threading (spec: Anime Detail / "AnimeDetail DTO and GetAnimeDetail Binding")
-- [ ] RED: `internal/anime/query_service_test.go` — extend/add a case asserting
+- [x] RED: `internal/anime/query_service_test.go` — extend/add a case asserting
       `GetMobileAnime` returns a populated `Repetir []MobileRepeticion` for a snapshot whose
       `repetir` has entries, and an empty (not nil-panicking) slice when absent/empty.
-- [ ] GREEN: `internal/api/contracts/contracts.go` — add `MobileRepeticion` struct (fields per
+- [x] GREEN: `internal/api/contracts/contracts.go` — add `MobileRepeticion` struct (fields per
       design Decision 4: `NumRepeticion int`, `NroCapVisto float64`, `Estado int`, five
       `Fecha* *int64` with `omitempty`) and `Repetir []MobileRepeticion` `json:"repetir,omitempty"`
       on `MobileAnime`. Do NOT add `repetir` to the slim `AnimeListItem` — timeline stays a
       detail-only concern per design.
-- [ ] GREEN: `internal/anime/mobile.go` — `mobileAnimeFromSnapshot` sets
+- [x] GREEN: `internal/anime/mobile.go` — `mobileAnimeFromSnapshot` sets
       `item.Repetir = raw.Repeticiones()`. No `AnimeQueryService` interface change needed
       (`GetMobileAnime` already exposes it).
-- [ ] Confirm existing `GetAnimes`/`ListAnimeItems` tests remain green (slim DTO untouched) —
+- [x] Confirm existing `GetAnimes`/`ListAnimeItems` tests remain green (slim DTO untouched) —
       satisfies spec's "GetAnimes/AnimeListItem remain unaffected" scenario.
 
 ### Phase 1.4 — `GetAnimeDetail` Wails binding (spec: Anime Detail / "AnimeDetail DTO and GetAnimeDetail Binding")
-- [ ] RED: `app_runtime_test.go` — `TestGetAnimeDetailReturnsPopulatedDTOForExistingID` and
+- [x] RED: `app_runtime_test.go` — `TestGetAnimeDetailReturnsPopulatedDTOForExistingID` and
       `TestGetAnimeDetailReturnsNilForUnknownID` (matches the not-found scenario in the spec: a
       distinguishable nil/null result, not a silent zero-value DTO) and
       `TestGetAnimeDetailReturnsNilWhenAnimeQueryServiceNil` (mirrors the nil-service guard used
       by the other bindings in this file, e.g. `TestPullAnimesFromLegacyReturnsUnavailableWhenServiceNil`).
-- [ ] GREEN: `app_runtime.go` — add
+- [x] GREEN: `app_runtime.go` — add
       ```go
       func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
           if a.animeQuery == nil {
@@ -87,43 +87,51 @@ openapi). Orchestrator verifies and commits after each slice — do not batch al
       }
       ```
       (parallels `GetAnimes` at `app_runtime.go:94`; additive only, `GetAnimes` untouched).
-- [ ] Decision (confirm in this task, per design "Open assumptions"): `GetAnimeDetail` returns
+- [x] Decision (confirm in this task, per design "Open assumptions"): `GetAnimeDetail` returns
       `*contracts.MobileAnime` directly — no new `contracts.AnimeDetail` Go struct — since
       `MobileAnime` is already the rich superset. The spec's "`contracts.AnimeDetail` DTO" language
       is satisfied on the TypeScript side (Phase 1.6); document this Go/TS DTO-naming asymmetry
       inline as a code comment on `GetAnimeDetail` if it isn't self-evident from the signature.
-- [ ] Regenerate Wails bindings (`wails generate module`, same workflow used for `GetAnimes`) so
-      `frontend/wailsjs/go/main/App` exposes `GetAnimeDetail`. If codegen tooling is unavailable in
-      this environment, hand-author the generated stub matching the existing `GetAnimes` stub
-      shape and flag it for real regeneration before merge — do not skip silently.
+- [x] Regenerate Wails bindings (`wails generate module`, same workflow used for `GetAnimes`) so
+      `frontend/wailsjs/go/main/App` exposes `GetAnimeDetail`. Codegen tooling (`wails` CLI v2.12.0)
+      was available; ran `wails generate module` directly — no hand-authored stub fallback needed.
 
 ### Phase 1.5 — TS contract mirror (spec: Anime Detail / "Shared Detail Component" groundwork)
-- [ ] RED: colocated test for `bridge-runtime-source.ts` (existing test file for this module) —
+- [x] RED: colocated test for `bridge-runtime-source.ts` (existing test file for this module) —
       `getAnimeDetail` resolves the mapped DTO when `GetAnimeDetail` binding is present, and
       degrades to `null` when the runtime/binding is unavailable (mirrors the `waitForBindings` +
       `hasGoBinding` pattern already used by `getAnimes`).
-- [ ] GREEN: `frontend/src/shared/contracts/anime.types.ts` — add `AnimeRepeticion` (all
+- [x] GREEN: `frontend/src/shared/contracts/anime.types.ts` — add `AnimeRepeticion` (all
       `readonly`, mirrors `MobileRepeticion` field names) and `AnimeDetail` (readonly; decision
       resolved here per design's open assumption: standalone interface, NOT a TS superset of
       `Anime` via intersection/extends — because `Anime`'s slim fields (`hasDownloadPage`/
       `hasFolder` booleans) are a different shape than the detail's raw `pagina`/`carpeta`
       string-or-undefined fields; keeping `AnimeDetail` standalone avoids fighting that mismatch).
-      `AnimeDetail` includes `readonly repetir: readonly AnimeRepeticion[]`.
-- [ ] GREEN: `frontend/src/infrastructure/bridge-runtime-source.ts` — add
+      DEVIATION from this line's literal wording: `repetir` is typed `readonly repetir?:
+      readonly AnimeRepeticion[]` (optional, not required) — the Go contract's `omitempty` on
+      `MobileAnime.Repetir` omits the key from the wire payload even for a non-nil empty slice
+      (encoding/json's `omitempty` treats zero-length slices as empty), so the field IS actually
+      absent on the wire for the ~93% of anime with no repetition history. Typing it as required
+      would misrepresent the real payload shape; documented inline in anime.types.ts.
+- [x] GREEN: `frontend/src/infrastructure/bridge-runtime-source.ts` — add
       `readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>` to the
       `BridgeRuntimeSource` interface, implement via
       `waitForBindings(() => hasGoBinding('GetAnimeDetail'))` → call `GetAnimeDetail(id)` →
       degrade to `null` when unavailable, import `GetAnimeDetail` from `wailsjs/go/main/App`.
 
 ### Phase 1.6 — Verify slice 1
-- [ ] `go test ./internal/anime/... ./...` GREEN — round-trip/approval tests unchanged,
+- [x] `go test ./internal/anime/... ./...` GREEN — round-trip/approval tests unchanged,
       fixture test asserts 743/52 split.
-- [ ] `bun --cwd=frontend run test` GREEN for the new `bridge-runtime-source` cases.
-- [ ] `go run ./tools/checkgofilesize` — no new/touched Go file crosses warn-400/fail-500.
-- [ ] `bun --cwd=frontend run filesize:warning` — advisory pass on touched TS files.
-- [ ] gofmt + golangci-lint + `go vet` clean on `internal/anime`, `internal/api/contracts`,
+- [x] `bun --cwd=frontend run test` GREEN for the new `bridge-runtime-source` cases.
+- [x] `go run ./tools/checkgofilesize` — no new/touched Go file crosses warn-400/fail-500.
+- [x] `bun --cwd=frontend run filesize:warning` — advisory pass on touched TS files.
+- [x] gofmt + golangci-lint + `go vet` clean on `internal/anime`, `internal/api/contracts`,
       root (`app_runtime.go`).
-- [ ] ESLint + `tsc` clean on touched frontend files.
+- [x] ESLint + `tsc` clean on touched frontend files. (Fixing tsc required updating 4 pre-existing
+      `BridgeRuntimeSource` test-mock factories that didn't include the newly-required
+      `getAnimeDetail` field: `use-anime-panel.test.ts`, `use-bridge-dashboard.test.ts`,
+      `use-bridge-status-card.test.ts`, `use-pairing-panel.test.ts`,
+      `use-syncing-anime-panel.test.ts`.)
 - [ ] **Orchestrator commits slice 1** on `feat/catalog-history` once every gate above is green.
       No UI surface is touched in this slice — desktop detail data ships with zero frontend risk
       (design Decision 6).

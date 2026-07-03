@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"autoreas-bridge/internal/api/contracts"
 )
 
 func (r LegacyAnimeRaw) EstadoValue() *int {
@@ -59,6 +61,58 @@ func (r LegacyAnimeRaw) DiasStrings() []string {
 	}
 
 	return []string{*legacyDay}
+}
+
+// Repeticiones projects the typed Repetir field to the contract DTO
+// (mirrors EstudiosString/DiasStrings). Absent, null, and empty-array shapes
+// all collapse to an empty (non-nil) slice -- the timeline is either present
+// with entries or it isn't, there is no meaningful "absent vs empty" signal
+// to preserve at the mobile boundary.
+func (r LegacyAnimeRaw) Repeticiones() []contracts.MobileRepeticion {
+	entries := r.Repetir.Values()
+	if len(entries) == 0 {
+		return []contracts.MobileRepeticion{}
+	}
+
+	result := make([]contracts.MobileRepeticion, 0, len(entries))
+	for _, entry := range entries {
+		numRepeticion := 0
+		if value := entry.NumRepeticion.Int(); value != nil {
+			numRepeticion = *value
+		}
+		estado := 0
+		if value := entry.Estado.Int(); value != nil {
+			estado = *value
+		}
+		nroCapVisto := 0.0
+		if value := entry.NroCapVisto.Float64(); value != nil {
+			nroCapVisto = *value
+		}
+
+		result = append(result, contracts.MobileRepeticion{
+			NumRepeticion:    numRepeticion,
+			NroCapVisto:      nroCapVisto,
+			Estado:           estado,
+			FechaCreacion:    millisFromLegacyDate(entry.FechaCreacion),
+			FechaEstreno:     millisFromLegacyDate(entry.FechaEstreno),
+			FechaUltCapVisto: millisFromLegacyDate(entry.FechaUltCapVisto),
+			FechaEliminacion: millisFromLegacyDate(entry.FechaEliminacion),
+			FechaRepeticion:  millisFromLegacyDate(entry.FechaRepeticion),
+		})
+	}
+	return result
+}
+
+// millisFromLegacyDate mirrors the timeToMillis seam in internal/anime/mobile.go,
+// duplicated here rather than imported: mobile.go depends on this domain
+// package, so importing back from mobile.go would invert that dependency.
+func millisFromLegacyDate(field LegacyDateField) *int64 {
+	value := field.Time()
+	if value == nil {
+		return nil
+	}
+	millis := value.UnixMilli()
+	return &millis
 }
 
 func (r *LegacyAnimeRaw) SetEstado(value int) {

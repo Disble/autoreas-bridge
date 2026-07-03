@@ -102,6 +102,26 @@ func (a *App) GetAnimes() []contracts.AnimeListItem {
 	return items
 }
 
+// GetAnimeDetail returns the rich MobileAnime DTO for a single anime ID
+// (Anime Detail spec, "AnimeDetail DTO and GetAnimeDetail Binding"). It
+// returns *contracts.MobileAnime directly -- no separate contracts.AnimeDetail
+// Go struct exists, since MobileAnime is already the rich superset the spec's
+// "AnimeDetail DTO" language describes; that naming is satisfied on the
+// TypeScript side instead (frontend AnimeDetail type). Additive only:
+// GetAnimes/AnimeListItem are untouched. Degrades to nil on a nil service or
+// any lookup error (not-found included), matching the not-found scenario's
+// "distinguishable nil result, not a silent zero-value DTO" requirement.
+func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
+	if a.animeQuery == nil {
+		return nil
+	}
+	item, err := a.animeQuery.GetMobileAnime(a.appContext(), id)
+	if err != nil {
+		return nil
+	}
+	return item
+}
+
 func (a *App) appContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()

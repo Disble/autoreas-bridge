@@ -29,6 +29,7 @@ type LegacyAnimeRaw struct {
 	Orden            LegacyNumberField    `json:"orden,omitempty"`
 	Dias             LegacyAnimeDaysField `json:"dias,omitempty"`
 	Portada          json.RawMessage      `json:"portada,omitempty"`
+	Repetir          LegacyRepetirField   `json:"repetir,omitempty"`
 
 	extraFields map[string]json.RawMessage
 }
@@ -41,6 +42,26 @@ type LegacyAnimeDay struct {
 type LegacyAnimeDaysField struct {
 	raw rawField
 	val []LegacyAnimeDay
+}
+
+// LegacyRepeticion is a single repetition-history entry from the legacy
+// `repetir` array field. Every sub-field reuses the tri-state
+// LegacyNumberField/LegacyDateField wrappers so absent/null tolerance already
+// proven for the top-level fields applies verbatim to nested entries.
+type LegacyRepeticion struct {
+	NumRepeticion    LegacyNumberField `json:"numrepeticion,omitempty"`
+	NroCapVisto      LegacyNumberField `json:"nrocapvisto,omitempty"`
+	Estado           LegacyNumberField `json:"estado,omitempty"`
+	FechaCreacion    LegacyDateField   `json:"fechaCreacion,omitempty"`
+	FechaEstreno     LegacyDateField   `json:"fechaEstreno,omitempty"`
+	FechaUltCapVisto LegacyDateField   `json:"fechaUltCapVisto,omitempty"`
+	FechaEliminacion LegacyDateField   `json:"fechaEliminacion,omitempty"`
+	FechaRepeticion  LegacyDateField   `json:"fechaRepeticion,omitempty"`
+}
+
+type LegacyRepetirField struct {
+	raw rawField
+	val []LegacyRepeticion
 }
 
 type LegacyDateField struct {
@@ -228,6 +249,12 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 		r.Portada = cloneJSON(value)
 	}
 
+	if value, ok := raw["repetir"]; ok {
+		if err := r.Repetir.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal repetir: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -258,6 +285,7 @@ func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
 	assignOptionalField(fields, "dia", r.Dia.raw)
 	assignOptionalField(fields, "orden", r.Orden.raw)
 	assignOptionalField(fields, "dias", r.Dias.raw)
+	assignOptionalField(fields, "repetir", r.Repetir.raw)
 
 	if len(r.Portada) > 0 {
 		assignJSON(fields, "portada", r.Portada)

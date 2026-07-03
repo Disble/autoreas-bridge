@@ -3,6 +3,8 @@
 import {contracts} from '../models';
 import {logger} from '../models';
 
+export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;
+
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;

@@ -249,6 +249,120 @@ export namespace contracts {
 	}
 	
 	
+	export class MobileRepeticion {
+	    numrepeticion: number;
+	    nrocapvisto: number;
+	    estado: number;
+	    fechaCreacion?: number;
+	    fechaEstreno?: number;
+	    fechaUltCapVisto?: number;
+	    fechaEliminacion?: number;
+	    fechaRepeticion?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MobileRepeticion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.numrepeticion = source["numrepeticion"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.estado = source["estado"];
+	        this.fechaCreacion = source["fechaCreacion"];
+	        this.fechaEstreno = source["fechaEstreno"];
+	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
+	        this.fechaEliminacion = source["fechaEliminacion"];
+	        this.fechaRepeticion = source["fechaRepeticion"];
+	    }
+	}
+	export class MobileAnimeDay {
+	    dia: string;
+	    orden: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MobileAnimeDay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dia = source["dia"];
+	        this.orden = source["orden"];
+	    }
+	}
+	export class MobileAnime {
+	    _id: string;
+	    nombre: string;
+	    estado: number;
+	    nrocapvisto: number;
+	    totalcap?: number;
+	    activo: number;
+	    primeravez: number;
+	    dias: MobileAnimeDay[];
+	    generos: string[];
+	    tipo?: number;
+	    fechaUltCapVisto?: number;
+	    fechaEstreno?: number;
+	    fechaCreacion?: number;
+	    fechaEliminacion?: number;
+	    portada?: string;
+	    pagina?: string;
+	    carpeta?: string;
+	    estudios?: string;
+	    origen?: string;
+	    duracion?: number;
+	    repetir?: MobileRepeticion[];
+	    modified_at: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MobileAnime(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this._id = source["_id"];
+	        this.nombre = source["nombre"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.totalcap = source["totalcap"];
+	        this.activo = source["activo"];
+	        this.primeravez = source["primeravez"];
+	        this.dias = this.convertValues(source["dias"], MobileAnimeDay);
+	        this.generos = source["generos"];
+	        this.tipo = source["tipo"];
+	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
+	        this.fechaEstreno = source["fechaEstreno"];
+	        this.fechaCreacion = source["fechaCreacion"];
+	        this.fechaEliminacion = source["fechaEliminacion"];
+	        this.portada = source["portada"];
+	        this.pagina = source["pagina"];
+	        this.carpeta = source["carpeta"];
+	        this.estudios = source["estudios"];
+	        this.origen = source["origen"];
+	        this.duracion = source["duracion"];
+	        this.repetir = this.convertValues(source["repetir"], MobileRepeticion);
+	        this.modified_at = source["modified_at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class SyncingAnimeItem {
 	    animeId: string;

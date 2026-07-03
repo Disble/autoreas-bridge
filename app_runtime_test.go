@@ -199,6 +199,41 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 	}
 }
 
+func TestGetAnimeDetailReturnsPopulatedDTOForExistingID(t *testing.T) {
+	t.Parallel()
+
+	want := &contracts.MobileAnime{ID: "anime-1", Nombre: "Frieren"}
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{mobileAnime: want}}
+
+	got := app.GetAnimeDetail("anime-1")
+	if got == nil {
+		t.Fatal("expected populated detail DTO, got nil")
+	}
+	if got.ID != "anime-1" || got.Nombre != "Frieren" {
+		t.Fatalf("unexpected detail DTO: %#v", got)
+	}
+}
+
+func TestGetAnimeDetailReturnsNilForUnknownID(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{err: contracts.ErrAnimeNotFound}}
+
+	if got := app.GetAnimeDetail("missing-id"); got != nil {
+		t.Fatalf("expected nil for unknown id, got %#v", got)
+	}
+}
+
+func TestGetAnimeDetailReturnsNilWhenAnimeQueryServiceNil(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+
+	if got := app.GetAnimeDetail("anime-1"); got != nil {
+		t.Fatalf("expected nil when animeQuery is nil, got %#v", got)
+	}
+}
+
 func openInMemorySQLite(t *testing.T) (*sql.DB, error) {
 	t.Helper()
 

@@ -114,6 +114,56 @@ describe('bridge-runtime-source', () => {
     expect(getAnimesMock).toHaveBeenCalledTimes(1);
   });
 
+  it('calls GetAnimeDetail once Go bindings become ready and resolves the mapped DTO', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const detail = {
+      _id: 'anime-1',
+      nombre: 'Frieren',
+      estado: 2,
+      nrocapvisto: 5,
+      activo: 1,
+      primeravez: 0,
+      dias: [{ dia: 'Miércoles', orden: 1 }],
+      generos: ['Aventura'],
+      modified_at: 123,
+    };
+    const getAnimeDetailMock = vi.fn().mockResolvedValue(detail);
+
+    const detailPromise = source.getAnimeDetail('anime-1');
+
+    window.go = { main: { App: { GetAnimeDetail: getAnimeDetailMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(detailPromise).resolves.toEqual(detail);
+    expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('degrades getAnimeDetail to null when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const detailPromise = source.getAnimeDetail('anime-1');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(detailPromise).resolves.toBeNull();
+  });
+
+  it('degrades getAnimeDetail to null when the App exists but GetAnimeDetail is missing', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const detailPromise = source.getAnimeDetail('anime-1');
+
+    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(detailPromise).resolves.toBeNull();
+  });
+
   it('calls TriggerReconcile once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

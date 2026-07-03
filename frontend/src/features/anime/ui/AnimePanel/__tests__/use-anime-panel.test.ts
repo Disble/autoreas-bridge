@@ -38,6 +38,7 @@ function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource
     getAnimes: shouldReject
       ? vi.fn().mockRejectedValue(new Error('boom'))
       : vi.fn().mockResolvedValue(items),
+    getAnimeDetail: vi.fn().mockResolvedValue(null),
     pullAnimesFromLegacy: vi.fn().mockResolvedValue({
       message: 'ok',
       prunedCount: 0,

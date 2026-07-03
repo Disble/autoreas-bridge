@@ -11,6 +11,22 @@ type MobileAnimeDay struct {
 	Orden int    `json:"orden"`
 }
 
+// MobileRepeticion is a single repetition-history entry surfaced on
+// MobileAnime.Repetir (Anime Detail spec, "Typed Repetir Field on Legacy
+// Anime Raw"). Fecha* fields are pointers (millis, omitempty) so an absent
+// or null legacy date degrades to a distinguishable "no value" rather than a
+// zero-time sentinel.
+type MobileRepeticion struct {
+	NumRepeticion    int     `json:"numrepeticion"`
+	NroCapVisto      float64 `json:"nrocapvisto"`
+	Estado           int     `json:"estado"`
+	FechaCreacion    *int64  `json:"fechaCreacion,omitempty"`
+	FechaEstreno     *int64  `json:"fechaEstreno,omitempty"`
+	FechaUltCapVisto *int64  `json:"fechaUltCapVisto,omitempty"`
+	FechaEliminacion *int64  `json:"fechaEliminacion,omitempty"`
+	FechaRepeticion  *int64  `json:"fechaRepeticion,omitempty"`
+}
+
 type MobileAnime struct {
 	ID               string           `json:"_id"`
 	Nombre           string           `json:"nombre"`
@@ -32,6 +48,12 @@ type MobileAnime struct {
 	Estudios         *string          `json:"estudios,omitempty"`
 	Origen           *string          `json:"origen,omitempty"`
 	Duracion         *int             `json:"duracion,omitempty"`
+	// Repetir is the typed repetition-history timeline (Anime Detail spec,
+	// "AnimeDetail DTO and GetAnimeDetail Binding"). omitempty keeps the
+	// majority of records (no repetition history) byte-identical on the
+	// mobile feed. Detail-only concern: NOT surfaced on the slim
+	// AnimeListItem.
+	Repetir []MobileRepeticion `json:"repetir,omitempty"`
 	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
 	// ADR-30-1/30-5) so the mobile client can round-trip it back as
 	// AnimePatch.Base on its next write. Always present (not a pointer):
