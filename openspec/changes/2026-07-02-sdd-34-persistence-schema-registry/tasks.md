@@ -44,5 +44,5 @@ MUST stay green throughout.
 - [x] golangci-lint clean on persistence/download/sync; no import cycle (dbschema imports only persistence).
 
 ## Phase 6 — Close
-- [ ] Orchestrator creates the commit (`refactor(persistence): ...`).
-- [ ] Archive the change; sync delta spec into `openspec/specs/`.
+- [x] Orchestrator created the commit `6a82271` (`refactor(persistence): data-driven schema registry`); full pre-commit gate green.
+- [ ] Archive DEFERRED: matching repo practice, recent changes (e.g. sdd-33) stay in `openspec/changes/` post-implementation until a later archive pass (typically post-merge). Delta spec at `specs/persistence-schema/spec.md` to be merged into `openspec/specs/` at archive time.
