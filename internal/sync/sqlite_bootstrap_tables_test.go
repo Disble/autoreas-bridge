@@ -62,7 +62,7 @@ func TestBootstrapBridgeDBCreatesDownloadTables(t *testing.T) {
 	for _, required := range []string{
 		"run_id", "started_at_ms", "finished_at_ms", "trigger",
 		"animes_checked", "episodes_found", "episodes_downloaded", "episodes_failed",
-		"skipped_count", "jd_available", "status", "error_summary", "manual_links_json",
+		"skipped_count", "up_to_date_count", "jd_available", "status", "error_summary", "manual_links_json",
 	} {
 		if !containsString(runsColumns, required) {
 			t.Fatalf("expected download_runs table to contain column %q, got %#v", required, runsColumns)

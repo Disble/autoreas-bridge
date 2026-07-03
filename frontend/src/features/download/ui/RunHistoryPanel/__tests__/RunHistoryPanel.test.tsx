@@ -38,9 +38,25 @@ const jdOfflineRun = {
   episodesDownloaded: 0,
   episodesFailed: 0,
   skippedCount: 0,
+  upToDateCount: 0,
   jdAvailable: false,
   status: 'jd_offline',
   manualLinks: [{ anime: 'Frieren', episode: 12, links: ['https://example.com/a'] }],
+};
+
+const okRun = {
+  runId: 'run-1',
+  startedAtMs: 1_700_000_000_000,
+  finishedAtMs: 1_700_000_100_000,
+  trigger: 'manual',
+  animesChecked: 3,
+  episodesFound: 1,
+  episodesDownloaded: 1,
+  episodesFailed: 0,
+  skippedCount: 0,
+  upToDateCount: 2,
+  jdAvailable: true,
+  status: 'ok',
 };
 
 describe('RunHistoryPanel', () => {
@@ -120,6 +136,19 @@ describe('RunHistoryPanel', () => {
       'href',
       'https://example.com/a',
     );
+  });
+
+  it('renders the "Up to date" counter in the detail pane for a selected run', () => {
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: { status: 'ready', rows, selectedRun: okRun },
+      selectRun: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+
+    const label = screen.getByText('Up to date');
+    expect(label).toBeInTheDocument();
+    expect(label.nextElementSibling).toHaveTextContent('2');
   });
 
   it('renders an empty detail-pane prompt when no run is selected', () => {

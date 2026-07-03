@@ -60,10 +60,15 @@ type DownloadRun struct {
 	EpisodesDownloaded int
 	EpisodesFailed     int
 	SkippedCount       int
-	JDAvailable        bool
-	Status             string
-	ErrorSummary       string
-	ManualLinks        []ManualLink
+	// UpToDateCount is the subset of AnimesChecked that was evaluated but needed no
+	// download -- either nothing newer than on-disk was online, or the season was already
+	// complete on disk. Distinct from SkippedCount (misconfigured/out-of-scope animes that
+	// were never evaluated); an up-to-date anime IS counted in AnimesChecked.
+	UpToDateCount int
+	JDAvailable   bool
+	Status        string
+	ErrorSummary  string
+	ManualLinks   []ManualLink
 }
 
 // DownloadStore is the persistence port for all four download_* tables (design.md §3.6).

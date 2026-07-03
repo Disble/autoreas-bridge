@@ -134,7 +134,12 @@ func defaultRunIDGenerator() func() string {
 // animeRunOutcome is the per-anime fan-out result, isolated from every other anime in the run
 // (download-orchestration spec "Per-Anime Fan-Out With Failure Isolation").
 type animeRunOutcome struct {
-	skipped            bool
+	skipped bool
+	// upToDate marks an anime that was evaluated but needed no download (nothing newer
+	// online than on-disk, or season already complete on disk). It is NOT a skip -- the
+	// anime still counts toward AnimesChecked -- but is tallied into UpToDateCount so the
+	// run summary distinguishes "checked and current" from "checked and downloaded".
+	upToDate           bool
 	episodesFound      int
 	episodesDownloaded int
 	episodesFailed     int
@@ -181,6 +186,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 		"episodes_downloaded": run.EpisodesDownloaded,
 		"episodes_failed":     run.EpisodesFailed,
 		"skipped_count":       run.SkippedCount,
+		"up_to_date_count":    run.UpToDateCount,
 	}, "download run %s finished with status %s", runID, run.Status)
 	s.publish(events.DownloadRunFinishedEvent{RunID: runID, Status: run.Status, CorrelationID: runID})
 
@@ -227,6 +233,9 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 		}
 
 		run.AnimesChecked++
+		if outcome.upToDate {
+			run.UpToDateCount++
+		}
 		run.EpisodesFound += outcome.episodesFound
 		run.EpisodesDownloaded += outcome.episodesDownloaded
 		run.EpisodesFailed += outcome.episodesFailed
@@ -335,12 +344,12 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 		onDiskCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
 	}
 	if anime.TotalCap != nil && *anime.TotalCap > 0 && *anime.TotalCap == onDiskCount {
-		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{
 			"reason":      "season_complete_on_disk",
 			"totalcap":    *anime.TotalCap,
 			"onDiskCount": onDiskCount,
-		}, "anime %s skipped online lookup: season already complete on disk (%d/%d)", anime.Nombre, onDiskCount, *anime.TotalCap)
-		return animeRunOutcome{}
+		}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Nombre, onDiskCount, *anime.TotalCap)
+		return animeRunOutcome{upToDate: true}
 	}
 
 	source, err := s.deps.Sites.Resolve(*anime.Pagina)
@@ -362,7 +371,12 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 	}
 
 	if !NeedsDownload(listing.LatestEpisode, onDiskCount) {
-		return animeRunOutcome{}
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{
+			"reason":       "no_new_episode",
+			"latestOnline": listing.LatestEpisode,
+			"onDiskCount":  onDiskCount,
+		}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Nombre, listing.LatestEpisode, onDiskCount)
+		return animeRunOutcome{upToDate: true}
 	}
 
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_available",

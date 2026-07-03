@@ -114,12 +114,28 @@ Any `download_runs` row left non-terminal (`finished_at_ms IS NULL`) after a cra
 
 The system MUST account for skipped animes (Tipo 1/2, missing `pagina`/`carpeta`, unsupported or disabled site) in a dedicated `download_runs.skipped_count` column, separate from `animes_checked`. `animes_checked` MUST count only animes that were actually evaluated (not skipped). The per-anime skip reason MUST be recoverable from the structured log (a `download.skipped` entry with a `skipReason` in `Metadata`), even though the run row stores only the aggregate count.
 
+A skip is a PRE-EVALUATION exclusion: the anime was never looked up online because it is out of scope or misconfigured. It MUST NOT be conflated with an "up to date" outcome (see "Up-to-Date Accounting in Run Counters"), where the anime WAS evaluated and simply needed no download.
+
 #### Scenario: Skipped animes increment skipped_count, not animes_checked
 - GIVEN a run with 5 today-active animes, of which 2 are skipped (one Tipo=1, one missing `carpeta`) and 3 are evaluated
 - WHEN the run completes
 - THEN `download_runs.skipped_count` MUST be 2
 - AND `animes_checked` MUST be 3 (only the evaluated animes)
 - AND each skip MUST also be recoverable as a `download.skipped` structured log entry carrying its `skipReason`
+
+### Requirement: Up-to-Date Accounting in Run Counters
+
+The system MUST account for evaluated animes that needed no download in a dedicated `download_runs.up_to_date_count` column. An anime is "up to date" when it was evaluated but no download was triggered because either (a) the highest online episode number was not greater than the on-disk video-file count (`NeedsDownload` is false), or (b) the season was already complete on disk (`TotalCap` equals the on-disk count, short-circuiting the online lookup).
+
+`up_to_date_count` is a SUBSET of `animes_checked`: an up-to-date anime WAS evaluated, so it MUST also be counted in `animes_checked`. It MUST NOT be counted in `skipped_count`, because it was not a pre-evaluation exclusion. The per-anime up-to-date outcome MUST be recoverable from the structured log (a `download.up_to_date` entry whose `Metadata.reason` is `no_new_episode` or `season_complete_on_disk`), even though the run row stores only the aggregate count.
+
+#### Scenario: Up-to-date animes increment up_to_date_count within animes_checked
+- GIVEN a run with 3 today-active, well-configured animes, of which 1 has a new episode to download and 2 are already up to date (one with nothing newer online, one with the season already complete on disk)
+- WHEN the run completes
+- THEN `download_runs.up_to_date_count` MUST be 2
+- AND `animes_checked` MUST be 3 (all three were evaluated, including the two up-to-date)
+- AND `skipped_count` MUST be 0
+- AND each up-to-date outcome MUST be recoverable as a `download.up_to_date` structured log entry carrying its `reason`
 
 ### Requirement: JD-Offline Manual Links Persistence
 

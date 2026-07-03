@@ -187,7 +187,7 @@ func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 	}
 }
 
-func TestProcessAnimeSkipsOnlineLookupWhenTotalCapMatchesOnDiskCount(t *testing.T) {
+func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T) {
 	t.Parallel()
 
 	folder := t.TempDir()
@@ -216,8 +216,10 @@ func TestProcessAnimeSkipsOnlineLookupWhenTotalCapMatchesOnDiskCount(t *testing.
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, false)
 
-	if got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 || got.episodesFailed != 0 || len(got.manualLinks) != 0 {
-		t.Fatalf("expected empty outcome for fully downloaded season, got %#v", got)
+	// A season already complete on disk is "up to date" -- it was evaluated (against
+	// TotalCap/on-disk), not skipped like a misconfigured anime.
+	if !got.upToDate || got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 || got.episodesFailed != 0 || len(got.manualLinks) != 0 {
+		t.Fatalf("expected up-to-date outcome for fully downloaded season, got %#v", got)
 	}
 	if registry.calls() != 0 {
 		t.Fatalf("expected Resolve not to be called, got %d calls", registry.calls())
@@ -227,6 +229,93 @@ func TestProcessAnimeSkipsOnlineLookupWhenTotalCapMatchesOnDiskCount(t *testing.
 	}
 	if availableEvents != 0 {
 		t.Fatalf("expected no episode-available events, got %d", availableEvents)
+	}
+}
+
+func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
+	t.Parallel()
+
+	folder := t.TempDir()
+	deps := baseDeps(t)
+	// On disk already has the latest online episode: NeedsDownload is false.
+	deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 5}, recursive: map[string]int{folder: 5}}
+	source := &spyEpisodeSource{
+		listing: sites.EpisodeListing{LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/anime/5/"},
+	}
+	registry := &spySiteRegistry{source: source}
+	deps.Sites = registry
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Some Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/anime/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, true)
+
+	if !got.upToDate || got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 {
+		t.Fatalf("expected up-to-date outcome when nothing new is online, got %#v", got)
+	}
+}
+
+func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	dia := todayDiaName(deps.Clock())
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/fresh/":   {LatestEpisode: 1, EpisodePageURL: "https://jkanime.net/fresh/1/"},
+			"https://jkanime.net/current/": {LatestEpisode: 4, EpisodePageURL: "https://jkanime.net/current/4/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/fresh/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+
+	freshFolder := t.TempDir()
+	currentFolder := t.TempDir()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:      "anime-fresh",
+		Nombre:  "Fresh Anime",
+		Activo:  1,
+		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
+		Pagina:  ptrStr("https://jkanime.net/fresh/"),
+		Carpeta: ptrStr(freshFolder),
+	}, {
+		ID:      "anime-current",
+		Nombre:  "Up To Date Anime",
+		Activo:  1,
+		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
+		Pagina:  ptrStr("https://jkanime.net/current/"),
+		Carpeta: ptrStr(currentFolder),
+	}}}
+	deps.Counter = &svcFakeCounter{
+		atRoot:    map[string]int{freshFolder: 0, currentFolder: 4},
+		recursive: map[string]int{freshFolder: 1, currentFolder: 4},
+	}
+
+	result, err := NewService(deps).RunOnce(context.Background(), "manual")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
+	if !ok {
+		t.Fatalf("expected run %q persisted", result.RunID)
+	}
+	// animes_checked stays the count of everything evaluated (2); up_to_date_count is the
+	// subset that had nothing new to download (1); neither is a skip.
+	if run.AnimesChecked != 2 || run.UpToDateCount != 1 || run.SkippedCount != 0 {
+		t.Fatalf("expected AnimesChecked=2, UpToDateCount=1, SkippedCount=0, got %#v", run)
+	}
+	if run.EpisodesDownloaded != 1 {
+		t.Fatalf("expected EpisodesDownloaded=1, got %#v", run)
 	}
 }
 

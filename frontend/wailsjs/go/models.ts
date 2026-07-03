@@ -180,6 +180,7 @@ export namespace contracts {
 	    episodesDownloaded: number;
 	    episodesFailed: number;
 	    skippedCount: number;
+	    upToDateCount: number;
 	    jdAvailable: boolean;
 	    status: string;
 	    errorSummary?: string;
@@ -200,6 +201,7 @@ export namespace contracts {
 	        this.episodesDownloaded = source["episodesDownloaded"];
 	        this.episodesFailed = source["episodesFailed"];
 	        this.skippedCount = source["skippedCount"];
+	        this.upToDateCount = source["upToDateCount"];
 	        this.jdAvailable = source["jdAvailable"];
 	        this.status = source["status"];
 	        this.errorSummary = source["errorSummary"];

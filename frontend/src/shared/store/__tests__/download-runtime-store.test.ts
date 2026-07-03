@@ -26,6 +26,7 @@ const runHistory: readonly DownloadRunView[] = [
     episodesDownloaded: 2,
     episodesFailed: 0,
     skippedCount: 1,
+    upToDateCount: 0,
     jdAvailable: true,
     status: 'ok',
   },

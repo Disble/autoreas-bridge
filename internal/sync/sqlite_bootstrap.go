@@ -101,6 +101,7 @@ const (
 			episodes_downloaded INTEGER NOT NULL DEFAULT 0,
 			episodes_failed     INTEGER NOT NULL DEFAULT 0,
 			skipped_count       INTEGER NOT NULL DEFAULT 0,
+			up_to_date_count    INTEGER NOT NULL DEFAULT 0,
 			jd_available        INTEGER NOT NULL DEFAULT 0,
 			status              TEXT NOT NULL,
 			error_summary       TEXT,
@@ -217,8 +218,8 @@ func initializeBridgeDB(db *sql.DB) error {
 	if err := ensureDownloadScheduleConfigSchema(db); err != nil {
 		return err
 	}
-	if _, err := db.Exec(downloadRunsDDL); err != nil {
-		return fmt.Errorf("ensure download_runs schema: %w", err)
+	if err := ensureDownloadRunsSchema(db); err != nil {
+		return err
 	}
 	if _, err := db.Exec(downloadRunsStartedAtIndexDDL); err != nil {
 		return fmt.Errorf("ensure download_runs started_at index: %w", err)
@@ -360,6 +361,32 @@ func ensureDownloadScheduleConfigSchema(db *sql.DB) error {
 	}
 	if _, err := db.Exec(`ALTER TABLE download_schedule_config ADD COLUMN enabled_weekdays INTEGER`); err != nil {
 		return fmt.Errorf("migrate legacy download_schedule_config schema: %w", err)
+	}
+	return nil
+}
+
+// ensureDownloadRunsSchema follows the same column-introspection + additive-ALTER precedent as
+// ensureDownloadScheduleConfigSchema: a missing table is created fresh with up_to_date_count
+// already present; an already-migrated table is a noop; a legacy download_runs table (no
+// up_to_date_count) gets the column added in place via a SAFE additive ALTER TABLE -- NOT NULL
+// DEFAULT 0, so pre-existing rows read back up_to_date_count=0 with zero data rewrite (up-to-date
+// accounting simply starts at 0 for historical runs finalized before this migration).
+func ensureDownloadRunsSchema(db *sql.DB) error {
+	columns, err := tableColumns(db, "download_runs")
+	if err != nil {
+		return fmt.Errorf("inspect download_runs schema: %w", err)
+	}
+	if len(columns) == 0 {
+		if _, err := db.Exec(downloadRunsDDL); err != nil {
+			return fmt.Errorf("ensure download_runs schema: %w", err)
+		}
+		return nil
+	}
+	if containsColumn(columns, "up_to_date_count") {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE download_runs ADD COLUMN up_to_date_count INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("migrate legacy download_runs schema: %w", err)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ const okRun: DownloadRunView = {
   episodesDownloaded: 3,
   episodesFailed: 0,
   skippedCount: 7,
+  upToDateCount: 0,
   jdAvailable: true,
   status: 'ok',
 };
@@ -26,6 +27,7 @@ const jdOfflineRun: DownloadRunView = {
   episodesDownloaded: 0,
   episodesFailed: 0,
   skippedCount: 0,
+  upToDateCount: 0,
   jdAvailable: false,
   status: 'jd_offline',
   errorSummary: 'JDownloader is offline',

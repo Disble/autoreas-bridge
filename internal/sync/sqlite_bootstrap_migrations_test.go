@@ -64,6 +64,69 @@ func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
 	}
 }
 
+func TestOpenBridgeDBMigratesLegacyDownloadRunsSchema(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	// Legacy download_runs schema: everything EXCEPT up_to_date_count.
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE download_runs (
+			run_id              TEXT PRIMARY KEY,
+			started_at_ms       INTEGER NOT NULL,
+			finished_at_ms      INTEGER,
+			trigger             TEXT NOT NULL,
+			animes_checked      INTEGER NOT NULL DEFAULT 0,
+			episodes_found      INTEGER NOT NULL DEFAULT 0,
+			episodes_downloaded INTEGER NOT NULL DEFAULT 0,
+			episodes_failed     INTEGER NOT NULL DEFAULT 0,
+			skipped_count       INTEGER NOT NULL DEFAULT 0,
+			jd_available        INTEGER NOT NULL DEFAULT 0,
+			status              TEXT NOT NULL,
+			error_summary       TEXT,
+			manual_links_json   TEXT
+		);
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("create legacy download_runs schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO download_runs (run_id, started_at_ms, trigger, animes_checked, status)
+		VALUES ('run-legacy', 100, 'manual', 3, 'ok');
+	`); err != nil {
+		legacyDB.Close()
+		t.Fatalf("insert legacy download_runs row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with migration: %v", err)
+	}
+	defer db.Close()
+
+	columns := readTableColumns(t, db, "download_runs")
+	if !containsString(columns, "up_to_date_count") {
+		t.Fatalf("expected migrated download_runs schema to contain column %q, got %#v", "up_to_date_count", columns)
+	}
+
+	var animesChecked, upToDateCount int
+	if err := db.QueryRow(`SELECT animes_checked, up_to_date_count FROM download_runs WHERE run_id = 'run-legacy'`).Scan(&animesChecked, &upToDateCount); err != nil {
+		t.Fatalf("query migrated download_runs row: %v", err)
+	}
+	if animesChecked != 3 {
+		t.Fatalf("expected pre-existing animes_checked to be preserved, got %d", animesChecked)
+	}
+	if upToDateCount != 0 {
+		t.Fatalf("expected legacy row to read back up_to_date_count=0, got %d", upToDateCount)
+	}
+}
+
 func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
 	t.Parallel()
 

@@ -80,6 +80,8 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
               <dd className="text-foreground">{viewModel.selectedRun.episodesDownloaded}</dd>
               <dt>Episodes failed</dt>
               <dd className="text-foreground">{viewModel.selectedRun.episodesFailed}</dd>
+              <dt>Up to date</dt>
+              <dd className="text-foreground">{viewModel.selectedRun.upToDateCount}</dd>
               <dt>Skipped</dt>
               <dd className="text-foreground">{viewModel.selectedRun.skippedCount}</dd>
             </dl>

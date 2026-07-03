@@ -346,11 +346,11 @@ func (s *SQLiteStore) OpenRun(ctx context.Context, run DownloadRun) error {
 		INSERT INTO download_runs (
 			run_id, started_at_ms, finished_at_ms, trigger,
 			animes_checked, episodes_found, episodes_downloaded, episodes_failed,
-			skipped_count, jd_available, status, error_summary, manual_links_json
-		) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+			skipped_count, up_to_date_count, jd_available, status, error_summary, manual_links_json
+		) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
 	`, run.RunID, run.StartedAtMs, run.Trigger,
 		run.AnimesChecked, run.EpisodesFound, run.EpisodesDownloaded, run.EpisodesFailed,
-		run.SkippedCount, jdAvailable, status, nullableString(run.ErrorSummary))
+		run.SkippedCount, run.UpToDateCount, jdAvailable, status, nullableString(run.ErrorSummary))
 	if err != nil {
 		return fmt.Errorf("open run %q: %w", run.RunID, err)
 	}
@@ -377,12 +377,13 @@ func (s *SQLiteStore) UpdateRunProgress(ctx context.Context, run DownloadRun) er
 			episodes_downloaded = ?,
 			episodes_failed = ?,
 			skipped_count = ?,
+			up_to_date_count = ?,
 			jd_available = ?,
 			error_summary = ?,
 			manual_links_json = ?
 		WHERE run_id = ? AND finished_at_ms IS NULL
 	`, run.AnimesChecked, run.EpisodesFound, run.EpisodesDownloaded, run.EpisodesFailed,
-		run.SkippedCount, jdAvailable, nullableString(run.ErrorSummary), manualLinksJSON, run.RunID)
+		run.SkippedCount, run.UpToDateCount, jdAvailable, nullableString(run.ErrorSummary), manualLinksJSON, run.RunID)
 	if err != nil {
 		return fmt.Errorf("update run progress %q: %w", run.RunID, err)
 	}
@@ -424,13 +425,14 @@ func (s *SQLiteStore) FinalizeRun(ctx context.Context, run DownloadRun) error {
 			episodes_downloaded = ?,
 			episodes_failed = ?,
 			skipped_count = ?,
+			up_to_date_count = ?,
 			jd_available = ?,
 			status = ?,
 			error_summary = ?,
 			manual_links_json = ?
 		WHERE run_id = ?
 	`, run.FinishedAtMs, run.AnimesChecked, run.EpisodesFound, run.EpisodesDownloaded,
-		run.EpisodesFailed, run.SkippedCount, jdAvailable, run.Status,
+		run.EpisodesFailed, run.SkippedCount, run.UpToDateCount, jdAvailable, run.Status,
 		nullableString(run.ErrorSummary), manualLinksJSON, run.RunID)
 	if err != nil {
 		return fmt.Errorf("finalize run %q: %w", run.RunID, err)
@@ -474,7 +476,7 @@ func (s *SQLiteStore) ListRuns(ctx context.Context, limit int) ([]DownloadRun, e
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT run_id, started_at_ms, finished_at_ms, trigger,
 		       animes_checked, episodes_found, episodes_downloaded, episodes_failed,
-		       skipped_count, jd_available, status, error_summary, manual_links_json
+		       skipped_count, up_to_date_count, jd_available, status, error_summary, manual_links_json
 		FROM download_runs
 		ORDER BY started_at_ms DESC
 		LIMIT ?
@@ -540,7 +542,7 @@ func scanDownloadRun(row rowScanner) (DownloadRun, error) {
 	if err := row.Scan(
 		&run.RunID, &run.StartedAtMs, &finishedAtMs, &run.Trigger,
 		&run.AnimesChecked, &run.EpisodesFound, &run.EpisodesDownloaded, &run.EpisodesFailed,
-		&run.SkippedCount, &jdAvailable, &run.Status, &errorSummary, &manualLinksJSON,
+		&run.SkippedCount, &run.UpToDateCount, &jdAvailable, &run.Status, &errorSummary, &manualLinksJSON,
 	); err != nil {
 		return DownloadRun{}, err
 	}

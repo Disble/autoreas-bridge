@@ -281,17 +281,20 @@ type ManualLink struct {
 // lifecycle and status taxonomy). FinishedAtMs is a pointer so the UI can distinguish a still-
 // running row (nil) from a terminal one.
 type DownloadRunView struct {
-	RunID              string       `json:"runId"`
-	StartedAtMs        int64        `json:"startedAtMs"`
-	FinishedAtMs       *int64       `json:"finishedAtMs,omitempty"`
-	Trigger            string       `json:"trigger"`
-	AnimesChecked      int          `json:"animesChecked"`
-	EpisodesFound      int          `json:"episodesFound"`
-	EpisodesDownloaded int          `json:"episodesDownloaded"`
-	EpisodesFailed     int          `json:"episodesFailed"`
-	SkippedCount       int          `json:"skippedCount"`
-	JDAvailable        bool         `json:"jdAvailable"`
-	Status             string       `json:"status"`
-	ErrorSummary       string       `json:"errorSummary,omitempty"`
-	ManualLinks        []ManualLink `json:"manualLinks,omitempty"`
+	RunID              string `json:"runId"`
+	StartedAtMs        int64  `json:"startedAtMs"`
+	FinishedAtMs       *int64 `json:"finishedAtMs,omitempty"`
+	Trigger            string `json:"trigger"`
+	AnimesChecked      int    `json:"animesChecked"`
+	EpisodesFound      int    `json:"episodesFound"`
+	EpisodesDownloaded int    `json:"episodesDownloaded"`
+	EpisodesFailed     int    `json:"episodesFailed"`
+	SkippedCount       int    `json:"skippedCount"`
+	// UpToDateCount is the subset of AnimesChecked that needed no download (nothing newer
+	// online than on-disk, or the season already complete on disk) -- distinct from a skip.
+	UpToDateCount int          `json:"upToDateCount"`
+	JDAvailable   bool         `json:"jdAvailable"`
+	Status        string       `json:"status"`
+	ErrorSummary  string       `json:"errorSummary,omitempty"`
+	ManualLinks   []ManualLink `json:"manualLinks,omitempty"`
 }

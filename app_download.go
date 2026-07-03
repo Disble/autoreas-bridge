@@ -372,6 +372,7 @@ func toContractsDownloadRunView(run download.DownloadRun) contracts.DownloadRunV
 		EpisodesDownloaded: run.EpisodesDownloaded,
 		EpisodesFailed:     run.EpisodesFailed,
 		SkippedCount:       run.SkippedCount,
+		UpToDateCount:      run.UpToDateCount,
 		JDAvailable:        run.JDAvailable,
 		Status:             run.Status,
 		ErrorSummary:       run.ErrorSummary,
