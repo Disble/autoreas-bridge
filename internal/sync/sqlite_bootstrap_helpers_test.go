@@ -3,9 +3,13 @@ package sync
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"autoreas-bridge/internal/download/dbschema"
+	"autoreas-bridge/internal/persistence"
 )
 
 func newTestBootstrap(t *testing.T) SQLiteBootstrap {
@@ -112,4 +116,41 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+// ensureAnimeSnapshotsSchema is a test-only seam that drives the anime_snapshots descriptor
+// through persistence.EnsureTableSchema, preserving the rejection contract exercised by
+// TestEnsureAnimeSnapshotsSchemaRejectsUnsupportedSchema.
+func ensureAnimeSnapshotsSchema(db *sql.DB) error {
+	for _, t := range schemaTables() {
+		if t.Name == "anime_snapshots" {
+			return persistence.EnsureTableSchema(db, t)
+		}
+	}
+	return fmt.Errorf("anime_snapshots descriptor not found in schemaTables")
+}
+
+// ensureDownloadJDConfigSchema is a test-only seam that drives the download_jd_config
+// descriptor through persistence.EnsureTableSchema, preserving the idempotency contract
+// exercised by TestEnsureDownloadJDConfigSchemaIsIdempotentColumnIntrospection.
+func ensureDownloadJDConfigSchema(db *sql.DB) error {
+	for _, t := range dbschema.SchemaTables() {
+		if t.Name == "download_jd_config" {
+			return persistence.EnsureTableSchema(db, t)
+		}
+	}
+	return fmt.Errorf("download_jd_config descriptor not found in download.SchemaTables")
+}
+
+// ensureDownloadScheduleConfigSchema is a test-only seam that drives the
+// download_schedule_config descriptor through persistence.EnsureTableSchema, preserving
+// the idempotency contract exercised by
+// TestEnsureDownloadScheduleConfigSchemaIsIdempotentColumnIntrospection.
+func ensureDownloadScheduleConfigSchema(db *sql.DB) error {
+	for _, t := range dbschema.SchemaTables() {
+		if t.Name == "download_schedule_config" {
+			return persistence.EnsureTableSchema(db, t)
+		}
+	}
+	return fmt.Errorf("download_schedule_config descriptor not found in download.SchemaTables")
 }
