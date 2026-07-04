@@ -1,11 +1,14 @@
 import {
+  AdjustWatchedChapters,
   GetAnimes,
+  GetChapterSchedule,
   GetConnectedDevices,
   GetEffectiveAddress,
   GetPairingToken,
   PullAnimesFromLegacy,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
+  SetAnimeState,
   TriggerReconcile,
   UnpairDevice,
 } from '../../wailsjs/go/main/App';
@@ -41,6 +44,9 @@ export interface BridgeRuntimeSource {
   readonly getPairingToken: () => Promise<string>;
   readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
+  readonly getChapterSchedule?: (day: string) => Promise<readonly contracts.ChapterScheduleItem[]>;
+  readonly adjustWatchedChapters?: (animeID: string, delta: number, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
@@ -165,6 +171,21 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     getAnimes() {
       return waitForBindings(() => hasGoBinding('GetAnimes')).then((isReady) => {
         return isReady ? (GetAnimes() as Promise<readonly Anime[]>) : Promise.resolve([]);
+      });
+    },
+    getChapterSchedule(day) {
+      return waitForBindings(() => hasGoBinding('GetChapterSchedule')).then((isReady) => {
+        return isReady ? (GetChapterSchedule(day) as Promise<readonly contracts.ChapterScheduleItem[]>) : Promise.resolve([]);
+      });
+    },
+    adjustWatchedChapters(animeID, delta, base) {
+      return waitForBindings(() => hasGoBinding('AdjustWatchedChapters')).then((isReady) => {
+        return isReady ? AdjustWatchedChapters(animeID, delta, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    setAnimeState(animeID, estado, base) {
+      return waitForBindings(() => hasGoBinding('SetAnimeState')).then((isReady) => {
+        return isReady ? SetAnimeState(animeID, estado, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
       });
     },
     getConnectedDevices() {
