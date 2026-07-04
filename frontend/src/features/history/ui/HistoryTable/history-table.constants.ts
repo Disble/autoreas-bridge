@@ -28,15 +28,18 @@ export const HISTORY_TABLE_ESTADO_OPTIONS: readonly HistoryFilterOption[] = [
 export const HISTORY_TABLE_TIPO_ALL_VALUE = 'all';
 
 /**
- * Options for the visible tipo filter control. Value domain and labels
- * mirror `ANIME_TIPO_OPTIONS` (`catalog-panel.constants.ts`) -- 0=Serie,
- * 1=Película, 2=OVA. Entries with an absent `tipo` only match "All".
+ * Options for the visible tipo filter control. Value domain verified against
+ * the REAL fixture (`animes.dat` distinct tipo = 0/1/2/3 + null) and
+ * Legacy's dropdown order: 0=Anime (TV), 1=Película, 2=Especial, 3=OVA —
+ * Legacy data literals, kept verbatim. Entries with an absent `tipo` only
+ * match "All".
  */
 export const HISTORY_TABLE_TIPO_OPTIONS: readonly HistoryFilterOption[] = [
   { value: HISTORY_TABLE_TIPO_ALL_VALUE, label: 'All' },
-  { value: '0', label: 'Serie' },
+  { value: '0', label: 'Anime (TV)' },
   { value: '1', label: 'Película' },
-  { value: '2', label: 'OVA' },
+  { value: '2', label: 'Especial' },
+  { value: '3', label: 'OVA' },
 ];
 
 /** Sort value meaning "keep the server's fechaUltCapVisto DESC order" (default, no client re-sort). */

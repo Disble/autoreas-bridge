@@ -60,13 +60,18 @@ export const ANIME_ACTIVO_OPTIONS: readonly AnimeFilterOption[] = [
 
 /**
  * Options for the "tipo" filter select. These are defaults; the UI also
- * derives actual values from the loaded catalog.
+ * derives actual values from the loaded catalog. Value domain verified
+ * against the REAL fixture (`animes.dat` distinct tipo = 0/1/2/3 + null)
+ * and Legacy's dropdown order: 0=Anime (TV), 1=Película, 2=Especial, 3=OVA
+ * (Legacy data literals, kept verbatim — the earlier mapping mislabeled
+ * tipo 2, Especial, as OVA).
  */
 export const ANIME_TIPO_OPTIONS: readonly AnimeFilterOption[] = [
   { value: 'all', label: 'All' },
-  { value: '0', label: 'Serie' },
+  { value: '0', label: 'Anime (TV)' },
   { value: '1', label: 'Película' },
-  { value: '2', label: 'OVA' },
+  { value: '2', label: 'Especial' },
+  { value: '3', label: 'OVA' },
 ];
 
 /**

@@ -72,10 +72,15 @@ describe('getAnimeDetailEstadoColor', () => {
 });
 
 describe('getAnimeDetailTipoLabel', () => {
+  // Domain verified against the real fixture (2026-07-04 scan): distinct tipo
+  // values are 0 (626), 1 (49), 2 (11), 3 (27) + null (82), matching Legacy's
+  // dropdown order Anime (TV) / Película / Especial / OVA. The previous
+  // Serie/Película/OVA(=2) mapping mislabeled Especial animes as OVA.
   it.each([
-    [0, 'Serie'],
+    [0, 'Anime (TV)'],
     [1, 'Película'],
-    [2, 'OVA'],
+    [2, 'Especial'],
+    [3, 'OVA'],
   ])('maps tipo %i to %s', (tipo, label) => {
     expect(getAnimeDetailTipoLabel(tipo)).toBe(label);
   });
@@ -310,6 +315,18 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel.hasGenres).toBe(false);
     expect(viewModel.hasRepetitionHistory).toBe(true);
   });
+
+  // Real fixture: 793/795 records carry portada.path === '' and one carries
+  // the literal string 'null'. An <img src=""> never fires onError, so a
+  // blank path must map to undefined (placeholder path), not an img render.
+  it.each([[''], ['   '], ['null']])(
+    'maps the blank/sentinel portada path %j to an undefined portadaUrl',
+    (portada) => {
+      const viewModel = toAnimeDetailViewModel({ ...baseDetail, portada });
+
+      expect(viewModel.portadaUrl).toBeUndefined();
+    },
+  );
 
   it('uses studios and origin when present', () => {
     const viewModel = toAnimeDetailViewModel({

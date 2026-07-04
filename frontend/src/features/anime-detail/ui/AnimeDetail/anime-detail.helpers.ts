@@ -91,11 +91,13 @@ export function getAnimeDetailEstadoColor(estado: number): HeroChipColor {
 }
 
 /**
- * Tipo label domain verified against `ANIME_TIPO_OPTIONS`
- * (`catalog-panel.constants.ts`): 0=Serie, 1=Película, 2=OVA. An absent
- * `tipo` (legacy record never set it) degrades to the "Unknown" label; an
- * unrecognized numeric value falls back to its raw string rather than
- * inventing a label.
+ * Tipo label domain verified against the REAL fixture (2026-07-04 scan of
+ * `animes.dat`: distinct tipo = 0/1/2/3 + null) and Legacy's dropdown order:
+ * 0=Anime (TV), 1=Película, 2=Especial, 3=OVA. These are Legacy data
+ * literals, kept verbatim. (The earlier Serie/Película/OVA mapping was wrong:
+ * it mislabeled tipo 2 — Especial — as OVA.) An absent `tipo` degrades to
+ * the "Unknown" label; an unrecognized numeric value falls back to its raw
+ * string rather than inventing a label.
  */
 export function getAnimeDetailTipoLabel(tipo?: number): string {
   if (tipo === undefined) {
@@ -104,14 +106,29 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
 
   switch (tipo) {
     case 0:
-      return 'Serie';
+      return 'Anime (TV)';
     case 1:
       return 'Película';
     case 2:
+      return 'Especial';
+    case 3:
       return 'OVA';
     default:
       return String(tipo);
   }
+}
+
+/**
+ * Normalizes a legacy portada path into a usable image URL. The real fixture
+ * carries `portada.path === ''` on 793/795 records (plus one literal
+ * `'null'` string) — and an `<img src="">` never fires `onError`, so blank
+ * or sentinel paths MUST resolve to `undefined` (placeholder path) instead
+ * of reaching the `<img>`.
+ */
+export function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
+  const trimmed = portada?.trim();
+
+  return trimmed === undefined || trimmed === '' || trimmed === 'null' ? undefined : trimmed;
 }
 
 /** Joins the estado and tipo labels into the hero's "estado • tipo" subtitle line. */
@@ -251,7 +268,7 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
   return {
     id: detail._id,
     nombre: detail.nombre,
-    portadaUrl: detail.portada,
+    portadaUrl: normalizeAnimeDetailPortadaUrl(detail.portada),
     estadoLabel,
     tipoLabel,
     subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),
