@@ -11,6 +11,7 @@ function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeR
     getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
+    getAnimeHistory: vi.fn().mockResolvedValue([]),
     pullAnimesFromLegacy: vi.fn().mockResolvedValue({
       message: '',
       prunedCount: 0,

@@ -6,6 +6,10 @@ export function GetAnimeDetail(arg1) {
   return window['go']['main']['App']['GetAnimeDetail'](arg1);
 }
 
+export function GetAnimeHistory() {
+  return window['go']['main']['App']['GetAnimeHistory']();
+}
+
 export function GetAnimes() {
   return window['go']['main']['App']['GetAnimes']();
 }

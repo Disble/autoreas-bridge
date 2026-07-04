@@ -8,38 +8,38 @@ the FULL pre-commit gate; orchestrator verifies and commits after each slice.
 ## Slice 1 — Backend history read model (~200 lines)
 
 ### Phase 1.0 — Baseline
-- [ ] `go test ./...` GREEN before any change.
+- [x] `go test ./...` GREEN before any change.
 
 ### Phase 1.1 — `AnimeHistoryItem` + `ListAnimeHistory` (spec: Anime History / "History Read Model")
-- [ ] RED: service-level test (`internal/anime`, alongside the `ListAnimeItems` tests) asserting
+- [x] RED: service-level test (`internal/anime`, alongside the `ListAnimeItems` tests) asserting
       `ListAnimeHistory` returns only animes with a present `fechaUltCapVisto`, sorted DESC by it,
       with id/nombre/nrocapvisto/fechaUltCapVisto(millis)/estado populated; absent/null
       `fechaUltCapVisto` rows excluded; soft-delete handling mirrors `ListAnimeItems`'s existing
       behavior (verify what that behavior IS first; History keeps eliminado animes visible with
       their estado, matching Legacy, unless `ListAnimeItems` precedent dictates otherwise —
       document the verified choice in the test).
-- [ ] RED: real-fixture test (`resources/autoreas-data/animes.dat`): assert the exact membership
+- [x] RED: real-fixture test (`resources/autoreas-data/animes.dat`): assert the exact membership
       count of records with present `fechaUltCapVisto` (derive the expected number from the
       fixture in the test setup, don't hardcode blind) and that ordering is non-increasing.
-- [ ] GREEN: `contracts.go` — add `AnimeHistoryItem` DTO + `ListAnimeHistory` to
+- [x] GREEN: `contracts.go` — add `AnimeHistoryItem` DTO + `ListAnimeHistory` to
       `AnimeQueryService`; `internal/anime` — implement via the same snapshot projection path as
       `ListAnimeItems`.
-- [ ] GREEN: one-line nil-return stubs in `app_test_helpers_test.go`,
+- [x] GREEN: one-line nil-return stubs in `app_test_helpers_test.go`,
       `internal/api/router_test.go`, `internal/download/service_test_helpers_test.go`.
 
 ### Phase 1.2 — `GetAnimeHistory` binding + TS mirror
-- [ ] RED: `app_runtime_test.go` — populated result for a service with data; empty (non-nil)
+- [x] RED: `app_runtime_test.go` — populated result for a service with data; empty (non-nil)
       slice when service nil (mirror `GetAnimes` nil-guard tests).
-- [ ] GREEN: `app_runtime.go` `GetAnimeHistory()` paralleling `GetAnimes`; regenerate wailsjs
+- [x] GREEN: `app_runtime.go` `GetAnimeHistory()` paralleling `GetAnimes`; regenerate wailsjs
       (`wails generate module`).
-- [ ] RED: `bridge-runtime-source.test.ts` — `getAnimeHistory` resolves mapped entries; degrades
+- [x] RED: `bridge-runtime-source.test.ts` — `getAnimeHistory` resolves mapped entries; degrades
       to `[]` when binding unavailable.
-- [ ] GREEN: `anime.types.ts` — `AnimeHistoryEntry` (readonly, mirrors DTO);
+- [x] GREEN: `anime.types.ts` — `AnimeHistoryEntry` (readonly, mirrors DTO);
       `bridge-runtime-source.ts` — `getAnimeHistory` via `waitForBindings`/`hasGoBinding`;
       update the existing test mock factories that widen `BridgeRuntimeSource`.
 
 ### Phase 1.3 — Verify slice 1
-- [ ] `go test ./...`, `gofmt -l .` empty, `golangci-lint run`, `go vet ./...`,
+- [x] `go test ./...`, `gofmt -l .` empty, `golangci-lint run`, `go vet ./...`,
       `bun --cwd=frontend run validate`, `bun --cwd=frontend run test` — ALL GREEN.
 - [ ] **Orchestrator commits slice 1.**
 

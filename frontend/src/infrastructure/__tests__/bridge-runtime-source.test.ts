@@ -140,6 +140,46 @@ describe('bridge-runtime-source', () => {
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
   });
 
+  it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const entries = [{ id: 'anime-1', nombre: 'Frieren', nrocapvisto: 12, fechaUltCapVisto: 1700000000000, estado: 1 }];
+    const getAnimeHistoryMock = vi.fn().mockResolvedValue(entries);
+
+    const historyPromise = source.getAnimeHistory();
+
+    window.go = { main: { App: { GetAnimeHistory: getAnimeHistoryMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(historyPromise).resolves.toEqual(entries);
+    expect(getAnimeHistoryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('degrades getAnimeHistory to an empty array when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const historyPromise = source.getAnimeHistory();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(historyPromise).resolves.toEqual([]);
+  });
+
+  it('degrades getAnimeHistory to an empty array when the App exists but GetAnimeHistory is missing', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const historyPromise = source.getAnimeHistory();
+
+    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(historyPromise).resolves.toEqual([]);
+  });
+
   it('degrades getAnimeDetail to null when the Go runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

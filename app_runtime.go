@@ -122,6 +122,21 @@ func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
 	return item
 }
 
+// GetAnimeHistory returns the slim watch-activity read model (Anime History
+// spec, "History Read Model"), server-sorted DESC by fechaUltCapVisto.
+// Degrades to an empty (non-nil) slice on a nil service or any query error,
+// mirroring GetAnimes's nil-guard contract.
+func (a *App) GetAnimeHistory() []contracts.AnimeHistoryItem {
+	if a.animeQuery == nil {
+		return []contracts.AnimeHistoryItem{}
+	}
+	items, err := a.animeQuery.ListAnimeHistory(a.appContext())
+	if err != nil {
+		return []contracts.AnimeHistoryItem{}
+	}
+	return items
+}
+
 func (a *App) appContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()

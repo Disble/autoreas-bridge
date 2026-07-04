@@ -234,6 +234,46 @@ func TestGetAnimeDetailReturnsNilWhenAnimeQueryServiceNil(t *testing.T) {
 	}
 }
 
+func TestGetAnimeHistoryReturnsPopulatedResultForServiceWithData(t *testing.T) {
+	t.Parallel()
+
+	want := []contracts.AnimeHistoryItem{{ID: "anime-1", Nombre: "Frieren", NroCapVisto: 12, FechaUltCapVisto: 1700000000000, Estado: 1}}
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{history: want}}
+
+	got := app.GetAnimeHistory()
+	if len(got) != 1 || got[0].ID != "anime-1" || got[0].FechaUltCapVisto != 1700000000000 {
+		t.Fatalf("expected populated history result, got %#v", got)
+	}
+}
+
+func TestGetAnimeHistoryReturnsEmptySliceWhenAnimeQueryServiceNil(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+
+	got := app.GetAnimeHistory()
+	if got == nil {
+		t.Fatal("expected non-nil empty slice when animeQuery is nil, got nil")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty slice when animeQuery is nil, got %#v", got)
+	}
+}
+
+func TestGetAnimeHistoryReturnsEmptySliceOnServiceError(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{historyErr: errors.New("store unavailable")}}
+
+	got := app.GetAnimeHistory()
+	if got == nil {
+		t.Fatal("expected non-nil empty slice on service error, got nil")
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty slice on service error, got %#v", got)
+	}
+}
+
 func openInMemorySQLite(t *testing.T) (*sql.DB, error) {
 	t.Helper()
 

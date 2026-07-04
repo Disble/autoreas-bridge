@@ -74,6 +74,21 @@ export interface AnimeDetail {
   readonly modified_at: number;
 }
 
+/**
+ * AnimeHistoryEntry is a single row of the History read model returned by
+ * `GetAnimeHistory` (Anime History spec, "History Read Model"): a
+ * watch-activity log entry, server-sorted DESC by `fechaUltCapVisto` and
+ * membership-filtered (only animes with a present `fechaUltCapVisto`) --
+ * never re-derived or re-sorted on the frontend.
+ */
+export interface AnimeHistoryEntry {
+  readonly id: string;
+  readonly nombre: string;
+  readonly nrocapvisto: number;
+  readonly fechaUltCapVisto: number;
+  readonly estado: number;
+}
+
 /** Status values returned by the manual bridge<-legacy anime pull. */
 export type AnimeLegacyPullStatus = 'ok' | 'error' | 'in_progress';
 

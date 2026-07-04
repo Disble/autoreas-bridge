@@ -104,6 +104,22 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
+// AnimeHistoryItem is the slim History read-model row (Anime History spec,
+// "History Read Model"): a watch-activity log entry equivalent to Legacy
+// "Historial", distinct from the download-gap-focused AnimeListItem.
+// Membership (a present FechaUltCapVisto) and DESC ordering by it are
+// enforced server-side by AnimeQueryService.ListAnimeHistory, never in the
+// frontend.
+type AnimeHistoryItem struct {
+	ID          string  `json:"id"`
+	Nombre      string  `json:"nombre"`
+	NroCapVisto float64 `json:"nrocapvisto"`
+	// FechaUltCapVisto is epoch millis, always present by membership (rows
+	// without it are excluded, never zero-valued here).
+	FechaUltCapVisto int64 `json:"fechaUltCapVisto"`
+	Estado           int   `json:"estado"`
+}
+
 type AnimeLegacyPullResult struct {
 	Status       string `json:"status"`
 	Message      string `json:"message"`
@@ -205,6 +221,7 @@ type AnimeQueryService interface {
 	ListMobileAnimes(ctx context.Context) ([]MobileAnime, error)
 	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
 	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
+	ListAnimeHistory(ctx context.Context) ([]AnimeHistoryItem, error)
 }
 
 type AnimeWriteService interface {

@@ -377,6 +377,10 @@ func (s stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.Anim
 	return nil, nil
 }
 
+func (s stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.AnimeHistoryItem, error) {
+	return nil, nil
+}
+
 type stubSyncService struct {
 	changes []contracts.AnimeChange
 	lastID  int64

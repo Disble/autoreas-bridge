@@ -1,5 +1,25 @@
 export namespace contracts {
 	
+	export class AnimeHistoryItem {
+	    id: string;
+	    nombre: string;
+	    nrocapvisto: number;
+	    fechaUltCapVisto: number;
+	    estado: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeHistoryItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.nombre = source["nombre"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
+	        this.estado = source["estado"];
+	    }
+	}
 	export class AnimeLegacyPullResult {
 	    status: string;
 	    message: string;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
@@ -156,6 +157,43 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			HasFolder:       hasNonEmptyLegacyString(item.Carpeta),
 		})
 	}
+	return result, nil
+}
+
+// ListAnimeHistory projects the same snapshot set as ListAnimeItems into the
+// slim watch-activity read model (Anime History spec, "History Read Model"):
+// membership requires a present FechaUltCapVisto (absent rows excluded), and
+// the result is sorted DESC by it. Soft-deleted/inactive animes are NOT
+// filtered out here, mirroring ListAnimeItems's existing behavior (verified:
+// TestQueryServiceListAnimeItemsReturnsActiveAndInactive) -- History is an
+// activity log, so an eliminated-but-watched anime stays listed with its
+// estado, matching Legacy's "Historial" screen.
+func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeHistoryItem, error) {
+	records, err := s.store.ListSnapshots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := sortedSnapshotIDs(records)
+	result := make([]contracts.AnimeHistoryItem, 0, len(ids))
+	for _, id := range ids {
+		item, err := mobileAnimeFromSnapshot(records[id].CanonicalJSON, records[id].ModifiedAt)
+		if err != nil {
+			return nil, fmt.Errorf("normalize snapshot %q: %w", id, err)
+		}
+		if item.FechaUltCapVisto == nil {
+			continue
+		}
+		result = append(result, contracts.AnimeHistoryItem{
+			ID:               item.ID,
+			Nombre:           item.Nombre,
+			NroCapVisto:      item.NroCapVisto,
+			FechaUltCapVisto: *item.FechaUltCapVisto,
+			Estado:           item.Estado,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].FechaUltCapVisto > result[j].FechaUltCapVisto
+	})
 	return result, nil
 }
 
