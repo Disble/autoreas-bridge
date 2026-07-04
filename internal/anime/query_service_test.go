@@ -350,7 +350,7 @@ func TestQueryServiceListAnimeHistoryOrdersByRecencyAndExcludesAnimesWithoutWatc
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-older", `{"_id":"anime-older","nombre":"Older Watch","nrocapvisto":5,"estado":1,"fechaUltCapVisto":{"$$date":1700000001000}}`)
-	seedAnimeSnapshot(t, store, "anime-newer", `{"_id":"anime-newer","nombre":"Newer Watch","nrocapvisto":10,"estado":2,"fechaUltCapVisto":{"$$date":1700000002000}}`)
+	seedAnimeSnapshot(t, store, "anime-newer", `{"_id":"anime-newer","nombre":"Newer Watch","nrocapvisto":10,"estado":2,"tipo":1,"fechaCreacion":{"$$date":1500000000000},"fechaUltCapVisto":{"$$date":1700000002000}}`)
 	seedAnimeSnapshot(t, store, "anime-never-watched", `{"_id":"anime-never-watched","nombre":"Never Watched","nrocapvisto":0}`)
 
 	service := anime.NewQueryService(store)
@@ -366,10 +366,22 @@ func TestQueryServiceListAnimeHistoryOrdersByRecencyAndExcludesAnimesWithoutWatc
 	if newer.ID != "anime-newer" || newer.Nombre != "Newer Watch" || newer.NroCapVisto != 10 || newer.Estado != 2 || newer.FechaUltCapVisto != 1700000002000 {
 		t.Fatalf("expected newer entry first with full projection, got %#v", newer)
 	}
+	if newer.Tipo == nil || *newer.Tipo != 1 {
+		t.Fatalf("expected newer entry tipo 1 when present in source, got %#v", newer.Tipo)
+	}
+	if newer.FechaCreacion == nil || *newer.FechaCreacion != 1500000000000 {
+		t.Fatalf("expected newer entry fechaCreacion 1500000000000 when present in source, got %#v", newer.FechaCreacion)
+	}
 
 	older := got[1]
 	if older.ID != "anime-older" || older.Nombre != "Older Watch" || older.NroCapVisto != 5 || older.Estado != 1 || older.FechaUltCapVisto != 1700000001000 {
 		t.Fatalf("expected older entry second with full projection, got %#v", older)
+	}
+	if older.Tipo != nil {
+		t.Fatalf("expected older entry tipo nil when absent from source, got %#v", older.Tipo)
+	}
+	if older.FechaCreacion != nil {
+		t.Fatalf("expected older entry fechaCreacion nil when absent from source, got %#v", older.FechaCreacion)
 	}
 }
 

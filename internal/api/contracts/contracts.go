@@ -118,6 +118,11 @@ type AnimeHistoryItem struct {
 	// without it are excluded, never zero-valued here).
 	FechaUltCapVisto int64 `json:"fechaUltCapVisto"`
 	Estado           int   `json:"estado"`
+	// Tipo and FechaCreacion (epoch millis) are additive projections from the
+	// same MobileAnime normalization ListAnimeHistory already uses (sdd-37
+	// D1): nil when absent from the legacy source, never zero-valued.
+	Tipo          *int   `json:"tipo,omitempty"`
+	FechaCreacion *int64 `json:"fechaCreacion,omitempty"`
 }
 
 type AnimeLegacyPullResult struct {

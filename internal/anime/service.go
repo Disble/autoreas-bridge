@@ -189,6 +189,8 @@ func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeH
 			NroCapVisto:      item.NroCapVisto,
 			FechaUltCapVisto: *item.FechaUltCapVisto,
 			Estado:           item.Estado,
+			Tipo:             item.Tipo,
+			FechaCreacion:    item.FechaCreacion,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

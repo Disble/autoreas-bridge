@@ -6,13 +6,13 @@ commits per slice; full 12-gate pre-commit per commit.
 ## Slice 1 — Backend DTO extension (~80 lines)
 
 ### Phase 1.1 — `tipo` + `fechaCreacion` on `AnimeHistoryItem`
-- [ ] RED: extend the `ListAnimeHistory` service tests: items carry `Tipo`/`FechaCreacion` when
+- [x] RED: extend the `ListAnimeHistory` service tests: items carry `Tipo`/`FechaCreacion` when
       present in the source, omitted (nil) when absent; extend the fixture test to assert
       non-zero counts of items carrying each.
-- [ ] GREEN: `contracts.go` (`Tipo *int`, `FechaCreacion *int64`, omitempty) + projection in
+- [x] GREEN: `contracts.go` (`Tipo *int`, `FechaCreacion *int64`, omitempty) + projection in
       `internal/anime` `ListAnimeHistory`.
-- [ ] GREEN: `wails generate module`; `AnimeHistoryEntry` TS mirror gains `tipo?`/`fechaCreacion?`.
-- [ ] Verify: `go test ./...`, gofmt/vet/golangci clean, `bun --cwd=frontend run validate` + `test`.
+- [x] GREEN: `wails generate module`; `AnimeHistoryEntry` TS mirror gains `tipo?`/`fechaCreacion?`.
+- [x] Verify: `go test ./...`, gofmt/vet/golangci clean, `bun --cwd=frontend run validate` + `test`.
 - [ ] **Orchestrator commits slice 1.**
 
 ## Slice 2 — History table UX (~280 lines)

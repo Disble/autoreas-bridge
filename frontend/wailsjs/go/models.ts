@@ -6,6 +6,8 @@ export namespace contracts {
 	    nrocapvisto: number;
 	    fechaUltCapVisto: number;
 	    estado: number;
+	    tipo?: number;
+	    fechaCreacion?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AnimeHistoryItem(source);
@@ -18,6 +20,8 @@ export namespace contracts {
 	        this.nrocapvisto = source["nrocapvisto"];
 	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
 	        this.estado = source["estado"];
+	        this.tipo = source["tipo"];
+	        this.fechaCreacion = source["fechaCreacion"];
 	    }
 	}
 	export class AnimeLegacyPullResult {

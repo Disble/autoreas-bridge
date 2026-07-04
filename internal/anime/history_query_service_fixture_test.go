@@ -40,6 +40,8 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 	}
 
 	wantCount := 0
+	wantTipoCount := 0
+	wantFechaCreacionCount := 0
 	for _, record := range records {
 		var raw domain.LegacyAnimeRaw
 		if err := json.Unmarshal(record.CanonicalJSON, &raw); err != nil {
@@ -47,10 +49,22 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 		}
 		if raw.FechaUltCapVisto.Time() != nil {
 			wantCount++
+			if raw.Tipo.Int() != nil {
+				wantTipoCount++
+			}
+			if raw.FechaCreacion.Time() != nil {
+				wantFechaCreacionCount++
+			}
 		}
 	}
 	if wantCount == 0 {
 		t.Fatal("expected at least one fixture record with fechaUltCapVisto present -- fixture or membership logic changed")
+	}
+	if wantTipoCount == 0 {
+		t.Fatal("expected at least one fixture history record with tipo present -- fixture or projection changed")
+	}
+	if wantFechaCreacionCount == 0 {
+		t.Fatal("expected at least one fixture history record with fechaCreacion present -- fixture or projection changed")
 	}
 
 	store := openAnimeServiceTestStore(t)
@@ -66,6 +80,23 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 
 	if len(got) != wantCount {
 		t.Fatalf("expected %d history entries derived from the fixture, got %d", wantCount, len(got))
+	}
+
+	gotTipoCount := 0
+	gotFechaCreacionCount := 0
+	for _, item := range got {
+		if item.Tipo != nil {
+			gotTipoCount++
+		}
+		if item.FechaCreacion != nil {
+			gotFechaCreacionCount++
+		}
+	}
+	if gotTipoCount != wantTipoCount {
+		t.Fatalf("expected %d history entries carrying tipo, got %d", wantTipoCount, gotTipoCount)
+	}
+	if gotFechaCreacionCount != wantFechaCreacionCount {
+		t.Fatalf("expected %d history entries carrying fechaCreacion, got %d", wantFechaCreacionCount, gotFechaCreacionCount)
 	}
 
 	for i := 1; i < len(got); i++ {

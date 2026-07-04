@@ -87,6 +87,8 @@ export interface AnimeHistoryEntry {
   readonly nrocapvisto: number;
   readonly fechaUltCapVisto: number;
   readonly estado: number;
+  readonly tipo?: number;
+  readonly fechaCreacion?: number;
 }
 
 /** Status values returned by the manual bridge<-legacy anime pull. */
