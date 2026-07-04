@@ -1,3 +1,5 @@
+import type { SyntheticEvent } from 'react';
+
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
  * the Catalog or History lens; both pass only the anime id.
@@ -14,12 +16,28 @@ export interface AnimeDetailProps {
  */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
-/** A single repetition-history entry mapped for display. */
+/**
+ * A single repetition-history entry mapped for display, carrying every field
+ * the Legacy "Historial de repetición" record shows (Anime Detail delta
+ * spec, "Repetition entry shows the full Legacy record"). Every `*Label`
+ * date field already bakes in its explicit "No data" fallback.
+ */
 export interface AnimeRepeticionViewModel {
   readonly key: string;
   readonly numRepeticion: number;
-  readonly progressLabel: string;
+  readonly estadoLabel: string;
+  readonly estadoColor: HeroChipColor;
+  readonly episodesWatchedLabel: string;
+  readonly creacionLabel: string;
+  readonly estrenoLabel: string;
+  readonly ultCapVistoLabel: string;
+  readonly eliminacionLabel: string;
   readonly repeatedOnLabel: string;
+}
+
+/** Props for the dumb `AnimeRepetitionTimeline` subcomponent. */
+export interface AnimeRepetitionTimelineProps {
+  readonly repetitions: readonly AnimeRepeticionViewModel[];
 }
 
 /** A single per-chapter stat tile (label + display-ready value). */
@@ -63,4 +81,6 @@ export interface AnimeDetailState {
   readonly detail: AnimeDetailViewModel | undefined;
   readonly showPortadaPlaceholder: boolean;
   readonly onPortadaError: () => void;
+  readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
+  readonly onBack: () => void;
 }

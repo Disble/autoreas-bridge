@@ -1,6 +1,7 @@
 import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
 import {
   ANIME_DETAIL_DURATION_TILE_LABEL,
+  ANIME_DETAIL_NO_DATA_LABEL,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
   ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE,
   ANIME_DETAIL_STATUS_ACTIVE_LABEL,
@@ -22,29 +23,6 @@ import type {
 const LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
 /**
- * Builds a human-readable progress label from the current and total episode
- * counters. Falls back to "?" when the total is missing, mirroring the
- * Catalog panel's progress formatting.
- */
-export function formatAnimeDetailProgress(current: number, total?: number): string {
-  return total === undefined ? `${current} / ?` : `${current} / ${total}`;
-}
-
-/**
- * Formats an epoch-millis date into a stable `YYYY-MM-DD` label. Returns
- * `undefined` when the millis are missing, so callers can render a fallback.
- * Used for the repetir timeline entries only; the general-data fechas use
- * `formatAnimeDetailLongDate` instead (Anime Detail delta spec).
- */
-export function formatAnimeDetailDate(millis?: number): string | undefined {
-  if (millis === undefined) {
-    return undefined;
-  }
-
-  return new Date(millis).toISOString().slice(0, 10);
-}
-
-/**
  * Formats epoch millis as a long-form local date (e.g. "June 30, 2026") for
  * the general-data section's estreno/creación/últ. cap visto fields,
  * mirroring `history-table.helpers.ts`'s `formatHistoryLongDate`. Returns
@@ -56,6 +34,16 @@ export function formatAnimeDetailLongDate(millis?: number): string | undefined {
   }
 
   return LONG_DATE_FORMATTER.format(new Date(millis));
+}
+
+/**
+ * Formats a repetition-entry date field as a long-form local date, falling
+ * back to the explicit `ANIME_DETAIL_NO_DATA_LABEL` ("No data") rather than
+ * the general-data section's "Unknown" fallback (Anime Detail delta spec,
+ * "Repetition entry shows the full Legacy record").
+ */
+export function formatAnimeDetailRepetitionDate(millis?: number): string {
+  return formatAnimeDetailLongDate(millis) ?? ANIME_DETAIL_NO_DATA_LABEL;
 }
 
 /**
@@ -77,6 +65,28 @@ export function getAnimeDetailEstadoLabel(estado: number): string {
       return 'Pendiente';
     default:
       return String(estado);
+  }
+}
+
+/**
+ * Semantic HeroUI chip color per estado, mirroring
+ * `history-table.helpers.ts`'s `getHistoryEstadoColor`: Viendo (in progress)
+ * is the accent/ongoing color, Finalizado (completed) is success, Abandonado
+ * (dropped) is danger, Pendiente (not yet started) is warning. Unknown
+ * estados fall back to the neutral default color.
+ */
+export function getAnimeDetailEstadoColor(estado: number): HeroChipColor {
+  switch (estado) {
+    case 0:
+      return 'accent';
+    case 1:
+      return 'success';
+    case 2:
+      return 'danger';
+    case 3:
+      return 'warning';
+    default:
+      return 'default';
   }
 }
 
@@ -167,9 +177,11 @@ function buildAnimeDetailStatTiles(
 }
 
 /**
- * Maps a single legacy repetition entry into its display view model. Missing
- * `fechaRepeticion` (legacy null date) degrades to the "Unknown" label rather
- * than omitting the entry.
+ * Maps a single legacy repetition entry into its full display view model
+ * (Anime Detail delta spec, "Repetition entry shows the full Legacy
+ * record"): estado label/color, episodes-watched count, and all five date
+ * fields, each with the explicit "No data" fallback baked in via
+ * {@link formatAnimeDetailRepetitionDate}.
  */
 export function toAnimeRepeticionViewModel(
   entry: AnimeRepeticion,
@@ -178,9 +190,46 @@ export function toAnimeRepeticionViewModel(
   return {
     key: `${entry.numrepeticion}-${index}`,
     numRepeticion: entry.numrepeticion,
-    progressLabel: formatAnimeDetailProgress(entry.nrocapvisto),
-    repeatedOnLabel: formatAnimeDetailDate(entry.fechaRepeticion) ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    estadoLabel: getAnimeDetailEstadoLabel(entry.estado),
+    estadoColor: getAnimeDetailEstadoColor(entry.estado),
+    episodesWatchedLabel: String(entry.nrocapvisto),
+    creacionLabel: formatAnimeDetailRepetitionDate(entry.fechaCreacion),
+    estrenoLabel: formatAnimeDetailRepetitionDate(entry.fechaEstreno),
+    ultCapVistoLabel: formatAnimeDetailRepetitionDate(entry.fechaUltCapVisto),
+    eliminacionLabel: formatAnimeDetailRepetitionDate(entry.fechaEliminacion),
+    repeatedOnLabel: formatAnimeDetailRepetitionDate(entry.fechaRepeticion),
   };
+}
+
+/**
+ * Sorts repetition entries most-recent-first by their `numrepeticion`
+ * counter (Anime Detail delta spec, "Repetition entry shows the full Legacy
+ * record"). Verified against the real fixture: `numrepeticion` increases
+ * monotonically per anime, and each entry's `fechaCreacion` equals the
+ * previous entry's `fechaRepeticion`, so a higher `numrepeticion` is always
+ * the more recent repetition. Never mutates `entries`.
+ */
+export function sortAnimeRepeticionesMostRecentFirst(
+  entries: readonly AnimeRepeticion[],
+): readonly AnimeRepeticion[] {
+  return entries.toSorted((a, b) => b.numrepeticion - a.numrepeticion);
+}
+
+/**
+ * Returns `true` when `historyState` (the raw `window.history.state` value)
+ * carries a react-router v7 `idx` greater than 0, meaning the current
+ * location was reached by pushing at least one prior entry onto this
+ * session's history stack. Encapsulated so the router-back-vs-`/history`-
+ * fallback decision (Anime Detail delta spec, "Back returns to the exact
+ * History spot") is testable without touching the real `window.history`.
+ */
+export function hasPreviousHistoryEntry(historyState: unknown): boolean {
+  if (typeof historyState !== 'object' || historyState === null) {
+    return false;
+  }
+
+  const idx = (historyState as { idx?: unknown }).idx;
+  return typeof idx === 'number' && idx > 0;
 }
 
 /**
@@ -189,10 +238,11 @@ export function toAnimeRepeticionViewModel(
  * the key for the ~93% of anime with no repetition history), so it MUST be
  * defaulted with `?? []` here rather than assumed present. Every field the
  * Anime Detail delta spec calls out (hero, per-chapter, general data) gets an
- * explicit fallback rather than a silent blank.
+ * explicit fallback rather than a silent blank. Repetitions are ordered
+ * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const repetitions = (detail.repetir ?? []).map(toAnimeRepeticionViewModel);
+  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetir ?? []).map(toAnimeRepeticionViewModel);
   const totalLabel = formatAnimeDetailTotalLabel(detail.totalcap);
   const durationLabel = formatAnimeDetailDurationLabel(detail.duracion);
   const estadoLabel = getAnimeDetailEstadoLabel(detail.estado);

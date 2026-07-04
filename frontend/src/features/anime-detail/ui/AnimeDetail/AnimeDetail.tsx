@@ -1,5 +1,8 @@
-import { Card, Chip, ProgressBar } from '@heroui/react';
+import { Button, Card, Chip, ProgressBar } from '@heroui/react';
+import { AnimeCoverPlaceholder } from './AnimeCoverPlaceholder';
+import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
 import {
+  ANIME_DETAIL_BACK_LABEL,
   ANIME_DETAIL_LOADING_MESSAGE,
   ANIME_DETAIL_NOT_FOUND_MESSAGE,
   ANIME_DETAIL_NO_GENEROS_MESSAGE,
@@ -13,7 +16,7 @@ import { useAnimeDetail } from './use-anime-detail';
 
 /** Shared, read-only detail view reachable by id from both Catalog and History. */
 export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
-  const { loadState, detail, showPortadaPlaceholder, onPortadaError } = useAnimeDetail(props);
+  const { loadState, detail, showPortadaPlaceholder, onPortadaError, onPortadaLoad, onBack } = useAnimeDetail(props);
 
   if (loadState === 'not-found') {
     return <p className="text-sm text-muted">{ANIME_DETAIL_NOT_FOUND_MESSAGE}</p>;
@@ -26,19 +29,24 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
   return (
     <Card className={props.className}>
       <Card.Content className="flex flex-col gap-6">
+        <Button className="self-start" onPress={onBack} variant="ghost">
+          {ANIME_DETAIL_BACK_LABEL}
+        </Button>
+
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
           {showPortadaPlaceholder ? (
             <div
-              className="flex size-24 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-xs text-muted"
+              className="flex size-24 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-muted"
               data-testid="anime-detail-portada-placeholder"
             >
-              {ANIME_DETAIL_PORTADA_ALT}
+              <AnimeCoverPlaceholder className="size-16" />
             </div>
           ) : (
             <img
               alt={ANIME_DETAIL_PORTADA_ALT}
               className="size-24 shrink-0 rounded-full object-cover"
               onError={onPortadaError}
+              onLoad={onPortadaLoad}
               src={detail.portadaUrl}
             />
           )}
@@ -128,17 +136,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
         <section aria-label="Repetition history" className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-foreground">Repetition history</h3>
           {detail.hasRepetitionHistory ? (
-            <ul className="flex flex-col gap-2">
-              {detail.repetitions.map((entry) => (
-                <li
-                  className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm"
-                  key={entry.key}
-                >
-                  <span className="text-foreground">Repetition {entry.numRepeticion}</span>
-                  <span className="text-muted"> — {entry.progressLabel} — {entry.repeatedOnLabel}</span>
-                </li>
-              ))}
-            </ul>
+            <AnimeRepetitionTimeline repetitions={detail.repetitions} />
           ) : (
             <p className="text-sm text-muted">{ANIME_DETAIL_NO_REPETITIONS_MESSAGE}</p>
           )}

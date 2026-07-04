@@ -37,31 +37,31 @@ commits per slice; full 12-gate pre-commit per commit.
 - [x] GREEN: row-level action/href per HeroUI Table's actual API (check d.ts; no div onClick
       hand-roll); hover affordance.
 - [x] Verify: frontend test + validate + filesize; `go build ./...`.
-- [ ] **Orchestrator commits slice 2.**
+- [x] **Orchestrator committed slice 2** as `1b61d13`, full gate green.
 
 ## Slice 3 — Detail polish (~250 lines)
 
 ### Phase 3.1 — Cover placeholder fix + SVG (spec: "Placeholder on missing or failing cover")
-- [ ] RED: component tests — placeholder visible when `portadaUrl` undefined; when img fires
+- [x] RED: component tests — placeholder visible when `portadaUrl` undefined; when img fires
       `onError`; when img loads with `naturalWidth === 0`. Raw alt text never the outcome.
-- [ ] GREEN: wire the orchestrator-provided `AnimeCoverPlaceholder.tsx` (already in the folder);
+- [x] GREEN: wire the orchestrator-provided `AnimeCoverPlaceholder.tsx` (already in the folder);
       extend `use-anime-detail.ts` failure handling (`onPortadaError` + zero-size `onLoad` check).
 
 ### Phase 3.2 — Back button (spec: "Back returns to the exact History spot")
-- [ ] RED: tests — back button calls router back when a history entry exists, else navigates to
+- [x] RED: tests — back button calls router back when a history entry exists, else navigates to
       `/history` (helper-encapsulated check).
-- [ ] GREEN: HeroUI ghost Button at the top of the detail; helper + wiring.
+- [x] GREEN: HeroUI ghost Button at the top of the detail; helper + wiring.
 
 ### Phase 3.3 — Repetition timeline (spec: "Repetition entry shows the full Legacy record")
-- [ ] RED: fixture-derived helper tests — view model per repetition: estado label (known domain
+- [x] RED: fixture-derived helper tests — view model per repetition: estado label (known domain
       0=Viendo/1=Finalizado/2=Abandonado/3=Pendiente; UNKNOWN codes → `Estado N` raw fallback,
       do NOT invent "En pausa"), capítulos vistos, five date labels with explicit "No data"
       fallbacks; ordering most recent first. Include a Go or TS fixture scan asserting the
       DISTINCT estado codes present in `animes.dat` repetir entries (documents the real domain).
-- [ ] GREEN: enriched `AnimeRepeticionViewModel` + timeline layout (left rail + dot, definition
+- [x] GREEN: enriched `AnimeRepeticionViewModel` + timeline layout (left rail + dot, definition
       grid per entry) in `AnimeDetail.tsx` — watch warn-400; split a colocated
       `AnimeRepetitionTimeline.tsx` subcomponent if needed.
-- [ ] Verify: frontend test + validate + filesize; `go build ./...`.
+- [x] Verify: frontend test + validate + filesize; `go build ./...`.
 - [ ] **Orchestrator commits slice 3.**
 
 ## Phase 4 — Close (orchestrator)

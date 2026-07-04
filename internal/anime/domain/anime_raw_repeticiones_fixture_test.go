@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,7 @@ func TestLegacyAnimeRawRepeticionesProjectsRealFixtureSplit(t *testing.T) {
 		emptyCount  int
 		nonEmpty    int
 	)
+	estadoSet := map[int]struct{}{}
 
 	for index, line := range lines {
 		line := strings.TrimSpace(line)
@@ -48,10 +50,14 @@ func TestLegacyAnimeRawRepeticionesProjectsRealFixtureSplit(t *testing.T) {
 		}
 		totalParsed++
 
-		if len(raw.Repeticiones()) == 0 {
+		repeticiones := raw.Repeticiones()
+		if len(repeticiones) == 0 {
 			emptyCount++
 		} else {
 			nonEmpty++
+		}
+		for _, repeticion := range repeticiones {
+			estadoSet[repeticion.Estado] = struct{}{}
 		}
 	}
 
@@ -63,5 +69,23 @@ func TestLegacyAnimeRawRepeticionesProjectsRealFixtureSplit(t *testing.T) {
 	}
 	if nonEmpty != 52 {
 		t.Fatalf("expected 52 records with non-empty Repeticiones(), got %d", nonEmpty)
+	}
+
+	// Documents the real repetir estado domain observed in production data
+	// (Anime Detail delta spec, "Repetition entry shows the full Legacy
+	// record"): only 1 (Finalizado), 2 (Abandonado), and 3 (Pendiente) are
+	// present -- 0 (Viendo) never appears for a closed-out repetition, which
+	// makes sense (a repetition still "Viendo" wouldn't yet have rolled into
+	// a new repetir entry). No unrecognized code was observed, so the
+	// frontend's raw-fallback path for an unknown estado is untested by this
+	// fixture and remains a defensive-only branch.
+	gotEstados := make([]int, 0, len(estadoSet))
+	for estado := range estadoSet {
+		gotEstados = append(gotEstados, estado)
+	}
+	slices.Sort(gotEstados)
+	wantEstados := []int{1, 2, 3}
+	if !slices.Equal(gotEstados, wantEstados) {
+		t.Fatalf("expected distinct repetir estado codes %v, got %v", wantEstados, gotEstados)
 	}
 }

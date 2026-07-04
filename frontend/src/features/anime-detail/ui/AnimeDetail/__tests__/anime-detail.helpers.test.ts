@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
+import type { AnimeDetail, AnimeRepeticion } from '../../../../../shared/contracts/anime.types';
 import {
-  formatAnimeDetailDate,
   formatAnimeDetailDurationLabel,
   formatAnimeDetailLongDate,
-  formatAnimeDetailProgress,
   formatAnimeDetailProgressRatio,
+  formatAnimeDetailRepetitionDate,
   formatAnimeDetailSubtitle,
   formatAnimeDetailTotalLabel,
+  getAnimeDetailEstadoColor,
   getAnimeDetailEstadoLabel,
   getAnimeDetailStatusColor,
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
+  hasPreviousHistoryEntry,
+  sortAnimeRepeticionesMostRecentFirst,
   toAnimeDetailViewModel,
   toAnimeRepeticionViewModel,
 } from '../anime-detail.helpers';
@@ -28,26 +30,6 @@ const baseDetail: AnimeDetail = {
   generos: ['Fantasy', 'Adventure'],
   modified_at: 0,
 };
-
-describe('formatAnimeDetailProgress', () => {
-  it('includes totalcap when present', () => {
-    expect(formatAnimeDetailProgress(12, 28)).toBe('12 / 28');
-  });
-
-  it('shows a placeholder when totalcap is missing', () => {
-    expect(formatAnimeDetailProgress(5)).toBe('5 / ?');
-  });
-});
-
-describe('formatAnimeDetailDate', () => {
-  it('formats epoch millis to a YYYY-MM-DD label', () => {
-    expect(formatAnimeDetailDate(Date.UTC(2024, 0, 15))).toBe('2024-01-15');
-  });
-
-  it('returns undefined when millis are missing', () => {
-    expect(formatAnimeDetailDate(undefined)).toBeUndefined();
-  });
-});
 
 describe('formatAnimeDetailLongDate', () => {
   it('formats epoch millis as a long-form local date', () => {
@@ -71,6 +53,21 @@ describe('getAnimeDetailEstadoLabel', () => {
 
   it('falls back to the raw value for an unrecognized estado', () => {
     expect(getAnimeDetailEstadoLabel(9)).toBe('9');
+  });
+});
+
+describe('getAnimeDetailEstadoColor', () => {
+  it.each([
+    [0, 'accent'],
+    [1, 'success'],
+    [2, 'danger'],
+    [3, 'warning'],
+  ])('maps estado %i to chip color %s', (estado, color) => {
+    expect(getAnimeDetailEstadoColor(estado)).toBe(color);
+  });
+
+  it('falls back to the default color for an unrecognized estado', () => {
+    expect(getAnimeDetailEstadoColor(9)).toBe('default');
   });
 });
 
@@ -148,14 +145,61 @@ describe('formatAnimeDetailProgressRatio', () => {
   });
 });
 
+describe('formatAnimeDetailRepetitionDate', () => {
+  it('formats epoch millis as a long-form local date', () => {
+    expect(formatAnimeDetailRepetitionDate(Date.UTC(2023, 5, 1, 12))).toBe('June 1, 2023');
+  });
+
+  it('returns the explicit "No data" fallback when millis are missing', () => {
+    expect(formatAnimeDetailRepetitionDate(undefined)).toBe('No data');
+  });
+});
+
+describe('sortAnimeRepeticionesMostRecentFirst', () => {
+  it('sorts entries descending by numrepeticion without mutating the input', () => {
+    const entries: readonly AnimeRepeticion[] = [
+      { numrepeticion: 0, nrocapvisto: 12, estado: 1 },
+      { numrepeticion: 2, nrocapvisto: 40, estado: 3 },
+      { numrepeticion: 1, nrocapvisto: 24, estado: 1 },
+    ];
+
+    const sorted = sortAnimeRepeticionesMostRecentFirst(entries);
+
+    expect(sorted.map((entry) => entry.numrepeticion)).toEqual([2, 1, 0]);
+    expect(entries.map((entry) => entry.numrepeticion)).toEqual([0, 2, 1]);
+  });
+});
+
+describe('hasPreviousHistoryEntry', () => {
+  it('returns false when the history state is null', () => {
+    expect(hasPreviousHistoryEntry(null)).toBe(false);
+  });
+
+  it('returns false when the history state has no idx', () => {
+    expect(hasPreviousHistoryEntry({})).toBe(false);
+  });
+
+  it('returns false when idx is 0', () => {
+    expect(hasPreviousHistoryEntry({ idx: 0 })).toBe(false);
+  });
+
+  it('returns true when idx is greater than 0', () => {
+    expect(hasPreviousHistoryEntry({ idx: 2 })).toBe(true);
+  });
+});
+
 describe('toAnimeRepeticionViewModel', () => {
-  it('maps a repetition entry with a known repeated-on date', () => {
+  it('maps a fully populated repetition entry', () => {
     const viewModel = toAnimeRepeticionViewModel(
       {
         numrepeticion: 1,
         nrocapvisto: 24,
         estado: 1,
-        fechaRepeticion: Date.UTC(2023, 5, 1),
+        fechaCreacion: Date.UTC(2022, 0, 1, 12),
+        fechaEstreno: Date.UTC(2022, 0, 2, 12),
+        fechaUltCapVisto: Date.UTC(2022, 0, 3, 12),
+        fechaEliminacion: Date.UTC(2022, 0, 4, 12),
+        fechaRepeticion: Date.UTC(2023, 5, 1, 12),
       },
       0,
     );
@@ -163,18 +207,28 @@ describe('toAnimeRepeticionViewModel', () => {
     expect(viewModel).toEqual({
       key: '1-0',
       numRepeticion: 1,
-      progressLabel: '24 / ?',
-      repeatedOnLabel: '2023-06-01',
+      estadoLabel: 'Finalizado',
+      estadoColor: 'success',
+      episodesWatchedLabel: '24',
+      creacionLabel: 'January 1, 2022',
+      estrenoLabel: 'January 2, 2022',
+      ultCapVistoLabel: 'January 3, 2022',
+      eliminacionLabel: 'January 4, 2022',
+      repeatedOnLabel: 'June 1, 2023',
     });
   });
 
-  it('degrades a null fechaRepeticion to the Unknown label', () => {
+  it('degrades every absent date to the explicit "No data" fallback', () => {
     const viewModel = toAnimeRepeticionViewModel(
       { numrepeticion: 2, nrocapvisto: 10, estado: 1 },
       1,
     );
 
-    expect(viewModel.repeatedOnLabel).toBe('Unknown');
+    expect(viewModel.creacionLabel).toBe('No data');
+    expect(viewModel.estrenoLabel).toBe('No data');
+    expect(viewModel.ultCapVistoLabel).toBe('No data');
+    expect(viewModel.eliminacionLabel).toBe('No data');
+    expect(viewModel.repeatedOnLabel).toBe('No data');
   });
 });
 
@@ -272,5 +326,18 @@ describe('toAnimeDetailViewModel', () => {
     const viewModel = toAnimeDetailViewModel({ ...baseDetail, primeravez: 0 });
 
     expect(viewModel.isFirstWatch).toBe(false);
+  });
+
+  it('orders repetitions most-recent-first regardless of the wire order', () => {
+    const viewModel = toAnimeDetailViewModel({
+      ...baseDetail,
+      repetir: [
+        { numrepeticion: 0, nrocapvisto: 12, estado: 1 },
+        { numrepeticion: 2, nrocapvisto: 40, estado: 3 },
+        { numrepeticion: 1, nrocapvisto: 24, estado: 1 },
+      ],
+    });
+
+    expect(viewModel.repetitions.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
   });
 });

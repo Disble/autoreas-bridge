@@ -47,6 +47,8 @@ function mockAnimeDetailState(overrides = {}) {
     detail: createDetailViewModel(),
     showPortadaPlaceholder: true,
     onPortadaError: vi.fn(),
+    onPortadaLoad: vi.fn(),
+    onBack: vi.fn(),
     ...overrides,
   });
 }
@@ -92,21 +94,25 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
-  it('renders a placeholder instead of a broken image when portada is missing', () => {
+  it('renders the cute-anime SVG placeholder instead of raw alt text when portada is missing', () => {
     mockAnimeDetailState({ showPortadaPlaceholder: true });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cover art')).not.toBeInTheDocument();
     expect(screen.getByTestId('anime-detail-portada-placeholder')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
   });
 
-  it('renders the cover image and wires onError to the hook callback when portada is present', () => {
+  it('renders the cover image and wires onError/onLoad to the hook callbacks when portada is present', () => {
     const onPortadaError = vi.fn();
+    const onPortadaLoad = vi.fn();
     mockAnimeDetailState({
       detail: createDetailViewModel({ portadaUrl: 'C:/legacy/portadas/frieren.jpg' }),
       showPortadaPlaceholder: false,
       onPortadaError,
+      onPortadaLoad,
     });
 
     render(<AnimeDetail animeId="anime-1" />);
@@ -115,8 +121,21 @@ describe('AnimeDetail', () => {
     expect(image).toHaveAttribute('src', 'C:/legacy/portadas/frieren.jpg');
 
     fireEvent.error(image);
-
     expect(onPortadaError).toHaveBeenCalledTimes(1);
+
+    fireEvent.load(image);
+    expect(onPortadaLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a back button that calls the hook onBack callback', () => {
+    const onBack = vi.fn();
+    mockAnimeDetailState({ onBack });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('renders the per-chapter stat tiles with explicit fallbacks', () => {
@@ -208,7 +227,18 @@ describe('AnimeDetail', () => {
       detail: createDetailViewModel({
         hasRepetitionHistory: true,
         repetitions: [
-          { key: '1-0', numRepeticion: 1, progressLabel: '24 / ?', repeatedOnLabel: '2022-01-01' },
+          {
+            key: '1-0',
+            numRepeticion: 1,
+            estadoLabel: 'Finalizado',
+            estadoColor: 'success',
+            episodesWatchedLabel: '24',
+            creacionLabel: 'January 1, 2022',
+            estrenoLabel: 'January 2, 2022',
+            ultCapVistoLabel: 'January 3, 2022',
+            eliminacionLabel: 'January 4, 2022',
+            repeatedOnLabel: 'June 1, 2023',
+          },
         ],
       }),
     });
@@ -216,6 +246,9 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByText('Repetition 1')).toBeInTheDocument();
+    expect(screen.getByText('Finalizado')).toBeInTheDocument();
+    expect(screen.getByText('24')).toBeInTheDocument();
+    expect(screen.getByText('January 1, 2022')).toBeInTheDocument();
     expect(screen.queryByText('No repetition history.')).not.toBeInTheDocument();
   });
 

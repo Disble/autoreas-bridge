@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { SyntheticEvent } from 'react';
+import { useNavigate } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
-import { toAnimeDetailViewModel } from './anime-detail.helpers';
+import { hasPreviousHistoryEntry, toAnimeDetailViewModel } from './anime-detail.helpers';
 import type { AnimeDetailProps, AnimeDetailState } from './anime-detail.types';
 
 /**
@@ -23,6 +25,7 @@ export function useAnimeDetail(
   const [portadaFailed, setPortadaFailed] = useState(false);
 
   // 3. Context/3rd Party Hooks
+  const navigate = useNavigate();
 
   // 4. Queries/Mutations
 
@@ -44,6 +47,18 @@ export function useAnimeDetail(
   const onPortadaError = useCallback(() => {
     setPortadaFailed(true);
   }, []);
+  const onPortadaLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+    if (event.currentTarget.naturalWidth === 0) {
+      setPortadaFailed(true);
+    }
+  }, []);
+  const onBack = useCallback(() => {
+    if (hasPreviousHistoryEntry(window.history.state)) {
+      navigate(-1);
+    } else {
+      navigate('/history');
+    }
+  }, [navigate]);
 
   // 7. Effects
   useEffect(() => {
@@ -79,5 +94,7 @@ export function useAnimeDetail(
     detail: viewModel,
     showPortadaPlaceholder,
     onPortadaError,
+    onPortadaLoad,
+    onBack,
   };
 }
