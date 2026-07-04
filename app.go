@@ -141,6 +141,13 @@ func (a *App) startup(ctx context.Context) {
 	a.deviceStore = deviceStore
 	a.preferencesStore = a.newPreferencesStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
+	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
+	if service, ok := deviceService.(interface{ SetSyncStateStore(device.SyncStateStore) }); ok {
+		service.SetSyncStateStore(syncDeviceStateAdapter{store: changelogStore})
+	}
+	if a.canUseBridgeDB(ctx) {
+		a.notifyDeviceSyncHealth(ctx, changelogStore)
+	}
 	a.realtimeHub = a.newRealtimeHub(ctx)
 	if a.realtimeHub != nil {
 		a.eventBus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
@@ -171,7 +178,6 @@ func (a *App) startup(ctx context.Context) {
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
 	})
-	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
 			return ""

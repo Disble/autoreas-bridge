@@ -118,9 +118,15 @@ type ReconcileResponse struct {
 }
 
 type DeviceInfo struct {
-	DeviceID   string `json:"device_id"`
-	DeviceName string `json:"device_name"`
-	PairedAtMs int64  `json:"paired_at_ms"`
+	DeviceID               string `json:"device_id"`
+	DeviceName             string `json:"device_name"`
+	PairedAtMs             int64  `json:"paired_at_ms"`
+	LastSeenAtMs           int64  `json:"last_seen_at_ms"`
+	LastAckChangelogID     int64  `json:"last_ack_changelog_id"`
+	SyncStatus             string `json:"sync_status"`
+	ConnectionStatus       string `json:"connection_status"`
+	AuthState              string `json:"auth_state"`
+	BlocksChangelogPruning bool   `json:"blocks_changelog_pruning"`
 }
 
 type ConflictInfo struct {
@@ -188,6 +194,7 @@ type SyncTriggerService interface {
 	TriggerReconcile(ctx context.Context) error
 	ListChangesSince(ctx context.Context, sinceMs int64) ([]AnimeChange, int64, error)
 	ListChangesAfterID(ctx context.Context, lastID int64) ([]AnimeChange, int64, error)
+	AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
 

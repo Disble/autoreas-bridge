@@ -10,6 +10,10 @@ export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
 }
 
+export function GetConnectedDevices() {
+  return window['go']['main']['App']['GetConnectedDevices']();
+}
+
 export function GetDownloadConfig() {
   return window['go']['main']['App']['GetDownloadConfig']();
 }
@@ -76,4 +80,8 @@ export function TriggerDownloadCheck() {
 
 export function TriggerReconcile() {
   return window['go']['main']['App']['TriggerReconcile']();
+}
+
+export function UnpairDevice(arg1) {
+  return window['go']['main']['App']['UnpairDevice'](arg1);
 }

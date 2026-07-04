@@ -82,6 +82,70 @@ func TestSyncHandlerReturnsAccepted(t *testing.T) {
 	}
 }
 
+func TestSyncHandlerAcknowledgesAuthenticatedDeviceCheckpointBeforeListingChanges(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	var ackDeviceID string
+	var ackLastID int64
+	var listLastID int64
+	handler := NewSyncHandler(SyncHandlerConfig{
+		Authenticate: stubs.authenticate(true),
+		AcknowledgeDevice: func(_ context.Context, deviceID string, lastChangelogID int64) error {
+			ackDeviceID = deviceID
+			ackLastID = lastChangelogID
+			return nil
+		},
+		ListChangesAfterID: func(_ context.Context, lastID int64) ([]AnimeChange, int64, error) {
+			listLastID = lastID
+			return nil, lastID, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"spoofed-device","last_changelog_id":42,"pending_operations":[]}`))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusAccepted, res.Code, res.Body.String())
+	}
+	if ackDeviceID != "device-1" {
+		t.Fatalf("expected ack to use authenticated device id, got %q", ackDeviceID)
+	}
+	if ackLastID != 42 {
+		t.Fatalf("expected ack last id 42, got %d", ackLastID)
+	}
+	if listLastID != 42 {
+		t.Fatalf("expected list after same client checkpoint 42, got %d", listLastID)
+	}
+}
+
+func TestSyncHandlerReturnsServerErrorWhenDeviceAckFails(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{
+		Authenticate: stubs.authenticate(true),
+		AcknowledgeDevice: func(context.Context, string, int64) error {
+			return errors.New("sqlite failed")
+		},
+		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
+			t.Fatal("did not expect changes to be listed after ack failure")
+			return nil, 0, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":42,"pending_operations":[]}`))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
+	}
+}
+
 func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) {
 	t.Parallel()
 

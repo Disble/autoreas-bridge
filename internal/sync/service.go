@@ -24,6 +24,8 @@ type changelogLookup interface {
 	ListPending(ctx context.Context) ([]ChangelogEntry, error)
 	LastID(ctx context.Context) (int64, error)
 	LastChangedAt(ctx context.Context) (*int64, error)
+	AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error
+	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
 }
 
 func NewTriggerService(bus events.Bus, store changelogLookup, loggers ...sharedlogger.Logger) *TriggerService {
@@ -89,6 +91,17 @@ func (s *TriggerService) ListChangesAfterID(ctx context.Context, lastID int64) (
 		return nil, 0, err
 	}
 	return changes, newLastID, nil
+}
+
+func (s *TriggerService) AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error {
+	if s.store == nil {
+		return nil
+	}
+	if err := s.store.AcknowledgeDevice(ctx, deviceID, lastChangelogID, time.Now().UnixMilli()); err != nil {
+		return err
+	}
+	_, err := s.store.PruneAcknowledgedChangelog(ctx)
+	return err
 }
 
 func (s *TriggerService) LastChangedAt(ctx context.Context) (*int64, error) {

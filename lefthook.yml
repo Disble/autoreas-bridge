@@ -19,6 +19,9 @@ pre-commit:
     - name: go-filesize
       run: go run ./tools/checkgofilesize
 
+    - name: architecture
+      run: go run ./tools/checkarchitecture
+
     - name: golangci-lint
       run: golangci-lint run
 

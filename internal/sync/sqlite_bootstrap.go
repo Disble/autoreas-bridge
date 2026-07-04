@@ -35,6 +35,13 @@ const (
 			status TEXT NOT NULL,
 			changed_at_ms INTEGER NOT NULL
 		)`
+	deviceSyncStateDDL = `
+		CREATE TABLE IF NOT EXISTS device_sync_state (
+			device_id TEXT PRIMARY KEY,
+			last_ack_changelog_id INTEGER NOT NULL DEFAULT 0,
+			last_seen_at_ms INTEGER NOT NULL,
+			sync_status TEXT NOT NULL DEFAULT 'active'
+		)`
 	conflictsDDL = `
 		CREATE TABLE IF NOT EXISTS conflicts (
 			conflict_id TEXT PRIMARY KEY,
@@ -198,6 +205,9 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 	if err := ensureChangelogSchema(db); err != nil {
 		return err
+	}
+	if _, err := db.Exec(deviceSyncStateDDL); err != nil {
+		return fmt.Errorf("ensure device_sync_state schema: %w", err)
 	}
 	if _, err := db.Exec(conflictsDDL); err != nil {
 		return fmt.Errorf("ensure conflicts schema: %w", err)

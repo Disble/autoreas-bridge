@@ -17,6 +17,8 @@ var (
 	ErrUnauthorized          = errors.New("unauthorized")
 )
 
+const PairingTokenTTL = 10 * time.Minute
+
 type PairDeviceRequest struct {
 	PairingToken string
 	DeviceName   string
@@ -35,9 +37,25 @@ type StoredDevice struct {
 	PairedAtMs int64
 }
 
+type SyncState struct {
+	DeviceID               string
+	LastAckChangelogID     int64
+	LastSeenAtMs           int64
+	SyncStatus             string
+	BlocksChangelogPruning bool
+}
+
+type SyncStateStore interface {
+	ListDeviceSyncStates(ctx context.Context) ([]SyncState, error)
+	MarkDeviceActive(ctx context.Context, deviceID string, atMs int64) error
+	MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error
+}
+
 type Store interface {
 	SavePairingToken(ctx context.Context, token string, createdAtMs int64) error
-	ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64) error
+	ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error
+	FindActivePairingToken(ctx context.Context, createdAfterOrAtMs int64) (string, error)
+	PruneExpiredPairingTokens(ctx context.Context, expiresBeforeMs int64) (int64, error)
 	InsertPairedDevice(ctx context.Context, device StoredDevice) error
 	FindByAuthToken(ctx context.Context, token string) (StoredDevice, error)
 	ListPairedDevices(ctx context.Context) ([]StoredDevice, error)
@@ -55,10 +73,11 @@ type AdminService interface {
 }
 
 type Service struct {
-	store    Store
-	now      func() time.Time
-	newToken func() (string, error)
-	newID    func() string
+	store          Store
+	syncStateStore SyncStateStore
+	now            func() time.Time
+	newToken       func() (string, error)
+	newID          func() string
 }
 
 func NewService(store Store) *Service {
@@ -78,6 +97,13 @@ func NewService(store Store) *Service {
 	}
 }
 
+func (s *Service) SetSyncStateStore(store SyncStateStore) {
+	if s == nil {
+		return
+	}
+	s.syncStateStore = store
+}
+
 func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (PairedDevice, error) {
 	if s == nil || s.store == nil {
 		return PairedDevice{}, ErrUnauthorized
@@ -95,7 +121,7 @@ func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (Paired
 	}
 	pairedAtMs := now().UnixMilli()
 
-	if err := s.store.ConsumePairingToken(ctx, req.PairingToken, pairedAtMs); err != nil {
+	if err := s.store.ConsumePairingToken(ctx, req.PairingToken, pairedAtMs, pairedAtMs-PairingTokenTTL.Milliseconds()); err != nil {
 		return PairedDevice{}, err
 	}
 
@@ -132,6 +158,11 @@ func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (Paired
 	if err := s.store.InsertPairedDevice(ctx, stored); err != nil {
 		return PairedDevice{}, err
 	}
+	if s.syncStateStore != nil {
+		if err := s.syncStateStore.MarkDeviceActive(ctx, stored.DeviceID, pairedAtMs); err != nil {
+			return PairedDevice{}, err
+		}
+	}
 
 	return PairedDevice{
 		DeviceID:  stored.DeviceID,
@@ -167,19 +198,54 @@ func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, erro
 	if err != nil {
 		return nil, err
 	}
+	statesByDevice := map[string]SyncState{}
+	if s.syncStateStore != nil {
+		states, err := s.syncStateStore.ListDeviceSyncStates(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, state := range states {
+			statesByDevice[state.DeviceID] = state
+		}
+	}
 	result := make([]contracts.DeviceInfo, 0, len(devices))
 	for _, item := range devices {
+		state := statesByDevice[item.DeviceID]
+		syncStatus := state.SyncStatus
+		if syncStatus == "" {
+			syncStatus = "active"
+		}
+		connectionStatus := syncStatus
+		if connectionStatus == "active" {
+			connectionStatus = "disconnected"
+		}
 		result = append(result, contracts.DeviceInfo{
-			DeviceID:   item.DeviceID,
-			DeviceName: item.Name,
-			PairedAtMs: item.PairedAtMs,
+			DeviceID:               item.DeviceID,
+			DeviceName:             item.Name,
+			PairedAtMs:             item.PairedAtMs,
+			LastSeenAtMs:           state.LastSeenAtMs,
+			LastAckChangelogID:     state.LastAckChangelogID,
+			SyncStatus:             syncStatus,
+			ConnectionStatus:       connectionStatus,
+			AuthState:              "active",
+			BlocksChangelogPruning: state.BlocksChangelogPruning,
 		})
 	}
 	return result, nil
 }
 
 func (s *Service) RevokeDevice(ctx context.Context, id string) error {
-	return s.store.DeletePairedDevice(ctx, id)
+	if err := s.store.DeletePairedDevice(ctx, id); err != nil {
+		return err
+	}
+	if s.syncStateStore != nil {
+		now := s.now
+		if now == nil {
+			now = time.Now
+		}
+		return s.syncStateStore.MarkDeviceRevoked(ctx, id, now().UnixMilli())
+	}
+	return nil
 }
 
 func randomHexToken(size int) (string, error) {

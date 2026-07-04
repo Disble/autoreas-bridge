@@ -52,6 +52,34 @@ export namespace contracts {
 	        this.hasFolder = source["hasFolder"];
 	    }
 	}
+	export class DeviceInfo {
+	    device_id: string;
+	    device_name: string;
+	    paired_at_ms: number;
+	    last_seen_at_ms: number;
+	    last_ack_changelog_id: number;
+	    sync_status: string;
+	    connection_status: string;
+	    auth_state: string;
+	    blocks_changelog_pruning: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeviceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.device_id = source["device_id"];
+	        this.device_name = source["device_name"];
+	        this.paired_at_ms = source["paired_at_ms"];
+	        this.last_seen_at_ms = source["last_seen_at_ms"];
+	        this.last_ack_changelog_id = source["last_ack_changelog_id"];
+	        this.sync_status = source["sync_status"];
+	        this.connection_status = source["connection_status"];
+	        this.auth_state = source["auth_state"];
+	        this.blocks_changelog_pruning = source["blocks_changelog_pruning"];
+	    }
+	}
 	export class HosterPriorityItem {
 	    hoster: string;
 	    priority: number;
@@ -311,4 +339,3 @@ export namespace logger {
 	}
 
 }
-

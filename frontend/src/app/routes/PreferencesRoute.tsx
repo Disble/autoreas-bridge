@@ -1,4 +1,5 @@
 import { Card } from '@heroui/react';
+import { ConnectedDevicesPanel } from '../../features/preferences/ui/ConnectedDevicesPanel/ConnectedDevicesPanel';
 import { SeasonModePanel } from '../../features/preferences/ui/SeasonModePanel/SeasonModePanel';
 
 export function PreferencesRoute() {
@@ -17,6 +18,16 @@ export function PreferencesRoute() {
           </Card.Header>
           <Card.Content>
             <SeasonModePanel />
+          </Card.Content>
+        </Card>
+
+        <Card>
+          <Card.Header>
+            <Card.Title>Connected Devices</Card.Title>
+            <Card.Description>Review paired devices, sync status, and revoke access.</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <ConnectedDevicesPanel />
           </Card.Content>
         </Card>
       </div>

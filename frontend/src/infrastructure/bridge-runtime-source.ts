@@ -1,12 +1,15 @@
 import {
   GetAnimes,
+  GetConnectedDevices,
   GetEffectiveAddress,
   GetPairingToken,
   PullAnimesFromLegacy,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
   TriggerReconcile,
+  UnpairDevice,
 } from '../../wailsjs/go/main/App';
+import type { contracts } from '../../wailsjs/go/models';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import type { Anime, AnimeLegacyPullResult } from '../shared/contracts/anime.types';
 import type { SyncingAnime } from '../shared/contracts/syncing-anime.types';
@@ -38,8 +41,10 @@ export interface BridgeRuntimeSource {
   readonly getPairingToken: () => Promise<string>;
   readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
+  readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
+  readonly unpairDevice?: (deviceID: string) => Promise<string>;
   /** Fires when the active pairing token is consumed. Returns an unsubscribe fn. */
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
 }
@@ -162,6 +167,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
         return isReady ? (GetAnimes() as Promise<readonly Anime[]>) : Promise.resolve([]);
       });
     },
+    getConnectedDevices() {
+      return waitForBindings(() => hasGoBinding('GetConnectedDevices')).then((isReady) => {
+        return isReady ? (GetConnectedDevices() as Promise<readonly contracts.DeviceInfo[]>) : Promise.resolve([]);
+      });
+    },
     pullAnimesFromLegacy() {
       return waitForBindings(() => hasGoBinding('PullAnimesFromLegacy')).then((isReady) => {
         return isReady ? PullAnimesFromLegacy().then(toAnimeLegacyPullResult) : RUNTIME_UNAVAILABLE_PULL_RESULT;
@@ -170,6 +180,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     triggerReconcile() {
       return waitForBindings(() => hasGoBinding('TriggerReconcile')).then((isReady) => {
         return isReady ? TriggerReconcile() : 'runtime unavailable';
+      });
+    },
+    unpairDevice(deviceID) {
+      return waitForBindings(() => hasGoBinding('UnpairDevice')).then((isReady) => {
+        return isReady ? UnpairDevice(deviceID) : 'runtime unavailable';
       });
     },
     onPairingTokenConsumed(listener) {

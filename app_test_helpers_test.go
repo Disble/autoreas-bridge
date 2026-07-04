@@ -161,8 +161,14 @@ func (*stubAppChangelogStore) InsertPending(context.Context, bridgeSync.Changelo
 }
 
 func (*stubAppDeviceStore) SavePairingToken(context.Context, string, int64) error { return nil }
-func (*stubAppDeviceStore) ConsumePairingToken(context.Context, string, int64) error {
+func (*stubAppDeviceStore) ConsumePairingToken(context.Context, string, int64, int64) error {
 	return nil
+}
+func (*stubAppDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
+	return "", device.ErrInvalidPairingToken
+}
+func (*stubAppDeviceStore) PruneExpiredPairingTokens(context.Context, int64) (int64, error) {
+	return 0, nil
 }
 func (*stubAppDeviceStore) InsertPairedDevice(context.Context, device.StoredDevice) error { return nil }
 func (*stubAppDeviceStore) FindByAuthToken(context.Context, string) (device.StoredDevice, error) {
@@ -375,15 +381,37 @@ func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
 	return nil, nil
 }
 
+func (s stubPendingLookup) AcknowledgeDevice(context.Context, string, int64, int64) error {
+	return nil
+}
+
+func (s stubPendingLookup) PruneAcknowledgedChangelog(context.Context) (int64, error) {
+	return 0, nil
+}
+
 type spyDeviceStore struct {
 	stubAppDeviceStore
-	savedToken string
-	saveErr    error
+	savedToken  string
+	saveErr     error
+	activeToken string
+	pruneCalls  int
 }
 
 func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int64) error {
 	s.savedToken = token
 	return s.saveErr
+}
+
+func (s *spyDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
+	if s.activeToken == "" {
+		return "", device.ErrInvalidPairingToken
+	}
+	return s.activeToken, nil
+}
+
+func (s *spyDeviceStore) PruneExpiredPairingTokens(context.Context, int64) (int64, error) {
+	s.pruneCalls++
+	return 0, nil
 }
 
 func isHex32(s string) bool {

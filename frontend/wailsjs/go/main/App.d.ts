@@ -7,6 +7,8 @@ export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
 
+export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
+
 export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
 
 export function GetEffectiveAddress():Promise<string>;
@@ -40,3 +42,5 @@ export function SetSeasonMode(arg1:boolean):Promise<string>;
 export function TriggerDownloadCheck():Promise<string>;
 
 export function TriggerReconcile():Promise<string>;
+
+export function UnpairDevice(arg1:string):Promise<string>;

@@ -16,14 +16,18 @@ type SyncHandlerConfig struct {
 	ApplyPendingPatch  PatchAnimeFunc
 	TriggerReconcile   TriggerReconcileFunc
 	ListChangesAfterID ListChangesAfterIDFunc
+	AcknowledgeDevice  AcknowledgeDeviceFunc
 }
 
 func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var pairedDeviceID string
 		if config.Authenticate != nil {
-			if _, ok := config.Authenticate(w, r); !ok {
+			paired, ok := config.Authenticate(w, r)
+			if !ok {
 				return
 			}
+			pairedDeviceID = paired.DeviceID
 		}
 
 		var req ReconcileRequest
@@ -53,6 +57,17 @@ func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 		if config.TriggerReconcile != nil {
 			if err := config.TriggerReconcile(r.Context()); err != nil {
 				writeJSONError(w, http.StatusInternalServerError, "trigger reconcile failed")
+				return
+			}
+		}
+
+		ackDeviceID := pairedDeviceID
+		if ackDeviceID == "" {
+			ackDeviceID = strings.TrimSpace(req.DeviceID)
+		}
+		if ackDeviceID != "" && config.AcknowledgeDevice != nil {
+			if err := config.AcknowledgeDevice(r.Context(), ackDeviceID, req.LastChangelogID); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "acknowledge device failed")
 				return
 			}
 		}

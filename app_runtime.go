@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func (a *App) GetBridgeStatus() string {
@@ -59,6 +62,18 @@ func (a *App) GetPairingToken() string {
 	if a.deviceStore == nil {
 		return "device store unavailable"
 	}
+	nowMs := time.Now().UnixMilli()
+	activeAfterMs := nowMs - device.PairingTokenTTL.Milliseconds()
+	if _, err := a.deviceStore.PruneExpiredPairingTokens(a.appContext(), activeAfterMs); err != nil {
+		return fmt.Sprintf("token cleanup failed: %s", err.Error())
+	}
+	activeToken, err := a.deviceStore.FindActivePairingToken(a.appContext(), activeAfterMs)
+	if err == nil {
+		return activeToken
+	}
+	if !errors.Is(err, device.ErrInvalidPairingToken) {
+		return fmt.Sprintf("token lookup failed: %s", err.Error())
+	}
 	genToken := a.newToken
 	if genToken == nil {
 		genToken = defaultPairingTokenGenerator
@@ -67,10 +82,39 @@ func (a *App) GetPairingToken() string {
 	if err != nil {
 		return fmt.Sprintf("token generation failed: %s", err.Error())
 	}
-	if err := a.deviceStore.SavePairingToken(a.appContext(), token, time.Now().UnixMilli()); err != nil {
+	if err := a.deviceStore.SavePairingToken(a.appContext(), token, nowMs); err != nil {
 		return fmt.Sprintf("token persist failed: %s", err.Error())
 	}
 	return token
+}
+
+func (a *App) GetConnectedDevices() []contracts.DeviceInfo {
+	if a.deviceStore == nil {
+		return []contracts.DeviceInfo{}
+	}
+	service := device.NewService(a.deviceStore)
+	if a.bridgeDB != nil {
+		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))})
+	}
+	devices, err := service.ListDevices(a.appContext())
+	if err != nil {
+		return []contracts.DeviceInfo{}
+	}
+	return devices
+}
+
+func (a *App) UnpairDevice(deviceID string) string {
+	if a.deviceStore == nil {
+		return "device store unavailable"
+	}
+	service := device.NewService(a.deviceStore)
+	if a.bridgeDB != nil {
+		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))})
+	}
+	if err := service.RevokeDevice(a.appContext(), deviceID); err != nil {
+		return err.Error()
+	}
+	return "ok"
 }
 
 func (a *App) GetRecentLogs() []sharedlogger.LogEntry {

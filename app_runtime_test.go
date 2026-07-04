@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -164,6 +166,86 @@ func TestGetPairingTokenReturns32CharHexAndPersists(t *testing.T) {
 	}
 }
 
+func TestGetPairingTokenReusesActiveUnconsumedToken(t *testing.T) {
+	t.Parallel()
+
+	spy := &spyDeviceStore{activeToken: "existing-pair-token"}
+	app := &App{
+		ctx:         context.Background(),
+		deviceStore: spy,
+		newToken: func() (string, error) {
+			t.Fatal("expected active token reuse instead of generating a new token")
+			return "", nil
+		},
+	}
+
+	got := app.GetPairingToken()
+	if got != "existing-pair-token" {
+		t.Fatalf("expected reused token, got %q", got)
+	}
+	if spy.savedToken != "" {
+		t.Fatalf("expected no new token to be saved, got %q", spy.savedToken)
+	}
+	if spy.pruneCalls != 1 {
+		t.Fatalf("expected expired tokens to be pruned once, got %d", spy.pruneCalls)
+	}
+}
+
+func TestGetConnectedDevicesIncludesSyncState(t *testing.T) {
+	t.Parallel()
+
+	db := openRuntimeBridgeDB(t)
+	store := device.NewSQLiteStore(db)
+	ctx := context.Background()
+	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token", PairedAtMs: 100}); err != nil {
+		t.Fatalf("insert paired device: %v", err)
+	}
+	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	if err := changelog.AcknowledgeDevice(ctx, "device-1", 42, 200); err != nil {
+		t.Fatalf("ack device: %v", err)
+	}
+	app := &App{ctx: ctx, bridgeDB: db, deviceStore: store}
+
+	got := app.GetConnectedDevices()
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 device, got %#v", got)
+	}
+	if got[0].LastAckChangelogID != 42 || got[0].LastSeenAtMs != 200 {
+		t.Fatalf("expected sync state in connected device, got %#v", got[0])
+	}
+}
+
+func TestUnpairDeviceRevokesAuthAndSyncState(t *testing.T) {
+	t.Parallel()
+
+	db := openRuntimeBridgeDB(t)
+	store := device.NewSQLiteStore(db)
+	ctx := context.Background()
+	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token", PairedAtMs: 100}); err != nil {
+		t.Fatalf("insert paired device: %v", err)
+	}
+	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	if err := changelog.AcknowledgeDevice(ctx, "device-1", 42, 200); err != nil {
+		t.Fatalf("ack device: %v", err)
+	}
+	app := &App{ctx: ctx, bridgeDB: db, deviceStore: store}
+
+	if got := app.UnpairDevice("device-1"); got != "ok" {
+		t.Fatalf("expected ok, got %q", got)
+	}
+	if _, err := store.FindByAuthToken(ctx, "auth-token"); !errors.Is(err, device.ErrUnauthorized) {
+		t.Fatalf("expected auth token to be revoked, got %v", err)
+	}
+	states, err := changelog.ListDeviceSyncStates(ctx)
+	if err != nil {
+		t.Fatalf("list sync states: %v", err)
+	}
+	if len(states) != 1 || states[0].SyncStatus != bridgeSync.DeviceSyncStatusRevoked {
+		t.Fatalf("expected revoked sync state, got %#v", states)
+	}
+}
+
 func TestGetSyncingAnimeItemsReturnsEmptyWhenSyncTriggerNil(t *testing.T) {
 	t.Parallel()
 
@@ -208,4 +290,15 @@ func openInMemorySQLite(t *testing.T) (*sql.DB, error) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return db, nil
+}
+
+func openRuntimeBridgeDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
+	if err != nil {
+		t.Fatalf("open bridge db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }

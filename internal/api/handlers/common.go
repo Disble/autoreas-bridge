@@ -27,6 +27,7 @@ type PatchAnimeFunc func(ctx context.Context, id string, patch AnimePatch) error
 type TriggerReconcileFunc func(ctx context.Context) error
 type ListChangesSinceFunc func(ctx context.Context, sinceMs int64) ([]AnimeChange, int64, error)
 type ListChangesAfterIDFunc func(ctx context.Context, lastID int64) ([]AnimeChange, int64, error)
+type AcknowledgeDeviceFunc func(ctx context.Context, deviceID string, lastChangelogID int64) error
 type GetStatusFunc func(ctx context.Context) (StatusInfo, error)
 type ListDevicesFunc func(ctx context.Context) ([]DeviceInfo, error)
 type RevokeDeviceFunc func(ctx context.Context, id string) error

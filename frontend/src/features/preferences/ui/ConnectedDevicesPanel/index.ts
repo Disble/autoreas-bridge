@@ -1,0 +1,1 @@
+export { ConnectedDevicesPanel } from './ConnectedDevicesPanel';
