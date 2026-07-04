@@ -13,30 +13,30 @@ commits per slice; full 12-gate pre-commit per commit.
       `internal/anime` `ListAnimeHistory`.
 - [x] GREEN: `wails generate module`; `AnimeHistoryEntry` TS mirror gains `tipo?`/`fechaCreacion?`.
 - [x] Verify: `go test ./...`, gofmt/vet/golangci clean, `bun --cwd=frontend run validate` + `test`.
-- [ ] **Orchestrator commits slice 1.**
+- [x] **Orchestrator committed slice 1** as `4658b9e`, full gate green.
 
 ## Slice 2 — History table UX (~280 lines)
 
 ### Phase 2.1 — URL-persisted state (spec: "History State Survives Navigation")
-- [ ] RED: helper tests for `parseHistoryParams`/`serializeHistoryParams` (defaults omitted,
+- [x] RED: helper tests for `parseHistoryParams`/`serializeHistoryParams` (defaults omitted,
       round-trip, invalid values → defaults).
-- [ ] GREEN: helpers + `use-history-table.ts` adapts to `useSearchParams` (debounced q writes
+- [x] GREEN: helpers + `use-history-table.ts` adapts to `useSearchParams` (debounced q writes
       `replace: true`; filter/page writes push). Strict hook anatomy preserved.
 
 ### Phase 2.2 — Tipo + Orden controls, Search label (spec: MODIFIED table requirement)
-- [ ] RED: hook tests for tipo filter + sort orders (`ult-cap-visto` default keeps server order;
+- [x] RED: hook tests for tipo filter + sort orders (`ult-cap-visto` default keeps server order;
       `nombre` A-Z localeCompare + id tie-break; `fecha-creacion` DESC absent-last); component
       tests for the two new labeled controls + "Search" label on the input.
-- [ ] GREEN: `HISTORY_TABLE_TIPO_OPTIONS` (0=Serie, 1=Película, 2=OVA + All),
+- [x] GREEN: `HISTORY_TABLE_TIPO_OPTIONS` (0=Serie, 1=Película, 2=OVA + All),
       `HISTORY_TABLE_SORT_OPTIONS`; controls aligned in the filter row (all labeled — fixes the
       misalignment).
 
 ### Phase 2.3 — Whole-row navigation (spec: "Whole row navigates to detail")
-- [ ] RED: component test — activating a row (not the name link) navigates to
+- [x] RED: component test — activating a row (not the name link) navigates to
       `/catalog/detail/:id`.
-- [ ] GREEN: row-level action/href per HeroUI Table's actual API (check d.ts; no div onClick
+- [x] GREEN: row-level action/href per HeroUI Table's actual API (check d.ts; no div onClick
       hand-roll); hover affordance.
-- [ ] Verify: frontend test + validate + filesize; `go build ./...`.
+- [x] Verify: frontend test + validate + filesize; `go build ./...`.
 - [ ] **Orchestrator commits slice 2.**
 
 ## Slice 3 — Detail polish (~250 lines)

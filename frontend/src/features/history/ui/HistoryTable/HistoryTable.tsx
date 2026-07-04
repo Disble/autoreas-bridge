@@ -1,12 +1,14 @@
 import { Chip, Input, Label, ListBox, Pagination, Select, Skeleton, Table } from '@heroui/react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   HISTORY_TABLE_EMPTY_MESSAGE,
   HISTORY_TABLE_EMPTY_TITLE,
   HISTORY_TABLE_LABEL,
   HISTORY_TABLE_LOADING_LABEL,
+  HISTORY_TABLE_SEARCH_LABEL,
   HISTORY_TABLE_SEARCH_PLACEHOLDER,
   HISTORY_TABLE_SKELETON_ROW_COUNT,
+  HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
 } from './history-table.constants';
 import type { HistoryTableProps } from './history-table.types';
 import { useHistoryTable } from './use-history-table';
@@ -15,9 +17,11 @@ import { useHistoryTable } from './use-history-table';
  * History surface: a read-only, paginated table over the watch-activity log
  * (Legacy "Historial" parity, per the Anime History spec). Owns its own
  * data/search/filter/page state via `useHistoryTable`; only navigation
- * (drill-down `Link` to Detail) is composed here, not a hook callable.
+ * (whole-row drill-down to Detail via the row's `onAction`, plus the name's
+ * own `Link` for a11y/semantics) is composed here, not a hook callable.
  */
 export function HistoryTable(props: Readonly<HistoryTableProps>) {
+  const navigate = useNavigate();
   const {
     rows,
     isLoading,
@@ -25,25 +29,34 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
     searchQuery,
     estadoFilter,
     estadoOptions,
+    tipoFilter,
+    tipoOptions,
+    sortOrder,
+    sortOptions,
     page,
     totalPages,
     pageItems,
     onSearchQueryChange,
     onEstadoFilterChange,
+    onTipoFilterChange,
+    onSortOrderChange,
     onPageChange,
   } = useHistoryTable(props);
 
   return (
     <div className={`flex flex-col gap-4 ${props.className ?? ''}`}>
-      <section aria-label="History filters" className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Input
-          aria-label="Search history by name"
-          className="w-full sm:max-w-xs"
-          placeholder={HISTORY_TABLE_SEARCH_PLACEHOLDER}
-          type="search"
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-        />
+      <section aria-label="History filters" className="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
+        <div className="flex flex-col gap-1 w-full sm:w-auto sm:max-w-xs">
+          <Label>{HISTORY_TABLE_SEARCH_LABEL}</Label>
+          <Input
+            aria-label="Search history by name"
+            className="w-full"
+            placeholder={HISTORY_TABLE_SEARCH_PLACEHOLDER}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+          />
+        </div>
 
         <Select
           aria-label="Filter by status"
@@ -60,6 +73,54 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
           <Select.Popover>
             <ListBox>
               {estadoOptions.map((option) => (
+                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                  {option.label}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+
+        <Select
+          aria-label="Filter by type"
+          className="w-full sm:w-48"
+          placeholder="Type"
+          value={tipoFilter}
+          onChange={(value) => onTipoFilterChange(value?.toString() ?? 'all')}
+        >
+          <Label>Type</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {tipoOptions.map((option) => (
+                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                  {option.label}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
+
+        <Select
+          aria-label="Sort order"
+          className="w-full sm:w-48"
+          placeholder="Sort"
+          value={sortOrder}
+          onChange={(value) => onSortOrderChange(value?.toString() ?? HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE)}
+        >
+          <Label>Sort</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {sortOptions.map((option) => (
                 <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
                   {option.label}
                   <ListBox.ItemIndicator />
@@ -103,7 +164,12 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
                 {isEmpty
                   ? []
                   : rows.map((row) => (
-                      <Table.Row id={row.id} key={row.id}>
+                      <Table.Row
+                        className="cursor-pointer"
+                        id={row.id}
+                        key={row.id}
+                        onAction={() => navigate(`/catalog/detail/${row.id}`)}
+                      >
                         <Table.Cell>{row.rowNumber}</Table.Cell>
                         <Table.Cell>
                           <Link className="font-medium text-foreground underline-offset-2 hover:underline" to={`/catalog/detail/${row.id}`}>

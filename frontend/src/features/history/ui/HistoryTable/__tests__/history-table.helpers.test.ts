@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AnimeHistoryEntry } from '../../../../../shared/contracts/anime.types';
 import {
+  HISTORY_TABLE_ESTADO_ALL_VALUE,
+  HISTORY_TABLE_SORT_FECHA_CREACION_VALUE,
+  HISTORY_TABLE_SORT_NOMBRE_VALUE,
+  HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+  HISTORY_TABLE_TIPO_ALL_VALUE,
+} from '../history-table.constants';
+import {
   filterHistoryEntries,
   formatHistoryLongDate,
   formatHistoryRelativeRecency,
@@ -10,6 +17,9 @@ import {
   getHistoryEstadoLabel,
   getHistoryTotalPages,
   paginateHistoryEntries,
+  parseHistoryParams,
+  serializeHistoryParams,
+  sortHistoryEntries,
 } from '../history-table.helpers';
 
 // Tuesday, June 30, 2026, 12:12 local time (UTC-constructed so the fixture
@@ -104,29 +114,38 @@ describe('getHistoryEstadoColor', () => {
 
 describe('filterHistoryEntries', () => {
   const entries = [
-    entry({ id: 'a', nombre: 'Frieren', estado: 0 }),
-    entry({ id: 'b', nombre: 'Bocchi the Rock', estado: 1 }),
-    entry({ id: 'c', nombre: 'Zenshuu', estado: 1 }),
+    entry({ id: 'a', nombre: 'Frieren', estado: 0, tipo: 0 }),
+    entry({ id: 'b', nombre: 'Bocchi the Rock', estado: 1, tipo: 1 }),
+    entry({ id: 'c', nombre: 'Zenshuu', estado: 1, tipo: 0 }),
+    entry({ id: 'd', nombre: 'No Tipo', estado: 1, tipo: undefined }),
   ];
 
-  it('returns every entry when the query is empty and estado filter is "all"', () => {
-    expect(filterHistoryEntries(entries, '', 'all')).toEqual(entries);
+  it('returns every entry when the query is empty and both filters are "all"', () => {
+    expect(filterHistoryEntries(entries, '', 'all', 'all')).toEqual(entries);
   });
 
   it('narrows by a case-insensitive name search', () => {
-    expect(filterHistoryEntries(entries, 'frie', 'all').map((item) => item.id)).toEqual(['a']);
+    expect(filterHistoryEntries(entries, 'frie', 'all', 'all').map((item) => item.id)).toEqual(['a']);
   });
 
   it('narrows by estado', () => {
-    expect(filterHistoryEntries(entries, '', '1').map((item) => item.id)).toEqual(['b', 'c']);
+    expect(filterHistoryEntries(entries, '', '1', 'all').map((item) => item.id)).toEqual(['b', 'c', 'd']);
   });
 
-  it('composes search and estado filters together', () => {
-    expect(filterHistoryEntries(entries, 'zen', '1').map((item) => item.id)).toEqual(['c']);
+  it('narrows by tipo', () => {
+    expect(filterHistoryEntries(entries, '', 'all', '0').map((item) => item.id)).toEqual(['a', 'c']);
+  });
+
+  it('excludes entries with an absent tipo from any non-"all" tipo filter', () => {
+    expect(filterHistoryEntries(entries, '', 'all', '1').map((item) => item.id)).toEqual(['b']);
+  });
+
+  it('composes search, estado, and tipo filters together', () => {
+    expect(filterHistoryEntries(entries, 'zen', '1', '0').map((item) => item.id)).toEqual(['c']);
   });
 
   it('trims surrounding whitespace from the search query', () => {
-    expect(filterHistoryEntries(entries, '  frie  ', 'all').map((item) => item.id)).toEqual(['a']);
+    expect(filterHistoryEntries(entries, '  frie  ', 'all', 'all').map((item) => item.id)).toEqual(['a']);
   });
 });
 
@@ -219,5 +238,125 @@ describe('getHistoryPageItems', () => {
   it('keeps the end contiguous when the current page is near the end', async () => {
     const { getHistoryPageItems } = await import('../history-table.helpers');
     expect(getHistoryPageItems(9, 10)).toEqual([1, 'ellipsis', 8, 9, 10]);
+  });
+});
+
+describe('sortHistoryEntries', () => {
+  const entries = [
+    entry({ id: 'b', nombre: 'Bocchi the Rock', fechaCreacion: 100 }),
+    entry({ id: 'a', nombre: 'Frieren', fechaCreacion: 300 }),
+    entry({ id: 'd', nombre: 'Zenshuu', fechaCreacion: undefined }),
+    entry({ id: 'c', nombre: 'Frieren', fechaCreacion: 200 }),
+  ];
+
+  it('keeps the input (server) order for the default ult-cap-visto sort', () => {
+    expect(sortHistoryEntries(entries, HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE).map((item) => item.id)).toEqual([
+      'b',
+      'a',
+      'd',
+      'c',
+    ]);
+  });
+
+  it('sorts A-Z by nombre, breaking ties by id', () => {
+    expect(sortHistoryEntries(entries, HISTORY_TABLE_SORT_NOMBRE_VALUE).map((item) => item.id)).toEqual([
+      'b',
+      'a',
+      'c',
+      'd',
+    ]);
+  });
+
+  it('sorts by fechaCreacion DESC, placing absent values last', () => {
+    expect(sortHistoryEntries(entries, HISTORY_TABLE_SORT_FECHA_CREACION_VALUE).map((item) => item.id)).toEqual([
+      'a',
+      'c',
+      'b',
+      'd',
+    ]);
+  });
+
+  it('does not mutate the input array', () => {
+    const original = [...entries];
+    sortHistoryEntries(entries, HISTORY_TABLE_SORT_NOMBRE_VALUE);
+    expect(entries).toEqual(original);
+  });
+});
+
+describe('parseHistoryParams', () => {
+  it('returns every default when the query string is empty', () => {
+    expect(parseHistoryParams(new URLSearchParams(''))).toEqual({
+      q: '',
+      estado: HISTORY_TABLE_ESTADO_ALL_VALUE,
+      tipo: HISTORY_TABLE_TIPO_ALL_VALUE,
+      sort: HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+      page: 1,
+    });
+  });
+
+  it('reads every recognized param', () => {
+    expect(parseHistoryParams(new URLSearchParams('q=frie&estado=1&tipo=0&sort=nombre&page=3'))).toEqual({
+      q: 'frie',
+      estado: '1',
+      tipo: '0',
+      sort: HISTORY_TABLE_SORT_NOMBRE_VALUE,
+      page: 3,
+    });
+  });
+
+  it('falls back to defaults for invalid estado, tipo, and sort values', () => {
+    expect(parseHistoryParams(new URLSearchParams('estado=bogus&tipo=bogus&sort=bogus'))).toEqual({
+      q: '',
+      estado: HISTORY_TABLE_ESTADO_ALL_VALUE,
+      tipo: HISTORY_TABLE_TIPO_ALL_VALUE,
+      sort: HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+      page: 1,
+    });
+  });
+
+  it.each(['0', '-1', 'abc', ''])('falls back to page 1 for an invalid page value %s', (page) => {
+    expect(parseHistoryParams(new URLSearchParams(`page=${page}`)).page).toBe(1);
+  });
+});
+
+describe('serializeHistoryParams', () => {
+  it('omits every param at its default value', () => {
+    const params = serializeHistoryParams({
+      q: '',
+      estado: HISTORY_TABLE_ESTADO_ALL_VALUE,
+      tipo: HISTORY_TABLE_TIPO_ALL_VALUE,
+      sort: HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+      page: 1,
+    });
+
+    expect(Array.from(params.keys())).toEqual([]);
+  });
+
+  it('includes every non-default param', () => {
+    const params = serializeHistoryParams({
+      q: 'frie',
+      estado: '1',
+      tipo: '0',
+      sort: HISTORY_TABLE_SORT_NOMBRE_VALUE,
+      page: 3,
+    });
+
+    expect(params.get('q')).toBe('frie');
+    expect(params.get('estado')).toBe('1');
+    expect(params.get('tipo')).toBe('0');
+    expect(params.get('sort')).toBe(HISTORY_TABLE_SORT_NOMBRE_VALUE);
+    expect(params.get('page')).toBe('3');
+  });
+
+  it('round-trips through parseHistoryParams for a full non-default state', () => {
+    const state = {
+      q: 'frie',
+      estado: '1',
+      tipo: '0',
+      sort: HISTORY_TABLE_SORT_FECHA_CREACION_VALUE,
+      page: 5,
+    };
+
+    expect(parseHistoryParams(serializeHistoryParams(state))).toEqual(state);
   });
 });

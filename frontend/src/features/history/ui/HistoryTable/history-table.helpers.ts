@@ -1,6 +1,15 @@
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
-import { HISTORY_TABLE_ESTADO_ALL_VALUE } from './history-table.constants';
-import type { HeroChipColor, HistoryPageItem, HistoryRowViewModel } from './history-table.types';
+import {
+  HISTORY_TABLE_ESTADO_ALL_VALUE,
+  HISTORY_TABLE_ESTADO_OPTIONS,
+  HISTORY_TABLE_SORT_FECHA_CREACION_VALUE,
+  HISTORY_TABLE_SORT_NOMBRE_VALUE,
+  HISTORY_TABLE_SORT_OPTIONS,
+  HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+  HISTORY_TABLE_TIPO_ALL_VALUE,
+  HISTORY_TABLE_TIPO_OPTIONS,
+} from './history-table.constants';
+import type { HeroChipColor, HistoryPageItem, HistoryParamsState, HistoryRowViewModel } from './history-table.types';
 
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -106,25 +115,115 @@ export function getHistoryEstadoColor(estado: number): HeroChipColor {
 }
 
 /**
- * Composable name-search + estado filter over the server-sorted History
- * list (design Decision 2: pagination/search/filter happen client-side over
- * the full sorted list). Both filters can be applied independently or
- * together; passing an empty query or the "all" estado sentinel skips that
- * filter.
+ * Composable name-search + estado + tipo filter over the server-sorted
+ * History list (design Decision 2: pagination/search/filter happen
+ * client-side over the full sorted list). Every filter can be applied
+ * independently or together; passing an empty query or an "all" sentinel
+ * skips that filter. An entry with an absent `tipo` only matches the "all"
+ * tipo filter, never a specific tipo value.
  */
 export function filterHistoryEntries(
   entries: readonly AnimeHistoryEntry[],
   searchQuery: string,
   estadoFilter: string,
+  tipoFilter: string,
 ): readonly AnimeHistoryEntry[] {
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   return entries.filter((entry) => {
     const matchesEstado = estadoFilter === HISTORY_TABLE_ESTADO_ALL_VALUE || String(entry.estado) === estadoFilter;
     const matchesQuery = normalizedQuery === '' || entry.nombre.toLowerCase().includes(normalizedQuery);
+    const matchesTipo = tipoFilter === HISTORY_TABLE_TIPO_ALL_VALUE || String(entry.tipo) === tipoFilter;
 
-    return matchesEstado && matchesQuery;
+    return matchesEstado && matchesQuery && matchesTipo;
   });
+}
+
+/**
+ * Sorts filtered entries per the visible "Sort" control (spec: Orden),
+ * applied AFTER filtering and BEFORE pagination. The default
+ * `ult-cap-visto` value keeps the input order untouched -- the server
+ * already returns entries DESC by `fechaUltCapVisto`, so no client re-sort
+ * is needed. Never mutates `entries`.
+ */
+export function sortHistoryEntries(
+  entries: readonly AnimeHistoryEntry[],
+  sort: string,
+): readonly AnimeHistoryEntry[] {
+  if (sort === HISTORY_TABLE_SORT_NOMBRE_VALUE) {
+    return entries.toSorted((a, b) => a.nombre.localeCompare(b.nombre) || a.id.localeCompare(b.id));
+  }
+
+  if (sort === HISTORY_TABLE_SORT_FECHA_CREACION_VALUE) {
+    return entries.toSorted((a, b) => {
+      if (a.fechaCreacion === undefined && b.fechaCreacion === undefined) {
+        return 0;
+      }
+      if (a.fechaCreacion === undefined) {
+        return 1;
+      }
+      if (b.fechaCreacion === undefined) {
+        return -1;
+      }
+      return b.fechaCreacion - a.fechaCreacion;
+    });
+  }
+
+  return entries;
+}
+
+/** Returns `true` when `value` is one of `options`' values, used to validate URL query params against a known domain. */
+function isKnownOptionValue(value: string, options: readonly { readonly value: string }[]): boolean {
+  return options.some((option) => option.value === value);
+}
+
+/**
+ * Parses the `/history` URL query string into `HistoryParamsState` (spec:
+ * "History State Survives Navigation"). Every field falls back to its
+ * default when the param is absent or holds a value outside its known
+ * domain, so a tampered or stale URL never breaks the table.
+ */
+export function parseHistoryParams(searchParams: URLSearchParams): HistoryParamsState {
+  const estado = searchParams.get('estado') ?? HISTORY_TABLE_ESTADO_ALL_VALUE;
+  const tipo = searchParams.get('tipo') ?? HISTORY_TABLE_TIPO_ALL_VALUE;
+  const sort = searchParams.get('sort') ?? HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE;
+  const rawPage = searchParams.get('page');
+  const parsedPage = rawPage === null ? Number.NaN : Number.parseInt(rawPage, 10);
+
+  return {
+    q: searchParams.get('q') ?? '',
+    estado: isKnownOptionValue(estado, HISTORY_TABLE_ESTADO_OPTIONS) ? estado : HISTORY_TABLE_ESTADO_ALL_VALUE,
+    tipo: isKnownOptionValue(tipo, HISTORY_TABLE_TIPO_OPTIONS) ? tipo : HISTORY_TABLE_TIPO_ALL_VALUE,
+    sort: isKnownOptionValue(sort, HISTORY_TABLE_SORT_OPTIONS) ? sort : HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+    page: Number.isInteger(parsedPage) && parsedPage >= 1 ? parsedPage : 1,
+  };
+}
+
+/**
+ * Serializes `HistoryParamsState` back into a query string, omitting every
+ * field at its default value so the `/history` URL stays clean when no
+ * filter/search/sort/page is active (design D2).
+ */
+export function serializeHistoryParams(state: HistoryParamsState): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (state.q !== '') {
+    params.set('q', state.q);
+  }
+  if (state.estado !== HISTORY_TABLE_ESTADO_ALL_VALUE) {
+    params.set('estado', state.estado);
+  }
+  if (state.tipo !== HISTORY_TABLE_TIPO_ALL_VALUE) {
+    params.set('tipo', state.tipo);
+  }
+  if (state.sort !== HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE) {
+    params.set('sort', state.sort);
+  }
+  if (state.page !== 1) {
+    params.set('page', String(state.page));
+  }
+
+  return params;
 }
 
 /** Returns the total page count for `itemCount` items at `pageSize` per page, never less than 1. */

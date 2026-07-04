@@ -1,9 +1,21 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { HistoryTable } from '../HistoryTable';
+
+const navigateMock = vi.hoisted(() => vi.fn());
+
+vi.mock('react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router')>();
+  return { ...actual, useNavigate: () => navigateMock };
+});
 import * as useHistoryTableModule from '../use-history-table';
-import { HISTORY_TABLE_ESTADO_OPTIONS } from '../history-table.constants';
+import {
+  HISTORY_TABLE_ESTADO_OPTIONS,
+  HISTORY_TABLE_SORT_OPTIONS,
+  HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+  HISTORY_TABLE_TIPO_OPTIONS,
+} from '../history-table.constants';
 import type { HistoryTableState } from '../history-table.types';
 
 function mockState(overrides: Partial<HistoryTableState>): HistoryTableState {
@@ -14,11 +26,17 @@ function mockState(overrides: Partial<HistoryTableState>): HistoryTableState {
     searchQuery: '',
     estadoFilter: 'all',
     estadoOptions: HISTORY_TABLE_ESTADO_OPTIONS,
+    tipoFilter: 'all',
+    tipoOptions: HISTORY_TABLE_TIPO_OPTIONS,
+    sortOrder: HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
+    sortOptions: HISTORY_TABLE_SORT_OPTIONS,
     page: 1,
     totalPages: 1,
     pageItems: [1],
     onSearchQueryChange: vi.fn(),
     onEstadoFilterChange: vi.fn(),
+    onTipoFilterChange: vi.fn(),
+    onSortOrderChange: vi.fn(),
     onPageChange: vi.fn(),
     ...overrides,
   };
@@ -38,6 +56,7 @@ describe('HistoryTable', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    navigateMock.mockClear();
   });
 
   it('renders a visible search input and estado filter control', () => {
@@ -45,6 +64,26 @@ describe('HistoryTable', () => {
 
     expect(screen.getByRole('searchbox', { name: /search history/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /filter by status/i })).toBeInTheDocument();
+  });
+
+  it('renders a visible "Search" label aligned with the other filter-row controls', () => {
+    renderTable({});
+
+    expect(screen.getByText('Search')).toBeInTheDocument();
+  });
+
+  it('renders a visible Tipo filter control', () => {
+    renderTable({});
+
+    expect(screen.getByRole('button', { name: /filter by type/i })).toBeInTheDocument();
+    expect(screen.getByText('Type')).toBeInTheDocument();
+  });
+
+  it('renders a visible Sort control', () => {
+    renderTable({});
+
+    expect(screen.getByRole('button', { name: /sort order/i })).toBeInTheDocument();
+    expect(screen.getByText('Sort')).toBeInTheDocument();
   });
 
   it('renders a skeleton loading state', () => {
@@ -90,6 +129,32 @@ describe('HistoryTable', () => {
     expect(screen.getByText('12:12')).toBeInTheDocument();
     expect(screen.getByText('Finalizado', { selector: 'span' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Frieren/ })).toHaveAttribute('href', '/catalog/detail/anime-1');
+  });
+
+  it('navigates to the anime detail when the row is activated anywhere, not just the name link', () => {
+    renderTable({
+      isLoading: false,
+      isEmpty: false,
+      rows: [
+        {
+          id: 'anime-1',
+          rowNumber: 1,
+          nombre: 'Frieren',
+          nrocapvisto: 12,
+          longDateLabel: 'June 30, 2026',
+          weekdayLabel: 'Tuesday',
+          timeLabel: '12:12',
+          relativeRecencyLabel: '2 days ago',
+          estado: 1,
+          estadoLabel: 'Finalizado',
+          estadoColor: 'success',
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('rowheader', { name: '1' }));
+
+    expect(navigateMock).toHaveBeenCalledWith('/catalog/detail/anime-1');
   });
 
   it('renders pagination controls showing the current page and total', () => {
