@@ -62,9 +62,13 @@ commits per slice; full 12-gate pre-commit per commit.
       grid per entry) in `AnimeDetail.tsx` — watch warn-400; split a colocated
       `AnimeRepetitionTimeline.tsx` subcomponent if needed.
 - [x] Verify: frontend test + validate + filesize; `go build ./...`.
-- [ ] **Orchestrator commits slice 3.**
+- [x] **Orchestrator committed slice 3** as `5980a20`, full gate green (563 frontend tests).
 
 ## Phase 4 — Close (orchestrator)
-- [ ] Full gate green on final commit; 3 commits in order; archive deferred (with sdd-33..36).
-- [ ] Report the fixture-observed repetir estado domain to the user and ask for Legacy's label
-      mapping for any unknown codes (e.g. "En pausa").
+- [x] Full gate green on final commit; 3 commits in order: `4658b9e` → `1b61d13` → `5980a20`,
+      each independently green (12/12 gates per commit).
+- [x] Reported to user: fixture repetir estado domain observed = {1, 2, 3} (Finalizado,
+      Abandonado, Pendiente); code 0 never appears in a closed repetir entry; NO code matching
+      Legacy's "En pausa" label found — asked user for Legacy's real estado label mapping.
+      Unknown codes currently render as the raw number, never an invented label.
+      Archive deferred (repo practice, alongside sdd-33..36).
