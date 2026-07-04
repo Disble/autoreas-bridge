@@ -267,6 +267,9 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 	if patch.NroCapVisto != nil {
 		desired.SetNroCapVisto(*patch.NroCapVisto)
 	}
+	if patch.Activo != nil {
+		desired.SetActivo(*patch.Activo)
+	}
 	if patch.Dias != nil {
 		desired.SetDias(patch.Dias)
 	}
@@ -278,11 +281,17 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 
 	if statePatch.FechaUltCapVisto != nil {
 		desired.FechaUltCapVisto = domain.NewLegacyDateFieldFromUnixMilli(*statePatch.FechaUltCapVisto)
-	} else {
+	} else if !patch.PreserveLastWatched {
 		desired.StampServerTimestamp(s.nowFunc())
 	}
 	if patch.FechaEstreno != nil {
 		desired.FechaEstreno = domain.NewLegacyDateFieldFromUnixMilli(*patch.FechaEstreno)
+	}
+	if patch.FechaEliminacion != nil {
+		desired.SetFechaEliminacion(*patch.FechaEliminacion)
+	}
+	if patch.ClearFechaEliminacion {
+		desired.ClearFechaEliminacion()
 	}
 
 	// SDD-30 ADR-30-2: the OCC gate. recordExists distinguishes "create" from

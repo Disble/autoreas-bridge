@@ -209,6 +209,19 @@ func newLegacyDateField(value time.Time) LegacyDateField {
 	}
 }
 
+func newLegacyNullDateField() LegacyDateField {
+	return LegacyDateField{
+		raw: rawField{state: rawFieldNull, bytes: []byte("null")},
+	}
+}
+
+func newLegacyBoolField(value bool) LegacyBoolField {
+	return LegacyBoolField{
+		raw:   rawField{state: rawFieldValue, bytes: mustMarshalJSON(value)},
+		value: value,
+	}
+}
+
 func (f *rawField) set(data []byte) {
 	trimmed := bytes.TrimSpace(data)
 	f.bytes = append(f.bytes[:0], trimmed...)

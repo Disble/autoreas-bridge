@@ -82,6 +82,14 @@ export function SetAnimeState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetAnimeState'](arg1, arg2, arg3);
 }
 
+export function SoftDeleteAnime(arg1, arg2) {
+  return window['go']['main']['App']['SoftDeleteAnime'](arg1, arg2);
+}
+
+export function RestoreAnime(arg1, arg2) {
+  return window['go']['main']['App']['RestoreAnime'](arg1, arg2);
+}
+
 export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
 }

@@ -31,6 +31,7 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 	after := anime.ActivityAnimeSnapshot{
 		Estado:      before.Estado,
 		NroCapVisto: before.NroCapVisto,
+		Activo:      before.Activo,
 	}
 	actionType := ""
 	if patch.Estado != nil {
@@ -40,6 +41,15 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 	if patch.NroCapVisto != nil {
 		after.NroCapVisto = *patch.NroCapVisto
 		actionType = anime.ActivityActionChapterAdjusted
+	}
+	if patch.Activo != nil {
+		if *patch.Activo {
+			after.Activo = 1
+			actionType = anime.ActivityActionAnimeRestored
+		} else {
+			after.Activo = 0
+			actionType = anime.ActivityActionAnimeSoftDeleted
+		}
 	}
 	if actionType == "" {
 		return nil
@@ -64,6 +74,7 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 		Before: anime.ActivityAnimeSnapshot{
 			Estado:      before.Estado,
 			NroCapVisto: before.NroCapVisto,
+			Activo:      before.Activo,
 		},
 		After: after,
 	})

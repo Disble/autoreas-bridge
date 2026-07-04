@@ -146,11 +146,13 @@ func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacy
 }
 
 type stubAppChapterService struct {
-	schedule   []anime.ChapterScheduleItem
-	lastDay    string
-	lastAdjust anime.AdjustWatchedChaptersCommand
-	lastState  anime.SetAnimeStateCommand
-	err        error
+	schedule       []anime.ChapterScheduleItem
+	lastDay        string
+	lastAdjust     anime.AdjustWatchedChaptersCommand
+	lastState      anime.SetAnimeStateCommand
+	lastSoftDelete anime.SoftDeleteAnimeCommand
+	lastRestore    anime.RestoreAnimeCommand
+	err            error
 }
 
 func (s *stubAppChapterService) ListChapterSchedule(_ context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error) {
@@ -173,6 +175,16 @@ func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAn
 		AnimeID: cmd.AnimeID,
 		Estado:  cmd.Estado,
 	}, s.err
+}
+
+func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastSoftDelete = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+}
+
+func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastRestore = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
 type recordingAppNotifier struct{ received []notification.Notification }

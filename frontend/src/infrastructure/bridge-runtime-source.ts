@@ -7,9 +7,11 @@ import {
   GetEffectiveAddress,
   GetPairingToken,
   PullAnimesFromLegacy,
+  RestoreAnime,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
   SetAnimeState,
+  SoftDeleteAnime,
   TriggerReconcile,
   UnpairDevice,
 } from '../../wailsjs/go/main/App';
@@ -49,6 +51,8 @@ export interface BridgeRuntimeSource {
   readonly getChapterSchedule?: (day: string) => Promise<readonly contracts.ChapterScheduleItem[]>;
   readonly adjustWatchedChapters?: (animeID: string, delta: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly restoreAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
@@ -193,6 +197,16 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     setAnimeState(animeID, estado, base) {
       return waitForBindings(() => hasGoBinding('SetAnimeState')).then((isReady) => {
         return isReady ? SetAnimeState(animeID, estado, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    softDeleteAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('SoftDeleteAnime')).then((isReady) => {
+        return isReady ? SoftDeleteAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    restoreAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('RestoreAnime')).then((isReady) => {
+        return isReady ? RestoreAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
       });
     },
     getConnectedDevices() {

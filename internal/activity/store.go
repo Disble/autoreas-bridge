@@ -12,8 +12,10 @@ const (
 	SourceSystem  = "system"
 	SourceLegacy  = "legacy"
 
-	ActionChapterAdjusted = "chapter_adjusted"
-	ActionAnimeStateSet   = "anime_state_set"
+	ActionChapterAdjusted  = "chapter_adjusted"
+	ActionAnimeStateSet    = "anime_state_set"
+	ActionAnimeSoftDeleted = "anime_soft_deleted"
+	ActionAnimeRestored    = "anime_restored"
 )
 
 type SQLiteProvider interface {

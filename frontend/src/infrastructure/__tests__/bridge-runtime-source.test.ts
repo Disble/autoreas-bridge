@@ -24,6 +24,8 @@ describe('bridge-runtime-source', () => {
     const syncingAnimePromise = source.getSyncingAnimeItems();
     const animePromise = source.getAnimes();
     const animeDetailPromise = source.getAnimeDetail?.('anime-1');
+    const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
+    const restorePromise = source.restoreAnime?.('anime-1', 1000);
     const pullPromise = source.pullAnimesFromLegacy();
     const reconcilePromise = source.triggerReconcile();
 
@@ -35,6 +37,8 @@ describe('bridge-runtime-source', () => {
     await expect(syncingAnimePromise).resolves.toEqual([]);
     await expect(animePromise).resolves.toEqual([]);
     await expect(animeDetailPromise).resolves.toEqual({});
+    await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(restorePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(pullPromise).resolves.toEqual({
       message: 'runtime unavailable',
       prunedCount: 0,
@@ -129,6 +133,25 @@ describe('bridge-runtime-source', () => {
 
     await expect(detailPromise).resolves.toEqual({ id: 'anime-1', nombre: 'Frieren', progress: { watched: 2 } });
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('calls SoftDeleteAnime and RestoreAnime once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const softDeleteMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const restoreMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+
+    const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
+    const restorePromise = source.restoreAnime?.('anime-1', 1001);
+
+    window.go = { main: { App: { SoftDeleteAnime: softDeleteMock, RestoreAnime: restoreMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(softDeletePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(restorePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    expect(softDeleteMock).toHaveBeenCalledWith('anime-1', 1000);
+    expect(restoreMock).toHaveBeenCalledWith('anime-1', 1001);
   });
 
   it('calls TriggerReconcile once Go bindings become ready', async () => {

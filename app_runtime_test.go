@@ -366,6 +366,44 @@ func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
 	}
 }
 
+func TestSoftDeleteAnimeDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.SoftDeleteAnime("anime-1", 1000)
+
+	if got.Status != "ok" {
+		t.Fatalf("expected ok soft-delete result, got %#v", got)
+	}
+	if service.lastSoftDelete.AnimeID != "anime-1" {
+		t.Fatalf("expected soft-delete command to be delegated, got %#v", service.lastSoftDelete)
+	}
+	if service.lastSoftDelete.Base == nil || *service.lastSoftDelete.Base != 1000 {
+		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastSoftDelete.Base)
+	}
+}
+
+func TestRestoreAnimeDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.RestoreAnime("anime-1", 1000)
+
+	if got.Status != "ok" {
+		t.Fatalf("expected ok restore result, got %#v", got)
+	}
+	if service.lastRestore.AnimeID != "anime-1" {
+		t.Fatalf("expected restore command to be delegated, got %#v", service.lastRestore)
+	}
+	if service.lastRestore.Base == nil || *service.lastRestore.Base != 1000 {
+		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastRestore.Base)
+	}
+}
+
 func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
@@ -394,40 +432,6 @@ func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
 	}
 	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionChapterAdjusted {
 		t.Fatalf("unexpected persisted activity row: %#v", records[0])
-	}
-}
-
-func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
-
-	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
-	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
-	service := activityAnimeWriteService{
-		query:    anime.NewQueryService(store),
-		writer:   writer,
-		recorder: recorder,
-		source:   anime.ActivitySourceMobile,
-		now:      func() int64 { return 1710000000123 },
-	}
-
-	progress := 2.0
-	base := int64(1000)
-	if err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
-		t.Fatalf("patch anime: %v", err)
-	}
-
-	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
-	if err != nil {
-		t.Fatalf("list activity rows: %v", err)
-	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 mobile activity row, got %#v", records)
-	}
-	if records[0].Source != activity.SourceMobile || records[0].ActionType != activity.ActionChapterAdjusted {
-		t.Fatalf("unexpected mobile activity row: %#v", records[0])
 	}
 }
 

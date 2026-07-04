@@ -17,6 +17,8 @@ const (
 	ActivitySourceLegacy           = "legacy"
 	ActivityActionChapterAdjusted  = "chapter_adjusted"
 	ActivityActionAnimeStateSet    = "anime_state_set"
+	ActivityActionAnimeSoftDeleted = "anime_soft_deleted"
+	ActivityActionAnimeRestored    = "anime_restored"
 	defaultActivityCorrelationType = "anime.chapter"
 )
 
@@ -86,6 +88,18 @@ type SetAnimeStateCommand struct {
 	Source  string
 }
 
+type SoftDeleteAnimeCommand struct {
+	AnimeID string
+	Base    *int64
+	Source  string
+}
+
+type RestoreAnimeCommand struct {
+	AnimeID string
+	Base    *int64
+	Source  string
+}
+
 type ChapterCommandResult struct {
 	AnimeID       string
 	AnimeName     string
@@ -109,6 +123,7 @@ type ActivityRecord struct {
 type ActivityAnimeSnapshot struct {
 	Estado      int
 	NroCapVisto float64
+	Activo      int
 }
 
 func NewChapterService(deps ChapterServiceDeps) *ChapterService {
@@ -212,10 +227,12 @@ func (s *ChapterService) AdjustWatchedChapters(ctx context.Context, cmd AdjustWa
 			Before: ActivityAnimeSnapshot{
 				Estado:      current.Estado,
 				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
 			},
 			After: ActivityAnimeSnapshot{
 				Estado:      current.Estado,
 				NroCapVisto: nextProgress,
+				Activo:      current.Activo,
 			},
 		}); err != nil {
 			return ChapterCommandResult{}, err
@@ -262,10 +279,12 @@ func (s *ChapterService) SetAnimeState(ctx context.Context, cmd SetAnimeStateCom
 			Before: ActivityAnimeSnapshot{
 				Estado:      current.Estado,
 				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
 			},
 			After: ActivityAnimeSnapshot{
 				Estado:      cmd.Estado,
 				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
 			},
 		}); err != nil {
 			return ChapterCommandResult{}, err
@@ -276,6 +295,116 @@ func (s *ChapterService) SetAnimeState(ctx context.Context, cmd SetAnimeStateCom
 		AnimeID:       cmd.AnimeID,
 		AnimeName:     current.Nombre,
 		Estado:        cmd.Estado,
+		NroCapVisto:   current.NroCapVisto,
+		OccurredAtMs:  occurredAtMs,
+		CorrelationID: correlationID,
+	}, nil
+}
+
+func (s *ChapterService) SoftDeleteAnime(ctx context.Context, cmd SoftDeleteAnimeCommand) (ChapterCommandResult, error) {
+	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
+	if err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	occurredAtMs := s.now().UnixMilli()
+	inactive := false
+	if err := s.writer.PatchAnime(ctx, cmd.AnimeID, contracts.AnimePatch{
+		Activo:              &inactive,
+		FechaEliminacion:    &occurredAtMs,
+		PreserveLastWatched: true,
+		Base:                cmd.Base,
+	}); err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	source := cmd.Source
+	if source == "" {
+		source = ActivitySourceDesktop
+	}
+	correlationID := fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, cmd.AnimeID, occurredAtMs)
+	if s.activity != nil {
+		if err := s.activity.RecordActivity(ctx, ActivityRecord{
+			Source:        source,
+			ActionType:    ActivityActionAnimeSoftDeleted,
+			AnimeID:       cmd.AnimeID,
+			AnimeName:     current.Nombre,
+			OccurredAtMs:  occurredAtMs,
+			CorrelationID: correlationID,
+			Before: ActivityAnimeSnapshot{
+				Estado:      current.Estado,
+				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
+			},
+			After: ActivityAnimeSnapshot{
+				Estado:      current.Estado,
+				NroCapVisto: current.NroCapVisto,
+				Activo:      0,
+			},
+		}); err != nil {
+			return ChapterCommandResult{}, err
+		}
+	}
+
+	return ChapterCommandResult{
+		AnimeID:       cmd.AnimeID,
+		AnimeName:     current.Nombre,
+		Estado:        current.Estado,
+		NroCapVisto:   current.NroCapVisto,
+		OccurredAtMs:  occurredAtMs,
+		CorrelationID: correlationID,
+	}, nil
+}
+
+func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeCommand) (ChapterCommandResult, error) {
+	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
+	if err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	occurredAtMs := s.now().UnixMilli()
+	active := true
+	if err := s.writer.PatchAnime(ctx, cmd.AnimeID, contracts.AnimePatch{
+		Activo:                &active,
+		ClearFechaEliminacion: true,
+		PreserveLastWatched:   true,
+		Base:                  cmd.Base,
+	}); err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	source := cmd.Source
+	if source == "" {
+		source = ActivitySourceDesktop
+	}
+	correlationID := fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, cmd.AnimeID, occurredAtMs)
+	if s.activity != nil {
+		if err := s.activity.RecordActivity(ctx, ActivityRecord{
+			Source:        source,
+			ActionType:    ActivityActionAnimeRestored,
+			AnimeID:       cmd.AnimeID,
+			AnimeName:     current.Nombre,
+			OccurredAtMs:  occurredAtMs,
+			CorrelationID: correlationID,
+			Before: ActivityAnimeSnapshot{
+				Estado:      current.Estado,
+				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
+			},
+			After: ActivityAnimeSnapshot{
+				Estado:      current.Estado,
+				NroCapVisto: current.NroCapVisto,
+				Activo:      1,
+			},
+		}); err != nil {
+			return ChapterCommandResult{}, err
+		}
+	}
+
+	return ChapterCommandResult{
+		AnimeID:       cmd.AnimeID,
+		AnimeName:     current.Nombre,
+		Estado:        current.Estado,
 		NroCapVisto:   current.NroCapVisto,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: correlationID,

@@ -229,11 +229,15 @@ type StatusInfo struct {
 var ErrAnimeNotFound = errors.New("anime not found")
 
 type AnimePatch struct {
-	Estado           *int     `json:"estado,omitempty"`
-	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
-	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
-	FechaEstreno     *int64   `json:"fechaEstreno,omitempty"`
-	Dias             []string `json:"dias,omitempty"`
+	Estado                *int     `json:"estado,omitempty"`
+	NroCapVisto           *float64 `json:"nrocapvisto,omitempty"`
+	Activo                *bool    `json:"activo,omitempty"`
+	FechaUltCapVisto      *int64   `json:"fechaUltCapVisto,omitempty"`
+	FechaEstreno          *int64   `json:"fechaEstreno,omitempty"`
+	FechaEliminacion      *int64   `json:"fechaEliminacion,omitempty"`
+	ClearFechaEliminacion bool     `json:"clearFechaEliminacion,omitempty"`
+	PreserveLastWatched   bool     `json:"-"`
+	Dias                  []string `json:"dias,omitempty"`
 	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
 	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
 	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.

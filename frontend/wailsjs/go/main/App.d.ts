@@ -43,6 +43,10 @@ export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;
 
 export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
+export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
+export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
 export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
 
 export function SetSeasonMode(arg1:boolean):Promise<string>;

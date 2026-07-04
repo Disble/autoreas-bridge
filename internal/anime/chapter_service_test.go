@@ -196,6 +196,122 @@ func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 	}
 }
 
+func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":true,"fechaEliminacion":null}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	writeService := anime.NewWriteService(store, writer)
+	activity := &stubChapterActivityRecorder{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:    anime.NewQueryService(store),
+		Writer:   writeService,
+		Activity: activity,
+		Now:      func() time.Time { return time.UnixMilli(1710000000789).UTC() },
+	})
+
+	result, err := service.SoftDeleteAnime(ctx, anime.SoftDeleteAnimeCommand{
+		AnimeID: "anime-1",
+		Base:    int64Ptr(1000),
+		Source:  anime.ActivitySourceDesktop,
+	})
+	if err != nil {
+		t.Fatalf("soft delete anime: %v", err)
+	}
+	if result.AnimeID != "anime-1" {
+		t.Fatalf("expected anime-1 result, got %#v", result)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	if raw.Activo.TriState() != domain.TriStateFalse {
+		t.Fatalf("expected activo false, got %v", raw.Activo.TriState())
+	}
+	deletedAt := raw.FechaEliminacion.Time()
+	if deletedAt == nil || deletedAt.UnixMilli() != 1710000000789 {
+		t.Fatalf("expected fechaEliminacion stamp, got %v", deletedAt)
+	}
+	if raw.FechaUltCapVisto.Time() != nil {
+		t.Fatalf("expected soft delete not to stamp fechaUltCapVisto, got %v", raw.FechaUltCapVisto.Time())
+	}
+
+	if len(activity.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	}
+	record := activity.records[0]
+	if record.ActionType != anime.ActivityActionAnimeSoftDeleted {
+		t.Fatalf("expected soft-delete activity, got %q", record.ActionType)
+	}
+	if record.Before.Activo != 1 || record.After.Activo != 0 {
+		t.Fatalf("expected before/after activo 1 -> 0, got %#v -> %#v", record.Before, record.After)
+	}
+}
+
+func TestChapterServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":false,"fechaEliminacion":{"$$date":1700000000000}}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	writeService := anime.NewWriteService(store, writer)
+	activity := &stubChapterActivityRecorder{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:    anime.NewQueryService(store),
+		Writer:   writeService,
+		Activity: activity,
+		Now:      func() time.Time { return time.UnixMilli(1710000000999).UTC() },
+	})
+
+	_, err := service.RestoreAnime(ctx, anime.RestoreAnimeCommand{
+		AnimeID: "anime-1",
+		Base:    int64Ptr(1000),
+		Source:  anime.ActivitySourceDesktop,
+	})
+	if err != nil {
+		t.Fatalf("restore anime: %v", err)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	if raw.Activo.TriState() != domain.TriStateTrue {
+		t.Fatalf("expected activo true, got %v", raw.Activo.TriState())
+	}
+	if !raw.FechaEliminacion.IsNull() {
+		t.Fatalf("expected fechaEliminacion null, got %#v", raw.FechaEliminacion)
+	}
+	if raw.FechaUltCapVisto.Time() != nil {
+		t.Fatalf("expected restore not to stamp fechaUltCapVisto, got %v", raw.FechaUltCapVisto.Time())
+	}
+
+	if len(activity.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	}
+	record := activity.records[0]
+	if record.ActionType != anime.ActivityActionAnimeRestored {
+		t.Fatalf("expected restore activity, got %q", record.ActionType)
+	}
+	if record.Before.Activo != 0 || record.After.Activo != 1 {
+		t.Fatalf("expected before/after activo 0 -> 1, got %#v -> %#v", record.Before, record.After)
+	}
+}
+
 func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)

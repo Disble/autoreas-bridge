@@ -81,8 +81,20 @@ func (r *LegacyAnimeRaw) SetDias(days []string) {
 	r.Orden = LegacyNumberField{}
 }
 
+func (r *LegacyAnimeRaw) SetActivo(value bool) {
+	r.Activo = newLegacyBoolField(value)
+}
+
 func (r *LegacyAnimeRaw) StampServerTimestamp(at time.Time) {
 	r.FechaUltCapVisto = newLegacyDateField(at)
+}
+
+func (r *LegacyAnimeRaw) SetFechaEliminacion(value int64) {
+	r.FechaEliminacion = NewLegacyDateFieldFromUnixMilli(value)
+}
+
+func (r *LegacyAnimeRaw) ClearFechaEliminacion() {
+	r.FechaEliminacion = newLegacyNullDateField()
 }
 
 func NewLegacyDateFieldFromUnixMilli(value int64) LegacyDateField {
