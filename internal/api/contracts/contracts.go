@@ -82,6 +82,47 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
+type AnimeDetailProgress struct {
+	Watched   float64  `json:"watched"`
+	Total     *int     `json:"total,omitempty"`
+	Remaining *float64 `json:"remaining,omitempty"`
+}
+
+type AnimeDetailDates struct {
+	Created     *int64 `json:"created,omitempty"`
+	FirstWatch  *int64 `json:"firstWatch,omitempty"`
+	LastWatched *int64 `json:"lastWatched,omitempty"`
+	Deleted     *int64 `json:"deleted,omitempty"`
+}
+
+type AnimeDetailContent struct {
+	Tipo     *int     `json:"tipo,omitempty"`
+	Duracion *int     `json:"duracion,omitempty"`
+	Generos  []string `json:"generos"`
+	Studios  *string  `json:"studios,omitempty"`
+	Origen   *string  `json:"origen,omitempty"`
+	Cover    *string  `json:"cover,omitempty"`
+}
+
+type AnimeDetailDownload struct {
+	Page   *string `json:"page,omitempty"`
+	Folder *string `json:"folder,omitempty"`
+}
+
+type AnimeDetail struct {
+	ID         string              `json:"id"`
+	Nombre     string              `json:"nombre"`
+	Estado     int                 `json:"estado"`
+	Activo     int                 `json:"activo"`
+	PrimeraVez int                 `json:"primeravez"`
+	Progress   AnimeDetailProgress `json:"progress"`
+	Schedule   []MobileAnimeDay    `json:"schedule"`
+	Dates      AnimeDetailDates    `json:"dates"`
+	Content    AnimeDetailContent  `json:"content"`
+	Download   AnimeDetailDownload `json:"download"`
+	ModifiedAt int64               `json:"modified_at"`
+}
+
 type ChapterScheduleItem struct {
 	AnimeID      string  `json:"animeId"`
 	AnimeName    string  `json:"animeName"`
@@ -211,6 +252,7 @@ type AnimeQueryService interface {
 	ListMobileAnimes(ctx context.Context) ([]MobileAnime, error)
 	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
 	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
+	GetAnimeDetail(ctx context.Context, id string) (*AnimeDetail, error)
 }
 
 type AnimeWriteService interface {

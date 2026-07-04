@@ -46,6 +46,10 @@ func (f *svcFakeAnimeQuery) ListAnimeItems(ctx context.Context) ([]contracts.Ani
 	return nil, nil
 }
 
+func (f *svcFakeAnimeQuery) GetAnimeDetail(ctx context.Context, id string) (*contracts.AnimeDetail, error) {
+	return nil, nil
+}
+
 var _ contracts.AnimeQueryService = (*svcFakeAnimeQuery)(nil)
 
 type svcFakeEpisodeSource struct {

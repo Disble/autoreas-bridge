@@ -147,6 +147,17 @@ func (a *App) GetAnimes() []contracts.AnimeListItem {
 	return items
 }
 
+func (a *App) GetAnimeDetail(animeID string) contracts.AnimeDetail {
+	if a.animeQuery == nil {
+		return contracts.AnimeDetail{}
+	}
+	item, err := a.animeQuery.GetAnimeDetail(a.appContext(), animeID)
+	if err != nil || item == nil {
+		return contracts.AnimeDetail{}
+	}
+	return *item
+}
+
 func (a *App) GetChapterSchedule(day string) []contracts.ChapterScheduleItem {
 	if a.chapterService == nil {
 		return []contracts.ChapterScheduleItem{}

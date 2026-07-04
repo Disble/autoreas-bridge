@@ -23,6 +23,7 @@ describe('bridge-runtime-source', () => {
     const tokenPromise = source.getPairingToken();
     const syncingAnimePromise = source.getSyncingAnimeItems();
     const animePromise = source.getAnimes();
+    const animeDetailPromise = source.getAnimeDetail?.('anime-1');
     const pullPromise = source.pullAnimesFromLegacy();
     const reconcilePromise = source.triggerReconcile();
 
@@ -33,6 +34,7 @@ describe('bridge-runtime-source', () => {
     await expect(tokenPromise).resolves.toBe('');
     await expect(syncingAnimePromise).resolves.toEqual([]);
     await expect(animePromise).resolves.toEqual([]);
+    await expect(animeDetailPromise).resolves.toEqual({});
     await expect(pullPromise).resolves.toEqual({
       message: 'runtime unavailable',
       prunedCount: 0,
@@ -112,6 +114,21 @@ describe('bridge-runtime-source', () => {
 
     await expect(animePromise).resolves.toEqual([{ id: 'anime-1', nombre: 'Test', estado: 2, nrocapvisto: 5, activo: 1 }]);
     expect(getAnimesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls GetAnimeDetail once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const getAnimeDetailMock = vi.fn().mockResolvedValue({ id: 'anime-1', nombre: 'Frieren', progress: { watched: 2 } });
+
+    const detailPromise = source.getAnimeDetail?.('anime-1');
+
+    window.go = { main: { App: { GetAnimeDetail: getAnimeDetailMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(detailPromise).resolves.toEqual({ id: 'anime-1', nombre: 'Frieren', progress: { watched: 2 } });
+    expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
   });
 
   it('calls TriggerReconcile once Go bindings become ready', async () => {

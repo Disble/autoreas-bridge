@@ -283,6 +283,30 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 	}
 }
 
+func TestGetAnimeDetailDelegatesToAnimeQuery(t *testing.T) {
+	t.Parallel()
+
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"totalcap":12,"activo":true}`, 777)
+	app := &App{ctx: context.Background(), animeQuery: anime.NewQueryService(store)}
+
+	got := app.GetAnimeDetail("anime-1")
+
+	if got.ID != "anime-1" || got.Nombre != "Frieren" {
+		t.Fatalf("expected anime detail from query service, got %#v", got)
+	}
+	if got.Progress.Total == nil || *got.Progress.Total != 12 {
+		t.Fatalf("expected total 12, got %#v", got.Progress)
+	}
+	if got.Progress.Remaining == nil || *got.Progress.Remaining != 10 {
+		t.Fatalf("expected remaining 10, got %#v", got.Progress)
+	}
+	if got.ModifiedAt != 777 {
+		t.Fatalf("expected modified_at 777, got %d", got.ModifiedAt)
+	}
+}
+
 func TestGetChapterScheduleDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
 

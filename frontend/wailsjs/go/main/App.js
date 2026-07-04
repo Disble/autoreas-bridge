@@ -6,6 +6,10 @@ export function GetAnimes() {
   return window['go']['main']['App']['GetAnimes']();
 }
 
+export function GetAnimeDetail(arg1) {
+  return window['go']['main']['App']['GetAnimeDetail'](arg1);
+}
+
 export function AdjustWatchedChapters(arg1, arg2, arg3) {
   return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
 }

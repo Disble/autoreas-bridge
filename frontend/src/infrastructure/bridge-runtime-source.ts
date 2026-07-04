@@ -1,6 +1,7 @@
 import {
   AdjustWatchedChapters,
   GetAnimes,
+  GetAnimeDetail,
   GetChapterSchedule,
   GetConnectedDevices,
   GetEffectiveAddress,
@@ -44,6 +45,7 @@ export interface BridgeRuntimeSource {
   readonly getPairingToken: () => Promise<string>;
   readonly getSyncingAnimeItems: () => Promise<readonly SyncingAnime[]>;
   readonly getAnimes: () => Promise<readonly Anime[]>;
+  readonly getAnimeDetail?: (animeID: string) => Promise<contracts.AnimeDetail>;
   readonly getChapterSchedule?: (day: string) => Promise<readonly contracts.ChapterScheduleItem[]>;
   readonly adjustWatchedChapters?: (animeID: string, delta: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
@@ -171,6 +173,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     getAnimes() {
       return waitForBindings(() => hasGoBinding('GetAnimes')).then((isReady) => {
         return isReady ? (GetAnimes() as Promise<readonly Anime[]>) : Promise.resolve([]);
+      });
+    },
+    getAnimeDetail(animeID) {
+      return waitForBindings(() => hasGoBinding('GetAnimeDetail')).then((isReady) => {
+        return isReady ? GetAnimeDetail(animeID) : Promise.resolve({} as contracts.AnimeDetail);
       });
     },
     getChapterSchedule(day) {

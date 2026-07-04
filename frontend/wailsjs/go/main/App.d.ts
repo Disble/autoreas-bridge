@@ -5,6 +5,8 @@ import {logger} from '../models';
 
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
+export function GetAnimeDetail(arg1:string):Promise<contracts.AnimeDetail>;
+
 export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function GetBridgeStatus():Promise<string>;

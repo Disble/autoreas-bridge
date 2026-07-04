@@ -52,6 +52,140 @@ export namespace contracts {
 	        this.hasFolder = source["hasFolder"];
 	    }
 	}
+	export class AnimeDetailProgress {
+	    watched: number;
+	    total?: number;
+	    remaining?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new AnimeDetailProgress(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.watched = source["watched"];
+	        this.total = source["total"];
+	        this.remaining = source["remaining"];
+	    }
+	}
+	export class AnimeDetailDates {
+	    created?: number;
+	    firstWatch?: number;
+	    lastWatched?: number;
+	    deleted?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new AnimeDetailDates(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.created = source["created"];
+	        this.firstWatch = source["firstWatch"];
+	        this.lastWatched = source["lastWatched"];
+	        this.deleted = source["deleted"];
+	    }
+	}
+	export class AnimeDetailContent {
+	    tipo?: number;
+	    duracion?: number;
+	    generos: string[];
+	    studios?: string;
+	    origen?: string;
+	    cover?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AnimeDetailContent(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tipo = source["tipo"];
+	        this.duracion = source["duracion"];
+	        this.generos = source["generos"];
+	        this.studios = source["studios"];
+	        this.origen = source["origen"];
+	        this.cover = source["cover"];
+	    }
+	}
+	export class AnimeDetailDownload {
+	    page?: string;
+	    folder?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AnimeDetailDownload(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.folder = source["folder"];
+	    }
+	}
+	export class MobileAnimeDay {
+	    dia: string;
+	    orden: number;
+
+	    static createFrom(source: any = {}) {
+	        return new MobileAnimeDay(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dia = source["dia"];
+	        this.orden = source["orden"];
+	    }
+	}
+	export class AnimeDetail {
+	    id: string;
+	    nombre: string;
+	    estado: number;
+	    activo: number;
+	    primeravez: number;
+	    progress: AnimeDetailProgress;
+	    schedule: MobileAnimeDay[];
+	    dates: AnimeDetailDates;
+	    content: AnimeDetailContent;
+	    download: AnimeDetailDownload;
+	    modified_at: number;
+
+	    static createFrom(source: any = {}) {
+	        return new AnimeDetail(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.nombre = source["nombre"];
+	        this.estado = source["estado"];
+	        this.activo = source["activo"];
+	        this.primeravez = source["primeravez"];
+	        this.progress = this.convertValues(source["progress"], AnimeDetailProgress);
+	        this.schedule = this.convertValues(source["schedule"], MobileAnimeDay);
+	        this.dates = this.convertValues(source["dates"], AnimeDetailDates);
+	        this.content = this.convertValues(source["content"], AnimeDetailContent);
+	        this.download = this.convertValues(source["download"], AnimeDetailDownload);
+	        this.modified_at = source["modified_at"];
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ChapterCommandResult {
 	    status: string;
 	    message?: string;

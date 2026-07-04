@@ -138,6 +138,70 @@ func TestQueryServiceGetMobileAnimeEchoesModifiedAtToken(t *testing.T) {
 	}
 }
 
+func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-detail", `{
+		"_id":"anime-detail",
+		"nombre":"Frieren",
+		"estado":0,
+		"nrocapvisto":10.5,
+		"totalcap":28,
+		"activo":true,
+		"primeravez":false,
+		"dias":[{"dia":"Viernes","orden":2},{"dia":"Sábado","orden":1}],
+		"generos":["Aventura","Drama"],
+		"tipo":1,
+		"fechaUltCapVisto":{"$$date":1710000000123},
+		"fechaEstreno":{"$$date":1700000000000},
+		"fechaCreacion":{"$$date":1600000000000},
+		"fechaEliminacion":null,
+		"portada":{"type":"url","path":"C:/images/frieren.jpg"},
+		"pagina":"https://anime.example/frieren",
+		"carpeta":"C:/Anime/Frieren",
+		"estudios":["Madhouse"],
+		"origen":"manga",
+		"duracion":24
+	}`, 1711111111000)
+
+	service := anime.NewQueryService(store)
+	got, err := service.GetAnimeDetail(ctx, "anime-detail")
+	if err != nil {
+		t.Fatalf("get anime detail: %v", err)
+	}
+	if got.ID != "anime-detail" || got.Nombre != "Frieren" {
+		t.Fatalf("unexpected identity fields: %#v", got)
+	}
+	if got.Estado != 0 || got.Activo != 1 || got.PrimeraVez != 0 {
+		t.Fatalf("unexpected state flags: %#v", got)
+	}
+	if got.Progress.Watched != 10.5 || got.Progress.Total == nil || *got.Progress.Total != 28 {
+		t.Fatalf("unexpected progress: %#v", got.Progress)
+	}
+	if got.Progress.Remaining == nil || *got.Progress.Remaining != 17.5 {
+		t.Fatalf("expected remaining 17.5, got %#v", got.Progress.Remaining)
+	}
+	wantDays := []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 2}, {Dia: "Sábado", Orden: 1}}
+	if !reflect.DeepEqual(got.Schedule, wantDays) {
+		t.Fatalf("expected schedule %#v, got %#v", wantDays, got.Schedule)
+	}
+	if got.Dates.LastWatched == nil || *got.Dates.LastWatched != 1710000000123 {
+		t.Fatalf("unexpected dates: %#v", got.Dates)
+	}
+	if got.Content.Cover == nil || *got.Content.Cover != "C:/images/frieren.jpg" {
+		t.Fatalf("unexpected content metadata: %#v", got.Content)
+	}
+	if got.Content.Studios == nil || *got.Content.Studios != "Madhouse" {
+		t.Fatalf("unexpected studios metadata: %#v", got.Content.Studios)
+	}
+	if got.Download.Page == nil || *got.Download.Page != "https://anime.example/frieren" {
+		t.Fatalf("unexpected download metadata: %#v", got.Download)
+	}
+	if got.ModifiedAt != 1711111111000 {
+		t.Fatalf("expected modified_at 1711111111000, got %d", got.ModifiedAt)
+	}
+}
+
 func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
