@@ -12,10 +12,14 @@ const (
 	SourceSystem  = "system"
 	SourceLegacy  = "legacy"
 
-	ActionChapterAdjusted  = "chapter_adjusted"
-	ActionAnimeStateSet    = "anime_state_set"
-	ActionAnimeSoftDeleted = "anime_soft_deleted"
-	ActionAnimeRestored    = "anime_restored"
+	ActionChapterAdjusted   = "chapter_adjusted"
+	ActionAnimeStateSet     = "anime_state_set"
+	ActionAnimeSoftDeleted  = "anime_soft_deleted"
+	ActionAnimeRestored     = "anime_restored"
+	ActionAnimePageOpened   = "anime_page_opened"
+	ActionAnimePageCopied   = "anime_page_copied"
+	ActionAnimeFolderOpened = "anime_folder_opened"
+	ActionAnimeFolderCopied = "anime_folder_copied"
 )
 
 type SQLiteProvider interface {

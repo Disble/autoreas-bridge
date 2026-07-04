@@ -1,11 +1,15 @@
 import {
   AdjustWatchedChapters,
+  CopyAnimeFolder,
+  CopyAnimePage,
   GetAnimes,
   GetAnimeDetail,
   GetChapterSchedule,
   GetConnectedDevices,
   GetEffectiveAddress,
   GetPairingToken,
+  OpenAnimeFolder,
+  OpenAnimePage,
   PullAnimesFromLegacy,
   RestoreAnime,
   GetSyncingAnimeItems,
@@ -53,6 +57,10 @@ export interface BridgeRuntimeSource {
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly restoreAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly openAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly copyAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly openAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly copyAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
   readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
@@ -207,6 +215,26 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     restoreAnime(animeID, base) {
       return waitForBindings(() => hasGoBinding('RestoreAnime')).then((isReady) => {
         return isReady ? RestoreAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    openAnimePage(animeID) {
+      return waitForBindings(() => hasGoBinding('OpenAnimePage')).then((isReady) => {
+        return isReady ? OpenAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    copyAnimePage(animeID) {
+      return waitForBindings(() => hasGoBinding('CopyAnimePage')).then((isReady) => {
+        return isReady ? CopyAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    openAnimeFolder(animeID) {
+      return waitForBindings(() => hasGoBinding('OpenAnimeFolder')).then((isReady) => {
+        return isReady ? OpenAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    copyAnimeFolder(animeID) {
+      return waitForBindings(() => hasGoBinding('CopyAnimeFolder')).then((isReady) => {
+        return isReady ? CopyAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
       });
     },
     getConnectedDevices() {

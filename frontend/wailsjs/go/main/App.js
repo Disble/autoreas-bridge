@@ -10,6 +10,22 @@ export function GetAnimeDetail(arg1) {
   return window['go']['main']['App']['GetAnimeDetail'](arg1);
 }
 
+export function OpenAnimePage(arg1) {
+  return window['go']['main']['App']['OpenAnimePage'](arg1);
+}
+
+export function CopyAnimePage(arg1) {
+  return window['go']['main']['App']['CopyAnimePage'](arg1);
+}
+
+export function OpenAnimeFolder(arg1) {
+  return window['go']['main']['App']['OpenAnimeFolder'](arg1);
+}
+
+export function CopyAnimeFolder(arg1) {
+  return window['go']['main']['App']['CopyAnimeFolder'](arg1);
+}
+
 export function AdjustWatchedChapters(arg1, arg2, arg3) {
   return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
 }

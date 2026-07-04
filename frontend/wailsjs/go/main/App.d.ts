@@ -7,6 +7,14 @@ export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetAnimeDetail(arg1:string):Promise<contracts.AnimeDetail>;
 
+export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function OpenAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function CopyAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+
 export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function GetBridgeStatus():Promise<string>;

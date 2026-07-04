@@ -26,6 +26,10 @@ describe('bridge-runtime-source', () => {
     const animeDetailPromise = source.getAnimeDetail?.('anime-1');
     const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
     const restorePromise = source.restoreAnime?.('anime-1', 1000);
+    const openPagePromise = source.openAnimePage?.('anime-1');
+    const copyPagePromise = source.copyAnimePage?.('anime-1');
+    const openFolderPromise = source.openAnimeFolder?.('anime-1');
+    const copyFolderPromise = source.copyAnimeFolder?.('anime-1');
     const pullPromise = source.pullAnimesFromLegacy();
     const reconcilePromise = source.triggerReconcile();
 
@@ -39,6 +43,10 @@ describe('bridge-runtime-source', () => {
     await expect(animeDetailPromise).resolves.toEqual({});
     await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(restorePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(openPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(copyPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(openFolderPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(copyFolderPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(pullPromise).resolves.toEqual({
       message: 'runtime unavailable',
       prunedCount: 0,
@@ -152,6 +160,42 @@ describe('bridge-runtime-source', () => {
     await expect(restorePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
     expect(softDeleteMock).toHaveBeenCalledWith('anime-1', 1000);
     expect(restoreMock).toHaveBeenCalledWith('anime-1', 1001);
+  });
+
+  it('calls page and folder desktop actions once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const openPageMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const copyPageMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const openFolderMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const copyFolderMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+
+    const openPagePromise = source.openAnimePage?.('anime-1');
+    const copyPagePromise = source.copyAnimePage?.('anime-1');
+    const openFolderPromise = source.openAnimeFolder?.('anime-1');
+    const copyFolderPromise = source.copyAnimeFolder?.('anime-1');
+
+    window.go = {
+      main: {
+        App: {
+          CopyAnimeFolder: copyFolderMock,
+          CopyAnimePage: copyPageMock,
+          OpenAnimeFolder: openFolderMock,
+          OpenAnimePage: openPageMock,
+        },
+      },
+    } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(openPagePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(copyPagePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(openFolderPromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(copyFolderPromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    expect(openPageMock).toHaveBeenCalledWith('anime-1');
+    expect(copyPageMock).toHaveBeenCalledWith('anime-1');
+    expect(openFolderMock).toHaveBeenCalledWith('anime-1');
+    expect(copyFolderMock).toHaveBeenCalledWith('anime-1');
   });
 
   it('calls TriggerReconcile once Go bindings become ready', async () => {

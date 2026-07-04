@@ -11,15 +11,19 @@ import (
 )
 
 const (
-	ActivitySourceDesktop          = "desktop"
-	ActivitySourceMobile           = "mobile"
-	ActivitySourceSystem           = "system"
-	ActivitySourceLegacy           = "legacy"
-	ActivityActionChapterAdjusted  = "chapter_adjusted"
-	ActivityActionAnimeStateSet    = "anime_state_set"
-	ActivityActionAnimeSoftDeleted = "anime_soft_deleted"
-	ActivityActionAnimeRestored    = "anime_restored"
-	defaultActivityCorrelationType = "anime.chapter"
+	ActivitySourceDesktop           = "desktop"
+	ActivitySourceMobile            = "mobile"
+	ActivitySourceSystem            = "system"
+	ActivitySourceLegacy            = "legacy"
+	ActivityActionChapterAdjusted   = "chapter_adjusted"
+	ActivityActionAnimeStateSet     = "anime_state_set"
+	ActivityActionAnimeSoftDeleted  = "anime_soft_deleted"
+	ActivityActionAnimeRestored     = "anime_restored"
+	ActivityActionAnimePageOpened   = "anime_page_opened"
+	ActivityActionAnimePageCopied   = "anime_page_copied"
+	ActivityActionAnimeFolderOpened = "anime_folder_opened"
+	ActivityActionAnimeFolderCopied = "anime_folder_copied"
+	defaultActivityCorrelationType  = "anime.chapter"
 )
 
 var (

@@ -80,6 +80,9 @@ type App struct {
 	downloadScheduler       schedule.Scheduler
 	newPreferencesStore     func(db *sql.DB) preferences.Store
 	preferencesStore        preferences.Store
+	openURL                 func(ctx context.Context, url string)
+	openFolder              func(path string) error
+	copyText                func(ctx context.Context, value string) error
 }
 
 const observabilityEventName = "observability.log"
