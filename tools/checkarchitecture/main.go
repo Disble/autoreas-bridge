@@ -58,6 +58,8 @@ func run(root string) error {
 func isActivityBoundaryFile(path string) bool {
 	return strings.Contains(path, "/internal/activity/") ||
 		strings.HasPrefix(path, "internal/activity/") ||
+		strings.HasSuffix(path, "/internal/sync/sqlite_bootstrap.go") ||
+		path == "internal/sync/sqlite_bootstrap.go" ||
 		strings.Contains(path, "/tools/checkarchitecture/") ||
 		strings.HasPrefix(path, "tools/checkarchitecture/")
 }

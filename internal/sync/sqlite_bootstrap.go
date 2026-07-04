@@ -42,6 +42,26 @@ const (
 			last_seen_at_ms INTEGER NOT NULL,
 			sync_status TEXT NOT NULL DEFAULT 'active'
 		)`
+	activityLogDDL = `
+		CREATE TABLE IF NOT EXISTS activity_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			source TEXT NOT NULL,
+			action_type TEXT NOT NULL,
+			anime_id TEXT NOT NULL,
+			anime_name TEXT NOT NULL,
+			occurred_at_ms INTEGER NOT NULL,
+			correlation_id TEXT,
+			before_json TEXT,
+			after_json TEXT
+		)`
+	activityLogOccurredAtIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_activity_log_occurred_at ON activity_log(occurred_at_ms DESC, id DESC)`
+	activityLogAnimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_activity_log_anime ON activity_log(anime_id, occurred_at_ms DESC)`
+	activityLogActionIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log(action_type, occurred_at_ms DESC)`
+	activityLogCorrelationIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_activity_log_correlation ON activity_log(correlation_id)`
 	conflictsDDL = `
 		CREATE TABLE IF NOT EXISTS conflicts (
 			conflict_id TEXT PRIMARY KEY,
@@ -209,6 +229,9 @@ func initializeBridgeDB(db *sql.DB) error {
 	if _, err := db.Exec(deviceSyncStateDDL); err != nil {
 		return fmt.Errorf("ensure device_sync_state schema: %w", err)
 	}
+	if err := ensureActivityLogSchema(db); err != nil {
+		return err
+	}
 	if _, err := db.Exec(conflictsDDL); err != nil {
 		return fmt.Errorf("ensure conflicts schema: %w", err)
 	}
@@ -240,6 +263,27 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+func ensureActivityLogSchema(db *sql.DB) error {
+	if _, err := db.Exec(activityLogDDL); err != nil {
+		return fmt.Errorf("ensure activity_log schema: %w", err)
+	}
+	indexes := []struct {
+		name string
+		ddl  string
+	}{
+		{name: "activity_log occurred_at index", ddl: activityLogOccurredAtIndexDDL},
+		{name: "activity_log anime index", ddl: activityLogAnimeIndexDDL},
+		{name: "activity_log action index", ddl: activityLogActionIndexDDL},
+		{name: "activity_log correlation index", ddl: activityLogCorrelationIndexDDL},
+	}
+	for _, index := range indexes {
+		if _, err := db.Exec(index.ddl); err != nil {
+			return fmt.Errorf("ensure %s: %w", index.name, err)
+		}
+	}
 	return nil
 }
 

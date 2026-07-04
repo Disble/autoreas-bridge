@@ -13,6 +13,8 @@ import (
 const (
 	ActivitySourceDesktop          = "desktop"
 	ActivitySourceMobile           = "mobile"
+	ActivitySourceSystem           = "system"
+	ActivitySourceLegacy           = "legacy"
 	ActivityActionChapterAdjusted  = "chapter_adjusted"
 	ActivityActionAnimeStateSet    = "anime_state_set"
 	defaultActivityCorrelationType = "anime.chapter"

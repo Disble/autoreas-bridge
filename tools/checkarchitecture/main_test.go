@@ -33,6 +33,19 @@ const query = "INSERT INTO activity_log DEFAULT VALUES"
 	}
 }
 
+func TestRunAllowsActivityLogSchemaReferencesInSQLiteBootstrap(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, root, "internal/sync/sqlite_bootstrap.go", `package sync
+const ddl = "CREATE TABLE activity_log (id INTEGER PRIMARY KEY)"
+`)
+
+	if err := run(root); err != nil {
+		t.Fatalf("expected bootstrap schema reference to pass, got %v", err)
+	}
+}
+
 func writeFile(t *testing.T, root string, name string, content string) {
 	t.Helper()
 

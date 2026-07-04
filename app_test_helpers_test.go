@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"io"
 	"path/filepath"
@@ -289,6 +291,21 @@ func (stubAppStore) ListSnapshots(context.Context) (map[string]anime.SnapshotRec
 
 func (stubAppStore) ReplaceBaseline(context.Context, map[string]anime.SnapshotRecord, []string) error {
 	return nil
+}
+
+func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID string, payload string, modifiedAt int64) {
+	t.Helper()
+	hashBytes := md5.Sum([]byte(payload))
+	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
+		animeID: {
+			AnimeID:       animeID,
+			CanonicalJSON: []byte(payload),
+			Hash:          hex.EncodeToString(hashBytes[:]),
+			ModifiedAt:    modifiedAt,
+		},
+	}, nil); err != nil {
+		t.Fatalf("seed runtime anime snapshot: %v", err)
+	}
 }
 
 type fakeAppDownloadStore struct {

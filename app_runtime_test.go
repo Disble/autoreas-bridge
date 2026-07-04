@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -338,6 +339,71 @@ func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
 	}
 	if service.lastState.Base == nil || *service.lastState.Base != 1000 {
 		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastState.Base)
+	}
+}
+
+func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
+	ctx := context.Background()
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+
+	writer := &stubAppUpdateWriter{}
+	app := newAppTestApp(t)
+	app.ctx = ctx
+	app.bridgeDB = db
+	app.animeQuery = anime.NewQueryService(store)
+	app.animeUpdateWriter = writer
+	app.wireChapterService(bridgeSync.NewConflictStore(db))
+
+	result := app.AdjustWatchedChapters("anime-1", 1, 1000)
+	if result.Status != "ok" {
+		t.Fatalf("expected ok chapter adjustment, got %#v", result)
+	}
+
+	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
+	if err != nil {
+		t.Fatalf("list activity rows: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 persisted activity row, got %#v", records)
+	}
+	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionChapterAdjusted {
+		t.Fatalf("unexpected persisted activity row: %#v", records[0])
+	}
+}
+
+func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
+	ctx := context.Background()
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+
+	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
+	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
+	service := activityAnimeWriteService{
+		query:    anime.NewQueryService(store),
+		writer:   writer,
+		recorder: recorder,
+		source:   anime.ActivitySourceMobile,
+		now:      func() int64 { return 1710000000123 },
+	}
+
+	progress := 2.0
+	base := int64(1000)
+	if err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
+		t.Fatalf("patch anime: %v", err)
+	}
+
+	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
+	if err != nil {
+		t.Fatalf("list activity rows: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 mobile activity row, got %#v", records)
+	}
+	if records[0].Source != activity.SourceMobile || records[0].ActionType != activity.ActionChapterAdjusted {
+		t.Fatalf("unexpected mobile activity row: %#v", records[0])
 	}
 }
 

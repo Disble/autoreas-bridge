@@ -6,6 +6,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/filesystem"
@@ -166,7 +167,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 	a.animeUpdateWriter.StartAsync(catchUpContext)
 }
 
-func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite *anime.WriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
+func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
 	return a.newHTTPServer(api.Config{
 		DeviceService:          deviceService,
 		AnimeQuery:             a.animeQuery,

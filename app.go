@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"time"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
@@ -185,10 +188,14 @@ func (a *App) startup(ctx context.Context) {
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
 	})
-	a.chapterService = anime.NewChapterService(anime.ChapterServiceDeps{
-		Query:  a.animeQuery,
-		Writer: animeWrite,
-	})
+	a.wireChapterServiceWithWriter(animeWrite)
+	mobileAnimeWrite := activityAnimeWriteService{
+		query:    a.animeQuery,
+		writer:   animeWrite,
+		recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))},
+		source:   anime.ActivitySourceMobile,
+		now:      func() int64 { return time.Now().UnixMilli() },
+	}
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
 			return ""
@@ -197,7 +204,7 @@ func (a *App) startup(ctx context.Context) {
 	})
 	syncTrigger := bridgeSync.NewTriggerService(a.eventBus, changelogStore, a.sharedLogger)
 	a.syncTrigger = syncTrigger
-	a.httpServer = a.buildHTTPServer(deviceService, animeWrite, conflictService, statusService, syncTrigger)
+	a.httpServer = a.buildHTTPServer(deviceService, mobileAnimeWrite, conflictService, statusService, syncTrigger)
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
 		return
@@ -206,12 +213,64 @@ func (a *App) startup(ctx context.Context) {
 	a.startDownloadOrchestration(ctx)
 }
 
-// startDownloadOrchestration wires the SDD-28 download bounded context (design.md §3/§6/§8,
-// PR4b Phase 6): DownloadStore -> Service -> Scheduler, reconciling any zombie "running" row
-// left behind by a previous crash BEFORE the scheduler's loop starts (design §8 crash-zombie
-// reconciliation). Failures here are logged and degrade to a nil downloadScheduler/Service --
-// they NEVER fail overall app startup, since auto-download is an optional feature layered on
-// top of the core sync/anime bounded contexts.
+func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {
+	if a.animeQuery == nil || writer == nil {
+		return
+	}
+	deps := anime.ChapterServiceDeps{
+		Query:  a.animeQuery,
+		Writer: writer,
+	}
+	if a.bridgeDB != nil {
+		deps.Activity = activityRecorderAdapter{
+			store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB)),
+		}
+	}
+	a.chapterService = anime.NewChapterService(deps)
+}
+
+func (a *App) wireChapterService(conflictWriter anime.ConflictWriter) {
+	if a.bridgeDB == nil || a.animeUpdateWriter == nil {
+		return
+	}
+	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
+	writer := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	if conflictWriter != nil {
+		writer.SetDeps(anime.WriteServiceDeps{
+			Conflicts:      conflictWriter,
+			Notifier:       a.notifier,
+			Logger:         a.sharedLogger,
+			OCCObserveOnly: true,
+		})
+	}
+	a.wireChapterServiceWithWriter(writer)
+}
+
+type activityRecorderAdapter struct {
+	store *activity.Store
+}
+
+func (a activityRecorderAdapter) RecordActivity(ctx context.Context, record anime.ActivityRecord) error {
+	beforeJSON, err := json.Marshal(record.Before)
+	if err != nil {
+		return err
+	}
+	afterJSON, err := json.Marshal(record.After)
+	if err != nil {
+		return err
+	}
+	return a.store.RecordActivity(ctx, activity.Record{
+		Source:        record.Source,
+		ActionType:    record.ActionType,
+		AnimeID:       record.AnimeID,
+		AnimeName:     record.AnimeName,
+		OccurredAtMs:  record.OccurredAtMs,
+		CorrelationID: record.CorrelationID,
+		BeforeJSON:    beforeJSON,
+		AfterJSON:     afterJSON,
+	})
+}
+
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
