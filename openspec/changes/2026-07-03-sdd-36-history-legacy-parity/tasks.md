@@ -117,11 +117,15 @@ the FULL pre-commit gate; orchestrator verifies and commits after each slice.
 
 ### Phase 4.3 — Verify slice 4
 - [x] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
-- [ ] **Orchestrator commits slice 4.**
+- [x] **Orchestrator committed slice 4** as `56aaee8`, full gate green (516 frontend tests).
 
 ## Phase 5 — Close (orchestrator)
-- [ ] Full pre-commit gate green on the final commit; 4 commits landed in order.
-- [ ] Archive DEFERRED (repo practice, alongside sdd-33/34/35).
+- [x] Full pre-commit gate green on the final commit; 4 commits landed in order:
+      slice 1 `e7ed072` → slice 2 `512d0d0` → slice 3 `8da936f` → slice 4 `56aaee8`, each
+      independently green (12/12 gates per commit).
+- [x] Archive DEFERRED (repo practice, alongside sdd-33/34/35). Open item carried forward:
+      portada local-path rendering in the Wails webview is unverified — needs a manual smoke
+      test in the running app; follow-up asset-handler change if the placeholder path is taken.
 
 ## Review Workload Forecast
 
