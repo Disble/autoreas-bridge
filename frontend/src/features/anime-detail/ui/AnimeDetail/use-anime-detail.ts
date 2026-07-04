@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
@@ -20,6 +20,7 @@ export function useAnimeDetail(
 
   // 2. State
   const [detail, setDetail] = useState<AnimeDetail | null | undefined>(undefined);
+  const [portadaFailed, setPortadaFailed] = useState(false);
 
   // 3. Context/3rd Party Hooks
 
@@ -37,14 +38,19 @@ export function useAnimeDetail(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
   );
+  const showPortadaPlaceholder = portadaFailed || viewModel?.portadaUrl === undefined;
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const onPortadaError = useCallback(() => {
+    setPortadaFailed(true);
+  }, []);
 
   // 7. Effects
   useEffect(() => {
     let active = true;
 
     setDetail(undefined);
+    setPortadaFailed(false);
 
     void source
       .getAnimeDetail(props.animeId)
@@ -71,5 +77,7 @@ export function useAnimeDetail(
   return {
     loadState,
     detail: viewModel,
+    showPortadaPlaceholder,
+    onPortadaError,
   };
 }

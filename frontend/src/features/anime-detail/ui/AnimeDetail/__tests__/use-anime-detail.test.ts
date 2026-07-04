@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
@@ -84,5 +84,51 @@ describe('useAnimeDetail', () => {
     rerender({ animeId: 'anime-2' });
 
     await waitFor(() => expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-2'));
+  });
+
+  it('shows the portada placeholder when the detail has no portada', async () => {
+    const source = createSource(populatedDetail);
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    expect(result.current.showPortadaPlaceholder).toBe(true);
+  });
+
+  it('hides the portada placeholder when the detail has a portada, until onPortadaError fires', async () => {
+    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    expect(result.current.showPortadaPlaceholder).toBe(false);
+
+    act(() => {
+      result.current.onPortadaError();
+    });
+
+    expect(result.current.showPortadaPlaceholder).toBe(true);
+  });
+
+  it('resets the portada-error flag when the animeId prop changes', async () => {
+    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const { rerender, result } = renderHook(
+      ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source),
+      { initialProps: { animeId: 'anime-1' } },
+    );
+
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    act(() => {
+      result.current.onPortadaError();
+    });
+    expect(result.current.showPortadaPlaceholder).toBe(true);
+
+    rerender({ animeId: 'anime-2' });
+
+    await waitFor(() => expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-2'));
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    expect(result.current.showPortadaPlaceholder).toBe(false);
   });
 });

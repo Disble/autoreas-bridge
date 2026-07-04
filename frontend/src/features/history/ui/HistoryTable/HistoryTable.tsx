@@ -139,7 +139,7 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
           </Pagination.Item>
           {pageItems.map((item, index) =>
             item === 'ellipsis' ? (
-              <Pagination.Item key={`ellipsis-${index}`}>
+              <Pagination.Item key={`ellipsis-after-${String(pageItems[index - 1] ?? 'start')}`}>
                 <Pagination.Ellipsis />
               </Pagination.Item>
             ) : (

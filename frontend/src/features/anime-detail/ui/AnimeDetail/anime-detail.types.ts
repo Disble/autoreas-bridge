@@ -7,6 +7,13 @@ export interface AnimeDetailProps {
   readonly className?: string;
 }
 
+/**
+ * HeroUI chip color tokens supported by the project's design system (mirrors
+ * `HistoryTable`'s `HeroChipColor`, duplicated per this repo's
+ * feature-local-constants convention).
+ */
+export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
+
 /** A single repetition-history entry mapped for display. */
 export interface AnimeRepeticionViewModel {
   readonly key: string;
@@ -15,12 +22,31 @@ export interface AnimeRepeticionViewModel {
   readonly repeatedOnLabel: string;
 }
 
+/** A single per-chapter stat tile (label + display-ready value). */
+export interface AnimeDetailStatTile {
+  readonly label: string;
+  readonly value: string;
+}
+
 /** View model consumed by the dumb AnimeDetail UI. */
 export interface AnimeDetailViewModel {
   readonly id: string;
   readonly nombre: string;
-  readonly progressLabel: string;
+  readonly portadaUrl?: string;
+  readonly estadoLabel: string;
+  readonly tipoLabel: string;
+  readonly subtitleLabel: string;
+  readonly statusLabel: string;
+  readonly statusColor: HeroChipColor;
+  readonly statTiles: readonly AnimeDetailStatTile[];
+  readonly progressRatio?: number;
+  readonly paginaUrl?: string;
+  readonly carpetaLabel: string;
+  readonly estrenoLabel: string;
+  readonly creacionLabel: string;
+  readonly ultCapVistoLabel: string;
   readonly genres: readonly string[];
+  readonly hasGenres: boolean;
   readonly studios: string;
   readonly origin: string;
   readonly isFirstWatch: boolean;
@@ -35,4 +61,6 @@ export type AnimeDetailLoadState = 'loading' | 'loaded' | 'not-found';
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
   readonly detail: AnimeDetailViewModel | undefined;
+  readonly showPortadaPlaceholder: boolean;
+  readonly onPortadaError: () => void;
 }

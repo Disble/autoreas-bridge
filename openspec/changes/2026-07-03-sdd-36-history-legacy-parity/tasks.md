@@ -91,30 +91,32 @@ the FULL pre-commit gate; orchestrator verifies and commits after each slice.
 
 ### Phase 3.4 — Verify slice 3
 - [x] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
-- [ ] **Orchestrator commits slice 3.**
+- [x] **Orchestrator committed slice 3** as `8da936f` (incl. orchestrator-added numbered
+      pagination with ellipsis windowing — the sub-agent's first pass shipped only
+      Previous/Next, below the spec's numbered-pagination requirement).
 
 ## Slice 4 — Detail "Información" enrichment (~250 lines, frontend-only)
 
 ### Phase 4.1 — View model + helpers (spec: Anime Detail delta)
-- [ ] RED: `anime-detail.helpers` tests — enriched view model: estado/tipo human labels +
+- [x] RED: `anime-detail.helpers` tests — enriched view model: estado/tipo human labels +
       "estado • tipo" line, status-chip variant (e.g. eliminado→danger), watched/total/duration
       stat values with explicit English "no data" fallbacks, progress ratio when total known,
       fecha formatting, géneros/estudios/origen/carpeta fallbacks, página passed through as URL.
-- [ ] GREEN: helpers (JSDoc'd); verify estado/tipo label domains against catalog constants and
+- [x] GREEN: helpers (JSDoc'd); verify estado/tipo label domains against catalog constants and
       the fixture — do not invent values.
 
 ### Phase 4.2 — Layout (spec scenarios: hero, per-chapter, página link, repetir retained)
-- [ ] RED: `AnimeDetail.tsx` dumb-render tests — hero (cover img with onError→placeholder,
+- [x] RED: `AnimeDetail.tsx` dumb-render tests — hero (cover img with onError→placeholder,
       título, subtitle, chip), stat tiles, progress bar only when total known, general-data
       section with página as clickable external link (follow existing repo precedent for
       external links if one exists; else anchor target="_blank" rel="noreferrer"), repetir
       timeline still present (most recent first).
-- [ ] GREEN: `AnimeDetail.tsx` with HeroUI primitives (no chart library). Record in
+- [x] GREEN: `AnimeDetail.tsx` with HeroUI primitives (no chart library). Record in
       apply-progress whether the Wails webview actually renders the legacy local-path portada or
       the placeholder path is taken (known open item — do NOT block on an asset handler).
 
 ### Phase 4.3 — Verify slice 4
-- [ ] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
+- [x] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
 - [ ] **Orchestrator commits slice 4.**
 
 ## Phase 5 — Close (orchestrator)
