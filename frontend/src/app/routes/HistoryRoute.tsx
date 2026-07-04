@@ -1,4 +1,4 @@
-import { HistoryList } from '../../features/history/ui/HistoryList/HistoryList';
+import { HistoryTable } from '../../features/history/ui/HistoryTable/HistoryTable';
 
 /**
  * History section: a top-level watch-activity log over the synchronized
@@ -13,7 +13,7 @@ export function HistoryRoute() {
         <p className="text-sm text-muted">Track progress and repetition history for the synchronized inventory</p>
       </header>
       <div className="min-w-0">
-        <HistoryList />
+        <HistoryTable />
       </div>
     </div>
   );
