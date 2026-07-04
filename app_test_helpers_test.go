@@ -143,6 +143,36 @@ func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacy
 	return s.result
 }
 
+type stubAppChapterService struct {
+	schedule   []anime.ChapterScheduleItem
+	lastDay    string
+	lastAdjust anime.AdjustWatchedChaptersCommand
+	lastState  anime.SetAnimeStateCommand
+	err        error
+}
+
+func (s *stubAppChapterService) ListChapterSchedule(_ context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error) {
+	s.lastDay = query.Day
+	return s.schedule, s.err
+}
+
+func (s *stubAppChapterService) AdjustWatchedChapters(_ context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error) {
+	s.lastAdjust = cmd
+	return anime.ChapterCommandResult{
+		AnimeID:     cmd.AnimeID,
+		NroCapVisto: cmd.Delta,
+		Estado:      0,
+	}, s.err
+}
+
+func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error) {
+	s.lastState = cmd
+	return anime.ChapterCommandResult{
+		AnimeID: cmd.AnimeID,
+		Estado:  cmd.Estado,
+	}, s.err
+}
+
 type recordingAppNotifier struct{ received []notification.Notification }
 
 func (n *recordingAppNotifier) Notify(_ context.Context, notif notification.Notification) error {

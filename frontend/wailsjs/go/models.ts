@@ -52,6 +52,66 @@ export namespace contracts {
 	        this.hasFolder = source["hasFolder"];
 	    }
 	}
+	export class ChapterCommandResult {
+	    status: string;
+	    message?: string;
+	    animeId?: string;
+	    animeName?: string;
+	    estado?: number;
+	    nrocapvisto?: number;
+	    occurredAtMs?: number;
+	    correlationId?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new ChapterCommandResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.message = source["message"];
+	        this.animeId = source["animeId"];
+	        this.animeName = source["animeName"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.occurredAtMs = source["occurredAtMs"];
+	        this.correlationId = source["correlationId"];
+	    }
+	}
+	export class ChapterScheduleItem {
+	    animeId: string;
+	    animeName: string;
+	    estado: number;
+	    nrocapvisto: number;
+	    totalcap?: number;
+	    day: string;
+	    dayOrder: number;
+	    modified_at: number;
+	    hasPage: boolean;
+	    hasFolder: boolean;
+	    lastWatched?: number;
+	    firstWatched?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ChapterScheduleItem(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.animeId = source["animeId"];
+	        this.animeName = source["animeName"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.totalcap = source["totalcap"];
+	        this.day = source["day"];
+	        this.dayOrder = source["dayOrder"];
+	        this.modified_at = source["modified_at"];
+	        this.hasPage = source["hasPage"];
+	        this.hasFolder = source["hasFolder"];
+	        this.lastWatched = source["lastWatched"];
+	        this.firstWatched = source["firstWatched"];
+	    }
+	}
 	export class DeviceInfo {
 	    device_id: string;
 	    device_name: string;

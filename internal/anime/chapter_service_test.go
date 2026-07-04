@@ -1,0 +1,236 @@
+package anime_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"reflect"
+	"testing"
+	"time"
+
+	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/domain"
+)
+
+func TestChapterServiceAdjustWatchedChaptersWritesProgressAndRecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":2.5,"estado":0,"totalcap":24,"activo":true}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	writeService := anime.NewWriteService(store, writer)
+	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	activity := &stubChapterActivityRecorder{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:    anime.NewQueryService(store),
+		Writer:   writeService,
+		Activity: activity,
+		Now:      func() time.Time { return time.UnixMilli(1710000000123).UTC() },
+	})
+
+	result, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+		AnimeID: "anime-1",
+		Delta:   0.5,
+		Base:    int64Ptr(1000),
+		Source:  anime.ActivitySourceDesktop,
+	})
+	if err != nil {
+		t.Fatalf("adjust watched chapters: %v", err)
+	}
+
+	if result.NroCapVisto != 3 {
+		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	if raw.NroCapVisto != 3 {
+		t.Fatalf("expected writer payload progress 3, got %v", raw.NroCapVisto)
+	}
+	lastWatched := raw.FechaUltCapVisto.Time()
+	if lastWatched == nil || lastWatched.UnixMilli() != 1710000000123 {
+		t.Fatalf("expected fechaUltCapVisto to be stamped, got %v", lastWatched)
+	}
+	firstWatched := raw.FechaEstreno.Time()
+	if firstWatched == nil || firstWatched.UnixMilli() != 1710000000123 {
+		t.Fatalf("expected fechaEstreno to be stamped on first watch, got %v", firstWatched)
+	}
+
+	if len(activity.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	}
+	record := activity.records[0]
+	if record.ActionType != anime.ActivityActionChapterAdjusted {
+		t.Fatalf("expected chapter adjusted activity, got %q", record.ActionType)
+	}
+	if record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" {
+		t.Fatalf("expected anime identity to be recorded, got %#v", record)
+	}
+	if record.Source != anime.ActivitySourceDesktop {
+		t.Fatalf("expected desktop source, got %q", record.Source)
+	}
+	if record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
+		t.Fatalf("expected before/after progress 2.5 -> 3, got %#v -> %#v", record.Before, record.After)
+	}
+}
+
+func TestChapterServiceAdjustWatchedChaptersRejectsBlockedStates(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Paused","nrocapvisto":4,"estado":3,"totalcap":12,"activo":true}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:  anime.NewQueryService(store),
+		Writer: anime.NewWriteService(store, writer),
+	})
+
+	_, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+		AnimeID: "anime-1",
+		Delta:   1,
+		Base:    int64Ptr(1000),
+	})
+	if !errors.Is(err, anime.ErrChapterProgressBlocked) {
+		t.Fatalf("expected blocked progress error, got %v", err)
+	}
+	if writer.payload != nil {
+		t.Fatalf("expected no writer payload for blocked state, got %s", writer.payload)
+	}
+}
+
+func TestChapterServiceAdjustWatchedChaptersRejectsNegativeProgress(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Start","nrocapvisto":0,"estado":0,"totalcap":12,"activo":true}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:  anime.NewQueryService(store),
+		Writer: anime.NewWriteService(store, writer),
+	})
+
+	_, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+		AnimeID: "anime-1",
+		Delta:   -0.5,
+		Base:    int64Ptr(1000),
+	})
+	if !errors.Is(err, anime.ErrChapterProgressBelowZero) {
+		t.Fatalf("expected below-zero progress error, got %v", err)
+	}
+	if writer.payload != nil {
+		t.Fatalf("expected no writer payload for negative progress, got %s", writer.payload)
+	}
+}
+
+func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":true}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	writeService := anime.NewWriteService(store, writer)
+	activity := &stubChapterActivityRecorder{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:    anime.NewQueryService(store),
+		Writer:   writeService,
+		Activity: activity,
+		Now:      func() time.Time { return time.UnixMilli(1710000000456).UTC() },
+	})
+
+	result, err := service.SetAnimeState(ctx, anime.SetAnimeStateCommand{
+		AnimeID: "anime-1",
+		Estado:  3,
+		Base:    int64Ptr(1000),
+		Source:  anime.ActivitySourceDesktop,
+	})
+	if err != nil {
+		t.Fatalf("set anime state: %v", err)
+	}
+	if result.Estado != 3 {
+		t.Fatalf("expected resulting state 3, got %d", result.Estado)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	if raw.EstadoValue() == nil || *raw.EstadoValue() != 3 {
+		t.Fatalf("expected writer payload state 3, got %#v", raw.EstadoValue())
+	}
+
+	if len(activity.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	}
+	record := activity.records[0]
+	if record.ActionType != anime.ActivityActionAnimeStateSet {
+		t.Fatalf("expected state-set activity, got %q", record.ActionType)
+	}
+	if record.Before.Estado != 0 || record.After.Estado != 3 {
+		t.Fatalf("expected before/after state 0 -> 3, got %#v -> %#v", record.Before, record.After)
+	}
+}
+
+func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-late", `{"_id":"anime-late","nombre":"Late","nrocapvisto":1,"estado":0,"activo":true,"dias":[{"dia":"Viernes","orden":3}]}`)
+	seedAnimeSnapshot(t, store, "anime-early", `{"_id":"anime-early","nombre":"Early","nrocapvisto":2,"estado":0,"activo":true,"dias":[{"dia":"Viernes","orden":1}]}`)
+	seedAnimeSnapshot(t, store, "anime-other-day", `{"_id":"anime-other-day","nombre":"Other","nrocapvisto":3,"estado":0,"activo":true,"dias":[{"dia":"Jueves","orden":1}]}`)
+	seedAnimeSnapshot(t, store, "anime-inactive", `{"_id":"anime-inactive","nombre":"Inactive","nrocapvisto":4,"estado":0,"activo":false,"dias":[{"dia":"Viernes","orden":0}]}`)
+
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query: anime.NewQueryService(store),
+	})
+
+	got, err := service.ListChapterSchedule(ctx, anime.ChapterScheduleQuery{Day: "Viernes"})
+	if err != nil {
+		t.Fatalf("list chapter schedule: %v", err)
+	}
+
+	gotIDs := make([]string, 0, len(got))
+	for _, item := range got {
+		gotIDs = append(gotIDs, item.AnimeID)
+	}
+	wantIDs := []string{"anime-early", "anime-late"}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("expected ids %#v, got %#v", wantIDs, gotIDs)
+	}
+	if got[0].DayOrder != 1 || got[1].DayOrder != 3 {
+		t.Fatalf("expected day orders [1 3], got [%d %d]", got[0].DayOrder, got[1].DayOrder)
+	}
+}
+
+type stubChapterActivityRecorder struct {
+	records []anime.ActivityRecord
+}
+
+func (s *stubChapterActivityRecorder) RecordActivity(_ context.Context, record anime.ActivityRecord) error {
+	s.records = append(s.records, record)
+	return nil
+}

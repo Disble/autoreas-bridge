@@ -5,7 +5,11 @@ import {logger} from '../models';
 
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
+export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
+
 export function GetBridgeStatus():Promise<string>;
+
+export function GetChapterSchedule(arg1:string):Promise<Array<contracts.ChapterScheduleItem>>;
 
 export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
 
@@ -34,6 +38,8 @@ export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
 
 export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;
+
+export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
 

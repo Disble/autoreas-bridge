@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
@@ -278,6 +279,65 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 	}
 	if got[0].ProgressCurrent == nil || *got[0].ProgressCurrent != current {
 		t.Fatalf("expected progress current %v, got %#v", current, got[0].ProgressCurrent)
+	}
+}
+
+func TestGetChapterScheduleDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{
+		schedule: []anime.ChapterScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
+	}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.GetChapterSchedule("Viernes")
+
+	if len(got) != 1 || got[0].AnimeID != "anime-1" {
+		t.Fatalf("expected delegated chapter schedule, got %#v", got)
+	}
+	if got[0].AnimeName != "Frieren" || got[0].DayOrder != 1 {
+		t.Fatalf("expected chapter schedule contract fields, got %#v", got[0])
+	}
+	if service.lastDay != "Viernes" {
+		t.Fatalf("expected day Viernes to be delegated, got %q", service.lastDay)
+	}
+}
+
+func TestAdjustWatchedChaptersDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.AdjustWatchedChapters("anime-1", 0.5, 1000)
+
+	if got.Status != "ok" {
+		t.Fatalf("expected ok result, got %#v", got)
+	}
+	if service.lastAdjust.AnimeID != "anime-1" || service.lastAdjust.Delta != 0.5 {
+		t.Fatalf("expected adjust command to be delegated, got %#v", service.lastAdjust)
+	}
+	if service.lastAdjust.Base == nil || *service.lastAdjust.Base != 1000 {
+		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastAdjust.Base)
+	}
+}
+
+func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.SetAnimeState("anime-1", 3, 1000)
+
+	if got.Status != "ok" || got.Estado != 3 {
+		t.Fatalf("expected ok state result, got %#v", got)
+	}
+	if service.lastState.AnimeID != "anime-1" || service.lastState.Estado != 3 {
+		t.Fatalf("expected state command to be delegated, got %#v", service.lastState)
+	}
+	if service.lastState.Base == nil || *service.lastState.Base != 1000 {
+		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastState.Base)
 	}
 }
 

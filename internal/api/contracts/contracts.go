@@ -82,6 +82,32 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
+type ChapterScheduleItem struct {
+	AnimeID      string  `json:"animeId"`
+	AnimeName    string  `json:"animeName"`
+	Estado       int     `json:"estado"`
+	NroCapVisto  float64 `json:"nrocapvisto"`
+	TotalCap     *int    `json:"totalcap,omitempty"`
+	Day          string  `json:"day"`
+	DayOrder     int     `json:"dayOrder"`
+	ModifiedAt   int64   `json:"modified_at"`
+	HasPage      bool    `json:"hasPage"`
+	HasFolder    bool    `json:"hasFolder"`
+	LastWatched  *int64  `json:"lastWatched,omitempty"`
+	FirstWatched *int64  `json:"firstWatched,omitempty"`
+}
+
+type ChapterCommandResult struct {
+	Status        string  `json:"status"`
+	Message       string  `json:"message,omitempty"`
+	AnimeID       string  `json:"animeId,omitempty"`
+	AnimeName     string  `json:"animeName,omitempty"`
+	Estado        int     `json:"estado,omitempty"`
+	NroCapVisto   float64 `json:"nrocapvisto,omitempty"`
+	OccurredAtMs  int64   `json:"occurredAtMs,omitempty"`
+	CorrelationID string  `json:"correlationId,omitempty"`
+}
+
 type AnimeLegacyPullResult struct {
 	Status       string `json:"status"`
 	Message      string `json:"message"`
@@ -165,6 +191,7 @@ type AnimePatch struct {
 	Estado           *int     `json:"estado,omitempty"`
 	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
 	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
+	FechaEstreno     *int64   `json:"fechaEstreno,omitempty"`
 	Dias             []string `json:"dias,omitempty"`
 	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
 	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an

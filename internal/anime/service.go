@@ -229,6 +229,9 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 	} else {
 		desired.StampServerTimestamp(s.nowFunc())
 	}
+	if patch.FechaEstreno != nil {
+		desired.FechaEstreno = domain.NewLegacyDateFieldFromUnixMilli(*patch.FechaEstreno)
+	}
 
 	// SDD-30 ADR-30-2: the OCC gate. recordExists distinguishes "create" from
 	// "existing record" for the base==nil branches; valueEqual lazily compares

@@ -57,6 +57,7 @@ type App struct {
 	animeLegacyPull         anime.LegacyPullService
 	animeRuntimeWatcher     anime.RuntimeWatcher
 	animeUpdateWriter       anime.UpdateWriter
+	chapterService          chapterCommandService
 	syncChangelogRecorder   changelogRecorder
 	realtimeHub             realtime.Hub
 	httpServer              api.Server
@@ -99,6 +100,12 @@ type changelogRecorder interface {
 	Start(ctx context.Context)
 	Stop()
 	Err() error
+}
+
+type chapterCommandService interface {
+	ListChapterSchedule(ctx context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error)
+	AdjustWatchedChapters(ctx context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error)
+	SetAnimeState(ctx context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error)
 }
 
 // NewApp creates a new App application struct
@@ -177,6 +184,10 @@ func (a *App) startup(ctx context.Context) {
 		Notifier:       a.notifier,
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
+	})
+	a.chapterService = anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:  a.animeQuery,
+		Writer: animeWrite,
 	})
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {

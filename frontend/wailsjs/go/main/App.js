@@ -6,8 +6,16 @@ export function GetAnimes() {
   return window['go']['main']['App']['GetAnimes']();
 }
 
+export function AdjustWatchedChapters(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
+}
+
 export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
+}
+
+export function GetChapterSchedule(arg1) {
+  return window['go']['main']['App']['GetChapterSchedule'](arg1);
 }
 
 export function GetConnectedDevices() {
@@ -64,6 +72,10 @@ export function SetHosterPriority(arg1, arg2) {
 
 export function SetJDConfig(arg1) {
   return window['go']['main']['App']['SetJDConfig'](arg1);
+}
+
+export function SetAnimeState(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetAnimeState'](arg1, arg2, arg3);
 }
 
 export function SetScheduleConfig(arg1) {
