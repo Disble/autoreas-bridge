@@ -41,26 +41,26 @@ the FULL pre-commit gate; orchestrator verifies and commits after each slice.
 ### Phase 1.3 — Verify slice 1
 - [x] `go test ./...`, `gofmt -l .` empty, `golangci-lint run`, `go vet ./...`,
       `bun --cwd=frontend run validate`, `bun --cwd=frontend run test` — ALL GREEN.
-- [ ] **Orchestrator commits slice 1.**
+- [x] **Orchestrator committed slice 1** as `e7ed072`, full gate green.
 
 ## Slice 2 — IA promotion: History as own section (~120 lines)
 
 ### Phase 2.1 — Nav + route (spec: Anime History / "History Is Its Own Top-Level Section")
-- [ ] RED: update `App.test.tsx`/`AppLayout` assertions — nav now has EXACTLY 8 entries including
+- [x] RED: update `App.test.tsx`/`AppLayout` assertions — nav now has EXACTLY 8 entries including
       a "History" entry to `/history`; `/history` renders the History surface; `/catalog/history`
       no longer exists.
-- [ ] GREEN: `AppLayout.tsx` NAV_ITEMS + icon (same icon source as the other 7); `App.tsx` route
+- [x] GREEN: `AppLayout.tsx` NAV_ITEMS + icon (same icon source as the other 7); `App.tsx` route
       swap; `HistoryRoute.tsx` becomes top-level with its own English "History" title/subtitle
       (watch-activity copy moves here from wherever sdd-35 put it).
 
 ### Phase 2.2 — Delete `CatalogLensSwitch` (spec: Anime / "Catalog Is Inventory-Only")
-- [ ] RED: Catalog route test asserting NO lens switch renders on `/catalog`.
-- [ ] GREEN: delete `features/catalog/ui/CatalogLensSwitch/` entirely (component, hook, helpers,
+- [x] RED: Catalog route test asserting NO lens switch renders on `/catalog`.
+- [x] GREEN: delete `features/catalog/ui/CatalogLensSwitch/` entirely (component, hook, helpers,
       constants, tests); remove its usages from routes; existing `HistoryList` keeps rendering at
       `/history` unchanged for this slice.
 
 ### Phase 2.3 — Verify slice 2
-- [ ] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
+- [x] `bun --cwd=frontend run test` + `validate` + `filesize:warning` GREEN; `go build ./...`.
 - [ ] **Orchestrator commits slice 2.**
 
 ## Slice 3 — History table with pagination/search/filters (~350 lines)

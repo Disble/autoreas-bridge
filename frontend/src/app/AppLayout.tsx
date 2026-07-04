@@ -109,6 +109,25 @@ function CatalogIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function HistoryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" />
+      <path d="M9 3h6" />
+    </svg>
+  );
+}
+
 function DownloadIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -176,11 +195,12 @@ function OptionsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Fixed 7-entry nav shared by the desktop rail and the mobile tab bar. History is reached as a lens under Catalog, not an 8th entry here. */
+/** Fixed 8-entry nav shared by the desktop rail and the mobile tab bar. History is its own top-level entry, separate from Catalog. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/catalog', label: 'Catalog', Icon: CatalogIcon },
+  { to: '/history', label: 'History', Icon: HistoryIcon },
   { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },

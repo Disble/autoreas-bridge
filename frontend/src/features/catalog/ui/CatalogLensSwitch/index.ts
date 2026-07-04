@@ -1,1 +1,0 @@
-export { CatalogLensSwitch } from './CatalogLensSwitch';

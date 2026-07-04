@@ -19,8 +19,8 @@ function App() {
                 <Route path="/network" element={<NetworkRoute />} />
                 <Route path="/dashboard" element={<BridgeDashboard />} />
                 <Route path="/catalog" element={<CatalogRoute />} />
-                <Route path="/catalog/history" element={<HistoryRoute />} />
                 <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
+                <Route path="/history" element={<HistoryRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />
                 <Route path="/pairing" element={<PairingRoute />} />

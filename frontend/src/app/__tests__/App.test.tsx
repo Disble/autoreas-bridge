@@ -120,7 +120,20 @@ describe('App routing', () => {
     expect(within(nav).queryByRole('link', { name: 'Animes' })).not.toBeInTheDocument();
   });
 
-  it('keeps exactly 7 primary navigation entries after the Catalog rename', async () => {
+  it('renders History as its own nav entry pointing to /history', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
+    const historyLink = within(nav).getByRole('link', { name: 'History' });
+
+    expect(historyLink).toHaveAttribute('href', '/history');
+  });
+
+  it('keeps exactly 8 primary navigation entries after History is promoted to its own section', async () => {
     render(
       <MemoryRouter initialEntries={['/network']}>
         <App />
@@ -129,7 +142,7 @@ describe('App routing', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
 
-    expect(within(nav).getAllByRole('link')).toHaveLength(7);
+    expect(within(nav).getAllByRole('link')).toHaveLength(8);
   });
 
   it('renders the catalog route directly', async () => {
@@ -152,40 +165,40 @@ describe('App routing', () => {
     expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
   });
 
-  it('renders the history route directly', async () => {
+  it('renders the history route as its own top-level section', async () => {
     render(
-      <MemoryRouter initialEntries={['/catalog/history']}>
+      <MemoryRouter initialEntries={['/history']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('radio', { name: 'History' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'History' })).toBeInTheDocument();
   });
 
-  it('renders the segmented Catalog/History control on /catalog', async () => {
+  it('does not render a Catalog/History lens switch on /catalog', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('radio', { name: 'Catalog' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'History' })).toBeInTheDocument();
-  });
-
-  it('does not render the segmented Catalog/History control on the shared detail route', () => {
-    render(
-      <MemoryRouter initialEntries={['/catalog/detail/anime-1']}>
-        <App />
-      </MemoryRouter>,
-    );
-
+    await screen.findByRole('heading', { level: 1, name: 'Catalog' });
     expect(screen.queryByRole('radio', { name: 'Catalog' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'History' })).not.toBeInTheDocument();
   });
 
-  it('keeps exactly 7 primary navigation entries after History is introduced', () => {
-    expect(NAV_ITEMS.length).toBe(7);
+  it('no longer serves History under /catalog/history', async () => {
+    render(
+      <MemoryRouter initialEntries={['/catalog/history']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('keeps exactly 8 primary navigation entries after History is promoted', () => {
+    expect(NAV_ITEMS.length).toBe(8);
   });
 
   it('renders a not found route for unknown paths', async () => {
