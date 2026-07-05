@@ -8,6 +8,8 @@ function createSource(overrides: Partial<ChapterScheduleSource> = {}): ChapterSc
     adjustWatchedChapters: vi.fn().mockResolvedValue({ status: 'ok' }),
     copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
     copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+    getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
+    getChapterDayCounts: vi.fn().mockResolvedValue([]),
     getChapterSchedule: vi.fn().mockResolvedValue([]),
     getSeasonMode: vi.fn().mockResolvedValue(false),
     openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
@@ -31,10 +33,11 @@ describe('ChapterSchedulePanel', () => {
           day: 'Viernes',
           dayOrder: 1,
           estado: 0,
-          hasFolder: true,
-          hasPage: true,
+          folderPath: '/anime/frieren',
+          hasCover: false,
           modified_at: 1000,
           nrocapvisto: 10.5,
+          pageUrl: 'https://example.com/frieren',
           totalcap: 28,
         },
       ]),
@@ -43,8 +46,8 @@ describe('ChapterSchedulePanel', () => {
     render(<ChapterSchedulePanel initialDay="Viernes" source={source} />);
 
     expect(await screen.findByText('Frieren')).toBeInTheDocument();
-    expect(screen.getByText('10.5 watched')).toBeInTheDocument();
-    expect(screen.queryByText('17.5 remaining')).not.toBeInTheDocument();
+    expect(screen.getByText('10.5 watched')).toHaveClass('group-hover:hidden');
+    expect(screen.getByText('17.5 remaining')).toHaveClass('group-hover:inline');
     expect(screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Add one chapter for Frieren. Secondary click adds half chapter.' }));
@@ -64,8 +67,7 @@ describe('ChapterSchedulePanel', () => {
           day: 'Viernes',
           dayOrder: 1,
           estado: 0,
-          hasFolder: false,
-          hasPage: false,
+          hasCover: false,
           modified_at: 1000,
           nrocapvisto: 10,
           totalcap: 28,
@@ -95,10 +97,11 @@ describe('ChapterSchedulePanel', () => {
           day: 'Viernes',
           dayOrder: 1,
           estado: 0,
-          hasFolder: true,
-          hasPage: true,
+          folderPath: '/anime/frieren',
+          hasCover: false,
           modified_at: 1000,
           nrocapvisto: 10,
+          pageUrl: 'https://example.com/frieren',
           totalcap: 28,
         },
       ]),
@@ -122,8 +125,7 @@ describe('ChapterSchedulePanel', () => {
           day: 'Viernes',
           dayOrder: 1,
           estado: 3,
-          hasFolder: false,
-          hasPage: false,
+          hasCover: false,
           modified_at: 1000,
           nrocapvisto: 4,
         },
@@ -134,5 +136,26 @@ describe('ChapterSchedulePanel', () => {
 
     expect(await screen.findByRole('heading', { name: 'Paused' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add one chapter for Paused. Secondary click adds half chapter.' })).toBeDisabled();
+  });
+
+  describe('day count badges', () => {
+    it('shows a count badge on a day ToggleButton with qualifying entries', async () => {
+      const source = createSource({ getChapterDayCounts: vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]) });
+
+      render(<ChapterSchedulePanel initialDay="Viernes" source={source} />);
+
+      const viernesOption = await screen.findByRole('radio', { name: /Viernes/ });
+      expect(viernesOption).toHaveTextContent('2');
+    });
+
+    it('shows no badge element for a day with a zero or absent count', async () => {
+      const source = createSource({ getChapterDayCounts: vi.fn().mockResolvedValue([{ count: 0, day: 'Viernes' }]) });
+
+      render(<ChapterSchedulePanel initialDay="Viernes" source={source} />);
+
+      const viernesOption = await screen.findByRole('radio', { name: 'Viernes' });
+      expect(viernesOption).toHaveTextContent('Viernes');
+      expect(screen.queryByText('0')).not.toBeInTheDocument();
+    });
   });
 });

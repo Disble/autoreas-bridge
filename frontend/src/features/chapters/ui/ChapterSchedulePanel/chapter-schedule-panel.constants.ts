@@ -30,3 +30,6 @@ export const CHAPTER_STATE_OPTIONS = [
   { icon: closeCircleIcon, label: 'Dropped', value: 2 },
   { icon: pauseCircleIcon, label: 'Paused', value: 3 },
 ] as const;
+
+/** Fixed-size wrapper class shared by the cover slot's placeholder and image states, so neither ever shifts the card layout. */
+export const CHAPTER_COVER_SLOT_CLASS = 'w-24 shrink-0 self-stretch overflow-hidden rounded-l-[inherit]';

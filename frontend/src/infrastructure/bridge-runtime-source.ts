@@ -2,9 +2,11 @@ import {
   AdjustWatchedChapters,
   CopyAnimeFolder,
   CopyAnimePage,
+  GetAnimeCover,
   GetAnimeHistory,
   GetAnimes,
   GetAnimeDetail,
+  GetChapterDayCounts,
   GetChapterSchedule,
   GetConnectedDevices,
   GetEffectiveAddress,
@@ -56,6 +58,8 @@ export interface BridgeRuntimeSource {
   readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>;
   readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
   readonly getChapterSchedule?: (day: string) => Promise<readonly contracts.ChapterScheduleItem[]>;
+  readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
+  readonly getChapterDayCounts?: () => Promise<readonly contracts.ChapterDayCount[]>;
   readonly adjustWatchedChapters?: (animeID: string, delta: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
@@ -204,6 +208,16 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     getChapterSchedule(day) {
       return waitForBindings(() => hasGoBinding('GetChapterSchedule')).then((isReady) => {
         return isReady ? (GetChapterSchedule(day) as Promise<readonly contracts.ChapterScheduleItem[]>) : Promise.resolve([]);
+      });
+    },
+    getAnimeCover(animeID) {
+      return waitForBindings(() => hasGoBinding('GetAnimeCover')).then((isReady) => {
+        return isReady ? (GetAnimeCover(animeID) as Promise<contracts.AnimeCover>) : Promise.resolve({ source: 'placeholder' });
+      });
+    },
+    getChapterDayCounts() {
+      return waitForBindings(() => hasGoBinding('GetChapterDayCounts')).then((isReady) => {
+        return isReady ? (GetChapterDayCounts() as Promise<readonly contracts.ChapterDayCount[]>) : Promise.resolve([]);
       });
     },
     adjustWatchedChapters(animeID, delta, base) {
