@@ -1,7 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChapterSchedulePanel } from '../use-chapter-schedule-panel';
 import type { ChapterScheduleSource } from '../chapter-schedule-panel.types';
+
+const toastMock = vi.hoisted(() => ({
+  success: vi.fn(),
+  danger: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+}));
+
+vi.mock('@heroui/react', () => ({
+  toast: toastMock,
+}));
 
 function createSource(overrides: Partial<ChapterScheduleSource> = {}): ChapterScheduleSource {
   return {
@@ -110,6 +121,57 @@ describe('useChapterSchedulePanel', () => {
 
     expect(source.openAnimePage).toHaveBeenCalledWith('anime-1');
     expect(source.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
+  });
+
+  describe('copy feedback toasts', () => {
+    beforeEach(() => {
+      toastMock.success.mockClear();
+    });
+
+    it('confirms a successful folder copy with a toast', async () => {
+      const source = createSource({ copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }) });
+      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await act(async () => {
+        await result.current.copyAnimeFolder('anime-1');
+      });
+
+      expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard');
+    });
+
+    it('confirms a successful page copy with a toast', async () => {
+      const source = createSource({ copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }) });
+      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await act(async () => {
+        await result.current.copyAnimePage('anime-1');
+      });
+
+      expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard');
+    });
+
+    it('does not toast when the copy fails and keeps the error message', async () => {
+      const source = createSource({ copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'error', message: 'clipboard unavailable' }) });
+      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await act(async () => {
+        await result.current.copyAnimeFolder('anime-1');
+      });
+
+      expect(toastMock.success).not.toHaveBeenCalled();
+      expect(result.current.errorMessage).toBe('clipboard unavailable');
+    });
+
+    it('does not toast on open actions', async () => {
+      const source = createSource({ openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }) });
+      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await act(async () => {
+        await result.current.openAnimeFolder('anime-1');
+      });
+
+      expect(toastMock.success).not.toHaveBeenCalled();
+    });
   });
 
   describe('cover fetching', () => {

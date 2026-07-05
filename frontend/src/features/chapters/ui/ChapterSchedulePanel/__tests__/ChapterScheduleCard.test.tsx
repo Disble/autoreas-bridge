@@ -38,31 +38,41 @@ function createCallbacks() {
 afterEach(() => cleanup());
 
 describe('ChapterScheduleCard', () => {
-  it('renders the shared placeholder when showCoverPlaceholder is true', () => {
+  it('renders the full-bleed placeholder scene when showCoverPlaceholder is true', () => {
     const row = createRow({ showCoverPlaceholder: true });
     render(<ChapterScheduleCard row={row} {...createCallbacks()} />);
 
-    expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
+    const scene = screen.getByRole('img', { name: 'No cover art' });
+    expect(scene).toBeInTheDocument();
+    expect(scene).toHaveClass('absolute', 'inset-0', 'size-full');
   });
 
-  it('renders the resolved cover image when showCoverPlaceholder is false and a coverDataUrl is present', () => {
+  it('renders the resolved cover image filling the slot without affecting card height', () => {
     const row = createRow({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false });
     render(<ChapterScheduleCard row={row} {...createCallbacks()} />);
 
     expect(screen.queryByRole('img', { name: 'No cover art' })).not.toBeInTheDocument();
     const image = screen.getByTestId('chapter-schedule-cover-image');
     expect(image).toHaveAttribute('src', 'data:image/png;base64,abc');
+    expect(image).toHaveClass('absolute', 'inset-0', 'object-cover');
   });
 
-  it('renders both cover states inside the same fixed-size wrapper', () => {
+  it('bleeds the cover slot through the card padding inside the same fixed-size wrapper', () => {
     const { unmount } = render(<ChapterScheduleCard row={createRow({ showCoverPlaceholder: true })} {...createCallbacks()} />);
     const placeholderWrapper = screen.getByTestId('chapter-schedule-cover-slot');
-    expect(placeholderWrapper).toHaveClass('w-24');
+    expect(placeholderWrapper).toHaveClass('w-24', 'relative', '-ml-4', '-my-4');
     unmount();
 
     render(<ChapterScheduleCard row={createRow({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false })} {...createCallbacks()} />);
     const imageWrapper = screen.getByTestId('chapter-schedule-cover-slot');
-    expect(imageWrapper).toHaveClass('w-24');
+    expect(imageWrapper).toHaveClass('w-24', 'relative', '-ml-4', '-my-4');
+  });
+
+  it('separates the cover slot from the text block with a breathing gap and a minimum row height', () => {
+    render(<ChapterScheduleCard row={createRow()} {...createCallbacks()} />);
+
+    const slot = screen.getByTestId('chapter-schedule-cover-slot');
+    expect(slot.parentElement).toHaveClass('gap-4', 'min-h-24');
   });
 
   it('renders watched and remaining as sibling spans with the group-hover swap classes', () => {
@@ -75,14 +85,29 @@ describe('ChapterScheduleCard', () => {
     expect(remaining).toHaveClass('group-hover:inline');
   });
 
-  it('renders the minus button with the danger treatment and the plus button as primary', () => {
+  it('renders the progress pair with the bridge theme roles: minus secondary, plus primary', () => {
     render(<ChapterScheduleCard row={createRow()} {...createCallbacks()} />);
 
     const minusButton = screen.getByRole('button', { name: 'Subtract one chapter for Frieren. Secondary click subtracts half chapter.' });
     const plusButton = screen.getByRole('button', { name: 'Add one chapter for Frieren. Secondary click adds half chapter.' });
 
-    expect(minusButton.className).toContain('danger');
-    expect(plusButton.className).toContain('primary');
+    expect(minusButton.className).toContain('button--secondary');
+    expect(minusButton.className).not.toContain('danger');
+    expect(plusButton.className).toContain('button--primary');
+  });
+
+  it('tints the utility actions with intent colors on hover', () => {
+    const row = createRow({ folderPath: '/anime/frieren', hasFolder: true, hasPage: true, pageUrl: 'https://example.com/frieren' });
+    render(<ChapterScheduleCard row={row} {...createCallbacks()} />);
+
+    const folderButton = screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' });
+    const pageButton = screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' });
+    const statusButton = screen.getByRole('button', { name: 'Change status for Frieren. Current status: Watching.' });
+
+    expect(folderButton.className).toContain('hover:text-success');
+    expect(pageButton.className).toContain('hover:text-accent');
+    expect(statusButton.className).toContain('hover:text-warning');
+    expect(statusButton.className).toContain('button--tertiary');
   });
 
   it('shows the literal folder path and page URL in the action tooltips', async () => {

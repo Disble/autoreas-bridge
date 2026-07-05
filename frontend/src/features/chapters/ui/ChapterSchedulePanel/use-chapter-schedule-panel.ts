@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from '@heroui/react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import { preferencesSource } from '../../../../infrastructure/preferences-source';
 import { CHAPTER_RUNTIME_UNAVAILABLE_RESULT } from './chapter-schedule-panel.constants';
@@ -105,18 +106,22 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     [refresh, refreshDayCounts, source],
   );
 
-  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<ChapterCommandResult>, animeID: string) => {
+  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<ChapterCommandResult>, animeID: string, successToast?: string) => {
     setErrorMessage('');
     const result = await action(animeID);
     if (result.status !== 'ok') {
       setErrorMessage(result.message ?? 'Could not run anime desktop action.');
+      return;
+    }
+    if (successToast !== undefined) {
+      toast.success(successToast);
     }
   }, []);
 
   const openAnimePage = useCallback((animeID: string) => runDesktopAction(source.openAnimePage, animeID), [runDesktopAction, source.openAnimePage]);
-  const copyAnimePage = useCallback((animeID: string) => runDesktopAction(source.copyAnimePage, animeID), [runDesktopAction, source.copyAnimePage]);
+  const copyAnimePage = useCallback((animeID: string) => runDesktopAction(source.copyAnimePage, animeID, 'Page URL copied to clipboard'), [runDesktopAction, source.copyAnimePage]);
   const openAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.openAnimeFolder, animeID), [runDesktopAction, source.openAnimeFolder]);
-  const copyAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.copyAnimeFolder, animeID), [runDesktopAction, source.copyAnimeFolder]);
+  const copyAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.copyAnimeFolder, animeID, 'Folder path copied to clipboard'), [runDesktopAction, source.copyAnimeFolder]);
 
   // 7. Effects
   useEffect(() => {

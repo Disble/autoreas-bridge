@@ -6,7 +6,7 @@ import minusCircleIcon from '@iconify-icons/solar/minus-circle-broken';
 import { Icon } from '@iconify/react';
 import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
-import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
+import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
 import { CHAPTER_COVER_SLOT_CLASS, CHAPTER_STATE_OPTIONS } from './chapter-schedule-panel.constants';
 import type { ChapterScheduleCardProps } from './chapter-schedule-panel.types';
 
@@ -20,14 +20,14 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex">
+      <div className="flex min-h-24 gap-4">
         {hasResolvedCover ? (
           <div className={CHAPTER_COVER_SLOT_CLASS} data-testid="chapter-schedule-cover-slot">
-            <img alt="" className="size-full object-cover" data-testid="chapter-schedule-cover-image" src={row.coverDataUrl} />
+            <img alt="" className="absolute inset-0 size-full object-cover" data-testid="chapter-schedule-cover-image" src={row.coverDataUrl} />
           </div>
         ) : (
-          <div className={`${CHAPTER_COVER_SLOT_CLASS} flex items-center justify-center bg-white/[0.04] text-muted`} data-testid="chapter-schedule-cover-slot">
-            <AnimeCoverPlaceholder className="size-12" />
+          <div className={CHAPTER_COVER_SLOT_CLASS} data-testid="chapter-schedule-cover-slot">
+            <CoverPlaceholderScene className="absolute inset-0 size-full" />
           </div>
         )}
         <Card.Content className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -50,6 +50,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
                   <Button
                     isIconOnly
                     aria-label={`Open page for ${row.name}. Secondary click copies page URL.`}
+                    className="hover:text-accent"
                     size="sm"
                     variant="tertiary"
                     onContextMenu={(event: MouseEvent) => {
@@ -71,6 +72,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
                   <Button
                     isIconOnly
                     aria-label={`Open folder for ${row.name}. Secondary click copies folder path.`}
+                    className="hover:text-success"
                     size="sm"
                     variant="tertiary"
                     onContextMenu={(event: MouseEvent) => {
@@ -96,7 +98,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
               aria-label={`Subtract one chapter for ${row.name}. Secondary click subtracts half chapter.`}
               isDisabled={row.isProgressBlocked}
               size="sm"
-              variant="danger"
+              variant="secondary"
               onContextMenu={(event: MouseEvent) => {
                 event.preventDefault();
                 void adjustWatchedChapters(row.id, -0.5, row.modifiedAt);
@@ -120,7 +122,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
               <Icon icon={addCircleIcon} className="size-5" />
             </Button>
             <Modal>
-              <Button isIconOnly aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} size="sm" variant="secondary">
+              <Button isIconOnly aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} className="hover:text-warning" size="sm" variant="tertiary">
                 <Icon icon={menuIcon} className="size-5" />
               </Button>
               <Modal.Backdrop variant="blur">
