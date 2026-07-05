@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"os/exec"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
@@ -164,6 +165,17 @@ func (a *App) ensureRuntimeDependencies() {
 	}
 	if a.quitApp == nil {
 		a.quitApp = wruntime.Quit
+	}
+	if a.openURL == nil {
+		a.openURL = wruntime.BrowserOpenURL
+	}
+	if a.copyText == nil {
+		a.copyText = wruntime.ClipboardSetText
+	}
+	if a.openFolder == nil {
+		a.openFolder = func(path string) error {
+			return exec.Command("explorer", path).Start()
+		}
 	}
 	if a.memLogger == nil {
 		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{

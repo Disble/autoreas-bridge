@@ -55,6 +55,14 @@ const (
 			auth_token TEXT NOT NULL UNIQUE,
 			paired_at_ms INTEGER NOT NULL
 		)`
+
+	deviceSyncStateDDL = `
+		CREATE TABLE IF NOT EXISTS device_sync_state (
+			device_id TEXT PRIMARY KEY,
+			last_ack_changelog_id INTEGER NOT NULL DEFAULT 0,
+			last_seen_at_ms INTEGER NOT NULL,
+			sync_status TEXT NOT NULL DEFAULT 'active'
+		)`
 )
 
 // schemaTables returns the TableSchema descriptors for all sync-owned bridge tables.
@@ -117,6 +125,14 @@ func schemaTables() []persistence.TableSchema {
 			// A missing row is the canonical default-false value for all boolean settings.
 			Name:      "app_settings",
 			CreateDDL: appSettingsDDL,
+		},
+		{
+			// device_sync_state: recovered at merge time — the sdd-34 registry
+			// refactor dropped this table's creation (a latent regression: only
+			// changelog_store writes to it, and no test bootstraps it fresh);
+			// main's pre-registry bootstrap still created it. Create-only.
+			Name:      "device_sync_state",
+			CreateDDL: deviceSyncStateDDL,
 		},
 	}
 }

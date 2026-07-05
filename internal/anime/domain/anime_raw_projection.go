@@ -135,8 +135,78 @@ func (r *LegacyAnimeRaw) SetDias(days []string) {
 	r.Orden = LegacyNumberField{}
 }
 
+func (r *LegacyAnimeRaw) SetActivo(value bool) {
+	r.Activo = newLegacyBoolField(value)
+}
+
 func (r *LegacyAnimeRaw) StampServerTimestamp(at time.Time) {
 	r.FechaUltCapVisto = newLegacyDateField(at)
+}
+
+func (r *LegacyAnimeRaw) SetFechaEliminacion(value int64) {
+	r.FechaEliminacion = NewLegacyDateFieldFromUnixMilli(value)
+}
+
+func (r *LegacyAnimeRaw) ClearFechaEliminacion() {
+	r.FechaEliminacion = newLegacyNullDateField()
+}
+
+func (r *LegacyAnimeRaw) RepeatForNewCycle(at time.Time) {
+	repeats := r.repeatEntries()
+	estado := 0
+	if currentEstado := r.EstadoValue(); currentEstado != nil {
+		estado = *currentEstado
+	}
+	repeats = append(repeats, map[string]json.RawMessage{
+		"numrepeticion":    mustMarshalJSON(len(repeats)),
+		"nrocapvisto":      mustMarshalJSON(r.NroCapVisto),
+		"estado":           mustMarshalJSON(estado),
+		"fechaCreacion":    r.dateFieldJSON(r.FechaCreacion),
+		"fechaEstreno":     r.dateFieldJSON(r.FechaEstreno),
+		"fechaUltCapVisto": r.dateFieldJSON(r.FechaUltCapVisto),
+		"fechaEliminacion": r.dateFieldJSON(r.FechaEliminacion),
+		"fechaRepeticion":  mustMarshalJSON(map[string]int64{"$$date": at.UTC().UnixMilli()}),
+	})
+	encoded := mustMarshalJSON(repeats)
+	// Repetir is the typed LegacyRepetirField (not extraFields): reloading it
+	// from the freshly encoded array updates both its raw bytes (what
+	// MarshalJSON round-trips) and its typed entries in one step, so no
+	// separate extraFields write is needed.
+	r.Repetir = LegacyRepetirField{}
+	_ = r.Repetir.UnmarshalJSON(encoded)
+
+	if r.Primeravez.TriState() == TriStateTrue {
+		r.Primeravez = newLegacyBoolField(false)
+	}
+	r.SetNroCapVisto(0)
+	r.SetEstado(0)
+	r.FechaCreacion = newLegacyDateField(at)
+	r.FechaEstreno = newLegacyNullDateField()
+	r.FechaUltCapVisto = newLegacyNullDateField()
+	r.FechaEliminacion = newLegacyNullDateField()
+	r.SetActivo(true)
+}
+
+// repeatEntries decodes the existing repetir array from the typed field's
+// RAW bytes (not its typed values) so every key of every legacy entry is
+// preserved verbatim when a new cycle is appended.
+func (r LegacyAnimeRaw) repeatEntries() []map[string]json.RawMessage {
+	if !r.Repetir.raw.IsValue() {
+		return make([]map[string]json.RawMessage, 0, 1)
+	}
+
+	var entries []map[string]json.RawMessage
+	if err := json.Unmarshal(r.Repetir.raw.bytes, &entries); err != nil {
+		return make([]map[string]json.RawMessage, 0, 1)
+	}
+	return entries
+}
+
+func (r LegacyAnimeRaw) dateFieldJSON(field LegacyDateField) json.RawMessage {
+	if field.IsAbsent() || field.IsNull() {
+		return mustMarshalJSON(nil)
+	}
+	return field.raw.marshal()
 }
 
 func NewLegacyDateFieldFromUnixMilli(value int64) LegacyDateField {

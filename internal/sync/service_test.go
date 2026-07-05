@@ -88,6 +88,47 @@ func TestTriggerServiceListPendingAnimeSyncsFiltersInactiveAnimes(t *testing.T) 
 	}
 }
 
+func TestTriggerServiceAcknowledgeDeviceUpdatesCheckpointAndPrunes(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingAckStore{}
+	service := NewTriggerService(events.NewBus(), store)
+
+	if err := service.AcknowledgeDevice(context.Background(), "device-1", 42); err != nil {
+		t.Fatalf("acknowledge device: %v", err)
+	}
+
+	if store.deviceID != "device-1" || store.lastAck != 42 {
+		t.Fatalf("expected ack for device-1 at 42, got device=%q ack=%d", store.deviceID, store.lastAck)
+	}
+	if !store.pruned {
+		t.Fatal("expected acknowledged changelog pruning to run")
+	}
+	if store.lastSeenAtMs <= 0 {
+		t.Fatalf("expected last seen timestamp to be stamped, got %d", store.lastSeenAtMs)
+	}
+}
+
+type recordingAckStore struct {
+	stubPendingLookup
+	deviceID     string
+	lastAck      int64
+	lastSeenAtMs int64
+	pruned       bool
+}
+
+func (s *recordingAckStore) AcknowledgeDevice(_ context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error {
+	s.deviceID = deviceID
+	s.lastAck = lastAckChangelogID
+	s.lastSeenAtMs = lastSeenAtMs
+	return nil
+}
+
+func (s *recordingAckStore) PruneAcknowledgedChangelog(context.Context) (int64, error) {
+	s.pruned = true
+	return 0, nil
+}
+
 func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 	t.Parallel()
 
@@ -179,12 +220,22 @@ func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
 	return nil, nil
 }
 
+func (s stubPendingLookup) AcknowledgeDevice(context.Context, string, int64, int64) error {
+	return nil
+}
+
+func (s stubPendingLookup) PruneAcknowledgedChangelog(context.Context) (int64, error) {
+	return 0, nil
+}
+
 var _ interface {
 	ListSinceTimestamp(context.Context, int64) ([]ChangelogEntry, error)
 	ListAfterID(context.Context, int64) ([]ChangelogEntry, error)
 	ListPending(context.Context) ([]ChangelogEntry, error)
 	LastID(context.Context) (int64, error)
 	LastChangedAt(context.Context) (*int64, error)
+	AcknowledgeDevice(context.Context, string, int64, int64) error
+	PruneAcknowledgedChangelog(context.Context) (int64, error)
 } = stubPendingLookup{}
 
 var _ = contracts.SyncingAnimeItem{}

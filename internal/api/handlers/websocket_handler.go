@@ -19,6 +19,7 @@ type WebSocketHandlerConfig struct {
 	Authenticate      AuthenticateFunc
 	ApplyPendingPatch PatchAnimeFunc
 	TriggerReconcile  TriggerReconcileFunc
+	AcknowledgeDevice AcknowledgeDeviceFunc
 	Hub               realtime.Hub
 	Logger            sharedlogger.Logger
 }
@@ -64,7 +65,7 @@ func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
 			if err != nil {
 				return
 			}
-			if err := handleIncomingWebSocketMessage(r.Context(), payload, config); err != nil && config.Logger != nil {
+			if err := handleIncomingWebSocketMessage(r.Context(), device.DeviceID, payload, config); err != nil && config.Logger != nil {
 				config.Logger.Warnf("websocket incoming message failed for %s: %v", device.DeviceID, err)
 			}
 		}
@@ -76,7 +77,7 @@ type incomingWebSocketMessage struct {
 	contracts.ReconcileRequest
 }
 
-func handleIncomingWebSocketMessage(ctx context.Context, payload []byte, config WebSocketHandlerConfig) error {
+func handleIncomingWebSocketMessage(ctx context.Context, deviceID string, payload []byte, config WebSocketHandlerConfig) error {
 	var message incomingWebSocketMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return nil
@@ -88,6 +89,11 @@ func handleIncomingWebSocketMessage(ctx context.Context, payload []byte, config 
 
 	if _, err := applyPendingOperations(ctx, message.PendingOperations, config.ApplyPendingPatch); err != nil {
 		return err
+	}
+	if config.AcknowledgeDevice != nil {
+		if err := config.AcknowledgeDevice(ctx, deviceID, message.LastChangelogID); err != nil {
+			return err
+		}
 	}
 	if config.TriggerReconcile != nil {
 		return config.TriggerReconcile(ctx)

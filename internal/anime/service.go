@@ -231,6 +231,58 @@ func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contract
 	return &item, nil
 }
 
+func (s *QueryService) GetAnimeDetail(ctx context.Context, id string) (*contracts.AnimeDetail, error) {
+	item, err := s.GetMobileAnime(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return animeDetailFromMobile(*item), nil
+}
+
+func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
+	return &contracts.AnimeDetail{
+		ID:         item.ID,
+		Nombre:     item.Nombre,
+		Estado:     item.Estado,
+		Activo:     item.Activo,
+		PrimeraVez: item.PrimeraVez,
+		Progress: contracts.AnimeDetailProgress{
+			Watched:   item.NroCapVisto,
+			Total:     item.TotalCap,
+			Remaining: remainingChapters(item.NroCapVisto, item.TotalCap),
+		},
+		Schedule: item.Dias,
+		Dates: contracts.AnimeDetailDates{
+			Created:     item.FechaCreacion,
+			FirstWatch:  item.FechaEstreno,
+			LastWatched: item.FechaUltCapVisto,
+			Deleted:     item.FechaEliminacion,
+		},
+		Content: contracts.AnimeDetailContent{
+			Tipo:     item.Tipo,
+			Duracion: item.Duracion,
+			Generos:  item.Generos,
+			Studios:  item.Estudios,
+			Origen:   item.Origen,
+			Cover:    item.Portada,
+		},
+		Download: contracts.AnimeDetailDownload{
+			Page:   item.Pagina,
+			Folder: item.Carpeta,
+		},
+		ModifiedAt: item.ModifiedAt,
+	}
+}
+
+func remainingChapters(watched float64, total *int) *float64 {
+	if total == nil {
+		return nil
+	}
+	value := float64(*total) - watched
+	return &value
+}
+
 func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) error {
 	record, err := s.store.GetSnapshot(ctx, id)
 	recordExists := true
@@ -255,6 +307,9 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 	if patch.NroCapVisto != nil {
 		desired.SetNroCapVisto(*patch.NroCapVisto)
 	}
+	if patch.Activo != nil {
+		desired.SetActivo(*patch.Activo)
+	}
 	if patch.Dias != nil {
 		desired.SetDias(patch.Dias)
 	}
@@ -266,8 +321,20 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 
 	if statePatch.FechaUltCapVisto != nil {
 		desired.FechaUltCapVisto = domain.NewLegacyDateFieldFromUnixMilli(*statePatch.FechaUltCapVisto)
-	} else {
+	} else if !patch.PreserveLastWatched {
 		desired.StampServerTimestamp(s.nowFunc())
+	}
+	if patch.FechaEstreno != nil {
+		desired.FechaEstreno = domain.NewLegacyDateFieldFromUnixMilli(*patch.FechaEstreno)
+	}
+	if patch.FechaEliminacion != nil {
+		desired.SetFechaEliminacion(*patch.FechaEliminacion)
+	}
+	if patch.ClearFechaEliminacion {
+		desired.ClearFechaEliminacion()
+	}
+	if patch.RepeatAt != nil {
+		desired.RepeatForNewCycle(time.UnixMilli(*patch.RepeatAt).UTC())
 	}
 
 	// SDD-30 ADR-30-2: the OCC gate. recordExists distinguishes "create" from

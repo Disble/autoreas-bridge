@@ -1,14 +1,27 @@
 import {
-  GetAnimeDetail,
+  AdjustWatchedChapters,
+  CopyAnimeFolder,
+  CopyAnimePage,
   GetAnimeHistory,
   GetAnimes,
+  GetAnimeDetail,
+  GetChapterSchedule,
+  GetConnectedDevices,
   GetEffectiveAddress,
   GetPairingToken,
+  OpenAnimeFolder,
+  OpenAnimePage,
   PullAnimesFromLegacy,
+  RepeatAnime,
+  RestoreAnime,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
+  SetAnimeState,
+  SoftDeleteAnime,
   TriggerReconcile,
+  UnpairDevice,
 } from '../../wailsjs/go/main/App';
+import type { contracts } from '../../wailsjs/go/models';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import type { Anime, AnimeDetail, AnimeHistoryEntry, AnimeLegacyPullResult } from '../shared/contracts/anime.types';
 import type { SyncingAnime } from '../shared/contracts/syncing-anime.types';
@@ -42,8 +55,20 @@ export interface BridgeRuntimeSource {
   readonly getAnimes: () => Promise<readonly Anime[]>;
   readonly getAnimeDetail: (id: string) => Promise<AnimeDetail | null>;
   readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
+  readonly getChapterSchedule?: (day: string) => Promise<readonly contracts.ChapterScheduleItem[]>;
+  readonly adjustWatchedChapters?: (animeID: string, delta: number, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly restoreAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly repeatAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly openAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly copyAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly openAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly copyAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
+  readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
+  readonly unpairDevice?: (deviceID: string) => Promise<string>;
   /** Fires when the active pairing token is consumed. Returns an unsubscribe fn. */
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
 }
@@ -176,6 +201,61 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
         return isReady ? (GetAnimeHistory() as Promise<readonly AnimeHistoryEntry[]>) : Promise.resolve([]);
       });
     },
+    getChapterSchedule(day) {
+      return waitForBindings(() => hasGoBinding('GetChapterSchedule')).then((isReady) => {
+        return isReady ? (GetChapterSchedule(day) as Promise<readonly contracts.ChapterScheduleItem[]>) : Promise.resolve([]);
+      });
+    },
+    adjustWatchedChapters(animeID, delta, base) {
+      return waitForBindings(() => hasGoBinding('AdjustWatchedChapters')).then((isReady) => {
+        return isReady ? AdjustWatchedChapters(animeID, delta, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    setAnimeState(animeID, estado, base) {
+      return waitForBindings(() => hasGoBinding('SetAnimeState')).then((isReady) => {
+        return isReady ? SetAnimeState(animeID, estado, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    softDeleteAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('SoftDeleteAnime')).then((isReady) => {
+        return isReady ? SoftDeleteAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    restoreAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('RestoreAnime')).then((isReady) => {
+        return isReady ? RestoreAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    repeatAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('RepeatAnime')).then((isReady) => {
+        return isReady ? RepeatAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    openAnimePage(animeID) {
+      return waitForBindings(() => hasGoBinding('OpenAnimePage')).then((isReady) => {
+        return isReady ? OpenAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    copyAnimePage(animeID) {
+      return waitForBindings(() => hasGoBinding('CopyAnimePage')).then((isReady) => {
+        return isReady ? CopyAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    openAnimeFolder(animeID) {
+      return waitForBindings(() => hasGoBinding('OpenAnimeFolder')).then((isReady) => {
+        return isReady ? OpenAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    copyAnimeFolder(animeID) {
+      return waitForBindings(() => hasGoBinding('CopyAnimeFolder')).then((isReady) => {
+        return isReady ? CopyAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    getConnectedDevices() {
+      return waitForBindings(() => hasGoBinding('GetConnectedDevices')).then((isReady) => {
+        return isReady ? (GetConnectedDevices() as Promise<readonly contracts.DeviceInfo[]>) : Promise.resolve([]);
+      });
+    },
     pullAnimesFromLegacy() {
       return waitForBindings(() => hasGoBinding('PullAnimesFromLegacy')).then((isReady) => {
         return isReady ? PullAnimesFromLegacy().then(toAnimeLegacyPullResult) : RUNTIME_UNAVAILABLE_PULL_RESULT;
@@ -184,6 +264,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     triggerReconcile() {
       return waitForBindings(() => hasGoBinding('TriggerReconcile')).then((isReady) => {
         return isReady ? TriggerReconcile() : 'runtime unavailable';
+      });
+    },
+    unpairDevice(deviceID) {
+      return waitForBindings(() => hasGoBinding('UnpairDevice')).then((isReady) => {
+        return isReady ? UnpairDevice(deviceID) : 'runtime unavailable';
       });
     },
     onPairingTokenConsumed(listener) {

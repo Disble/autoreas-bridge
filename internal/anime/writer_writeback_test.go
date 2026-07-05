@@ -198,6 +198,8 @@ func (reconcileStubSyncService) ListChangesAfterID(context.Context, int64) ([]co
 	return []contracts.AnimeChange{}, 0, nil
 }
 
+func (reconcileStubSyncService) AcknowledgeDevice(context.Context, string, int64) error { return nil }
+
 func (reconcileStubSyncService) LastChangedAt(context.Context) (*int64, error) { return nil, nil }
 
 func appendLineForTest(path string, payload []byte) error {

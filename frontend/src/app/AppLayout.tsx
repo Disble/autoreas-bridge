@@ -128,6 +128,28 @@ function HistoryIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function ChaptersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path d="M6 4h12" />
+      <path d="M6 8h12" />
+      <path d="M6 12h8" />
+      <path d="M6 16h6" />
+      <path d="M17 14v6" />
+      <path d="M14 17h6" />
+    </svg>
+  );
+}
+
 function DownloadIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -195,12 +217,13 @@ function OptionsIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Fixed 8-entry nav shared by the desktop rail and the mobile tab bar. History is its own top-level entry, separate from Catalog. */
+/** Fixed 9-entry nav shared by the desktop rail and the mobile tab bar. History is its own top-level entry, separate from Catalog; Chapters is main's schedule surface. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/network', label: 'Network', Icon: NetworkIcon },
   { to: '/dashboard', label: 'Dashboard', Icon: DashboardIcon },
   { to: '/catalog', label: 'Catalog', Icon: CatalogIcon },
   { to: '/history', label: 'History', Icon: HistoryIcon },
+  { to: '/chapters', label: 'Chapters', Icon: ChaptersIcon },
   { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },

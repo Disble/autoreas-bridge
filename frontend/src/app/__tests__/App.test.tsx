@@ -86,6 +86,16 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
   });
 
+  it('renders the chapters route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/chapters']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Chapters' })).toBeInTheDocument();
+  });
+
   it('falls through to not found for the removed observability path', async () => {
     render(
       <MemoryRouter initialEntries={['/observability']}>
@@ -133,7 +143,7 @@ describe('App routing', () => {
     expect(historyLink).toHaveAttribute('href', '/history');
   });
 
-  it('keeps exactly 8 primary navigation entries after History is promoted to its own section', async () => {
+  it('keeps exactly 9 primary navigation entries after History and Chapters are promoted to their own sections', async () => {
     render(
       <MemoryRouter initialEntries={['/network']}>
         <App />
@@ -142,7 +152,7 @@ describe('App routing', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
 
-    expect(within(nav).getAllByRole('link')).toHaveLength(8);
+    expect(within(nav).getAllByRole('link')).toHaveLength(9);
   });
 
   it('renders the catalog route directly', async () => {
@@ -197,8 +207,8 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('keeps exactly 8 primary navigation entries after History is promoted', () => {
-    expect(NAV_ITEMS.length).toBe(8);
+  it('keeps exactly 9 primary navigation entries after History and Chapters are promoted', () => {
+    expect(NAV_ITEMS.length).toBe(9);
   });
 
   it('renders a not found route for unknown paths', async () => {

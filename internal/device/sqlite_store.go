@@ -26,12 +26,49 @@ func (s *SQLiteStore) SavePairingToken(ctx context.Context, token string, create
 	return nil
 }
 
-func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64) error {
+func (s *SQLiteStore) FindActivePairingToken(ctx context.Context, createdAfterOrAtMs int64) (string, error) {
+	var token string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT token
+		FROM pairing_tokens
+		WHERE consumed_at_ms IS NULL
+		  AND created_at_ms >= ?
+		ORDER BY created_at_ms DESC
+		LIMIT 1
+	`, createdAfterOrAtMs).Scan(&token)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrInvalidPairingToken
+	}
+	if err != nil {
+		return "", fmt.Errorf("find active pairing token: %w", err)
+	}
+	return token, nil
+}
+
+func (s *SQLiteStore) PruneExpiredPairingTokens(ctx context.Context, expiresBeforeMs int64) (int64, error) {
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM pairing_tokens
+		WHERE consumed_at_ms IS NULL
+		  AND created_at_ms < ?
+	`, expiresBeforeMs)
+	if err != nil {
+		return 0, fmt.Errorf("prune expired pairing tokens: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("prune expired pairing token rows affected: %w", err)
+	}
+	return deleted, nil
+}
+
+func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE pairing_tokens
 		SET consumed_at_ms = ?
-		WHERE token = ? AND consumed_at_ms IS NULL
-	`, consumedAtMs, token)
+		WHERE token = ?
+		  AND consumed_at_ms IS NULL
+		  AND created_at_ms >= ?
+	`, consumedAtMs, token, expiresBeforeMs)
 	if err != nil {
 		return fmt.Errorf("consume pairing token: %w", err)
 	}

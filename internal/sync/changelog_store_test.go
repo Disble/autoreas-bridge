@@ -241,6 +241,142 @@ func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
 	}
 }
 
+func TestBootstrapBridgeDBCreatesDeviceSyncStateTable(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	if !tableExists(t, db, "device_sync_state") {
+		t.Fatal("expected device_sync_state table to exist after bootstrap")
+	}
+}
+
+func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	ctx := context.Background()
+
+	for i := 1; i <= 3; i++ {
+		if err := store.InsertPending(ctx, ChangelogEntry{
+			AnimeID:       fmt.Sprintf("anime-%d", i),
+			ChangeType:    ChangelogTypeUpdate,
+			ChangedFields: []string{"nrocapvisto"},
+			SnapshotJSON:  []byte(fmt.Sprintf(`{"_id":"anime-%d"}`, i)),
+			ChangedAtMs:   int64(100 + i),
+		}); err != nil {
+			t.Fatalf("insert changelog %d: %v", i, err)
+		}
+	}
+
+	if err := store.AcknowledgeDevice(ctx, "device-1", 2, 1000); err != nil {
+		t.Fatalf("ack device-1: %v", err)
+	}
+	if err := store.AcknowledgeDevice(ctx, "device-2", 1, 1000); err != nil {
+		t.Fatalf("ack device-2: %v", err)
+	}
+
+	pruned, err := store.PruneAcknowledgedChangelog(ctx)
+	if err != nil {
+		t.Fatalf("prune acknowledged changelog: %v", err)
+	}
+	if pruned != 1 {
+		t.Fatalf("expected prune up to slowest active device (1 row), got %d", pruned)
+	}
+
+	got, err := store.ListAfterID(ctx, 0)
+	if err != nil {
+		t.Fatalf("list after prune: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != 2 || got[1].ID != 3 {
+		t.Fatalf("expected rows 2 and 3 to remain, got %#v", got)
+	}
+}
+
+func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	ctx := context.Background()
+
+	for i := 1; i <= 3; i++ {
+		if err := store.InsertPending(ctx, ChangelogEntry{
+			AnimeID:      fmt.Sprintf("anime-%d", i),
+			SnapshotJSON: []byte(fmt.Sprintf(`{"_id":"anime-%d"}`, i)),
+			ChangedAtMs:  int64(100 + i),
+		}); err != nil {
+			t.Fatalf("insert changelog %d: %v", i, err)
+		}
+	}
+
+	if err := store.AcknowledgeDevice(ctx, "active-device", 3, 1000); err != nil {
+		t.Fatalf("ack active device: %v", err)
+	}
+	if err := store.AcknowledgeDevice(ctx, "stale-device", 1, 1000); err != nil {
+		t.Fatalf("ack stale device: %v", err)
+	}
+	if err := store.SetDeviceSyncStatus(ctx, "stale-device", DeviceSyncStatusStale); err != nil {
+		t.Fatalf("mark stale device: %v", err)
+	}
+
+	pruned, err := store.PruneAcknowledgedChangelog(ctx)
+	if err != nil {
+		t.Fatalf("prune acknowledged changelog: %v", err)
+	}
+	if pruned != 3 {
+		t.Fatalf("expected stale device not to block pruning, got %d pruned rows", pruned)
+	}
+}
+
+func TestSQLiteChangelogStoreEvaluatesDeviceStaleness(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	ctx := context.Background()
+	nowMs := int64(1_000_000_000)
+	staleAfterMs := int64(60 * 24 * 60 * 60 * 1000)
+	warnBeforeMs := int64(7 * 24 * 60 * 60 * 1000)
+
+	if err := store.AcknowledgeDevice(ctx, "fresh", 10, nowMs-(10*24*60*60*1000)); err != nil {
+		t.Fatalf("ack fresh: %v", err)
+	}
+	if err := store.AcknowledgeDevice(ctx, "warning", 10, nowMs-(55*24*60*60*1000)); err != nil {
+		t.Fatalf("ack warning: %v", err)
+	}
+	if err := store.AcknowledgeDevice(ctx, "stale", 10, nowMs-(61*24*60*60*1000)); err != nil {
+		t.Fatalf("ack stale: %v", err)
+	}
+
+	changed, err := store.EvaluateDeviceStaleness(ctx, nowMs, staleAfterMs, warnBeforeMs)
+	if err != nil {
+		t.Fatalf("evaluate device staleness: %v", err)
+	}
+	if len(changed) != 2 {
+		t.Fatalf("expected 2 changed devices, got %#v", changed)
+	}
+
+	states, err := store.ListDeviceSyncStates(ctx)
+	if err != nil {
+		t.Fatalf("list device sync states: %v", err)
+	}
+	statuses := map[string]string{}
+	for _, state := range states {
+		statuses[state.DeviceID] = state.SyncStatus
+	}
+	if statuses["fresh"] != DeviceSyncStatusActive {
+		t.Fatalf("expected fresh active, got %q", statuses["fresh"])
+	}
+	if statuses["warning"] != DeviceSyncStatusWarning {
+		t.Fatalf("expected warning status, got %q", statuses["warning"])
+	}
+	if statuses["stale"] != DeviceSyncStatusStale {
+		t.Fatalf("expected stale status, got %q", statuses["stale"])
+	}
+}
+
 func countChangelogRows(t *testing.T, db *sql.DB) int {
 	t.Helper()
 

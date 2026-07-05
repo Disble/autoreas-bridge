@@ -56,6 +56,9 @@ func NewHandler(config Config) http.Handler {
 		syncConfig.ListChangesAfterID = func(ctx context.Context, lastID int64) ([]apiHandlers.AnimeChange, int64, error) {
 			return config.SyncTrigger.ListChangesAfterID(ctx, lastID)
 		}
+		syncConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
+			return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
+		}
 	}
 	h.syncReconcile = apiHandlers.NewSyncHandler(syncConfig)
 	mux := http.NewServeMux()
@@ -83,11 +86,15 @@ func NewHandler(config Config) http.Handler {
 			wsConfig.TriggerReconcile = func(ctx context.Context) error {
 				return config.SyncTrigger.TriggerReconcile(ctx)
 			}
+			wsConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
+				return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
+			}
 		}
 		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
 			Authenticate:      wsConfig.Authenticate,
 			ApplyPendingPatch: wsConfig.ApplyPendingPatch,
 			TriggerReconcile:  wsConfig.TriggerReconcile,
+			AcknowledgeDevice: wsConfig.AcknowledgeDevice,
 			Hub:               wsConfig.Hub,
 			Logger:            wsConfig.Logger,
 		}))

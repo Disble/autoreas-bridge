@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"io"
 	"path/filepath"
@@ -176,7 +178,59 @@ func (s *stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.A
 	return s.history, s.historyErr
 }
 
+func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {
+	return nil, nil
+}
+
 var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
+
+type stubAppChapterService struct {
+	schedule       []anime.ChapterScheduleItem
+	lastDay        string
+	lastAdjust     anime.AdjustWatchedChaptersCommand
+	lastState      anime.SetAnimeStateCommand
+	lastSoftDelete anime.SoftDeleteAnimeCommand
+	lastRestore    anime.RestoreAnimeCommand
+	lastRepeat     anime.RepeatAnimeCommand
+	err            error
+}
+
+func (s *stubAppChapterService) ListChapterSchedule(_ context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error) {
+	s.lastDay = query.Day
+	return s.schedule, s.err
+}
+
+func (s *stubAppChapterService) AdjustWatchedChapters(_ context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error) {
+	s.lastAdjust = cmd
+	return anime.ChapterCommandResult{
+		AnimeID:     cmd.AnimeID,
+		NroCapVisto: cmd.Delta,
+		Estado:      0,
+	}, s.err
+}
+
+func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error) {
+	s.lastState = cmd
+	return anime.ChapterCommandResult{
+		AnimeID: cmd.AnimeID,
+		Estado:  cmd.Estado,
+	}, s.err
+}
+
+func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastSoftDelete = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+}
+
+func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastRestore = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+}
+
+func (s *stubAppChapterService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastRepeat = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+}
 
 type recordingAppNotifier struct{ received []notification.Notification }
 
@@ -196,8 +250,14 @@ func (*stubAppChangelogStore) InsertPending(context.Context, bridgeSync.Changelo
 }
 
 func (*stubAppDeviceStore) SavePairingToken(context.Context, string, int64) error { return nil }
-func (*stubAppDeviceStore) ConsumePairingToken(context.Context, string, int64) error {
+func (*stubAppDeviceStore) ConsumePairingToken(context.Context, string, int64, int64) error {
 	return nil
+}
+func (*stubAppDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
+	return "", device.ErrInvalidPairingToken
+}
+func (*stubAppDeviceStore) PruneExpiredPairingTokens(context.Context, int64) (int64, error) {
+	return 0, nil
 }
 func (*stubAppDeviceStore) InsertPairedDevice(context.Context, device.StoredDevice) error { return nil }
 func (*stubAppDeviceStore) FindByAuthToken(context.Context, string) (device.StoredDevice, error) {
@@ -293,6 +353,21 @@ func (stubAppStore) ListSnapshots(context.Context) (map[string]anime.SnapshotRec
 
 func (stubAppStore) ReplaceBaseline(context.Context, map[string]anime.SnapshotRecord, []string) error {
 	return nil
+}
+
+func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID string, payload string, modifiedAt int64) {
+	t.Helper()
+	hashBytes := md5.Sum([]byte(payload))
+	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
+		animeID: {
+			AnimeID:       animeID,
+			CanonicalJSON: []byte(payload),
+			Hash:          hex.EncodeToString(hashBytes[:]),
+			ModifiedAt:    modifiedAt,
+		},
+	}, nil); err != nil {
+		t.Fatalf("seed runtime anime snapshot: %v", err)
+	}
 }
 
 type fakeAppDownloadStore struct {
@@ -415,15 +490,37 @@ func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
 	return nil, nil
 }
 
+func (s stubPendingLookup) AcknowledgeDevice(context.Context, string, int64, int64) error {
+	return nil
+}
+
+func (s stubPendingLookup) PruneAcknowledgedChangelog(context.Context) (int64, error) {
+	return 0, nil
+}
+
 type spyDeviceStore struct {
 	stubAppDeviceStore
-	savedToken string
-	saveErr    error
+	savedToken  string
+	saveErr     error
+	activeToken string
+	pruneCalls  int
 }
 
 func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int64) error {
 	s.savedToken = token
 	return s.saveErr
+}
+
+func (s *spyDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
+	if s.activeToken == "" {
+		return "", device.ErrInvalidPairingToken
+	}
+	return s.activeToken, nil
+}
+
+func (s *spyDeviceStore) PruneExpiredPairingTokens(context.Context, int64) (int64, error) {
+	s.pruneCalls++
+	return 0, nil
 }
 
 func isHex32(s string) bool {

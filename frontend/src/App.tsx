@@ -5,6 +5,7 @@ import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
 import { CatalogRoute } from './app/routes/CatalogRoute';
 import { HistoryRoute } from './app/routes/HistoryRoute';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
+import { ChaptersRoute } from './app/routes/ChaptersRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NetworkRoute } from './app/routes/NetworkRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';
@@ -21,6 +22,7 @@ function App() {
                 <Route path="/catalog" element={<CatalogRoute />} />
                 <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
                 <Route path="/history" element={<HistoryRoute />} />
+                <Route path="/chapters" element={<ChaptersRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />
                 <Route path="/pairing" element={<PairingRoute />} />

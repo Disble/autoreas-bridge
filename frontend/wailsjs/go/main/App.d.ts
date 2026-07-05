@@ -3,13 +3,25 @@
 import {contracts} from '../models';
 import {logger} from '../models';
 
+export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
+
+export function CopyAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+
 export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;
+
+export function GetAnimeDetailView(arg1:string):Promise<contracts.AnimeDetail>;
 
 export function GetAnimeHistory():Promise<Array<contracts.AnimeHistoryItem>>;
 
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
+
+export function GetChapterSchedule(arg1:string):Promise<Array<contracts.ChapterScheduleItem>>;
+
+export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
 
 export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
 
@@ -31,7 +43,17 @@ export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
+export function OpenAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+
 export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
+
+export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
+export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
+export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
 
@@ -41,6 +63,10 @@ export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>
 
 export function SetSeasonMode(arg1:boolean):Promise<string>;
 
+export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
 export function TriggerDownloadCheck():Promise<string>;
 
 export function TriggerReconcile():Promise<string>;
+
+export function UnpairDevice(arg1:string):Promise<string>;

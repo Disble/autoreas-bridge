@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"autoreas-bridge/internal/activity"
 	downloadconfig "autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/persistence"
@@ -113,6 +114,7 @@ func initializeBridgeDB(db *sql.DB) error {
 	}
 
 	tables := append(schemaTables(), dbschema.SchemaTables()...)
+	tables = append(tables, activity.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
 			return err

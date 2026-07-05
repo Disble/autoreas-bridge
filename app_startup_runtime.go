@@ -6,6 +6,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/filesystem"
@@ -16,6 +17,91 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 )
+
+type syncDeviceStateAdapter struct {
+	store interface {
+		ListDeviceSyncStates(ctx context.Context) ([]bridgeSync.DeviceSyncState, error)
+		AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error
+		MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error
+	}
+}
+
+func (a syncDeviceStateAdapter) ListDeviceSyncStates(ctx context.Context) ([]device.SyncState, error) {
+	states, err := a.store.ListDeviceSyncStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]device.SyncState, 0, len(states))
+	for _, state := range states {
+		out = append(out, device.SyncState{
+			DeviceID:               state.DeviceID,
+			LastAckChangelogID:     state.LastAckChangelogID,
+			LastSeenAtMs:           state.LastSeenAtMs,
+			SyncStatus:             state.SyncStatus,
+			BlocksChangelogPruning: state.BlocksChangelogPrune,
+		})
+	}
+	return out, nil
+}
+
+func (a syncDeviceStateAdapter) MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error {
+	return a.store.MarkDeviceRevoked(ctx, deviceID, atMs)
+}
+
+func (a syncDeviceStateAdapter) MarkDeviceActive(ctx context.Context, deviceID string, atMs int64) error {
+	return a.store.AcknowledgeDevice(ctx, deviceID, 0, atMs)
+}
+
+func (a *App) canUseBridgeDB(ctx context.Context) (ok bool) {
+	if a.bridgeDB == nil {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	return a.bridgeDB.PingContext(ctx) == nil
+}
+
+func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
+	EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) ([]bridgeSync.DeviceSyncState, error)
+	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
+}) {
+	if store == nil || a.notifier == nil {
+		return
+	}
+	states, err := store.EvaluateDeviceStaleness(ctx, time.Now().UnixMilli(), bridgeSync.DeviceSyncStaleAfter.Milliseconds(), bridgeSync.DeviceSyncWarnBeforeStale.Milliseconds())
+	if err != nil {
+		if a.sharedLogger != nil {
+			a.sharedLogger.Warnf("sync", "failed to evaluate device sync health: %v", err)
+		}
+		return
+	}
+	for _, state := range states {
+		switch state.SyncStatus {
+		case bridgeSync.DeviceSyncStatusWarning:
+			_ = a.notifier.Notify(ctx, notification.Notification{
+				Source:    "sync",
+				Level:     notification.LevelWarning,
+				Title:     "Device sync warning",
+				Body:      "A paired device has not synced recently. If it does not reconnect soon, Bridge will stop preserving old sync changes for it.",
+				Timestamp: time.Now(),
+			})
+		case bridgeSync.DeviceSyncStatusStale:
+			_ = a.notifier.Notify(ctx, notification.Notification{
+				Source:    "sync",
+				Level:     notification.LevelWarning,
+				Title:     "Device marked stale",
+				Body:      "A paired device has been offline long enough that it no longer blocks changelog cleanup. It may need a full refresh when it reconnects.",
+				Timestamp: time.Now(),
+			})
+		}
+	}
+	if _, err := store.PruneAcknowledgedChangelog(ctx); err != nil && a.sharedLogger != nil {
+		a.sharedLogger.Warnf("sync", "failed to prune acknowledged changelog after device health evaluation: %v", err)
+	}
+}
 
 func (a *App) configureTray(ctx context.Context) bool {
 	a.trayManager = a.newTrayManager()
@@ -81,7 +167,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 	a.animeUpdateWriter.StartAsync(catchUpContext)
 }
 
-func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite *anime.WriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
+func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
 	return a.newHTTPServer(api.Config{
 		DeviceService:          deviceService,
 		AnimeQuery:             a.animeQuery,

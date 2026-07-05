@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
 )
 
 const (
@@ -11,6 +12,14 @@ const (
 	ChangelogTypeCreate    = "create"
 	ChangelogTypeUpdate    = "update"
 	ChangelogTypeDelete    = "delete"
+
+	DeviceSyncStatusActive  = "active"
+	DeviceSyncStatusWarning = "warning"
+	DeviceSyncStatusStale   = "stale"
+	DeviceSyncStatusRevoked = "revoked"
+
+	DeviceSyncStaleAfter      = 60 * 24 * time.Hour
+	DeviceSyncWarnBeforeStale = 7 * 24 * time.Hour
 )
 
 type SyncSQLiteProvider interface {
@@ -33,6 +42,14 @@ type ChangelogEntry struct {
 	SnapshotJSON  []byte
 	Status        string
 	ChangedAtMs   int64
+}
+
+type DeviceSyncState struct {
+	DeviceID             string
+	LastAckChangelogID   int64
+	LastSeenAtMs         int64
+	SyncStatus           string
+	BlocksChangelogPrune bool
 }
 
 func NewSyncSQLiteProvider(db *sql.DB) SyncSQLiteProvider {

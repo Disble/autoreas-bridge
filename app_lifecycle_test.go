@@ -194,6 +194,25 @@ func TestAppStartupWiresStatusAndConflictServicesIntoHTTPServer(t *testing.T) {
 	}
 }
 
+func TestAppStartupWiresMobileActivityWriterIntoHTTPServer(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	app := newAppTestApp(t)
+	app.newHTTPServer = func(config api.Config) api.Server {
+		if _, ok := config.AnimeWrite.(activityAnimeWriteService); !ok {
+			t.Fatalf("expected mobile activity writer, got %T", config.AnimeWrite)
+		}
+		return server
+	}
+
+	app.startup(context.Background())
+
+	if !server.started {
+		t.Fatal("expected startup to start http server")
+	}
+}
+
 func TestAppStartupWiresPairingTokenConsumedCallbackIntoHTTPServer(t *testing.T) {
 	t.Parallel()
 

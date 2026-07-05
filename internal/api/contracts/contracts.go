@@ -125,6 +125,73 @@ type AnimeHistoryItem struct {
 	FechaCreacion *int64 `json:"fechaCreacion,omitempty"`
 }
 
+type AnimeDetailProgress struct {
+	Watched   float64  `json:"watched"`
+	Total     *int     `json:"total,omitempty"`
+	Remaining *float64 `json:"remaining,omitempty"`
+}
+
+type AnimeDetailDates struct {
+	Created     *int64 `json:"created,omitempty"`
+	FirstWatch  *int64 `json:"firstWatch,omitempty"`
+	LastWatched *int64 `json:"lastWatched,omitempty"`
+	Deleted     *int64 `json:"deleted,omitempty"`
+}
+
+type AnimeDetailContent struct {
+	Tipo     *int     `json:"tipo,omitempty"`
+	Duracion *int     `json:"duracion,omitempty"`
+	Generos  []string `json:"generos"`
+	Studios  *string  `json:"studios,omitempty"`
+	Origen   *string  `json:"origen,omitempty"`
+	Cover    *string  `json:"cover,omitempty"`
+}
+
+type AnimeDetailDownload struct {
+	Page   *string `json:"page,omitempty"`
+	Folder *string `json:"folder,omitempty"`
+}
+
+type AnimeDetail struct {
+	ID         string              `json:"id"`
+	Nombre     string              `json:"nombre"`
+	Estado     int                 `json:"estado"`
+	Activo     int                 `json:"activo"`
+	PrimeraVez int                 `json:"primeravez"`
+	Progress   AnimeDetailProgress `json:"progress"`
+	Schedule   []MobileAnimeDay    `json:"schedule"`
+	Dates      AnimeDetailDates    `json:"dates"`
+	Content    AnimeDetailContent  `json:"content"`
+	Download   AnimeDetailDownload `json:"download"`
+	ModifiedAt int64               `json:"modified_at"`
+}
+
+type ChapterScheduleItem struct {
+	AnimeID      string  `json:"animeId"`
+	AnimeName    string  `json:"animeName"`
+	Estado       int     `json:"estado"`
+	NroCapVisto  float64 `json:"nrocapvisto"`
+	TotalCap     *int    `json:"totalcap,omitempty"`
+	Day          string  `json:"day"`
+	DayOrder     int     `json:"dayOrder"`
+	ModifiedAt   int64   `json:"modified_at"`
+	HasPage      bool    `json:"hasPage"`
+	HasFolder    bool    `json:"hasFolder"`
+	LastWatched  *int64  `json:"lastWatched,omitempty"`
+	FirstWatched *int64  `json:"firstWatched,omitempty"`
+}
+
+type ChapterCommandResult struct {
+	Status        string  `json:"status"`
+	Message       string  `json:"message,omitempty"`
+	AnimeID       string  `json:"animeId,omitempty"`
+	AnimeName     string  `json:"animeName,omitempty"`
+	Estado        int     `json:"estado,omitempty"`
+	NroCapVisto   float64 `json:"nrocapvisto,omitempty"`
+	OccurredAtMs  int64   `json:"occurredAtMs,omitempty"`
+	CorrelationID string  `json:"correlationId,omitempty"`
+}
+
 type AnimeLegacyPullResult struct {
 	Status       string `json:"status"`
 	Message      string `json:"message"`
@@ -161,9 +228,15 @@ type ReconcileResponse struct {
 }
 
 type DeviceInfo struct {
-	DeviceID   string `json:"device_id"`
-	DeviceName string `json:"device_name"`
-	PairedAtMs int64  `json:"paired_at_ms"`
+	DeviceID               string `json:"device_id"`
+	DeviceName             string `json:"device_name"`
+	PairedAtMs             int64  `json:"paired_at_ms"`
+	LastSeenAtMs           int64  `json:"last_seen_at_ms"`
+	LastAckChangelogID     int64  `json:"last_ack_changelog_id"`
+	SyncStatus             string `json:"sync_status"`
+	ConnectionStatus       string `json:"connection_status"`
+	AuthState              string `json:"auth_state"`
+	BlocksChangelogPruning bool   `json:"blocks_changelog_pruning"`
 }
 
 type ConflictInfo struct {
@@ -204,10 +277,16 @@ type StatusInfo struct {
 var ErrAnimeNotFound = errors.New("anime not found")
 
 type AnimePatch struct {
-	Estado           *int     `json:"estado,omitempty"`
-	NroCapVisto      *float64 `json:"nrocapvisto,omitempty"`
-	FechaUltCapVisto *int64   `json:"fechaUltCapVisto,omitempty"`
-	Dias             []string `json:"dias,omitempty"`
+	Estado                *int     `json:"estado,omitempty"`
+	NroCapVisto           *float64 `json:"nrocapvisto,omitempty"`
+	Activo                *bool    `json:"activo,omitempty"`
+	FechaUltCapVisto      *int64   `json:"fechaUltCapVisto,omitempty"`
+	FechaEstreno          *int64   `json:"fechaEstreno,omitempty"`
+	FechaEliminacion      *int64   `json:"fechaEliminacion,omitempty"`
+	RepeatAt              *int64   `json:"repeatAt,omitempty"`
+	ClearFechaEliminacion bool     `json:"clearFechaEliminacion,omitempty"`
+	PreserveLastWatched   bool     `json:"-"`
+	Dias                  []string `json:"dias,omitempty"`
 	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
 	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
 	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.
@@ -227,6 +306,7 @@ type AnimeQueryService interface {
 	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
 	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
 	ListAnimeHistory(ctx context.Context) ([]AnimeHistoryItem, error)
+	GetAnimeDetail(ctx context.Context, id string) (*AnimeDetail, error)
 }
 
 type AnimeWriteService interface {
@@ -237,6 +317,7 @@ type SyncTriggerService interface {
 	TriggerReconcile(ctx context.Context) error
 	ListChangesSince(ctx context.Context, sinceMs int64) ([]AnimeChange, int64, error)
 	ListChangesAfterID(ctx context.Context, lastID int64) ([]AnimeChange, int64, error)
+	AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
 

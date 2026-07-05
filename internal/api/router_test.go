@@ -381,6 +381,10 @@ func (s stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.An
 	return nil, nil
 }
 
+func (s stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {
+	return nil, nil
+}
+
 type stubSyncService struct {
 	changes []contracts.AnimeChange
 	lastID  int64
@@ -394,7 +398,8 @@ func (s stubSyncService) ListChangesSince(context.Context, int64) ([]contracts.A
 func (s stubSyncService) ListChangesAfterID(context.Context, int64) ([]contracts.AnimeChange, int64, error) {
 	return s.changes, s.lastID, nil
 }
-func (s stubSyncService) LastChangedAt(context.Context) (*int64, error) { return s.lastAt, nil }
+func (s stubSyncService) AcknowledgeDevice(context.Context, string, int64) error { return nil }
+func (s stubSyncService) LastChangedAt(context.Context) (*int64, error)          { return s.lastAt, nil }
 
 type stubStatusService struct{ status contracts.StatusInfo }
 

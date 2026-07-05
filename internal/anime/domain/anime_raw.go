@@ -245,14 +245,14 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	if value, ok := raw["portada"]; ok {
-		r.Portada = cloneJSON(value)
-	}
-
 	if value, ok := raw["repetir"]; ok {
 		if err := r.Repetir.UnmarshalJSON(value); err != nil {
 			return fmt.Errorf("unmarshal repetir: %w", err)
 		}
+	}
+
+	if value, ok := raw["portada"]; ok {
+		r.Portada = cloneJSON(value)
 	}
 
 	return nil
