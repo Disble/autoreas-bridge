@@ -28,6 +28,7 @@ type LegacyAnimeRaw struct {
 	Dia              LegacyStringField    `json:"dia,omitempty"`
 	Orden            LegacyNumberField    `json:"orden,omitempty"`
 	Dias             LegacyAnimeDaysField `json:"dias,omitempty"`
+	Repetir          LegacyJSONArrayField `json:"repetir,omitempty"`
 	Portada          json.RawMessage      `json:"portada,omitempty"`
 
 	extraFields map[string]json.RawMessage
@@ -224,6 +225,12 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if value, ok := raw["repetir"]; ok {
+		if err := r.Repetir.UnmarshalJSON(value); err != nil {
+			return fmt.Errorf("unmarshal repetir: %w", err)
+		}
+	}
+
 	if value, ok := raw["portada"]; ok {
 		r.Portada = cloneJSON(value)
 	}
@@ -258,6 +265,7 @@ func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
 	assignOptionalField(fields, "dia", r.Dia.raw)
 	assignOptionalField(fields, "orden", r.Orden.raw)
 	assignOptionalField(fields, "dias", r.Dias.raw)
+	assignOptionalField(fields, "repetir", r.Repetir.raw)
 
 	if len(r.Portada) > 0 {
 		assignJSON(fields, "portada", r.Portada)

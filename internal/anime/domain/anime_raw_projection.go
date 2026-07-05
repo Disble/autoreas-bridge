@@ -97,6 +97,59 @@ func (r *LegacyAnimeRaw) ClearFechaEliminacion() {
 	r.FechaEliminacion = newLegacyNullDateField()
 }
 
+func (r *LegacyAnimeRaw) RepeatForNewCycle(at time.Time) {
+	repeats := r.repeatEntries()
+	estado := 0
+	if currentEstado := r.EstadoValue(); currentEstado != nil {
+		estado = *currentEstado
+	}
+	repeats = append(repeats, map[string]json.RawMessage{
+		"numrepeticion":    mustMarshalJSON(len(repeats)),
+		"nrocapvisto":      mustMarshalJSON(r.NroCapVisto),
+		"estado":           mustMarshalJSON(estado),
+		"fechaCreacion":    r.dateFieldJSON(r.FechaCreacion),
+		"fechaEstreno":     r.dateFieldJSON(r.FechaEstreno),
+		"fechaUltCapVisto": r.dateFieldJSON(r.FechaUltCapVisto),
+		"fechaEliminacion": r.dateFieldJSON(r.FechaEliminacion),
+		"fechaRepeticion":  mustMarshalJSON(map[string]int64{"$$date": at.UTC().UnixMilli()}),
+	})
+	encoded := mustMarshalJSON(repeats)
+	r.Repetir = LegacyJSONArrayField{}
+	_ = r.Repetir.UnmarshalJSON(encoded)
+	assignJSON(r.ensureExtraFields(), "repetir", encoded)
+
+	if r.Primeravez.TriState() == TriStateTrue {
+		r.Primeravez = newLegacyBoolField(false)
+	}
+	r.SetNroCapVisto(0)
+	r.SetEstado(0)
+	r.FechaCreacion = newLegacyDateField(at)
+	r.FechaEstreno = newLegacyNullDateField()
+	r.FechaUltCapVisto = newLegacyNullDateField()
+	r.FechaEliminacion = newLegacyNullDateField()
+	r.SetActivo(true)
+}
+
+func (r LegacyAnimeRaw) repeatEntries() []map[string]json.RawMessage {
+	values := r.Repetir.Values()
+	repeats := make([]map[string]json.RawMessage, 0, len(values)+1)
+	for _, value := range values {
+		var entry map[string]json.RawMessage
+		if err := json.Unmarshal(value, &entry); err != nil {
+			continue
+		}
+		repeats = append(repeats, entry)
+	}
+	return repeats
+}
+
+func (r LegacyAnimeRaw) dateFieldJSON(field LegacyDateField) json.RawMessage {
+	if field.IsAbsent() || field.IsNull() {
+		return mustMarshalJSON(nil)
+	}
+	return field.raw.marshal()
+}
+
 func NewLegacyDateFieldFromUnixMilli(value int64) LegacyDateField {
 	return newLegacyDateField(time.UnixMilli(value).UTC())
 }

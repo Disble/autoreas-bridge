@@ -16,6 +16,7 @@ const (
 	ActionAnimeStateSet     = "anime_state_set"
 	ActionAnimeSoftDeleted  = "anime_soft_deleted"
 	ActionAnimeRestored     = "anime_restored"
+	ActionAnimeRepeated     = "anime_repeated"
 	ActionAnimePageOpened   = "anime_page_opened"
 	ActionAnimePageCopied   = "anime_page_copied"
 	ActionAnimeFolderOpened = "anime_folder_opened"

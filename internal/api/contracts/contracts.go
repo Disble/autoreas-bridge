@@ -235,6 +235,7 @@ type AnimePatch struct {
 	FechaUltCapVisto      *int64   `json:"fechaUltCapVisto,omitempty"`
 	FechaEstreno          *int64   `json:"fechaEstreno,omitempty"`
 	FechaEliminacion      *int64   `json:"fechaEliminacion,omitempty"`
+	RepeatAt              *int64   `json:"repeatAt,omitempty"`
 	ClearFechaEliminacion bool     `json:"clearFechaEliminacion,omitempty"`
 	PreserveLastWatched   bool     `json:"-"`
 	Dias                  []string `json:"dias,omitempty"`

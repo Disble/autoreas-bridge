@@ -51,6 +51,12 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 			actionType = anime.ActivityActionAnimeSoftDeleted
 		}
 	}
+	if patch.RepeatAt != nil {
+		after.Estado = 0
+		after.NroCapVisto = 0
+		after.Activo = 1
+		actionType = anime.ActivityActionAnimeRepeated
+	}
 	if actionType == "" {
 		return nil
 	}

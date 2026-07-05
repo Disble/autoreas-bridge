@@ -11,6 +11,7 @@ import {
   OpenAnimeFolder,
   OpenAnimePage,
   PullAnimesFromLegacy,
+  RepeatAnime,
   RestoreAnime,
   GetSyncingAnimeItems,
   GetSQLiteStatus,
@@ -57,6 +58,7 @@ export interface BridgeRuntimeSource {
   readonly setAnimeState?: (animeID: string, estado: number, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly softDeleteAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly restoreAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
+  readonly repeatAnime?: (animeID: string, base: number) => Promise<contracts.ChapterCommandResult>;
   readonly openAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
   readonly copyAnimePage?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
   readonly openAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
@@ -215,6 +217,11 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     restoreAnime(animeID, base) {
       return waitForBindings(() => hasGoBinding('RestoreAnime')).then((isReady) => {
         return isReady ? RestoreAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
+      });
+    },
+    repeatAnime(animeID, base) {
+      return waitForBindings(() => hasGoBinding('RepeatAnime')).then((isReady) => {
+        return isReady ? RepeatAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
       });
     },
     openAnimePage(animeID) {

@@ -152,6 +152,7 @@ type stubAppChapterService struct {
 	lastState      anime.SetAnimeStateCommand
 	lastSoftDelete anime.SoftDeleteAnimeCommand
 	lastRestore    anime.RestoreAnimeCommand
+	lastRepeat     anime.RepeatAnimeCommand
 	err            error
 }
 
@@ -184,6 +185,11 @@ func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.Sof
 
 func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error) {
 	s.lastRestore = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+}
+
+func (s *stubAppChapterService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error) {
+	s.lastRepeat = cmd
 	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 

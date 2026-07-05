@@ -55,6 +55,8 @@ export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.Chapt
 
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
+export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
 export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
 
 export function SetSeasonMode(arg1:boolean):Promise<string>;

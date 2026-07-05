@@ -19,6 +19,7 @@ const (
 	ActivityActionAnimeStateSet     = "anime_state_set"
 	ActivityActionAnimeSoftDeleted  = "anime_soft_deleted"
 	ActivityActionAnimeRestored     = "anime_restored"
+	ActivityActionAnimeRepeated     = "anime_repeated"
 	ActivityActionAnimePageOpened   = "anime_page_opened"
 	ActivityActionAnimePageCopied   = "anime_page_copied"
 	ActivityActionAnimeFolderOpened = "anime_folder_opened"
@@ -99,6 +100,12 @@ type SoftDeleteAnimeCommand struct {
 }
 
 type RestoreAnimeCommand struct {
+	AnimeID string
+	Base    *int64
+	Source  string
+}
+
+type RepeatAnimeCommand struct {
 	AnimeID string
 	Base    *int64
 	Source  string
@@ -410,6 +417,59 @@ func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 		AnimeName:     current.Nombre,
 		Estado:        current.Estado,
 		NroCapVisto:   current.NroCapVisto,
+		OccurredAtMs:  occurredAtMs,
+		CorrelationID: correlationID,
+	}, nil
+}
+
+func (s *ChapterService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand) (ChapterCommandResult, error) {
+	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
+	if err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	occurredAtMs := s.now().UnixMilli()
+	if err := s.writer.PatchAnime(ctx, cmd.AnimeID, contracts.AnimePatch{
+		RepeatAt:            &occurredAtMs,
+		PreserveLastWatched: true,
+		Base:                cmd.Base,
+	}); err != nil {
+		return ChapterCommandResult{}, err
+	}
+
+	source := cmd.Source
+	if source == "" {
+		source = ActivitySourceDesktop
+	}
+	correlationID := fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, cmd.AnimeID, occurredAtMs)
+	if s.activity != nil {
+		if err := s.activity.RecordActivity(ctx, ActivityRecord{
+			Source:        source,
+			ActionType:    ActivityActionAnimeRepeated,
+			AnimeID:       cmd.AnimeID,
+			AnimeName:     current.Nombre,
+			OccurredAtMs:  occurredAtMs,
+			CorrelationID: correlationID,
+			Before: ActivityAnimeSnapshot{
+				Estado:      current.Estado,
+				NroCapVisto: current.NroCapVisto,
+				Activo:      current.Activo,
+			},
+			After: ActivityAnimeSnapshot{
+				Estado:      0,
+				NroCapVisto: 0,
+				Activo:      1,
+			},
+		}); err != nil {
+			return ChapterCommandResult{}, err
+		}
+	}
+
+	return ChapterCommandResult{
+		AnimeID:       cmd.AnimeID,
+		AnimeName:     current.Nombre,
+		Estado:        0,
+		NroCapVisto:   0,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: correlationID,
 	}, nil

@@ -231,6 +231,21 @@ func (a *App) RestoreAnime(animeID string, base int64) contracts.ChapterCommandR
 	return toChapterCommandContract(result)
 }
 
+func (a *App) RepeatAnime(animeID string, base int64) contracts.ChapterCommandResult {
+	if a.chapterService == nil {
+		return contracts.ChapterCommandResult{Status: "error", Message: "chapter service unavailable"}
+	}
+	result, err := a.chapterService.RepeatAnime(a.appContext(), anime.RepeatAnimeCommand{
+		AnimeID: animeID,
+		Base:    &base,
+		Source:  anime.ActivitySourceDesktop,
+	})
+	if err != nil {
+		return contracts.ChapterCommandResult{Status: "error", Message: err.Error()}
+	}
+	return toChapterCommandContract(result)
+}
+
 func (a *App) appContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()

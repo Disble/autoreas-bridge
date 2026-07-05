@@ -106,6 +106,10 @@ export function RestoreAnime(arg1, arg2) {
   return window['go']['main']['App']['RestoreAnime'](arg1, arg2);
 }
 
+export function RepeatAnime(arg1, arg2) {
+  return window['go']['main']['App']['RepeatAnime'](arg1, arg2);
+}
+
 export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
 }

@@ -114,6 +114,7 @@ type chapterCommandService interface {
 	SetAnimeState(ctx context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error)
 	SoftDeleteAnime(ctx context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error)
 	RestoreAnime(ctx context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error)
+	RepeatAnime(ctx context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error)
 }
 
 // NewApp creates a new App application struct

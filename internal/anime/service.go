@@ -293,6 +293,9 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 	if patch.ClearFechaEliminacion {
 		desired.ClearFechaEliminacion()
 	}
+	if patch.RepeatAt != nil {
+		desired.RepeatForNewCycle(time.UnixMilli(*patch.RepeatAt).UTC())
+	}
 
 	// SDD-30 ADR-30-2: the OCC gate. recordExists distinguishes "create" from
 	// "existing record" for the base==nil branches; valueEqual lazily compares

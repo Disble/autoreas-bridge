@@ -26,6 +26,7 @@ describe('bridge-runtime-source', () => {
     const animeDetailPromise = source.getAnimeDetail?.('anime-1');
     const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
     const restorePromise = source.restoreAnime?.('anime-1', 1000);
+    const repeatPromise = source.repeatAnime?.('anime-1', 1000);
     const openPagePromise = source.openAnimePage?.('anime-1');
     const copyPagePromise = source.copyAnimePage?.('anime-1');
     const openFolderPromise = source.openAnimeFolder?.('anime-1');
@@ -43,6 +44,7 @@ describe('bridge-runtime-source', () => {
     await expect(animeDetailPromise).resolves.toEqual({});
     await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(restorePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(repeatPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(openPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(copyPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
     await expect(openFolderPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
@@ -143,23 +145,27 @@ describe('bridge-runtime-source', () => {
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
   });
 
-  it('calls SoftDeleteAnime and RestoreAnime once Go bindings become ready', async () => {
+  it('calls SoftDeleteAnime, RestoreAnime, and RepeatAnime once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
     const softDeleteMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
     const restoreMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const repeatMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
 
     const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
     const restorePromise = source.restoreAnime?.('anime-1', 1001);
+    const repeatPromise = source.repeatAnime?.('anime-1', 1002);
 
-    window.go = { main: { App: { SoftDeleteAnime: softDeleteMock, RestoreAnime: restoreMock } } } as never;
+    window.go = { main: { App: { RepeatAnime: repeatMock, RestoreAnime: restoreMock, SoftDeleteAnime: softDeleteMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(softDeletePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
     await expect(restorePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(repeatPromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
     expect(softDeleteMock).toHaveBeenCalledWith('anime-1', 1000);
     expect(restoreMock).toHaveBeenCalledWith('anime-1', 1001);
+    expect(repeatMock).toHaveBeenCalledWith('anime-1', 1002);
   });
 
   it('calls page and folder desktop actions once Go bindings become ready', async () => {

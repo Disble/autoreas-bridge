@@ -404,6 +404,25 @@ func TestRestoreAnimeDelegatesToChapterService(t *testing.T) {
 	}
 }
 
+func TestRepeatAnimeDelegatesToChapterService(t *testing.T) {
+	t.Parallel()
+
+	service := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: service}
+
+	got := app.RepeatAnime("anime-1", 1000)
+
+	if got.Status != "ok" {
+		t.Fatalf("expected ok repeat result, got %#v", got)
+	}
+	if service.lastRepeat.AnimeID != "anime-1" {
+		t.Fatalf("expected repeat command to be delegated, got %#v", service.lastRepeat)
+	}
+	if service.lastRepeat.Base == nil || *service.lastRepeat.Base != 1000 {
+		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastRepeat.Base)
+	}
+}
+
 func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
