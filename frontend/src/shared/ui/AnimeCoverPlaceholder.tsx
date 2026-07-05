@@ -4,7 +4,9 @@ import type { SVGProps } from 'react';
  * Cute chibi cat-girl placeholder shown when an anime has no cover art or the
  * cover fails to load (Anime Detail spec, "Placeholder on missing or failing
  * cover"). Pure inline SVG line art on `currentColor` so it follows the
- * theme in both light and dark; no external asset, no network.
+ * theme in both light and dark; no external asset, no network. Shared by
+ * Anime Detail and Chapters (chapters-schedule-ui spec, "A single shared
+ * cover placeholder is used by both Anime Detail and Chapters").
  */
 export function AnimeCoverPlaceholder(props: Readonly<SVGProps<SVGSVGElement>>) {
   return (
