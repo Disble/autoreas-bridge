@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -101,6 +102,7 @@ type RunResult struct {
 // Service is the download orchestrator (design.md §3.9 "Service").
 type Service struct {
 	deps ServiceDeps
+	jdMu sync.Mutex
 }
 
 // NewService builds a Service from the given deps, defaulting Clock/NewRunID when unset so
@@ -222,8 +224,20 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 		anySucceeded bool
 	)
 
+	outcomes := make(chan animeRunOutcome, len(animes))
+	var wg sync.WaitGroup
 	for _, anime := range animes {
-		outcome := s.processAnime(ctx, runID, anime, jdOnline)
+		anime := anime
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			outcomes <- s.processAnime(ctx, runID, anime, jdOnline)
+		}()
+	}
+	wg.Wait()
+	close(outcomes)
+
+	for outcome := range outcomes {
 
 		if outcome.skipped {
 			run.SkippedCount++

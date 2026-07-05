@@ -3,6 +3,8 @@ package download
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/download/sites"
@@ -26,6 +28,10 @@ func (f fakeEpisodeSource) Matches(pageURL string) bool {
 
 func (f fakeEpisodeSource) ListEpisodes(ctx context.Context, pageURL string) (sites.EpisodeListing, error) {
 	return sites.EpisodeListing{}, nil
+}
+
+func (f fakeEpisodeSource) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
+	return strings.TrimRight(pageURL, "/") + "/" + strconv.Itoa(episode) + "/", nil
 }
 
 func (f fakeEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL string) ([]sites.DownloadLink, error) {

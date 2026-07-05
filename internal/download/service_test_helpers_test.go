@@ -3,6 +3,7 @@ package download
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -83,6 +84,10 @@ func (f *svcFakeEpisodeSource) ListEpisodes(ctx context.Context, pageURL string)
 	return f.listEpisodes[pageURL], nil
 }
 
+func (f *svcFakeEpisodeSource) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
+	return strings.TrimRight(pageURL, "/") + "/" + strconv.Itoa(episode) + "/", nil
+}
+
 func (f *svcFakeEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL string) ([]sites.DownloadLink, error) {
 	if err, ok := f.extractErr[episodePageURL]; ok {
 		return nil, err
@@ -135,6 +140,11 @@ func (f *svcFakeCounter) CountAtRoot(folder string) int {
 			return v
 		}
 	}
+	if f.flattenedFolders != nil && f.flattenedFolders[folder] {
+		if v, ok := f.recursive[folder]; ok {
+			return v
+		}
+	}
 	return f.atRoot[folder]
 }
 
@@ -142,6 +152,15 @@ func (f *svcFakeCounter) CountRecursive(folder string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.recursive[folder]
+}
+
+func (f *svcFakeCounter) Flatten(folder string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.flattenedFolders == nil {
+		f.flattenedFolders = map[string]bool{}
+	}
+	f.flattenedFolders[folder] = true
 }
 
 var _ filesystem.EpisodeCounter = (*svcFakeCounter)(nil)
@@ -350,6 +369,11 @@ var _ HosterResolver = (*svcFakeHosterResolver)(nil)
 func ptrStr(s string) *string { return &s }
 func ptrInt(i int) *int       { return &i }
 
+func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
+	deps.Counter = counter
+	deps.Flattener = &svcFakeFlattener{onFlatten: counter.Flatten}
+}
+
 func todayDiaName(now time.Time) string {
 	names := map[time.Weekday]string{
 		time.Monday:    "Lunes",
@@ -366,13 +390,14 @@ func todayDiaName(now time.Time) string {
 func baseDeps(t *testing.T) ServiceDeps {
 	t.Helper()
 	fixedNow := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+	counter := &svcFakeCounter{atRoot: map[string]int{}, recursive: map[string]int{}}
 	return ServiceDeps{
 		Animes:    &svcFakeAnimeQuery{},
 		Sites:     NewStaticRegistry(),
 		Hosters:   &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}},
 		JD:        &svcFakeJDClient{},
-		Counter:   &svcFakeCounter{atRoot: map[string]int{}, recursive: map[string]int{}},
-		Flattener: &svcFakeFlattener{},
+		Counter:   counter,
+		Flattener: &svcFakeFlattener{onFlatten: counter.Flatten},
 		Store:     newsvcFakeDownloadStore(),
 		Notifier:  &svcFakeNotifier{},
 		Bus:       events.NewBus(),

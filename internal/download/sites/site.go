@@ -34,6 +34,8 @@ type EpisodeSource interface {
 	Matches(pageURL string) bool
 	// ListEpisodes returns the latest online episode + episode page URL for the anime page.
 	ListEpisodes(ctx context.Context, pageURL string) (EpisodeListing, error)
+	// EpisodePageURL returns the canonical episode page URL for a specific episode number.
+	EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error)
 	// ExtractLinks returns hoster download links for a specific episode page.
 	ExtractLinks(ctx context.Context, episodePageURL string) ([]DownloadLink, error)
 }

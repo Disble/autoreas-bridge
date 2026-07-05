@@ -237,6 +237,20 @@ func TestListEpisodesReturnsNoEpisodesAvailableWhenAjaxTotalIsZero(t *testing.T)
 	}
 }
 
+func TestEpisodePageURLReturnsSpecificEpisodeURL(t *testing.T) {
+	t.Parallel()
+
+	adapter := New(http.DefaultClient)
+
+	got, err := adapter.EpisodePageURL(context.Background(), "https://jkanime.net/anime", 10)
+	if err != nil {
+		t.Fatalf("EpisodePageURL: %v", err)
+	}
+	if got != "https://jkanime.net/anime/10/" {
+		t.Fatalf("expected specific episode URL, got %q", got)
+	}
+}
+
 // --- download link extraction (4.5/4.6) ---
 
 func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T) {

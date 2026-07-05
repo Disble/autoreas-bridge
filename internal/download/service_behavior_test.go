@@ -2,6 +2,8 @@ package download
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -60,6 +62,10 @@ func (s *spyEpisodeSource) ListEpisodes(ctx context.Context, pageURL string) (si
 	return s.listing, nil
 }
 
+func (s *spyEpisodeSource) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
+	return strings.TrimRight(pageURL, "/") + "/" + strconv.Itoa(episode) + "/", nil
+}
+
 func (s *spyEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL string) ([]sites.DownloadLink, error) {
 	s.mu.Lock()
 	s.extractCalls++
@@ -105,7 +111,7 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 	deps.Hosters = &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}}
 	jd := &svcFakeJDClient{}
 	deps.JD = &fallbackAwareJDClient{svcFakeJDClient: jd, failHoster: "Mediafire"}
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -162,7 +168,7 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		Pagina:  ptrStr("https://jkanime.net/serie/"),
 		Carpeta: ptrStr(destFolder),
 	}}}
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -192,7 +198,7 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 
 	folder := t.TempDir()
 	deps := baseDeps(t)
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 12}, recursive: map[string]int{folder: 12}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 12}, recursive: map[string]int{folder: 12}})
 	source := &spyEpisodeSource{
 		listing:      sites.EpisodeListing{LatestEpisode: 13, EpisodePageURL: "https://jkanime.net/anime/13/"},
 		extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/13", Hoster: "Mediafire"}},
@@ -238,7 +244,7 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 	folder := t.TempDir()
 	deps := baseDeps(t)
 	// On disk already has the latest online episode: NeedsDownload is false.
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 5}, recursive: map[string]int{folder: 5}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 5}, recursive: map[string]int{folder: 5}})
 	source := &spyEpisodeSource{
 		listing: sites.EpisodeListing{LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/anime/5/"},
 	}
@@ -296,10 +302,10 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 		Pagina:  ptrStr("https://jkanime.net/current/"),
 		Carpeta: ptrStr(currentFolder),
 	}}}
-	deps.Counter = &svcFakeCounter{
+	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{freshFolder: 0, currentFolder: 4},
 		recursive: map[string]int{freshFolder: 1, currentFolder: 4},
-	}
+	})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
 	if err != nil {
@@ -336,7 +342,7 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 
 			folder := t.TempDir()
 			deps := baseDeps(t)
-			deps.Counter = &svcFakeCounter{atRoot: map[string]int{folder: 11}, recursive: map[string]int{folder: 11}}
+			setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 11}, recursive: map[string]int{folder: 11}})
 			source := &spyEpisodeSource{
 				listing:      sites.EpisodeListing{LatestEpisode: 12, EpisodePageURL: "https://jkanime.net/anime/12/"},
 				extractLinks: []sites.DownloadLink{{URL: "http://mediafire.example/12", Hoster: "Mediafire"}},

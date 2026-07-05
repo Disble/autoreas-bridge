@@ -52,7 +52,7 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 		Carpeta: ptrStr(t.TempDir()),
 	}}}
 
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{okFolder: 0}, recursive: map[string]int{okFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
 
 	svc := NewService(deps)
 	result, err := svc.RunOnce(context.Background(), "manual")
@@ -94,14 +94,16 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 	}
 	registry.Register(source)
 	deps.Sites = registry
+	jdOfflineFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
 		ID:      "anime-1",
 		Nombre:  "Some Anime",
 		Activo:  1,
 		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
 		Pagina:  ptrStr("https://jkanime.net/anime/"),
-		Carpeta: ptrStr(t.TempDir()),
+		Carpeta: ptrStr(jdOfflineFolder),
 	}}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{jdOfflineFolder: 2}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -134,6 +136,63 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected Notifier.Notify to be called on jd_offline degradation")
+	}
+}
+
+func TestRunOnceJDOfflineCollectsResolvableManualLinksAfterEpisodeFailure(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	dia := todayDiaName(deps.Clock())
+	folder := t.TempDir()
+
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/catchup/": {LatestEpisode: 12, EpisodePageURL: "https://jkanime.net/catchup/12/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/catchup/11/": {{URL: "http://mediafire.example/11", Hoster: "Mediafire"}},
+			"https://jkanime.net/catchup/12/": {{URL: "http://mediafire.example/12", Hoster: "Mediafire"}},
+		},
+		extractErr: map[string]error{
+			"https://jkanime.net/catchup/10/": errors.New("episode 10 links unavailable"),
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:      "anime-1",
+		Nombre:  "Catchup Anime",
+		Activo:  1,
+		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
+		Pagina:  ptrStr("https://jkanime.net/catchup/"),
+		Carpeta: ptrStr(folder),
+	}}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 9}})
+	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
+
+	result, err := NewService(deps).RunOnce(context.Background(), "manual")
+	if err != nil {
+		t.Fatalf("expected RunOnce to degrade gracefully on jd offline, got err %v", err)
+	}
+	if result.Status != RunStatusJDOffline {
+		t.Fatalf("expected run status %q, got %q", RunStatusJDOffline, result.Status)
+	}
+
+	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
+	if !ok {
+		t.Fatalf("expected run %q persisted", result.RunID)
+	}
+	if run.EpisodesFound != 3 || run.EpisodesFailed != 1 {
+		t.Fatalf("expected 3 found and 1 failed for the unresolved episode, got %#v", run)
+	}
+	if len(run.ManualLinks) != 2 {
+		t.Fatalf("expected manual links for the two resolvable episodes, got %#v", run.ManualLinks)
+	}
+	if run.ManualLinks[0].Episode != 11 || run.ManualLinks[1].Episode != 12 {
+		t.Fatalf("expected manual links for episodes 11 and 12, got %#v", run.ManualLinks)
 	}
 }
 
@@ -273,7 +332,7 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 		Pagina:  ptrStr("https://jkanime.net/anime/"),
 		Carpeta: ptrStr(destFolder),
 	}}}
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
 
@@ -323,7 +382,7 @@ func TestRunOncePersistsProgressBeforeFinalStatus(t *testing.T) {
 		Pagina:  ptrStr("https://jkanime.net/anime/"),
 		Carpeta: ptrStr(destFolder),
 	}}}
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
 	bus := events.NewBus()
 	progressEvents := 0
@@ -373,7 +432,7 @@ func TestRunOnceSurvivesNotifierFailure(t *testing.T) {
 		Pagina:  ptrStr("https://jkanime.net/anime/"),
 		Carpeta: ptrStr(destFolder),
 	}}}
-	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 	deps.Notifier = &svcFakeNotifier{err: errors.New("notifier transport down")}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")

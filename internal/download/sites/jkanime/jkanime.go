@@ -128,6 +128,11 @@ func (a *Adapter) ListEpisodes(ctx context.Context, pageURL string) (sites.Episo
 	}, nil
 }
 
+// EpisodePageURL returns the jkanime episode page URL for a specific episode number.
+func (a *Adapter) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
+	return fmt.Sprintf("%s%d/", ensureTrailingSlash(pageURL), episode), nil
+}
+
 // ExtractLinks fetches an episode page and extracts hoster-tagged download links from the
 // inline `var servers` array. Per download-sites spec "Download Link Extraction Failure
 // Surfacing", zero links is ALWAYS a loud error -- never a silent empty success.

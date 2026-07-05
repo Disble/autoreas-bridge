@@ -74,61 +74,111 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 		return animeRunOutcome{upToDate: true}
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_available",
-		map[string]any{"episode": listing.LatestEpisode},
-		"anime %s: episode %d available online (on disk: %d)", anime.Nombre, listing.LatestEpisode, onDiskCount)
-	s.publish(events.DownloadEpisodeAvailableEvent{RunID: runID, AnimeID: anime.ID, Episode: listing.LatestEpisode, CorrelationID: runID})
-
-	links, err := source.ExtractLinks(ctx, listing.EpisodePageURL)
-	if err != nil || len(links) == 0 {
-		s.logf(logger.LevelError, runID, anime.ID, "download.failed",
-			map[string]any{"failureKind": FailureKindHosterDown},
-			"anime %s: extract links failed: %v", anime.Nombre, err)
-		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
-		return animeRunOutcome{episodesFound: 1, episodesFailed: 1, failed: true, failureKind: FailureKindHosterDown}
-	}
-
-	if !jdOnline {
-		return animeRunOutcome{
-			episodesFound: 1,
-			manualLinks: []ManualLink{{
-				Anime:   anime.Nombre,
-				Episode: listing.LatestEpisode,
-				Links:   linkURLs(links),
-			}},
-		}
-	}
-
-	ordered := s.orderHosters(source.Descriptor().Name, links)
-	enqueued, failureKind := s.enqueueWithFallback(ctx, runID, anime, ordered)
-	if !enqueued {
-		s.logf(logger.LevelError, runID, anime.ID, "download.failed",
-			map[string]any{"failureKind": failureKind},
-			"anime %s: episode %d failed on every hoster", anime.Nombre, listing.LatestEpisode)
-		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
-		return animeRunOutcome{episodesFound: 1, episodesFailed: 1, failed: true, failureKind: failureKind}
-	}
-
-	downloaded := s.pollCompletion(ctx, *anime.Carpeta, onDiskCount)
-	if s.deps.Flattener != nil {
-		if _, ferr := s.deps.Flattener.Flatten(ctx, *anime.Carpeta); ferr != nil {
-			s.logf(logger.LevelWarn, runID, anime.ID, "download.failed",
+	outcome := animeRunOutcome{}
+	current := onDiskCount
+	for current < listing.LatestEpisode {
+		nextEpisode := current + 1
+		episodePageURL, err := source.EpisodePageURL(ctx, *anime.Pagina, nextEpisode)
+		if err != nil {
+			s.logf(logger.LevelError, runID, anime.ID, "download.failed",
 				map[string]any{"failureKind": FailureKindHosterDown},
-				"anime %s: flatten reported errors: %v", anime.Nombre, ferr)
+				"anime %s: resolve episode %d page failed: %v", anime.Nombre, nextEpisode, err)
+			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
+			outcome.episodesFound++
+			outcome.episodesFailed++
+			outcome.failed = true
+			outcome.failureKind = FailureKindHosterDown
+			if !jdOnline {
+				current++
+				continue
+			}
+			return outcome
 		}
+
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_available",
+			map[string]any{"episode": nextEpisode},
+			"anime %s: episode %d available online (on disk: %d)", anime.Nombre, nextEpisode, current)
+		s.publish(events.DownloadEpisodeAvailableEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
+
+		links, err := source.ExtractLinks(ctx, episodePageURL)
+		if err != nil || len(links) == 0 {
+			s.logf(logger.LevelError, runID, anime.ID, "download.failed",
+				map[string]any{"failureKind": FailureKindHosterDown},
+				"anime %s: extract links failed: %v", anime.Nombre, err)
+			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
+			outcome.episodesFound++
+			outcome.episodesFailed++
+			outcome.failed = true
+			outcome.failureKind = FailureKindHosterDown
+			if !jdOnline {
+				current++
+				continue
+			}
+			return outcome
+		}
+
+		outcome.episodesFound++
+		if !jdOnline {
+			outcome.manualLinks = append(outcome.manualLinks, ManualLink{
+				Anime:   anime.Nombre,
+				Episode: nextEpisode,
+				Links:   linkURLs(links),
+			})
+			current++
+			continue
+		}
+
+		ordered := s.orderHosters(source.Descriptor().Name, links)
+		enqueued, failureKind := s.enqueueWithFallback(ctx, runID, anime, ordered)
+		if !enqueued {
+			s.logf(logger.LevelError, runID, anime.ID, "download.failed",
+				map[string]any{"failureKind": failureKind},
+				"anime %s: episode %d failed on every hoster", anime.Nombre, nextEpisode)
+			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
+			outcome.episodesFailed++
+			outcome.failed = true
+			outcome.failureKind = failureKind
+			return outcome
+		}
+
+		downloaded := s.pollCompletion(ctx, *anime.Carpeta, current)
+		if s.deps.Flattener != nil {
+			if _, ferr := s.deps.Flattener.Flatten(ctx, *anime.Carpeta); ferr != nil {
+				s.logf(logger.LevelWarn, runID, anime.ID, "download.failed",
+					map[string]any{"failureKind": FailureKindHosterDown},
+					"anime %s: flatten reported errors: %v", anime.Nombre, ferr)
+			}
+		}
+
+		nextCount := current
+		if s.deps.Counter != nil {
+			nextCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
+		}
+		if !downloaded {
+			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindSlowOrTimeout, CorrelationID: runID})
+			outcome.episodesFailed++
+			outcome.failed = true
+			outcome.failureKind = FailureKindSlowOrTimeout
+			return outcome
+		}
+		if nextCount <= current {
+			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindSlowOrTimeout, CorrelationID: runID})
+			outcome.episodesFailed++
+			outcome.failed = true
+			outcome.failureKind = FailureKindSlowOrTimeout
+			return outcome
+		}
+
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded",
+			map[string]any{"episode": nextEpisode},
+			"anime %s: episode %d downloaded", anime.Nombre, nextEpisode)
+		s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
+
+		outcome.episodesDownloaded++
+		current = nextCount
 	}
 
-	if !downloaded {
-		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindSlowOrTimeout, CorrelationID: runID})
-		return animeRunOutcome{episodesFound: 1, episodesFailed: 1, failed: true, failureKind: FailureKindSlowOrTimeout}
-	}
-
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded",
-		map[string]any{"episode": listing.LatestEpisode},
-		"anime %s: episode %d downloaded", anime.Nombre, listing.LatestEpisode)
-	s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: listing.LatestEpisode, CorrelationID: runID})
-
-	return animeRunOutcome{episodesFound: 1, episodesDownloaded: 1}
+	return outcome
 }
 
 // hosterLink pairs a download link with the hoster's resolved priority order index, so
@@ -190,10 +240,12 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 
 	lastFailureKind := FailureKindHosterDown
 	for _, hl := range ordered {
+		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,
 			Destination: derefOrEmpty(anime.Carpeta),
 		})
+		s.jdMu.Unlock()
 		if err == nil {
 			return true, ""
 		}
