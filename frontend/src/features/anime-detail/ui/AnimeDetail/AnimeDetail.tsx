@@ -1,5 +1,5 @@
 import { Button, Card, Chip, ProgressBar } from '@heroui/react';
-import { AnimeCoverPlaceholder } from './AnimeCoverPlaceholder';
+import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
 import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
 import {
   ANIME_DETAIL_BACK_LABEL,

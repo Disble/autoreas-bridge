@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from '@heroui/react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import { preferencesSource } from '../../../../infrastructure/preferences-source';
 import { CHAPTER_RUNTIME_UNAVAILABLE_RESULT } from './chapter-schedule-panel.constants';
-import { getChapterFilterOptions, getInitialChapterSelection, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
-import type { ChapterCommandResult, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource } from './chapter-schedule-panel.types';
+import { getChapterFilterOptions, getInitialChapterSelection, toAnimeCover, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
+import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource, CoverEntry } from './chapter-schedule-panel.types';
 
 
 /**
@@ -11,34 +12,40 @@ import type { ChapterCommandResult, ChapterScheduleItem, ChapterSchedulePanelPro
  */
 export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>) {
   // 1. Refs
+  const fetchedCoverIdsRef = useRef<Set<string>>(new Set());
 
   // 2. State
   const [selectedDay, setSelectedDay] = useState(props.initialDay ?? '');
   const [isSeasonMode, setIsSeasonMode] = useState(false);
   const [items, setItems] = useState<readonly ChapterScheduleItem[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [covers, setCovers] = useState<ReadonlyMap<string, CoverEntry>>(new Map());
+  const [dayCounts, setDayCounts] = useState<readonly ChapterDayCount[]>([]);
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
+  const rawGetAnimeCover = bridgeRuntimeSource.getAnimeCover;
   const source = useMemo<ChapterScheduleSource>(
     () =>
       props.source ?? {
         adjustWatchedChapters: bridgeRuntimeSource.adjustWatchedChapters ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
         copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
         copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+        getAnimeCover: rawGetAnimeCover ? (animeID: string) => rawGetAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
+        getChapterDayCounts: bridgeRuntimeSource.getChapterDayCounts ?? (() => Promise.resolve([])),
         getChapterSchedule: bridgeRuntimeSource.getChapterSchedule ?? (() => Promise.resolve([])),
         getSeasonMode: preferencesSource.getSeasonMode,
         openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
         openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
         setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
       },
-    [props.source],
+    [props.source, rawGetAnimeCover],
   );
   const filterOptions = useMemo(() => getChapterFilterOptions(isSeasonMode), [isSeasonMode]);
-  const rows = useMemo(() => toChapterScheduleRows(items), [items]);
+  const rows = useMemo(() => toChapterScheduleRows(items, covers), [items, covers]);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const refresh = useCallback(() => {
@@ -60,6 +67,17 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     setSelectedDay(day);
   }, []);
 
+  const refreshDayCounts = useCallback(() => {
+    void source
+      .getChapterDayCounts()
+      .then((counts) => {
+        setDayCounts(counts);
+      })
+      .catch(() => {
+        setDayCounts([]);
+      });
+  }, [source]);
+
   const adjustWatchedChapters = useCallback(
     async (animeID: string, delta: number, base: number) => {
       setErrorMessage('');
@@ -69,8 +87,9 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
         return;
       }
       refresh();
+      refreshDayCounts();
     },
-    [refresh, source],
+    [refresh, refreshDayCounts, source],
   );
 
   const setAnimeState = useCallback(
@@ -82,22 +101,27 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
         return;
       }
       refresh();
+      refreshDayCounts();
     },
-    [refresh, source],
+    [refresh, refreshDayCounts, source],
   );
 
-  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<ChapterCommandResult>, animeID: string) => {
+  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<ChapterCommandResult>, animeID: string, successToast?: string) => {
     setErrorMessage('');
     const result = await action(animeID);
     if (result.status !== 'ok') {
       setErrorMessage(result.message ?? 'Could not run anime desktop action.');
+      return;
+    }
+    if (successToast !== undefined) {
+      toast.success(successToast);
     }
   }, []);
 
   const openAnimePage = useCallback((animeID: string) => runDesktopAction(source.openAnimePage, animeID), [runDesktopAction, source.openAnimePage]);
-  const copyAnimePage = useCallback((animeID: string) => runDesktopAction(source.copyAnimePage, animeID), [runDesktopAction, source.copyAnimePage]);
+  const copyAnimePage = useCallback((animeID: string) => runDesktopAction(source.copyAnimePage, animeID, 'Page URL copied to clipboard'), [runDesktopAction, source.copyAnimePage]);
   const openAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.openAnimeFolder, animeID), [runDesktopAction, source.openAnimeFolder]);
-  const copyAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.copyAnimeFolder, animeID), [runDesktopAction, source.copyAnimeFolder]);
+  const copyAnimeFolder = useCallback((animeID: string) => runDesktopAction(source.copyAnimeFolder, animeID, 'Folder path copied to clipboard'), [runDesktopAction, source.copyAnimeFolder]);
 
   // 7. Effects
   useEffect(() => {
@@ -128,10 +152,53 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    refreshDayCounts();
+  }, [refreshDayCounts]);
+
+  useEffect(() => {
+    const idsToFetch = items.filter((item) => item.hasCover && !fetchedCoverIdsRef.current.has(item.animeId)).map((item) => item.animeId);
+    if (idsToFetch.length === 0) {
+      return;
+    }
+
+    for (const animeID of idsToFetch) {
+      fetchedCoverIdsRef.current.add(animeID);
+    }
+
+    setCovers((previous) => {
+      const next = new Map(previous);
+      for (const animeID of idsToFetch) {
+        next.set(animeID, { status: 'loading' });
+      }
+      return next;
+    });
+
+    for (const animeID of idsToFetch) {
+      void source
+        .getAnimeCover(animeID)
+        .then((cover) => {
+          setCovers((previous) => {
+            const next = new Map(previous);
+            next.set(animeID, cover.source === 'cover' && cover.dataUrl !== undefined ? { dataUrl: cover.dataUrl, status: 'cover' } : { status: 'placeholder' });
+            return next;
+          });
+        })
+        .catch(() => {
+          setCovers((previous) => {
+            const next = new Map(previous);
+            next.set(animeID, { status: 'placeholder' });
+            return next;
+          });
+        });
+    }
+  }, [items, source]);
+
   return {
     adjustWatchedChapters,
     copyAnimeFolder,
     copyAnimePage,
+    dayCounts,
     errorMessage,
     filterOptions,
     isSeasonMode,

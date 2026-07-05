@@ -329,6 +329,70 @@ describe('bridge-runtime-source', () => {
     expect(triggerReconcileMock).not.toHaveBeenCalled();
   });
 
+  it('degrades getAnimeCover to a placeholder source when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const coverPromise = source.getAnimeCover?.('anime-1');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(coverPromise).resolves.toEqual({ source: 'placeholder' });
+  });
+
+  it('degrades getAnimeCover to a placeholder source when the App exists but GetAnimeCover is missing', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const coverPromise = source.getAnimeCover?.('anime-1');
+
+    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(coverPromise).resolves.toEqual({ source: 'placeholder' });
+  });
+
+  it('calls GetAnimeCover once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const getAnimeCoverMock = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
+
+    const coverPromise = source.getAnimeCover?.('anime-1');
+
+    window.go = { main: { App: { GetAnimeCover: getAnimeCoverMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(coverPromise).resolves.toEqual({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
+    expect(getAnimeCoverMock).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('degrades getChapterDayCounts to an empty array when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const countsPromise = source.getChapterDayCounts?.();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(countsPromise).resolves.toEqual([]);
+  });
+
+  it('calls GetChapterDayCounts once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const getChapterDayCountsMock = vi.fn().mockResolvedValue([{ count: 2, day: 'Lunes' }]);
+
+    const countsPromise = source.getChapterDayCounts?.();
+
+    window.go = { main: { App: { GetChapterDayCounts: getChapterDayCountsMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(countsPromise).resolves.toEqual([{ count: 2, day: 'Lunes' }]);
+  });
+
   it('degrades onPairingTokenConsumed to a no-op unsubscribe when the runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

@@ -1,5 +1,19 @@
 export namespace contracts {
 	
+	export class AnimeCover {
+	    dataUrl?: string;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCover(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dataUrl = source["dataUrl"];
+	        this.source = source["source"];
+	    }
+	}
 	export class AnimeDetailDownload {
 	    page?: string;
 	    folder?: string;
@@ -240,6 +254,20 @@ export namespace contracts {
 	        this.correlationId = source["correlationId"];
 	    }
 	}
+	export class ChapterDayCount {
+	    day: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChapterDayCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.count = source["count"];
+	    }
+	}
 	export class ChapterScheduleItem {
 	    animeId: string;
 	    animeName: string;
@@ -249,8 +277,9 @@ export namespace contracts {
 	    day: string;
 	    dayOrder: number;
 	    modified_at: number;
-	    hasPage: boolean;
-	    hasFolder: boolean;
+	    folderPath?: string;
+	    pageUrl?: string;
+	    hasCover: boolean;
 	    lastWatched?: number;
 	    firstWatched?: number;
 	
@@ -268,8 +297,9 @@ export namespace contracts {
 	        this.day = source["day"];
 	        this.dayOrder = source["dayOrder"];
 	        this.modified_at = source["modified_at"];
-	        this.hasPage = source["hasPage"];
-	        this.hasFolder = source["hasFolder"];
+	        this.folderPath = source["folderPath"];
+	        this.pageUrl = source["pageUrl"];
+	        this.hasCover = source["hasCover"];
 	        this.lastWatched = source["lastWatched"];
 	        this.firstWatched = source["firstWatched"];
 	    }

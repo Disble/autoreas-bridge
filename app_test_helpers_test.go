@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -184,8 +185,24 @@ func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contra
 
 var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
 
+// stubAppCoverResolver is a coverResolver double for app_runtime_test.go's
+// GetAnimeCover cases: records the last (animeID, portadaPath) it was
+// called with and returns a canned cover.Result.
+type stubAppCoverResolver struct {
+	result      cover.Result
+	lastAnimeID string
+	lastPortada string
+}
+
+func (s *stubAppCoverResolver) Resolve(_ context.Context, animeID, portadaPath string) cover.Result {
+	s.lastAnimeID = animeID
+	s.lastPortada = portadaPath
+	return s.result
+}
+
 type stubAppChapterService struct {
 	schedule       []anime.ChapterScheduleItem
+	dayCounts      []anime.ChapterDayCount
 	lastDay        string
 	lastAdjust     anime.AdjustWatchedChaptersCommand
 	lastState      anime.SetAnimeStateCommand
@@ -193,6 +210,10 @@ type stubAppChapterService struct {
 	lastRestore    anime.RestoreAnimeCommand
 	lastRepeat     anime.RepeatAnimeCommand
 	err            error
+}
+
+func (s *stubAppChapterService) ListChapterDayCounts(context.Context) ([]anime.ChapterDayCount, error) {
+	return s.dayCounts, s.err
 }
 
 func (s *stubAppChapterService) ListChapterSchedule(_ context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error) {

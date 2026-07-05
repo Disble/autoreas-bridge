@@ -1,18 +1,24 @@
 import { CHAPTER_DAY_OPTIONS, CHAPTER_SEASON_OPTIONS, CHAPTER_STATE_LABELS } from './chapter-schedule-panel.constants';
-import type { ChapterScheduleItem, ChapterScheduleRow, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
+import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
 
 const spanishWeekdayFormatter = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
+const EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();
 
 /**
  * Converts backend chapter schedule DTOs into UI rows with explicit labels so the
- * rendering component stays dumb and does not duplicate progress math.
+ * rendering component stays dumb and does not duplicate progress math. `covers`
+ * carries the hook's per-session cover cache, keyed by anime id.
  */
-export function toChapterScheduleRows(items: readonly ChapterScheduleItem[]): readonly ChapterScheduleRow[] {
+export function toChapterScheduleRows(items: readonly ChapterScheduleItem[], covers: ReadonlyMap<string, CoverEntry> = EMPTY_COVERS): readonly ChapterScheduleRow[] {
   return items.map((item) => {
     const remaining = item.totalcap === undefined ? undefined : item.totalcap - item.nrocapvisto;
     const watchedLabel = `${formatChapterNumber(item.nrocapvisto)} watched`;
     const totalLabel = item.totalcap === undefined ? 'Unknown total' : `of ${item.totalcap}`;
     const remainingLabel = remaining === undefined ? 'Unknown remaining' : `${formatChapterNumber(Math.max(remaining, 0))} remaining`;
+    const folderPath = item.folderPath ?? '';
+    const pageUrl = item.pageUrl ?? '';
+    const cover = covers.get(item.animeId);
+    const hasResolvedCover = item.hasCover && cover?.status === 'cover';
 
     return {
       id: item.animeId,
@@ -24,10 +30,32 @@ export function toChapterScheduleRows(items: readonly ChapterScheduleItem[]): re
       progressTitle: `${watchedLabel} ${totalLabel} · ${remainingLabel}`,
       totalLabel,
       modifiedAt: item.modified_at,
-      hasPage: item.hasPage,
-      hasFolder: item.hasFolder,
+      hasPage: pageUrl !== '',
+      hasFolder: folderPath !== '',
+      folderPath,
+      pageUrl,
+      coverDataUrl: hasResolvedCover ? cover.dataUrl : undefined,
+      showCoverPlaceholder: !hasResolvedCover,
     };
   });
+}
+
+/**
+ * Returns the badge count for a weekday, or undefined when the day is absent
+ * or has a zero count (spec: a count of 0 SHALL show no badge at all).
+ */
+export function dayBadge(day: string, counts: readonly ChapterDayCount[]): number | undefined {
+  const count = counts.find((entry) => entry.day === day)?.count;
+  return count === undefined || count === 0 ? undefined : count;
+}
+
+/**
+ * Normalizes a wire-shaped cover response (an open `source: string`, as
+ * generated from the Go contract) into the feature's narrower `AnimeCover`
+ * union, treating any non-'cover' source or a missing data URL as a placeholder.
+ */
+export function toAnimeCover(raw: { readonly dataUrl?: string; readonly source: string }): AnimeCover {
+  return raw.source === 'cover' && raw.dataUrl !== undefined ? { dataUrl: raw.dataUrl, source: 'cover' } : { source: 'placeholder' };
 }
 
 /**

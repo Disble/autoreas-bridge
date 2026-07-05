@@ -209,6 +209,31 @@ func (a *App) GetChapterSchedule(day string) []contracts.ChapterScheduleItem {
 	return toChapterScheduleContracts(items)
 }
 
+// GetAnimeCover resolves a single anime's cover into a base64 data-URL, or
+// an explicit placeholder signal (chapters-cover-pipeline spec, "Cover
+// resolution follows a deterministic, placeholder-first order"). Degrades to
+// the placeholder signal -- never an error -- on a nil dependency, a lookup
+// failure, or a resolver-reported non-cover, mirroring GetAnimeDetail's
+// nil-guard shape.
+func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
+	if a.animeQuery == nil || a.coverResolver == nil {
+		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
+	}
+	current, err := a.animeQuery.GetMobileAnime(a.appContext(), animeID)
+	if err != nil || current == nil {
+		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
+	}
+	portada := ""
+	if current.Portada != nil {
+		portada = *current.Portada
+	}
+	res := a.coverResolver.Resolve(a.appContext(), animeID, portada)
+	if !res.IsCover {
+		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
+	}
+	return contracts.AnimeCover{DataURL: res.DataURL, Source: contracts.CoverSourceCover}
+}
+
 func (a *App) AdjustWatchedChapters(animeID string, delta float64, base int64) contracts.ChapterCommandResult {
 	if a.chapterService == nil {
 		return contracts.ChapterCommandResult{Status: "error", Message: "chapter service unavailable"}
@@ -286,6 +311,22 @@ func (a *App) RepeatAnime(animeID string, base int64) contracts.ChapterCommandRe
 	return toChapterCommandContract(result)
 }
 
+// GetChapterDayCounts returns the per-weekday active-progress badge counts
+// (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
+// Legacy's buscarMedalla semantics"). Degrades to an empty (non-nil) slice
+// on a nil service or any query error, mirroring GetChapterSchedule's
+// nil-guard contract.
+func (a *App) GetChapterDayCounts() []contracts.ChapterDayCount {
+	if a.chapterService == nil {
+		return []contracts.ChapterDayCount{}
+	}
+	counts, err := a.chapterService.ListChapterDayCounts(a.appContext())
+	if err != nil {
+		return []contracts.ChapterDayCount{}
+	}
+	return toChapterDayCountContracts(counts)
+}
+
 func (a *App) appContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()
@@ -305,11 +346,20 @@ func toChapterScheduleContracts(items []anime.ChapterScheduleItem) []contracts.C
 			Day:          item.Day,
 			DayOrder:     item.DayOrder,
 			ModifiedAt:   item.ModifiedAt,
-			HasPage:      item.HasPage,
-			HasFolder:    item.HasFolder,
+			FolderPath:   item.FolderPath,
+			PageURL:      item.PageURL,
+			HasCover:     item.HasCover,
 			LastWatched:  item.LastWatched,
 			FirstWatched: item.FirstWatched,
 		})
+	}
+	return result
+}
+
+func toChapterDayCountContracts(items []anime.ChapterDayCount) []contracts.ChapterDayCount {
+	result := make([]contracts.ChapterDayCount, 0, len(items))
+	for _, item := range items {
+		result = append(result, contracts.ChapterDayCount{Day: item.Day, Count: item.Count})
 	}
 	return result
 }

@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.6"
+  version: "1.0.7"
   scope: project
   updates: living
 ---
@@ -49,6 +49,23 @@ Semantic tokens in use: `accent`, `success`, `warning`, `danger`, `default`, plu
 
 These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetworkDomainColor`, etc.). Reuse the helper; don't re-derive the switch.
 
+## Brand & action hierarchy (bridge's OWN theme — never Legacy's colors)
+
+The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/blue:
+
+- **Primary action** = `Button variant="primary"` → `--accent` (oklch(0.6204 0.195 253.83), the brand blue). One per action cluster: the action the user came to perform (e.g. Chapters "+").
+- **Secondary action** = `Button variant="secondary"` → `--default` surface with `--accent-soft-foreground` text. The counterpart of the primary in a paired control (e.g. Chapters "−").
+- **Utility actions** = `variant="tertiary"` icons that TINT with intent on hover via Tailwind semantic utilities: folder → `hover:text-success`, page/link → `hover:text-accent`, status → `hover:text-warning`. Color-on-interaction is a UX signal (Legacy did this with green/blue/yellow); port the *pattern* with bridge tokens, never Legacy's literal hues.
+- Rule of thumb when porting Legacy UI: ask "what ROLE does this color play?" and map the role to a bridge token. Copying Legacy hex/danger-for-red is a regression (user-rejected in the SDD-38→hotfix cycle).
+
+## Card cover slot pattern (full-bleed edge image)
+
+`.card` (HeroUI) has `p-4` and `border-radius: min(32px, var(--radius-3xl))`. For an edge-flowing image column inside a Card (Chapters schedule): give the Card `overflow-hidden`, and the slot `relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden` — the negative margins bleed through the padding and the Card clips the corners. Put the art `absolute inset-0 size-full object-cover` (or an SVG with `preserveAspectRatio="xMidYMid slice"`) so the source aspect ratio can NEVER change the card height. Add `gap-4 min-h-24` on the flex row for breathing room and consistent card presence. Default cover art is `shared/ui/CoverPlaceholderScene.tsx` (night bridge scene) — full-bleed, not an icon centered in a gray box.
+
+## Toast feedback
+
+`toast` from `@heroui/react` (`toast.success/danger/warning/info`). Backend notifications flow through `use-notification-toasts` (the only `notification.push` subscriber). For LOCAL imperative feedback (e.g. clipboard copy confirmations), hooks call `toast.success(...)` directly in the mutation callback — English copy, e.g. "Folder path copied to clipboard". Mock pattern for hook tests: `vi.hoisted` toast object + `vi.mock('@heroui/react', () => ({ toast: toastMock }))` (see `use-chapter-schedule-panel.test.ts`).
+
 ## Architecture constraints (from CLAUDE.md — enforced)
 
 - `.tsx` under `features/` are **dumb UI only**: no Wails calls, no `useEffect`, no business logic. Logic goes in `use-*.ts` hooks (strict anatomy) and pure `*.helpers.ts` (every exported helper has JSDoc).
@@ -73,6 +90,7 @@ These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetwork
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.7` — Added the brand & action hierarchy section (primary=accent / secondary=default+accent-soft; hover intent tints for utility icons), the full-bleed card cover slot pattern (negative-margin bleed + absolute art, aspect-ratio-proof), and the toast feedback convention — all from the Chapters card hotfix after the user rejected Legacy-literal red/blue.
 - `1.0.6` — Corrected the main-worktree package reality: `@heroui/react@3.2.1` exports `Typography`. A stale Codex worktree had `3.0.2` exports (`Text`), which broke `wails dev` on real `main`; always verify against the target worktree's installed package.
 - `1.0.5` — Corrected the text primitive for the installed package: `@heroui/react@3.0.2` exports `Text`, not `Typography`. Newer docs mention `Typography`, but installed code wins; verify exports before importing docs-only components.
 - `1.0.4` — Root-caused the scroll failures: the `pinned` guard (updated from `onScroll`) was false when entries arrived, blocking every auto-scroll regardless of mechanism. Removed the guard (feed always sticks to bottom for now) and reverted to `scrollTop` (sync + rAF). Fixed column clipping with `table-fixed` + per-column widths (replacing the harmful `overflow-x-clip`). Removed the sentinel/`scrollIntoView` approach and its jsdom stub. Autoscroll pending final user confirmation.

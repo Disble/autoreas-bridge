@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -66,8 +67,9 @@ type ChapterScheduleItem struct {
 	Day          string
 	DayOrder     int
 	ModifiedAt   int64
-	HasPage      bool
-	HasFolder    bool
+	FolderPath   string
+	PageURL      string
+	HasCover     bool
 	LastWatched  *int64
 	FirstWatched *int64
 }
@@ -165,6 +167,10 @@ func (s *ChapterService) ListChapterSchedule(ctx context.Context, query ChapterS
 		if !ok {
 			continue
 		}
+		portada := ""
+		if item.Portada != nil {
+			portada = *item.Portada
+		}
 		result = append(result, ChapterScheduleItem{
 			AnimeID:      item.ID,
 			AnimeName:    item.Nombre,
@@ -174,8 +180,9 @@ func (s *ChapterService) ListChapterSchedule(ctx context.Context, query ChapterS
 			Day:          day.Dia,
 			DayOrder:     day.Orden,
 			ModifiedAt:   item.ModifiedAt,
-			HasPage:      hasNonEmptyLegacyString(item.Pagina),
-			HasFolder:    hasNonEmptyLegacyString(item.Carpeta),
+			FolderPath:   legacyStringValue(item.Carpeta),
+			PageURL:      legacyStringValue(item.Pagina),
+			HasCover:     cover.Classify(portada) != cover.KindAbsent,
 			LastWatched:  item.FechaUltCapVisto,
 			FirstWatched: item.FechaEstreno,
 		})

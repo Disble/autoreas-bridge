@@ -30,3 +30,12 @@ export const CHAPTER_STATE_OPTIONS = [
   { icon: closeCircleIcon, label: 'Dropped', value: 2 },
   { icon: pauseCircleIcon, label: 'Paused', value: 3 },
 ] as const;
+
+/**
+ * Fixed-size wrapper class shared by the cover slot's placeholder and image states.
+ * The negative margins bleed the slot through the Card's `p-4` padding so the art
+ * reaches the card edge (the Card's own `overflow-hidden` clips the corners), and
+ * `relative` lets the art position absolutely so the source aspect ratio can never
+ * change the card height.
+ */
+export const CHAPTER_COVER_SLOT_CLASS = 'relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden';
