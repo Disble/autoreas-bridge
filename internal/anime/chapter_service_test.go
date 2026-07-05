@@ -416,6 +416,67 @@ func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testin
 	}
 }
 
+func TestChapterServiceListChapterScheduleExposesLiteralFolderPageAndHasCover(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-cover",
+		`{"_id":"anime-cover","nombre":"Cover","nrocapvisto":1,"estado":0,"activo":true,`+
+			`"dias":[{"dia":"Lunes","orden":1}],"carpeta":"C:\\anime\\cover",`+
+			`"pagina":"https://example.com/watch",`+
+			`"portada":{"type":"url","path":"https://cdn.jkdesu.com/x.jpg"}}`)
+	seedAnimeSnapshot(t, store, "anime-empty",
+		`{"_id":"anime-empty","nombre":"Empty","nrocapvisto":1,"estado":0,"activo":true,`+
+			`"dias":[{"dia":"Lunes","orden":2}]}`)
+	seedAnimeSnapshot(t, store, "anime-null-portada",
+		`{"_id":"anime-null-portada","nombre":"NullPortada","nrocapvisto":1,"estado":0,"activo":true,`+
+			`"dias":[{"dia":"Lunes","orden":3}],"portada":{"type":"image","path":"null"}}`)
+
+	service := anime.NewChapterService(anime.ChapterServiceDeps{Query: anime.NewQueryService(store)})
+
+	got, err := service.ListChapterSchedule(ctx, anime.ChapterScheduleQuery{Day: "Lunes"})
+	if err != nil {
+		t.Fatalf("list chapter schedule: %v", err)
+	}
+
+	byID := make(map[string]anime.ChapterScheduleItem, len(got))
+	for _, item := range got {
+		byID[item.AnimeID] = item
+	}
+
+	withCover, ok := byID["anime-cover"]
+	if !ok {
+		t.Fatalf("expected anime-cover in result, got %#v", byID)
+	}
+	if withCover.FolderPath != `C:\anime\cover` {
+		t.Fatalf("expected literal folder path, got %q", withCover.FolderPath)
+	}
+	if withCover.PageURL != "https://example.com/watch" {
+		t.Fatalf("expected literal page url, got %q", withCover.PageURL)
+	}
+	if !withCover.HasCover {
+		t.Fatal("expected hasCover true for a URL-shaped portada")
+	}
+
+	empty, ok := byID["anime-empty"]
+	if !ok {
+		t.Fatalf("expected anime-empty in result, got %#v", byID)
+	}
+	if empty.FolderPath != "" || empty.PageURL != "" {
+		t.Fatalf("expected empty literal strings for absent folder/page, got %#v", empty)
+	}
+	if empty.HasCover {
+		t.Fatal("expected hasCover false for absent portada")
+	}
+
+	nullPortada, ok := byID["anime-null-portada"]
+	if !ok {
+		t.Fatalf("expected anime-null-portada in result, got %#v", byID)
+	}
+	if nullPortada.HasCover {
+		t.Fatal("expected hasCover false for the literal 'null' sentinel")
+	}
+}
+
 type stubChapterActivityRecorder struct {
 	records []anime.ActivityRecord
 }

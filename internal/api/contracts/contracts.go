@@ -167,18 +167,53 @@ type AnimeDetail struct {
 }
 
 type ChapterScheduleItem struct {
-	AnimeID      string  `json:"animeId"`
-	AnimeName    string  `json:"animeName"`
-	Estado       int     `json:"estado"`
-	NroCapVisto  float64 `json:"nrocapvisto"`
-	TotalCap     *int    `json:"totalcap,omitempty"`
-	Day          string  `json:"day"`
-	DayOrder     int     `json:"dayOrder"`
-	ModifiedAt   int64   `json:"modified_at"`
-	HasPage      bool    `json:"hasPage"`
-	HasFolder    bool    `json:"hasFolder"`
-	LastWatched  *int64  `json:"lastWatched,omitempty"`
-	FirstWatched *int64  `json:"firstWatched,omitempty"`
+	AnimeID     string  `json:"animeId"`
+	AnimeName   string  `json:"animeName"`
+	Estado      int     `json:"estado"`
+	NroCapVisto float64 `json:"nrocapvisto"`
+	TotalCap    *int    `json:"totalcap,omitempty"`
+	Day         string  `json:"day"`
+	DayOrder    int     `json:"dayOrder"`
+	ModifiedAt  int64   `json:"modified_at"`
+	// FolderPath/PageURL are the literal carpeta/pagina strings (chapters-
+	// cover-pipeline spec, "ChapterScheduleItem contract carries cover and
+	// literal path fields"). They REPLACE the former HasPage/HasFolder
+	// booleans -- presence is re-derived client-side as `string !== ''`,
+	// avoiding two sources of truth for the same fact. Empty when the
+	// legacy source field is absent or empty.
+	FolderPath string `json:"folderPath,omitempty"`
+	PageURL    string `json:"pageUrl,omitempty"`
+	// HasCover gates the frontend's lazy GetAnimeCover call: true when the
+	// anime's portada classifies as anything other than cover.KindAbsent.
+	HasCover     bool   `json:"hasCover"`
+	LastWatched  *int64 `json:"lastWatched,omitempty"`
+	FirstWatched *int64 `json:"firstWatched,omitempty"`
+}
+
+// CoverSourceCover/CoverSourcePlaceholder are the two values AnimeCover.Source
+// may take (chapters-cover-pipeline spec, "Cover resolution follows a
+// deterministic, placeholder-first order").
+const (
+	CoverSourceCover       = "cover"
+	CoverSourcePlaceholder = "placeholder"
+)
+
+// AnimeCover is the GetAnimeCover binding's response DTO: either resolved
+// cover bytes as a base64 data-URL (Source == CoverSourceCover) or an
+// explicit placeholder signal (Source == CoverSourcePlaceholder, DataURL
+// omitted). Never an error -- a missing/unresolvable cover is a normal,
+// expected outcome, not an exceptional one.
+type AnimeCover struct {
+	DataURL string `json:"dataUrl,omitempty"`
+	Source  string `json:"source"`
+}
+
+// ChapterDayCount is a single weekday's active-progress badge count
+// (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
+// Legacy's buscarMedalla semantics").
+type ChapterDayCount struct {
+	Day   string `json:"day"`
+	Count int    `json:"count"`
 }
 
 type ChapterCommandResult struct {

@@ -14,6 +14,10 @@ export function CopyAnimePage(arg1) {
   return window['go']['main']['App']['CopyAnimePage'](arg1);
 }
 
+export function GetAnimeCover(arg1) {
+  return window['go']['main']['App']['GetAnimeCover'](arg1);
+}
+
 export function GetAnimeDetail(arg1) {
   return window['go']['main']['App']['GetAnimeDetail'](arg1);
 }
@@ -32,6 +36,10 @@ export function GetAnimes() {
 
 export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
+}
+
+export function GetChapterDayCounts() {
+  return window['go']['main']['App']['GetChapterDayCounts']();
 }
 
 export function GetChapterSchedule(arg1) {

@@ -8,6 +8,7 @@ import (
 
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -71,6 +72,7 @@ type App struct {
 	deviceStore             device.Store
 	newToken                func() (string, error)
 	animeQuery              contracts.AnimeQueryService
+	coverResolver           coverResolver
 	notifier                notification.Notifier
 	newDownloadStore        func(db *sql.DB) download.DownloadStore
 	newDownloadService      func(deps download.ServiceDeps) *download.Service
@@ -115,6 +117,15 @@ type chapterCommandService interface {
 	SoftDeleteAnime(ctx context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error)
 	RestoreAnime(ctx context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error)
 	RepeatAnime(ctx context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error)
+	ListChapterDayCounts(ctx context.Context) ([]anime.ChapterDayCount, error)
+}
+
+// coverResolver is the local seam GetAnimeCover depends on (mirrors
+// chapterCommandService above) so app_runtime_test.go can inject a fake
+// without a real HTTP client. The real implementation is *cover.Resolver
+// (internal/anime/cover), wired in startup via cover.NewDefaultResolver.
+type coverResolver interface {
+	Resolve(ctx context.Context, animeID, portadaPath string) cover.Result
 }
 
 // NewApp creates a new App application struct
@@ -176,6 +187,10 @@ func (a *App) startup(ctx context.Context) {
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	a.animeQuery = anime.NewQueryService(snapshotStore)
+	// cover.NewDefaultResolver never fails construction (a cache-root
+	// resolution error degrades to a no-op cache internally), so this wiring
+	// is nil-safe by design -- see internal/anime/cover/production.go.
+	a.coverResolver = cover.NewDefaultResolver(0)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way

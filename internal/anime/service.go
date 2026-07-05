@@ -208,6 +208,17 @@ func hasNonEmptyLegacyString(value *string) bool {
 	return value != nil && *value != ""
 }
 
+// legacyStringValue unwraps a legacy optional string field (e.g.
+// MobileAnime.Pagina/Carpeta) to its literal value, or "" when absent.
+// Companion to hasNonEmptyLegacyString for callers (ChapterScheduleItem)
+// that expose the literal string itself rather than a presence boolean.
+func legacyStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 func extractDayNames(days []contracts.MobileAnimeDay) []string {
 	if len(days) == 0 {
 		return []string{}

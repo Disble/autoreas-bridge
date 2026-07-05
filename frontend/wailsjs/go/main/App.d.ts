@@ -9,6 +9,8 @@ export function CopyAnimeFolder(arg1:string):Promise<contracts.ChapterCommandRes
 
 export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
 
+export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;
+
 export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;
 
 export function GetAnimeDetailView(arg1:string):Promise<contracts.AnimeDetail>;
@@ -18,6 +20,8 @@ export function GetAnimeHistory():Promise<Array<contracts.AnimeHistoryItem>>;
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
+
+export function GetChapterDayCounts():Promise<Array<contracts.ChapterDayCount>>;
 
 export function GetChapterSchedule(arg1:string):Promise<Array<contracts.ChapterScheduleItem>>;
 
