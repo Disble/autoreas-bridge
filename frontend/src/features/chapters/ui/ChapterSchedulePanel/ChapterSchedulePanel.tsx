@@ -1,3 +1,9 @@
+import addCircleIcon from '@iconify-icons/solar/add-circle-bold-duotone';
+import folderIcon from '@iconify-icons/solar/folder-open-bold-duotone';
+import linkIcon from '@iconify-icons/solar/link-round-bold-duotone';
+import menuIcon from '@iconify-icons/solar/menu-dots-circle-bold-duotone';
+import minusCircleIcon from '@iconify-icons/solar/minus-circle-bold-duotone';
+import { Icon } from '@iconify/react';
 import { Alert, Button, Card, Chip, Modal, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
 import { CHAPTER_STATE_OPTIONS, CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
@@ -61,6 +67,7 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                   </Tooltip>
                   {row.hasPage ? (
                     <Button
+                      isIconOnly
                       aria-label={`Open page for ${row.name}. Secondary click copies page URL.`}
                       size="sm"
                       variant="tertiary"
@@ -70,11 +77,12 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                       }}
                       onPress={() => void openAnimePage(row.id)}
                     >
-                      Page
+                      <Icon icon={linkIcon} className="size-4" />
                     </Button>
                   ) : null}
                   {row.hasFolder ? (
                     <Button
+                      isIconOnly
                       aria-label={`Open folder for ${row.name}. Secondary click copies folder path.`}
                       size="sm"
                       variant="tertiary"
@@ -84,7 +92,7 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                       }}
                       onPress={() => void openAnimeFolder(row.id)}
                     >
-                      Folder
+                      <Icon icon={folderIcon} className="size-4" />
                     </Button>
                   ) : null}
                 </div>
@@ -92,6 +100,7 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
 
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <Button
+                  isIconOnly
                   aria-label={`Subtract one chapter for ${row.name}. Secondary click subtracts half chapter.`}
                   isDisabled={row.isProgressBlocked}
                   size="sm"
@@ -102,9 +111,10 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                   }}
                   onPress={() => void adjustWatchedChapters(row.id, -1, row.modifiedAt)}
                 >
-                  −
+                  <Icon icon={minusCircleIcon} className="size-5" />
                 </Button>
                 <Button
+                  isIconOnly
                   aria-label={`Add one chapter for ${row.name}. Secondary click adds half chapter.`}
                   isDisabled={row.isProgressBlocked}
                   size="sm"
@@ -115,11 +125,11 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                   }}
                   onPress={() => void adjustWatchedChapters(row.id, 1, row.modifiedAt)}
                 >
-                  +
+                  <Icon icon={addCircleIcon} className="size-5" />
                 </Button>
                 <Modal>
-                  <Button aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} size="sm" variant="secondary">
-                    {row.stateLabel}
+                  <Button isIconOnly aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} size="sm" variant="secondary">
+                    <Icon icon={menuIcon} className="size-5" />
                   </Button>
                   <Modal.Backdrop variant="blur">
                     <Modal.Container>
@@ -135,6 +145,7 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
                           <div className="grid grid-cols-2 gap-2">
                             {CHAPTER_STATE_OPTIONS.map((state) => (
                               <Button key={state.value} aria-label={`Set ${row.name} as ${state.label}`} variant={row.stateLabel === state.label ? 'secondary' : 'tertiary'} onPress={() => void setAnimeState(row.id, state.value, row.modifiedAt)}>
+                                <Icon icon={state.icon} className="size-4" />
                                 {state.label}
                               </Button>
                             ))}
