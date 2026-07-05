@@ -1,5 +1,6 @@
-import { Alert, Button, Card, Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react';
-import { CHAPTER_DAY_OPTIONS, CHAPTER_STATE_OPTIONS, CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
+import { Alert, Button, Card, Chip, Modal, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@heroui/react';
+import type { MouseEvent } from 'react';
+import { CHAPTER_STATE_OPTIONS, CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
 import type { ChapterSchedulePanelProps } from './chapter-schedule-panel.types';
 import { useChapterSchedulePanel } from './use-chapter-schedule-panel';
 
@@ -7,7 +8,7 @@ import { useChapterSchedulePanel } from './use-chapter-schedule-panel';
  * Renders the operational schedule for updating anime chapter progress.
  */
 export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>) {
-  const { adjustWatchedChapters, errorMessage, rows, selectDay, selectedDay, setAnimeState } = useChapterSchedulePanel(props);
+  const { adjustWatchedChapters, copyAnimeFolder, copyAnimePage, errorMessage, filterOptions, openAnimeFolder, openAnimePage, rows, selectDay, selectedDay, setAnimeState } = useChapterSchedulePanel(props);
 
   if (errorMessage !== '') {
     return (
@@ -21,16 +22,21 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <ToggleButtonGroup disallowEmptySelection selectedKeys={[selectedDay]} selectionMode="single" onSelectionChange={(keys) => selectDay(String(Array.from(keys)[0] ?? selectedDay))}>
-        {CHAPTER_DAY_OPTIONS.map((day) => (
-          <ToggleButton id={day} key={day}>
-            {day}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
+    <section className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
+        <Typography type="h1" className="text-3xl font-semibold tracking-tight text-foreground">
+          {selectedDay}
+        </Typography>
+        <ToggleButtonGroup disallowEmptySelection selectedKeys={[selectedDay]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectDay(String(Array.from(keys)[0] ?? selectedDay))}>
+          {filterOptions.map((day) => (
+            <ToggleButton id={day} key={day}>
+              {day}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </div>
 
-      {rows.length === 0 ? <p className="text-sm text-muted">{CHAPTERS_EMPTY_MESSAGE}</p> : null}
+      {rows.length === 0 ? <Typography type="body-sm" color="muted">{CHAPTERS_EMPTY_MESSAGE}</Typography> : null}
 
       <div className="grid gap-3">
         {rows.map((row) => (
@@ -38,50 +44,106 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
             <Card.Content className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="truncate text-base font-semibold text-foreground">{row.name}</h2>
+                  <Typography type="h2" className="truncate text-base font-semibold text-foreground">
+                    {row.name}
+                  </Typography>
                   <Chip size="sm" color={row.isProgressBlocked ? 'warning' : 'success'} variant="soft">
                     {row.stateLabel}
                   </Chip>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                  <Tooltip delay={0}>
+                    <span>{row.watchedLabel}</span>
+                    <Tooltip.Content showArrow>
+                      <Tooltip.Arrow />
+                      {row.progressTitle}
+                    </Tooltip.Content>
+                  </Tooltip>
                   {row.hasPage ? (
-                    <Chip size="sm" color="accent" variant="tertiary">
+                    <Button
+                      aria-label={`Open page for ${row.name}. Secondary click copies page URL.`}
+                      size="sm"
+                      variant="tertiary"
+                      onContextMenu={(event: MouseEvent) => {
+                        event.preventDefault();
+                        void copyAnimePage(row.id);
+                      }}
+                      onPress={() => void openAnimePage(row.id)}
+                    >
                       Page
-                    </Chip>
+                    </Button>
                   ) : null}
                   {row.hasFolder ? (
-                    <Chip size="sm" color="default" variant="tertiary">
+                    <Button
+                      aria-label={`Open folder for ${row.name}. Secondary click copies folder path.`}
+                      size="sm"
+                      variant="tertiary"
+                      onContextMenu={(event: MouseEvent) => {
+                        event.preventDefault();
+                        void copyAnimeFolder(row.id);
+                      }}
+                      onPress={() => void openAnimeFolder(row.id)}
+                    >
                       Folder
-                    </Chip>
+                    </Button>
                   ) : null}
-                </div>
-                <div className="flex flex-wrap gap-3 text-sm text-muted">
-                  <span>{row.watchedLabel}</span>
-                  <span>{row.totalLabel}</span>
-                  <span>{row.remainingLabel}</span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:items-end">
-                <div className="flex flex-wrap gap-2">
-                  <Button aria-label={`Subtract one chapter for ${row.name}`} isDisabled={row.isProgressBlocked} size="sm" variant="tertiary" onPress={() => void adjustWatchedChapters(row.id, -1, row.modifiedAt)}>
-                    -1
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <Button
+                  aria-label={`Subtract one chapter for ${row.name}. Secondary click subtracts half chapter.`}
+                  isDisabled={row.isProgressBlocked}
+                  size="sm"
+                  variant="tertiary"
+                  onContextMenu={(event: MouseEvent) => {
+                    event.preventDefault();
+                    void adjustWatchedChapters(row.id, -0.5, row.modifiedAt);
+                  }}
+                  onPress={() => void adjustWatchedChapters(row.id, -1, row.modifiedAt)}
+                >
+                  −
+                </Button>
+                <Button
+                  aria-label={`Add one chapter for ${row.name}. Secondary click adds half chapter.`}
+                  isDisabled={row.isProgressBlocked}
+                  size="sm"
+                  variant="primary"
+                  onContextMenu={(event: MouseEvent) => {
+                    event.preventDefault();
+                    void adjustWatchedChapters(row.id, 0.5, row.modifiedAt);
+                  }}
+                  onPress={() => void adjustWatchedChapters(row.id, 1, row.modifiedAt)}
+                >
+                  +
+                </Button>
+                <Modal>
+                  <Button aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} size="sm" variant="secondary">
+                    {row.stateLabel}
                   </Button>
-                  <Button aria-label={`Subtract half chapter for ${row.name}`} isDisabled={row.isProgressBlocked} size="sm" variant="tertiary" onPress={() => void adjustWatchedChapters(row.id, -0.5, row.modifiedAt)}>
-                    -0.5
-                  </Button>
-                  <Button aria-label={`Add half chapter for ${row.name}`} isDisabled={row.isProgressBlocked} size="sm" variant="secondary" onPress={() => void adjustWatchedChapters(row.id, 0.5, row.modifiedAt)}>
-                    +0.5
-                  </Button>
-                  <Button aria-label={`Add one chapter for ${row.name}`} isDisabled={row.isProgressBlocked} size="sm" variant="primary" onPress={() => void adjustWatchedChapters(row.id, 1, row.modifiedAt)}>
-                    +1
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {CHAPTER_STATE_OPTIONS.map((state) => (
-                    <Button key={state.value} size="sm" variant={row.stateLabel === state.label ? 'secondary' : 'tertiary'} onPress={() => void setAnimeState(row.id, state.value, row.modifiedAt)}>
-                      {state.label}
-                    </Button>
-                  ))}
-                </div>
+                  <Modal.Backdrop variant="blur">
+                    <Modal.Container>
+                      <Modal.Dialog className="sm:max-w-[420px]">
+                        <Modal.CloseTrigger />
+                        <Modal.Header>
+                          <Modal.Heading>Change anime status</Modal.Heading>
+                          <Typography type="body-sm" color="muted">
+                            {row.name}
+                          </Typography>
+                        </Modal.Header>
+                        <Modal.Body>
+                          <div className="grid grid-cols-2 gap-2">
+                            {CHAPTER_STATE_OPTIONS.map((state) => (
+                              <Button key={state.value} aria-label={`Set ${row.name} as ${state.label}`} variant={row.stateLabel === state.label ? 'secondary' : 'tertiary'} onPress={() => void setAnimeState(row.id, state.value, row.modifiedAt)}>
+                                {state.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </Modal.Body>
+                      </Modal.Dialog>
+                    </Modal.Container>
+                  </Modal.Backdrop>
+                </Modal>
               </div>
             </Card.Content>
           </Card>

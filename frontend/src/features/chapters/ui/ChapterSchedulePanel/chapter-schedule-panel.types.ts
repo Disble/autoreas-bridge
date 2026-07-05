@@ -2,15 +2,20 @@
 export interface ChapterSchedulePanelProps {
   /** Optional source for tests or non-Wails adapters. */
   readonly source?: ChapterScheduleSource;
-  /** Optional initial day; defaults to the current legacy weekday. */
+  /** Optional initial day; defaults to the current legacy weekday or season lens. */
   readonly initialDay?: string;
 }
 
 /** Request/reply port used by the Chapters UI hook. */
 export interface ChapterScheduleSource {
+  readonly getSeasonMode: () => Promise<boolean>;
   readonly getChapterSchedule: (day: string) => Promise<readonly ChapterScheduleItem[]>;
   readonly adjustWatchedChapters: (animeID: string, delta: number, base: number) => Promise<ChapterCommandResult>;
   readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<ChapterCommandResult>;
+  readonly openAnimePage: (animeID: string) => Promise<ChapterCommandResult>;
+  readonly copyAnimePage: (animeID: string) => Promise<ChapterCommandResult>;
+  readonly openAnimeFolder: (animeID: string) => Promise<ChapterCommandResult>;
+  readonly copyAnimeFolder: (animeID: string) => Promise<ChapterCommandResult>;
 }
 
 /** Wails-facing schedule item returned by the backend chapter command service. */
@@ -49,8 +54,16 @@ export interface ChapterScheduleRow {
   readonly isProgressBlocked: boolean;
   readonly watchedLabel: string;
   readonly remainingLabel: string;
+  readonly progressTitle: string;
   readonly totalLabel: string;
   readonly modifiedAt: number;
   readonly hasPage: boolean;
   readonly hasFolder: boolean;
+}
+
+/** Input used to resolve the initial schedule filter. */
+export interface InitialChapterSelectionInput {
+  readonly isSeasonMode: boolean;
+  readonly initialDay?: string;
+  readonly today?: Date;
 }
