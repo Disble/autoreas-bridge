@@ -2,6 +2,7 @@ package anime
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,24 @@ import (
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 )
+
+// animeIDAlphabet is NeDB's uid alphabet; a 16-char id matches Legacy's own
+// _id format so bridge-created animes are indistinguishable from Legacy ones.
+const animeIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// defaultAnimeID generates a 16-character NeDB-style alphanumeric id.
+func defaultAnimeID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		// crypto/rand.Read never fails on supported platforms; degrade to a
+		// timestamp-derived id rather than panicking.
+		return fmt.Sprintf("bridge%d", time.Now().UnixNano())
+	}
+	for i := range buf {
+		buf[i] = animeIDAlphabet[int(buf[i])%len(animeIDAlphabet)]
+	}
+	return string(buf)
+}
 
 type snapshotLookup interface {
 	GetSnapshot(ctx context.Context, animeID string) (SnapshotRecord, error)
@@ -61,6 +80,7 @@ type WriteService struct {
 	store  snapshotLookup
 	writer AnimeWriter
 	now    func() time.Time
+	newID  func() string
 	deps   WriteServiceDeps
 }
 
@@ -69,11 +89,18 @@ func NewQueryService(store snapshotLookup) *QueryService {
 }
 
 func NewWriteService(store snapshotLookup, writer AnimeWriter) *WriteService {
-	return &WriteService{store: store, writer: writer, now: time.Now}
+	return &WriteService{store: store, writer: writer, now: time.Now, newID: defaultAnimeID}
 }
 
 func (s *WriteService) SetNow(now func() time.Time) {
 	s.now = now
+}
+
+// SetIDGen overrides the new-anime id generator (SDD-43). Mirrors SetNow: keeps
+// NewWriteService's signature stable while making CreateAnime deterministic in
+// tests.
+func (s *WriteService) SetIDGen(newID func() string) {
+	s.newID = newID
 }
 
 // SetDeps wires the Phase 4 (ADR-30-4) optional conflict-writer/notifier/
@@ -292,6 +319,40 @@ func remainingChapters(watched float64, total *int) *float64 {
 	}
 	value := float64(*total) - watched
 	return &value
+}
+
+// CreateAnime creates a brand-new anime record and returns its id. It is the
+// first create path in bridge (SDD-43): it builds a complete LegacyAnimeRaw
+// (estado 0, nrocapvisto 0, activo true, primeravez true, a single dias entry
+// in create.Section) and writes it through the same durable seam as every other
+// write (writer queue → animes.dat append → confirmed snapshot → anime.changed
+// event → changelog + realtime). A blank create.ID is generated.
+func (s *WriteService) CreateAnime(ctx context.Context, create contracts.AnimeCreate) (string, error) {
+	id := create.ID
+	if id == "" {
+		id = s.newID()
+	}
+	raw, err := domain.NewAnimeRaw(domain.NewAnimeSpec{
+		ID:           id,
+		Nombre:       create.Nombre,
+		Pagina:       create.Pagina,
+		Section:      create.Section,
+		Orden:        create.Orden,
+		CreatedAt:    s.now(),
+		Tipo:         create.Tipo,
+		FechaEstreno: create.FechaEstreno,
+	})
+	if err != nil {
+		return "", err
+	}
+	payload, err := raw.MarshalJSON()
+	if err != nil {
+		return "", fmt.Errorf("marshal new anime %q: %w", id, err)
+	}
+	if err := s.applyWrite(ctx, id, payload); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) error {

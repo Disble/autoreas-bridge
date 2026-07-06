@@ -15,6 +15,7 @@ import (
 )
 
 type AnimePatch = contracts.AnimePatch
+type AnimeCreate = contracts.AnimeCreate
 type EffectiveAnime = contracts.EffectiveAnime
 type AnimeQueryService = contracts.AnimeQueryService
 type AnimeWriteService = contracts.AnimeWriteService

@@ -328,6 +328,19 @@ type AnimePatch struct {
 	Base *int64 `json:"base,omitempty"`
 }
 
+// AnimeCreate is the input for creating a brand-new anime (SDD-43). A new anime
+// lands with estado 0 (Viendo), nrocapvisto 0, activo true, primeravez true, and
+// a single dias entry in Section at Orden. ID is optional — generated when empty.
+type AnimeCreate struct {
+	ID           string `json:"id,omitempty"`
+	Nombre       string `json:"nombre"`
+	Pagina       string `json:"pagina"`
+	Section      string `json:"section"`
+	Orden        int    `json:"orden"`
+	Tipo         *int   `json:"tipo,omitempty"`
+	FechaEstreno *int64 `json:"fechaEstreno,omitempty"`
+}
+
 type EffectiveAnime struct {
 	ID           string
 	TotalCap     *float64
