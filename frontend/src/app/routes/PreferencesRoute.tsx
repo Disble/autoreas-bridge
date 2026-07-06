@@ -1,6 +1,5 @@
 import { Card } from '@heroui/react';
 import { ConnectedDevicesPanel } from '../../features/preferences/ui/ConnectedDevicesPanel/ConnectedDevicesPanel';
-import { SeasonModePanel } from '../../features/preferences/ui/SeasonModePanel/SeasonModePanel';
 
 export function PreferencesRoute() {
   return (
@@ -11,16 +10,6 @@ export function PreferencesRoute() {
       </header>
 
       <div className="grid min-w-0 gap-4">
-        <Card>
-          <Card.Header>
-            <Card.Title>Modo Temporada</Card.Title>
-            <Card.Description>Controla cómo se abre la sección de animes al navegar</Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <SeasonModePanel />
-          </Card.Content>
-        </Card>
-
         <Card>
           <Card.Header>
             <Card.Title>Connected Devices</Card.Title>

@@ -1,4 +1,4 @@
-import { GetSeasonMode, SetSeasonMode } from '../../wailsjs/go/main/App';
+import { GetSeasonMode } from '../../wailsjs/go/main/App';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
 export const PREFERENCES_BINDINGS_POLL_MS = 50;
@@ -8,10 +8,11 @@ export const PREFERENCES_BINDINGS_TIMEOUT_MS = 5000;
 /**
  * PreferencesSource is the request/reply port for the preferences Wails bindings.
  * Degrades to safe defaults when the Wails runtime is unavailable (browser / Vite dev).
+ * Season mode is READ-ONLY here (SDD-41b): it is derived from the open season and
+ * changed only by creating/closing a season in the Season section.
  */
 export interface PreferencesSource {
   readonly getSeasonMode: () => Promise<boolean>;
-  readonly setSeasonMode: (enabled: boolean) => Promise<string>;
 }
 
 function hasGoBinding(name: string): boolean {
@@ -58,11 +59,6 @@ export function createPreferencesSource(): PreferencesSource {
     getSeasonMode() {
       return waitForBindings(() => hasGoBinding('GetSeasonMode')).then((isReady) => {
         return isReady ? (GetSeasonMode() as Promise<boolean>) : Promise.resolve(false);
-      });
-    },
-    setSeasonMode(enabled: boolean) {
-      return waitForBindings(() => hasGoBinding('SetSeasonMode')).then((isReady) => {
-        return isReady ? SetSeasonMode(enabled) : Promise.resolve('runtime unavailable');
       });
     },
   };

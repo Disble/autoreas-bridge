@@ -20,7 +20,6 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/preferences"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
@@ -44,11 +43,10 @@ func newAppTestApp(t *testing.T) *App {
 		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
 			return &stubAppChangelogRecorder{}
 		},
-		newDeviceStore:      func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
-		newDeviceService:    func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newDownloadStore:    func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
-		newPreferencesStore: func(*sql.DB) preferences.Store { return &stubAppPreferencesStore{} },
-		newHTTPServer:       func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
+		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
+		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 }
 
@@ -561,10 +559,3 @@ func isHex32(s string) bool {
 	}
 	return true
 }
-
-type stubAppPreferencesStore struct{}
-
-func (*stubAppPreferencesStore) SeasonMode(context.Context) (bool, error)  { return false, nil }
-func (*stubAppPreferencesStore) SetSeasonMode(context.Context, bool) error { return nil }
-
-var _ preferences.Store = (*stubAppPreferencesStore)(nil)

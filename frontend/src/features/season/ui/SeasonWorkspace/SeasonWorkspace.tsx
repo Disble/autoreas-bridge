@@ -3,6 +3,7 @@ import { Alert, Button, Card, Chip, Input, Label, Skeleton, Tabs, TextField } fr
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
   SEASON_WORKSPACE_EMPTY_TITLE,
+  SEASON_WORKSPACE_SEASON_MODE_MESSAGE,
   SEASON_WORKSPACE_TITLE,
   SEASON_WORKSPACE_UPCOMING_MESSAGE,
 } from './season-workspace.constants';
@@ -73,6 +74,12 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
               {overview.statusLabel}
             </Chip>
           </div>
+
+          <Alert status="accent">
+            <Alert.Content>
+              <Alert.Description>{SEASON_WORKSPACE_SEASON_MODE_MESSAGE}</Alert.Description>
+            </Alert.Content>
+          </Alert>
 
           <Tabs defaultSelectedKey="overview">
             <Tabs.ListContainer>

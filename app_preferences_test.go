@@ -2,236 +2,81 @@ package main
 
 import (
 	"context"
-	"errors"
 	"testing"
-	"time"
-
-	"autoreas-bridge/internal/preferences"
 )
 
-// fakePreferencesStore is a test double for preferences.Store that records calls and
-// returns configurable responses — no database involved.
-type fakePreferencesStore struct {
-	seasonMode    bool
-	setErr        error
-	getErr        error
-	setCallsCount int
-}
+// Season mode is a DERIVED state (SDD-41b): on exactly while a season is open.
+// These tests exercise the derived GetSeasonMode binding and the shared
+// seasonModeReader seam (used by downloads + mobile status).
 
-func (f *fakePreferencesStore) SeasonMode(context.Context) (bool, error) {
-	return f.seasonMode, f.getErr
-}
-
-func (f *fakePreferencesStore) SetSeasonMode(_ context.Context, enabled bool) error {
-	f.setCallsCount++
-	if f.setErr != nil {
-		return f.setErr
-	}
-	f.seasonMode = enabled
-	return nil
-}
-
-var _ preferences.Store = (*fakePreferencesStore)(nil)
-
-// ── nil store safety ──────────────────────────────────────────────────────────────
-
-func TestGetSeasonModeReturnsFalseWhenStoreNil(t *testing.T) {
+func TestGetSeasonModeFalseWhenServiceNil(t *testing.T) {
 	t.Parallel()
-
 	app := &App{ctx: context.Background()}
-	got := app.GetSeasonMode()
-	if got {
-		t.Fatal("expected GetSeasonMode to return false when preferences store is nil")
+	if app.GetSeasonMode() {
+		t.Fatal("expected GetSeasonMode false when the season service is nil")
 	}
 }
 
-func TestGetSeasonModeDoesNotPanicWhenStoreNil(t *testing.T) {
+func TestGetSeasonModeFalseWhenNoOpenSeason(t *testing.T) {
 	t.Parallel()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("GetSeasonMode panicked with nil store: %v", r)
-		}
-	}()
-
-	app := &App{ctx: context.Background()}
-	_ = app.GetSeasonMode()
-}
-
-func TestSetSeasonModeReturnsErrorStringWhenStoreNil(t *testing.T) {
-	t.Parallel()
-
-	app := &App{ctx: context.Background()}
-	got := app.SetSeasonMode(true)
-	if got == "" || got == "ok" {
-		t.Fatalf("expected non-ok error string when preferences store is nil, got %q", got)
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	if app.GetSeasonMode() {
+		t.Fatal("expected GetSeasonMode false with no open season")
 	}
 }
 
-func TestSetSeasonModeDoesNotPanicWhenStoreNil(t *testing.T) {
+func TestGetSeasonModeTrueWhileSeasonOpen(t *testing.T) {
 	t.Parallel()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("SetSeasonMode panicked with nil store: %v", r)
-		}
-	}()
-
-	app := &App{ctx: context.Background()}
-	_ = app.SetSeasonMode(true)
-}
-
-func TestSetSeasonModeReturnsPreferencesStoreUnavailableWhenStoreNil(t *testing.T) {
-	t.Parallel()
-
-	app := &App{ctx: context.Background()}
-	got := app.SetSeasonMode(false)
-	if got != "preferences store unavailable" {
-		t.Fatalf("expected %q, got %q", "preferences store unavailable", got)
-	}
-}
-
-// ── wired store round-trip ────────────────────────────────────────────────────────
-
-func TestSetSeasonModeReturnsOkOnSuccess(t *testing.T) {
-	t.Parallel()
-
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: &fakePreferencesStore{},
-	}
-	got := app.SetSeasonMode(true)
-	if got != "ok" {
-		t.Fatalf("expected %q on success, got %q", "ok", got)
-	}
-}
-
-func TestGetSeasonModeReturnsStoredValue(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakePreferencesStore{seasonMode: true}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: fake,
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
 	}
 	if !app.GetSeasonMode() {
-		t.Fatal("expected GetSeasonMode to return true when store holds true")
+		t.Fatal("expected season mode on while a season is open")
 	}
 }
 
-func TestGetSeasonModeReturnsFalseOnStoreError(t *testing.T) {
+func TestGetSeasonModeFalseAfterClose(t *testing.T) {
 	t.Parallel()
-
-	fake := &fakePreferencesStore{getErr: errors.New("db error")}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: fake,
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	_ = app.CreateSeason("Julio 2026")
+	if got := app.CloseSeason(); got != "ok" {
+		t.Fatalf("CloseSeason: %q", got)
 	}
 	if app.GetSeasonMode() {
-		t.Fatal("expected GetSeasonMode to return false when store returns error")
+		t.Fatal("expected season mode off after closing the season")
 	}
 }
 
-func TestSetSeasonModeReturnsErrStringOnStoreError(t *testing.T) {
+func TestSeasonModeReaderDerivesFromOpenSeason(t *testing.T) {
 	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	reader := app.seasonModeReader()
+	ctx := context.Background()
 
-	fake := &fakePreferencesStore{setErr: errors.New("write failure")}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: fake,
+	if reader(ctx) {
+		t.Fatal("reader should be false before any season exists")
 	}
-	got := app.SetSeasonMode(true)
-	if got != "write failure" {
-		t.Fatalf("expected %q, got %q", "write failure", got)
+	_ = app.CreateSeason("Julio 2026")
+	if !reader(ctx) {
+		t.Fatal("reader should be true with an open season")
 	}
 }
 
-// ── realtime broadcast wiring (mobile season-mode sync) ─────────────────────────────
-
-func TestSetSeasonModeBroadcastsToRealtimeHub(t *testing.T) {
+func TestCreateSeasonBroadcastsDerivedSeasonMode(t *testing.T) {
 	t.Parallel()
-
 	hub := &stubAppRealtimeHub{seasonModes: make(chan bool, 1)}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: &fakePreferencesStore{},
-		realtimeHub:      hub,
-	}
+	app := newTestSeasonApp(newFakeSeasonRepo(), hub)
 
-	if got := app.SetSeasonMode(true); got != "ok" {
-		t.Fatalf("SetSeasonMode: expected %q, got %q", "ok", got)
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
 	}
-
 	select {
 	case enabled := <-hub.seasonModes:
 		if !enabled {
-			t.Fatal("expected broadcast seasonMode=true, got false")
+			t.Fatal("expected derived season mode true broadcast on create")
 		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected SetSeasonMode to broadcast a preferences change over the realtime hub")
-	}
-}
-
-func TestSetSeasonModeDoesNotBroadcastWhenPersistFails(t *testing.T) {
-	t.Parallel()
-
-	hub := &stubAppRealtimeHub{seasonModes: make(chan bool, 1)}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: &fakePreferencesStore{setErr: errors.New("write failure")},
-		realtimeHub:      hub,
-	}
-
-	if got := app.SetSeasonMode(true); got != "write failure" {
-		t.Fatalf("expected %q, got %q", "write failure", got)
-	}
-
-	select {
-	case <-hub.seasonModes:
-		t.Fatal("expected NO broadcast when the persist write fails")
-	case <-time.After(50 * time.Millisecond):
-	}
-}
-
-func TestSetSeasonModeDoesNotPanicWhenRealtimeHubNil(t *testing.T) {
-	t.Parallel()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("SetSeasonMode panicked with nil realtime hub: %v", r)
-		}
-	}()
-
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: &fakePreferencesStore{},
-	}
-	if got := app.SetSeasonMode(true); got != "ok" {
-		t.Fatalf("expected %q, got %q", "ok", got)
-	}
-}
-
-// TestSetThenGetSeasonModeRoundTrip verifies the full binding round-trip via the fake store.
-func TestSetThenGetSeasonModeRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakePreferencesStore{}
-	app := &App{
-		ctx:              context.Background(),
-		preferencesStore: fake,
-	}
-
-	if result := app.SetSeasonMode(true); result != "ok" {
-		t.Fatalf("SetSeasonMode(true): expected %q, got %q", "ok", result)
-	}
-	if !app.GetSeasonMode() {
-		t.Fatal("expected GetSeasonMode to return true after SetSeasonMode(true)")
-	}
-
-	if result := app.SetSeasonMode(false); result != "ok" {
-		t.Fatalf("SetSeasonMode(false): expected %q, got %q", "ok", result)
-	}
-	if app.GetSeasonMode() {
-		t.Fatal("expected GetSeasonMode to return false after SetSeasonMode(false)")
+	default:
+		t.Fatal("expected a preferences_changed broadcast on season create")
 	}
 }

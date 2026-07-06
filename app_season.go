@@ -199,16 +199,21 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 }
 
 // broadcastSeasonChanged pushes the current active-season snapshot to connected
-// clients (empty id / "closed" status when no season is open).
+// clients (empty id / "closed" status when no season is open). Because season
+// mode is derived from the open season (SDD-41b), it ALSO re-broadcasts the
+// derived season-mode flag over preferences_changed so mobile and the
+// download/chapters season-mode readers update on open/close.
 func (a *App) broadcastSeasonChanged() {
 	if a.realtimeHub == nil {
 		return
 	}
 	id, status := "", "closed"
+	seasonMode := false
 	if dto := a.GetSeason(); dto != nil {
-		id, status = dto.ID, dto.Status
+		id, status, seasonMode = dto.ID, dto.Status, true
 	}
 	a.realtimeHub.BroadcastSeasonChanged(a.seasonCtx(), id, status)
+	a.realtimeHub.BroadcastPreferencesChanged(a.seasonCtx(), seasonMode)
 }
 
 // seasonToDTO projects a domain season into the Wails DTO.

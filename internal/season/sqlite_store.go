@@ -12,7 +12,7 @@ import (
 )
 
 // SQLiteStore implements Repository on top of the shared bridge.db connection
-// (mirrors internal/preferences.SQLiteStore: constructor injection over an
+// (the bridge SQLite-store convention: constructor injection over an
 // already-bootstrapped *sql.DB). Timestamps are stored as epoch milliseconds,
 // matching the bridge's existing millisecond-timestamp convention.
 type SQLiteStore struct {

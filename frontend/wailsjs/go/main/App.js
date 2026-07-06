@@ -162,10 +162,6 @@ export function SetSeasonMinApprovalGrade(arg1) {
   return window['go']['main']['App']['SetSeasonMinApprovalGrade'](arg1);
 }
 
-export function SetSeasonMode(arg1) {
-  return window['go']['main']['App']['SetSeasonMode'](arg1);
-}
-
 export function SetSeasonSlots(arg1) {
   return window['go']['main']['App']['SetSeasonSlots'](arg1);
 }

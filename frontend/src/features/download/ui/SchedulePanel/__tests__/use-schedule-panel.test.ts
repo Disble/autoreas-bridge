@@ -36,7 +36,6 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
 function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
     getSeasonMode: vi.fn().mockResolvedValue(false),
-    setSeasonMode: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }
