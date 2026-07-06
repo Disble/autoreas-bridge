@@ -84,6 +84,8 @@ type App struct {
 	downloadScheduler       schedule.Scheduler
 	newSeasonStore          func(db *sql.DB) season.Repository
 	seasonService           *season.Service
+	animeWrite              *anime.WriteService
+	seasonScheduler         schedule.Scheduler
 	openURL                 func(ctx context.Context, url string)
 	openFolder              func(path string) error
 	copyText                func(ctx context.Context, value string) error
@@ -194,7 +196,7 @@ func (a *App) startup(ctx context.Context) {
 	// is nil-safe by design -- see internal/anime/cover/production.go.
 	a.coverResolver = cover.NewDefaultResolver(0)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
-	animeWrite := anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
 	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
 	// already constructed by this point (app.go:351).
@@ -205,16 +207,16 @@ func (a *App) startup(ctx context.Context) {
 	// recorded as a (non-applied) conflict -- a regression for current clients.
 	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
 	// to false to enable full enforcement once mobile ships the `base` echo.
-	animeWrite.SetDeps(anime.WriteServiceDeps{
+	a.animeWrite.SetDeps(anime.WriteServiceDeps{
 		Conflicts:      conflictService,
 		Notifier:       a.notifier,
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
 	})
-	a.wireChapterServiceWithWriter(animeWrite)
+	a.wireChapterServiceWithWriter(a.animeWrite)
 	mobileAnimeWrite := activityAnimeWriteService{
 		query:    a.animeQuery,
-		writer:   animeWrite,
+		writer:   a.animeWrite,
 		recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))},
 		source:   anime.ActivitySourceMobile,
 		now:      func() int64 { return time.Now().UnixMilli() },
@@ -234,6 +236,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.startDownloadOrchestration(ctx)
+	a.startSeasonAvailability(ctx)
 }
 
 func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {

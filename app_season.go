@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season/domain"
 )
 
@@ -196,6 +198,23 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		Availability: string(r.Availability),
 		AnimeID:      r.AnimeID,
 	}
+}
+
+// RecheckSeasonAvailability triggers an out-of-band availability recheck now
+// (the Daily Board's "Re-check now"). Reuses the scheduler run guard; an
+// already-running recheck is reported as success.
+func (a *App) RecheckSeasonAvailability() string {
+	if a.seasonScheduler == nil {
+		return "season availability unavailable"
+	}
+	if err := a.seasonScheduler.TriggerNow(a.seasonCtx(), "manual"); err != nil {
+		if errors.Is(err, schedule.ErrRunInProgress) {
+			return "ok"
+		}
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
 }
 
 // broadcastSeasonChanged pushes the current active-season snapshot to connected

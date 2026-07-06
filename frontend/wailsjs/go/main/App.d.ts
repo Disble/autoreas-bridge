@@ -66,6 +66,8 @@ export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResul
 
 export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
 
+export function RecheckSeasonAvailability():Promise<string>;
+
 export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;

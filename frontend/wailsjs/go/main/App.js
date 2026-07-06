@@ -126,6 +126,10 @@ export function PullAnimesFromLegacy() {
   return window['go']['main']['App']['PullAnimesFromLegacy']();
 }
 
+export function RecheckSeasonAvailability() {
+  return window['go']['main']['App']['RecheckSeasonAvailability']();
+}
+
 export function RepeatAnime(arg1, arg2) {
   return window['go']['main']['App']['RepeatAnime'](arg1, arg2);
 }
