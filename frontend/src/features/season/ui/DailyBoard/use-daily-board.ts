@@ -1,32 +1,49 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
-import { groupDailyBoard } from './daily-board.helpers';
+import { groupCreatedBySection } from './daily-board.helpers';
 
 /**
- * useDailyBoard loads the season intake rows on mount and exposes them grouped
- * by actionability, plus the stage-move and recheck callbacks. All Wails I/O
- * flows through the season store; DailyBoard.tsx is purely presentational.
+ * useDailyBoard drives the conveyor: created animes grouped by section, a
+ * multi-select over the Sin ver pool to send today's batch to Ver hoy (which
+ * downloads automatically), and an on-demand availability recheck. All Wails I/O
+ * flows through the season store.
  */
 export function useDailyBoard(source: SeasonSource = seasonSource) {
+  // 2. State
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-  const setAnimeDays = useSeasonStore((state) => state.setAnimeDays);
+  const sendToVerHoy = useSeasonStore((state) => state.sendToVerHoy);
   const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
   // 5. Derived State (useMemo)
-  const groups = useMemo(() => groupDailyBoard(seasonAnimes), [seasonAnimes]);
+  const sections = useMemo(() => groupCreatedBySection(seasonAnimes), [seasonAnimes]);
 
-  // 6. Callbacks (useCallback calling the store)
-  const onMove = useCallback(
-    (animeId: string, section: string) => {
-      void setAnimeDays(source, animeId, [section]);
-    },
-    [setAnimeDays, source],
-  );
+  // 6. Callbacks
+  const toggleSelect = useCallback((animeId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(animeId)) {
+        next.delete(animeId);
+      } else {
+        next.add(animeId);
+      }
+      return next;
+    });
+  }, []);
+  const onSendToVerHoy = useCallback(() => {
+    if (selected.size === 0) {
+      return;
+    }
+    const ids = [...selected];
+    setSelected(new Set());
+    void sendToVerHoy(source, ids);
+  }, [selected, sendToVerHoy, source]);
   const onRecheck = useCallback(() => {
     void recheckAvailability(source);
   }, [recheckAvailability, source]);
@@ -37,9 +54,11 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
   }, [refreshAnimes, source]);
 
   return {
-    groups,
-    errorMessage,
-    onMove,
+    sections,
+    selected,
+    toggleSelect,
+    onSendToVerHoy,
     onRecheck,
+    errorMessage,
   };
 }

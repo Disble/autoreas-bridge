@@ -24,15 +24,18 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   };
 }
 
-const CREATED: SeasonAnimeRow = {
-  id: 'sa-a',
-  rawName: 'Anime A',
-  matchStatus: 'matched',
-  matchedSlug: 'x',
-  candidates: [],
-  availability: 'created',
-  animeId: 'anime-a', section: '',
-};
+function createdRow(id: string, animeId: string, section: string): SeasonAnimeRow {
+  return {
+    id,
+    rawName: id.toUpperCase(),
+    matchStatus: 'matched',
+    matchedSlug: 'x',
+    candidates: [],
+    availability: 'created',
+    animeId,
+    section,
+  };
+}
 
 describe('useDailyBoard', () => {
   afterEach(() => {
@@ -40,21 +43,46 @@ describe('useDailyBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('refreshes on mount and groups the rows', async () => {
-    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue([CREATED]) });
+  it('refreshes on mount and groups created animes by section', async () => {
+    const rows = [createdRow('a', 'anime-a', 'Sin ver'), createdRow('b', 'anime-b', 'Ver hoy')];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useDailyBoard(source));
 
-    await waitFor(() => expect(result.current.groups.created).toHaveLength(1));
+    await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
+    expect(result.current.sections.verHoy).toHaveLength(1);
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('onMove stages the anime into the given section', async () => {
+  it('toggleSelect adds and removes anime ids', () => {
+    const source = createSource();
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-a'));
+    expect(result.current.selected.has('anime-a')).toBe(true);
+    act(() => result.current.toggleSelect('anime-a'));
+    expect(result.current.selected.has('anime-a')).toBe(false);
+  });
+
+  it('onSendToVerHoy sends the selection and clears it', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-a'));
+    act(() => result.current.toggleSelect('anime-b'));
+
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+
+    expect(source.sendToVerHoy).toHaveBeenCalledWith(['anime-a', 'anime-b']);
+    expect(result.current.selected.size).toBe(0);
+  });
+
+  it('onSendToVerHoy is a no-op with an empty selection', async () => {
     const source = createSource();
     const { result } = renderHook(() => useDailyBoard(source));
     await act(async () => {
-      result.current.onMove('anime-a', 'Ver hoy');
+      result.current.onSendToVerHoy();
     });
-    expect(source.setAnimeDays).toHaveBeenCalledWith('anime-a', ['Ver hoy']);
+    expect(source.sendToVerHoy).not.toHaveBeenCalled();
   });
 
   it('onRecheck triggers an availability recheck', async () => {

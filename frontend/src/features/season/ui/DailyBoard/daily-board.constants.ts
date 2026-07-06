@@ -1,5 +1,2 @@
-/** The three Estrenos sections an anime can be staged into during a season. */
-export const SEASON_SECTIONS = ['Sin ver', 'Ver hoy', 'Visto'] as const;
-
-/** Empty-state message when the season has no animes to stage yet. */
-export const DAILY_BOARD_EMPTY_MESSAGE = 'No season animes yet — import and match names first.';
+/** Empty-state message when no created animes have reached the board yet. */
+export const DAILY_BOARD_EMPTY_MESSAGE = 'No created animes yet — they appear here once chapter 1 is available.';

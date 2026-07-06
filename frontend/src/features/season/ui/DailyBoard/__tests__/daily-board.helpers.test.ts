@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
-import { groupDailyBoard } from '../daily-board.helpers';
+import { groupCreatedBySection } from '../daily-board.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
@@ -10,30 +10,31 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'waiting',
-    animeId: '', section: '',
+    availability: 'created',
+    animeId: 'anime-1',
+    section: 'Sin ver',
     ...overrides,
   };
 }
 
-describe('groupDailyBoard', () => {
-  it('splits rows into created, waiting, and other', () => {
+describe('groupCreatedBySection', () => {
+  it('groups created animes by their live Estrenos section', () => {
     const rows = [
-      row({ id: 'a', availability: 'created', animeId: 'anime-a', section: '' }),
-      row({ id: 'b', matchStatus: 'matched', availability: 'waiting' }),
-      row({ id: 'c', matchStatus: 'ambiguous', availability: 'waiting' }),
-      row({ id: 'd', matchStatus: 'discarded', availability: 'waiting' }),
+      row({ id: 'a', section: 'Sin ver' }),
+      row({ id: 'b', section: 'Ver hoy' }),
+      row({ id: 'c', section: 'Visto' }),
+      row({ id: 'd', section: '' }), // unknown → Sin ver
     ];
-    const groups = groupDailyBoard(rows);
+    const groups = groupCreatedBySection(rows);
 
-    expect(groups.created.map((r) => r.id)).toEqual(['a']);
-    expect(groups.waiting.map((r) => r.id)).toEqual(['b']);
-    expect(groups.other.map((r) => r.id)).toEqual(['c', 'd']);
+    expect(groups.sinVer.map((r) => r.id)).toEqual(['a', 'd']);
+    expect(groups.verHoy.map((r) => r.id)).toEqual(['b']);
+    expect(groups.visto.map((r) => r.id)).toEqual(['c']);
   });
 
-  it('counts a created row once even if it was matched', () => {
-    const groups = groupDailyBoard([row({ id: 'a', matchStatus: 'matched', availability: 'created' })]);
-    expect(groups.created).toHaveLength(1);
-    expect(groups.waiting).toHaveLength(0);
+  it('ignores rows that are not created', () => {
+    const rows = [row({ id: 'a', availability: 'waiting', matchStatus: 'pending', animeId: '', section: '' })];
+    const groups = groupCreatedBySection(rows);
+    expect(groups.sinVer).toHaveLength(0);
   });
 });

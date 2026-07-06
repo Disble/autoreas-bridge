@@ -1,20 +1,20 @@
-import { Alert, Button, Card, Chip } from '@heroui/react';
-import { DAILY_BOARD_EMPTY_MESSAGE, SEASON_SECTIONS } from './daily-board.constants';
+import { Alert, Button, Card, Checkbox, Chip } from '@heroui/react';
+import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
 import { useDailyBoard } from './use-daily-board';
 
 /**
- * DailyBoard is the "Daily Board" workspace section: it shows season animes
- * grouped by what to do today, lets the user stage created animes across the
- * Estrenos sections, and re-checks chapter-1 availability on demand. All Wails
+ * DailyBoard is the conveyor: created animes grouped by section. Pick from the
+ * Sin ver pool which to watch today → Ver hoy (auto-downloads); Ver hoy drains
+ * automatically as chapters are watched; Visto flows on to evaluation. All Wails
  * I/O and state live in the colocated `useDailyBoard` hook.
  */
 export function DailyBoard() {
-  const { groups, errorMessage, onMove, onRecheck } = useDailyBoard();
-  const isEmpty = groups.created.length === 0 && groups.waiting.length === 0 && groups.other.length === 0;
+  const { sections, selected, toggleSelect, onSendToVerHoy, onRecheck, errorMessage } = useDailyBoard();
+  const isEmpty = sections.sinVer.length === 0 && sections.verHoy.length === 0 && sections.visto.length === 0;
 
-  const sections = [
-    { title: 'Available today', color: 'success' as const, rows: groups.created, movable: true },
-    { title: 'Waiting for chapter 1', color: 'warning' as const, rows: groups.waiting, movable: false },
+  const readonlyGroups = [
+    { key: 'verHoy', title: 'Ver hoy — watching (drains as you watch)', color: 'accent' as const, rows: sections.verHoy },
+    { key: 'visto', title: 'Visto — watched, ready for evaluation', color: 'success' as const, rows: sections.visto },
   ];
 
   return (
@@ -28,60 +28,62 @@ export function DailyBoard() {
       )}
 
       <div className="flex items-center gap-3">
-        <Button variant="primary" onPress={onRecheck}>
+        <Button variant="tertiary" onPress={onRecheck}>
           Re-check now
         </Button>
-        <span className="text-sm text-muted">
-          {groups.created.length} available · {groups.waiting.length} waiting
-        </span>
       </div>
 
       {isEmpty ? (
         <p className="text-sm text-muted">{DAILY_BOARD_EMPTY_MESSAGE}</p>
       ) : (
         <div className="flex flex-col gap-4">
-          {sections.map(
+          <Card>
+            <Card.Header>
+              <Card.Title>Sin ver — pick what you watch today</Card.Title>
+              <Card.Description>Selected animes download automatically once sent to Ver hoy.</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              {sections.sinVer.length === 0 ? (
+                <p className="text-sm text-muted">Nothing left to schedule.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {sections.sinVer.map((row) => (
+                    <li key={row.id}>
+                      <Checkbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
+                        {row.rawName}
+                      </Checkbox>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex items-center gap-3">
+                <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
+                  Send to Ver hoy
+                </Button>
+                <span className="text-sm text-muted">{selected.size} selected for today</span>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {readonlyGroups.map(
             (group) =>
               group.rows.length > 0 && (
-                <div key={group.title} className="flex flex-col gap-2">
+                <div key={group.key} className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
                     <Chip color={group.color} size="sm" variant="soft">
                       {group.rows.length}
                     </Chip>
                   </div>
-                  <ul className="flex flex-col gap-2">
+                  <ul className="flex flex-col gap-1">
                     {group.rows.map((row) => (
-                      <li key={row.id}>
-                        <Card>
-                          <Card.Content>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <span className="font-medium text-foreground">{row.rawName}</span>
-                              {group.movable && row.animeId !== '' && (
-                                <div className="ml-auto flex flex-wrap gap-2">
-                                  {SEASON_SECTIONS.map((section) => (
-                                    <Button
-                                      key={section}
-                                      size="sm"
-                                      variant="tertiary"
-                                      onPress={() => onMove(row.animeId, section)}
-                                    >
-                                      {section}
-                                    </Button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </Card.Content>
-                        </Card>
+                      <li key={row.id} className="text-sm text-foreground">
+                        {row.rawName}
                       </li>
                     ))}
                   </ul>
                 </div>
               ),
-          )}
-          {groups.other.length > 0 && (
-            <p className="text-sm text-muted">{groups.other.length} not yet available (unmatched or discarded).</p>
           )}
         </div>
       )}

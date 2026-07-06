@@ -12,25 +12,27 @@ vi.mock('../use-daily-board', () => ({
 const mockedUseDailyBoard = vi.mocked(useDailyBoard);
 type HookReturn = ReturnType<typeof useDailyBoard>;
 
-function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
+function created(id: string, animeId: string, section: string): SeasonAnimeRow {
   return {
-    id: 'sa-a',
-    rawName: 'Anime A',
+    id,
+    rawName: id.toUpperCase(),
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
     availability: 'created',
-    animeId: 'anime-a', section: '',
-    ...overrides,
+    animeId,
+    section,
   };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
-    groups: { created: [], waiting: [], other: [] },
-    errorMessage: undefined,
-    onMove: vi.fn(),
+    sections: { sinVer: [], verHoy: [], visto: [] },
+    selected: new Set<string>(),
+    toggleSelect: vi.fn(),
+    onSendToVerHoy: vi.fn(),
     onRecheck: vi.fn(),
+    errorMessage: undefined,
     ...overrides,
   };
   mockedUseDailyBoard.mockReturnValue(value);
@@ -43,34 +45,54 @@ describe('DailyBoard', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty state when there are no rows', () => {
+  it('shows the empty state when there are no created animes', () => {
     mockHook();
     render(<DailyBoard />);
-    expect(screen.getByText(/No season animes yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No created animes yet/)).toBeInTheDocument();
   });
 
-  it('renders a created anime with stage-move buttons', () => {
-    mockHook({ groups: { created: [row()], waiting: [], other: [] } });
+  it('renders the Sin ver pool with checkbox labels', () => {
+    mockHook({ sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] } });
     render(<DailyBoard />);
-    expect(screen.getByText('Available today')).toBeInTheDocument();
-    expect(screen.getByText('Anime A')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ver hoy' })).toBeInTheDocument();
+    expect(screen.getByText('Sin ver — pick what you watch today')).toBeInTheDocument();
+    expect(screen.getByText('A')).toBeInTheDocument();
   });
 
-  it('moving an anime delegates to onMove with the section', () => {
-    const onMove = vi.fn();
-    mockHook({ groups: { created: [row()], waiting: [], other: [] }, onMove });
-    render(<DailyBoard />);
+  // Note: the checkbox onChange → toggleSelect wiring is verified by the hook
+  // test; HeroUI v3 Checkbox renders a bare div under jsdom (React Aria builds
+  // its input only in a real browser), so the press can't be simulated here.
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ver hoy' }));
-    expect(onMove).toHaveBeenCalledWith('anime-a', 'Ver hoy');
+  it('Send to Ver hoy delegates when a selection exists', () => {
+    const onSendToVerHoy = vi.fn();
+    mockHook({
+      sections: { sinVer: [created('a', 'anime-a', 'Sin ver')], verHoy: [], visto: [] },
+      selected: new Set(['anime-a']),
+      onSendToVerHoy,
+    });
+    render(<DailyBoard />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Ver hoy' }));
+    expect(onSendToVerHoy).toHaveBeenCalled();
+  });
+
+  it('renders the read-only Ver hoy and Visto groups', () => {
+    mockHook({
+      sections: {
+        sinVer: [],
+        verHoy: [created('b', 'anime-b', 'Ver hoy')],
+        visto: [created('c', 'anime-c', 'Visto')],
+      },
+    });
+    render(<DailyBoard />);
+    expect(screen.getByText(/Ver hoy — watching/)).toBeInTheDocument();
+    expect(screen.getByText(/Visto — watched/)).toBeInTheDocument();
+    expect(screen.getByText('B')).toBeInTheDocument();
+    expect(screen.getByText('C')).toBeInTheDocument();
   });
 
   it('re-check now triggers a recheck', () => {
     const onRecheck = vi.fn();
     mockHook({ onRecheck });
     render(<DailyBoard />);
-
     fireEvent.click(screen.getByRole('button', { name: 'Re-check now' }));
     expect(onRecheck).toHaveBeenCalled();
   });
