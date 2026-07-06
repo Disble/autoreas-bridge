@@ -114,6 +114,68 @@ func TestSQLiteStoreUpdateSeasonPersistsMilestonesAndClose(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreSeasonAnimeRoundTrip(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	now := time.UnixMilli(1_700_000_000_000)
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+
+	sa := domain.NewSeasonAnime("sa-1", "season-1", "Dr. Stone: Science Future Part 3", now)
+	if err := store.CreateSeasonAnime(ctx, sa); err != nil {
+		t.Fatalf("CreateSeasonAnime: %v", err)
+	}
+
+	list, err := store.ListSeasonAnimes(ctx, "season-1")
+	if err != nil {
+		t.Fatalf("ListSeasonAnimes: %v", err)
+	}
+	if len(list) != 1 || list[0].RawName != "Dr. Stone: Science Future Part 3" {
+		t.Fatalf("unexpected list: %+v", list)
+	}
+	if list[0].MatchStatus != domain.MatchPending || list[0].Availability != domain.AvailabilityWaiting {
+		t.Fatalf("defaults mismatch: %+v", list[0])
+	}
+
+	// Resolve to matched with ranked candidates persisted as JSON.
+	got := list[0]
+	got.MatchStatus = domain.MatchMatched
+	got.MatchedSlug = "https://jkanime.net/dr-stone-science-future-part-3/"
+	got.Candidates = []domain.MatchCandidate{
+		{Title: "Dr. Stone: Science Future Part 3", PageURL: "https://jkanime.net/dr-stone-science-future-part-3/", Score: 1.0},
+		{Title: "Dr. Stone: Science Future Part 2", PageURL: "https://jkanime.net/dr-stone-science-future-part-2/", Score: 0.9},
+	}
+	if err := store.UpdateSeasonAnime(ctx, got); err != nil {
+		t.Fatalf("UpdateSeasonAnime: %v", err)
+	}
+
+	reread, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || reread == nil {
+		t.Fatalf("SeasonAnimeByID: %v (%+v)", err, reread)
+	}
+	if reread.MatchStatus != domain.MatchMatched || reread.MatchedSlug == "" {
+		t.Fatalf("match not persisted: %+v", reread)
+	}
+	if len(reread.Candidates) != 2 || reread.Candidates[0].Score != 1.0 {
+		t.Fatalf("candidates JSON not round-tripped: %+v", reread.Candidates)
+	}
+}
+
+func TestSQLiteStoreSeasonAnimeByIDMissing(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	got, err := store.SeasonAnimeByID(context.Background(), "nope")
+	if err != nil {
+		t.Fatalf("SeasonAnimeByID missing: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil for missing row, got %+v", got)
+	}
+}
+
 func TestSQLiteStoreSingleOpenSeasonInvariant(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)

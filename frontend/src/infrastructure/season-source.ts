@@ -1,4 +1,15 @@
-import { CloseSeason, CreateSeason, GetSeason, SetSeasonMinApprovalGrade, SetSeasonSlots } from '../../wailsjs/go/main/App';
+import {
+  CloseSeason,
+  CreateSeason,
+  DiscardSeasonName,
+  GetSeason,
+  GetSeasonAnimes,
+  ImportSeasonIntake,
+  ResolveSeasonMatch,
+  RunSeasonMatching,
+  SetSeasonMinApprovalGrade,
+  SetSeasonSlots,
+} from '../../wailsjs/go/main/App';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
 export const SEASON_BINDINGS_POLL_MS = 50;
@@ -24,6 +35,24 @@ export interface SeasonSnapshot {
   readonly createdAt: number;
 }
 
+/** One ranked candidate for an ambiguous intake row. */
+export interface SeasonAnimeCandidate {
+  readonly title: string;
+  readonly pageUrl: string;
+  readonly score: number;
+}
+
+/** One intake/matching row of the active season. */
+export interface SeasonAnimeRow {
+  readonly id: string;
+  readonly rawName: string;
+  readonly matchStatus: string;
+  readonly matchedSlug: string;
+  readonly candidates: readonly SeasonAnimeCandidate[];
+  readonly availability: string;
+  readonly animeId: string;
+}
+
 /**
  * SeasonSource is the request/reply port for the season Wails bindings.
  * Degrades to safe defaults when the Wails runtime is unavailable (browser / Vite dev).
@@ -34,6 +63,11 @@ export interface SeasonSource {
   readonly setMinApprovalGrade: (grade: number) => Promise<string>;
   readonly setSlots: (slots: number) => Promise<string>;
   readonly closeSeason: () => Promise<string>;
+  readonly getSeasonAnimes: () => Promise<readonly SeasonAnimeRow[]>;
+  readonly importIntake: (rawText: string) => Promise<string>;
+  readonly runMatching: () => Promise<string>;
+  readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
+  readonly discardName: (rowId: string) => Promise<string>;
 }
 
 function hasGoBinding(name: string): boolean {
@@ -100,6 +134,31 @@ export function createSeasonSource(): SeasonSource {
     closeSeason() {
       return waitForBindings(() => hasGoBinding('CloseSeason')).then((isReady) => {
         return isReady ? CloseSeason() : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    getSeasonAnimes() {
+      return waitForBindings(() => hasGoBinding('GetSeasonAnimes')).then((isReady) => {
+        return isReady ? (GetSeasonAnimes() as Promise<readonly SeasonAnimeRow[]>) : Promise.resolve([]);
+      });
+    },
+    importIntake(rawText: string) {
+      return waitForBindings(() => hasGoBinding('ImportSeasonIntake')).then((isReady) => {
+        return isReady ? ImportSeasonIntake(rawText) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    runMatching() {
+      return waitForBindings(() => hasGoBinding('RunSeasonMatching')).then((isReady) => {
+        return isReady ? RunSeasonMatching() : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    resolveMatch(rowId: string, pageUrl: string) {
+      return waitForBindings(() => hasGoBinding('ResolveSeasonMatch')).then((isReady) => {
+        return isReady ? ResolveSeasonMatch(rowId, pageUrl) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    discardName(rowId: string) {
+      return waitForBindings(() => hasGoBinding('DiscardSeasonName')).then((isReady) => {
+        return isReady ? DiscardSeasonName(rowId) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
   };

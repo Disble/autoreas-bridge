@@ -14,6 +14,8 @@ export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResul
 
 export function CreateSeason(arg1:string):Promise<string>;
 
+export function DiscardSeasonName(arg1:string):Promise<string>;
+
 export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;
 
 export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;
@@ -48,9 +50,13 @@ export function GetScheduleConfig():Promise<contracts.ScheduleConfig>;
 
 export function GetSeason():Promise<main.SeasonDTO>;
 
+export function GetSeasonAnimes():Promise<Array<main.SeasonAnimeDTO>>;
+
 export function GetSeasonMode():Promise<boolean>;
 
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
+
+export function ImportSeasonIntake(arg1:string):Promise<string>;
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
@@ -62,7 +68,11 @@ export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
 
 export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
+export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
+
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+
+export function RunSeasonMatching():Promise<string>;
 
 export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 

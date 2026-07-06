@@ -172,7 +172,7 @@ func (a *App) startup(ctx context.Context) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
 	a.preferencesStore = a.newPreferencesStore(a.bridgeDB)
-	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString)
+	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString, newJkanimeNameSearcher())
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	if service, ok := deviceService.(interface{ SetSyncStateStore(device.SyncStateStore) }); ok {

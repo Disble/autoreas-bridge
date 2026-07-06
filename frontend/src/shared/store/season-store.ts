@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 
-import type { SeasonSnapshot, SeasonSource } from '../../infrastructure/season-source';
+import type { SeasonAnimeRow, SeasonSnapshot, SeasonSource } from '../../infrastructure/season-source';
 import { seasonSource } from '../../infrastructure/season-source';
 
 interface SeasonStoreState {
   readonly season: SeasonSnapshot | null;
+  readonly seasonAnimes: readonly SeasonAnimeRow[];
   readonly hasLoaded: boolean;
   readonly errorMessage?: string;
   readonly refresh: (source?: SeasonSource) => Promise<void>;
@@ -12,6 +13,11 @@ interface SeasonStoreState {
   readonly setMinApprovalGrade: (source: SeasonSource, grade: number) => Promise<void>;
   readonly setSlots: (source: SeasonSource, slots: number) => Promise<void>;
   readonly closeSeason: (source: SeasonSource) => Promise<void>;
+  readonly refreshAnimes: (source?: SeasonSource) => Promise<void>;
+  readonly importIntake: (source: SeasonSource, rawText: string) => Promise<void>;
+  readonly runMatching: (source: SeasonSource) => Promise<void>;
+  readonly resolveMatch: (source: SeasonSource, rowId: string, pageUrl: string) => Promise<void>;
+  readonly discardName: (source: SeasonSource, rowId: string) => Promise<void>;
 }
 
 /**
@@ -23,6 +29,7 @@ interface SeasonStoreState {
  */
 export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   season: null,
+  seasonAnimes: [],
   hasLoaded: false,
   errorMessage: undefined,
 
@@ -95,9 +102,58 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
       set({ errorMessage: error instanceof Error ? error.message : 'Failed to close season' });
     }
   },
+
+  refreshAnimes: async (source: SeasonSource = seasonSource) => {
+    try {
+      const seasonAnimes = await source.getSeasonAnimes();
+      set({ seasonAnimes, errorMessage: undefined });
+    } catch (error) {
+      set({ errorMessage: error instanceof Error ? error.message : 'Failed to load intake rows' });
+    }
+  },
+
+  importIntake: async (source: SeasonSource, rawText: string) => {
+    await runIntakeCommand(get, set, () => source.importIntake(rawText), source, 'Failed to import intake');
+  },
+
+  runMatching: async (source: SeasonSource) => {
+    await runIntakeCommand(get, set, () => source.runMatching(), source, 'Failed to run matching');
+  },
+
+  resolveMatch: async (source: SeasonSource, rowId: string, pageUrl: string) => {
+    await runIntakeCommand(get, set, () => source.resolveMatch(rowId, pageUrl), source, 'Failed to resolve match');
+  },
+
+  discardName: async (source: SeasonSource, rowId: string) => {
+    await runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name');
+  },
 }));
+
+/**
+ * runIntakeCommand runs an intake mutation, surfacing a non-"ok" result as an
+ * error and refreshing the rows only on success.
+ */
+async function runIntakeCommand(
+  get: () => SeasonStoreState,
+  set: (partial: Partial<SeasonStoreState>) => void,
+  command: () => Promise<string>,
+  source: SeasonSource,
+  fallbackMessage: string,
+): Promise<void> {
+  try {
+    const result = await command();
+    if (result !== 'ok') {
+      set({ errorMessage: result || fallbackMessage });
+      return;
+    }
+    set({ errorMessage: undefined });
+    await get().refreshAnimes(source);
+  } catch (error) {
+    set({ errorMessage: error instanceof Error ? error.message : fallbackMessage });
+  }
+}
 
 /** Test-only seam: reset the season store back to its initial state. */
 export function resetSeasonStore(): void {
-  useSeasonStore.setState({ season: null, hasLoaded: false, errorMessage: undefined });
+  useSeasonStore.setState({ season: null, seasonAnimes: [], hasLoaded: false, errorMessage: undefined });
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,9 +12,11 @@ import (
 
 // fakeSeasonRepo is an in-memory season.Repository for binding tests.
 type fakeSeasonRepo struct {
-	seasons   map[string]domain.Season
-	order     []string
-	createErr error
+	seasons     map[string]domain.Season
+	order       []string
+	createErr   error
+	animes      map[string]domain.SeasonAnime
+	animesOrder []string
 }
 
 func newFakeSeasonRepo() *fakeSeasonRepo {
@@ -44,9 +47,46 @@ func (r *fakeSeasonRepo) UpdateSeason(_ context.Context, s domain.Season) error 
 	return nil
 }
 
+func (r *fakeSeasonRepo) CreateSeasonAnime(_ context.Context, sa domain.SeasonAnime) error {
+	if r.animes == nil {
+		r.animes = map[string]domain.SeasonAnime{}
+	}
+	r.animes[sa.ID] = sa
+	r.animesOrder = append(r.animesOrder, sa.ID)
+	return nil
+}
+
+func (r *fakeSeasonRepo) ListSeasonAnimes(_ context.Context, seasonID string) ([]domain.SeasonAnime, error) {
+	var out []domain.SeasonAnime
+	for _, id := range r.animesOrder {
+		if sa := r.animes[id]; sa.SeasonID == seasonID {
+			out = append(out, sa)
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeSeasonRepo) SeasonAnimeByID(_ context.Context, id string) (*domain.SeasonAnime, error) {
+	sa, ok := r.animes[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := sa
+	return &cp, nil
+}
+
+func (r *fakeSeasonRepo) UpdateSeasonAnime(_ context.Context, sa domain.SeasonAnime) error {
+	r.animes[sa.ID] = sa
+	return nil
+}
+
 func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 	fixed := time.UnixMilli(1_700_000_000_000)
-	svc := season.NewService(repo, func() time.Time { return fixed }, func() string { return "season-1" })
+	n := 0
+	svc := season.NewService(repo, func() time.Time { return fixed }, func() string {
+		n++
+		return fmt.Sprintf("id-%d", n)
+	}, nil)
 	app := &App{ctx: context.Background(), seasonService: svc}
 	if hub != nil {
 		app.realtimeHub = hub
@@ -140,6 +180,68 @@ func TestSetSeasonParametersRoundTrip(t *testing.T) {
 
 	if got := app.SetSeasonMinApprovalGrade(9); got == "ok" || got == "" {
 		t.Fatalf("expected rejection of out-of-range grade, got %q", got)
+	}
+}
+
+func TestImportSeasonIntakeAndGetSeasonAnimes(t *testing.T) {
+	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	_ = app.CreateSeason("Julio 2026")
+
+	if got := app.ImportSeasonIntake("Dr. Stone\nMARRIAGETOXIN\ndr. stone"); got != "ok" {
+		t.Fatalf("ImportSeasonIntake: %q", got)
+	}
+	rows := app.GetSeasonAnimes()
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 deduped rows, got %d: %+v", len(rows), rows)
+	}
+	for _, r := range rows {
+		if r.MatchStatus != "pending" {
+			t.Fatalf("expected pending, got %q", r.MatchStatus)
+		}
+	}
+}
+
+func TestImportSeasonIntakeWithoutActiveSeason(t *testing.T) {
+	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	if got := app.ImportSeasonIntake("Dr. Stone"); got == "ok" || got == "" {
+		t.Fatalf("expected error without an active season, got %q", got)
+	}
+}
+
+func TestResolveAndDiscardSeasonRows(t *testing.T) {
+	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	_ = app.CreateSeason("Julio 2026")
+	_ = app.ImportSeasonIntake("Anime Uno\nAnime Dos")
+	rows := app.GetSeasonAnimes()
+	if len(rows) != 2 {
+		t.Fatalf("setup expected 2 rows, got %d", len(rows))
+	}
+
+	if got := app.ResolveSeasonMatch(rows[0].ID, "https://jkanime.net/anime-uno/"); got != "ok" {
+		t.Fatalf("ResolveSeasonMatch: %q", got)
+	}
+	if got := app.DiscardSeasonName(rows[1].ID); got != "ok" {
+		t.Fatalf("DiscardSeasonName: %q", got)
+	}
+
+	after := app.GetSeasonAnimes()
+	status := map[string]string{}
+	for _, r := range after {
+		status[r.ID] = r.MatchStatus
+	}
+	if status[rows[0].ID] != "matched" || status[rows[1].ID] != "discarded" {
+		t.Fatalf("unexpected statuses: %+v", status)
+	}
+}
+
+func TestGetSeasonAnimesEmptyWhenNoService(t *testing.T) {
+	t.Parallel()
+	app := &App{ctx: context.Background()}
+	if got := app.GetSeasonAnimes(); len(got) != 0 {
+		t.Fatalf("expected empty list with nil service, got %+v", got)
 	}
 }
 

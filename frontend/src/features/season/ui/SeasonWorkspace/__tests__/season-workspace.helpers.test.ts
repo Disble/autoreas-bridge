@@ -49,7 +49,7 @@ describe('SEASON_SECTION_TABS', () => {
     const ids = SEASON_SECTION_TABS.map((tab) => tab.id);
     expect(ids).toEqual(['overview', 'intake', 'daily', 'evaluation', 'selection', 'ordering']);
 
-    const upcoming = SEASON_SECTION_TABS.filter((tab) => tab.id !== 'overview');
-    expect(upcoming.every((tab) => tab.available === false)).toBe(true);
+    const available = SEASON_SECTION_TABS.filter((tab) => tab.available).map((tab) => tab.id);
+    expect(available).toEqual(['overview', 'intake']);
   });
 });

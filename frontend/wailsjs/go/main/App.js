@@ -22,6 +22,10 @@ export function CreateSeason(arg1) {
   return window['go']['main']['App']['CreateSeason'](arg1);
 }
 
+export function DiscardSeasonName(arg1) {
+  return window['go']['main']['App']['DiscardSeasonName'](arg1);
+}
+
 export function GetAnimeCover(arg1) {
   return window['go']['main']['App']['GetAnimeCover'](arg1);
 }
@@ -90,12 +94,20 @@ export function GetSeason() {
   return window['go']['main']['App']['GetSeason']();
 }
 
+export function GetSeasonAnimes() {
+  return window['go']['main']['App']['GetSeasonAnimes']();
+}
+
 export function GetSeasonMode() {
   return window['go']['main']['App']['GetSeasonMode']();
 }
 
 export function GetSyncingAnimeItems() {
   return window['go']['main']['App']['GetSyncingAnimeItems']();
+}
+
+export function ImportSeasonIntake(arg1) {
+  return window['go']['main']['App']['ImportSeasonIntake'](arg1);
 }
 
 export function ListDownloadRuns() {
@@ -118,8 +130,16 @@ export function RepeatAnime(arg1, arg2) {
   return window['go']['main']['App']['RepeatAnime'](arg1, arg2);
 }
 
+export function ResolveSeasonMatch(arg1, arg2) {
+  return window['go']['main']['App']['ResolveSeasonMatch'](arg1, arg2);
+}
+
 export function RestoreAnime(arg1, arg2) {
   return window['go']['main']['App']['RestoreAnime'](arg1, arg2);
+}
+
+export function RunSeasonMatching() {
+  return window['go']['main']['App']['RunSeasonMatching']();
 }
 
 export function SetAnimeState(arg1, arg2, arg3) {

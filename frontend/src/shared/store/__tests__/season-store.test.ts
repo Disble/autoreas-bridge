@@ -22,6 +22,11 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
+    getSeasonAnimes: vi.fn().mockResolvedValue([]),
+    importIntake: vi.fn().mockResolvedValue('ok'),
+    runMatching: vi.fn().mockResolvedValue('ok'),
+    resolveMatch: vi.fn().mockResolvedValue('ok'),
+    discardName: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }
@@ -94,6 +99,46 @@ describe('useSeasonStore', () => {
 
     expect(source.setSlots).toHaveBeenCalledWith(9);
     expect(useSeasonStore.getState().season?.slots).toBe(9);
+  });
+
+  it('importIntake runs the import then refreshes the rows', async () => {
+    const getSeasonAnimes = vi
+      .fn()
+      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '' }]);
+    const source = makeSource({ getSeasonAnimes });
+    await useSeasonStore.getState().importIntake(source, 'Dr. Stone');
+
+    expect(source.importIntake).toHaveBeenCalledWith('Dr. Stone');
+    expect(useSeasonStore.getState().seasonAnimes).toHaveLength(1);
+  });
+
+  it('importIntake surfaces an error and does not refresh on failure', async () => {
+    const source = makeSource({ importIntake: vi.fn().mockResolvedValue('no active season') });
+    await useSeasonStore.getState().importIntake(source, 'Dr. Stone');
+
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(useSeasonStore.getState().errorMessage).toBe('no active season');
+  });
+
+  it('runMatching runs then refreshes the rows', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().runMatching(source);
+    expect(source.runMatching).toHaveBeenCalled();
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('resolveMatch delegates and refreshes', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().resolveMatch(source, 'sa-1', 'https://jkanime.net/dr-stone/');
+    expect(source.resolveMatch).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone/');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('discardName delegates and refreshes', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().discardName(source, 'sa-1');
+    expect(source.discardName).toHaveBeenCalledWith('sa-1');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
   it('closeSeason clears the active season on success', async () => {

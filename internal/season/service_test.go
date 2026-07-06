@@ -7,15 +7,53 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/season/domain"
+	"autoreas-bridge/internal/season/match"
 )
 
 // fakeRepo is an in-memory Repository for service unit tests.
 type fakeRepo struct {
-	seasons map[string]domain.Season
-	order   []string
+	seasons     map[string]domain.Season
+	order       []string
+	animes      map[string]domain.SeasonAnime
+	animesOrder []string
 }
 
-func newFakeRepo() *fakeRepo { return &fakeRepo{seasons: map[string]domain.Season{}} }
+func newFakeRepo() *fakeRepo {
+	return &fakeRepo{seasons: map[string]domain.Season{}, animes: map[string]domain.SeasonAnime{}}
+}
+
+func (r *fakeRepo) CreateSeasonAnime(_ context.Context, sa domain.SeasonAnime) error {
+	r.animes[sa.ID] = sa
+	r.animesOrder = append(r.animesOrder, sa.ID)
+	return nil
+}
+
+func (r *fakeRepo) ListSeasonAnimes(_ context.Context, seasonID string) ([]domain.SeasonAnime, error) {
+	var out []domain.SeasonAnime
+	for _, id := range r.animesOrder {
+		if sa := r.animes[id]; sa.SeasonID == seasonID {
+			out = append(out, sa)
+		}
+	}
+	return out, nil
+}
+
+func (r *fakeRepo) SeasonAnimeByID(_ context.Context, id string) (*domain.SeasonAnime, error) {
+	sa, ok := r.animes[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := sa
+	return &cp, nil
+}
+
+func (r *fakeRepo) UpdateSeasonAnime(_ context.Context, sa domain.SeasonAnime) error {
+	if _, ok := r.animes[sa.ID]; !ok {
+		return errors.New("season anime not found")
+	}
+	r.animes[sa.ID] = sa
+	return nil
+}
 
 func (r *fakeRepo) CreateSeason(_ context.Context, s domain.Season) error {
 	if _, ok := r.seasons[s.ID]; ok {
@@ -45,13 +83,30 @@ func (r *fakeRepo) UpdateSeason(_ context.Context, s domain.Season) error {
 	return nil
 }
 
+// fakeSearcher is an in-memory NameSearcher keyed by exact query.
+type fakeSearcher struct {
+	byQuery map[string][]match.Candidate
+	err     error
+}
+
+func (f *fakeSearcher) Search(_ context.Context, query string) ([]match.Candidate, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.byQuery[query], nil
+}
+
 func newTestService(repo Repository) *Service {
+	return newTestServiceWithSearcher(repo, &fakeSearcher{byQuery: map[string][]match.Candidate{}})
+}
+
+func newTestServiceWithSearcher(repo Repository, searcher NameSearcher) *Service {
 	fixed := time.UnixMilli(1_700_000_000_000)
 	n := 0
 	return NewService(repo, func() time.Time { return fixed }, func() string {
 		n++
-		return "season-" + string(rune('0'+n))
-	})
+		return "id-" + string(rune('0'+n))
+	}, searcher)
 }
 
 func TestServiceCreateSeason(t *testing.T) {
@@ -138,5 +193,102 @@ func TestServiceSetInvalidParameterRejected(t *testing.T) {
 	}
 	if err := svc.SetMinApprovalGrade(ctx, 9); err == nil {
 		t.Fatal("grade 9 must be rejected")
+	}
+}
+
+func TestServiceImportIntakeParsesDedupesAndSkipsBlanks(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	count, err := svc.ImportIntake(ctx, season.ID, "  Dr. Stone  \n\nMARRIAGETOXIN\ndr. stone\n   \nAkane-banashi\n")
+	if err != nil {
+		t.Fatalf("ImportIntake: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected 3 unique names imported, got %d", count)
+	}
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(rows))
+	}
+	for _, r := range rows {
+		if r.MatchStatus != domain.MatchPending {
+			t.Fatalf("imported rows must be pending, got %q", r.MatchStatus)
+		}
+	}
+}
+
+func TestServiceRunMatchingClassifiesRows(t *testing.T) {
+	repo := newFakeRepo()
+	searcher := &fakeSearcher{byQuery: map[string][]match.Candidate{
+		"Dr. Stone: Science Future Part 3": {
+			{Title: "Dr. Stone: Science Future Part 3", PageURL: "https://jkanime.net/dr-stone-science-future-part-3/"},
+			{Title: "Dr. Stone: Science Future Part 2", PageURL: "https://jkanime.net/dr-stone-science-future-part-2/"},
+		},
+		"Sword Art": {
+			{Title: "Sword Art Online", PageURL: "https://jkanime.net/sword-art-online/"},
+			{Title: "Sword Art Offline", PageURL: "https://jkanime.net/sword-art-offline/"},
+		},
+		"Anime Inexistente": {},
+	}}
+	svc := newTestServiceWithSearcher(repo, searcher)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	_, _ = svc.ImportIntake(ctx, season.ID, "Dr. Stone: Science Future Part 3\nSword Art\nAnime Inexistente")
+
+	if err := svc.RunMatching(ctx, season.ID); err != nil {
+		t.Fatalf("RunMatching: %v", err)
+	}
+
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	byName := map[string]domain.SeasonAnime{}
+	for _, r := range rows {
+		byName[r.RawName] = r
+	}
+
+	if got := byName["Dr. Stone: Science Future Part 3"]; got.MatchStatus != domain.MatchMatched || got.MatchedSlug == "" {
+		t.Fatalf("Dr. Stone should be matched, got %+v", got)
+	}
+	if got := byName["Sword Art"]; got.MatchStatus != domain.MatchAmbiguous || len(got.Candidates) < 2 {
+		t.Fatalf("Sword Art should be ambiguous with candidates, got %+v", got)
+	}
+	if got := byName["Anime Inexistente"]; got.MatchStatus != domain.MatchNotFound {
+		t.Fatalf("Anime Inexistente should be not_found, got %+v", got)
+	}
+}
+
+func TestServiceResolveMatchSetsMatchedSlug(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	_, _ = svc.ImportIntake(ctx, season.ID, "Some Anime")
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+
+	if err := svc.ResolveMatch(ctx, rows[0].ID, "https://jkanime.net/some-anime/"); err != nil {
+		t.Fatalf("ResolveMatch: %v", err)
+	}
+	got, _ := repo.SeasonAnimeByID(ctx, rows[0].ID)
+	if got.MatchStatus != domain.MatchMatched || got.MatchedSlug != "https://jkanime.net/some-anime/" {
+		t.Fatalf("resolve did not set matched slug: %+v", got)
+	}
+}
+
+func TestServiceDiscardName(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	_, _ = svc.ImportIntake(ctx, season.ID, "Some Anime")
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+
+	if err := svc.DiscardName(ctx, rows[0].ID); err != nil {
+		t.Fatalf("DiscardName: %v", err)
+	}
+	got, _ := repo.SeasonAnimeByID(ctx, rows[0].ID)
+	if got.MatchStatus != domain.MatchDiscarded {
+		t.Fatalf("discard did not set status: %+v", got)
 	}
 }

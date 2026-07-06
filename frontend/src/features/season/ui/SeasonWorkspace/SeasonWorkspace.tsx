@@ -6,6 +6,7 @@ import {
   SEASON_WORKSPACE_TITLE,
   SEASON_WORKSPACE_UPCOMING_MESSAGE,
 } from './season-workspace.constants';
+import { IntakePanel } from '../IntakePanel/IntakePanel';
 import type { SeasonWorkspaceProps } from './season-workspace.types';
 import { useSeasonWorkspace } from './use-season-workspace';
 
@@ -73,7 +74,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             </Chip>
           </div>
 
-          <Tabs selectedKey="overview">
+          <Tabs defaultSelectedKey="overview">
             <Tabs.ListContainer>
               <Tabs.List>
                 {sections.map((tab) => (
@@ -83,6 +84,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
                 ))}
               </Tabs.List>
             </Tabs.ListContainer>
+
+            <Tabs.Panel id="intake">
+              <IntakePanel />
+            </Tabs.Panel>
 
             <Tabs.Panel id="overview">
               <Card>

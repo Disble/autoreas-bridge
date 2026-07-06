@@ -24,6 +24,11 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setMinApprovalGrade: vi.fn().mockResolvedValue('ok'),
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
+    getSeasonAnimes: vi.fn().mockResolvedValue([]),
+    importIntake: vi.fn().mockResolvedValue('ok'),
+    runMatching: vi.fn().mockResolvedValue('ok'),
+    resolveMatch: vi.fn().mockResolvedValue('ok'),
+    discardName: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }

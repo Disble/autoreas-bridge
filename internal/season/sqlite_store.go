@@ -3,6 +3,7 @@ package season
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -74,6 +75,124 @@ func (s *SQLiteStore) UpdateSeason(ctx context.Context, season domain.Season) er
 		return fmt.Errorf("update season %q: %w", season.ID, err)
 	}
 	return nil
+}
+
+// CreateSeasonAnime inserts a new intake row.
+func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAnime) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO season_animes
+			(id, season_id, raw_name, match_status, matched_slug,
+			 match_candidates_json, availability, anime_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sa.ID, sa.SeasonID, sa.RawName, string(sa.MatchStatus), sa.MatchedSlug,
+		marshalCandidates(sa.Candidates), string(sa.Availability), sa.AnimeID, sa.CreatedAt.UnixMilli(),
+	)
+	if err != nil {
+		return fmt.Errorf("create season anime %q: %w", sa.ID, err)
+	}
+	return nil
+}
+
+// ListSeasonAnimes returns a season's intake rows in creation order.
+func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]domain.SeasonAnime, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, season_id, raw_name, match_status, matched_slug,
+		       match_candidates_json, availability, anime_id, created_at
+		FROM season_animes WHERE season_id = ? ORDER BY created_at, id`, seasonID)
+	if err != nil {
+		return nil, fmt.Errorf("list season animes for %q: %w", seasonID, err)
+	}
+	defer rows.Close()
+
+	var out []domain.SeasonAnime
+	for rows.Next() {
+		sa, err := scanSeasonAnime(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *sa)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate season animes: %w", err)
+	}
+	return out, nil
+}
+
+// SeasonAnimeByID returns one intake row, or (nil, nil) when absent.
+func (s *SQLiteStore) SeasonAnimeByID(ctx context.Context, id string) (*domain.SeasonAnime, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, season_id, raw_name, match_status, matched_slug,
+		       match_candidates_json, availability, anime_id, created_at
+		FROM season_animes WHERE id = ?`, id)
+	sa, err := scanSeasonAnime(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query season anime %q: %w", id, err)
+	}
+	return sa, nil
+}
+
+// UpdateSeasonAnime persists the mutable intake/matching fields.
+func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAnime) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE season_animes SET
+			match_status = ?, matched_slug = ?, match_candidates_json = ?,
+			availability = ?, anime_id = ?
+		WHERE id = ?`,
+		string(sa.MatchStatus), sa.MatchedSlug, marshalCandidates(sa.Candidates),
+		string(sa.Availability), sa.AnimeID, sa.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("update season anime %q: %w", sa.ID, err)
+	}
+	return nil
+}
+
+func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
+	var (
+		sa           domain.SeasonAnime
+		matchStatus  string
+		matchedSlug  sql.NullString
+		candidates   sql.NullString
+		availability string
+		animeID      sql.NullString
+		createdAt    int64
+	)
+	if err := row.Scan(&sa.ID, &sa.SeasonID, &sa.RawName, &matchStatus, &matchedSlug,
+		&candidates, &availability, &animeID, &createdAt); err != nil {
+		return nil, err
+	}
+	sa.MatchStatus = domain.MatchStatus(matchStatus)
+	sa.MatchedSlug = matchedSlug.String
+	sa.Availability = domain.Availability(availability)
+	sa.AnimeID = animeID.String
+	sa.Candidates = unmarshalCandidates(candidates.String)
+	sa.CreatedAt = time.UnixMilli(createdAt)
+	return &sa, nil
+}
+
+func marshalCandidates(c []domain.MatchCandidate) string {
+	if len(c) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func unmarshalCandidates(raw string) []domain.MatchCandidate {
+	if raw == "" {
+		return nil
+	}
+	var c []domain.MatchCandidate
+	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		return nil
+	}
+	return c
 }
 
 // rowScanner abstracts *sql.Row / *sql.Rows for scanSeason.
