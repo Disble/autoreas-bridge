@@ -27,6 +27,21 @@ var ErrSeasonAnimeNotFound = errors.New("season anime not found")
 // ErrSearcherUnavailable is returned by RunMatching when no NameSearcher is wired.
 var ErrSearcherUnavailable = errors.New("name searcher unavailable")
 
+// ErrAvailabilityDepsUnavailable is returned by RecheckAvailability when the
+// probe/gateway deps are not wired.
+var ErrAvailabilityDepsUnavailable = errors.New("availability probe/gateway unavailable")
+
+// sinVerSection is the Estrenos section a newly-available anime lands in.
+const sinVerSection = "Sin ver"
+
+// RecheckResult summarizes one availability recheck run.
+type RecheckResult struct {
+	// Created is the names that became available this run (created or linked).
+	Created []string
+	// Checked is how many still-waiting rows were probed.
+	Checked int
+}
+
 // Service is the season application service. Time and id generation are injected
 // so the service is deterministic under test; the NameSearcher may be nil (then
 // RunMatching errors, but every other operation still works).
@@ -35,6 +50,16 @@ type Service struct {
 	now      func() time.Time
 	newID    func() string
 	searcher NameSearcher
+	probe    AvailabilityProbe
+	gateway  AnimeGateway
+}
+
+// SetAvailabilityDeps wires the availability probe + anime gateway (SDD-43).
+// Mirrors the optional-setter convention; RecheckAvailability errors until both
+// are set, every other operation works without them.
+func (s *Service) SetAvailabilityDeps(probe AvailabilityProbe, gateway AnimeGateway) {
+	s.probe = probe
+	s.gateway = gateway
 }
 
 // NewService builds the service over a Repository, a clock, an id generator, and
@@ -149,6 +174,58 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 		}
 	}
 	return nil
+}
+
+// RecheckAvailability probes ch.1 availability for every matched, still-waiting
+// row. Newly-available animes are linked to an existing active anime with the
+// same page (two-cour continuation) or created into "Sin ver", and the row
+// advances to created. A probe error leaves that row waiting (the run never
+// fails as a whole). Idempotent: created rows are skipped on reruns.
+func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (RecheckResult, error) {
+	if s.probe == nil || s.gateway == nil {
+		return RecheckResult{}, ErrAvailabilityDepsUnavailable
+	}
+	rows, err := s.repo.ListSeasonAnimes(ctx, seasonID)
+	if err != nil {
+		return RecheckResult{}, err
+	}
+
+	var res RecheckResult
+	for _, row := range rows {
+		if row.MatchStatus != domain.MatchMatched || row.Availability != domain.AvailabilityWaiting {
+			continue
+		}
+		res.Checked++
+
+		available, probeErr := s.probe.HasChapterOne(ctx, row.MatchedSlug)
+		if probeErr != nil || !available {
+			// Leave the row waiting; a scrape error must not fail the whole run.
+			continue
+		}
+
+		animeID, found, err := s.gateway.FindActiveByPagina(ctx, row.MatchedSlug)
+		if err != nil {
+			return res, err
+		}
+		if !found {
+			animeID, err = s.gateway.CreateAnime(ctx, AnimeCreateInput{
+				Nombre:  row.RawName,
+				Pagina:  row.MatchedSlug,
+				Section: sinVerSection,
+			})
+			if err != nil {
+				return res, err
+			}
+		}
+
+		row.Availability = domain.AvailabilityCreated
+		row.AnimeID = animeID
+		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+			return res, err
+		}
+		res.Created = append(res.Created, row.RawName)
+	}
+	return res, nil
 }
 
 // ResolveMatch manually resolves a row to a page URL (candidate pick or a
