@@ -9,7 +9,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
-	"autoreas-bridge/internal/download/schedule"
+	"autoreas-bridge/internal/schedule"
 )
 
 func TestGetDownloadConfigReturnsZeroValueWhenStoreNil(t *testing.T) {

@@ -10,10 +10,10 @@ import (
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/filesystem"
-	"autoreas-bridge/internal/download/schedule"
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 )
