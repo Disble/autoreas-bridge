@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
-import { countUnresolved, formatCandidateOption, getMatchStatusColor, getMatchStatusLabel } from '../intake-panel.helpers';
+import {
+  buildRawText,
+  countUnresolved,
+  formatCandidateOption,
+  getMatchStatusColor,
+  getMatchStatusLabel,
+  splitIntakeRows,
+} from '../intake-panel.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
@@ -11,7 +18,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchedSlug: '',
     candidates: [],
     availability: 'waiting',
-    animeId: '',
+    animeId: '', section: '',
     ...overrides,
   };
 }
@@ -41,6 +48,31 @@ describe('formatCandidateOption', () => {
   it('renders the title with a rounded percentage score', () => {
     expect(formatCandidateOption({ title: 'Dr. Stone', pageUrl: 'x', score: 0.954 })).toBe('Dr. Stone (95%)');
     expect(formatCandidateOption({ title: 'Sword Art', pageUrl: 'y', score: 0.6 })).toBe('Sword Art (60%)');
+  });
+});
+
+describe('buildRawText', () => {
+  it('joins only the editable (uncreated, non-discarded) row names', () => {
+    const rows = [
+      row({ rawName: 'Anime A' }),
+      row({ rawName: 'Anime B', availability: 'created', animeId: 'x' }),
+      row({ rawName: 'Anime C', matchStatus: 'discarded' }),
+      row({ rawName: 'Anime D' }),
+    ];
+    expect(buildRawText(rows)).toBe('Anime A\nAnime D');
+  });
+});
+
+describe('splitIntakeRows', () => {
+  it('separates editable from created and drops discarded', () => {
+    const rows = [
+      row({ id: 'a', rawName: 'A' }),
+      row({ id: 'b', rawName: 'B', availability: 'created', animeId: 'x' }),
+      row({ id: 'c', rawName: 'C', matchStatus: 'discarded' }),
+    ];
+    const { editable, created } = splitIntakeRows(rows);
+    expect(editable.map((r) => r.id)).toEqual(['a']);
+    expect(created.map((r) => r.id)).toEqual(['b']);
   });
 });
 

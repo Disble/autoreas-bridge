@@ -11,7 +11,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchedSlug: 'x',
     candidates: [],
     availability: 'waiting',
-    animeId: '',
+    animeId: '', section: '',
     ...overrides,
   };
 }
@@ -19,7 +19,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
 describe('groupDailyBoard', () => {
   it('splits rows into created, waiting, and other', () => {
     const rows = [
-      row({ id: 'a', availability: 'created', animeId: 'anime-a' }),
+      row({ id: 'a', availability: 'created', animeId: 'anime-a', section: '' }),
       row({ id: 'b', matchStatus: 'matched', availability: 'waiting' }),
       row({ id: 'c', matchStatus: 'ambiguous', availability: 'waiting' }),
       row({ id: 'd', matchStatus: 'discarded', availability: 'waiting' }),

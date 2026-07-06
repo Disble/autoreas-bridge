@@ -13,7 +13,8 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
-    importIntake: vi.fn().mockResolvedValue('ok'),
+    reconcileIntake: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -30,7 +31,7 @@ const CREATED: SeasonAnimeRow = {
   matchedSlug: 'x',
   candidates: [],
   availability: 'created',
-  animeId: 'anime-a',
+  animeId: 'anime-a', section: '',
 };
 
 describe('useDailyBoard', () => {

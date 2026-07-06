@@ -21,16 +21,21 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     candidates: [],
     availability: 'waiting',
     animeId: '',
+    section: '',
     ...overrides,
   };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
-    rows: [],
+    mode: 'list',
+    switchMode: vi.fn(),
+    rawDraft: '',
+    onRawChange: vi.fn(),
+    editableRows: [],
+    createdRows: [],
     unresolvedCount: 0,
     errorMessage: undefined,
-    onImport: vi.fn(),
     onRunMatching: vi.fn(),
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
@@ -46,53 +51,46 @@ describe('IntakePanel', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the empty state when there are no rows', () => {
-    mockHook();
-    render(<IntakePanel />);
-    expect(screen.getByText('Paste the season intake list to begin.')).toBeInTheDocument();
-  });
-
-  it('renders a row with its status chip', () => {
-    mockHook({ rows: [row({ matchStatus: 'ambiguous' })], unresolvedCount: 1 });
+  it('renders editable rows with status chips in list mode', () => {
+    mockHook({ editableRows: [row({ matchStatus: 'ambiguous' })], unresolvedCount: 1 });
     render(<IntakePanel />);
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
     expect(screen.getByText('1 unresolved')).toBeInTheDocument();
   });
 
-  it('resolves via a candidate button', () => {
-    const onResolve = vi.fn();
+  it('shows the raw textarea in raw mode', () => {
+    mockHook({ mode: 'raw', rawDraft: 'Anime A\nAnime B' });
+    render(<IntakePanel />);
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toBeInTheDocument();
+    expect((textarea as HTMLTextAreaElement).value).toBe('Anime A\nAnime B');
+  });
+
+  it('the mode toggle switches to raw', () => {
+    const switchMode = vi.fn();
+    mockHook({ switchMode });
+    render(<IntakePanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
+    expect(switchMode).toHaveBeenCalledWith('raw');
+  });
+
+  it('renders the read-only created section', () => {
     mockHook({
-      rows: [
-        row({
-          matchStatus: 'ambiguous',
-          candidates: [{ title: 'Dr. Stone: Science Future Part 3', pageUrl: 'https://jkanime.net/dr-stone-science-future-part-3/', score: 0.98 }],
-        }),
-      ],
-      onResolve,
+      createdRows: [row({ id: 'c', rawName: 'Akane-banashi', availability: 'created', animeId: 'anime-c', section: 'Ver hoy' })],
     });
     render(<IntakePanel />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Dr. Stone: Science Future Part 3 (98%)' }));
-    expect(onResolve).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone-science-future-part-3/');
+    expect(screen.getByText('Already created (1)')).toBeInTheDocument();
+    expect(screen.getByText('Akane-banashi')).toBeInTheDocument();
+    expect(screen.getByText('Ver hoy')).toBeInTheDocument();
   });
 
-  it('discards a row', () => {
+  it('discards an editable row', () => {
     const onDiscard = vi.fn();
-    mockHook({ rows: [row()], onDiscard });
+    mockHook({ editableRows: [row()], onDiscard });
     render(<IntakePanel />);
-
     fireEvent.click(screen.getByRole('button', { name: 'Discard Dr. Stone' }));
     expect(onDiscard).toHaveBeenCalledWith('sa-1');
-  });
-
-  it('runs matching', () => {
-    const onRunMatching = vi.fn();
-    mockHook({ rows: [row()], onRunMatching });
-    render(<IntakePanel />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Run matching' }));
-    expect(onRunMatching).toHaveBeenCalled();
   });
 
   it('surfaces an error message', () => {

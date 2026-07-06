@@ -23,7 +23,8 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([]),
-    importIntake: vi.fn().mockResolvedValue('ok'),
+    reconcileIntake: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -103,20 +104,20 @@ describe('useSeasonStore', () => {
     expect(useSeasonStore.getState().season?.slots).toBe(9);
   });
 
-  it('importIntake runs the import then refreshes the rows', async () => {
+  it('reconcileIntake runs the reconcile then refreshes the rows', async () => {
     const getSeasonAnimes = vi
       .fn()
-      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '' }]);
+      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' }]);
     const source = makeSource({ getSeasonAnimes });
-    await useSeasonStore.getState().importIntake(source, 'Dr. Stone');
+    await useSeasonStore.getState().reconcileIntake(source, 'Dr. Stone');
 
-    expect(source.importIntake).toHaveBeenCalledWith('Dr. Stone');
+    expect(source.reconcileIntake).toHaveBeenCalledWith('Dr. Stone');
     expect(useSeasonStore.getState().seasonAnimes).toHaveLength(1);
   });
 
-  it('importIntake surfaces an error and does not refresh on failure', async () => {
-    const source = makeSource({ importIntake: vi.fn().mockResolvedValue('no active season') });
-    await useSeasonStore.getState().importIntake(source, 'Dr. Stone');
+  it('reconcileIntake surfaces an error and does not refresh on failure', async () => {
+    const source = makeSource({ reconcileIntake: vi.fn().mockResolvedValue('no active season') });
+    await useSeasonStore.getState().reconcileIntake(source, 'Dr. Stone');
 
     expect(source.getSeasonAnimes).not.toHaveBeenCalled();
     expect(useSeasonStore.getState().errorMessage).toBe('no active season');

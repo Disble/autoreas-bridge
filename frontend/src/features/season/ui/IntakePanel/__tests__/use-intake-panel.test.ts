@@ -13,7 +13,8 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setSlots: vi.fn().mockResolvedValue('ok'),
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
-    importIntake: vi.fn().mockResolvedValue('ok'),
+    reconcileIntake: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -35,25 +36,41 @@ describe('useIntakePanel', () => {
     await waitFor(() => expect(source.getSeasonAnimes).toHaveBeenCalled());
   });
 
-  it('exposes rows and the unresolved count', async () => {
+  it('splits editable rows from created and counts unresolved', async () => {
     const rows: SeasonAnimeRow[] = [
-      { id: 'a', rawName: 'A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '' },
-      { id: 'b', rawName: 'B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', animeId: '' },
+      { id: 'a', rawName: 'A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' },
+      { id: 'b', rawName: 'B', matchStatus: 'ambiguous', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' },
+      { id: 'c', rawName: 'C', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', animeId: 'anime-c', section: 'Sin ver' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(2));
-    expect(result.current.unresolvedCount).toBe(1);
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(2));
+    expect(result.current.createdRows).toHaveLength(1);
+    expect(result.current.unresolvedCount).toBe(2);
   });
 
-  it('onImport delegates to the source', async () => {
-    const source = createSource();
+  it('switching to raw builds the draft from editable names and switching back flushes', async () => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'a', rawName: 'Anime A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' },
+      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', animeId: 'anime-b', section: 'Sin ver' },
+    ];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
+    await waitFor(() => expect(result.current.editableRows).toHaveLength(1));
+
     await act(async () => {
-      result.current.onImport('Dr. Stone');
+      result.current.switchMode('raw');
     });
-    expect(source.importIntake).toHaveBeenCalledWith('Dr. Stone');
+    expect(result.current.rawDraft).toBe('Anime A'); // created anime excluded
+
+    await act(async () => {
+      result.current.onRawChange('Anime A\nAnime C');
+    });
+    await act(async () => {
+      result.current.switchMode('list');
+    });
+    expect(source.reconcileIntake).toHaveBeenCalledWith('Anime A\nAnime C');
   });
 
   it('onResolve and onDiscard delegate to the source', async () => {

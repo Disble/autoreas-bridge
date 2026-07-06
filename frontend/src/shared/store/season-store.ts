@@ -14,11 +14,12 @@ interface SeasonStoreState {
   readonly setSlots: (source: SeasonSource, slots: number) => Promise<void>;
   readonly closeSeason: (source: SeasonSource) => Promise<void>;
   readonly refreshAnimes: (source?: SeasonSource) => Promise<void>;
-  readonly importIntake: (source: SeasonSource, rawText: string) => Promise<void>;
+  readonly reconcileIntake: (source: SeasonSource, rawText: string) => Promise<void>;
   readonly runMatching: (source: SeasonSource) => Promise<void>;
   readonly resolveMatch: (source: SeasonSource, rowId: string, pageUrl: string) => Promise<void>;
   readonly discardName: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setAnimeDays: (source: SeasonSource, animeId: string, dias: readonly string[]) => Promise<void>;
+  readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<void>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
 }
 
@@ -114,8 +115,8 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
     }
   },
 
-  importIntake: async (source: SeasonSource, rawText: string) => {
-    await runIntakeCommand(get, set, () => source.importIntake(rawText), source, 'Failed to import intake');
+  reconcileIntake: async (source: SeasonSource, rawText: string) => {
+    await runIntakeCommand(get, set, () => source.reconcileIntake(rawText), source, 'Failed to update intake');
   },
 
   runMatching: async (source: SeasonSource) => {
@@ -132,6 +133,10 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
 
   setAnimeDays: async (source: SeasonSource, animeId: string, dias: readonly string[]) => {
     await runIntakeCommand(get, set, () => source.setAnimeDays(animeId, dias), source, 'Failed to move anime');
+  },
+
+  sendToVerHoy: async (source: SeasonSource, animeIds: readonly string[]) => {
+    await runIntakeCommand(get, set, () => source.sendToVerHoy(animeIds), source, 'Failed to send to Ver hoy');
   },
 
   recheckAvailability: async (source: SeasonSource) => {

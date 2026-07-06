@@ -1,34 +1,54 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
-import { countUnresolved } from './intake-panel.helpers';
+import { INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
+import { buildRawText, countUnresolved, splitIntakeRows } from './intake-panel.helpers';
+import type { IntakeMode } from './intake-panel.types';
 
 /**
- * useIntakePanel loads the active season's intake rows on mount and exposes the
- * import / match / resolve / discard callbacks. All Wails I/O flows through the
- * season store and SeasonSource; IntakePanel.tsx is purely presentational.
+ * useIntakePanel drives the dual-mode intake editor. Raw mode is a local draft
+ * of the uncreated names that reconciles into the intake rows after a debounce;
+ * List mode renders the editable rows plus a read-only "already created"
+ * section. All Wails I/O flows through the season store.
  */
 export function useIntakePanel(source: SeasonSource = seasonSource) {
+  // 2. State
+  const [mode, setMode] = useState<IntakeMode>('list');
+  const [rawDraft, setRawDraft] = useState('');
+
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
-  const importIntake = useSeasonStore((state) => state.importIntake);
+  const reconcileIntake = useSeasonStore((state) => state.reconcileIntake);
   const runMatching = useSeasonStore((state) => state.runMatching);
   const resolveMatch = useSeasonStore((state) => state.resolveMatch);
   const discardName = useSeasonStore((state) => state.discardName);
 
   // 5. Derived State (useMemo)
-  const unresolvedCount = useMemo(() => countUnresolved(seasonAnimes), [seasonAnimes]);
+  const { editable, created } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
+  const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
 
-  // 6. Callbacks (useCallback calling the store)
-  const onImport = useCallback(
-    (rawText: string) => {
-      void importIntake(source, rawText);
+  // 6. Callbacks
+  const switchMode = useCallback(
+    (next: IntakeMode) => {
+      if (next === mode) {
+        return;
+      }
+      if (next === 'list' && mode === 'raw') {
+        void reconcileIntake(source, rawDraft); // flush the draft before rendering
+      }
+      if (next === 'raw') {
+        setRawDraft(buildRawText(seasonAnimes));
+      }
+      setMode(next);
     },
-    [importIntake, source],
+    [mode, rawDraft, seasonAnimes, reconcileIntake, source],
   );
+  const onRawChange = useCallback((text: string) => {
+    setRawDraft(text);
+  }, []);
   const onRunMatching = useCallback(() => {
     void runMatching(source);
   }, [runMatching, source]);
@@ -50,11 +70,26 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     void refreshAnimes(source);
   }, [refreshAnimes, source]);
 
+  // Debounced reconcile while editing the raw draft.
+  useEffect(() => {
+    if (mode !== 'raw') {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      void reconcileIntake(source, rawDraft);
+    }, INTAKE_RECONCILE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [mode, rawDraft, reconcileIntake, source]);
+
   return {
-    rows: seasonAnimes,
+    mode,
+    switchMode,
+    rawDraft,
+    onRawChange,
+    editableRows: editable,
+    createdRows: created,
     unresolvedCount,
     errorMessage,
-    onImport,
     onRunMatching,
     onResolve,
     onDiscard,

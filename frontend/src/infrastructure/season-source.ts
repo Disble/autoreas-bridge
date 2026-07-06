@@ -4,10 +4,11 @@ import {
   DiscardSeasonName,
   GetSeason,
   GetSeasonAnimes,
-  ImportSeasonIntake,
   RecheckSeasonAvailability,
+  ReconcileSeasonIntake,
   ResolveSeasonMatch,
   RunSeasonMatching,
+  SendSeasonAnimesToVerHoy,
   SetAnimeDays,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
@@ -53,6 +54,8 @@ export interface SeasonAnimeRow {
   readonly candidates: readonly SeasonAnimeCandidate[];
   readonly availability: string;
   readonly animeId: string;
+  /** A created anime's current Estrenos section (Sin ver / Ver hoy / Visto); empty otherwise. */
+  readonly section: string;
 }
 
 /**
@@ -66,11 +69,12 @@ export interface SeasonSource {
   readonly setSlots: (slots: number) => Promise<string>;
   readonly closeSeason: () => Promise<string>;
   readonly getSeasonAnimes: () => Promise<readonly SeasonAnimeRow[]>;
-  readonly importIntake: (rawText: string) => Promise<string>;
+  readonly reconcileIntake: (rawText: string) => Promise<string>;
   readonly runMatching: () => Promise<string>;
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
   readonly discardName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
+  readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
 }
 
@@ -145,9 +149,9 @@ export function createSeasonSource(): SeasonSource {
         return isReady ? (GetSeasonAnimes() as Promise<readonly SeasonAnimeRow[]>) : Promise.resolve([]);
       });
     },
-    importIntake(rawText: string) {
-      return waitForBindings(() => hasGoBinding('ImportSeasonIntake')).then((isReady) => {
-        return isReady ? ImportSeasonIntake(rawText) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+    reconcileIntake(rawText: string) {
+      return waitForBindings(() => hasGoBinding('ReconcileSeasonIntake')).then((isReady) => {
+        return isReady ? ReconcileSeasonIntake(rawText) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     runMatching() {
@@ -175,6 +179,11 @@ export function createSeasonSource(): SeasonSource {
         return SetAnimeDays(animeId, [...dias], 0).then((result) =>
           result.status === 'ok' ? 'ok' : result.message || 'Failed to move anime',
         );
+      });
+    },
+    sendToVerHoy(animeIds: readonly string[]) {
+      return waitForBindings(() => hasGoBinding('SendSeasonAnimesToVerHoy')).then((isReady) => {
+        return isReady ? SendSeasonAnimesToVerHoy([...animeIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     recheckAvailability() {
