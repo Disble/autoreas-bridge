@@ -35,7 +35,7 @@ export interface SeasonSectionTab {
 export const SEASON_SECTION_TABS: readonly SeasonSectionTab[] = [
   { id: 'overview', label: 'Overview', available: true },
   { id: 'intake', label: 'Intake & Matching', available: true },
-  { id: 'daily', label: 'Daily Board', available: false },
+  { id: 'daily', label: 'Daily Board', available: true },
   { id: 'evaluation', label: 'Evaluation', available: false },
   { id: 'selection', label: 'Selection', available: false },
   { id: 'ordering', label: 'Ordering', available: false },

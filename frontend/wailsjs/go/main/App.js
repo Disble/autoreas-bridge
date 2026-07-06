@@ -146,6 +146,10 @@ export function RunSeasonMatching() {
   return window['go']['main']['App']['RunSeasonMatching']();
 }
 
+export function SetAnimeDays(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetAnimeDays'](arg1, arg2, arg3);
+}
+
 export function SetAnimeState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetAnimeState'](arg1, arg2, arg3);
 }

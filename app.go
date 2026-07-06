@@ -118,6 +118,7 @@ type chapterCommandService interface {
 	ListChapterSchedule(ctx context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error)
 	AdjustWatchedChapters(ctx context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error)
 	SetAnimeState(ctx context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error)
+	SetAnimeDays(ctx context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error)
 	SoftDeleteAnime(ctx context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error)
 	RestoreAnime(ctx context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error)
 	RepeatAnime(ctx context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error)

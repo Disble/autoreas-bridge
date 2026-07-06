@@ -12,6 +12,10 @@ vi.mock('../../IntakePanel/IntakePanel', () => ({
   IntakePanel: () => <div>intake panel</div>,
 }));
 
+vi.mock('../../DailyBoard/DailyBoard', () => ({
+  DailyBoard: () => <div>daily board</div>,
+}));
+
 const mockedUseSeasonWorkspace = vi.mocked(useSeasonWorkspace);
 type HookReturn = ReturnType<typeof useSeasonWorkspace>;
 

@@ -18,6 +18,8 @@ interface SeasonStoreState {
   readonly runMatching: (source: SeasonSource) => Promise<void>;
   readonly resolveMatch: (source: SeasonSource, rowId: string, pageUrl: string) => Promise<void>;
   readonly discardName: (source: SeasonSource, rowId: string) => Promise<void>;
+  readonly setAnimeDays: (source: SeasonSource, animeId: string, dias: readonly string[]) => Promise<void>;
+  readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
 }
 
 /**
@@ -126,6 +128,14 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
 
   discardName: async (source: SeasonSource, rowId: string) => {
     await runIntakeCommand(get, set, () => source.discardName(rowId), source, 'Failed to discard name');
+  },
+
+  setAnimeDays: async (source: SeasonSource, animeId: string, dias: readonly string[]) => {
+    await runIntakeCommand(get, set, () => source.setAnimeDays(animeId, dias), source, 'Failed to move anime');
+  },
+
+  recheckAvailability: async (source: SeasonSource) => {
+    await runIntakeCommand(get, set, () => source.recheckAvailability(), source, 'Failed to recheck availability');
   },
 }));
 

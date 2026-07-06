@@ -95,6 +95,16 @@ type SetAnimeStateCommand struct {
 	Source  string
 }
 
+// SetAnimeDaysCommand moves an anime to a new set of days/sections (SDD-43): the
+// season workflow uses it to stage animes across the Estrenos sections
+// (Sin ver / Ver hoy / Visto). Dias replaces the whole dias[] array; orden is
+// assigned by position.
+type SetAnimeDaysCommand struct {
+	AnimeID string
+	Dias    []string
+	Base    *int64
+}
+
 type SoftDeleteAnimeCommand struct {
 	AnimeID string
 	Base    *int64
@@ -316,6 +326,30 @@ func (s *ChapterService) SetAnimeState(ctx context.Context, cmd SetAnimeStateCom
 		NroCapVisto:   current.NroCapVisto,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: correlationID,
+	}, nil
+}
+
+// SetAnimeDays writes the anime's dias[] array (day/order or Estrenos section).
+// It is a schedule change, not a watch-state change, so it records no activity.
+func (s *ChapterService) SetAnimeDays(ctx context.Context, cmd SetAnimeDaysCommand) (ChapterCommandResult, error) {
+	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
+	if err != nil {
+		return ChapterCommandResult{}, err
+	}
+	occurredAtMs := s.now().UnixMilli()
+	if err := s.writer.PatchAnime(ctx, cmd.AnimeID, contracts.AnimePatch{
+		Dias:                cmd.Dias,
+		Base:                cmd.Base,
+		PreserveLastWatched: true,
+	}); err != nil {
+		return ChapterCommandResult{}, err
+	}
+	return ChapterCommandResult{
+		AnimeID:      cmd.AnimeID,
+		AnimeName:    current.Nombre,
+		Estado:       current.Estado,
+		NroCapVisto:  current.NroCapVisto,
+		OccurredAtMs: occurredAtMs,
 	}, nil
 }
 

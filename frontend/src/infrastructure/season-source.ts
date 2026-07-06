@@ -5,8 +5,10 @@ import {
   GetSeason,
   GetSeasonAnimes,
   ImportSeasonIntake,
+  RecheckSeasonAvailability,
   ResolveSeasonMatch,
   RunSeasonMatching,
+  SetAnimeDays,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
 } from '../../wailsjs/go/main/App';
@@ -68,6 +70,8 @@ export interface SeasonSource {
   readonly runMatching: () => Promise<string>;
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
   readonly discardName: (rowId: string) => Promise<string>;
+  readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
+  readonly recheckAvailability: () => Promise<string>;
 }
 
 function hasGoBinding(name: string): boolean {
@@ -159,6 +163,23 @@ export function createSeasonSource(): SeasonSource {
     discardName(rowId: string) {
       return waitForBindings(() => hasGoBinding('DiscardSeasonName')).then((isReady) => {
         return isReady ? DiscardSeasonName(rowId) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    setAnimeDays(animeId: string, dias: readonly string[]) {
+      return waitForBindings(() => hasGoBinding('SetAnimeDays')).then((isReady) => {
+        if (!isReady) {
+          return SEASON_RUNTIME_UNAVAILABLE;
+        }
+        // base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
+        // section moves have no client-held OCC token yet.
+        return SetAnimeDays(animeId, [...dias], 0).then((result) =>
+          result.status === 'ok' ? 'ok' : result.message || 'Failed to move anime',
+        );
+      });
+    },
+    recheckAvailability() {
+      return waitForBindings(() => hasGoBinding('RecheckSeasonAvailability')).then((isReady) => {
+        return isReady ? RecheckSeasonAvailability() : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
   };

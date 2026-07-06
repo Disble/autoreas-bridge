@@ -27,6 +27,8 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
+    setAnimeDays: vi.fn().mockResolvedValue('ok'),
+    recheckAvailability: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }

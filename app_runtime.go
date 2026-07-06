@@ -266,6 +266,21 @@ func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.Ch
 	return toChapterCommandContract(result)
 }
 
+func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.ChapterCommandResult {
+	if a.chapterService == nil {
+		return contracts.ChapterCommandResult{Status: "error", Message: "chapter service unavailable"}
+	}
+	result, err := a.chapterService.SetAnimeDays(a.appContext(), anime.SetAnimeDaysCommand{
+		AnimeID: animeID,
+		Dias:    dias,
+		Base:    &base,
+	})
+	if err != nil {
+		return contracts.ChapterCommandResult{Status: "error", Message: err.Error()}
+	}
+	return toChapterCommandContract(result)
+}
+
 func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.ChapterCommandResult {
 	if a.chapterService == nil {
 		return contracts.ChapterCommandResult{Status: "error", Message: "chapter service unavailable"}

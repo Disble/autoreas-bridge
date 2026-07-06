@@ -7,6 +7,7 @@ import {
   SEASON_WORKSPACE_TITLE,
   SEASON_WORKSPACE_UPCOMING_MESSAGE,
 } from './season-workspace.constants';
+import { DailyBoard } from '../DailyBoard/DailyBoard';
 import { IntakePanel } from '../IntakePanel/IntakePanel';
 import type { SeasonWorkspaceProps } from './season-workspace.types';
 import { useSeasonWorkspace } from './use-season-workspace';
@@ -94,6 +95,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
             <Tabs.Panel id="intake">
               <IntakePanel />
+            </Tabs.Panel>
+
+            <Tabs.Panel id="daily">
+              <DailyBoard />
             </Tabs.Panel>
 
             <Tabs.Panel id="overview">

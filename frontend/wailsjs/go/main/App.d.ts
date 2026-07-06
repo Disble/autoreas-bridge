@@ -76,6 +76,8 @@ export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterC
 
 export function RunSeasonMatching():Promise<string>;
 
+export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.ChapterCommandResult>;
+
 export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;

@@ -142,6 +142,42 @@ func TestChapterServiceAdjustWatchedChaptersRejectsNegativeProgress(t *testing.T
 	}
 }
 
+func TestChapterServiceSetAnimeDaysWritesDias(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":0,"estado":0,"activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewChapterService(anime.ChapterServiceDeps{
+		Query:  anime.NewQueryService(store),
+		Writer: anime.NewWriteService(store, writer),
+		Now:    func() time.Time { return time.UnixMilli(1710000000456).UTC() },
+	})
+
+	if _, err := service.SetAnimeDays(ctx, anime.SetAnimeDaysCommand{
+		AnimeID: "anime-1",
+		Dias:    []string{"Ver hoy"},
+		Base:    int64Ptr(1000),
+	}); err != nil {
+		t.Fatalf("SetAnimeDays: %v", err)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(writer.payload, &raw); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	days := raw.Dias.Values()
+	if len(days) != 1 || days[0].Dia != "Ver hoy" || days[0].Orden != 1 {
+		t.Fatalf("dias = %+v, want a single Ver hoy/1 entry", days)
+	}
+}
+
 func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)

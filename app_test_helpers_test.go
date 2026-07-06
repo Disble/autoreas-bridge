@@ -205,6 +205,7 @@ type stubAppChapterService struct {
 	lastDay        string
 	lastAdjust     anime.AdjustWatchedChaptersCommand
 	lastState      anime.SetAnimeStateCommand
+	lastDays       anime.SetAnimeDaysCommand
 	lastSoftDelete anime.SoftDeleteAnimeCommand
 	lastRestore    anime.RestoreAnimeCommand
 	lastRepeat     anime.RepeatAnimeCommand
@@ -235,6 +236,11 @@ func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAn
 		AnimeID: cmd.AnimeID,
 		Estado:  cmd.Estado,
 	}, s.err
+}
+
+func (s *stubAppChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error) {
+	s.lastDays = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
 func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error) {

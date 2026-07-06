@@ -1,0 +1,1 @@
+export { DailyBoard } from './DailyBoard';
