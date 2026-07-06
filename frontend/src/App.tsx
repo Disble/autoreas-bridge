@@ -11,6 +11,7 @@ import { NetworkRoute } from './app/routes/NetworkRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';
 import { PairingRoute } from './app/routes/PairingRoute';
 import { PreferencesRoute } from './app/routes/PreferencesRoute';
+import { SeasonRoute } from './app/routes/SeasonRoute';
 
 function App() {
     return (
@@ -26,6 +27,7 @@ function App() {
                 <Route path="/downloads" element={<DownloadsRoute />} />
                 <Route path="/status" element={<BridgeStatusRoute />} />
                 <Route path="/pairing" element={<PairingRoute />} />
+                <Route path="/season" element={<SeasonRoute />} />
                 <Route path="/preferences" element={<PreferencesRoute />} />
                 <Route path="*" element={<NotFoundRoute />} />
             </Route>

@@ -19,9 +19,12 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/preferences"
 	"autoreas-bridge/internal/realtime"
+	"autoreas-bridge/internal/season"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
+
+	"github.com/google/uuid"
 )
 
 // App struct
@@ -82,6 +85,8 @@ type App struct {
 	downloadScheduler       schedule.Scheduler
 	newPreferencesStore     func(db *sql.DB) preferences.Store
 	preferencesStore        preferences.Store
+	newSeasonStore          func(db *sql.DB) season.Repository
+	seasonService           *season.Service
 	openURL                 func(ctx context.Context, url string)
 	openFolder              func(path string) error
 	copyText                func(ctx context.Context, value string) error
@@ -167,6 +172,7 @@ func (a *App) startup(ctx context.Context) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
 	a.preferencesStore = a.newPreferencesStore(a.bridgeDB)
+	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString)
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	if service, ok := deviceService.(interface{ SetSyncStateStore(device.SyncStateStore) }); ok {

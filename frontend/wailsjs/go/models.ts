@@ -694,3 +694,36 @@ export namespace logger {
 
 }
 
+export namespace main {
+	
+	export class SeasonDTO {
+	    id: string;
+	    name: string;
+	    minApprovalGrade: number;
+	    slots: number;
+	    status: string;
+	    selectionConfirmedAt?: number;
+	    appliedAt?: number;
+	    closedAt?: number;
+	    createdAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SeasonDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.minApprovalGrade = source["minApprovalGrade"];
+	        this.slots = source["slots"];
+	        this.status = source["status"];
+	        this.selectionConfirmedAt = source["selectionConfirmedAt"];
+	        this.appliedAt = source["appliedAt"];
+	        this.closedAt = source["closedAt"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+
+}
+

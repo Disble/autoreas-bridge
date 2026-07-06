@@ -192,6 +192,27 @@ function PairingIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function SeasonIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <rect height="16" rx="2" width="18" x="3" y="4" />
+      <path d="M3 9h18" />
+      <path d="M8 3v3" />
+      <path d="M16 3v3" />
+      <path d="M9 14l2 2 4-4" />
+    </svg>
+  );
+}
+
 function OptionsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -226,6 +247,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/chapters', label: 'Chapters', Icon: ChaptersIcon },
   { to: '/downloads', label: 'Downloads', Icon: DownloadIcon },
   { to: '/status', label: 'Status', Icon: StatusIcon },
+  { to: '/season', label: 'Season', Icon: SeasonIcon },
   { to: '/pairing', label: 'Pairing', Icon: PairingIcon },
   { to: '/preferences', label: 'Opciones', Icon: OptionsIcon },
 ];

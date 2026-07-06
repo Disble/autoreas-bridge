@@ -8,6 +8,7 @@ const (
 	MessageTypeAnimeCreated       = "anime_created"
 	MessageTypeAnimeDeleted       = "anime_deleted"
 	MessageTypePreferencesChanged = "preferences_changed"
+	MessageTypeSeasonChanged      = "season_changed"
 
 	SyncReasonConnectionGapAssumed = "connection_gap_assumed"
 )
@@ -35,4 +36,14 @@ type AnimeIDMessage struct {
 type PreferencesChangedMessage struct {
 	Type       string `json:"type"`
 	SeasonMode bool   `json:"season_mode"`
+}
+
+// SeasonChangedMessage signals connected clients that the active season mutated
+// (created, parameters changed, or closed). It carries a compact snapshot so a
+// client can update without an immediate round-trip; SeasonID is empty and
+// Status "closed"/"" when no season is open.
+type SeasonChangedMessage struct {
+	Type     string `json:"type"`
+	SeasonID string `json:"season_id"`
+	Status   string `json:"status"`
 }

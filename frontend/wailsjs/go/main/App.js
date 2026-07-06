@@ -6,12 +6,20 @@ export function AdjustWatchedChapters(arg1, arg2, arg3) {
   return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
 }
 
+export function CloseSeason() {
+  return window['go']['main']['App']['CloseSeason']();
+}
+
 export function CopyAnimeFolder(arg1) {
   return window['go']['main']['App']['CopyAnimeFolder'](arg1);
 }
 
 export function CopyAnimePage(arg1) {
   return window['go']['main']['App']['CopyAnimePage'](arg1);
+}
+
+export function CreateSeason(arg1) {
+  return window['go']['main']['App']['CreateSeason'](arg1);
 }
 
 export function GetAnimeCover(arg1) {
@@ -78,6 +86,10 @@ export function GetScheduleConfig() {
   return window['go']['main']['App']['GetScheduleConfig']();
 }
 
+export function GetSeason() {
+  return window['go']['main']['App']['GetSeason']();
+}
+
 export function GetSeasonMode() {
   return window['go']['main']['App']['GetSeasonMode']();
 }
@@ -126,8 +138,16 @@ export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
 }
 
+export function SetSeasonMinApprovalGrade(arg1) {
+  return window['go']['main']['App']['SetSeasonMinApprovalGrade'](arg1);
+}
+
 export function SetSeasonMode(arg1) {
   return window['go']['main']['App']['SetSeasonMode'](arg1);
+}
+
+export function SetSeasonSlots(arg1) {
+  return window['go']['main']['App']['SetSeasonSlots'](arg1);
 }
 
 export function SoftDeleteAnime(arg1, arg2) {

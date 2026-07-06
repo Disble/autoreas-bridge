@@ -143,7 +143,7 @@ describe('App routing', () => {
     expect(historyLink).toHaveAttribute('href', '/history');
   });
 
-  it('keeps exactly 9 primary navigation entries after History and Chapters are promoted to their own sections', async () => {
+  it('keeps exactly 10 primary navigation entries after the Season workspace is added', async () => {
     render(
       <MemoryRouter initialEntries={['/network']}>
         <App />
@@ -152,7 +152,7 @@ describe('App routing', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
 
-    expect(within(nav).getAllByRole('link')).toHaveLength(9);
+    expect(within(nav).getAllByRole('link')).toHaveLength(10);
   });
 
   it('renders the catalog route directly', async () => {
@@ -207,8 +207,8 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('keeps exactly 9 primary navigation entries after History and Chapters are promoted', () => {
-    expect(NAV_ITEMS.length).toBe(9);
+  it('keeps exactly 10 primary navigation entries after the Season workspace is added', () => {
+    expect(NAV_ITEMS.length).toBe(10);
   });
 
   it('renders a not found route for unknown paths', async () => {

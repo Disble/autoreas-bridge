@@ -17,6 +17,7 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/preferences"
 	"autoreas-bridge/internal/realtime"
+	"autoreas-bridge/internal/season"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
@@ -139,6 +140,11 @@ func (a *App) ensureRuntimeDependencies() {
 	if a.newPreferencesStore == nil {
 		a.newPreferencesStore = func(db *sql.DB) preferences.Store {
 			return preferences.NewSQLiteStore(db)
+		}
+	}
+	if a.newSeasonStore == nil {
+		a.newSeasonStore = func(db *sql.DB) season.Repository {
+			return season.NewSQLiteStore(db)
 		}
 	}
 	if a.newDownloadService == nil {
