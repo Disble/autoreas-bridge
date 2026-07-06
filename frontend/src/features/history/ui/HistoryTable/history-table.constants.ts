@@ -1,3 +1,4 @@
+import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado';
 import type { HistoryFilterOption } from './history-table.types';
 
 /** Number of History rows shown per page (Legacy parity). */
@@ -10,18 +11,14 @@ export const HISTORY_TABLE_SEARCH_DEBOUNCE_MS = 200;
 export const HISTORY_TABLE_ESTADO_ALL_VALUE = 'all';
 
 /**
- * Options for the visible estado filter control. Value domain and labels
- * mirror `ANIME_ESTADO_OPTIONS` (`catalog-panel.constants.ts`) -- verified
- * against that feature rather than invented (0=Viendo, 1=Finalizado,
- * 2=Abandonado, 3=Pendiente). Duplicated per this repo's convention of
- * small, feature-local constants rather than a shared cross-feature import.
+ * Options for the visible estado filter control. Labels come from the
+ * canonical shared vocabulary (`shared/constants/anime-estado.ts`) so estado
+ * wording stays consistent across every feature; only the "All" sentinel is
+ * feature-local.
  */
 export const HISTORY_TABLE_ESTADO_OPTIONS: readonly HistoryFilterOption[] = [
   { value: HISTORY_TABLE_ESTADO_ALL_VALUE, label: 'All' },
-  { value: '0', label: 'Viendo' },
-  { value: '1', label: 'Finalizado' },
-  { value: '2', label: 'Abandonado' },
-  { value: '3', label: 'Pendiente' },
+  ...ANIME_ESTADO_FILTER_ENTRIES,
 ];
 
 /** Sentinel value used by the tipo filter to mean "no filter applied". */

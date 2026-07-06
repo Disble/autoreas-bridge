@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.7"
+  version: "1.0.8"
   scope: project
   updates: living
 ---
@@ -49,6 +49,8 @@ Semantic tokens in use: `accent`, `success`, `warning`, `danger`, `default`, plu
 
 These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetworkDomainColor`, etc.). Reuse the helper; don't re-derive the switch.
 
+**Anime `estado` → canonical LABELS** (Legacy domain vocabulary, Spanish data literals like "Sin ver"/"Ver hoy"/"Visto"): `0 → Viendo · 1 → Finalizado · 2 → No me gusto · 3 → En pausa`. The wording lives in ONE place — `frontend/src/shared/constants/anime-estado.ts` (`ANIME_ESTADO_LABELS`, `getAnimeEstadoLabel`, `ANIME_ESTADO_FILTER_ENTRIES`). Import labels from there; **never re-hardcode estado wording in a feature** (History, Catalog, AnimeDetail, Chapters all consume this module — a deliberate, scoped exception to per-feature colocation so a rewording is a one-file change). This corrected a three-way drift where estado 2/3 were mislabeled "Abandonado"/"Pendiente" (ES) and "Dropped"/"Paused" (EN). **Estado COLORS stay feature-local** (presentation, not vocabulary): the established mapping is `Viendo → accent · Finalizado → success · No me gusto → danger · En pausa → warning`.
+
 ## Brand & action hierarchy (bridge's OWN theme — never Legacy's colors)
 
 The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/blue:
@@ -90,6 +92,7 @@ The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.8` — Added the canonical anime `estado` vocabulary rule (SDD-40): labels live in `shared/constants/anime-estado.ts`, imported everywhere (scoped exception to per-feature colocation); colors stay feature-local. Fixed the three-way label drift (2/3 were "Abandonado"/"Pendiente" and "Dropped"/"Paused"; Legacy truth is "No me gusto"/"En pausa").
 - `1.0.7` — Added the brand & action hierarchy section (primary=accent / secondary=default+accent-soft; hover intent tints for utility icons), the full-bleed card cover slot pattern (negative-margin bleed + absolute art, aspect-ratio-proof), and the toast feedback convention — all from the Chapters card hotfix after the user rejected Legacy-literal red/blue.
 - `1.0.6` — Corrected the main-worktree package reality: `@heroui/react@3.2.1` exports `Typography`. A stale Codex worktree had `3.0.2` exports (`Text`), which broke `wails dev` on real `main`; always verify against the target worktree's installed package.
 - `1.0.5` — Corrected the text primitive for the installed package: `@heroui/react@3.0.2` exports `Text`, not `Typography`. Newer docs mention `Typography`, but installed code wins; verify exports before importing docs-only components.

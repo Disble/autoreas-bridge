@@ -78,8 +78,8 @@ describe('ChapterSchedulePanel', () => {
 
     render(<ChapterSchedulePanel initialDay="Viernes" source={source} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Change status for Frieren. Current status: Watching.' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Completed' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Finalizado' }));
 
     await waitFor(() => expect(setAnimeState).toHaveBeenCalledWith('anime-1', 1, 1000));
   });

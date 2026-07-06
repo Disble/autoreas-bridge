@@ -7,7 +7,7 @@ function createRow(overrides: Partial<ChapterScheduleRow> = {}): ChapterSchedule
   return {
     id: 'anime-1',
     name: 'Frieren',
-    stateLabel: 'Watching',
+    stateLabel: 'Viendo',
     isProgressBlocked: false,
     watchedLabel: '10.5 watched',
     remainingLabel: '17.5 remaining',
@@ -102,7 +102,7 @@ describe('ChapterScheduleCard', () => {
 
     const folderButton = screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' });
     const pageButton = screen.getByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' });
-    const statusButton = screen.getByRole('button', { name: 'Change status for Frieren. Current status: Watching.' });
+    const statusButton = screen.getByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' });
 
     expect(folderButton.className).toContain('hover:text-success');
     expect(pageButton.className).toContain('hover:text-accent');
@@ -150,8 +150,8 @@ describe('ChapterScheduleCard', () => {
     const setAnimeState = vi.fn().mockResolvedValue(undefined);
     render(<ChapterScheduleCard row={createRow()} {...createCallbacks()} setAnimeState={setAnimeState} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Change status for Frieren. Current status: Watching.' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Completed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Finalizado' }));
 
     expect(setAnimeState).toHaveBeenCalledWith('anime-1', 1, 1000);
   });

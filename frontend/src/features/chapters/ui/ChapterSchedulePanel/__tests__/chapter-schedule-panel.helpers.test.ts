@@ -24,7 +24,7 @@ describe('toChapterScheduleRows', () => {
       {
         id: 'anime-1',
         name: 'Frieren',
-        stateLabel: 'Watching',
+        stateLabel: 'Viendo',
         isProgressBlocked: false,
         watchedLabel: '10.5 watched',
         remainingLabel: '17.5 remaining',

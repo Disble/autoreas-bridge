@@ -14,9 +14,9 @@ function createDetailViewModel(overrides = {}) {
     id: 'anime-1',
     nombre: 'Frieren',
     portadaUrl: undefined,
-    estadoLabel: 'Abandonado',
+    estadoLabel: 'No me gusto',
     tipoLabel: 'Serie',
-    subtitleLabel: 'Abandonado • Serie',
+    subtitleLabel: 'No me gusto • Serie',
     statusLabel: 'Active',
     statusColor: 'success',
     statTiles: [
@@ -90,7 +90,7 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
-    expect(screen.getByText('Abandonado • Serie')).toBeInTheDocument();
+    expect(screen.getByText('No me gusto • Serie')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 

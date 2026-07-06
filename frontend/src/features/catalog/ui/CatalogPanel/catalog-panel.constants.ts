@@ -1,3 +1,4 @@
+import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado';
 import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 import type { AnimeFilterOption } from './catalog-panel.types';
 
@@ -39,14 +40,13 @@ export const ANIME_FILTER_ALL_VALUE = 'all';
 export const ANIME_FILTER_DEBOUNCE_MS = 200;
 
 /**
- * Options for the "estado" filter select.
+ * Options for the "estado" filter select. Labels come from the canonical
+ * shared vocabulary (`shared/constants/anime-estado.ts`); only the "All"
+ * sentinel is feature-local.
  */
 export const ANIME_ESTADO_OPTIONS: readonly AnimeFilterOption[] = [
   { value: 'all', label: 'All' },
-  { value: '0', label: 'Viendo' },
-  { value: '1', label: 'Finalizado' },
-  { value: '2', label: 'Abandonado' },
-  { value: '3', label: 'Pendiente' },
+  ...ANIME_ESTADO_FILTER_ENTRIES,
 ];
 
 /**

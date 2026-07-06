@@ -45,8 +45,8 @@ describe('getAnimeDetailEstadoLabel', () => {
   it.each([
     [0, 'Viendo'],
     [1, 'Finalizado'],
-    [2, 'Abandonado'],
-    [3, 'Pendiente'],
+    [2, 'No me gusto'],
+    [3, 'En pausa'],
   ])('maps estado %i to %s', (estado, label) => {
     expect(getAnimeDetailEstadoLabel(estado)).toBe(label);
   });
@@ -245,9 +245,9 @@ describe('toAnimeDetailViewModel', () => {
       id: 'anime-1',
       nombre: 'Frieren',
       portadaUrl: undefined,
-      estadoLabel: 'Abandonado',
+      estadoLabel: 'No me gusto',
       tipoLabel: 'Unknown',
-      subtitleLabel: 'Abandonado • Unknown',
+      subtitleLabel: 'No me gusto • Unknown',
       statusLabel: 'Active',
       statusColor: 'success',
       statTiles: [

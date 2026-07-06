@@ -1,3 +1,4 @@
+import { getAnimeEstadoLabel } from '../../../../shared/constants/anime-estado';
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
 import {
   HISTORY_TABLE_ESTADO_ALL_VALUE,
@@ -73,31 +74,19 @@ export function formatHistoryRelativeRecency(millis: number, now: number = Date.
 }
 
 /**
- * Estado label domain verified against `ANIME_ESTADO_OPTIONS`
- * (`catalog-panel.constants.ts`): 0=Viendo, 1=Finalizado, 2=Abandonado,
- * 3=Pendiente. Falls back to the raw estado for any unrecognized value
- * rather than inventing a label.
+ * Estado label from the canonical shared vocabulary
+ * (`shared/constants/anime-estado.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
+ * 3=En pausa. Falls back to the raw estado for any unrecognized value.
  */
 export function getHistoryEstadoLabel(estado: number): string {
-  switch (estado) {
-    case 0:
-      return 'Viendo';
-    case 1:
-      return 'Finalizado';
-    case 2:
-      return 'Abandonado';
-    case 3:
-      return 'Pendiente';
-    default:
-      return String(estado);
-  }
+  return getAnimeEstadoLabel(estado);
 }
 
 /**
  * Semantic HeroUI chip color per estado: Viendo (in progress) is the
- * accent/ongoing color, Finalizado (completed) is success, Abandonado
- * (dropped) is danger, Pendiente (not yet started) is warning. Unknown
- * estados fall back to the neutral default color.
+ * accent/ongoing color, Finalizado (completed) is success, No me gusto
+ * (disliked) is danger, En pausa (paused) is warning. Unknown estados fall
+ * back to the neutral default color.
  */
 export function getHistoryEstadoColor(estado: number): HeroChipColor {
   switch (estado) {
