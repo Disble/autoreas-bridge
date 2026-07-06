@@ -237,6 +237,54 @@ func TestResolveAndDiscardSeasonRows(t *testing.T) {
 	}
 }
 
+func TestReconcileSeasonIntakeAddsAndDiscards(t *testing.T) {
+	t.Parallel()
+	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
+	_ = app.CreateSeason("Julio 2026")
+
+	if got := app.ReconcileSeasonIntake("Anime A\nAnime B\nAnime C"); got != "ok" {
+		t.Fatalf("ReconcileSeasonIntake: %q", got)
+	}
+	if len(app.GetSeasonAnimes()) != 3 {
+		t.Fatalf("expected 3 rows after reconcile")
+	}
+
+	if got := app.ReconcileSeasonIntake("Anime A"); got != "ok" {
+		t.Fatalf("second reconcile: %q", got)
+	}
+	active := app.GetSeasonAnimes()
+	pending := 0
+	for _, r := range active {
+		if r.MatchStatus == "pending" {
+			pending++
+		}
+	}
+	if pending != 1 {
+		t.Fatalf("expected 1 pending row after narrowing, got %d (%+v)", pending, active)
+	}
+}
+
+func TestSendSeasonAnimesToVerHoy(t *testing.T) {
+	t.Parallel()
+	chapter := &stubAppChapterService{}
+	app := &App{ctx: context.Background(), chapterService: chapter}
+
+	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got != "ok" {
+		t.Fatalf("SendSeasonAnimesToVerHoy: %q", got)
+	}
+	if chapter.lastDays.AnimeID != "anime-1" || len(chapter.lastDays.Dias) != 1 || chapter.lastDays.Dias[0] != "Ver hoy" {
+		t.Fatalf("expected a Ver hoy move for anime-1, got %+v", chapter.lastDays)
+	}
+}
+
+func TestSendSeasonAnimesToVerHoyNoChapterService(t *testing.T) {
+	t.Parallel()
+	app := &App{ctx: context.Background()}
+	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got == "ok" || got == "" {
+		t.Fatalf("expected error without chapter service, got %q", got)
+	}
+}
+
 func TestGetSeasonAnimesEmptyWhenNoService(t *testing.T) {
 	t.Parallel()
 	app := &App{ctx: context.Background()}

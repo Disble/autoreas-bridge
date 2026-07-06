@@ -130,6 +130,10 @@ export function RecheckSeasonAvailability() {
   return window['go']['main']['App']['RecheckSeasonAvailability']();
 }
 
+export function ReconcileSeasonIntake(arg1) {
+  return window['go']['main']['App']['ReconcileSeasonIntake'](arg1);
+}
+
 export function RepeatAnime(arg1, arg2) {
   return window['go']['main']['App']['RepeatAnime'](arg1, arg2);
 }
@@ -144,6 +148,10 @@ export function RestoreAnime(arg1, arg2) {
 
 export function RunSeasonMatching() {
   return window['go']['main']['App']['RunSeasonMatching']();
+}
+
+export function SendSeasonAnimesToVerHoy(arg1) {
+  return window['go']['main']['App']['SendSeasonAnimesToVerHoy'](arg1);
 }
 
 export function SetAnimeDays(arg1, arg2, arg3) {

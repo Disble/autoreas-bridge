@@ -220,6 +220,96 @@ func TestServiceImportIntakeParsesDedupesAndSkipsBlanks(t *testing.T) {
 	}
 }
 
+func TestServiceReconcileIntakeAddsDiscardsAndPreserves(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	// Start with three names.
+	if err := svc.ReconcileIntake(ctx, season.ID, "Anime A\nAnime B\nAnime C"); err != nil {
+		t.Fatalf("ReconcileIntake initial: %v", err)
+	}
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	if len(rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(rows))
+	}
+
+	// Give Anime B a matched state, and mark Anime C created (untouchable).
+	byName := map[string]domain.SeasonAnime{}
+	for _, r := range rows {
+		byName[r.RawName] = r
+	}
+	b := byName["Anime B"]
+	b.MatchStatus = domain.MatchMatched
+	b.MatchedSlug = "https://jkanime.net/anime-b/"
+	_ = repo.UpdateSeasonAnime(ctx, b)
+	c := byName["Anime C"]
+	c.Availability = domain.AvailabilityCreated
+	c.AnimeID = "anime-c-real"
+	_ = repo.UpdateSeasonAnime(ctx, c)
+
+	// Reconcile to: A (kept), B (kept, preserves match), D (new). C dropped from raw
+	// but it's CREATED → must NOT be discarded.
+	if err := svc.ReconcileIntake(ctx, season.ID, "Anime A\nAnime B\nAnime D"); err != nil {
+		t.Fatalf("ReconcileIntake second: %v", err)
+	}
+	rows, _ = svc.ListSeasonAnimes(ctx, season.ID)
+	got := map[string]domain.SeasonAnime{}
+	for _, r := range rows {
+		got[r.RawName] = r
+	}
+
+	if got["Anime A"].MatchStatus == domain.MatchDiscarded {
+		t.Fatal("Anime A should be kept")
+	}
+	if got["Anime B"].MatchStatus != domain.MatchMatched || got["Anime B"].MatchedSlug == "" {
+		t.Fatalf("Anime B must preserve its matched state, got %+v", got["Anime B"])
+	}
+	if _, ok := got["Anime D"]; !ok || got["Anime D"].MatchStatus != domain.MatchPending {
+		t.Fatalf("Anime D should be added as pending, got %+v", got["Anime D"])
+	}
+	if got["Anime C"].MatchStatus == domain.MatchDiscarded || got["Anime C"].Availability != domain.AvailabilityCreated {
+		t.Fatalf("created Anime C must NOT be discarded, got %+v", got["Anime C"])
+	}
+
+	// Anime C not in the raw list must NOT create a duplicate.
+	countC := 0
+	for _, r := range rows {
+		if r.RawName == "Anime C" {
+			countC++
+		}
+	}
+	if countC != 1 {
+		t.Fatalf("expected exactly one Anime C row, got %d", countC)
+	}
+}
+
+func TestServiceReconcileIntakeRevivesDiscarded(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	_ = svc.ReconcileIntake(ctx, season.ID, "Anime A")
+	// Remove it → discarded.
+	_ = svc.ReconcileIntake(ctx, season.ID, "")
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	if rows[0].MatchStatus != domain.MatchDiscarded {
+		t.Fatalf("Anime A should be discarded after removal, got %q", rows[0].MatchStatus)
+	}
+
+	// Re-add it → the SAME row revives to pending (no duplicate).
+	_ = svc.ReconcileIntake(ctx, season.ID, "Anime A")
+	rows, _ = svc.ListSeasonAnimes(ctx, season.ID)
+	if len(rows) != 1 {
+		t.Fatalf("re-adding must revive not duplicate, got %d rows", len(rows))
+	}
+	if rows[0].MatchStatus != domain.MatchPending {
+		t.Fatalf("revived row should be pending, got %q", rows[0].MatchStatus)
+	}
+}
+
 func TestServiceRunMatchingClassifiesRows(t *testing.T) {
 	repo := newFakeRepo()
 	searcher := &fakeSearcher{byQuery: map[string][]match.Candidate{

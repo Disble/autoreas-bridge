@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
+	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -70,6 +71,15 @@ func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCrea
 		Pagina:  in.Pagina,
 		Section: in.Section,
 		Orden:   g.nextOrden(ctx, in.Section),
+	})
+}
+
+func (g seasonAnimeGateway) MoveToSection(ctx context.Context, animeID, section string) error {
+	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
+	// PreserveLastWatched keeps a section change from stamping fechaUltCapVisto.
+	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
+		Dias:                []string{section},
+		PreserveLastWatched: true,
 	})
 }
 
@@ -146,6 +156,30 @@ func (s *seasonScheduleStore) MarkScheduleRun(_ context.Context, lastAtMs int64,
 	return nil
 }
 
+// animeSectionsByID returns each anime's current section (first dias entry)
+// keyed by anime id, so the season board can show which created animes are in
+// Sin ver vs Ver hoy vs Visto. Empty map on any read error.
+func (a *App) animeSectionsByID(ctx context.Context) map[string]string {
+	out := map[string]string{}
+	if a.bridgeDB == nil {
+		return out
+	}
+	records, err := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB).ListSnapshots(ctx)
+	if err != nil {
+		return out
+	}
+	for id, rec := range records {
+		var raw domain.LegacyAnimeRaw
+		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
+			continue
+		}
+		if days := raw.Dias.Values(); len(days) > 0 {
+			out[id] = days[0].Dia
+		}
+	}
+	return out
+}
+
 // startSeasonAvailability wires the probe + gateway into the season service and
 // starts the daily availability scheduler (a second schedule.Scheduler instance,
 // composing the same generic component as downloads).
@@ -167,6 +201,31 @@ func (a *App) startSeasonAvailability(ctx context.Context) {
 		Log:   a.sharedLogger,
 	})
 	a.seasonScheduler.Start(ctx)
+
+	a.subscribeSeasonWatched(ctx)
+}
+
+// subscribeSeasonWatched wires the event-driven Ver hoy → Visto auto-transition:
+// on any anime change, a created season anime watched in Ver hoy moves to Visto.
+func (a *App) subscribeSeasonWatched(ctx context.Context) {
+	if a.eventBus == nil {
+		return
+	}
+	a.eventBus.Subscribe(events.EventNameAnimeChanged, func(ev events.Event) {
+		changed, ok := ev.(events.AnimeChangedEvent)
+		if !ok || a.seasonService == nil {
+			return
+		}
+		var raw domain.LegacyAnimeRaw
+		if json.Unmarshal(changed.Payload, &raw) != nil {
+			return
+		}
+		section := ""
+		if days := raw.Dias.Values(); len(days) > 0 {
+			section = days[0].Dia
+		}
+		_ = a.seasonService.HandleAnimeWatched(ctx, changed.AnimeID, section, raw.NroCapVisto)
+	})
 }
 
 // runSeasonAvailability is the scheduler RunFunc: it rechecks availability only
@@ -192,6 +251,26 @@ func (a *App) runSeasonAvailability(ctx context.Context, _ string) (string, erro
 		a.triggerDownloadsForSeason(ctx)
 	}
 	return fmt.Sprintf("checked=%d created=%d", res.Checked, len(res.Created)), nil
+}
+
+// SendSeasonAnimesToVerHoy stages the given created animes into "Ver hoy" (the
+// Daily Board's multi-select "watch today") and chains a download run so they
+// download automatically.
+func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) string {
+	if a.chapterService == nil {
+		return "chapter service unavailable"
+	}
+	for _, id := range animeIDs {
+		if _, err := a.chapterService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
+			AnimeID: id,
+			Dias:    []string{"Ver hoy"},
+		}); err != nil {
+			return err.Error()
+		}
+	}
+	a.triggerDownloadsForSeason(a.seasonCtx())
+	a.broadcastSeasonChanged()
+	return "ok"
 }
 
 func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {

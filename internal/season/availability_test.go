@@ -25,6 +25,7 @@ type fakeGateway struct {
 	existingByPagina map[string]string
 	created          []AnimeCreateInput
 	nextID           int
+	moved            map[string]string
 }
 
 func (g *fakeGateway) CreateAnime(_ context.Context, in AnimeCreateInput) (string, error) {
@@ -36,6 +37,14 @@ func (g *fakeGateway) CreateAnime(_ context.Context, in AnimeCreateInput) (strin
 func (g *fakeGateway) FindActiveByPagina(_ context.Context, pageURL string) (string, bool, error) {
 	id, ok := g.existingByPagina[pageURL]
 	return id, ok, nil
+}
+
+func (g *fakeGateway) MoveToSection(_ context.Context, animeID, section string) error {
+	if g.moved == nil {
+		g.moved = map[string]string{}
+	}
+	g.moved[animeID] = section
+	return nil
 }
 
 func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug string) {
@@ -120,6 +129,53 @@ func TestRecheckAvailabilityIsIdempotent(t *testing.T) {
 	}
 	if len(gateway.created) != 1 {
 		t.Fatalf("anime must be created exactly once across reruns, got %d", len(gateway.created))
+	}
+}
+
+func TestHandleAnimeWatchedMovesVerHoyToVisto(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	// A created season anime linked to a real anime id.
+	sa := domain.NewSeasonAnime("sa-1", season.ID, "Anime A", svc.now())
+	sa.Availability = domain.AvailabilityCreated
+	sa.AnimeID = "anime-a"
+	_ = repo.CreateSeasonAnime(ctx, sa)
+
+	// Watched in Ver hoy (nrocapvisto 1) → auto-moves to Visto.
+	if err := svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 1); err != nil {
+		t.Fatalf("HandleAnimeWatched: %v", err)
+	}
+	if gateway.moved["anime-a"] != "Visto" {
+		t.Fatalf("expected move to Visto, got %q", gateway.moved["anime-a"])
+	}
+}
+
+func TestHandleAnimeWatchedIgnoresNonVerHoyAndUnwatched(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	sa := domain.NewSeasonAnime("sa-1", season.ID, "Anime A", svc.now())
+	sa.Availability = domain.AvailabilityCreated
+	sa.AnimeID = "anime-a"
+	_ = repo.CreateSeasonAnime(ctx, sa)
+
+	// Not in Ver hoy → ignored.
+	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Sin ver", 3)
+	// In Ver hoy but not watched yet (0) → ignored.
+	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 0)
+	// Unknown anime → ignored.
+	_ = svc.HandleAnimeWatched(ctx, "other", "Ver hoy", 5)
+
+	if len(gateway.moved) != 0 {
+		t.Fatalf("expected no moves, got %+v", gateway.moved)
 	}
 }
 

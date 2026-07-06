@@ -94,6 +94,8 @@ type SeasonAnimeCandidateDTO struct {
 }
 
 // SeasonAnimeDTO is the Wails-facing projection of one intake/matching row.
+// Section is the created anime's current Estrenos section (Sin ver / Ver hoy /
+// Visto), empty for uncreated rows.
 type SeasonAnimeDTO struct {
 	ID           string                    `json:"id"`
 	RawName      string                    `json:"rawName"`
@@ -102,6 +104,7 @@ type SeasonAnimeDTO struct {
 	Candidates   []SeasonAnimeCandidateDTO `json:"candidates"`
 	Availability string                    `json:"availability"`
 	AnimeID      string                    `json:"animeId"`
+	Section      string                    `json:"section"`
 }
 
 // GetSeasonAnimes returns the active season's intake rows, or an empty list when
@@ -118,9 +121,14 @@ func (a *App) GetSeasonAnimes() []SeasonAnimeDTO {
 	if err != nil {
 		return []SeasonAnimeDTO{}
 	}
+	sections := a.animeSectionsByID(a.seasonCtx())
 	out := make([]SeasonAnimeDTO, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, seasonAnimeToDTO(r))
+		dto := seasonAnimeToDTO(r)
+		if r.AnimeID != "" {
+			dto.Section = sections[r.AnimeID]
+		}
+		out = append(out, dto)
 	}
 	return out
 }
@@ -130,6 +138,15 @@ func (a *App) ImportSeasonIntake(rawText string) string {
 	return a.withActiveSeason(func(seasonID string) error {
 		_, err := a.seasonService.ImportIntake(a.seasonCtx(), seasonID, rawText)
 		return err
+	})
+}
+
+// ReconcileSeasonIntake sets the active season's uncreated intake to exactly the
+// pasted names (the raw editor's source of truth): add missing, discard removed,
+// preserve created rows.
+func (a *App) ReconcileSeasonIntake(rawText string) string {
+	return a.withActiveSeason(func(seasonID string) error {
+		return a.seasonService.ReconcileIntake(a.seasonCtx(), seasonID, rawText)
 	})
 }
 

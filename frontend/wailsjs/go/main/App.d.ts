@@ -68,6 +68,8 @@ export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
 
 export function RecheckSeasonAvailability():Promise<string>;
 
+export function ReconcileSeasonIntake(arg1:string):Promise<string>;
+
 export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
@@ -75,6 +77,8 @@ export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function RunSeasonMatching():Promise<string>;
+
+export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<string>;
 
 export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.ChapterCommandResult>;
 

@@ -31,8 +31,12 @@ var ErrSearcherUnavailable = errors.New("name searcher unavailable")
 // probe/gateway deps are not wired.
 var ErrAvailabilityDepsUnavailable = errors.New("availability probe/gateway unavailable")
 
-// sinVerSection is the Estrenos section a newly-available anime lands in.
-const sinVerSection = "Sin ver"
+// Estrenos section names used by the season conveyor.
+const (
+	sinVerSection = "Sin ver"
+	verHoySection = "Ver hoy"
+	vistoSection  = "Visto"
+)
 
 // RecheckResult summarizes one availability recheck run.
 type RecheckResult struct {
@@ -146,6 +150,72 @@ func (s *Service) AddIntakeName(ctx context.Context, seasonID, name string) (boo
 	return n > 0, err
 }
 
+// ReconcileIntake sets the season's UNCREATED intake to exactly the given
+// plain-text names (the raw editor's source of truth): names not present are
+// added as pending, editable rows no longer present are discarded, and a
+// removed-then-readded name revives its discarded row (no duplicate). CREATED
+// rows are never touched — a created anime has a real record that can only be
+// removed by an explicit "remove from season", never by a stray text edit.
+func (s *Service) ReconcileIntake(ctx context.Context, seasonID, rawText string) error {
+	desired := map[string]string{} // key → display name
+	for _, name := range parseIntakeNames(rawText) {
+		desired[strings.ToLower(name)] = name
+	}
+
+	rows, err := s.repo.ListSeasonAnimes(ctx, seasonID)
+	if err != nil {
+		return err
+	}
+
+	createdKeys := map[string]struct{}{}
+	editable := map[string]domain.SeasonAnime{}
+	discarded := map[string]domain.SeasonAnime{}
+	for _, row := range rows {
+		key := strings.ToLower(strings.TrimSpace(row.RawName))
+		switch {
+		case row.Availability == domain.AvailabilityCreated:
+			createdKeys[key] = struct{}{}
+		case row.MatchStatus == domain.MatchDiscarded:
+			discarded[key] = row
+		default:
+			editable[key] = row
+		}
+	}
+
+	// Discard editable rows no longer in the desired list.
+	for key, row := range editable {
+		if _, want := desired[key]; !want {
+			row.MatchStatus = domain.MatchDiscarded
+			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Add or revive every desired name that is not already editable or created.
+	for key, name := range desired {
+		if _, isCreated := createdKeys[key]; isCreated {
+			continue
+		}
+		if _, isEditable := editable[key]; isEditable {
+			continue
+		}
+		if row, wasDiscarded := discarded[key]; wasDiscarded {
+			row.MatchStatus = domain.MatchPending
+			row.MatchedSlug = ""
+			row.Candidates = nil
+			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := s.repo.CreateSeasonAnime(ctx, domain.NewSeasonAnime(s.newID(), seasonID, name, s.now())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RunMatching searches and resolves every pending row, persisting the outcome
 // (matched slug, ambiguous candidates, or not_found). Rows already resolved or
 // discarded are left untouched.
@@ -226,6 +296,30 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 		res.Created = append(res.Created, row.RawName)
 	}
 	return res, nil
+}
+
+// HandleAnimeWatched is the event-driven Ver hoy → Visto auto-transition: when a
+// created season anime sitting in "Ver hoy" is watched (nrocapvisto >= 1 — they
+// start at 0), it moves to "Visto". Called on every anime change; it early-returns
+// for anything that is not a watched Ver hoy anime, so it is cheap.
+func (s *Service) HandleAnimeWatched(ctx context.Context, animeID, section string, nrocapvisto float64) error {
+	if s.gateway == nil || section != verHoySection || nrocapvisto < 1 || animeID == "" {
+		return nil
+	}
+	active, err := s.repo.ActiveSeason(ctx)
+	if err != nil || active == nil {
+		return err
+	}
+	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.AnimeID == animeID && row.Availability == domain.AvailabilityCreated {
+			return s.gateway.MoveToSection(ctx, animeID, vistoSection)
+		}
+	}
+	return nil
 }
 
 // ResolveMatch manually resolves a row to a page URL (candidate pick or a

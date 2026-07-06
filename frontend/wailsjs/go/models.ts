@@ -720,6 +720,7 @@ export namespace main {
 	    candidates: SeasonAnimeCandidateDTO[];
 	    availability: string;
 	    animeId: string;
+	    section: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeDTO(source);
@@ -734,6 +735,7 @@ export namespace main {
 	        this.candidates = this.convertValues(source["candidates"], SeasonAnimeCandidateDTO);
 	        this.availability = source["availability"];
 	        this.animeId = source["animeId"];
+	        this.section = source["section"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
