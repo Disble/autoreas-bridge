@@ -38,13 +38,13 @@ its own cards. No separate grading surface to visit.
 ## Sync contract (bridge side — full mobile inputs in sdd-44x)
 
 - **REST**: `POST /api/seasons/active/ratings`, bearer auth
-  (`h.authenticate`, `router.go:363-377`). Body:
-  `{"anime_id": "<legacy _id>", "nota": 1-6, "rated_at": <epoch ms>}`.
+  (`h.authenticate`, `router.go`). Body (English wire fields, ADR-007):
+  `{"anime_id": "<legacy _id>", "grade": 1-6, "rated_at": <epoch ms>}`.
   Responses: `204` recorded · `409` manual grade present (kept; body carries
-  it) · `404` no open season / not a candidate (terminal, no retry) ·
-  `422` invalid nota.
-- **WS**: incoming type `season_rating` (same payload), dispatched alongside
-  `isIncomingReconcileMessage` (`websocket_handler.go:104-112`).
+  it as `{"grade": n, "source": "manual"}`) · `404` no open season / not a
+  candidate (terminal, no retry) · `422` invalid grade / malformed body.
+- **WS**: incoming type `season_rating` (same payload), dispatched before the
+  reconcile branch (`websocket_handler.go`).
 - **Broadcast**: `season_changed` after ingestion.
 
 ## Conflict rule (user-confirmed)
@@ -64,10 +64,12 @@ method, no UI in this program.
 
 ### Backend
 
-- `season/service.go`: `RecordEstrenoNota(animeID, nota, source, ratedAt)` —
+- `season/service.go`: `RecordPremiereGrade(animeID, grade, source, ratedAt)` —
   validates 1–6, resolves the OPEN season's row by `anime_id`, applies the
   conflict rule in the domain (handlers stay transport-thin);
-  `SkipGrading(rowID)` records the explicit override.
+  `SkipGrading(rowID)` records the explicit override. Grade vocabulary is
+  English (`Grade`/`GradeSource`, columns `premiere_grade`/`grade_source`) per
+  ADR-007; the `Consideracion`/`Verdict` selection vocabulary is SDD-45's.
 
 ### Integration architecture
 

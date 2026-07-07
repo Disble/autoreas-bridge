@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"autoreas-bridge/internal/api/contracts"
+	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/realtime"
@@ -23,6 +24,7 @@ type SyncTriggerService = contracts.SyncTriggerService
 type StatusService = contracts.StatusService
 type DeviceAdminService = contracts.DeviceAdminService
 type ConflictService = contracts.ConflictService
+type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
 
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
@@ -35,6 +37,7 @@ type Config struct {
 	Status                 StatusService
 	DeviceAdmin            DeviceAdminService
 	Conflicts              ConflictService
+	RecordSeasonRating     RecordSeasonRatingFunc
 	RealtimeHub            realtime.Hub
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()

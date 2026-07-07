@@ -22,12 +22,12 @@ const (
 	AvailabilityCreated   Availability = "created"
 )
 
-// NotaSource records how a grade was captured (SDD-44).
-type NotaSource string
+// GradeSource records how a grade was captured (SDD-44).
+type GradeSource string
 
 const (
-	NotaSourceMobileSync NotaSource = "mobile_sync"
-	NotaSourceManual     NotaSource = "manual"
+	GradeSourceMobileSync GradeSource = "mobile_sync"
+	GradeSourceManual     GradeSource = "manual"
 )
 
 // MatchCandidate is one ranked search option retained for an ambiguous row so
@@ -39,8 +39,9 @@ type MatchCandidate struct {
 }
 
 // SeasonAnime is one row of a season's evaluation registry. SDD-42 manages the
-// intake/matching fields; availability, grade, and consideración are advanced by
-// later slices (their columns exist now with defaults).
+// intake/matching fields; availability advances in SDD-43; the first-episode
+// grade (Grade) is captured in SDD-44. Consideración is advanced by SDD-45 (its
+// column exists now with a default).
 type SeasonAnime struct {
 	ID           string
 	SeasonID     string
@@ -50,10 +51,18 @@ type SeasonAnime struct {
 	Candidates   []MatchCandidate
 	Availability Availability
 	AnimeID      string
-	CreatedAt    time.Time
+	// Grade is the 1–6 first-episode grade; 0 means ungraded.
+	Grade int
+	// GradeSource records how Grade was captured (empty until graded).
+	GradeSource GradeSource
+	// RatedAt is when Grade was recorded (nil until graded).
+	RatedAt *time.Time
+	// SkipGrading is the explicit "no grade" override, visible at selection time.
+	SkipGrading bool
+	CreatedAt   time.Time
 }
 
-// NewSeasonAnime builds a pending intake row for a raw name.
+// NewSeasonAnime builds a pending, ungraded intake row for a raw name.
 func NewSeasonAnime(id, seasonID, rawName string, now time.Time) SeasonAnime {
 	return SeasonAnime{
 		ID:           id,
@@ -63,4 +72,32 @@ func NewSeasonAnime(id, seasonID, rawName string, now time.Time) SeasonAnime {
 		Availability: AvailabilityWaiting,
 		CreatedAt:    now,
 	}
+}
+
+// ApplyGrade records a first-episode grade under the season conflict rule and
+// reports whether the write was applied. A manual grade always wins and flips
+// the source to manual; a mobile_sync write is REJECTED (returns false) when a
+// manual grade already exists — manual is protected. A mobile write correcting
+// its own earlier mobile grade is allowed. Grading clears a prior skip.
+func (sa *SeasonAnime) ApplyGrade(grade int, source GradeSource, ratedAt time.Time) bool {
+	if source == GradeSourceMobileSync && sa.GradeSource == GradeSourceManual && sa.IsGraded() {
+		return false
+	}
+	sa.Grade = grade
+	sa.GradeSource = source
+	rated := ratedAt
+	sa.RatedAt = &rated
+	sa.SkipGrading = false
+	return true
+}
+
+// Skip records the explicit "no grade" override for a row (recorded, visible;
+// derives as not-approved at selection unless later graded).
+func (sa *SeasonAnime) Skip() {
+	sa.SkipGrading = true
+}
+
+// IsGraded reports whether a first-episode grade (1–6) has been recorded.
+func (sa *SeasonAnime) IsGraded() bool {
+	return sa.Grade >= 1
 }

@@ -34,6 +34,36 @@ type RevokeDeviceFunc func(ctx context.Context, id string) error
 type ListConflictsFunc func(ctx context.Context) ([]ConflictInfo, error)
 type ResolveConflictFunc func(ctx context.Context, id string) error
 
+// SeasonRatingOutcome is the transport-neutral result of ingesting a season
+// rating, mapped to an HTTP status by the handler. The composition root owns the
+// season→outcome mapping so the handlers package stays decoupled from season.
+type SeasonRatingOutcome int
+
+const (
+	// SeasonRatingRecorded — the grade was applied (HTTP 204).
+	SeasonRatingRecorded SeasonRatingOutcome = iota
+	// SeasonRatingInvalidGrade — the grade was outside 1–6 (HTTP 422).
+	SeasonRatingInvalidGrade
+	// SeasonRatingNotCandidate — no open season, or the anime is not a
+	// candidate (HTTP 404, terminal — mobile must not retry).
+	SeasonRatingNotCandidate
+	// SeasonRatingManualConflict — a manual grade is present and kept; the
+	// mobile write is rejected (HTTP 409, body carries the kept grade).
+	SeasonRatingManualConflict
+)
+
+// SeasonRatingResult carries the ingestion outcome and, on a manual conflict, the
+// kept grade for the 409 response body.
+type SeasonRatingResult struct {
+	Outcome       SeasonRatingOutcome
+	ExistingGrade int
+}
+
+// RecordSeasonRatingFunc ingests one mobile-sourced grade for an anime in the
+// active season. ratedAtMs is the epoch-ms watch/grade moment. A non-nil error is
+// an infrastructure failure (HTTP 500); domain outcomes ride SeasonRatingResult.
+type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error)
+
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }

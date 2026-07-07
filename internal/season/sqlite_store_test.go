@@ -114,6 +114,60 @@ func TestSQLiteStoreUpdateSeasonPersistsMilestonesAndClose(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreSeasonAnimeGradeRoundTrip(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	now := time.UnixMilli(1_700_000_000_000)
+	if err := store.CreateSeason(ctx, domain.NewSeason("season-1", "Julio 2026", now)); err != nil {
+		t.Fatalf("CreateSeason: %v", err)
+	}
+	sa := domain.NewSeasonAnime("sa-1", "season-1", "Anime A", now)
+	sa.Availability = domain.AvailabilityCreated
+	sa.AnimeID = "anime-a"
+	if err := store.CreateSeasonAnime(ctx, sa); err != nil {
+		t.Fatalf("CreateSeasonAnime: %v", err)
+	}
+
+	// A fresh row is ungraded on disk.
+	fresh, _ := store.SeasonAnimeByID(ctx, "sa-1")
+	if fresh.IsGraded() || fresh.GradeSource != "" || fresh.RatedAt != nil || fresh.SkipGrading {
+		t.Fatalf("fresh row must be ungraded on disk: %+v", fresh)
+	}
+
+	// Grade it and persist.
+	rated := time.UnixMilli(1_700_000_500_000)
+	fresh.ApplyGrade(5, domain.GradeSourceManual, rated)
+	if err := store.UpdateSeasonAnime(ctx, *fresh); err != nil {
+		t.Fatalf("UpdateSeasonAnime: %v", err)
+	}
+
+	reread, err := store.SeasonAnimeByID(ctx, "sa-1")
+	if err != nil || reread == nil {
+		t.Fatalf("SeasonAnimeByID: %v (%+v)", err, reread)
+	}
+	if reread.Grade != 5 || reread.GradeSource != domain.GradeSourceManual {
+		t.Fatalf("grade not persisted: %+v", reread)
+	}
+	if reread.RatedAt == nil || !reread.RatedAt.Equal(rated) {
+		t.Fatalf("RatedAt not persisted: %+v", reread.RatedAt)
+	}
+
+	// Skip persists too.
+	reread.Skip()
+	reread.Grade = 0
+	reread.GradeSource = ""
+	reread.RatedAt = nil
+	if err := store.UpdateSeasonAnime(ctx, *reread); err != nil {
+		t.Fatalf("UpdateSeasonAnime skip: %v", err)
+	}
+	afterSkip, _ := store.SeasonAnimeByID(ctx, "sa-1")
+	if !afterSkip.SkipGrading || afterSkip.IsGraded() {
+		t.Fatalf("skip not persisted: %+v", afterSkip)
+	}
+}
+
 func TestSQLiteStoreSeasonAnimeRoundTrip(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)

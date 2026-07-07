@@ -82,10 +82,13 @@ func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO season_animes
 			(id, season_id, raw_name, match_status, matched_slug,
-			 match_candidates_json, availability, anime_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 match_candidates_json, availability, anime_id,
+			 premiere_grade, grade_source, rated_at, skip_grading, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sa.ID, sa.SeasonID, sa.RawName, string(sa.MatchStatus), sa.MatchedSlug,
-		marshalCandidates(sa.Candidates), string(sa.Availability), sa.AnimeID, sa.CreatedAt.UnixMilli(),
+		marshalCandidates(sa.Candidates), string(sa.Availability), sa.AnimeID,
+		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
+		sa.CreatedAt.UnixMilli(),
 	)
 	if err != nil {
 		return fmt.Errorf("create season anime %q: %w", sa.ID, err)
@@ -97,7 +100,8 @@ func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]domain.SeasonAnime, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
-		       match_candidates_json, availability, anime_id, created_at
+		       match_candidates_json, availability, anime_id,
+		       premiere_grade, grade_source, rated_at, skip_grading, created_at
 		FROM season_animes WHERE season_id = ? ORDER BY created_at, id`, seasonID)
 	if err != nil {
 		return nil, fmt.Errorf("list season animes for %q: %w", seasonID, err)
@@ -122,7 +126,8 @@ func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]
 func (s *SQLiteStore) SeasonAnimeByID(ctx context.Context, id string) (*domain.SeasonAnime, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
-		       match_candidates_json, availability, anime_id, created_at
+		       match_candidates_json, availability, anime_id,
+		       premiere_grade, grade_source, rated_at, skip_grading, created_at
 		FROM season_animes WHERE id = ?`, id)
 	sa, err := scanSeasonAnime(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -139,10 +144,13 @@ func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE season_animes SET
 			match_status = ?, matched_slug = ?, match_candidates_json = ?,
-			availability = ?, anime_id = ?
+			availability = ?, anime_id = ?,
+			premiere_grade = ?, grade_source = ?, rated_at = ?, skip_grading = ?
 		WHERE id = ?`,
 		string(sa.MatchStatus), sa.MatchedSlug, marshalCandidates(sa.Candidates),
-		string(sa.Availability), sa.AnimeID, sa.ID,
+		string(sa.Availability), sa.AnimeID,
+		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
+		sa.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update season anime %q: %w", sa.ID, err)
@@ -158,10 +166,15 @@ func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 		candidates   sql.NullString
 		availability string
 		animeID      sql.NullString
+		grade        sql.NullInt64
+		gradeSource  sql.NullString
+		ratedAt      sql.NullInt64
+		skipGrading  int64
 		createdAt    int64
 	)
 	if err := row.Scan(&sa.ID, &sa.SeasonID, &sa.RawName, &matchStatus, &matchedSlug,
-		&candidates, &availability, &animeID, &createdAt); err != nil {
+		&candidates, &availability, &animeID,
+		&grade, &gradeSource, &ratedAt, &skipGrading, &createdAt); err != nil {
 		return nil, err
 	}
 	sa.MatchStatus = domain.MatchStatus(matchStatus)
@@ -169,8 +182,36 @@ func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 	sa.Availability = domain.Availability(availability)
 	sa.AnimeID = animeID.String
 	sa.Candidates = unmarshalCandidates(candidates.String)
+	sa.Grade = int(grade.Int64)
+	sa.GradeSource = domain.GradeSource(gradeSource.String)
+	sa.RatedAt = timePtr(ratedAt)
+	sa.SkipGrading = skipGrading != 0
 	sa.CreatedAt = time.UnixMilli(createdAt)
 	return &sa, nil
+}
+
+// gradePtr stores a 1–6 grade, or NULL when ungraded (0).
+func gradePtr(grade int) any {
+	if grade == 0 {
+		return nil
+	}
+	return grade
+}
+
+// gradeSourcePtr stores a non-empty source, or NULL when unset.
+func gradeSourcePtr(src domain.GradeSource) any {
+	if src == "" {
+		return nil
+	}
+	return string(src)
+}
+
+// boolToInt maps a bool to the SQLite 0/1 integer convention.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func marshalCandidates(c []domain.MatchCandidate) string {

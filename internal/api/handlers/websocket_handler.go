@@ -16,12 +16,13 @@ import (
 )
 
 type WebSocketHandlerConfig struct {
-	Authenticate      AuthenticateFunc
-	ApplyPendingPatch PatchAnimeFunc
-	TriggerReconcile  TriggerReconcileFunc
-	AcknowledgeDevice AcknowledgeDeviceFunc
-	Hub               realtime.Hub
-	Logger            sharedlogger.Logger
+	Authenticate       AuthenticateFunc
+	ApplyPendingPatch  PatchAnimeFunc
+	TriggerReconcile   TriggerReconcileFunc
+	AcknowledgeDevice  AcknowledgeDeviceFunc
+	RecordSeasonRating RecordSeasonRatingFunc
+	Hub                realtime.Hub
+	Logger             sharedlogger.Logger
 }
 
 var websocketClientSequence uint64
@@ -75,12 +76,26 @@ func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
 type incomingWebSocketMessage struct {
 	Type string `json:"type"`
 	contracts.ReconcileRequest
+	// Season-rating fields (SDD-44), present only on a "season_rating" message.
+	AnimeID string `json:"anime_id"`
+	Grade   int    `json:"grade"`
+	RatedAt int64  `json:"rated_at"`
 }
 
 func handleIncomingWebSocketMessage(ctx context.Context, deviceID string, payload []byte, config WebSocketHandlerConfig) error {
 	var message incomingWebSocketMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return nil
+	}
+
+	// A season_rating message is fire-and-forget: no ack, no reconcile; the
+	// confirmation reaches clients via the season_changed broadcast.
+	if message.Type == "season_rating" {
+		if config.RecordSeasonRating == nil {
+			return nil
+		}
+		_, err := config.RecordSeasonRating(ctx, message.AnimeID, message.Grade, message.RatedAt)
+		return err
 	}
 
 	if !isIncomingReconcileMessage(message) {

@@ -42,19 +42,22 @@ POST /api/seasons/active/ratings
 Authorization: Bearer <device token — same token mobile already uses>
 Content-Type: application/json
 
-{ "anime_id": "<legacy anime _id>", "nota": 4, "rated_at": 1751500000000 }
+{ "anime_id": "<legacy anime _id>", "grade": 4, "rated_at": 1751500000000 }
 ```
+
+> Wire field is `grade` (English), not `nota` — see ADR-007. All wire fields are
+> English (`anime_id`, `grade`, `rated_at`).
 
 | Response | Meaning | Mobile behavior |
 |---|---|---|
 | `204` | recorded | done; clear from queue |
-| `409` | a MANUAL grade already exists in bridge (body: `{"nota": n, "source": "manual"}`) | drop silently or surface "already graded on desktop: n"; do NOT retry |
+| `409` | a MANUAL grade already exists in bridge (body: `{"grade": n, "source": "manual"}`) | drop silently or surface "already graded on desktop: n"; do NOT retry |
 | `404` | no active season, or anime not in the active season | treat as "not a season anime"; do NOT retry |
-| `422` | nota outside 1–6 / malformed body | bug — fix payload |
+| `422` | grade outside 1–6 / malformed body | bug — fix payload |
 | `401` | bad/expired token | existing re-pair flow |
 
-Idempotency: same `anime_id` re-POSTed with the same nota → `204` (no-op).
-Different nota from mobile when a mobile grade exists → `204`, overwrites
+Idempotency: same `anime_id` re-POSTed with the same grade → `204` (no-op).
+Different grade from mobile when a mobile grade exists → `204`, overwrites
 (mobile correcting itself is fine); only MANUAL grades are protected (409).
 
 ### WebSocket (optional optimization, same payload)
@@ -62,7 +65,7 @@ Different nota from mobile when a mobile grade exists → `204`, overwrites
 Incoming message on the existing socket:
 
 ```json
-{ "type": "season_rating", "anime_id": "...", "nota": 4, "rated_at": 1751500000000 }
+{ "type": "season_rating", "anime_id": "...", "grade": 4, "rated_at": 1751500000000 }
 ```
 
 No per-message ack; confirmation arrives as the `season_changed` broadcast.

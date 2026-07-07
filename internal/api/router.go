@@ -17,6 +17,7 @@ type Handler struct {
 	deviceService          device.AuthService
 	patchAnime             http.Handler
 	syncReconcile          http.Handler
+	seasonRatings          http.Handler
 	mux                    *http.ServeMux
 	config                 Config
 	onPairingTokenConsumed func()
@@ -61,6 +62,12 @@ func NewHandler(config Config) http.Handler {
 		}
 	}
 	h.syncReconcile = apiHandlers.NewSyncHandler(syncConfig)
+	if config.RecordSeasonRating != nil {
+		h.seasonRatings = apiHandlers.NewSeasonRatingHandler(apiHandlers.SeasonRatingConfig{
+			Authenticate: h.authenticate,
+			RecordRating: config.RecordSeasonRating,
+		})
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
 	mux.HandleFunc("/api/devices", h.handleDevices)
@@ -71,6 +78,7 @@ func NewHandler(config Config) http.Handler {
 	mux.HandleFunc("/api/conflicts", h.handleConflicts)
 	mux.HandleFunc("/api/conflicts/", h.handleConflictByID)
 	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
+	mux.HandleFunc("/api/seasons/active/ratings", h.handleSeasonRatings)
 	if config.RealtimeHub != nil {
 		wsConfig := apiHandlers.WebSocketHandlerConfig{
 			Authenticate: h.authenticateWebSocket,
@@ -90,13 +98,15 @@ func NewHandler(config Config) http.Handler {
 				return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
 			}
 		}
+		wsConfig.RecordSeasonRating = config.RecordSeasonRating
 		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
-			Authenticate:      wsConfig.Authenticate,
-			ApplyPendingPatch: wsConfig.ApplyPendingPatch,
-			TriggerReconcile:  wsConfig.TriggerReconcile,
-			AcknowledgeDevice: wsConfig.AcknowledgeDevice,
-			Hub:               wsConfig.Hub,
-			Logger:            wsConfig.Logger,
+			Authenticate:       wsConfig.Authenticate,
+			ApplyPendingPatch:  wsConfig.ApplyPendingPatch,
+			TriggerReconcile:   wsConfig.TriggerReconcile,
+			AcknowledgeDevice:  wsConfig.AcknowledgeDevice,
+			RecordSeasonRating: wsConfig.RecordSeasonRating,
+			Hub:                wsConfig.Hub,
+			Logger:             wsConfig.Logger,
 		}))
 	}
 	h.mux = mux
@@ -231,6 +241,14 @@ func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.syncReconcile.ServeHTTP(w, r)
+}
+
+func (h *Handler) handleSeasonRatings(w http.ResponseWriter, r *http.Request) {
+	if h.seasonRatings == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "season rating unavailable")
+		return
+	}
+	h.seasonRatings.ServeHTTP(w, r)
 }
 
 func (h *Handler) handleAnimeChanges(w http.ResponseWriter, r *http.Request) {

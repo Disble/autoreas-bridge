@@ -693,3 +693,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/seasons/active/ratings:
+    post:
+      summary: Record a first-episode grade for an anime in the active season
+      description: |
+        Ingests a mobile-sourced premiere grade (1–6) for an anime in the open season.
+        Wire fields are English (see ADR-007). Manual grades captured on the desktop are
+        protected: a mobile write is rejected with `409` when a manual grade already exists.
+        A season_changed broadcast confirms a recorded grade.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [anime_id, grade, rated_at]
+              properties:
+                anime_id:
+                  type: string
+                  description: Legacy anime _id
+                grade:
+                  type: integer
+                  minimum: 1
+                  maximum: 6
+                rated_at:
+                  type: integer
+                  format: int64
+                  description: Epoch milliseconds of the watch/grade moment
+      responses:
+        '204':
+          description: Grade recorded
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No active season, or the anime is not a season candidate (terminal, no retry)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A manual grade already exists and is kept; the body carries it
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grade:
+                    type: integer
+                  source:
+                    type: string
+                    enum: [manual]
+        '422':
+          description: Grade outside 1–6, or malformed body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Season rating ingestion unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

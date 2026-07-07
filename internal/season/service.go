@@ -31,6 +31,18 @@ var ErrSearcherUnavailable = errors.New("name searcher unavailable")
 // probe/gateway deps are not wired.
 var ErrAvailabilityDepsUnavailable = errors.New("availability probe/gateway unavailable")
 
+// ErrInvalidGrade is returned by RecordPremiereGrade when the grade is outside 1–6.
+var ErrInvalidGrade = errors.New("grade out of range")
+
+// ErrNotSeasonCandidate is returned by RecordPremiereGrade when no open-season row
+// is linked to the given anime (no open season, or the anime is not a candidate).
+var ErrNotSeasonCandidate = errors.New("anime is not an active season candidate")
+
+// ErrManualGradePresent is returned by RecordPremiereGrade when a mobile_sync grade
+// is rejected because a manual grade already exists; the manual grade is kept and
+// returned so the caller can surface it (the sync 409 body).
+var ErrManualGradePresent = errors.New("manual grade present")
+
 // Estrenos section names used by the season conveyor.
 const (
 	sinVerSection = "Sin ver"
@@ -94,7 +106,7 @@ func (s *Service) ActiveSeason(ctx context.Context) (*domain.Season, error) {
 	return s.repo.ActiveSeason(ctx)
 }
 
-// SetMinApprovalGrade updates the open season's nota de corte.
+// SetMinApprovalGrade updates the open season's cutoff grade.
 func (s *Service) SetMinApprovalGrade(ctx context.Context, grade int) error {
 	return s.mutateActive(ctx, func(se *domain.Season) error { return se.SetMinApprovalGrade(grade) })
 }
@@ -320,6 +332,52 @@ func (s *Service) HandleAnimeWatched(ctx context.Context, animeID, section strin
 		}
 	}
 	return nil
+}
+
+// RecordPremiereGrade records a first-episode grade for the anime linked to a row
+// in the OPEN season, applying the domain conflict rule (manual protected from
+// mobile). It validates the 1–6 bound and returns the updated row. A mobile write
+// rejected by an existing manual grade returns that row with ErrManualGradePresent
+// so the caller can surface the kept grade. Idempotent for mobile self-writes.
+func (s *Service) RecordPremiereGrade(ctx context.Context, animeID string, grade int, source domain.GradeSource, ratedAt time.Time) (domain.SeasonAnime, error) {
+	if grade < 1 || grade > 6 {
+		return domain.SeasonAnime{}, ErrInvalidGrade
+	}
+	if animeID == "" {
+		return domain.SeasonAnime{}, ErrNotSeasonCandidate
+	}
+	active, err := s.repo.ActiveSeason(ctx)
+	if err != nil {
+		return domain.SeasonAnime{}, err
+	}
+	if active == nil {
+		return domain.SeasonAnime{}, ErrNotSeasonCandidate
+	}
+	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
+	if err != nil {
+		return domain.SeasonAnime{}, err
+	}
+	for _, row := range rows {
+		if row.AnimeID != animeID {
+			continue
+		}
+		if !row.ApplyGrade(grade, source, ratedAt) {
+			return row, ErrManualGradePresent
+		}
+		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+			return domain.SeasonAnime{}, err
+		}
+		return row, nil
+	}
+	return domain.SeasonAnime{}, ErrNotSeasonCandidate
+}
+
+// SkipGrading records the explicit "no grade" override for a row (visible at
+// selection; never a lock).
+func (s *Service) SkipGrading(ctx context.Context, rowID string) error {
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+		sa.Skip()
+	})
 }
 
 // ResolveMatch manually resolves a row to a page URL (candidate pick or a

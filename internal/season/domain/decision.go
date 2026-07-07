@@ -20,9 +20,10 @@ const (
 )
 
 // Verdict is the final Aprobado/Reprobado outcome. It is ALWAYS derived from
-// (nota, minApprovalGrade, consideracion) and is never stored — changing the
+// (grade, minApprovalGrade, consideración) and is never stored — changing the
 // minimum approval grade re-derives the whole table instantly, exactly like the
-// Excel it replaces.
+// Excel it replaces. The Aprobado/Reprobado value vocabulary is SDD-45's to
+// English-ify when it wires selection persistence/UI (see ADR-007).
 type Verdict string
 
 const (
@@ -31,10 +32,10 @@ const (
 )
 
 // Decision replicates the Excel selection formula verbatim. An ungraded anime
-// (nota 0) fails the grade test and derives as Reprobado unless a consideration
+// (grade 0) fails the grade test and derives as Reprobado unless a consideration
 // rescues it.
-func Decision(nota, minApprovalGrade int, c Consideracion) Verdict {
-	if nota >= minApprovalGrade && c != ConsideracionFaltaCupo {
+func Decision(grade, minApprovalGrade int, c Consideracion) Verdict {
+	if grade >= minApprovalGrade && c != ConsideracionFaltaCupo {
 		return VerdictAprobado
 	}
 	if c == ConsideracionAprobadoTemporalmente || c == ConsideracionSobraCupo {

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"time"
 
+	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/schedule"
+	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 )
 
@@ -50,7 +52,7 @@ func (a *App) CreateSeason(name string) string {
 	return "ok"
 }
 
-// SetSeasonMinApprovalGrade updates the open season's nota mínima de aprobación.
+// SetSeasonMinApprovalGrade updates the open season's minimum approval grade.
 func (a *App) SetSeasonMinApprovalGrade(grade int) string {
 	if a.seasonService == nil {
 		return "season service unavailable"
@@ -95,7 +97,8 @@ type SeasonAnimeCandidateDTO struct {
 
 // SeasonAnimeDTO is the Wails-facing projection of one intake/matching row.
 // Section is the created anime's current Estrenos section (Sin ver / Ver hoy /
-// Visto), empty for uncreated rows.
+// Visto), empty for uncreated rows. Grade/GradeSource/RatedAt/SkipGrading carry
+// the SDD-44 first-episode grade (grade 0 = ungraded, ratedAt null until graded).
 type SeasonAnimeDTO struct {
 	ID           string                    `json:"id"`
 	RawName      string                    `json:"rawName"`
@@ -105,6 +108,10 @@ type SeasonAnimeDTO struct {
 	Availability string                    `json:"availability"`
 	AnimeID      string                    `json:"animeId"`
 	Section      string                    `json:"section"`
+	Grade        int                       `json:"grade"`
+	GradeSource  string                    `json:"gradeSource"`
+	RatedAt      *int64                    `json:"ratedAt"`
+	SkipGrading  bool                      `json:"skipGrading"`
 }
 
 // GetSeasonAnimes returns the active season's intake rows, or an empty list when
@@ -214,6 +221,36 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		Candidates:   candidates,
 		Availability: string(r.Availability),
 		AnimeID:      r.AnimeID,
+		Grade:        r.Grade,
+		GradeSource:  string(r.GradeSource),
+		RatedAt:      millisPtrDTO(r.RatedAt),
+		SkipGrading:  r.SkipGrading,
+	}
+}
+
+// recordSeasonRating is the API seam for mobile-sourced grade ingestion: it maps
+// the season service's domain outcomes to the transport-neutral result the HTTP/WS
+// handlers translate into status codes, and broadcasts season_changed on success.
+// Returns nil when the season feature is unavailable (the route then reports 503).
+func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
+	if a.seasonService == nil {
+		return nil
+	}
+	return func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (apiHandlers.SeasonRatingResult, error) {
+		row, err := a.seasonService.RecordPremiereGrade(ctx, animeID, grade, domain.GradeSourceMobileSync, time.UnixMilli(ratedAtMs))
+		switch {
+		case err == nil:
+			a.broadcastSeasonChanged()
+			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingRecorded}, nil
+		case errors.Is(err, season.ErrInvalidGrade):
+			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingInvalidGrade}, nil
+		case errors.Is(err, season.ErrNotSeasonCandidate):
+			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingNotCandidate}, nil
+		case errors.Is(err, season.ErrManualGradePresent):
+			return apiHandlers.SeasonRatingResult{Outcome: apiHandlers.SeasonRatingManualConflict, ExistingGrade: row.Grade}, nil
+		default:
+			return apiHandlers.SeasonRatingResult{}, err
+		}
 	}
 }
 

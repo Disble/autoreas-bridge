@@ -16,7 +16,7 @@ const (
 )
 
 const (
-	// DefaultMinApprovalGrade is the Excel formula's ">=4" default nota de corte.
+	// DefaultMinApprovalGrade is the Excel formula's ">=4" default cutoff grade.
 	DefaultMinApprovalGrade = 4
 	// DefaultSlots is the default approved-anime cap; editable per season.
 	DefaultSlots = 12
@@ -44,7 +44,7 @@ type Season struct {
 	CreatedAt            time.Time
 }
 
-// NewSeason builds an open season with the default nota de corte and slot cap.
+// NewSeason builds an open season with the default cutoff grade and slot cap.
 func NewSeason(id, name string, now time.Time) Season {
 	return Season{
 		ID:               id,
@@ -73,7 +73,7 @@ func (s *Season) Close(now time.Time) error {
 	return nil
 }
 
-// SetMinApprovalGrade updates the nota de corte, rejecting values outside 1-6.
+// SetMinApprovalGrade updates the cutoff grade, rejecting values outside 1-6.
 func (s *Season) SetMinApprovalGrade(grade int) error {
 	if grade < minGrade || grade > maxGrade {
 		return fmt.Errorf("min approval grade %d out of range %d-%d", grade, minGrade, maxGrade)

@@ -31,15 +31,28 @@ const (
 			availability TEXT NOT NULL DEFAULT 'waiting',
 			first_available_at INTEGER,
 			anime_id TEXT,
-			nota_estreno INTEGER,
-			nota_source TEXT,
-			nota_pos_estreno INTEGER,
+			premiere_grade INTEGER,
+			grade_source TEXT,
+			post_season_grade INTEGER,
+			rated_at INTEGER,
+			skip_grading INTEGER NOT NULL DEFAULT 0,
 			consideracion TEXT NOT NULL DEFAULT 'none',
 			last_checked_at INTEGER,
 			created_at INTEGER NOT NULL
 		)`
 	seasonAnimesSeasonIndexDDL = `
 		CREATE INDEX IF NOT EXISTS idx_season_animes_season ON season_animes(season_id)`
+
+	// SDD-44 renamed the Spanish grade columns to English and added the
+	// grade-capture columns. Existing installs (created at SDD-41) are migrated
+	// column-by-column: a RENAME when the old Spanish column is still present, an
+	// ADD for the genuinely new columns. Probing the NEW column name makes each
+	// step idempotent (fresh installs already have it via CreateDDL).
+	seasonAnimesPremiereGradeDDL   = `ALTER TABLE season_animes RENAME COLUMN nota_estreno TO premiere_grade`
+	seasonAnimesGradeSourceDDL     = `ALTER TABLE season_animes RENAME COLUMN nota_source TO grade_source`
+	seasonAnimesPostSeasonGradeDDL = `ALTER TABLE season_animes RENAME COLUMN nota_pos_estreno TO post_season_grade`
+	seasonAnimesRatedAtDDL         = `ALTER TABLE season_animes ADD COLUMN rated_at INTEGER`
+	seasonAnimesSkipGradingDDL     = `ALTER TABLE season_animes ADD COLUMN skip_grading INTEGER NOT NULL DEFAULT 0`
 )
 
 // SchemaTables returns the season-owned bridge table descriptors for the sdd-34
@@ -58,7 +71,14 @@ func SchemaTables() []persistence.TableSchema {
 		{
 			Name:      "season_animes",
 			CreateDDL: seasonAnimesDDL,
-			Indexes:   []string{seasonAnimesSeasonIndexDDL},
+			ColumnAdds: []persistence.ColumnMigration{
+				{Column: "premiere_grade", AlterDDL: seasonAnimesPremiereGradeDDL},
+				{Column: "grade_source", AlterDDL: seasonAnimesGradeSourceDDL},
+				{Column: "post_season_grade", AlterDDL: seasonAnimesPostSeasonGradeDDL},
+				{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
+				{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
+			},
+			Indexes: []string{seasonAnimesSeasonIndexDDL},
 		},
 	}
 }
