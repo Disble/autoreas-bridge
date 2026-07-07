@@ -7,6 +7,7 @@ import {
   countChanges,
   initialWorkingState,
   moveToDay as applyMoveToDay,
+  moveToDayAt as applyMoveToDayAt,
   moveWithinDay as applyMoveWithinDay,
   returnToRail as applyReturnToRail,
   serializeDraft,
@@ -44,6 +45,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
 
   const moveToDay = useCallback((animeId: string, day: string) => {
     setState((current) => applyMoveToDay(current, animeId, day));
+  }, []);
+  const moveToDayAt = useCallback((animeId: string, day: string, index: number) => {
+    setState((current) => applyMoveToDayAt(current, animeId, day, index));
   }, []);
   const moveWithinDay = useCallback((animeId: string, direction: 'up' | 'down') => {
     setState((current) => applyMoveWithinDay(current, animeId, direction));
@@ -91,6 +95,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     scheduledCount,
     readOnly,
     moveToDay,
+    moveToDayAt,
     moveWithinDay,
     returnToRail,
     onApply,

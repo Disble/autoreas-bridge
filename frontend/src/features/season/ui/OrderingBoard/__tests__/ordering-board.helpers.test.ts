@@ -7,6 +7,7 @@ import {
   groupGridByDay,
   initialWorkingState,
   moveToDay,
+  moveToDayAt,
   moveWithinDay,
   renumber,
   returnToRail,
@@ -67,6 +68,19 @@ describe('working-state moves', () => {
     const next = returnToRail(start, 'g');
     expect(next.rail.map((c) => c.animeId)).toEqual(['g']);
     expect(next.columns['Lunes']).toHaveLength(0);
+  });
+
+  it('moveToDayAt inserts a card at a drop position and renumbers (drag-and-drop)', () => {
+    const start = initialWorkingState({
+      rail: [card({ animeId: 'r', section: 'Visto' })],
+      grid: [
+        card({ animeId: 'a', dia: 'Jueves', orden: 1 }),
+        card({ animeId: 'b', dia: 'Jueves', orden: 2 }),
+      ],
+    });
+    const next = moveToDayAt(start, 'r', 'Jueves', 1); // drop between a and b
+    expect(next.columns['Jueves'].map((c) => c.animeId)).toEqual(['a', 'r', 'b']);
+    expect(next.columns['Jueves'].map((c) => c.orden)).toEqual([1, 2, 3]);
   });
 
   it('moveWithinDay swaps neighbours and no-ops at the bounds', () => {

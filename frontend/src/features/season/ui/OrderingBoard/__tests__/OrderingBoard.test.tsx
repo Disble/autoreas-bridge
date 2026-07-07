@@ -22,6 +22,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     scheduledCount: 0,
     readOnly: false,
     moveToDay: vi.fn(),
+    moveToDayAt: vi.fn(),
     moveWithinDay: vi.fn(),
     returnToRail: vi.fn(),
     onApply: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),

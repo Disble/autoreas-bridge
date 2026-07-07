@@ -1,4 +1,5 @@
 import { Alert, Button, Card, Chip, Label, ListBox, Select } from '@heroui/react';
+import type { DragEvent } from 'react';
 import type { OrderingCard } from '../../../../infrastructure/season-source';
 import { ORDERING_EMPTY_MESSAGE, ORDERING_RAIL_VALUE, WEEKDAYS } from './ordering-board.constants';
 import { useOrderingBoard } from './use-ordering-board';
@@ -19,6 +20,7 @@ export function OrderingBoard() {
     scheduledCount,
     readOnly,
     moveToDay,
+    moveToDayAt,
     moveWithinDay,
     returnToRail,
     onApply,
@@ -26,6 +28,12 @@ export function OrderingBoard() {
     onReopen,
     onCloseSeason,
   } = useOrderingBoard();
+
+  const onCardDragStart = (event: DragEvent, animeId: string) => {
+    event.dataTransfer.setData('text/plain', animeId);
+    event.dataTransfer.effectAllowed = 'move';
+  };
+  const draggedId = (event: DragEvent): string => event.dataTransfer.getData('text/plain');
 
   const renderMovePicker = (card: OrderingCard, inRail: boolean) => (
     <Select
@@ -91,7 +99,14 @@ export function OrderingBoard() {
           <Card.Header>
             <Card.Title>Approved to place ({rail.length})</Card.Title>
           </Card.Header>
-          <Card.Content>
+          <Card.Content
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              if (!readOnly) {
+                returnToRail(draggedId(event));
+              }
+            }}
+          >
             {rail.length === 0 ? (
               <p className="text-sm text-muted">{ORDERING_EMPTY_MESSAGE}</p>
             ) : (
@@ -100,6 +115,8 @@ export function OrderingBoard() {
                   <li
                     key={card.animeId}
                     className="flex items-center gap-2 rounded-lg border border-border p-2"
+                    draggable={!readOnly}
+                    onDragStart={(event) => onCardDragStart(event, card.animeId)}
                   >
                     <span className="flex items-center gap-1 truncate text-sm text-foreground">
                       {card.isNewcomer && <span className="size-1.5 shrink-0 rounded-full bg-success" />}
@@ -117,7 +134,16 @@ export function OrderingBoard() {
           {WEEKDAYS.map((day) => {
             const cards = columns[day] ?? [];
             return (
-              <div key={day} className="flex flex-col gap-2 rounded-lg border border-border p-2">
+              <div
+                key={day}
+                className="flex flex-col gap-2 rounded-lg border border-border p-2"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  if (!readOnly) {
+                    moveToDay(draggedId(event), day);
+                  }
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-foreground">{day}</span>
                   <Chip size="sm" variant="soft">
@@ -125,8 +151,20 @@ export function OrderingBoard() {
                   </Chip>
                 </div>
                 <ul className="flex flex-col gap-2">
-                  {cards.map((card) => (
-                    <li key={card.animeId} className="flex flex-col gap-1 rounded-md border border-border p-2">
+                  {cards.map((card, index) => (
+                    <li
+                      key={card.animeId}
+                      className="flex flex-col gap-1 rounded-md border border-border p-2"
+                      draggable={!readOnly}
+                      onDragStart={(event) => onCardDragStart(event, card.animeId)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.stopPropagation();
+                        if (!readOnly) {
+                          moveToDayAt(draggedId(event), day, index);
+                        }
+                      }}
+                    >
                       <span className="flex items-center gap-1 truncate text-xs text-foreground">
                         {card.isNewcomer && <span className="size-1.5 shrink-0 rounded-full bg-success" />}
                         {card.orden}. {card.name}

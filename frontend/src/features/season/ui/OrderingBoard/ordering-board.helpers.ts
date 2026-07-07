@@ -73,12 +73,26 @@ function removeCard(state: WorkingState, animeId: string): { card?: OrderingCard
 
 /** moveToDay places an anime at the end of a weekday column (renumbered). */
 export function moveToDay(state: WorkingState, animeId: string, day: string): WorkingState {
-  const { card, state: rest } = removeCard(state, animeId);
-  if (card === undefined || rest.columns[day] === undefined) {
+  return moveToDayAt(state, animeId, day, Number.MAX_SAFE_INTEGER);
+}
+
+/**
+ * moveToDayAt inserts an anime into a weekday column at a given position (clamped),
+ * renumbering the column. A card dropped onto another card lands at that index — the
+ * drag-and-drop within/across columns.
+ */
+export function moveToDayAt(state: WorkingState, animeId: string, day: string, index: number): WorkingState {
+  if (state.columns[day] === undefined) {
     return state;
   }
-  const target = renumber([...rest.columns[day], { ...card, dia: day }]);
-  return { rail: rest.rail, columns: { ...rest.columns, [day]: target } };
+  const { card, state: rest } = removeCard(state, animeId);
+  if (card === undefined) {
+    return state;
+  }
+  const column = [...rest.columns[day]];
+  const clamped = Math.max(0, Math.min(index, column.length));
+  column.splice(clamped, 0, { ...card, dia: day });
+  return { rail: rest.rail, columns: { ...rest.columns, [day]: renumber(column) } };
 }
 
 /** returnToRail sends an anime back to the rail (awaiting placement). */
