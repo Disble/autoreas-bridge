@@ -50,7 +50,12 @@ export function DailyBoard() {
                   {sections.sinVer.map((row) => (
                     <li key={row.id}>
                       <Checkbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
-                        {row.rawName}
+                        <Checkbox.Content>
+                          <Checkbox.Control>
+                            <Checkbox.Indicator />
+                          </Checkbox.Control>
+                          {row.rawName}
+                        </Checkbox.Content>
                       </Checkbox>
                     </li>
                   ))}

@@ -61,9 +61,9 @@ describe('DailyBoard', () => {
     expect(screen.getByText('A')).toBeInTheDocument();
   });
 
-  // Note: the checkbox onChange → toggleSelect wiring is verified by the hook
-  // test; HeroUI v3 Checkbox renders a bare div under jsdom (React Aria builds
-  // its input only in a real browser), so the press can't be simulated here.
+  // The real checkbox rendering + click → selection wiring is covered by the
+  // integration test in DailyBoard.checkbox.test.tsx (real hook, real Checkbox).
+  // These cases mock the hook to assert the surrounding layout in isolation.
 
   it('Send to Ver hoy delegates when a selection exists', () => {
     const onSendToVerHoy = vi.fn();
