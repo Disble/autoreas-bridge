@@ -62,6 +62,27 @@
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
 - An active change MUST have `proposal.md`, `design.md`, `tasks.md`, at least one `spec.md`, and a `verify-report.md` whose verdict is `PASS` or `PASS WITH WARNINGS`.
 
+## Language Policy (Code in English)
+
+- **All code is English by default**: identifiers, function/method names, DB column
+  names, error strings, and comments. See `docs/adr/007-english-code-spanish-boundaries.md`.
+- Spanish is allowed ONLY at three boundaries:
+  1. **Legacy adapter** — fields that must byte-match the NeDB `animes.dat` JSON
+     (`LegacyAnimeRaw`, `NewAnimeSpec`, projection helpers: `Pagina`, `Dias`,
+     `NroCapVisto`, `FechaEstreno`, `activo`, `primeravez`, …). This is the adapter;
+     Spanish MUST NOT propagate past it into domain/service/API/storage.
+  2. **Runtime data literals** — Spanish *values* in legacy data (Estrenos sections
+     `"Sin ver"`/`"Ver hoy"`/`"Visto"`, `"No me gusto"`, …). The values stay Spanish;
+     the identifiers carrying them are English.
+  3. **UI copy** — separate rule (frontend UI text is English).
+- Cross-service wire contracts use English field names too (e.g. mobile season
+  rating: `{ "anime_id", "grade", "rated_at" }`, never `"nota"`). Fix the wire name
+  before the sister repo consumes it.
+- When a slice touches Spanish bridge code predating this policy, it English-ifies
+  the vocabulary it owns (rename + additive column migration). Do NOT rename shipped
+  Spanish that another pending slice actively owns — let the owning slice do it, and
+  record any code↔plan drift per "code wins".
+
 ## Boundary Truths
 
 - GREEN is provisional when the bug lives at the filesystem, SQLite, Windows, or legacy-data boundary.
@@ -92,5 +113,6 @@
 - `docs/sdd-tree.md`
 - `docs/architecture.md`
 - `docs/autoreas-bridge-design-doc.md`
+- `docs/adr/007-english-code-spanish-boundaries.md`
 - `openspec/config.yaml`
 - `.atl/skill-registry.md`
