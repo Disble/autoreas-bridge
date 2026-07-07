@@ -7,6 +7,7 @@ import { Icon } from '@iconify/react';
 import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
+import { SeasonRateAction } from '../../../season/ui/SeasonRateAction/SeasonRateAction';
 import { CHAPTER_COVER_SLOT_CLASS, CHAPTER_STATE_OPTIONS } from './chapter-schedule-panel.constants';
 import type { ChapterScheduleCardProps } from './chapter-schedule-panel.types';
 
@@ -149,6 +150,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
                 </Modal.Container>
               </Modal.Backdrop>
             </Modal>
+            <SeasonRateAction animeId={row.id} rawName={row.name} />
           </div>
         </Card.Content>
       </div>

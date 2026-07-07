@@ -167,6 +167,32 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
+  it('ensureAnimesLoaded fetches once and dedupes concurrent callers', async () => {
+    const getSeasonAnimes = vi.fn().mockResolvedValue([]);
+    const source = makeSource({ getSeasonAnimes });
+
+    await Promise.all([
+      useSeasonStore.getState().ensureAnimesLoaded(source),
+      useSeasonStore.getState().ensureAnimesLoaded(source),
+    ]);
+    await useSeasonStore.getState().ensureAnimesLoaded(source);
+
+    expect(getSeasonAnimes).toHaveBeenCalledTimes(1);
+    expect(useSeasonStore.getState().hasLoadedAnimes).toBe(true);
+  });
+
+  it('ensureAnimesLoaded allows a retry after a failed load', async () => {
+    const getSeasonAnimes = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue([]);
+    const source = makeSource({ getSeasonAnimes });
+
+    await useSeasonStore.getState().ensureAnimesLoaded(source);
+    expect(useSeasonStore.getState().hasLoadedAnimes).toBe(false);
+
+    await useSeasonStore.getState().ensureAnimesLoaded(source);
+    expect(getSeasonAnimes).toHaveBeenCalledTimes(2);
+    expect(useSeasonStore.getState().hasLoadedAnimes).toBe(true);
+  });
+
   it('closeSeason clears the active season on success', async () => {
     const getSeason = vi
       .fn()

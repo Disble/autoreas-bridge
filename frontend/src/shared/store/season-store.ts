@@ -7,8 +7,10 @@ interface SeasonStoreState {
   readonly season: SeasonSnapshot | null;
   readonly seasonAnimes: readonly SeasonAnimeRow[];
   readonly hasLoaded: boolean;
+  readonly hasLoadedAnimes: boolean;
   readonly errorMessage?: string;
   readonly refresh: (source?: SeasonSource) => Promise<void>;
+  readonly ensureAnimesLoaded: (source?: SeasonSource) => Promise<void>;
   readonly createSeason: (source: SeasonSource, name: string) => Promise<void>;
   readonly setMinApprovalGrade: (source: SeasonSource, grade: number) => Promise<void>;
   readonly setSlots: (source: SeasonSource, slots: number) => Promise<void>;
@@ -36,6 +38,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   season: null,
   seasonAnimes: [],
   hasLoaded: false,
+  hasLoadedAnimes: false,
   errorMessage: undefined,
 
   refresh: async (source: SeasonSource = seasonSource) => {
@@ -117,6 +120,21 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
     }
   },
 
+  ensureAnimesLoaded: async (source: SeasonSource = seasonSource) => {
+    if (get().hasLoadedAnimes) {
+      return;
+    }
+    // Mark loaded up front so concurrently-mounting cards trigger a single fetch;
+    // roll back on failure so a later mount can retry.
+    set({ hasLoadedAnimes: true });
+    try {
+      const seasonAnimes = await source.getSeasonAnimes();
+      set({ seasonAnimes });
+    } catch {
+      set({ hasLoadedAnimes: false });
+    }
+  },
+
   reconcileIntake: async (source: SeasonSource, rawText: string) => {
     await runIntakeCommand(get, set, () => source.reconcileIntake(rawText), source, 'Failed to update intake');
   },
@@ -180,5 +198,5 @@ async function runIntakeCommand(
 
 /** Test-only seam: reset the season store back to its initial state. */
 export function resetSeasonStore(): void {
-  useSeasonStore.setState({ season: null, seasonAnimes: [], hasLoaded: false, errorMessage: undefined });
+  useSeasonStore.setState({ season: null, seasonAnimes: [], hasLoaded: false, hasLoadedAnimes: false, errorMessage: undefined });
 }

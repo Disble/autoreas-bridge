@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChapterScheduleCard } from '../ChapterScheduleCard';
 import type { ChapterScheduleRow } from '../chapter-schedule-panel.types';
 
+// The season grade action is verified in its own suite; stub it here so the card
+// test stays isolated from the season store and Wails runtime.
+vi.mock('../../../../season/ui/SeasonRateAction/SeasonRateAction', () => ({
+  SeasonRateAction: () => null,
+}));
+
 function createRow(overrides: Partial<ChapterScheduleRow> = {}): ChapterScheduleRow {
   return {
     id: 'anime-1',
