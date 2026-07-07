@@ -1,0 +1,1 @@
+export { RateAnimeModal } from './RateAnimeModal';

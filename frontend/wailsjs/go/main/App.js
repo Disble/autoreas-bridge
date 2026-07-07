@@ -174,12 +174,20 @@ export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
 }
 
+export function SetSeasonGrade(arg1, arg2) {
+  return window['go']['main']['App']['SetSeasonGrade'](arg1, arg2);
+}
+
 export function SetSeasonMinApprovalGrade(arg1) {
   return window['go']['main']['App']['SetSeasonMinApprovalGrade'](arg1);
 }
 
 export function SetSeasonSlots(arg1) {
   return window['go']['main']['App']['SetSeasonSlots'](arg1);
+}
+
+export function SkipSeasonGrading(arg1) {
+  return window['go']['main']['App']['SkipSeasonGrading'](arg1);
 }
 
 export function SoftDeleteAnime(arg1, arg2) {

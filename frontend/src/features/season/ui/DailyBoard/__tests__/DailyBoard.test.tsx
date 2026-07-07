@@ -22,6 +22,9 @@ function created(id: string, animeId: string, section: string): SeasonAnimeRow {
     availability: 'created',
     animeId,
     section,
+    grade: 0,
+    gradeSource: '',
+    skipGrading: false,
   };
 }
 

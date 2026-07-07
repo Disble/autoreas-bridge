@@ -29,6 +29,8 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
+    setGrade: vi.fn().mockResolvedValue('ok'),
+    skipGrading: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
@@ -107,7 +109,7 @@ describe('useSeasonStore', () => {
   it('reconcileIntake runs the reconcile then refreshes the rows', async () => {
     const getSeasonAnimes = vi
       .fn()
-      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' }]);
+      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false }]);
     const source = makeSource({ getSeasonAnimes });
     await useSeasonStore.getState().reconcileIntake(source, 'Dr. Stone');
 
@@ -141,6 +143,27 @@ describe('useSeasonStore', () => {
     const source = makeSource();
     await useSeasonStore.getState().discardName(source, 'sa-1');
     expect(source.discardName).toHaveBeenCalledWith('sa-1');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('setGrade delegates the manual grade and refreshes the rows', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().setGrade(source, 'anime-a', 5);
+    expect(source.setGrade).toHaveBeenCalledWith('anime-a', 5);
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('setGrade surfaces a manual-conflict error and does not refresh', async () => {
+    const source = makeSource({ setGrade: vi.fn().mockResolvedValue('manual grade present') });
+    await useSeasonStore.getState().setGrade(source, 'anime-a', 5);
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(useSeasonStore.getState().errorMessage).toBe('manual grade present');
+  });
+
+  it('skipGrading delegates and refreshes the rows', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().skipGrading(source, 'sa-1');
+    expect(source.skipGrading).toHaveBeenCalledWith('sa-1');
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 

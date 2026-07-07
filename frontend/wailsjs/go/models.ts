@@ -721,6 +721,10 @@ export namespace main {
 	    availability: string;
 	    animeId: string;
 	    section: string;
+	    grade: number;
+	    gradeSource: string;
+	    ratedAt?: number;
+	    skipGrading: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeDTO(source);
@@ -736,6 +740,10 @@ export namespace main {
 	        this.availability = source["availability"];
 	        this.animeId = source["animeId"];
 	        this.section = source["section"];
+	        this.grade = source["grade"];
+	        this.gradeSource = source["gradeSource"];
+	        this.ratedAt = source["ratedAt"];
+	        this.skipGrading = source["skipGrading"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

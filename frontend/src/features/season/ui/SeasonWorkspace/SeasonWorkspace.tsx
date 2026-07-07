@@ -8,6 +8,7 @@ import {
   SEASON_WORKSPACE_UPCOMING_MESSAGE,
 } from './season-workspace.constants';
 import { DailyBoard } from '../DailyBoard/DailyBoard';
+import { EvaluationPanel } from '../EvaluationPanel/EvaluationPanel';
 import { IntakePanel } from '../IntakePanel/IntakePanel';
 import type { SeasonWorkspaceProps } from './season-workspace.types';
 import { useSeasonWorkspace } from './use-season-workspace';
@@ -101,6 +102,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
               <DailyBoard />
             </Tabs.Panel>
 
+            <Tabs.Panel id="evaluation">
+              <EvaluationPanel />
+            </Tabs.Panel>
+
             <Tabs.Panel id="overview">
               <Card>
                 <Card.Content>
@@ -110,7 +115,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
                       <dd className="text-sm text-foreground">{overview.createdLabel}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs text-muted">Nota mínima de aprobación</dt>
+                      <dt className="text-xs text-muted">Minimum approval grade</dt>
                       <dd className="text-sm text-foreground">{overview.minApprovalGrade}</dd>
                     </div>
                     <div>

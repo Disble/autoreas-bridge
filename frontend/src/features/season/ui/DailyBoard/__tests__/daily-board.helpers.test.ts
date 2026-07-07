@@ -13,6 +13,9 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     availability: 'created',
     animeId: 'anime-1',
     section: 'Sin ver',
+    grade: 0,
+    gradeSource: '',
+    skipGrading: false,
     ...overrides,
   };
 }

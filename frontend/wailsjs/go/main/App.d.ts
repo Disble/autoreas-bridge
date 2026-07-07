@@ -90,9 +90,13 @@ export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;
 
 export function SetScheduleConfig(arg1:contracts.ScheduleConfig):Promise<string>;
 
+export function SetSeasonGrade(arg1:string,arg2:number):Promise<string>;
+
 export function SetSeasonMinApprovalGrade(arg1:number):Promise<string>;
 
 export function SetSeasonSlots(arg1:number):Promise<string>;
+
+export function SkipSeasonGrading(arg1:string):Promise<string>;
 
 export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 

@@ -20,6 +20,8 @@ interface SeasonStoreState {
   readonly discardName: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setAnimeDays: (source: SeasonSource, animeId: string, dias: readonly string[]) => Promise<void>;
   readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<void>;
+  readonly setGrade: (source: SeasonSource, animeId: string, grade: number) => Promise<void>;
+  readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
 }
 
@@ -137,6 +139,14 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
 
   sendToVerHoy: async (source: SeasonSource, animeIds: readonly string[]) => {
     await runIntakeCommand(get, set, () => source.sendToVerHoy(animeIds), source, 'Failed to send to Ver hoy');
+  },
+
+  setGrade: async (source: SeasonSource, animeId: string, grade: number) => {
+    await runIntakeCommand(get, set, () => source.setGrade(animeId, grade), source, 'Failed to record grade');
+  },
+
+  skipGrading: async (source: SeasonSource, rowId: string) => {
+    await runIntakeCommand(get, set, () => source.skipGrading(rowId), source, 'Failed to skip grading');
   },
 
   recheckAvailability: async (source: SeasonSource) => {

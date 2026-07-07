@@ -188,6 +188,33 @@ func (a *App) DiscardSeasonName(rowID string) string {
 	return "ok"
 }
 
+// SetSeasonGrade records a MANUAL first-episode grade (1–6) for an anime in the
+// active season — the Chapters card / Evaluation panel rate action. Manual always
+// wins over a mobile grade. Returns "ok" or a descriptive error string.
+func (a *App) SetSeasonGrade(animeID string, grade int) string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if _, err := a.seasonService.RecordPremiereGrade(a.seasonCtx(), animeID, grade, domain.GradeSourceManual, time.Now()); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
+// SkipSeasonGrading records the explicit "no grade" override for a season row
+// (visible at selection; never a lock).
+func (a *App) SkipSeasonGrading(rowID string) string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if err := a.seasonService.SkipGrading(a.seasonCtx(), rowID); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
 // withActiveSeason resolves the open season id and runs fn, broadcasting on
 // success. Returns "ok" or a descriptive error string.
 func (a *App) withActiveSeason(fn func(seasonID string) error) string {

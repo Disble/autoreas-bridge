@@ -19,6 +19,9 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     candidates: [],
     availability: 'waiting',
     animeId: '', section: '',
+    grade: 0,
+    gradeSource: '',
+    skipGrading: false,
     ...overrides,
   };
 }

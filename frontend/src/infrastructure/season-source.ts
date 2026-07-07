@@ -10,8 +10,10 @@ import {
   RunSeasonMatching,
   SendSeasonAnimesToVerHoy,
   SetAnimeDays,
+  SetSeasonGrade,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
+  SkipSeasonGrading,
 } from '../../wailsjs/go/main/App';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
@@ -56,6 +58,14 @@ export interface SeasonAnimeRow {
   readonly animeId: string;
   /** A created anime's current Estrenos section (Sin ver / Ver hoy / Visto); empty otherwise. */
   readonly section: string;
+  /** First-episode grade (1–6); 0 means ungraded. */
+  readonly grade: number;
+  /** How the grade was captured: 'mobile_sync' | 'manual' | '' when ungraded. */
+  readonly gradeSource: string;
+  /** Epoch ms when the grade was recorded; absent until graded. */
+  readonly ratedAt?: number;
+  /** Explicit "no grade" override recorded at selection time. */
+  readonly skipGrading: boolean;
 }
 
 /**
@@ -75,6 +85,8 @@ export interface SeasonSource {
   readonly discardName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<string>;
+  readonly setGrade: (animeId: string, grade: number) => Promise<string>;
+  readonly skipGrading: (rowId: string) => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
 }
 
@@ -184,6 +196,16 @@ export function createSeasonSource(): SeasonSource {
     sendToVerHoy(animeIds: readonly string[]) {
       return waitForBindings(() => hasGoBinding('SendSeasonAnimesToVerHoy')).then((isReady) => {
         return isReady ? SendSeasonAnimesToVerHoy([...animeIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    setGrade(animeId: string, grade: number) {
+      return waitForBindings(() => hasGoBinding('SetSeasonGrade')).then((isReady) => {
+        return isReady ? SetSeasonGrade(animeId, grade) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    skipGrading(rowId: string) {
+      return waitForBindings(() => hasGoBinding('SkipSeasonGrading')).then((isReady) => {
+        return isReady ? SkipSeasonGrading(rowId) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     recheckAvailability() {
