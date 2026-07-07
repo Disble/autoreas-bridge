@@ -42,6 +42,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onCreate: vi.fn(),
     unresolvedCount: 0,
     errorMessage: undefined,
+    busyMessage: undefined,
     onRunMatching: vi.fn(),
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
@@ -123,5 +124,11 @@ describe('IntakePanel', () => {
     mockHook({ errorMessage: 'no active season' });
     render(<IntakePanel />);
     expect(screen.getByText('no active season')).toBeInTheDocument();
+  });
+
+  it('shows a processing indicator while an operation is in flight', () => {
+    mockHook({ busyMessage: 'Checking chapter availability…' });
+    render(<IntakePanel />);
+    expect(screen.getByRole('status')).toHaveTextContent('Checking chapter availability…');
   });
 });

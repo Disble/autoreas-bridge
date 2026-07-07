@@ -21,6 +21,7 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
+  const busyMessage = useSeasonStore((state) => state.busyMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
   const reconcileIntake = useSeasonStore((state) => state.reconcileIntake);
   const runMatching = useSeasonStore((state) => state.runMatching);
@@ -115,6 +116,7 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     onCreate,
     unresolvedCount,
     errorMessage,
+    busyMessage,
     onRunMatching,
     onResolve,
     onDiscard,

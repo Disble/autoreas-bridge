@@ -14,6 +14,8 @@ interface SeasonStoreState {
   readonly hasLoaded: boolean;
   readonly hasLoadedAnimes: boolean;
   readonly errorMessage?: string;
+  /** A short label of the long operation currently in flight (matching, availability, …), or undefined when idle. */
+  readonly busyMessage?: string;
   readonly refresh: (source?: SeasonSource) => Promise<void>;
   readonly ensureAnimesLoaded: (source?: SeasonSource) => Promise<void>;
   readonly createSeason: (source: SeasonSource, name: string) => Promise<void>;
@@ -48,6 +50,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   hasLoaded: false,
   hasLoadedAnimes: false,
   errorMessage: undefined,
+  busyMessage: undefined,
 
   refresh: async (source: SeasonSource = seasonSource) => {
     try {
@@ -148,7 +151,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   runMatching: async (source: SeasonSource) => {
-    await runIntakeCommand(get, set, () => source.runMatching(), source, 'Failed to run matching');
+    await runIntakeCommand(get, set, () => source.runMatching(), source, 'Failed to run matching', 'Matching names against jkanime…');
   },
 
   resolveMatch: async (source: SeasonSource, rowId: string, pageUrl: string) => {
@@ -164,7 +167,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   sendToVerHoy: async (source: SeasonSource, animeIds: readonly string[]) => {
-    await runIntakeCommand(get, set, () => source.sendToVerHoy(animeIds), source, 'Failed to send to Ver hoy');
+    await runIntakeCommand(get, set, () => source.sendToVerHoy(animeIds), source, 'Failed to send to Ver hoy', 'Sending to Ver hoy…');
   },
 
   setGrade: async (source: SeasonSource, animeId: string, grade: number) => {
@@ -180,7 +183,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   createSeasonAnimes: async (source: SeasonSource, rowIds: readonly string[]) => {
-    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds), source, 'Failed to create animes');
+    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds), source, 'Failed to create animes', 'Creating animes…');
   },
 
   confirmSelection: async (source: SeasonSource) => {
@@ -202,7 +205,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   recheckAvailability: async (source: SeasonSource) => {
-    await runIntakeCommand(get, set, () => source.recheckAvailability(), source, 'Failed to recheck availability');
+    await runIntakeCommand(get, set, () => source.recheckAvailability(), source, 'Failed to recheck availability', 'Checking chapter availability…');
   },
 }));
 
@@ -216,7 +219,11 @@ async function runIntakeCommand(
   command: () => Promise<string>,
   source: SeasonSource,
   fallbackMessage: string,
+  busyMessage?: string,
 ): Promise<void> {
+  if (busyMessage !== undefined) {
+    set({ busyMessage });
+  }
   try {
     const result = await command();
     if (result !== 'ok') {
@@ -227,10 +234,21 @@ async function runIntakeCommand(
     await get().refreshAnimes(source);
   } catch (error) {
     set({ errorMessage: error instanceof Error ? error.message : fallbackMessage });
+  } finally {
+    if (busyMessage !== undefined) {
+      set({ busyMessage: undefined });
+    }
   }
 }
 
 /** Test-only seam: reset the season store back to its initial state. */
 export function resetSeasonStore(): void {
-  useSeasonStore.setState({ season: null, seasonAnimes: [], hasLoaded: false, hasLoadedAnimes: false, errorMessage: undefined });
+  useSeasonStore.setState({
+    season: null,
+    seasonAnimes: [],
+    hasLoaded: false,
+    hasLoadedAnimes: false,
+    errorMessage: undefined,
+    busyMessage: undefined,
+  });
 }

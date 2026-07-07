@@ -184,6 +184,19 @@ describe('useSeasonStore', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
+  it('sets busyMessage while a long operation runs and clears it afterwards', async () => {
+    let resolveRun: (value: string) => void = () => {};
+    const runMatching = vi.fn(() => new Promise<string>((resolve) => { resolveRun = resolve; }));
+    const source = makeSource({ runMatching });
+
+    const pending = useSeasonStore.getState().runMatching(source);
+    expect(useSeasonStore.getState().busyMessage).toBe('Matching names against jkanime…');
+
+    resolveRun('ok');
+    await pending;
+    expect(useSeasonStore.getState().busyMessage).toBeUndefined();
+  });
+
   it('confirmSelection refreshes season + rows and returns the result on success', async () => {
     const confirmSelection = vi.fn().mockResolvedValue({ status: 'ok', approved: 9, rejected: 3, quotaExceeded: false });
     const source = makeSource({ confirmSelection });
