@@ -382,7 +382,13 @@ func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contract
 	if patch.Activo != nil {
 		desired.SetActivo(*patch.Activo)
 	}
-	if patch.Dias != nil {
+	if patch.DiasOrdered != nil {
+		days := make([]domain.LegacyAnimeDay, 0, len(patch.DiasOrdered))
+		for _, d := range patch.DiasOrdered {
+			days = append(days, domain.LegacyAnimeDay{Dia: d.Dia, Orden: float64(d.Orden)})
+		}
+		desired.SetDiasOrdered(days)
+	} else if patch.Dias != nil {
 		desired.SetDias(patch.Dias)
 	}
 

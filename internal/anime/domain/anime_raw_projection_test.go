@@ -179,3 +179,16 @@ func TestLegacyFieldWrappersRejectInvalidTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestSetDiasOrderedPreservesExplicitOrder(t *testing.T) {
+	var raw LegacyAnimeRaw
+	raw.SetDiasOrdered([]LegacyAnimeDay{{Dia: "Jueves", Orden: 3}, {Dia: "Domingo", Orden: 1}})
+
+	byDia := map[string]float64{}
+	for _, d := range raw.Dias.Values() {
+		byDia[d.Dia] = d.Orden
+	}
+	if byDia["Jueves"] != 3 || byDia["Domingo"] != 1 {
+		t.Fatalf("expected explicit orden Jueves=3 Domingo=1, got %+v", byDia)
+	}
+}

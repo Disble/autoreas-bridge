@@ -322,6 +322,10 @@ type AnimePatch struct {
 	ClearFechaEliminacion bool     `json:"clearFechaEliminacion,omitempty"`
 	PreserveLastWatched   bool     `json:"-"`
 	Dias                  []string `json:"dias,omitempty"`
+	// DiasOrdered replaces the dias[] array with explicit {dia, orden} entries
+	// (the SDD-46 weekday scheduler). Internal-only (not on the mobile wire); when
+	// set it takes precedence over Dias. Reuses MobileAnimeDay for {dia, orden}.
+	DiasOrdered []MobileAnimeDay `json:"-"`
 	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
 	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
 	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.

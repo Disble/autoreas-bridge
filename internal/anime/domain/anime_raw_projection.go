@@ -124,13 +124,21 @@ func (r *LegacyAnimeRaw) SetNroCapVisto(value float64) {
 	assignJSON(r.ensureExtraFields(), "nrocapvisto", mustMarshalJSON(value))
 }
 
+// SetDias replaces the dias[] array from day names, assigning orden by position
+// (used to bucket into Estrenos sections, where within-bucket order is moot).
 func (r *LegacyAnimeRaw) SetDias(days []string) {
 	legacyDays := make([]LegacyAnimeDay, 0, len(days))
 	for index, day := range days {
 		legacyDays = append(legacyDays, LegacyAnimeDay{Dia: day, Orden: float64(index + 1)})
 	}
+	r.SetDiasOrdered(legacyDays)
+}
 
-	r.Dias = newLegacyAnimeDaysField(legacyDays)
+// SetDiasOrdered replaces the dias[] array with explicit {dia, orden} entries —
+// the weekday-scheduling path (SDD-46), where the user assigns each anime's exact
+// position within its day. Mirrors the create path's explicit-orden write.
+func (r *LegacyAnimeRaw) SetDiasOrdered(days []LegacyAnimeDay) {
+	r.Dias = newLegacyAnimeDaysField(days)
 	r.Dia = LegacyStringField{}
 	r.Orden = LegacyNumberField{}
 }
