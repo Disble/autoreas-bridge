@@ -6,6 +6,8 @@ interface LabeledCheckboxProps {
   readonly onChange: (isSelected: boolean) => void;
   readonly children: ReactNode;
   readonly className?: string;
+  /** Shown but non-interactive when true (e.g. a row not yet eligible to pick). */
+  readonly isDisabled?: boolean;
 }
 
 /**
@@ -13,13 +15,16 @@ interface LabeledCheckboxProps {
  * Content/Control/Indicator structure and a visible off-state border. It exists
  * because a bare `<Checkbox>{label}</Checkbox>` renders no clickable box at all,
  * and the default field border is transparent (invisible on dark elevated cards).
- * Use this for any selectable list item so those two gotchas never recur.
+ * When disabled it stays VISIBLE (a dimmed but present box) so a not-yet-eligible
+ * row still shows its checkbox. Use this for any selectable list item.
  */
-export function LabeledCheckbox({ isSelected, onChange, children, className }: LabeledCheckboxProps) {
+export function LabeledCheckbox({ isSelected, onChange, children, className, isDisabled }: LabeledCheckboxProps) {
   return (
-    <Checkbox className={className} isSelected={isSelected} onChange={onChange}>
+    <Checkbox className={className} isDisabled={isDisabled} isSelected={isSelected} onChange={onChange}>
       <Checkbox.Content>
-        <Checkbox.Control style={{ borderWidth: '1.5px', borderColor: 'var(--muted)' }}>
+        <Checkbox.Control
+          style={{ borderWidth: '1.5px', borderColor: 'var(--muted)', opacity: isDisabled ? 0.55 : 1 }}
+        >
           <Checkbox.Indicator />
         </Checkbox.Control>
         {children}

@@ -104,10 +104,11 @@ describe('IntakePanel', () => {
     expect(onCreate).toHaveBeenCalled();
   });
 
-  it('does not offer a create checkbox for a not-yet-available row', () => {
+  it('shows a disabled checkbox for a not-yet-available row', () => {
     mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })] });
     render(<IntakePanel />);
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    // The checkbox is always shown for alignment, but disabled until available.
+    expect(screen.getByRole('checkbox')).toBeDisabled();
   });
 
   it('discards an editable row', () => {

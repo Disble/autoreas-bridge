@@ -96,11 +96,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             </Tabs.ListContainer>
 
             <Tabs.Panel id="intake">
-              <IntakePanel />
-            </Tabs.Panel>
-
-            <Tabs.Panel id="daily">
-              <DailyBoard />
+              <div className="flex flex-col gap-6">
+                <IntakePanel />
+                <DailyBoard />
+              </div>
             </Tabs.Panel>
 
             <Tabs.Panel id="evaluation">

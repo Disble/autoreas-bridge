@@ -47,9 +47,9 @@ describe('SEASON_SECTION_TABS', () => {
     expect(SEASON_SECTION_TABS[0]).toMatchObject({ id: 'overview', available: true });
 
     const ids = SEASON_SECTION_TABS.map((tab) => tab.id);
-    expect(ids).toEqual(['overview', 'intake', 'daily', 'evaluation', 'selection', 'ordering']);
+    expect(ids).toEqual(['overview', 'intake', 'evaluation', 'selection', 'ordering']);
 
     const available = SEASON_SECTION_TABS.filter((tab) => tab.available).map((tab) => tab.id);
-    expect(available).toEqual(['overview', 'intake', 'daily', 'evaluation', 'selection']);
+    expect(available).toEqual(['overview', 'intake', 'evaluation', 'selection']);
   });
 });

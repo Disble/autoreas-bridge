@@ -29,8 +29,7 @@ type HookReturn = ReturnType<typeof useSeasonWorkspace>;
 
 const SECTIONS: HookReturn['sections'] = [
   { id: 'overview', label: 'Overview', available: true },
-  { id: 'intake', label: 'Intake & Matching', available: false },
-  { id: 'daily', label: 'Daily Board', available: false },
+  { id: 'intake', label: 'Intake & Daily', available: false },
   { id: 'evaluation', label: 'Evaluation', available: false },
   { id: 'selection', label: 'Selection', available: false },
   { id: 'ordering', label: 'Ordering', available: false },

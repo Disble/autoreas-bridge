@@ -77,20 +77,13 @@ export function IntakePanel() {
                 return (
                   <li key={row.id}>
                     <div className="flex flex-wrap items-center gap-3 border-b border-divider py-2">
-                      {indicator !== null && (
-                        <span
-                          aria-label={indicator.label}
-                          className={`size-2.5 shrink-0 rounded-full ${indicator.color === 'success' ? 'bg-success' : 'bg-danger'}`}
-                          title={indicator.label}
-                        />
-                      )}
-                      {creatable ? (
-                        <LabeledCheckbox isSelected={selected.has(row.id)} onChange={() => toggleSelect(row.id)}>
-                          <span className="font-medium text-foreground">{row.rawName}</span>
-                        </LabeledCheckbox>
-                      ) : (
+                      <LabeledCheckbox
+                        isDisabled={!creatable}
+                        isSelected={selected.has(row.id)}
+                        onChange={() => toggleSelect(row.id)}
+                      >
                         <span className="font-medium text-foreground">{row.rawName}</span>
-                      )}
+                      </LabeledCheckbox>
                       <Chip color={getMatchStatusColor(row.matchStatus)} size="sm" variant="soft">
                         {getMatchStatusLabel(row.matchStatus)}
                       </Chip>
@@ -99,7 +92,7 @@ export function IntakePanel() {
                           {row.availableChapters} chapter{row.availableChapters === 1 ? '' : 's'} available
                         </span>
                       )}
-                      <div className="ml-auto flex items-center gap-1">
+                      <div className="ml-auto flex items-center gap-2">
                         {row.matchedSlug !== '' && (
                           <Tooltip>
                             <a
@@ -133,6 +126,18 @@ export function IntakePanel() {
                             Discard
                           </Tooltip.Content>
                         </Tooltip>
+                        {indicator !== null && (
+                          <Tooltip>
+                            <span
+                              aria-label={indicator.label}
+                              className={`size-2.5 shrink-0 rounded-full ${indicator.color === 'success' ? 'bg-success' : 'bg-danger'}`}
+                            />
+                            <Tooltip.Content showArrow>
+                              <Tooltip.Arrow />
+                              {indicator.label}
+                            </Tooltip.Content>
+                          </Tooltip>
+                        )}
                       </div>
                       {row.candidates.length > 0 && row.matchStatus !== 'matched' && (
                         <div className="flex w-full flex-wrap gap-2">
