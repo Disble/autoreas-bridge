@@ -7,9 +7,13 @@ import {
   RecheckSeasonAvailability,
   ReconcileSeasonIntake,
   ResolveSeasonMatch,
+  ApplySeasonSchedule,
   ConfirmSeasonSelection,
   CreateSeasonAnimes,
+  GetSeasonOrderingBoard,
+  ReopenSeasonOrdering,
   RunSeasonMatching,
+  SaveSeasonOrderingDraft,
   SendSeasonAnimesToVerHoy,
   SetAnimeDays,
   SetSeasonConsideration,
@@ -75,6 +79,30 @@ export interface SeasonAnimeRow {
   readonly consideration: string;
 }
 
+/** One anime on the ordering board: on a weekday (grid) it has dia+orden; awaiting placement (rail) it has its current section. */
+export interface OrderingCard {
+  readonly animeId: string;
+  readonly name: string;
+  readonly dia: string;
+  readonly orden: number;
+  readonly section: string;
+  readonly isNewcomer: boolean;
+}
+
+/** The ordering board read model: rail (approved, awaiting a weekday) + grid (already on weekdays). Read-only while appliedAt is set. */
+export interface OrderingBoard {
+  readonly rail: readonly OrderingCard[];
+  readonly grid: readonly OrderingCard[];
+  readonly appliedAt?: number;
+}
+
+/** Result of applying the ordering schedule. */
+export interface ApplyScheduleResult {
+  readonly status: string;
+  readonly applied: number;
+  readonly failed: readonly string[];
+}
+
 /** Result of confirming the season selection reconciliation. */
 export interface ConfirmSelectionResult {
   /** 'ok' on success, or a descriptive error message. */
@@ -107,6 +135,10 @@ export interface SeasonSource {
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
   readonly createSeasonAnimes: (rowIds: readonly string[]) => Promise<string>;
+  readonly getOrderingBoard: () => Promise<OrderingBoard>;
+  readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
+  readonly applySchedule: () => Promise<ApplyScheduleResult>;
+  readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
 }
 
@@ -117,6 +149,10 @@ const CONFIRM_UNAVAILABLE: ConfirmSelectionResult = {
   rejected: 0,
   quotaExceeded: false,
 };
+
+/** Fallback board / apply results when the Wails runtime is unavailable. */
+const EMPTY_BOARD: OrderingBoard = { rail: [], grid: [] };
+const APPLY_UNAVAILABLE: ApplyScheduleResult = { status: SEASON_RUNTIME_UNAVAILABLE, applied: 0, failed: [] };
 
 function hasGoBinding(name: string): boolean {
   const app = window.go?.main?.App;
@@ -249,6 +285,26 @@ export function createSeasonSource(): SeasonSource {
     createSeasonAnimes(rowIds: readonly string[]) {
       return waitForBindings(() => hasGoBinding('CreateSeasonAnimes')).then((isReady) => {
         return isReady ? CreateSeasonAnimes([...rowIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    getOrderingBoard() {
+      return waitForBindings(() => hasGoBinding('GetSeasonOrderingBoard')).then((isReady) => {
+        return isReady ? (GetSeasonOrderingBoard() as Promise<OrderingBoard>) : Promise.resolve(EMPTY_BOARD);
+      });
+    },
+    saveOrderingDraft(draftJson: string) {
+      return waitForBindings(() => hasGoBinding('SaveSeasonOrderingDraft')).then((isReady) => {
+        return isReady ? SaveSeasonOrderingDraft(draftJson) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    applySchedule() {
+      return waitForBindings(() => hasGoBinding('ApplySeasonSchedule')).then((isReady) => {
+        return isReady ? (ApplySeasonSchedule() as Promise<ApplyScheduleResult>) : Promise.resolve(APPLY_UNAVAILABLE);
+      });
+    },
+    reopenOrdering() {
+      return waitForBindings(() => hasGoBinding('ReopenSeasonOrdering')).then((isReady) => {
+        return isReady ? ReopenSeasonOrdering() : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     recheckAvailability() {
