@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ApplyScheduleResult, OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
+import { useSeasonStore } from '../../../../shared/store/season-store';
 import { EMPTY_ORDERING_BOARD, ORDERING_AUTOSAVE_DEBOUNCE_MS } from './ordering-board.constants';
 import {
   countChanges,
@@ -23,8 +24,15 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   const [board, setBoard] = useState<OrderingBoard>(EMPTY_ORDERING_BOARD);
   const [state, setState] = useState<WorkingState>({ rail: [], columns: {} });
 
+  // 3. Context/3rd Party Hooks
+  const closeSeason = useSeasonStore((store) => store.closeSeason);
+
   // 5. Derived State (useMemo)
   const changeCount = useMemo(() => countChanges(board, state.columns, state.rail), [board, state]);
+  const scheduledCount = useMemo(
+    () => Object.values(state.columns).reduce((total, column) => total + column.length, 0),
+    [state],
+  );
   const readOnly = board.appliedAt !== undefined;
 
   // 6. Callbacks
@@ -56,6 +64,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     await source.reopenOrdering();
     await load();
   }, [source, load]);
+  const onCloseSeason = useCallback(() => {
+    void closeSeason(source);
+  }, [closeSeason, source]);
 
   // 7. Effects
   useEffect(() => {
@@ -77,6 +88,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     rail: state.rail,
     columns: state.columns,
     changeCount,
+    scheduledCount,
     readOnly,
     moveToDay,
     moveWithinDay,
@@ -84,5 +96,6 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     onApply,
     onReset,
     onReopen,
+    onCloseSeason,
   };
 }

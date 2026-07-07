@@ -12,8 +12,20 @@ import { useOrderingBoard } from './use-ordering-board';
  * All state and derivation live in the colocated `useOrderingBoard` hook.
  */
 export function OrderingBoard() {
-  const { rail, columns, changeCount, readOnly, moveToDay, moveWithinDay, returnToRail, onApply, onReset, onReopen } =
-    useOrderingBoard();
+  const {
+    rail,
+    columns,
+    changeCount,
+    scheduledCount,
+    readOnly,
+    moveToDay,
+    moveWithinDay,
+    returnToRail,
+    onApply,
+    onReset,
+    onReopen,
+    onCloseSeason,
+  } = useOrderingBoard();
 
   const renderMovePicker = (card: OrderingCard, inRail: boolean) => (
     <Select
@@ -58,11 +70,19 @@ export function OrderingBoard() {
       {readOnly && (
         <Alert status="success">
           <Alert.Content>
-            <Alert.Description>Schedule applied. Reopen ordering to make corrections.</Alert.Description>
+            <Alert.Description>
+              Schedule applied — {scheduledCount} animes scheduled. Close the season to turn season mode off (the
+              registry stays queryable), or reopen ordering to make corrections.
+            </Alert.Description>
           </Alert.Content>
-          <Button size="sm" variant="secondary" onPress={() => void onReopen()}>
-            Reopen ordering
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onPress={() => void onReopen()}>
+              Reopen ordering
+            </Button>
+            <Button size="sm" variant="primary" onPress={onCloseSeason}>
+              Close season
+            </Button>
+          </div>
         </Alert>
       )}
 

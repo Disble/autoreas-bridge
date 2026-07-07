@@ -19,6 +19,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     rail: [],
     columns: {},
     changeCount: 0,
+    scheduledCount: 0,
     readOnly: false,
     moveToDay: vi.fn(),
     moveWithinDay: vi.fn(),
@@ -26,6 +27,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onApply: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     onReset: vi.fn(),
     onReopen: vi.fn(),
+    onCloseSeason: vi.fn(),
     ...overrides,
   };
   mockedUseOrderingBoard.mockReturnValue(value);
@@ -67,9 +69,13 @@ describe('OrderingBoard', () => {
     expect(onApply).toHaveBeenCalled();
   });
 
-  it('shows the reopen control when the board is read-only', () => {
-    mockHook({ readOnly: true });
+  it('shows reopen + close-season controls and a summary when read-only', () => {
+    const onCloseSeason = vi.fn();
+    mockHook({ readOnly: true, scheduledCount: 12, onCloseSeason });
     render(<OrderingBoard />);
+    expect(screen.getByText(/12 animes scheduled/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reopen ordering' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
+    expect(onCloseSeason).toHaveBeenCalled();
   });
 });
