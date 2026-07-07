@@ -10,7 +10,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId: 'anime-1',
     section: 'Sin ver',
     grade: 0,
@@ -36,7 +36,7 @@ describe('groupCreatedBySection', () => {
   });
 
   it('ignores rows that are not created', () => {
-    const rows = [row({ id: 'a', availability: 'waiting', matchStatus: 'pending', animeId: '', section: '' })];
+    const rows = [row({ id: 'a', availability: 'waiting', availableChapters: 0, matchStatus: 'pending', animeId: '', section: '' })];
     const groups = groupCreatedBySection(rows);
     expect(groups.sinVer).toHaveLength(0);
   });

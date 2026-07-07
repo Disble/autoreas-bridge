@@ -8,6 +8,7 @@ import {
   ReconcileSeasonIntake,
   ResolveSeasonMatch,
   ConfirmSeasonSelection,
+  CreateSeasonAnimes,
   RunSeasonMatching,
   SendSeasonAnimesToVerHoy,
   SetAnimeDays,
@@ -57,6 +58,8 @@ export interface SeasonAnimeRow {
   readonly matchedSlug: string;
   readonly candidates: readonly SeasonAnimeCandidate[];
   readonly availability: string;
+  /** How many chapters are online (SDD-43c); 0 until the first is available. */
+  readonly availableChapters: number;
   readonly animeId: string;
   /** A created anime's current Estrenos section (Sin ver / Ver hoy / Visto); empty otherwise. */
   readonly section: string;
@@ -103,6 +106,7 @@ export interface SeasonSource {
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
+  readonly createSeasonAnimes: (rowIds: readonly string[]) => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
 }
 
@@ -240,6 +244,11 @@ export function createSeasonSource(): SeasonSource {
     confirmSelection() {
       return waitForBindings(() => hasGoBinding('ConfirmSeasonSelection')).then((isReady) => {
         return isReady ? (ConfirmSeasonSelection() as Promise<ConfirmSelectionResult>) : Promise.resolve(CONFIRM_UNAVAILABLE);
+      });
+    },
+    createSeasonAnimes(rowIds: readonly string[]) {
+      return waitForBindings(() => hasGoBinding('CreateSeasonAnimes')).then((isReady) => {
+        return isReady ? CreateSeasonAnimes([...rowIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     recheckAvailability() {

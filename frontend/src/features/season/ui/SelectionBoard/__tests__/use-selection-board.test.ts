@@ -23,6 +23,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 1, rejected: 1, quotaExceeded: false }),
+    createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
@@ -35,7 +36,7 @@ function created(id: string, animeId: string, grade: number): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId,
     section: 'Visto',
     grade,

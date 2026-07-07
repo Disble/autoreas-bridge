@@ -53,6 +53,29 @@ export function isEditableRow(row: SeasonAnimeRow): boolean {
 }
 
 /**
+ * A matched row is CREATABLE once its chapter 1 is online (availability
+ * 'available'). Creation is an explicit, user-picked action — the availability
+ * watch never creates on its own.
+ */
+export function isCreatableRow(row: SeasonAnimeRow): boolean {
+  return row.matchStatus === 'matched' && row.availability === 'available';
+}
+
+/**
+ * The availability indicator for a matched row: 'success' (green) once it can be
+ * created, 'danger' (red) while its first chapter is not online yet. Returns null
+ * for rows still being matched (their match-status chip conveys their state).
+ */
+export function getAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success' | 'danger'; label: string } | null {
+  if (row.matchStatus !== 'matched') {
+    return null;
+  }
+  return row.availability === 'available'
+    ? { color: 'success', label: 'Available to create' }
+    : { color: 'danger', label: 'Waiting for chapter 1' };
+}
+
+/**
  * Builds the raw editor text from the editable (uncreated, non-discarded) rows:
  * one name per line. Created rows are never part of the raw document.
  */

@@ -19,7 +19,7 @@ function created(id: string, animeId: string, section: string): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId,
     section,
     grade: 0,

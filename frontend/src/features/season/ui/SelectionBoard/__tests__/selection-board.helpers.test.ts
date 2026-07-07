@@ -44,7 +44,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId: 'anime-1',
     section: 'Visto',
     grade: 5,
@@ -60,7 +60,7 @@ describe('toSelectionRows', () => {
     const rows = [
       row({ id: 'a', animeId: 'anime-a', grade: 2 }), // rejected
       row({ id: 'b', animeId: 'anime-b', grade: 5 }), // approved
-      row({ id: 'u', availability: 'waiting', animeId: '' }), // uncreated → excluded
+      row({ id: 'u', availability: 'waiting', availableChapters: 0, animeId: '' }), // uncreated → excluded
     ];
     const out = toSelectionRows(rows, 4);
     expect(out.map((r) => r.id)).toEqual(['b', 'a']); // approved first

@@ -31,6 +31,7 @@ interface SeasonStoreState {
   readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setConsideration: (source: SeasonSource, rowId: string, consideration: string) => Promise<void>;
   readonly confirmSelection: (source: SeasonSource) => Promise<ConfirmSelectionResult>;
+  readonly createSeasonAnimes: (source: SeasonSource, rowIds: readonly string[]) => Promise<void>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
 }
 
@@ -176,6 +177,10 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
 
   setConsideration: async (source: SeasonSource, rowId: string, consideration: string) => {
     await runIntakeCommand(get, set, () => source.setConsideration(rowId, consideration), source, 'Failed to set consideration');
+  },
+
+  createSeasonAnimes: async (source: SeasonSource, rowIds: readonly string[]) => {
+    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds), source, 'Failed to create animes');
   },
 
   confirmSelection: async (source: SeasonSource) => {

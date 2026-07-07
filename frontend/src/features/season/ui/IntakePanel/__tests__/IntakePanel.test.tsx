@@ -19,7 +19,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'pending',
     matchedSlug: '',
     candidates: [],
-    availability: 'waiting',
+    availability: 'waiting', availableChapters: 0,
     animeId: '',
     section: '',
     grade: 0,
@@ -36,7 +36,10 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     rawDraft: '',
     onRawChange: vi.fn(),
     editableRows: [],
-    createdRows: [],
+    selected: new Set<string>(),
+    toggleSelect: vi.fn(),
+    availableCount: 0,
+    onCreate: vi.fn(),
     unresolvedCount: 0,
     errorMessage: undefined,
     onRunMatching: vi.fn(),
@@ -59,7 +62,7 @@ describe('IntakePanel', () => {
     render(<IntakePanel />);
     expect(screen.getByText('Dr. Stone')).toBeInTheDocument();
     expect(screen.getByText('Ambiguous')).toBeInTheDocument();
-    expect(screen.getByText('1 unresolved')).toBeInTheDocument();
+    expect(screen.getByText(/1 unresolved/)).toBeInTheDocument();
   });
 
   it('shows the raw textarea in raw mode', () => {
@@ -78,14 +81,33 @@ describe('IntakePanel', () => {
     expect(switchMode).toHaveBeenCalledWith('raw');
   });
 
-  it('renders the read-only created section', () => {
+  it('shows an available row with its chapter count and a create checkbox', () => {
     mockHook({
-      createdRows: [row({ id: 'c', rawName: 'Akane-banashi', availability: 'created', animeId: 'anime-c', section: 'Ver hoy' })],
+      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableChapters: 3 })],
+      availableCount: 1,
     });
     render(<IntakePanel />);
-    expect(screen.getByText('Already created (1)')).toBeInTheDocument();
-    expect(screen.getByText('Akane-banashi')).toBeInTheDocument();
-    expect(screen.getByText('Ver hoy')).toBeInTheDocument();
+    expect(screen.getByText('3 chapters available')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument(); // creatable → checkbox
+    expect(screen.getByText(/1 available to create/)).toBeInTheDocument();
+  });
+
+  it('creates the picked rows', () => {
+    const onCreate = vi.fn();
+    mockHook({
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+      selected: new Set(['sa-1']),
+      onCreate,
+    });
+    render(<IntakePanel />);
+    fireEvent.click(screen.getByRole('button', { name: /^Create/ }));
+    expect(onCreate).toHaveBeenCalled();
+  });
+
+  it('does not offer a create checkbox for a not-yet-available row', () => {
+    mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })] });
+    render(<IntakePanel />);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('discards an editable row', () => {

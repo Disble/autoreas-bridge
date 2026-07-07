@@ -3,7 +3,7 @@ import type { SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
 import { INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
-import { buildRawText, countUnresolved, splitIntakeRows } from './intake-panel.helpers';
+import { buildRawText, countUnresolved, isCreatableRow, splitIntakeRows } from './intake-panel.helpers';
 import type { IntakeMode } from './intake-panel.types';
 
 /**
@@ -16,6 +16,7 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   // 2. State
   const [mode, setMode] = useState<IntakeMode>('list');
   const [rawDraft, setRawDraft] = useState('');
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
@@ -25,10 +26,12 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   const runMatching = useSeasonStore((state) => state.runMatching);
   const resolveMatch = useSeasonStore((state) => state.resolveMatch);
   const discardName = useSeasonStore((state) => state.discardName);
+  const createSeasonAnimes = useSeasonStore((state) => state.createSeasonAnimes);
 
   // 5. Derived State (useMemo)
-  const { editable, created } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
+  const { editable } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
   const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
+  const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
 
   // 6. Callbacks
   const switchMode = useCallback(
@@ -64,6 +67,25 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     },
     [discardName, source],
   );
+  const toggleSelect = useCallback((rowId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }, []);
+  const onCreate = useCallback(() => {
+    if (selected.size === 0) {
+      return;
+    }
+    const ids = [...selected];
+    setSelected(new Set());
+    void createSeasonAnimes(source, ids);
+  }, [selected, createSeasonAnimes, source]);
 
   // 7. Effects
   useEffect(() => {
@@ -87,7 +109,10 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     rawDraft,
     onRawChange,
     editableRows: editable,
-    createdRows: created,
+    selected,
+    toggleSelect,
+    availableCount,
+    onCreate,
     unresolvedCount,
     errorMessage,
     onRunMatching,

@@ -23,6 +23,7 @@ function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
   };
 }
@@ -34,7 +35,7 @@ function created(animeId: string, grade: number): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId,
     section: 'Sin ver',
     grade,

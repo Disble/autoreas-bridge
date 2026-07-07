@@ -11,7 +11,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created',
+    availability: 'created', availableChapters: 0,
     animeId: 'anime-1',
     section: 'Visto',
     grade: 0,
@@ -29,7 +29,7 @@ describe('toEvaluationRows', () => {
   it('keeps only created candidates and maps the grade fields', () => {
     const rows = [
       row({ id: 'a', animeId: 'anime-a', grade: 4, gradeSource: 'manual' }),
-      row({ id: 'b', availability: 'waiting', animeId: '' }), // uncreated
+      row({ id: 'b', availability: 'waiting', availableChapters: 0, animeId: '' }), // uncreated
     ];
     const out = toEvaluationRows(rows);
     expect(out).toHaveLength(1);
@@ -37,7 +37,7 @@ describe('toEvaluationRows', () => {
   });
 
   it('ignores created rows without a linked anime id', () => {
-    expect(toEvaluationRows([row({ availability: 'created', animeId: '' })])).toHaveLength(0);
+    expect(toEvaluationRows([row({ availability: 'created', availableChapters: 0, animeId: '' })])).toHaveLength(0);
   });
 });
 

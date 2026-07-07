@@ -33,6 +33,7 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     skipGrading: vi.fn().mockResolvedValue('ok'),
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
@@ -111,7 +112,7 @@ describe('useSeasonStore', () => {
   it('reconcileIntake runs the reconcile then refreshes the rows', async () => {
     const getSeasonAnimes = vi
       .fn()
-      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false }]);
+      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false }]);
     const source = makeSource({ getSeasonAnimes });
     await useSeasonStore.getState().reconcileIntake(source, 'Dr. Stone');
 
@@ -173,6 +174,13 @@ describe('useSeasonStore', () => {
     const source = makeSource();
     await useSeasonStore.getState().setConsideration(source, 'sa-1', 'spare_quota');
     expect(source.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('createSeasonAnimes delegates the picked rows and refreshes', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().createSeasonAnimes(source, ['sa-1', 'sa-2']);
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2']);
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
