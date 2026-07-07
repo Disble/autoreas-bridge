@@ -10,6 +10,7 @@ import {
 import { DailyBoard } from '../DailyBoard/DailyBoard';
 import { EvaluationPanel } from '../EvaluationPanel/EvaluationPanel';
 import { IntakePanel } from '../IntakePanel/IntakePanel';
+import { OrderingBoard } from '../OrderingBoard/OrderingBoard';
 import { SelectionBoard } from '../SelectionBoard/SelectionBoard';
 import type { SeasonWorkspaceProps } from './season-workspace.types';
 import { useSeasonWorkspace } from './use-season-workspace';
@@ -108,6 +109,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
             <Tabs.Panel id="selection">
               <SelectionBoard />
+            </Tabs.Panel>
+
+            <Tabs.Panel id="ordering">
+              <OrderingBoard />
             </Tabs.Panel>
 
             <Tabs.Panel id="overview">

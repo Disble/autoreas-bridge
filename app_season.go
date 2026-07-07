@@ -338,12 +338,12 @@ func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
 			continue
 		}
 		if approved[m.ID] {
-			section := ""
+			section, orden := "", 0
 			if len(m.Dias) > 0 {
-				section = m.Dias[0].Dia
+				section, orden = m.Dias[0].Dia, m.Dias[0].Orden
 			}
 			board.Rail = append(board.Rail, OrderingCardDTO{
-				AnimeID: m.ID, Name: m.Nombre, Section: section, IsNewcomer: true,
+				AnimeID: m.ID, Name: m.Nombre, Section: section, Orden: orden, IsNewcomer: true,
 			})
 		}
 	}

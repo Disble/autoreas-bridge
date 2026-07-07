@@ -37,7 +37,7 @@ export const SEASON_SECTION_TABS: readonly SeasonSectionTab[] = [
   { id: 'intake', label: 'Intake & Daily', available: true },
   { id: 'evaluation', label: 'Evaluation', available: true },
   { id: 'selection', label: 'Selection', available: true },
-  { id: 'ordering', label: 'Ordering', available: false },
+  { id: 'ordering', label: 'Ordering', available: true },
 ];
 
 /** Page heading for the Season Workspace route. */

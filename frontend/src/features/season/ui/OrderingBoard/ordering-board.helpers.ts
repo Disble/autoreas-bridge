@@ -1,6 +1,6 @@
 import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/season-source';
 import { WEEKDAYS } from './ordering-board.constants';
-import type { DraftPlacement } from './ordering-board.types';
+import type { DraftPlacement, WorkingState } from './ordering-board.types';
 
 /**
  * groupGridByDay groups the grid cards into the seven weekday columns, each sorted
@@ -45,9 +45,68 @@ export function serializeDraft(
     });
   }
   for (const card of rail) {
-    draft[card.animeId] = [{ dia: card.section, orden: card.orden > 0 ? card.orden : 1 }];
+    draft[card.animeId] = [{ dia: card.section, orden: card.orden }];
   }
   return JSON.stringify(draft);
+}
+
+/** initialWorkingState builds the editable working state from a loaded board. */
+export function initialWorkingState(board: OrderingBoard): WorkingState {
+  return { rail: [...board.rail], columns: groupGridByDay(board.grid) };
+}
+
+/** removeCard strips an anime from wherever it sits, returning the card + the rest. */
+function removeCard(state: WorkingState, animeId: string): { card?: OrderingCard; state: WorkingState } {
+  const railCard = state.rail.find((c) => c.animeId === animeId);
+  if (railCard !== undefined) {
+    return { card: railCard, state: { rail: state.rail.filter((c) => c.animeId !== animeId), columns: state.columns } };
+  }
+  for (const day of WEEKDAYS) {
+    const found = state.columns[day].find((c) => c.animeId === animeId);
+    if (found !== undefined) {
+      const columns = { ...state.columns, [day]: state.columns[day].filter((c) => c.animeId !== animeId) };
+      return { card: found, state: { rail: state.rail, columns } };
+    }
+  }
+  return { card: undefined, state };
+}
+
+/** moveToDay places an anime at the end of a weekday column (renumbered). */
+export function moveToDay(state: WorkingState, animeId: string, day: string): WorkingState {
+  const { card, state: rest } = removeCard(state, animeId);
+  if (card === undefined || rest.columns[day] === undefined) {
+    return state;
+  }
+  const target = renumber([...rest.columns[day], { ...card, dia: day }]);
+  return { rail: rest.rail, columns: { ...rest.columns, [day]: target } };
+}
+
+/** returnToRail sends an anime back to the rail (awaiting placement). */
+export function returnToRail(state: WorkingState, animeId: string): WorkingState {
+  const { card, state: rest } = removeCard(state, animeId);
+  if (card === undefined) {
+    return state;
+  }
+  return { rail: [...rest.rail, { ...card, dia: '' }], columns: rest.columns };
+}
+
+/** moveWithinDay swaps an anime with its neighbour in its column, renumbering. */
+export function moveWithinDay(state: WorkingState, animeId: string, direction: 'up' | 'down'): WorkingState {
+  for (const day of WEEKDAYS) {
+    const column = state.columns[day];
+    const index = column.findIndex((c) => c.animeId === animeId);
+    if (index === -1) {
+      continue;
+    }
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= column.length) {
+      return state;
+    }
+    const next = [...column];
+    [next[index], next[target]] = [next[target], next[index]];
+    return { rail: state.rail, columns: { ...state.columns, [day]: renumber(next) } };
+  }
+  return state;
 }
 
 /**
