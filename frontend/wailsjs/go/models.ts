@@ -696,6 +696,24 @@ export namespace logger {
 
 export namespace main {
 	
+	export class ConfirmSelectionDTO {
+	    status: string;
+	    approved: number;
+	    rejected: number;
+	    quotaExceeded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConfirmSelectionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.approved = source["approved"];
+	        this.rejected = source["rejected"];
+	        this.quotaExceeded = source["quotaExceeded"];
+	    }
+	}
 	export class SeasonAnimeCandidateDTO {
 	    title: string;
 	    pageUrl: string;
@@ -725,6 +743,7 @@ export namespace main {
 	    gradeSource: string;
 	    ratedAt?: number;
 	    skipGrading: boolean;
+	    consideration: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeDTO(source);
@@ -744,6 +763,7 @@ export namespace main {
 	        this.gradeSource = source["gradeSource"];
 	        this.ratedAt = source["ratedAt"];
 	        this.skipGrading = source["skipGrading"];
+	        this.consideration = source["consideration"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

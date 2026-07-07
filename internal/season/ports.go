@@ -52,4 +52,8 @@ type AnimeGateway interface {
 	// MoveToSection moves an anime to a single Estrenos section (Sin ver / Ver
 	// hoy / Visto). Used by the watched-in-Ver-hoy auto-transition.
 	MoveToSection(ctx context.Context, animeID, section string) error
+	// SetSelection applies a confirmed selection verdict to the anime: its estado
+	// (0 Viendo / 2 No me gusto) and activo flag. Soft delete only. Used by
+	// ConfirmSelection's bidirectional reconciler.
+	SetSelection(ctx context.Context, animeID string, estado int, activo bool) error
 }

@@ -100,18 +100,19 @@ type SeasonAnimeCandidateDTO struct {
 // Visto), empty for uncreated rows. Grade/GradeSource/RatedAt/SkipGrading carry
 // the SDD-44 first-episode grade (grade 0 = ungraded, ratedAt null until graded).
 type SeasonAnimeDTO struct {
-	ID           string                    `json:"id"`
-	RawName      string                    `json:"rawName"`
-	MatchStatus  string                    `json:"matchStatus"`
-	MatchedSlug  string                    `json:"matchedSlug"`
-	Candidates   []SeasonAnimeCandidateDTO `json:"candidates"`
-	Availability string                    `json:"availability"`
-	AnimeID      string                    `json:"animeId"`
-	Section      string                    `json:"section"`
-	Grade        int                       `json:"grade"`
-	GradeSource  string                    `json:"gradeSource"`
-	RatedAt      *int64                    `json:"ratedAt"`
-	SkipGrading  bool                      `json:"skipGrading"`
+	ID            string                    `json:"id"`
+	RawName       string                    `json:"rawName"`
+	MatchStatus   string                    `json:"matchStatus"`
+	MatchedSlug   string                    `json:"matchedSlug"`
+	Candidates    []SeasonAnimeCandidateDTO `json:"candidates"`
+	Availability  string                    `json:"availability"`
+	AnimeID       string                    `json:"animeId"`
+	Section       string                    `json:"section"`
+	Grade         int                       `json:"grade"`
+	GradeSource   string                    `json:"gradeSource"`
+	RatedAt       *int64                    `json:"ratedAt"`
+	SkipGrading   bool                      `json:"skipGrading"`
+	Consideration string                    `json:"consideration"`
 }
 
 // GetSeasonAnimes returns the active season's intake rows, or an empty list when
@@ -241,18 +242,61 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		candidates = append(candidates, SeasonAnimeCandidateDTO{Title: c.Title, PageURL: c.PageURL, Score: c.Score})
 	}
 	return SeasonAnimeDTO{
-		ID:           r.ID,
-		RawName:      r.RawName,
-		MatchStatus:  string(r.MatchStatus),
-		MatchedSlug:  r.MatchedSlug,
-		Candidates:   candidates,
-		Availability: string(r.Availability),
-		AnimeID:      r.AnimeID,
-		Grade:        r.Grade,
-		GradeSource:  string(r.GradeSource),
-		RatedAt:      millisPtrDTO(r.RatedAt),
-		SkipGrading:  r.SkipGrading,
+		ID:            r.ID,
+		RawName:       r.RawName,
+		MatchStatus:   string(r.MatchStatus),
+		MatchedSlug:   r.MatchedSlug,
+		Candidates:    candidates,
+		Availability:  string(r.Availability),
+		AnimeID:       r.AnimeID,
+		Grade:         r.Grade,
+		GradeSource:   string(r.GradeSource),
+		RatedAt:       millisPtrDTO(r.RatedAt),
+		SkipGrading:   r.SkipGrading,
+		Consideration: string(r.Consideration),
 	}
+}
+
+// SetSeasonConsideration sets a candidate's selection override (the Consideración
+// Select in the selection board).
+func (a *App) SetSeasonConsideration(rowID, consideration string) string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if err := a.seasonService.SetConsideration(a.seasonCtx(), rowID, domain.Consideration(consideration)); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
+// ConfirmSelectionDTO is the Wails-facing result of confirming the selection:
+// "ok" or an error message, the approved/rejected counts, and a quota-overflow
+// flag so the UI can surface the one hard rule distinctly.
+type ConfirmSelectionDTO struct {
+	Status        string `json:"status"`
+	Approved      int    `json:"approved"`
+	Rejected      int    `json:"rejected"`
+	QuotaExceeded bool   `json:"quotaExceeded"`
+}
+
+// ConfirmSeasonSelection reconciles the open season's verdicts into anime writes
+// (approve → Viendo/active, reject → No me gusto/inactive; soft delete only).
+// Repeatable while the season is open. A quota overflow blocks and is flagged.
+func (a *App) ConfirmSeasonSelection() ConfirmSelectionDTO {
+	if a.seasonService == nil {
+		return ConfirmSelectionDTO{Status: "season service unavailable"}
+	}
+	res, err := a.seasonService.ConfirmSelection(a.seasonCtx())
+	if err != nil {
+		return ConfirmSelectionDTO{
+			Status:        err.Error(),
+			Approved:      res.Approved,
+			QuotaExceeded: errors.Is(err, season.ErrQuotaExceeded),
+		}
+	}
+	a.broadcastSeasonChanged()
+	return ConfirmSelectionDTO{Status: "ok", Approved: res.Approved, Rejected: res.Rejected}
 }
 
 // recordSeasonRating is the API seam for mobile-sourced grade ingestion: it maps

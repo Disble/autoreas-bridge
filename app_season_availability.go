@@ -83,6 +83,16 @@ func (g seasonAnimeGateway) MoveToSection(ctx context.Context, animeID, section 
 	})
 }
 
+func (g seasonAnimeGateway) SetSelection(ctx context.Context, animeID string, estado int, activo bool) error {
+	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
+	// PreserveLastWatched keeps a selection write from stamping fechaUltCapVisto.
+	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
+		Estado:              &estado,
+		Activo:              &activo,
+		PreserveLastWatched: true,
+	})
+}
+
 func (g seasonAnimeGateway) FindActiveByPagina(ctx context.Context, pageURL string) (string, bool, error) {
 	records, err := g.snapshots.ListSnapshots(ctx)
 	if err != nil {

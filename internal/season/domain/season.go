@@ -82,6 +82,13 @@ func (s *Season) SetMinApprovalGrade(grade int) error {
 	return nil
 }
 
+// MarkSelectionConfirmed stamps the (repeatable) selection milestone — set each
+// time the user confirms the selection while the season is open.
+func (s *Season) MarkSelectionConfirmed(now time.Time) {
+	t := now
+	s.SelectionConfirmedAt = &t
+}
+
 // SetSlots updates the approved-anime cap, rejecting values below 1.
 func (s *Season) SetSlots(slots int) error {
 	if slots < 1 {

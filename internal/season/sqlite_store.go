@@ -83,12 +83,12 @@ func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 		INSERT INTO season_animes
 			(id, season_id, raw_name, match_status, matched_slug,
 			 match_candidates_json, availability, anime_id,
-			 premiere_grade, grade_source, rated_at, skip_grading, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sa.ID, sa.SeasonID, sa.RawName, string(sa.MatchStatus), sa.MatchedSlug,
 		marshalCandidates(sa.Candidates), string(sa.Availability), sa.AnimeID,
 		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
-		sa.CreatedAt.UnixMilli(),
+		considerationValue(sa.Consideration), sa.CreatedAt.UnixMilli(),
 	)
 	if err != nil {
 		return fmt.Errorf("create season anime %q: %w", sa.ID, err)
@@ -101,7 +101,7 @@ func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
 		       match_candidates_json, availability, anime_id,
-		       premiere_grade, grade_source, rated_at, skip_grading, created_at
+		       premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at
 		FROM season_animes WHERE season_id = ? ORDER BY created_at, id`, seasonID)
 	if err != nil {
 		return nil, fmt.Errorf("list season animes for %q: %w", seasonID, err)
@@ -127,7 +127,7 @@ func (s *SQLiteStore) SeasonAnimeByID(ctx context.Context, id string) (*domain.S
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
 		       match_candidates_json, availability, anime_id,
-		       premiere_grade, grade_source, rated_at, skip_grading, created_at
+		       premiere_grade, grade_source, rated_at, skip_grading, consideration, created_at
 		FROM season_animes WHERE id = ?`, id)
 	sa, err := scanSeasonAnime(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -145,12 +145,12 @@ func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 		UPDATE season_animes SET
 			match_status = ?, matched_slug = ?, match_candidates_json = ?,
 			availability = ?, anime_id = ?,
-			premiere_grade = ?, grade_source = ?, rated_at = ?, skip_grading = ?
+			premiere_grade = ?, grade_source = ?, rated_at = ?, skip_grading = ?, consideration = ?
 		WHERE id = ?`,
 		string(sa.MatchStatus), sa.MatchedSlug, marshalCandidates(sa.Candidates),
 		string(sa.Availability), sa.AnimeID,
 		gradePtr(sa.Grade), gradeSourcePtr(sa.GradeSource), millisPtr(sa.RatedAt), boolToInt(sa.SkipGrading),
-		sa.ID,
+		considerationValue(sa.Consideration), sa.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update season anime %q: %w", sa.ID, err)
@@ -160,21 +160,22 @@ func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 
 func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 	var (
-		sa           domain.SeasonAnime
-		matchStatus  string
-		matchedSlug  sql.NullString
-		candidates   sql.NullString
-		availability string
-		animeID      sql.NullString
-		grade        sql.NullInt64
-		gradeSource  sql.NullString
-		ratedAt      sql.NullInt64
-		skipGrading  int64
-		createdAt    int64
+		sa            domain.SeasonAnime
+		matchStatus   string
+		matchedSlug   sql.NullString
+		candidates    sql.NullString
+		availability  string
+		animeID       sql.NullString
+		grade         sql.NullInt64
+		gradeSource   sql.NullString
+		ratedAt       sql.NullInt64
+		skipGrading   int64
+		consideration sql.NullString
+		createdAt     int64
 	)
 	if err := row.Scan(&sa.ID, &sa.SeasonID, &sa.RawName, &matchStatus, &matchedSlug,
 		&candidates, &availability, &animeID,
-		&grade, &gradeSource, &ratedAt, &skipGrading, &createdAt); err != nil {
+		&grade, &gradeSource, &ratedAt, &skipGrading, &consideration, &createdAt); err != nil {
 		return nil, err
 	}
 	sa.MatchStatus = domain.MatchStatus(matchStatus)
@@ -186,8 +187,27 @@ func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 	sa.GradeSource = domain.GradeSource(gradeSource.String)
 	sa.RatedAt = timePtr(ratedAt)
 	sa.SkipGrading = skipGrading != 0
+	sa.Consideration = considerationOrDefault(consideration.String)
 	sa.CreatedAt = time.UnixMilli(createdAt)
 	return &sa, nil
+}
+
+// considerationValue serializes the consideration, defaulting an empty value to
+// the NOT NULL 'none' token the column requires.
+func considerationValue(c domain.Consideration) string {
+	if c == "" {
+		return string(domain.ConsiderationNone)
+	}
+	return string(c)
+}
+
+// considerationOrDefault maps a stored token back to the domain enum, defaulting
+// an empty/absent value to none.
+func considerationOrDefault(raw string) domain.Consideration {
+	if raw == "" {
+		return domain.ConsiderationNone
+	}
+	return domain.Consideration(raw)
 }
 
 // gradePtr stores a 1–6 grade, or NULL when ungraded (0).

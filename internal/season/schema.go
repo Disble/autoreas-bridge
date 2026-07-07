@@ -36,7 +36,7 @@ const (
 			post_season_grade INTEGER,
 			rated_at INTEGER,
 			skip_grading INTEGER NOT NULL DEFAULT 0,
-			consideracion TEXT NOT NULL DEFAULT 'none',
+			consideration TEXT NOT NULL DEFAULT 'none',
 			last_checked_at INTEGER,
 			created_at INTEGER NOT NULL
 		)`
@@ -53,6 +53,10 @@ const (
 	seasonAnimesPostSeasonGradeDDL = `ALTER TABLE season_animes RENAME COLUMN nota_pos_estreno TO post_season_grade`
 	seasonAnimesRatedAtDDL         = `ALTER TABLE season_animes ADD COLUMN rated_at INTEGER`
 	seasonAnimesSkipGradingDDL     = `ALTER TABLE season_animes ADD COLUMN skip_grading INTEGER NOT NULL DEFAULT 0`
+
+	// SDD-45 renamed the Spanish consideration column to English (dormant since
+	// SDD-41, never written before now).
+	seasonAnimesConsiderationDDL = `ALTER TABLE season_animes RENAME COLUMN consideracion TO consideration`
 )
 
 // SchemaTables returns the season-owned bridge table descriptors for the sdd-34
@@ -77,6 +81,7 @@ func SchemaTables() []persistence.TableSchema {
 				{Column: "post_season_grade", AlterDDL: seasonAnimesPostSeasonGradeDDL},
 				{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
 				{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
+				{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
 			},
 			Indexes: []string{seasonAnimesSeasonIndexDDL},
 		},

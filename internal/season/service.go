@@ -43,6 +43,23 @@ var ErrNotSeasonCandidate = errors.New("anime is not an active season candidate"
 // returned so the caller can surface it (the sync 409 body).
 var ErrManualGradePresent = errors.New("manual grade present")
 
+// ErrInvalidConsideration is returned by SetConsideration for an unknown value.
+var ErrInvalidConsideration = errors.New("unknown consideration")
+
+// ErrSelectionDepsUnavailable is returned by ConfirmSelection when the anime
+// gateway is not wired.
+var ErrSelectionDepsUnavailable = errors.New("selection anime gateway unavailable")
+
+// ErrQuotaExceeded is returned by ConfirmSelection when the approved animes
+// exceed the season's slots; the user resolves it via Insufficient quota.
+var ErrQuotaExceeded = errors.New("approved animes exceed the season slots")
+
+// ConfirmResult summarizes one selection confirmation.
+type ConfirmResult struct {
+	Approved int
+	Rejected int
+}
+
 // Estrenos section names used by the season conveyor.
 const (
 	sinVerSection = "Sin ver"
@@ -378,6 +395,68 @@ func (s *Service) SkipGrading(ctx context.Context, rowID string) error {
 	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
 		sa.Skip()
 	})
+}
+
+// SetConsideration sets a row's selection override, validating the value.
+// Verdicts are never stored — this is the only selection fact written.
+func (s *Service) SetConsideration(ctx context.Context, rowID string, c domain.Consideration) error {
+	if !validConsideration(c) {
+		return ErrInvalidConsideration
+	}
+	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
+		sa.Consideration = c
+	})
+}
+
+// ConfirmSelection reconciles the OPEN season's created candidates against their
+// derived verdicts: approved animes become Viendo/active, rejected ones "No me
+// gusto"/inactive (soft delete only), applied through the anime gateway. It is a
+// repeatable, bidirectional milestone — re-confirming after a consideration or
+// min-grade change restores or rejects animes symmetrically. A quota overflow
+// (approved > slots) blocks the whole confirmation.
+func (s *Service) ConfirmSelection(ctx context.Context) (ConfirmResult, error) {
+	if s.gateway == nil {
+		return ConfirmResult{}, ErrSelectionDepsUnavailable
+	}
+	active, err := s.repo.ActiveSeason(ctx)
+	if err != nil {
+		return ConfirmResult{}, err
+	}
+	if active == nil {
+		return ConfirmResult{}, ErrNoActiveSeason
+	}
+	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
+	if err != nil {
+		return ConfirmResult{}, err
+	}
+
+	intents := domain.Reconcile(rows, active.MinApprovalGrade)
+	approved := domain.ApprovedCount(intents)
+	if approved > active.Slots {
+		return ConfirmResult{Approved: approved}, ErrQuotaExceeded
+	}
+
+	for _, intent := range intents {
+		if err := s.gateway.SetSelection(ctx, intent.AnimeID, intent.Estado, intent.Activo); err != nil {
+			return ConfirmResult{}, err
+		}
+	}
+
+	active.MarkSelectionConfirmed(s.now())
+	if err := s.repo.UpdateSeason(ctx, *active); err != nil {
+		return ConfirmResult{}, err
+	}
+	return ConfirmResult{Approved: approved, Rejected: len(intents) - approved}, nil
+}
+
+func validConsideration(c domain.Consideration) bool {
+	switch c {
+	case domain.ConsiderationNone, domain.ConsiderationInsufficientQuota,
+		domain.ConsiderationTemporarilyApproved, domain.ConsiderationSpareQuota:
+		return true
+	default:
+		return false
+	}
 }
 
 // ResolveMatch manually resolves a row to a page URL (candidate pick or a

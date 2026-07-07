@@ -10,6 +10,10 @@ export function CloseSeason() {
   return window['go']['main']['App']['CloseSeason']();
 }
 
+export function ConfirmSeasonSelection() {
+  return window['go']['main']['App']['ConfirmSeasonSelection']();
+}
+
 export function CopyAnimeFolder(arg1) {
   return window['go']['main']['App']['CopyAnimeFolder'](arg1);
 }
@@ -172,6 +176,10 @@ export function SetJDConfig(arg1) {
 
 export function SetScheduleConfig(arg1) {
   return window['go']['main']['App']['SetScheduleConfig'](arg1);
+}
+
+export function SetSeasonConsideration(arg1, arg2) {
+  return window['go']['main']['App']['SetSeasonConsideration'](arg1, arg2);
 }
 
 export function SetSeasonGrade(arg1, arg2) {

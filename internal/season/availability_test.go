@@ -26,6 +26,12 @@ type fakeGateway struct {
 	created          []AnimeCreateInput
 	nextID           int
 	moved            map[string]string
+	selections       map[string]selectionState
+}
+
+type selectionState struct {
+	estado int
+	activo bool
 }
 
 func (g *fakeGateway) CreateAnime(_ context.Context, in AnimeCreateInput) (string, error) {
@@ -44,6 +50,14 @@ func (g *fakeGateway) MoveToSection(_ context.Context, animeID, section string) 
 		g.moved = map[string]string{}
 	}
 	g.moved[animeID] = section
+	return nil
+}
+
+func (g *fakeGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) error {
+	if g.selections == nil {
+		g.selections = map[string]selectionState{}
+	}
+	g.selections[animeID] = selectionState{estado: estado, activo: activo}
 	return nil
 }
 

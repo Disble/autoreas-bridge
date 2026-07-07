@@ -59,18 +59,21 @@ type SeasonAnime struct {
 	RatedAt *time.Time
 	// SkipGrading is the explicit "no grade" override, visible at selection time.
 	SkipGrading bool
-	CreatedAt   time.Time
+	// Consideration is the selection override lever (SDD-45); defaults to none.
+	Consideration Consideration
+	CreatedAt     time.Time
 }
 
 // NewSeasonAnime builds a pending, ungraded intake row for a raw name.
 func NewSeasonAnime(id, seasonID, rawName string, now time.Time) SeasonAnime {
 	return SeasonAnime{
-		ID:           id,
-		SeasonID:     seasonID,
-		RawName:      rawName,
-		MatchStatus:  MatchPending,
-		Availability: AvailabilityWaiting,
-		CreatedAt:    now,
+		ID:            id,
+		SeasonID:      seasonID,
+		RawName:       rawName,
+		MatchStatus:   MatchPending,
+		Availability:  AvailabilityWaiting,
+		Consideration: ConsiderationNone,
+		CreatedAt:     now,
 	}
 }
 
