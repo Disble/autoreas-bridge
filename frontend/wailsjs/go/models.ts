@@ -737,6 +737,7 @@ export namespace main {
 	    matchedSlug: string;
 	    candidates: SeasonAnimeCandidateDTO[];
 	    availability: string;
+	    availableChapters: number;
 	    animeId: string;
 	    section: string;
 	    grade: number;
@@ -757,6 +758,7 @@ export namespace main {
 	        this.matchedSlug = source["matchedSlug"];
 	        this.candidates = this.convertValues(source["candidates"], SeasonAnimeCandidateDTO);
 	        this.availability = source["availability"];
+	        this.availableChapters = source["availableChapters"];
 	        this.animeId = source["animeId"];
 	        this.section = source["section"];
 	        this.grade = source["grade"];

@@ -16,6 +16,8 @@ export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResul
 
 export function CreateSeason(arg1:string):Promise<string>;
 
+export function CreateSeasonAnimes(arg1:Array<string>):Promise<string>;
+
 export function DiscardSeasonName(arg1:string):Promise<string>;
 
 export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;

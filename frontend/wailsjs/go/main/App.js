@@ -26,6 +26,10 @@ export function CreateSeason(arg1) {
   return window['go']['main']['App']['CreateSeason'](arg1);
 }
 
+export function CreateSeasonAnimes(arg1) {
+  return window['go']['main']['App']['CreateSeasonAnimes'](arg1);
+}
+
 export function DiscardSeasonName(arg1) {
   return window['go']['main']['App']['DiscardSeasonName'](arg1);
 }

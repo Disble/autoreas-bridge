@@ -100,19 +100,20 @@ type SeasonAnimeCandidateDTO struct {
 // Visto), empty for uncreated rows. Grade/GradeSource/RatedAt/SkipGrading carry
 // the SDD-44 first-episode grade (grade 0 = ungraded, ratedAt null until graded).
 type SeasonAnimeDTO struct {
-	ID            string                    `json:"id"`
-	RawName       string                    `json:"rawName"`
-	MatchStatus   string                    `json:"matchStatus"`
-	MatchedSlug   string                    `json:"matchedSlug"`
-	Candidates    []SeasonAnimeCandidateDTO `json:"candidates"`
-	Availability  string                    `json:"availability"`
-	AnimeID       string                    `json:"animeId"`
-	Section       string                    `json:"section"`
-	Grade         int                       `json:"grade"`
-	GradeSource   string                    `json:"gradeSource"`
-	RatedAt       *int64                    `json:"ratedAt"`
-	SkipGrading   bool                      `json:"skipGrading"`
-	Consideration string                    `json:"consideration"`
+	ID                string                    `json:"id"`
+	RawName           string                    `json:"rawName"`
+	MatchStatus       string                    `json:"matchStatus"`
+	MatchedSlug       string                    `json:"matchedSlug"`
+	Candidates        []SeasonAnimeCandidateDTO `json:"candidates"`
+	Availability      string                    `json:"availability"`
+	AvailableChapters int                       `json:"availableChapters"`
+	AnimeID           string                    `json:"animeId"`
+	Section           string                    `json:"section"`
+	Grade             int                       `json:"grade"`
+	GradeSource       string                    `json:"gradeSource"`
+	RatedAt           *int64                    `json:"ratedAt"`
+	SkipGrading       bool                      `json:"skipGrading"`
+	Consideration     string                    `json:"consideration"`
 }
 
 // GetSeasonAnimes returns the active season's intake rows, or an empty list when
@@ -242,19 +243,35 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		candidates = append(candidates, SeasonAnimeCandidateDTO{Title: c.Title, PageURL: c.PageURL, Score: c.Score})
 	}
 	return SeasonAnimeDTO{
-		ID:            r.ID,
-		RawName:       r.RawName,
-		MatchStatus:   string(r.MatchStatus),
-		MatchedSlug:   r.MatchedSlug,
-		Candidates:    candidates,
-		Availability:  string(r.Availability),
-		AnimeID:       r.AnimeID,
-		Grade:         r.Grade,
-		GradeSource:   string(r.GradeSource),
-		RatedAt:       millisPtrDTO(r.RatedAt),
-		SkipGrading:   r.SkipGrading,
-		Consideration: string(r.Consideration),
+		ID:                r.ID,
+		RawName:           r.RawName,
+		MatchStatus:       string(r.MatchStatus),
+		MatchedSlug:       r.MatchedSlug,
+		Candidates:        candidates,
+		Availability:      string(r.Availability),
+		AvailableChapters: r.AvailableChapters,
+		AnimeID:           r.AnimeID,
+		Grade:             r.Grade,
+		GradeSource:       string(r.GradeSource),
+		RatedAt:           millisPtrDTO(r.RatedAt),
+		SkipGrading:       r.SkipGrading,
+		Consideration:     string(r.Consideration),
 	}
+}
+
+// CreateSeasonAnimes is the explicit, user-initiated creation gate: it creates
+// the anime(s) for the given AVAILABLE intake rows into "Sin ver" (irreversible,
+// soft-delete only), skipping rows that are not available or already created.
+// No download is triggered — that happens only on Send to Ver hoy.
+func (a *App) CreateSeasonAnimes(rowIDs []string) string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
 }
 
 // SetSeasonConsideration sets a candidate's selection override (the Consideración

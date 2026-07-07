@@ -7,17 +7,17 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// fakeProbe reports ch.1 availability per page URL.
+// fakeProbe reports the count of available chapters per page URL.
 type fakeProbe struct {
-	available map[string]bool
-	err       error
+	chapters map[string]int
+	err      error
 }
 
-func (f *fakeProbe) HasChapterOne(_ context.Context, pageURL string) (bool, error) {
+func (f *fakeProbe) AvailableChapters(_ context.Context, pageURL string) (int, error) {
 	if f.err != nil {
-		return false, f.err
+		return 0, f.err
 	}
-	return f.available[pageURL], nil
+	return f.chapters[pageURL], nil
 }
 
 // fakeGateway records creates and answers existing-by-pagina lookups.
@@ -71,24 +71,22 @@ func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name,
 	}
 }
 
-func TestRecheckAvailabilityCreatesLinksAndWaits(t *testing.T) {
+// RecheckAvailability ONLY reports availability — it NEVER creates an anime.
+// Creation is a separate, explicit, consent-gated action (CreateSeasonAnimes).
+func TestRecheckAvailabilityMarksAvailableNeverCreates(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{available: map[string]bool{
-		"https://jkanime.net/a/": true,  // newly available → create
-		"https://jkanime.net/b/": false, // still waiting
-		"https://jkanime.net/c/": true,  // available but already active → link
+	probe := &fakeProbe{chapters: map[string]int{
+		"https://jkanime.net/a/": 3, // available (3 chapters)
+		"https://jkanime.net/b/": 0, // not available yet
 	}}
-	gateway := &fakeGateway{existingByPagina: map[string]string{
-		"https://jkanime.net/c/": "existing-anime",
-	}}
+	gateway := &fakeGateway{}
 	svc.SetAvailabilityDeps(probe, gateway)
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
 	seedMatched(t, svc, repo, season.ID, "sa-a", "Anime A", "https://jkanime.net/a/")
 	seedMatched(t, svc, repo, season.ID, "sa-b", "Anime B", "https://jkanime.net/b/")
-	seedMatched(t, svc, repo, season.ID, "sa-c", "Anime C", "https://jkanime.net/c/")
 
 	res, err := svc.RecheckAvailability(ctx, season.ID)
 	if err != nil {
@@ -100,32 +98,25 @@ func TestRecheckAvailabilityCreatesLinksAndWaits(t *testing.T) {
 	for _, r := range rows {
 		byID[r.ID] = r
 	}
-
-	if a := byID["sa-a"]; a.Availability != domain.AvailabilityCreated || a.AnimeID != "created-anime" {
-		t.Fatalf("A should be created + linked to the new anime, got %+v", a)
+	if a := byID["sa-a"]; a.Availability != domain.AvailabilityAvailable || a.AvailableChapters != 3 || a.AnimeID != "" {
+		t.Fatalf("A should be available with 3 chapters and NOT created, got %+v", a)
 	}
-	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AnimeID != "" {
+	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AvailableChapters != 0 {
 		t.Fatalf("B should still be waiting, got %+v", b)
 	}
-	if c := byID["sa-c"]; c.Availability != domain.AvailabilityCreated || c.AnimeID != "existing-anime" {
-		t.Fatalf("C should be linked to the existing active anime, got %+v", c)
+	if len(gateway.created) != 0 {
+		t.Fatalf("recheck must NEVER create an anime, got %+v", gateway.created)
 	}
-	if len(gateway.created) != 1 || gateway.created[0].Section != "Sin ver" {
-		t.Fatalf("exactly one create into Sin ver expected, got %+v", gateway.created)
-	}
-
-	// Result reports the two newly-available names (A created, C linked).
-	if len(res.Created) != 2 {
-		t.Fatalf("expected 2 newly-available names, got %v", res.Created)
+	if len(res.Available) != 1 || res.Available[0] != "Anime A" {
+		t.Fatalf("expected 1 newly-available name (Anime A), got %v", res.Available)
 	}
 }
 
-func TestRecheckAvailabilityIsIdempotent(t *testing.T) {
+func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{available: map[string]bool{"https://jkanime.net/a/": true}}
-	gateway := &fakeGateway{}
-	svc.SetAvailabilityDeps(probe, gateway)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/a/": 1}}
+	svc.SetAvailabilityDeps(probe, &fakeGateway{})
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
@@ -138,11 +129,98 @@ func TestRecheckAvailabilityIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second recheck: %v", err)
 	}
-	if len(res.Created) != 0 {
-		t.Fatalf("second run must be a no-op, got created %v", res.Created)
+	if len(res.Available) != 0 {
+		t.Fatalf("an already-available row must not be re-reported, got %v", res.Available)
 	}
-	if len(gateway.created) != 1 {
-		t.Fatalf("anime must be created exactly once across reruns, got %d", len(gateway.created))
+}
+
+func TestRecheckAvailabilityRequiresProbe(t *testing.T) {
+	svc := newTestService(newFakeRepo())
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	if _, err := svc.RecheckAvailability(ctx, season.ID); err == nil {
+		t.Fatal("RecheckAvailability without a probe must error")
+	}
+}
+
+func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{existingByPagina: map[string]string{"https://jkanime.net/c/": "existing-anime"}}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	// a: available → create; b: waiting → skipped; c: available + already active → link.
+	mkAvail := func(id, name, slug string) {
+		sa := domain.NewSeasonAnime(id, season.ID, name, svc.now())
+		sa.MatchStatus = domain.MatchMatched
+		sa.MatchedSlug = slug
+		sa.Availability = domain.AvailabilityAvailable
+		sa.AvailableChapters = 2
+		_ = repo.CreateSeasonAnime(ctx, sa)
+	}
+	mkAvail("sa-a", "Anime A", "https://jkanime.net/a/")
+	seedMatched(t, svc, repo, season.ID, "sa-b", "Anime B", "https://jkanime.net/b/") // waiting
+	mkAvail("sa-c", "Anime C", "https://jkanime.net/c/")
+
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"})
+	if err != nil {
+		t.Fatalf("CreateSeasonAnimes: %v", err)
+	}
+
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	byID := map[string]domain.SeasonAnime{}
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+	if a := byID["sa-a"]; a.Availability != domain.AvailabilityCreated || a.AnimeID != "created-anime" {
+		t.Fatalf("A should be created + linked, got %+v", a)
+	}
+	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AnimeID != "" {
+		t.Fatalf("B (waiting) must NOT be created, got %+v", b)
+	}
+	if c := byID["sa-c"]; c.Availability != domain.AvailabilityCreated || c.AnimeID != "existing-anime" {
+		t.Fatalf("C should link to the existing active anime, got %+v", c)
+	}
+	if len(gateway.created) != 1 || gateway.created[0].Section != "Sin ver" {
+		t.Fatalf("exactly one create into Sin ver expected, got %+v", gateway.created)
+	}
+	if len(res.Created) != 2 {
+		t.Fatalf("expected 2 created names (A, C), got %v", res.Created)
+	}
+}
+
+func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	gateway := &fakeGateway{}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	sa := domain.NewSeasonAnime("sa-a", season.ID, "Anime A", svc.now())
+	sa.MatchStatus = domain.MatchMatched
+	sa.MatchedSlug = "https://jkanime.net/a/"
+	sa.Availability = domain.AvailabilityAvailable
+	_ = repo.CreateSeasonAnime(ctx, sa)
+
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"})
+	if err != nil {
+		t.Fatalf("second create: %v", err)
+	}
+	if len(res.Created) != 0 || len(gateway.created) != 1 {
+		t.Fatalf("an already-created row must not be created again: res=%v created=%d", res.Created, len(gateway.created))
+	}
+}
+
+func TestCreateSeasonAnimesRequiresGateway(t *testing.T) {
+	svc := newTestService(newFakeRepo())
+	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}); err == nil {
+		t.Fatal("CreateSeasonAnimes without a gateway must error")
 	}
 }
 
@@ -154,13 +232,11 @@ func TestHandleAnimeWatchedMovesVerHoyToVisto(t *testing.T) {
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
 
-	// A created season anime linked to a real anime id.
 	sa := domain.NewSeasonAnime("sa-1", season.ID, "Anime A", svc.now())
 	sa.Availability = domain.AvailabilityCreated
 	sa.AnimeID = "anime-a"
 	_ = repo.CreateSeasonAnime(ctx, sa)
 
-	// Watched in Ver hoy (nrocapvisto 1) → auto-moves to Visto.
 	if err := svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 1); err != nil {
 		t.Fatalf("HandleAnimeWatched: %v", err)
 	}
@@ -181,23 +257,11 @@ func TestHandleAnimeWatchedIgnoresNonVerHoyAndUnwatched(t *testing.T) {
 	sa.AnimeID = "anime-a"
 	_ = repo.CreateSeasonAnime(ctx, sa)
 
-	// Not in Ver hoy → ignored.
 	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Sin ver", 3)
-	// In Ver hoy but not watched yet (0) → ignored.
 	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 0)
-	// Unknown anime → ignored.
 	_ = svc.HandleAnimeWatched(ctx, "other", "Ver hoy", 5)
 
 	if len(gateway.moved) != 0 {
 		t.Fatalf("expected no moves, got %+v", gateway.moved)
-	}
-}
-
-func TestRecheckAvailabilityRequiresDeps(t *testing.T) {
-	svc := newTestService(newFakeRepo())
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	if _, err := svc.RecheckAvailability(ctx, season.ID); err == nil {
-		t.Fatal("RecheckAvailability without probe/gateway deps must error")
 	}
 }

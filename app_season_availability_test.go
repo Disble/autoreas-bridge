@@ -46,18 +46,18 @@ func TestSeasonAvailabilityProbe(t *testing.T) {
 	ctx := context.Background()
 
 	yes := seasonAvailabilityProbe{registry: fakeRegistry{source: fakeEpisodeSource{latest: 2}}}
-	if ok, err := yes.HasChapterOne(ctx, "https://jkanime.net/a/"); err != nil || !ok {
-		t.Fatalf("latest 2 → available; got ok=%v err=%v", ok, err)
+	if n, err := yes.AvailableChapters(ctx, "https://jkanime.net/a/"); err != nil || n != 2 {
+		t.Fatalf("latest 2 → 2 chapters; got n=%d err=%v", n, err)
 	}
 
 	no := seasonAvailabilityProbe{registry: fakeRegistry{source: fakeEpisodeSource{latest: 0}}}
-	if ok, err := no.HasChapterOne(ctx, "https://jkanime.net/b/"); err != nil || ok {
-		t.Fatalf("latest 0 → not available; got ok=%v err=%v", ok, err)
+	if n, err := no.AvailableChapters(ctx, "https://jkanime.net/b/"); err != nil || n != 0 {
+		t.Fatalf("latest 0 → 0 chapters; got n=%d err=%v", n, err)
 	}
 
 	unsupported := seasonAvailabilityProbe{registry: fakeRegistry{resolveErr: errors.New("unsupported")}}
-	if ok, err := unsupported.HasChapterOne(ctx, "https://other.site/x/"); err != nil || ok {
-		t.Fatalf("unsupported site → (false, nil); got ok=%v err=%v", ok, err)
+	if n, err := unsupported.AvailableChapters(ctx, "https://other.site/x/"); err != nil || n != 0 {
+		t.Fatalf("unsupported site → (0, nil); got n=%d err=%v", n, err)
 	}
 }
 

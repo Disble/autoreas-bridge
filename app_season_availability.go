@@ -39,16 +39,19 @@ type seasonAvailabilityProbe struct {
 	registry siteResolver
 }
 
-func (p seasonAvailabilityProbe) HasChapterOne(ctx context.Context, pageURL string) (bool, error) {
+func (p seasonAvailabilityProbe) AvailableChapters(ctx context.Context, pageURL string) (int, error) {
 	source, err := p.registry.Resolve(pageURL)
 	if err != nil {
-		return false, nil
+		return 0, nil
 	}
 	listing, err := source.ListEpisodes(ctx, pageURL)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
-	return listing.LatestEpisode >= 1, nil
+	if listing.LatestEpisode < 0 {
+		return 0, nil
+	}
+	return listing.LatestEpisode, nil
 }
 
 // animeSnapshotLister is the narrow read seam the gateway needs to find animes
@@ -238,9 +241,10 @@ func (a *App) subscribeSeasonWatched(ctx context.Context) {
 	})
 }
 
-// runSeasonAvailability is the scheduler RunFunc: it rechecks availability only
-// while a season is open (season mode is derived from that), then notifies and
-// chains a download run when new animes became available.
+// runSeasonAvailability is the scheduler RunFunc: while a season is open it only
+// REFRESHES availability (which names can now be created). It never creates and
+// never downloads — creation is an explicit, consent-gated user action, and
+// downloads are triggered only when an anime is sent to "Ver hoy".
 func (a *App) runSeasonAvailability(ctx context.Context, _ string) (string, error) {
 	if a.seasonService == nil {
 		return "", nil
@@ -256,11 +260,10 @@ func (a *App) runSeasonAvailability(ctx context.Context, _ string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	if len(res.Created) > 0 {
-		a.notifySeasonAvailable(ctx, res.Created)
-		a.triggerDownloadsForSeason(ctx)
+	if len(res.Available) > 0 {
+		a.notifySeasonAvailable(ctx, res.Available)
 	}
-	return fmt.Sprintf("checked=%d created=%d", res.Checked, len(res.Created)), nil
+	return fmt.Sprintf("checked=%d available=%d", res.Checked, len(res.Available)), nil
 }
 
 // SendSeasonAnimesToVerHoy stages the given created animes into "Ver hoy" (the
@@ -288,8 +291,8 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 		return
 	}
 	_ = a.notifier.Notify(ctx, notification.Notification{
-		Title:     "Available today",
-		Body:      fmt.Sprintf("%d anime ready to watch: %s", len(names), strings.Join(names, ", ")),
+		Title:     "Available to create",
+		Body:      fmt.Sprintf("%d anime now available — create them when you want: %s", len(names), strings.Join(names, ", ")),
 		Level:     notification.LevelInfo,
 		Source:    "season",
 		Timestamp: time.Now(),

@@ -30,6 +30,7 @@ const (
 			match_candidates_json TEXT,
 			availability TEXT NOT NULL DEFAULT 'waiting',
 			first_available_at INTEGER,
+			available_chapters INTEGER NOT NULL DEFAULT 0,
 			anime_id TEXT,
 			premiere_grade INTEGER,
 			grade_source TEXT,
@@ -57,6 +58,9 @@ const (
 	// SDD-45 renamed the Spanish consideration column to English (dormant since
 	// SDD-41, never written before now).
 	seasonAnimesConsiderationDDL = `ALTER TABLE season_animes RENAME COLUMN consideracion TO consideration`
+
+	// SDD-43c added the available-chapter count surfaced by the availability watch.
+	seasonAnimesAvailableChaptersDDL = `ALTER TABLE season_animes ADD COLUMN available_chapters INTEGER NOT NULL DEFAULT 0`
 )
 
 // SchemaTables returns the season-owned bridge table descriptors for the sdd-34
@@ -82,6 +86,7 @@ func SchemaTables() []persistence.TableSchema {
 				{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
 				{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
 				{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
+				{Column: "available_chapters", AlterDDL: seasonAnimesAvailableChaptersDDL},
 			},
 			Indexes: []string{seasonAnimesSeasonIndexDDL},
 		},

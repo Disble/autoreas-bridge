@@ -67,12 +67,19 @@ const (
 	vistoSection  = "Visto"
 )
 
-// RecheckResult summarizes one availability recheck run.
+// RecheckResult summarizes one availability recheck run. It NEVER creates
+// anything — it only reports which names newly became available to create.
 type RecheckResult struct {
-	// Created is the names that became available this run (created or linked).
-	Created []string
-	// Checked is how many still-waiting rows were probed.
+	// Available is the names that newly transitioned to available this run.
+	Available []string
+	// Checked is how many matched, uncreated rows were probed.
 	Checked int
+}
+
+// CreateResult summarizes one explicit create-animes action.
+type CreateResult struct {
+	// Created is the names of the animes created (or linked) this run.
+	Created []string
 }
 
 // Service is the season application service. Time and id generation are injected
@@ -275,13 +282,14 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 	return nil
 }
 
-// RecheckAvailability probes ch.1 availability for every matched, still-waiting
-// row. Newly-available animes are linked to an existing active anime with the
-// same page (two-cour continuation) or created into "Sin ver", and the row
-// advances to created. A probe error leaves that row waiting (the run never
-// fails as a whole). Idempotent: created rows are skipped on reruns.
+// RecheckAvailability probes chapter availability for every matched, uncreated
+// row and records it (Availability + AvailableChapters) — it NEVER creates an
+// anime. Creating is a separate, explicit, consent-gated action (creation and
+// soft-delete are the only irreversible steps of the workflow). A probe error
+// leaves a row unchanged; the run never fails as a whole. Reports the names that
+// NEWLY became available (a row already available is not re-reported).
 func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (RecheckResult, error) {
-	if s.probe == nil || s.gateway == nil {
+	if s.probe == nil {
 		return RecheckResult{}, ErrAvailabilityDepsUnavailable
 	}
 	rows, err := s.repo.ListSeasonAnimes(ctx, seasonID)
@@ -291,25 +299,63 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 
 	var res RecheckResult
 	for _, row := range rows {
-		if row.MatchStatus != domain.MatchMatched || row.Availability != domain.AvailabilityWaiting {
+		if row.MatchStatus != domain.MatchMatched || row.Availability == domain.AvailabilityCreated {
 			continue
 		}
 		res.Checked++
 
-		available, probeErr := s.probe.HasChapterOne(ctx, row.MatchedSlug)
-		if probeErr != nil || !available {
-			// Leave the row waiting; a scrape error must not fail the whole run.
+		chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
+		if probeErr != nil {
+			// Leave the row unchanged; a scrape error must not fail the whole run.
 			continue
 		}
 
-		animeID, found, err := s.gateway.FindActiveByPagina(ctx, row.MatchedSlug)
+		wasAvailable := row.Availability == domain.AvailabilityAvailable
+		if chapters >= 1 {
+			row.Availability = domain.AvailabilityAvailable
+			row.AvailableChapters = chapters
+			if !wasAvailable {
+				res.Available = append(res.Available, row.RawName)
+			}
+		} else {
+			row.Availability = domain.AvailabilityWaiting
+			row.AvailableChapters = 0
+		}
+		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+			return res, err
+		}
+	}
+	return res, nil
+}
+
+// CreateSeasonAnimes is the explicit, user-initiated creation gate: for each row
+// that is currently AVAILABLE, it links an existing active anime with the same
+// page (two-cour continuation) or creates a new one into "Sin ver", advancing the
+// row to created. Rows that are not available (waiting) or already created are
+// skipped — creation is irreversible (soft delete only), so it only ever acts on
+// what the user explicitly picked. No download is triggered here.
+func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string) (CreateResult, error) {
+	if s.gateway == nil {
+		return CreateResult{}, ErrAvailabilityDepsUnavailable
+	}
+	var res CreateResult
+	for _, rowID := range rowIDs {
+		sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
+		if err != nil {
+			return res, err
+		}
+		if sa == nil || sa.Availability != domain.AvailabilityAvailable {
+			continue
+		}
+
+		animeID, found, err := s.gateway.FindActiveByPagina(ctx, sa.MatchedSlug)
 		if err != nil {
 			return res, err
 		}
 		if !found {
 			animeID, err = s.gateway.CreateAnime(ctx, AnimeCreateInput{
-				Nombre:  row.RawName,
-				Pagina:  row.MatchedSlug,
+				Nombre:  sa.RawName,
+				Pagina:  sa.MatchedSlug,
 				Section: sinVerSection,
 			})
 			if err != nil {
@@ -317,12 +363,12 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 			}
 		}
 
-		row.Availability = domain.AvailabilityCreated
-		row.AnimeID = animeID
-		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+		sa.Availability = domain.AvailabilityCreated
+		sa.AnimeID = animeID
+		if err := s.repo.UpdateSeasonAnime(ctx, *sa); err != nil {
 			return res, err
 		}
-		res.Created = append(res.Created, row.RawName)
+		res.Created = append(res.Created, sa.RawName)
 	}
 	return res, nil
 }

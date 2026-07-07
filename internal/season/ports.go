@@ -27,10 +27,11 @@ type NameSearcher interface {
 	Search(ctx context.Context, query string) ([]match.Candidate, error)
 }
 
-// AvailabilityProbe reports whether an anime page has its first chapter online
-// yet. Implemented at the composition root over the download sites registry.
+// AvailabilityProbe reports how many chapters of an anime page are online yet (0
+// = none available). Implemented at the composition root over the download sites
+// registry. It only READS availability — creation is a separate, explicit action.
 type AvailabilityProbe interface {
-	HasChapterOne(ctx context.Context, pageURL string) (bool, error)
+	AvailableChapters(ctx context.Context, pageURL string) (int, error)
 }
 
 // AnimeCreateInput is the season-side projection of what a new anime needs; the
