@@ -1,4 +1,5 @@
-import { Alert, Button, Card, Checkbox, Chip } from '@heroui/react';
+import { Alert, Button, Card, Chip } from '@heroui/react';
+import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
 import { useDailyBoard } from './use-daily-board';
 
@@ -49,16 +50,12 @@ export function DailyBoard() {
                 <ul className="flex flex-col gap-2">
                   {sections.sinVer.map((row) => (
                     <li key={row.id}>
-                      <Checkbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
-                        <Checkbox.Content>
-                          <Checkbox.Control
-                            style={{ borderWidth: '1.5px', borderColor: 'var(--muted)' }}
-                          >
-                            <Checkbox.Indicator />
-                          </Checkbox.Control>
-                          {row.rawName}
-                        </Checkbox.Content>
-                      </Checkbox>
+                      <LabeledCheckbox
+                        isSelected={selected.has(row.animeId)}
+                        onChange={() => toggleSelect(row.animeId)}
+                      >
+                        {row.rawName}
+                      </LabeledCheckbox>
                     </li>
                   ))}
                 </ul>
