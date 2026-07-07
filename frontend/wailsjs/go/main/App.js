@@ -6,6 +6,10 @@ export function AdjustWatchedChapters(arg1, arg2, arg3) {
   return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
 }
 
+export function ApplySeasonSchedule() {
+  return window['go']['main']['App']['ApplySeasonSchedule']();
+}
+
 export function CloseSeason() {
   return window['go']['main']['App']['CloseSeason']();
 }
@@ -110,6 +114,10 @@ export function GetSeasonMode() {
   return window['go']['main']['App']['GetSeasonMode']();
 }
 
+export function GetSeasonOrderingBoard() {
+  return window['go']['main']['App']['GetSeasonOrderingBoard']();
+}
+
 export function GetSyncingAnimeItems() {
   return window['go']['main']['App']['GetSyncingAnimeItems']();
 }
@@ -142,6 +150,10 @@ export function ReconcileSeasonIntake(arg1) {
   return window['go']['main']['App']['ReconcileSeasonIntake'](arg1);
 }
 
+export function ReopenSeasonOrdering() {
+  return window['go']['main']['App']['ReopenSeasonOrdering']();
+}
+
 export function RepeatAnime(arg1, arg2) {
   return window['go']['main']['App']['RepeatAnime'](arg1, arg2);
 }
@@ -156,6 +168,10 @@ export function RestoreAnime(arg1, arg2) {
 
 export function RunSeasonMatching() {
   return window['go']['main']['App']['RunSeasonMatching']();
+}
+
+export function SaveSeasonOrderingDraft(arg1) {
+  return window['go']['main']['App']['SaveSeasonOrderingDraft'](arg1);
 }
 
 export function SendSeasonAnimesToVerHoy(arg1) {

@@ -2,6 +2,7 @@ package season
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"autoreas-bridge/internal/season/domain"
@@ -27,6 +28,9 @@ type fakeGateway struct {
 	nextID           int
 	moved            map[string]string
 	selections       map[string]selectionState
+	placements       map[string][]domain.Placement
+	scheduled        map[string][]domain.Placement
+	failSchedule     map[string]bool
 }
 
 type selectionState struct {
@@ -58,6 +62,27 @@ func (g *fakeGateway) SetSelection(_ context.Context, animeID string, estado int
 		g.selections = map[string]selectionState{}
 	}
 	g.selections[animeID] = selectionState{estado: estado, activo: activo}
+	return nil
+}
+
+func (g *fakeGateway) CurrentPlacements(_ context.Context, animeIDs []string) (map[string][]domain.Placement, error) {
+	out := map[string][]domain.Placement{}
+	for _, id := range animeIDs {
+		if p, ok := g.placements[id]; ok {
+			out[id] = p
+		}
+	}
+	return out, nil
+}
+
+func (g *fakeGateway) SetAnimeSchedule(_ context.Context, animeID string, dias []domain.Placement) error {
+	if g.failSchedule[animeID] {
+		return errors.New("write failed")
+	}
+	if g.scheduled == nil {
+		g.scheduled = map[string][]domain.Placement{}
+	}
+	g.scheduled[animeID] = dias
 	return nil
 }
 

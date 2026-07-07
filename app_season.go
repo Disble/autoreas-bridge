@@ -5,11 +5,18 @@ import (
 	"errors"
 	"time"
 
+	"autoreas-bridge/internal/api/contracts"
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 )
+
+// seasonWeekdays is the weekday vocabulary (Spanish data literals — they ARE the
+// dias values) used to discriminate a weekday placement from an Estrenos section.
+var seasonWeekdays = map[string]struct{}{
+	"Lunes": {}, "Martes": {}, "Miércoles": {}, "Jueves": {}, "Viernes": {}, "Sábado": {}, "Domingo": {},
+}
 
 // SeasonDTO is the Wails-facing projection of the active season. Timestamps are
 // epoch milliseconds (nullable milestones are pointers → JSON null).
@@ -215,6 +222,143 @@ func (a *App) SkipSeasonGrading(rowID string) string {
 	}
 	a.broadcastSeasonChanged()
 	return "ok"
+}
+
+// SaveSeasonOrderingDraft persists the ordering board's scratch draft (weekday
+// placements as JSON) on the open season.
+func (a *App) SaveSeasonOrderingDraft(draftJSON string) string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if err := a.seasonService.SaveOrderingDraft(a.seasonCtx(), draftJSON); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
+// ApplyScheduleDTO is the Wails-facing result of applying the ordering schedule.
+type ApplyScheduleDTO struct {
+	Status  string   `json:"status"`
+	Applied int      `json:"applied"`
+	Failed  []string `json:"failed"`
+}
+
+// ApplySeasonSchedule writes the drafted day+order to every changed anime (soft
+// state only) and stamps the applied milestone on a clean run; a partial failure
+// reports the failed anime ids and leaves the milestone unset for a safe re-apply.
+func (a *App) ApplySeasonSchedule() ApplyScheduleDTO {
+	if a.seasonService == nil {
+		return ApplyScheduleDTO{Status: "season service unavailable"}
+	}
+	res, err := a.seasonService.ApplySchedule(a.seasonCtx())
+	if err != nil {
+		return ApplyScheduleDTO{Status: err.Error(), Applied: res.Applied, Failed: res.Failed}
+	}
+	a.broadcastSeasonChanged()
+	status := "ok"
+	if len(res.Failed) > 0 {
+		status = "partial"
+	}
+	return ApplyScheduleDTO{Status: status, Applied: res.Applied, Failed: res.Failed}
+}
+
+// ReopenSeasonOrdering clears the applied milestone so the board is editable again.
+func (a *App) ReopenSeasonOrdering() string {
+	if a.seasonService == nil {
+		return "season service unavailable"
+	}
+	if err := a.seasonService.ReopenOrdering(a.seasonCtx()); err != nil {
+		return err.Error()
+	}
+	a.broadcastSeasonChanged()
+	return "ok"
+}
+
+// OrderingCardDTO is one anime on the ordering board: on a weekday (grid) it
+// carries Dia+Orden; awaiting placement (rail) it carries its current Section.
+type OrderingCardDTO struct {
+	AnimeID    string `json:"animeId"`
+	Name       string `json:"name"`
+	Dia        string `json:"dia"`
+	Orden      int    `json:"orden"`
+	Section    string `json:"section"`
+	IsNewcomer bool   `json:"isNewcomer"`
+}
+
+// OrderingBoardDTO is the ordering board's read model: the rail (approved season
+// candidates awaiting a weekday) and the grid (all active animes already on
+// weekdays). Read-only in the UI while AppliedAt is set.
+type OrderingBoardDTO struct {
+	Rail      []OrderingCardDTO `json:"rail"`
+	Grid      []OrderingCardDTO `json:"grid"`
+	AppliedAt *int64            `json:"appliedAt"`
+}
+
+// GetSeasonOrderingBoard aggregates the ordering board: the rail is the approved
+// (verdict Aprobado, linked, still in an Estrenos section) season candidates; the
+// grid is every active anime already scheduled on a weekday (continuing titles +
+// placed newcomers). Newcomers (this season's approved) are flagged.
+func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
+	empty := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}}
+	if a.seasonService == nil || a.animeQuery == nil {
+		return empty
+	}
+	active, err := a.seasonService.ActiveSeason(a.seasonCtx())
+	if err != nil || active == nil {
+		return empty
+	}
+	rows, err := a.seasonService.ListSeasonAnimes(a.seasonCtx(), active.ID)
+	if err != nil {
+		return empty
+	}
+	approved := map[string]bool{}
+	for _, r := range rows {
+		if r.Availability != domain.AvailabilityCreated || r.AnimeID == "" {
+			continue
+		}
+		if domain.Decision(r.Grade, active.MinApprovalGrade, r.Consideration) == domain.VerdictApproved {
+			approved[r.AnimeID] = true
+		}
+	}
+
+	animes, err := a.animeQuery.ListMobileAnimes(a.seasonCtx())
+	if err != nil {
+		return empty
+	}
+	board := OrderingBoardDTO{Rail: []OrderingCardDTO{}, Grid: []OrderingCardDTO{}, AppliedAt: millisPtrDTO(active.AppliedAt)}
+	for _, m := range animes {
+		if m.Activo != 1 {
+			continue
+		}
+		if dia, orden, onWeekday := firstWeekdayPlacement(m.Dias); onWeekday {
+			board.Grid = append(board.Grid, OrderingCardDTO{
+				AnimeID: m.ID, Name: m.Nombre, Dia: dia, Orden: orden, IsNewcomer: approved[m.ID],
+			})
+			continue
+		}
+		if approved[m.ID] {
+			section := ""
+			if len(m.Dias) > 0 {
+				section = m.Dias[0].Dia
+			}
+			board.Rail = append(board.Rail, OrderingCardDTO{
+				AnimeID: m.ID, Name: m.Nombre, Section: section, IsNewcomer: true,
+			})
+		}
+	}
+	return board
+}
+
+// firstWeekdayPlacement returns the anime's first weekday dias entry (dia, orden),
+// or ok=false when it sits only in Estrenos sections.
+func firstWeekdayPlacement(dias []contracts.MobileAnimeDay) (string, int, bool) {
+	for _, d := range dias {
+		if _, ok := seasonWeekdays[d.Dia]; ok {
+			return d.Dia, d.Orden, true
+		}
+	}
+	return "", 0, false
 }
 
 // withActiveSeason resolves the open season id and runs fn, broadcasting on

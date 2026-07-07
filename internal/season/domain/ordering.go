@@ -6,8 +6,8 @@ import "sort"
 // it — the season projection of a legacy `dias` entry `{dia, orden}`. Orden is an
 // explicit number the user assigns; it is NOT derived from array position.
 type Placement struct {
-	Dia   string
-	Orden int
+	Dia   string `json:"dia"`
+	Orden int    `json:"orden"`
 }
 
 // SchedulePatchIntent is the full desired `dias` for one anime whose schedule

@@ -32,11 +32,11 @@ func (s *SQLiteStore) CreateSeason(ctx context.Context, season domain.Season) er
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO seasons
 			(id, name, min_approval_grade, slots, status,
-			 selection_confirmed_at, applied_at, closed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		season.ID, season.Name, season.MinApprovalGrade, season.Slots, string(season.Status),
 		millisPtr(season.SelectionConfirmedAt), millisPtr(season.AppliedAt), millisPtr(season.ClosedAt),
-		season.CreatedAt.UnixMilli(),
+		season.OrderingDraft, season.CreatedAt.UnixMilli(),
 	)
 	if err != nil {
 		return fmt.Errorf("create season %q: %w", season.ID, err)
@@ -48,7 +48,7 @@ func (s *SQLiteStore) CreateSeason(ctx context.Context, season domain.Season) er
 func (s *SQLiteStore) ActiveSeason(ctx context.Context) (*domain.Season, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, name, min_approval_grade, slots, status,
-		       selection_confirmed_at, applied_at, closed_at, created_at
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
 		FROM seasons WHERE status = 'open' LIMIT 1`)
 	season, err := scanSeason(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -65,11 +65,11 @@ func (s *SQLiteStore) UpdateSeason(ctx context.Context, season domain.Season) er
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE seasons SET
 			name = ?, min_approval_grade = ?, slots = ?, status = ?,
-			selection_confirmed_at = ?, applied_at = ?, closed_at = ?
+			selection_confirmed_at = ?, applied_at = ?, closed_at = ?, ordering_draft_json = ?
 		WHERE id = ?`,
 		season.Name, season.MinApprovalGrade, season.Slots, string(season.Status),
 		millisPtr(season.SelectionConfirmedAt), millisPtr(season.AppliedAt), millisPtr(season.ClosedAt),
-		season.ID,
+		season.OrderingDraft, season.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update season %q: %w", season.ID, err)
@@ -265,21 +265,23 @@ type rowScanner interface {
 
 func scanSeason(row rowScanner) (*domain.Season, error) {
 	var (
-		s         domain.Season
-		status    string
-		selection sql.NullInt64
-		applied   sql.NullInt64
-		closed    sql.NullInt64
-		createdAt int64
+		s             domain.Season
+		status        string
+		selection     sql.NullInt64
+		applied       sql.NullInt64
+		closed        sql.NullInt64
+		orderingDraft sql.NullString
+		createdAt     int64
 	)
 	if err := row.Scan(&s.ID, &s.Name, &s.MinApprovalGrade, &s.Slots, &status,
-		&selection, &applied, &closed, &createdAt); err != nil {
+		&selection, &applied, &closed, &orderingDraft, &createdAt); err != nil {
 		return nil, err
 	}
 	s.Status = domain.Status(status)
 	s.SelectionConfirmedAt = timePtr(selection)
 	s.AppliedAt = timePtr(applied)
 	s.ClosedAt = timePtr(closed)
+	s.OrderingDraft = orderingDraft.String
 	s.CreatedAt = time.UnixMilli(createdAt)
 	return &s, nil
 }

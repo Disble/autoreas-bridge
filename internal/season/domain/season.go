@@ -41,7 +41,10 @@ type Season struct {
 	SelectionConfirmedAt *time.Time
 	AppliedAt            *time.Time
 	ClosedAt             *time.Time
-	CreatedAt            time.Time
+	// OrderingDraft is the scratch weekday-placement JSON (SDD-46); applied truth
+	// lives only in the animes' dias. Empty until the user drafts a schedule.
+	OrderingDraft string
+	CreatedAt     time.Time
 }
 
 // NewSeason builds an open season with the default cutoff grade and slot cap.
@@ -87,6 +90,18 @@ func (s *Season) SetMinApprovalGrade(grade int) error {
 func (s *Season) MarkSelectionConfirmed(now time.Time) {
 	t := now
 	s.SelectionConfirmedAt = &t
+}
+
+// MarkApplied stamps the (repeatable) schedule-applied milestone; the board
+// renders read-only while it is set, cleared by "Reopen ordering".
+func (s *Season) MarkApplied(now time.Time) {
+	t := now
+	s.AppliedAt = &t
+}
+
+// ReopenOrdering clears the applied milestone so the board is editable again.
+func (s *Season) ReopenOrdering() {
+	s.AppliedAt = nil
 }
 
 // SetSlots updates the approved-anime cap, rejecting values below 1.

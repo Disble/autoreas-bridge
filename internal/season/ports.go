@@ -57,4 +57,10 @@ type AnimeGateway interface {
 	// (0 Viendo / 2 No me gusto) and activo flag. Soft delete only. Used by
 	// ConfirmSelection's bidirectional reconciler.
 	SetSelection(ctx context.Context, animeID string, estado int, activo bool) error
+	// CurrentPlacements returns the current dias placements ({dia, orden}) of the
+	// given animes, for diffing against the ordering draft (SDD-46).
+	CurrentPlacements(ctx context.Context, animeIDs []string) (map[string][]domain.Placement, error)
+	// SetAnimeSchedule writes the anime's dias with explicit {dia, orden} — the
+	// weekday-scheduling apply. Soft state only.
+	SetAnimeSchedule(ctx context.Context, animeID string, dias []domain.Placement) error
 }

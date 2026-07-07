@@ -19,6 +19,7 @@ import (
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
+	seasondomain "autoreas-bridge/internal/season/domain"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -94,6 +95,47 @@ func (g seasonAnimeGateway) SetSelection(ctx context.Context, animeID string, es
 		Activo:              &activo,
 		PreserveLastWatched: true,
 	})
+}
+
+func (g seasonAnimeGateway) SetAnimeSchedule(ctx context.Context, animeID string, dias []seasondomain.Placement) error {
+	days := make([]contracts.MobileAnimeDay, 0, len(dias))
+	for _, d := range dias {
+		days = append(days, contracts.MobileAnimeDay{Dia: d.Dia, Orden: d.Orden})
+	}
+	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
+	// PreserveLastWatched keeps a schedule write from stamping fechaUltCapVisto.
+	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
+		DiasOrdered:         days,
+		PreserveLastWatched: true,
+	})
+}
+
+func (g seasonAnimeGateway) CurrentPlacements(ctx context.Context, animeIDs []string) (map[string][]seasondomain.Placement, error) {
+	records, err := g.snapshots.ListSnapshots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	want := make(map[string]struct{}, len(animeIDs))
+	for _, id := range animeIDs {
+		want[id] = struct{}{}
+	}
+	out := map[string][]seasondomain.Placement{}
+	for id := range want {
+		rec, ok := records[id]
+		if !ok {
+			continue
+		}
+		var raw domain.LegacyAnimeRaw
+		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
+			continue
+		}
+		var placements []seasondomain.Placement
+		for _, d := range raw.Dias.Values() {
+			placements = append(placements, seasondomain.Placement{Dia: d.Dia, Orden: int(d.Orden)})
+		}
+		out[id] = placements
+	}
+	return out, nil
 }
 
 func (g seasonAnimeGateway) FindActiveByPagina(ctx context.Context, pageURL string) (string, bool, error) {

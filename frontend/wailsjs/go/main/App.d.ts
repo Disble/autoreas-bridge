@@ -6,6 +6,8 @@ import {logger} from '../models';
 
 export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
+export function ApplySeasonSchedule():Promise<main.ApplyScheduleDTO>;
+
 export function CloseSeason():Promise<string>;
 
 export function ConfirmSeasonSelection():Promise<main.ConfirmSelectionDTO>;
@@ -58,6 +60,8 @@ export function GetSeasonAnimes():Promise<Array<main.SeasonAnimeDTO>>;
 
 export function GetSeasonMode():Promise<boolean>;
 
+export function GetSeasonOrderingBoard():Promise<main.OrderingBoardDTO>;
+
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
 
 export function ImportSeasonIntake(arg1:string):Promise<string>;
@@ -74,6 +78,8 @@ export function RecheckSeasonAvailability():Promise<string>;
 
 export function ReconcileSeasonIntake(arg1:string):Promise<string>;
 
+export function ReopenSeasonOrdering():Promise<string>;
+
 export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
@@ -81,6 +87,8 @@ export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function RunSeasonMatching():Promise<string>;
+
+export function SaveSeasonOrderingDraft(arg1:string):Promise<string>;
 
 export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<string>;
 

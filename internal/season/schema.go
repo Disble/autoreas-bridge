@@ -13,12 +13,16 @@ const (
 			selection_confirmed_at INTEGER,
 			applied_at INTEGER,
 			closed_at INTEGER,
+			ordering_draft_json TEXT NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL
 		)`
 	// seasonsSingleOpenIndexDDL enforces the aggregate invariant "at most one
 	// open season" at the storage layer via a partial unique index.
 	seasonsSingleOpenIndexDDL = `
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_seasons_single_open ON seasons(status) WHERE status = 'open'`
+
+	// SDD-46 added the ordering draft (scratch weekday-placement JSON).
+	seasonsOrderingDraftDDL = `ALTER TABLE seasons ADD COLUMN ordering_draft_json TEXT NOT NULL DEFAULT ''`
 
 	seasonAnimesDDL = `
 		CREATE TABLE IF NOT EXISTS season_animes (
@@ -74,7 +78,10 @@ func SchemaTables() []persistence.TableSchema {
 		{
 			Name:      "seasons",
 			CreateDDL: seasonsDDL,
-			Indexes:   []string{seasonsSingleOpenIndexDDL},
+			ColumnAdds: []persistence.ColumnMigration{
+				{Column: "ordering_draft_json", AlterDDL: seasonsOrderingDraftDDL},
+			},
+			Indexes: []string{seasonsSingleOpenIndexDDL},
 		},
 		{
 			Name:      "season_animes",

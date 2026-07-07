@@ -21,6 +21,12 @@ func (g *fakeAppGateway) FindActiveByPagina(context.Context, string) (string, bo
 	return "", false, nil
 }
 func (g *fakeAppGateway) MoveToSection(context.Context, string, string) error { return nil }
+func (g *fakeAppGateway) CurrentPlacements(context.Context, []string) (map[string][]domain.Placement, error) {
+	return map[string][]domain.Placement{}, nil
+}
+func (g *fakeAppGateway) SetAnimeSchedule(context.Context, string, []domain.Placement) error {
+	return nil
+}
 func (g *fakeAppGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) error {
 	if g.selections == nil {
 		g.selections = map[string][2]int{}
