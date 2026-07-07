@@ -51,7 +51,9 @@ export function DailyBoard() {
                     <li key={row.id}>
                       <Checkbox isSelected={selected.has(row.animeId)} onChange={() => toggleSelect(row.animeId)}>
                         <Checkbox.Content>
-                          <Checkbox.Control>
+                          <Checkbox.Control
+                            style={{ borderWidth: '1.5px', borderColor: 'var(--muted)' }}
+                          >
                             <Checkbox.Indicator />
                           </Checkbox.Control>
                           {row.rawName}
