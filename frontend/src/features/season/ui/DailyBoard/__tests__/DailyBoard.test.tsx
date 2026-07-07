@@ -25,7 +25,7 @@ function created(id: string, animeId: string, section: string): SeasonAnimeRow {
     grade: 0,
     gradeSource: '',
     skipGrading: false,
-  };
+    consideration: 'none',  };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {

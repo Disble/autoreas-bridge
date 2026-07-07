@@ -21,6 +21,8 @@ function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
+    setConsideration: vi.fn().mockResolvedValue('ok'),
+    confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
   };
 }
@@ -38,7 +40,7 @@ function created(animeId: string, grade: number): SeasonAnimeRow {
     grade,
     gradeSource: grade >= 1 ? 'manual' : '',
     skipGrading: false,
-  };
+    consideration: 'none',  };
 }
 
 describe('useSeasonRateAction', () => {

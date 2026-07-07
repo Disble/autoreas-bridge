@@ -7,9 +7,11 @@ import {
   RecheckSeasonAvailability,
   ReconcileSeasonIntake,
   ResolveSeasonMatch,
+  ConfirmSeasonSelection,
   RunSeasonMatching,
   SendSeasonAnimesToVerHoy,
   SetAnimeDays,
+  SetSeasonConsideration,
   SetSeasonGrade,
   SetSeasonMinApprovalGrade,
   SetSeasonSlots,
@@ -66,6 +68,18 @@ export interface SeasonAnimeRow {
   readonly ratedAt?: number;
   /** Explicit "no grade" override recorded at selection time. */
   readonly skipGrading: boolean;
+  /** Selection override token ('none' | 'insufficient_quota' | 'temporarily_approved' | 'spare_quota'). */
+  readonly consideration: string;
+}
+
+/** Result of confirming the season selection reconciliation. */
+export interface ConfirmSelectionResult {
+  /** 'ok' on success, or a descriptive error message. */
+  readonly status: string;
+  readonly approved: number;
+  readonly rejected: number;
+  /** True when approved animes exceed the season slots (the one hard rule). */
+  readonly quotaExceeded: boolean;
 }
 
 /**
@@ -87,8 +101,18 @@ export interface SeasonSource {
   readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<string>;
   readonly setGrade: (animeId: string, grade: number) => Promise<string>;
   readonly skipGrading: (rowId: string) => Promise<string>;
+  readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
+  readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
   readonly recheckAvailability: () => Promise<string>;
 }
+
+/** Fallback confirmation result when the Wails runtime is unavailable. */
+const CONFIRM_UNAVAILABLE: ConfirmSelectionResult = {
+  status: SEASON_RUNTIME_UNAVAILABLE,
+  approved: 0,
+  rejected: 0,
+  quotaExceeded: false,
+};
 
 function hasGoBinding(name: string): boolean {
   const app = window.go?.main?.App;
@@ -206,6 +230,16 @@ export function createSeasonSource(): SeasonSource {
     skipGrading(rowId: string) {
       return waitForBindings(() => hasGoBinding('SkipSeasonGrading')).then((isReady) => {
         return isReady ? SkipSeasonGrading(rowId) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    setConsideration(rowId: string, consideration: string) {
+      return waitForBindings(() => hasGoBinding('SetSeasonConsideration')).then((isReady) => {
+        return isReady ? SetSeasonConsideration(rowId, consideration) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    confirmSelection() {
+      return waitForBindings(() => hasGoBinding('ConfirmSeasonSelection')).then((isReady) => {
+        return isReady ? (ConfirmSeasonSelection() as Promise<ConfirmSelectionResult>) : Promise.resolve(CONFIRM_UNAVAILABLE);
       });
     },
     recheckAvailability() {

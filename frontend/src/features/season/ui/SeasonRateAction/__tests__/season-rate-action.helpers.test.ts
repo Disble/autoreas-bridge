@@ -16,7 +16,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     grade: 0,
     gradeSource: '',
     skipGrading: false,
-    ...overrides,
+    consideration: 'none',    ...overrides,
   };
 }
 

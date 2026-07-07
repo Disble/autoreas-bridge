@@ -27,7 +27,7 @@ function candidate(grade: number): SeasonAnimeRow {
     grade,
     gradeSource: 'manual',
     skipGrading: false,
-  };
+    consideration: 'none',  };
 }
 
 describe('SeasonRateAction', () => {

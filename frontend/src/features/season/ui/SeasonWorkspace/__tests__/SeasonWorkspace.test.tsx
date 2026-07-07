@@ -20,6 +20,10 @@ vi.mock('../../EvaluationPanel/EvaluationPanel', () => ({
   EvaluationPanel: () => <div>evaluation panel</div>,
 }));
 
+vi.mock('../../SelectionBoard/SelectionBoard', () => ({
+  SelectionBoard: () => <div>selection board</div>,
+}));
+
 const mockedUseSeasonWorkspace = vi.mocked(useSeasonWorkspace);
 type HookReturn = ReturnType<typeof useSeasonWorkspace>;
 

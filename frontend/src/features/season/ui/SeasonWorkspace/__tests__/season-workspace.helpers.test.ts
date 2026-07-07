@@ -50,6 +50,6 @@ describe('SEASON_SECTION_TABS', () => {
     expect(ids).toEqual(['overview', 'intake', 'daily', 'evaluation', 'selection', 'ordering']);
 
     const available = SEASON_SECTION_TABS.filter((tab) => tab.available).map((tab) => tab.id);
-    expect(available).toEqual(['overview', 'intake', 'daily', 'evaluation']);
+    expect(available).toEqual(['overview', 'intake', 'daily', 'evaluation', 'selection']);
   });
 });

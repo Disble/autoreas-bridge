@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 
-import type { SeasonAnimeRow, SeasonSnapshot, SeasonSource } from '../../infrastructure/season-source';
+import type {
+  ConfirmSelectionResult,
+  SeasonAnimeRow,
+  SeasonSnapshot,
+  SeasonSource,
+} from '../../infrastructure/season-source';
 import { seasonSource } from '../../infrastructure/season-source';
 
 interface SeasonStoreState {
@@ -24,6 +29,8 @@ interface SeasonStoreState {
   readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<void>;
   readonly setGrade: (source: SeasonSource, animeId: string, grade: number) => Promise<void>;
   readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
+  readonly setConsideration: (source: SeasonSource, rowId: string, consideration: string) => Promise<void>;
+  readonly confirmSelection: (source: SeasonSource) => Promise<ConfirmSelectionResult>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
 }
 
@@ -165,6 +172,28 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
 
   skipGrading: async (source: SeasonSource, rowId: string) => {
     await runIntakeCommand(get, set, () => source.skipGrading(rowId), source, 'Failed to skip grading');
+  },
+
+  setConsideration: async (source: SeasonSource, rowId: string, consideration: string) => {
+    await runIntakeCommand(get, set, () => source.setConsideration(rowId, consideration), source, 'Failed to set consideration');
+  },
+
+  confirmSelection: async (source: SeasonSource) => {
+    try {
+      const result = await source.confirmSelection();
+      if (result.status !== 'ok') {
+        set({ errorMessage: result.status || 'Failed to confirm selection' });
+        return result;
+      }
+      set({ errorMessage: undefined });
+      await get().refresh(source);
+      await get().refreshAnimes(source);
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to confirm selection';
+      set({ errorMessage: message });
+      return { status: message, approved: 0, rejected: 0, quotaExceeded: false };
+    }
   },
 
   recheckAvailability: async (source: SeasonSource) => {

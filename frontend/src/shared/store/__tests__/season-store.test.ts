@@ -31,6 +31,8 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setAnimeDays: vi.fn().mockResolvedValue('ok'),
     setGrade: vi.fn().mockResolvedValue('ok'),
     skipGrading: vi.fn().mockResolvedValue('ok'),
+    setConsideration: vi.fn().mockResolvedValue('ok'),
+    confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
@@ -165,6 +167,34 @@ describe('useSeasonStore', () => {
     await useSeasonStore.getState().skipGrading(source, 'sa-1');
     expect(source.skipGrading).toHaveBeenCalledWith('sa-1');
     expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('setConsideration delegates and refreshes the rows', async () => {
+    const source = makeSource();
+    await useSeasonStore.getState().setConsideration(source, 'sa-1', 'spare_quota');
+    expect(source.setConsideration).toHaveBeenCalledWith('sa-1', 'spare_quota');
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+  });
+
+  it('confirmSelection refreshes season + rows and returns the result on success', async () => {
+    const confirmSelection = vi.fn().mockResolvedValue({ status: 'ok', approved: 9, rejected: 3, quotaExceeded: false });
+    const source = makeSource({ confirmSelection });
+    const result = await useSeasonStore.getState().confirmSelection(source);
+    expect(result.approved).toBe(9);
+    expect(source.getSeason).toHaveBeenCalled();
+    expect(source.getSeasonAnimes).toHaveBeenCalled();
+    expect(useSeasonStore.getState().errorMessage).toBeUndefined();
+  });
+
+  it('confirmSelection surfaces a quota block without refreshing', async () => {
+    const confirmSelection = vi
+      .fn()
+      .mockResolvedValue({ status: 'approved animes exceed the season slots', approved: 13, rejected: 0, quotaExceeded: true });
+    const source = makeSource({ confirmSelection });
+    const result = await useSeasonStore.getState().confirmSelection(source);
+    expect(result.quotaExceeded).toBe(true);
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(useSeasonStore.getState().errorMessage).toBe('approved animes exceed the season slots');
   });
 
   it('ensureAnimesLoaded fetches once and dedupes concurrent callers', async () => {
