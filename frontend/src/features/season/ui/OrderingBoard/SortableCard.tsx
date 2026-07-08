@@ -18,7 +18,13 @@ export function SortableCard({ card, location, readOnly, canRemove, onDuplicate,
     id: sortableId(card.animeId, location),
     disabled: readOnly,
   });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    // dnd-kit's PointerSensor needs the element to yield the gesture instead of scrolling.
+    touchAction: 'none' as const,
+  };
 
   return (
     <li
