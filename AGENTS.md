@@ -23,6 +23,7 @@
 8. **The 500-Line Rule**: If any frontend `.ts` or `.tsx` file exceeds 500 lines, refactor it immediately.
 9. **Reference Feature**: If in doubt, use `frontend/src/features/dashboard` as the frontend source-of-truth structure once introduced.
 10. **Scaffolding Generators**: NEVER create complex frontend feature folders manually when a generator can do it. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
+11. **Drag & Drop Rule**: Load the `dnd-kit` skill for any drag-and-drop (sortable, kanban/multi-column). Use the new `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode safe, pointer-based for Wails WebView2). NEVER legacy `@dnd-kit/core`/`sortable`/`utilities`, NEVER native HTML5 DnD, and NEVER remove `React.StrictMode` to make dragging work.
 
 ## Mandatory Workflow
 
@@ -107,6 +108,7 @@
 | --- | --- |
 | `bridge-testing` | Parser, watcher, SQLite, sync, HTTP, event bus tests |
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
+| `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
 
 ## References
 

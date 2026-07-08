@@ -10,5 +10,8 @@ export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 /** dnd-kit container id for the rail (a real string — '' cannot be a droppable id). */
 export const RAIL_CONTAINER_ID = '__rail__';
 
+/** Every board container in render order: the rail first, then the seven weekdays. */
+export const CONTAINERS = [RAIL_CONTAINER_ID, ...WEEKDAYS] as const;
+
 /** Empty board used before the runtime board loads. */
 export const EMPTY_ORDERING_BOARD = { rail: [], grid: [] } as const;

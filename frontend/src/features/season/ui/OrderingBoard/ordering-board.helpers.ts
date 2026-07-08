@@ -1,6 +1,6 @@
 import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/season-source';
-import { RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
-import type { DraftPlacement, WorkingState } from './ordering-board.types';
+import { CONTAINERS, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
+import type { DraftPlacement, OrderingInstance, WorkingState } from './ordering-board.types';
 
 /** RAIL is the "location" sentinel for a card awaiting placement (not on any weekday). */
 export const RAIL = '';
@@ -15,205 +15,197 @@ export function locationFor(containerId: string): string {
   return containerId === RAIL_CONTAINER_ID ? RAIL : containerId;
 }
 
-/** sortableId builds the globally-unique dnd-kit id for a card (a clone is unique per container). */
-export function sortableId(animeId: string, location: string): string {
-  return `${animeId}::${containerFor(location)}`;
+/** emptyOrder builds a container→[] map with every container present (rail + seven days). */
+function emptyOrder(): Record<string, string[]> {
+  const order: Record<string, string[]> = {};
+  for (const container of CONTAINERS) {
+    order[container] = [];
+  }
+  return order;
 }
 
-/** decodeSortableId splits a sortableId back into its anime id and placement location. */
-export function decodeSortableId(id: string): { animeId: string; location: string } {
-  const marker = id.lastIndexOf('::');
-  if (marker === -1) {
-    return { animeId: id, location: RAIL };
+/** nextKey mints a stable, unique sortable key for a new instance of an anime. */
+function nextKey(instances: Record<string, OrderingInstance>, animeId: string): string {
+  let seq = 0;
+  while (instances[`${animeId}#${seq}`] !== undefined) {
+    seq += 1;
   }
-  return { animeId: id.slice(0, marker), location: locationFor(id.slice(marker + 2)) };
+  return `${animeId}#${seq}`;
 }
 
 /**
- * groupGridByDay groups the grid cards into the seven weekday columns, each sorted
- * by orden ascending. Every weekday key is always present (empty columns render).
- * An anime that airs on several days appears as a clone in each of its columns.
+ * initialWorkingState builds the editable working state from a loaded board: each rail
+ * card and each weekday clone becomes an instance with a stable key, grouped into its
+ * container. Weekday columns are ordered by the loaded orden.
  */
-export function groupGridByDay(grid: readonly OrderingCard[]): Record<string, OrderingCard[]> {
+export function initialWorkingState(board: OrderingBoard): WorkingState {
+  const order = emptyOrder();
+  const instances: Record<string, OrderingInstance> = {};
+  const add = (container: string, card: OrderingCard) => {
+    const key = nextKey(instances, card.animeId);
+    instances[key] = {
+      key,
+      animeId: card.animeId,
+      name: card.name,
+      section: card.section,
+      orden: card.orden,
+      isNewcomer: card.isNewcomer,
+    };
+    order[container].push(key);
+  };
+
+  for (const card of board.rail) {
+    add(RAIL_CONTAINER_ID, card);
+  }
   const byDay: Record<string, OrderingCard[]> = {};
   for (const day of WEEKDAYS) {
     byDay[day] = [];
   }
-  for (const card of grid) {
-    const column = byDay[card.dia];
-    if (column !== undefined) {
-      column.push(card);
+  for (const card of board.grid) {
+    if (byDay[card.dia] !== undefined) {
+      byDay[card.dia].push(card);
     }
   }
   for (const day of WEEKDAYS) {
-    byDay[day] = byDay[day].toSorted((a, b) => a.orden - b.orden);
+    for (const card of byDay[day].toSorted((a, b) => a.orden - b.orden)) {
+      add(day, card);
+    }
   }
-  return byDay;
+  return { order, instances };
 }
 
-/** renumber reassigns orden 1..N to cards by their current array position. */
-export function renumber(cards: readonly OrderingCard[]): OrderingCard[] {
-  return cards.map((card, index) => ({ ...card, orden: index + 1 }));
+/** railInstances / columnInstances resolve a container's ordered keys to their instances. */
+export function instancesIn(state: WorkingState, container: string): OrderingInstance[] {
+  return (state.order[container] ?? []).map((key) => state.instances[key]);
+}
+
+/** cardCounts totals how many card instances each anime has (rail + all days). */
+export function cardCounts(state: WorkingState): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const instance of Object.values(state.instances)) {
+    counts[instance.animeId] = (counts[instance.animeId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** scheduledCount is the number of distinct animes placed on any weekday (clones counted once). */
+export function scheduledCount(state: WorkingState): number {
+  const ids = new Set<string>();
+  for (const day of WEEKDAYS) {
+    for (const key of state.order[day] ?? []) {
+      ids.add(state.instances[key].animeId);
+    }
+  }
+  return ids.size;
+}
+
+/** hasDuplicatePerContainer reports whether any container holds two clones of the same anime. */
+function hasDuplicatePerContainer(order: Record<string, readonly string[]>, instances: Record<string, OrderingInstance>): boolean {
+  for (const container of Object.keys(order)) {
+    const seen = new Set<string>();
+    for (const key of order[container]) {
+      const animeId = instances[key]?.animeId;
+      if (animeId !== undefined) {
+        if (seen.has(animeId)) {
+          return true;
+        }
+        seen.add(animeId);
+      }
+    }
+  }
+  return false;
 }
 
 /**
- * buildDraft builds the ordering draft (`{animeId: [{dia, orden}]}`): each weekday
- * clone contributes one placement (an anime on several days emits several),
- * renumbered by column position; a genuinely unplaced rail card keeps its Estrenos
- * section placement. A pending duplicate (empty section, or an anime that already
- * has weekday placements) adds nothing — it only matters once dragged onto a day.
+ * applyOrder accepts a reordered container map (produced by `move`) unless it would put
+ * two clones of the same anime on one day — the "no two copies per day" rule, which
+ * makes a forbidden drop a no-op.
  */
-export function buildDraft(
-  columns: Record<string, readonly OrderingCard[]>,
-  rail: readonly OrderingCard[],
-): Record<string, DraftPlacement[]> {
+export function applyOrder(state: WorkingState, order: Record<string, readonly string[]>): WorkingState {
+  if (hasDuplicatePerContainer(order, state.instances)) {
+    return state;
+  }
+  return { order, instances: state.instances };
+}
+
+/**
+ * duplicate stages a logical copy of an anime into the rail (same anime — never a
+ * second DB row) so it can be dragged onto another weekday. No-op when a copy already
+ * waits in the rail.
+ */
+export function duplicate(state: WorkingState, animeId: string): WorkingState {
+  if (state.order[RAIL_CONTAINER_ID].some((key) => state.instances[key].animeId === animeId)) {
+    return state;
+  }
+  const meta = Object.values(state.instances).find((instance) => instance.animeId === animeId);
+  if (meta === undefined) {
+    return state;
+  }
+  const key = nextKey(state.instances, animeId);
+  return {
+    order: { ...state.order, [RAIL_CONTAINER_ID]: [...state.order[RAIL_CONTAINER_ID], key] },
+    instances: { ...state.instances, [key]: { ...meta, key, section: RAIL, orden: 0 } },
+  };
+}
+
+/**
+ * removeCard deletes one card instance. Guarded by the minimum-one rule: an anime's
+ * last remaining instance can never be deleted — it must always sit somewhere.
+ */
+export function removeCard(state: WorkingState, key: string): WorkingState {
+  const instance = state.instances[key];
+  if (instance === undefined) {
+    return state;
+  }
+  const total = Object.values(state.instances).filter((i) => i.animeId === instance.animeId).length;
+  if (total <= 1) {
+    return state;
+  }
+  const order: Record<string, string[]> = {};
+  for (const container of Object.keys(state.order)) {
+    order[container] = state.order[container].filter((k) => k !== key);
+  }
+  const instances = { ...state.instances };
+  delete instances[key];
+  return { order, instances };
+}
+
+/**
+ * buildDraft builds the ordering draft (`{animeId: [{dia, orden}]}`): each weekday clone
+ * contributes one placement (an anime on several days emits several), renumbered by
+ * column position; a genuinely unplaced rail card keeps its Estrenos section placement.
+ * A pending duplicate (empty section) adds nothing until dragged onto a day.
+ */
+export function buildDraft(state: WorkingState): Record<string, DraftPlacement[]> {
   const draft: Record<string, DraftPlacement[]> = {};
-  for (const day of Object.keys(columns)) {
-    columns[day].forEach((card, index) => {
-      (draft[card.animeId] ??= []).push({ dia: day, orden: index + 1 });
+  for (const day of WEEKDAYS) {
+    (state.order[day] ?? []).forEach((key, index) => {
+      const instance = state.instances[key];
+      (draft[instance.animeId] ??= []).push({ dia: day, orden: index + 1 });
     });
   }
-  for (const card of rail) {
-    if (draft[card.animeId] === undefined && card.section !== '') {
-      draft[card.animeId] = [{ dia: card.section, orden: card.orden }];
+  for (const key of state.order[RAIL_CONTAINER_ID] ?? []) {
+    const instance = state.instances[key];
+    if (draft[instance.animeId] === undefined && instance.section !== '') {
+      draft[instance.animeId] = [{ dia: instance.section, orden: instance.orden }];
     }
   }
   return draft;
 }
 
 /** serializeDraft is buildDraft rendered as the JSON string the backend persists. */
-export function serializeDraft(
-  columns: Record<string, readonly OrderingCard[]>,
-  rail: readonly OrderingCard[],
-): string {
-  return JSON.stringify(buildDraft(columns, rail));
-}
-
-/** initialWorkingState builds the editable working state from a loaded board. */
-export function initialWorkingState(board: OrderingBoard): WorkingState {
-  return { rail: [...board.rail], columns: groupGridByDay(board.grid) };
-}
-
-/** findCard returns a representative card for an anime (rail or any day clone) to copy metadata. */
-function findCard(state: WorkingState, animeId: string): OrderingCard | undefined {
-  const inRail = state.rail.find((c) => c.animeId === animeId);
-  if (inRail !== undefined) {
-    return inRail;
-  }
-  for (const day of WEEKDAYS) {
-    const found = state.columns[day].find((c) => c.animeId === animeId);
-    if (found !== undefined) {
-      return found;
-    }
-  }
-  return undefined;
-}
-
-/** cardCount totals an anime's cards across the rail and every weekday column. */
-export function cardCount(state: WorkingState, animeId: string): number {
-  let total = state.rail.filter((c) => c.animeId === animeId).length;
-  for (const day of WEEKDAYS) {
-    total += state.columns[day].filter((c) => c.animeId === animeId).length;
-  }
-  return total;
-}
-
-/**
- * duplicate stages a logical copy of an already-placed anime into the rail (same
- * animeId — never a second DB anime) so it can be dragged onto another weekday.
- * No-op when a pending copy already waits in the rail.
- */
-export function duplicate(state: WorkingState, animeId: string): WorkingState {
-  if (state.rail.some((c) => c.animeId === animeId)) {
-    return state;
-  }
-  const card = findCard(state, animeId);
-  if (card === undefined) {
-    return state;
-  }
-  return { rail: [...state.rail, { ...card, dia: RAIL }], columns: state.columns };
-}
-
-/**
- * removeCard deletes one card of an anime from a location (a weekday or the rail).
- * Guarded by the minimum-one rule: the anime's last remaining card can never be
- * deleted — it must always sit somewhere.
- */
-export function removeCard(state: WorkingState, animeId: string, location: string): WorkingState {
-  if (cardCount(state, animeId) <= 1) {
-    return state;
-  }
-  if (location === RAIL) {
-    if (!state.rail.some((c) => c.animeId === animeId)) {
-      return state;
-    }
-    return { rail: state.rail.filter((c) => c.animeId !== animeId), columns: state.columns };
-  }
-  if (state.columns[location] === undefined || !state.columns[location].some((c) => c.animeId === animeId)) {
-    return state;
-  }
-  return {
-    rail: state.rail,
-    columns: { ...state.columns, [location]: renumber(state.columns[location].filter((c) => c.animeId !== animeId)) },
-  };
-}
-
-/**
- * moveClone is the single drag-and-drop primitive: it relocates one card from a
- * source location to a target (a weekday, or the rail to unplace) at the drop
- * position. Drag changes BOTH day and order. Dropping onto a day that already holds
- * the anime is rejected (no two copies per day); dropping within the same day
- * reorders. Renumbers the touched columns.
- */
-export function moveClone(
-  state: WorkingState,
-  animeId: string,
-  source: string,
-  target: string,
-  index: number,
-): WorkingState {
-  const card = findCard(state, animeId);
-  if (card === undefined) {
-    return state;
-  }
-  if (target !== RAIL && state.columns[target] === undefined) {
-    return state;
-  }
-  if (target !== RAIL && source !== target && state.columns[target].some((c) => c.animeId === animeId)) {
-    return state; // no two copies of the same anime on one day
-  }
-
-  let rail = state.rail;
-  let columns = state.columns;
-  if (source === RAIL) {
-    rail = rail.filter((c) => c.animeId !== animeId);
-  } else {
-    columns = { ...columns, [source]: renumber(columns[source].filter((c) => c.animeId !== animeId)) };
-  }
-
-  if (target === RAIL) {
-    rail = rail.some((c) => c.animeId === animeId) ? rail : [...rail, { ...card, dia: RAIL }];
-    return { rail, columns };
-  }
-  const column = columns[target].filter((c) => c.animeId !== animeId);
-  const clamped = Math.max(0, Math.min(index, column.length));
-  column.splice(clamped, 0, { ...card, dia: target });
-  return { rail, columns: { ...columns, [target]: renumber(column) } };
+export function serializeDraft(state: WorkingState): string {
+  return JSON.stringify(buildDraft(state));
 }
 
 /**
  * countChanges reports how many animes' placement SET differs from the loaded board.
- * Both sides are normalized through buildDraft (renumbered per day) so a stable
- * layout diffs to zero regardless of stored orden gaps — multi-day aware.
+ * Both sides are normalized through buildDraft (renumbered per day) so a stable layout
+ * diffs to zero regardless of stored orden gaps — multi-day aware.
  */
-export function countChanges(
-  board: OrderingBoard,
-  columns: Record<string, readonly OrderingCard[]>,
-  rail: readonly OrderingCard[],
-): number {
-  const initial = initialWorkingState(board);
-  const original = buildDraft(initial.columns, initial.rail);
-  const working = buildDraft(columns, rail);
+export function countChanges(board: OrderingBoard, state: WorkingState): number {
+  const original = buildDraft(initialWorkingState(board));
+  const working = buildDraft(state);
   const key = (placements: readonly DraftPlacement[]): string =>
     placements
       .map((p) => `${p.dia}#${p.orden}`)

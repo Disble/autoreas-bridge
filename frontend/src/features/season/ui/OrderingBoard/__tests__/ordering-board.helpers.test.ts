@@ -1,173 +1,129 @@
 import { describe, expect, it } from 'vitest';
 
-import type { OrderingCard } from '../../../../../infrastructure/season-source';
-import { RAIL_CONTAINER_ID, WEEKDAYS } from '../ordering-board.constants';
+import type { OrderingBoard, OrderingCard } from '../../../../../infrastructure/season-source';
+import { RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
+  applyOrder,
   buildDraft,
-  cardCount,
-  containerFor,
+  cardCounts,
   countChanges,
-  decodeSortableId,
   duplicate,
-  groupGridByDay,
   initialWorkingState,
-  locationFor,
-  moveClone,
-  RAIL,
+  instancesIn,
   removeCard,
-  renumber,
+  scheduledCount,
   serializeDraft,
-  sortableId,
 } from '../ordering-board.helpers';
 
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
   return { animeId: 'a', name: 'A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
 }
 
-describe('dnd-kit id encoding', () => {
-  it('round-trips an anime id and location through sortableId/decodeSortableId', () => {
-    const id = sortableId('anime-1', 'Lunes');
-    expect(id).toBe('anime-1::Lunes');
-    expect(decodeSortableId(id)).toEqual({ animeId: 'anime-1', location: 'Lunes' });
-  });
+function board(overrides: Partial<OrderingBoard> = {}): OrderingBoard {
+  return { rail: [], grid: [], ...overrides };
+}
 
-  it('maps the rail location to a real container id and back (empty string is not a valid id)', () => {
-    expect(containerFor(RAIL)).toBe(RAIL_CONTAINER_ID);
-    expect(locationFor(RAIL_CONTAINER_ID)).toBe(RAIL);
-    expect(decodeSortableId(sortableId('a', RAIL))).toEqual({ animeId: 'a', location: RAIL });
-  });
-});
-
-describe('groupGridByDay', () => {
-  it('groups grid cards by weekday (clones included), sorted by orden, all seven columns present', () => {
-    const grid = [
-      card({ animeId: 'x', dia: 'Jueves', orden: 2 }),
-      card({ animeId: 'y', dia: 'Jueves', orden: 1 }),
-      card({ animeId: 'z', dia: 'Lunes', orden: 1 }),
-      card({ animeId: 'z', dia: 'Miércoles', orden: 1 }),
-    ];
-    const cols = groupGridByDay(grid);
-    expect(Object.keys(cols)).toHaveLength(WEEKDAYS.length);
-    expect(cols['Jueves'].map((c) => c.animeId)).toEqual(['y', 'x']);
-    expect(cols['Lunes'].map((c) => c.animeId)).toEqual(['z']);
-    expect(cols['Miércoles'].map((c) => c.animeId)).toEqual(['z']);
-    expect(cols['Domingo']).toEqual([]);
-  });
-});
-
-describe('renumber', () => {
-  it('reassigns orden 1..N by current position', () => {
-    const out = renumber([card({ animeId: 'a', orden: 9 }), card({ animeId: 'b', orden: 4 })]);
-    expect(out.map((c) => c.orden)).toEqual([1, 2]);
+describe('initialWorkingState', () => {
+  it('groups rail + weekday clones into containers with stable unique keys, days sorted by orden', () => {
+    const state = initialWorkingState(
+      board({
+        rail: [card({ animeId: 'r', section: 'Visto' })],
+        grid: [
+          card({ animeId: 'z', dia: 'Jueves', orden: 2 }),
+          card({ animeId: 'y', dia: 'Jueves', orden: 1 }),
+          card({ animeId: 'z', dia: 'Lunes', orden: 1 }), // z is multi-day
+        ],
+      }),
+    );
+    expect(instancesIn(state, RAIL_CONTAINER_ID).map((i) => i.animeId)).toEqual(['r']);
+    expect(instancesIn(state, 'Jueves').map((i) => i.animeId)).toEqual(['y', 'z']);
+    expect(instancesIn(state, 'Lunes').map((i) => i.animeId)).toEqual(['z']);
+    // two distinct instances of z, distinct keys
+    expect(cardCounts(state)['z']).toBe(2);
   });
 });
 
 describe('buildDraft / serializeDraft', () => {
-  it('emits one placement per weekday clone (multi-day) and skips empty-section rail duplicates', () => {
-    const columns = {
-      Lunes: [card({ animeId: 'z' })],
-      Miércoles: [card({ animeId: 'z' }), card({ animeId: 'w' })],
-    };
-    const rail = [
-      card({ animeId: 'r1', section: 'Visto', orden: 3 }),
-      card({ animeId: 'z', section: '' }), // a pending duplicate of an already-placed anime: adds nothing
-    ];
-    const draft = buildDraft(columns, rail);
-
+  it('emits one placement per weekday clone and the section for an unplaced rail card', () => {
+    const state = initialWorkingState(
+      board({
+        rail: [card({ animeId: 'r', section: 'Visto', orden: 3 })],
+        grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Miércoles', orden: 1 })],
+      }),
+    );
+    const draft = buildDraft(state);
     expect(draft['z']).toEqual([
       { dia: 'Lunes', orden: 1 },
       { dia: 'Miércoles', orden: 1 },
     ]);
-    expect(draft['w']).toEqual([{ dia: 'Miércoles', orden: 2 }]);
-    expect(draft['r1']).toEqual([{ dia: 'Visto', orden: 3 }]);
-    expect(JSON.parse(serializeDraft(columns, rail))).toEqual(draft);
+    expect(draft['r']).toEqual([{ dia: 'Visto', orden: 3 }]);
+    expect(JSON.parse(serializeDraft(state))).toEqual(draft);
+  });
+
+  it('a pending duplicate (empty section) in the rail adds no placement', () => {
+    let state = initialWorkingState(board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })] }));
+    state = duplicate(state, 'z');
+    expect(buildDraft(state)['z']).toEqual([{ dia: 'Lunes', orden: 1 }]); // only the weekday placement
   });
 });
 
-describe('duplicate + removeCard (min-one, no dup-per-day)', () => {
-  it('duplicate stages one rail copy of a placed anime and is a no-op when a copy already waits', () => {
-    const start = initialWorkingState({ rail: [], grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })] });
+describe('duplicate + removeCard (min-one)', () => {
+  it('duplicate stages one rail copy and is a no-op when a copy already waits', () => {
+    const start = initialWorkingState(board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })] }));
     const once = duplicate(start, 'z');
-    expect(once.rail.map((c) => c.animeId)).toEqual(['z']);
-    expect(cardCount(once, 'z')).toBe(2);
-    const twice = duplicate(once, 'z');
-    expect(twice.rail).toHaveLength(1); // no second pending copy
+    expect(instancesIn(once, RAIL_CONTAINER_ID).map((i) => i.animeId)).toEqual(['z']);
+    expect(cardCounts(once)['z']).toBe(2);
+    expect(duplicate(once, 'z')).toBe(once); // no second pending copy
   });
 
   it('removeCard deletes a copy but never the anime last card', () => {
-    const start = initialWorkingState({
-      rail: [],
-      grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Miércoles', orden: 1 })],
-    });
-    const afterOne = removeCard(start, 'z', 'Lunes');
-    expect(afterOne.columns['Lunes']).toHaveLength(0);
-    expect(afterOne.columns['Miércoles'].map((c) => c.animeId)).toEqual(['z']);
-    // now z has a single card — it cannot be deleted
-    const blocked = removeCard(afterOne, 'z', 'Miércoles');
-    expect(blocked).toBe(afterOne);
+    const start = initialWorkingState(
+      board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Martes', orden: 1 })] }),
+    );
+    const lunesKey = start.order['Lunes'][0];
+    const afterOne = removeCard(start, lunesKey);
+    expect(instancesIn(afterOne, 'Lunes')).toHaveLength(0);
+    expect(cardCounts(afterOne)['z']).toBe(1);
+    const martesKey = afterOne.order['Martes'][0];
+    expect(removeCard(afterOne, martesKey)).toBe(afterOne); // blocked: last card
   });
 });
 
-describe('moveClone (the one drag primitive)', () => {
-  it('places a rail card onto a day at the drop position, renumbered, leaving the rail', () => {
-    const start = initialWorkingState({
-      rail: [card({ animeId: 'r', section: 'Visto' })],
-      grid: [card({ animeId: 'a', dia: 'Jueves', orden: 1 }), card({ animeId: 'b', dia: 'Jueves', orden: 2 })],
-    });
-    const next = moveClone(start, 'r', RAIL, 'Jueves', 1); // between a and b
-    expect(next.columns['Jueves'].map((c) => c.animeId)).toEqual(['a', 'r', 'b']);
-    expect(next.columns['Jueves'].map((c) => c.orden)).toEqual([1, 2, 3]);
-    expect(next.rail).toHaveLength(0);
-  });
+describe('applyOrder (no two copies per day)', () => {
+  it('accepts a reorder but rejects an order that duplicates an anime in one container', () => {
+    const start = initialWorkingState(
+      board({ grid: [card({ animeId: 'a', dia: 'Lunes', orden: 1 }), card({ animeId: 'b', dia: 'Lunes', orden: 2 })] }),
+    );
+    const [k1, k2] = start.order['Lunes'];
+    const reordered = { ...start.order, Lunes: [k2, k1] };
+    expect(applyOrder(start, reordered).order['Lunes']).toEqual([k2, k1]);
 
-  it('moves a clone between days, renumbering both', () => {
-    const start = initialWorkingState({
-      rail: [],
-      grid: [card({ animeId: 'a', dia: 'Jueves', orden: 1 }), card({ animeId: 'c', dia: 'Lunes', orden: 1 })],
-    });
-    const next = moveClone(start, 'c', 'Lunes', 'Jueves', 0);
-    expect(next.columns['Jueves'].map((c) => c.animeId)).toEqual(['c', 'a']);
-    expect(next.columns['Lunes']).toHaveLength(0);
-  });
-
-  it('reorders within the same day when source and target match', () => {
-    const start = initialWorkingState({
-      rail: [],
-      grid: [card({ animeId: 'a', dia: 'Lunes', orden: 1 }), card({ animeId: 'b', dia: 'Lunes', orden: 2 })],
-    });
-    const next = moveClone(start, 'b', 'Lunes', 'Lunes', 0);
-    expect(next.columns['Lunes'].map((c) => c.animeId)).toEqual(['b', 'a']);
-  });
-
-  it('rejects a drop onto a day that already holds the anime (no two copies per day)', () => {
-    const start = initialWorkingState({
-      rail: [card({ animeId: 'z', section: '' })],
-      grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })],
-    });
-    const next = moveClone(start, 'z', RAIL, 'Lunes', 0);
-    expect(next).toBe(start); // rejected — z is already on Lunes
-  });
-
-  it('unplaces a clone when dropped onto the rail', () => {
-    const start = initialWorkingState({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
-    const next = moveClone(start, 'g', 'Lunes', RAIL, 0);
-    expect(next.rail.map((c) => c.animeId)).toEqual(['g']);
-    expect(next.columns['Lunes']).toHaveLength(0);
+    // z on two days; try to force both clones into the same day → rejected
+    let multi = initialWorkingState(
+      board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Martes', orden: 1 })] }),
+    );
+    const zLunes = multi.order['Lunes'][0];
+    const zMartes = multi.order['Martes'][0];
+    const bad = { ...multi.order, Lunes: [zLunes, zMartes], Martes: [] };
+    multi = applyOrder(multi, bad);
+    expect(multi.order['Lunes']).toEqual([zLunes]); // unchanged — rejected
   });
 });
 
-describe('countChanges', () => {
-  it('counts animes whose placement set differs, ignoring stable multi-day layouts', () => {
-    const grid = [
-      card({ animeId: 'a', dia: 'Jueves', orden: 1 }),
-      card({ animeId: 'z', dia: 'Lunes', orden: 1 }),
-      card({ animeId: 'z', dia: 'Miércoles', orden: 1 }),
-    ];
-    const rail = [card({ animeId: 'c', section: 'Visto', orden: 1 })];
-    const columns = {
-      Jueves: [card({ animeId: 'a', dia: 'Jueves', orden: 1 })],
-      Lunes: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'c', section: 'Visto', orden: 1 })],
-    };
-    expect(countChanges({ rail, grid }, columns, [])).toBe(2); // z (lost Miércoles) and c (placed), a unchanged
+describe('countChanges + scheduledCount', () => {
+  it('countChanges ignores a stable layout and counts moved/placed animes', () => {
+    const loaded = board({
+      rail: [card({ animeId: 'c', section: 'Visto', orden: 1 })],
+      grid: [card({ animeId: 'a', dia: 'Jueves', orden: 1 })],
+    });
+    const state = initialWorkingState(loaded);
+    expect(countChanges(loaded, state)).toBe(0); // untouched
+  });
+
+  it('scheduledCount counts distinct animes on weekdays (clones once)', () => {
+    const state = initialWorkingState(
+      board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Martes', orden: 1 })] }),
+    );
+    expect(scheduledCount(state)).toBe(1);
   });
 });

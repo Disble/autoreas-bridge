@@ -1,33 +1,27 @@
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
 import { Alert, Button, Card, Chip } from '@heroui/react';
 import { DroppableColumn } from './DroppableColumn';
 import { ORDERING_EMPTY_MESSAGE, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
-import { RAIL, sortableId } from './ordering-board.helpers';
 import { SortableCard } from './SortableCard';
 import { useOrderingBoard } from './use-ordering-board';
 
 /**
- * OrderingBoard is the OrderGrid replacement: a left rail of approved animes awaiting
- * a weekday and seven weekday columns, built on dnd-kit. Dragging a card sets BOTH its
- * day and its order (keyboard-accessible, animated). An anime can air on several days:
- * Duplicate stages a logical copy (same anime, never a second DB row) to drag onto
- * another day; Delete removes a copy but never the last one; no two copies share a day.
- * Apply writes the schedule; an applied board is read-only until reopened. All state and
- * the drag→placement mapping live in the colocated `useOrderingBoard` hook.
+ * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: a left rail of
+ * approved animes awaiting a weekday and seven weekday columns. Dragging a card sets
+ * BOTH its day and its order (keyboard-accessible, animated, live reshuffle). An anime
+ * can air on several days: Duplicate stages a logical copy (same anime, never a second
+ * DB row) to drag onto another day; Delete removes a copy but never the last; no two
+ * copies share a day. Apply writes the schedule; an applied board is read-only until
+ * reopened. All state and the drag reshuffle live in the colocated `useOrderingBoard`.
  */
 export function OrderingBoard() {
-  const { rail, columns, changeCount, scheduledCount, cardCounts, readOnly, activeCard, onDragStart, onDragEnd, duplicate, removeCard, onApply, onReset, onReopen, onCloseSeason } =
+  const { rail, columns, instances, counts, changeCount, scheduledCount, readOnly, onDragOver, duplicate, removeCard, onApply, onReset, onReopen, onCloseSeason } =
     useOrderingBoard();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  const canRemove = (animeId: string) => (cardCounts[animeId] ?? 0) > 1;
+  const canRemove = (animeId: string) => (counts[animeId] ?? 0) > 1;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DragDropProvider onDragOver={onDragOver}>
       <section className="flex flex-col gap-4">
         {readOnly && (
           <Alert status="success">
@@ -54,28 +48,24 @@ export function OrderingBoard() {
               <Card.Title>Approved to place ({rail.length})</Card.Title>
             </Card.Header>
             <Card.Content>
-              <DroppableColumn containerId={RAIL_CONTAINER_ID}>
+              <DroppableColumn containerId={RAIL_CONTAINER_ID} className="min-h-16">
                 {rail.length === 0 ? (
                   <p className="text-sm text-muted">{ORDERING_EMPTY_MESSAGE}</p>
                 ) : (
-                  <SortableContext
-                    id={RAIL_CONTAINER_ID}
-                    items={rail.map((card) => sortableId(card.animeId, RAIL))}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="flex flex-col gap-2">
-                      {rail.map((card) => (
-                        <SortableCard
-                          key={card.animeId}
-                          card={card}
-                          location={RAIL}
-                          readOnly={readOnly}
-                          canRemove={canRemove(card.animeId)}
-                          onRemove={() => removeCard(card.animeId, RAIL)}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
+                  <ul className="flex flex-col gap-2">
+                    {rail.map((instance, index) => (
+                      <SortableCard
+                        key={instance.key}
+                        instance={instance}
+                        container={RAIL_CONTAINER_ID}
+                        index={index}
+                        showOrder={false}
+                        readOnly={readOnly}
+                        canRemove={canRemove(instance.animeId)}
+                        onRemove={() => removeCard(instance.key)}
+                      />
+                    ))}
+                  </ul>
                 )}
               </DroppableColumn>
             </Card.Content>
@@ -96,25 +86,21 @@ export function OrderingBoard() {
                       {cards.length}
                     </Chip>
                   </div>
-                  <SortableContext
-                    id={day}
-                    items={cards.map((card) => sortableId(card.animeId, day))}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="flex flex-col gap-2">
-                      {cards.map((card) => (
-                        <SortableCard
-                          key={card.animeId}
-                          card={card}
-                          location={day}
-                          readOnly={readOnly}
-                          canRemove={canRemove(card.animeId)}
-                          onDuplicate={() => duplicate(card.animeId)}
-                          onRemove={() => removeCard(card.animeId, day)}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
+                  <ul className="flex flex-col gap-2">
+                    {cards.map((instance, index) => (
+                      <SortableCard
+                        key={instance.key}
+                        instance={instance}
+                        container={day}
+                        index={index}
+                        showOrder
+                        readOnly={readOnly}
+                        canRemove={canRemove(instance.animeId)}
+                        onDuplicate={() => duplicate(instance.animeId)}
+                        onRemove={() => removeCard(instance.key)}
+                      />
+                    ))}
+                  </ul>
                 </DroppableColumn>
               );
             })}
@@ -138,12 +124,12 @@ export function OrderingBoard() {
       </section>
 
       <DragOverlay>
-        {activeCard !== null ? (
+        {(source) => (
           <div className="rounded-md border border-accent bg-surface p-2 text-xs text-foreground shadow-lg">
-            {activeCard.name}
+            {instances[String(source.id)]?.name}
           </div>
-        ) : null}
+        )}
       </DragOverlay>
-    </DndContext>
+    </DragDropProvider>
   );
 }

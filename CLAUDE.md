@@ -36,3 +36,4 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 8. Frontend files over 500 lines must be refactored immediately.
 9. Prefer `frontend/src/features/dashboard` as the reference feature structure once introduced.
 10. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` instead of manually scaffolding complex frontend feature folders.
+11. Load `dnd-kit` for any drag-and-drop work (sortable lists, kanban/multi-column boards): use the new `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode safe, pointer-based for WebView2) — never legacy `@dnd-kit/core` and never native HTML5 DnD.

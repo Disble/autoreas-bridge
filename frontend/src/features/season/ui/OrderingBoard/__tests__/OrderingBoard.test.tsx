@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { OrderingCard } from '../../../../../infrastructure/season-source';
+import type { OrderingInstance } from '../ordering-board.types';
 import { OrderingBoard } from '../OrderingBoard';
 import { useOrderingBoard } from '../use-ordering-board';
 
@@ -10,22 +10,20 @@ vi.mock('../use-ordering-board', () => ({ useOrderingBoard: vi.fn() }));
 const mockedUseOrderingBoard = vi.mocked(useOrderingBoard);
 type HookReturn = ReturnType<typeof useOrderingBoard>;
 
-function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
-  return { animeId: 'a', name: 'Anime A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
+function card(overrides: Partial<OrderingInstance> = {}): OrderingInstance {
+  return { key: 'a#0', animeId: 'a', name: 'Anime A', section: 'Visto', orden: 0, isNewcomer: false, ...overrides };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     rail: [],
     columns: {},
+    instances: {},
+    counts: {},
     changeCount: 0,
     scheduledCount: 0,
-    cardCounts: {},
     readOnly: false,
-    activeCard: null,
-    moveClone: vi.fn(),
-    onDragStart: vi.fn(),
-    onDragEnd: vi.fn(),
+    onDragOver: vi.fn(),
     duplicate: vi.fn(),
     removeCard: vi.fn(),
     onApply: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
@@ -55,8 +53,9 @@ describe('OrderingBoard', () => {
 
   it('renders a rail card and a placed grid card', () => {
     mockHook({
-      rail: [card({ animeId: 'r', name: 'To Place' })],
-      columns: { Jueves: [card({ animeId: 'g', name: 'On Thursday', dia: 'Jueves', orden: 1 })] },
+      rail: [card({ key: 'r#0', animeId: 'r', name: 'To Place' })],
+      columns: { Jueves: [card({ key: 'g#0', animeId: 'g', name: 'On Thursday', orden: 1 })] },
+      counts: { r: 1, g: 1 },
       changeCount: 1,
     });
     render(<OrderingBoard />);
@@ -67,7 +66,7 @@ describe('OrderingBoard', () => {
 
   it('applies the schedule', () => {
     const onApply = vi.fn().mockResolvedValue({ status: 'ok', applied: 1, failed: [] });
-    mockHook({ columns: { Lunes: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] }, changeCount: 1, onApply });
+    mockHook({ columns: { Lunes: [card({ key: 'g#0', animeId: 'g', orden: 1 })] }, counts: { g: 1 }, changeCount: 1, onApply });
     render(<OrderingBoard />);
     fireEvent.click(screen.getByRole('button', { name: 'Apply schedule' }));
     expect(onApply).toHaveBeenCalled();

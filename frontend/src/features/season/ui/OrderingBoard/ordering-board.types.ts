@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import type { OrderingCard } from '../../../../infrastructure/season-source';
 
 /** One anime's intended placement — a weekday+position or its Estrenos section. */
 export interface DraftPlacement {
@@ -7,28 +6,37 @@ export interface DraftPlacement {
   readonly orden: number;
 }
 
-/** The seven weekday columns keyed by day name, each an ordered list of cards. */
-export type WeekColumns = Record<string, readonly OrderingCard[]>;
-
-/** The board's working state: the rail (awaiting placement) and the week columns. */
-export interface WorkingState {
-  readonly rail: readonly OrderingCard[];
-  readonly columns: WeekColumns;
+/**
+ * One card instance on the board — a single placement of an anime. Multi-day clones
+ * of the same anime share `animeId` but each has a distinct, stable `key` (the
+ * dnd-kit sortable id). `orden` is only meaningful for a rail card's Estrenos section.
+ */
+export interface OrderingInstance {
+  readonly key: string;
+  readonly animeId: string;
+  readonly name: string;
+  readonly section: string;
+  readonly orden: number;
+  readonly isNewcomer: boolean;
 }
 
-/** The slice of dnd-kit's droppable `data.current` a sortable item exposes. */
-export interface SortableData {
-  readonly sortable?: {
-    readonly containerId: string;
-    readonly index: number;
-  };
+/**
+ * The board's working state: per-container ordered instance keys (the shape `move`
+ * from @dnd-kit/helpers reorders) plus the instance lookup by key.
+ */
+export interface WorkingState {
+  readonly order: Record<string, readonly string[]>;
+  readonly instances: Record<string, OrderingInstance>;
 }
 
 /** Props for a single draggable ordering card (a rail candidate or a placed weekday clone). */
-export interface SortableCardProps {
-  readonly card: OrderingCard;
-  /** The card's location: a weekday name, or RAIL for the awaiting-placement rail. */
-  readonly location: string;
+export interface OrderingItemProps {
+  readonly instance: OrderingInstance;
+  /** The dnd-kit container id this card currently lives in (a weekday or RAIL_CONTAINER_ID). */
+  readonly container: string;
+  readonly index: number;
+  /** Weekday clones show their "N." order prefix; rail cards do not. */
+  readonly showOrder: boolean;
   readonly readOnly: boolean;
   /** False disables Delete — the anime's last card can never be removed. */
   readonly canRemove: boolean;
@@ -38,7 +46,7 @@ export interface SortableCardProps {
 }
 
 /** Props for a droppable column (a weekday, or the rail) that accepts dropped cards. */
-export interface DroppableColumnProps {
+export interface OrderingColumnProps {
   /** The dnd-kit droppable container id (a weekday name or RAIL_CONTAINER_ID). */
   readonly containerId: string;
   readonly className?: string;
