@@ -1,6 +1,6 @@
 import type { SeasonSnapshot } from '../../../../infrastructure/season-source';
 import { SEASON_MONTHS_ES } from './season-workspace.constants';
-import type { SeasonOverview } from './season-workspace.types';
+import type { PastSeasonEntry, SeasonOverview } from './season-workspace.types';
 
 /**
  * Derives the suggested season name from a date using the 10-year Excel-sheet
@@ -37,4 +37,22 @@ export function buildSeasonOverview(season: SeasonSnapshot): SeasonOverview {
     minApprovalGrade: season.minApprovalGrade,
     slots: season.slots,
   };
+}
+
+/**
+ * Builds the past-seasons history rows (in the order received — newest first
+ * from the backend), each with its status chip color and created-date label,
+ * for the no-open-season view where the user picks one to open read-only.
+ */
+export function buildPastSeasonEntries(seasons: readonly SeasonSnapshot[]): readonly PastSeasonEntry[] {
+  return seasons.map((season) => {
+    const isOpen = season.status === 'open';
+    return {
+      id: season.id,
+      name: season.name,
+      statusLabel: isOpen ? 'Open' : 'Closed',
+      statusColor: isOpen ? 'success' : 'default',
+      createdLabel: formatSeasonCreatedLabel(season.createdAt),
+    };
+  });
 }

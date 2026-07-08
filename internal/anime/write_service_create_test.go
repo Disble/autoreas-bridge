@@ -57,6 +57,36 @@ func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 	}
 }
 
+func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	writer := &stubAnimeWriter{}
+	service := anime.NewWriteService(store, writer)
+	service.SetIDGen(func() string { return "with-folder" })
+
+	if _, err := service.CreateAnime(ctx, api.AnimeCreate{
+		Nombre:  "Con Carpeta",
+		Pagina:  "https://jkanime.net/con-carpeta/",
+		Section: "Sin ver",
+		Orden:   1,
+		Carpeta: "D:/Anime/Con Carpeta",
+	}); err != nil {
+		t.Fatalf("CreateAnime: %v", err)
+	}
+
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(writer.payload, &obj); err != nil {
+		t.Fatalf("unmarshal writer payload: %v", err)
+	}
+	got, ok := obj["carpeta"]
+	if !ok {
+		t.Fatalf("expected carpeta persisted, payload: %s", writer.payload)
+	}
+	if string(got) != `"D:/Anime/Con Carpeta"` {
+		t.Fatalf("carpeta = %s, want %q", got, "D:/Anime/Con Carpeta")
+	}
+}
+
 func TestWriteServiceCreateAnimeGeneratesIDWhenBlank(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)

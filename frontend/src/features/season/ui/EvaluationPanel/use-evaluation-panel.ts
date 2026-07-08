@@ -13,6 +13,7 @@ import { countUngraded, toEvaluationRows } from './evaluation-panel.helpers';
 export function useEvaluationPanel(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
+  const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
   const skipGrading = useSeasonStore((state) => state.skipGrading);
@@ -35,6 +36,7 @@ export function useEvaluationPanel(source: SeasonSource = seasonSource) {
   }, [refreshAnimes, source]);
 
   return {
+    readOnly,
     rows,
     ungradedCount,
     errorMessage,

@@ -1,4 +1,5 @@
 import closeIcon from '@iconify-icons/solar/close-circle-broken';
+import folderIcon from '@iconify-icons/solar/folder-with-files-broken';
 import linkIcon from '@iconify-icons/solar/link-round-broken';
 import { Icon } from '@iconify/react';
 import { Alert, Button, Card, Chip, Label, TextArea, TextField, Tooltip } from '@heroui/react';
@@ -23,6 +24,7 @@ import { useIntakePanel } from './use-intake-panel';
  */
 export function IntakePanel() {
   const {
+    readOnly,
     mode,
     switchMode,
     rawDraft,
@@ -30,12 +32,16 @@ export function IntakePanel() {
     editableRows,
     selected,
     toggleSelect,
+    folderOverrides,
+    onPickFolder,
     availableCount,
+    availabilityPendingCount,
     onCreate,
     unresolvedCount,
     errorMessage,
     busyMessage,
     onRunMatching,
+    onRecheckAvailability,
     onResolve,
     onDiscard,
   } = useIntakePanel();
@@ -64,14 +70,16 @@ export function IntakePanel() {
         <Card.Content>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">Intake list</h3>
-            <div className="flex gap-1">
-              <Button size="sm" variant={mode === 'raw' ? 'primary' : 'tertiary'} onPress={() => switchMode('raw')}>
-                Raw
-              </Button>
-              <Button size="sm" variant={mode === 'list' ? 'primary' : 'tertiary'} onPress={() => switchMode('list')}>
-                List
-              </Button>
-            </div>
+            {!readOnly && (
+              <div className="flex gap-1">
+                <Button size="sm" variant={mode === 'raw' ? 'primary' : 'tertiary'} onPress={() => switchMode('raw')}>
+                  Raw
+                </Button>
+                <Button size="sm" variant={mode === 'list' ? 'primary' : 'tertiary'} onPress={() => switchMode('list')}>
+                  List
+                </Button>
+              </div>
+            )}
           </div>
 
           {mode === 'raw' ? (
@@ -89,7 +97,7 @@ export function IntakePanel() {
                   <li key={row.id}>
                     <div className="flex flex-wrap items-center gap-3 border-b border-divider py-2">
                       <LabeledCheckbox
-                        isDisabled={!creatable}
+                        isDisabled={!creatable || readOnly}
                         isSelected={selected.has(row.id)}
                         onChange={() => toggleSelect(row.id)}
                       >
@@ -121,22 +129,42 @@ export function IntakePanel() {
                             </Tooltip.Content>
                           </Tooltip>
                         )}
-                        <Tooltip>
-                          <Button
-                            isIconOnly
-                            aria-label={`Discard ${row.rawName}`}
-                            className="hover:text-danger"
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => onDiscard(row.id)}
-                          >
-                            <Icon className="size-4" icon={closeIcon} />
-                          </Button>
-                          <Tooltip.Content showArrow>
-                            <Tooltip.Arrow />
-                            Discard
-                          </Tooltip.Content>
-                        </Tooltip>
+                        {creatable && !readOnly && (
+                          <Tooltip>
+                            <Button
+                              isIconOnly
+                              aria-label={`Set download folder for ${row.rawName}`}
+                              className={folderOverrides[row.id] === undefined ? 'hover:text-success' : 'text-success'}
+                              size="sm"
+                              variant="tertiary"
+                              onPress={() => onPickFolder(row.id)}
+                            >
+                              <Icon className="size-4" icon={folderIcon} />
+                            </Button>
+                            <Tooltip.Content showArrow>
+                              <Tooltip.Arrow />
+                              {folderOverrides[row.id] ?? 'Default download folder'}
+                            </Tooltip.Content>
+                          </Tooltip>
+                        )}
+                        {!readOnly && (
+                          <Tooltip>
+                            <Button
+                              isIconOnly
+                              aria-label={`Discard ${row.rawName}`}
+                              className="hover:text-danger"
+                              size="sm"
+                              variant="tertiary"
+                              onPress={() => onDiscard(row.id)}
+                            >
+                              <Icon className="size-4" icon={closeIcon} />
+                            </Button>
+                            <Tooltip.Content showArrow>
+                              <Tooltip.Arrow />
+                              Discard
+                            </Tooltip.Content>
+                          </Tooltip>
+                        )}
                         {indicator !== null && (
                           <Tooltip>
                             <span
@@ -150,7 +178,10 @@ export function IntakePanel() {
                           </Tooltip>
                         )}
                       </div>
-                      {row.candidates.length > 0 && row.matchStatus !== 'matched' && (
+                      {creatable && folderOverrides[row.id] !== undefined && (
+                        <span className="w-full break-all text-xs text-success">Folder: {folderOverrides[row.id]}</span>
+                      )}
+                      {!readOnly && row.candidates.length > 0 && row.matchStatus !== 'matched' && (
                         <div className="flex w-full flex-wrap gap-2">
                           {row.candidates.map((candidate) => (
                             <Button
@@ -172,14 +203,21 @@ export function IntakePanel() {
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button isDisabled={editableRows.length === 0} variant="secondary" onPress={onRunMatching}>
-              Run matching
-            </Button>
-            <Button isDisabled={selected.size === 0} variant="primary" onPress={onCreate}>
-              Create {selected.size > 0 ? selected.size : ''}
-            </Button>
+            {!readOnly && (
+              <>
+                <Button isDisabled={editableRows.length === 0} variant="secondary" onPress={onRunMatching}>
+                  Run matching
+                </Button>
+                <Button isDisabled={availabilityPendingCount === 0} variant="secondary" onPress={onRecheckAvailability}>
+                  Check availability
+                </Button>
+                <Button isDisabled={selected.size === 0} variant="primary" onPress={onCreate}>
+                  Create {selected.size > 0 ? selected.size : ''}
+                </Button>
+              </>
+            )}
             <span className="text-sm text-muted">
-              {unresolvedCount} unresolved · {availableCount} available to create
+              {unresolvedCount} unresolved · {availabilityPendingCount} waiting · {availableCount} available to create
             </span>
           </div>
         </Card.Content>

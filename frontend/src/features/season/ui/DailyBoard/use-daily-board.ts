@@ -18,6 +18,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
 
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
+  const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
   const sendToVerHoy = useSeasonStore((state) => state.sendToVerHoy);
@@ -65,6 +66,7 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
   }, [refreshAnimes, source]);
 
   return {
+    readOnly,
     sections,
     selected,
     toggleSelect,

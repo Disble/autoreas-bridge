@@ -83,6 +83,23 @@ func (r *fakeRepo) UpdateSeason(_ context.Context, s domain.Season) error {
 	return nil
 }
 
+func (r *fakeRepo) ListSeasons(_ context.Context) ([]domain.Season, error) {
+	out := make([]domain.Season, 0, len(r.order))
+	for i := len(r.order) - 1; i >= 0; i-- { // newest first
+		out = append(out, r.seasons[r.order[i]])
+	}
+	return out, nil
+}
+
+func (r *fakeRepo) SeasonByID(_ context.Context, id string) (*domain.Season, error) {
+	s, ok := r.seasons[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := s
+	return &cp, nil
+}
+
 // fakeSearcher is an in-memory NameSearcher keyed by exact query.
 type fakeSearcher struct {
 	byQuery map[string][]match.Candidate
@@ -217,6 +234,86 @@ func TestServiceImportIntakeParsesDedupesAndSkipsBlanks(t *testing.T) {
 		if r.MatchStatus != domain.MatchPending {
 			t.Fatalf("imported rows must be pending, got %q", r.MatchStatus)
 		}
+	}
+}
+
+func TestServiceListSeasonsAndSeasonByID(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+
+	// A closed "past" season plus a currently-open one.
+	first, _ := svc.CreateSeason(ctx, "Abril 2026")
+	if err := svc.CloseSeason(ctx); err != nil {
+		t.Fatalf("CloseSeason: %v", err)
+	}
+	second, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	all, err := svc.ListSeasons(ctx)
+	if err != nil {
+		t.Fatalf("ListSeasons: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected both seasons listed, got %d", len(all))
+	}
+
+	got, err := svc.SeasonByID(ctx, first.ID)
+	if err != nil {
+		t.Fatalf("SeasonByID: %v", err)
+	}
+	if got == nil || got.ID != first.ID || !got.IsClosed() {
+		t.Fatalf("SeasonByID(%q) = %+v, want the closed first season", first.ID, got)
+	}
+
+	open, err := svc.SeasonByID(ctx, second.ID)
+	if err != nil {
+		t.Fatalf("SeasonByID(open): %v", err)
+	}
+	if open == nil || open.IsClosed() {
+		t.Fatalf("SeasonByID(%q) should be the open season, got %+v", second.ID, open)
+	}
+
+	missing, err := svc.SeasonByID(ctx, "does-not-exist")
+	if err != nil {
+		t.Fatalf("SeasonByID(missing) should not error, got %v", err)
+	}
+	if missing != nil {
+		t.Fatalf("SeasonByID(missing) = %+v, want nil", missing)
+	}
+}
+
+func TestServiceAddIntakeName(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+
+	// Triangulated: the append path, the blank-skip path, and the case-insensitive
+	// dedup path — run in sequence so the duplicate case sees the first append.
+	cases := []struct {
+		name      string
+		input     string
+		wantAdded bool
+	}{
+		{name: "a non-blank name is appended", input: "Naruto", wantAdded: true},
+		{name: "a blank name is skipped", input: "   ", wantAdded: false},
+		{name: "a case-insensitive duplicate is skipped", input: "naruto", wantAdded: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			added, err := svc.AddIntakeName(ctx, season.ID, tc.input)
+			if err != nil {
+				t.Fatalf("AddIntakeName(%q): %v", tc.input, err)
+			}
+			if added != tc.wantAdded {
+				t.Fatalf("AddIntakeName(%q) added = %v, want %v", tc.input, added, tc.wantAdded)
+			}
+		})
+	}
+
+	rows, _ := svc.ListSeasonAnimes(ctx, season.ID)
+	if len(rows) != 1 {
+		t.Fatalf("expected exactly one row after append/skip/dup, got %d", len(rows))
 	}
 }
 

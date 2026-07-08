@@ -19,6 +19,7 @@ import (
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
@@ -84,10 +85,12 @@ type App struct {
 	downloadScheduler       schedule.Scheduler
 	newSeasonStore          func(db *sql.DB) season.Repository
 	seasonService           *season.Service
+	settingsStore           appSettingsStore
 	animeWrite              *anime.WriteService
 	seasonScheduler         schedule.Scheduler
 	openURL                 func(ctx context.Context, url string)
 	openFolder              func(path string) error
+	pickFolder              func(ctx context.Context, title string) (string, error)
 	copyText                func(ctx context.Context, value string) error
 }
 
@@ -102,6 +105,14 @@ var downloadRuntimeEventNames = [...]string{
 
 type tracerBulletRunner interface {
 	Start()
+}
+
+// appSettingsStore is the narrow port for reading/writing global user
+// preferences (app_settings). Nil-tolerant at every binding: a nil store
+// degrades to an unset ("") downloads root.
+type appSettingsStore interface {
+	DownloadsRoot(ctx context.Context) (string, error)
+	SetDownloadsRoot(ctx context.Context, path string) error
 }
 
 type changelogPendingStore interface {
@@ -172,6 +183,7 @@ func (a *App) startup(ctx context.Context) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
 	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString, newJkanimeNameSearcher())
+	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
 	if service, ok := deviceService.(interface{ SetSyncStateStore(device.SyncStateStore) }); ok {

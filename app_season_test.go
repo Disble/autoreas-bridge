@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
+	"autoreas-bridge/internal/season/match"
 )
 
 // fakeSeasonRepo is an in-memory season.Repository for binding tests.
@@ -46,6 +47,23 @@ func (r *fakeSeasonRepo) ActiveSeason(_ context.Context) (*domain.Season, error)
 func (r *fakeSeasonRepo) UpdateSeason(_ context.Context, s domain.Season) error {
 	r.seasons[s.ID] = s
 	return nil
+}
+
+func (r *fakeSeasonRepo) ListSeasons(_ context.Context) ([]domain.Season, error) {
+	out := make([]domain.Season, 0, len(r.order))
+	for i := len(r.order) - 1; i >= 0; i-- { // newest first
+		out = append(out, r.seasons[r.order[i]])
+	}
+	return out, nil
+}
+
+func (r *fakeSeasonRepo) SeasonByID(_ context.Context, id string) (*domain.Season, error) {
+	s, ok := r.seasons[id]
+	if !ok {
+		return nil, nil
+	}
+	cp := s
+	return &cp, nil
 }
 
 func (r *fakeSeasonRepo) CreateSeasonAnime(_ context.Context, sa domain.SeasonAnime) error {
@@ -93,6 +111,22 @@ func newTestSeasonApp(repo season.Repository, hub *stubAppRealtimeHub) *App {
 		app.realtimeHub = hub
 	}
 	return app
+}
+
+type fakeAppNameSearcher struct {
+	byQuery map[string][]match.Candidate
+}
+
+func (f fakeAppNameSearcher) Search(_ context.Context, query string) ([]match.Candidate, error) {
+	return f.byQuery[query], nil
+}
+
+type fakeAppAvailabilityProbe struct {
+	chapters map[string]int
+}
+
+func (f fakeAppAvailabilityProbe) AvailableChapters(_ context.Context, pageURL string) (int, error) {
+	return f.chapters[pageURL], nil
 }
 
 // ── nil service safety ──────────────────────────────────────────────────────
@@ -208,6 +242,44 @@ func TestImportSeasonIntakeWithoutActiveSeason(t *testing.T) {
 	app := newTestSeasonApp(newFakeSeasonRepo(), nil)
 	if got := app.ImportSeasonIntake("Dr. Stone"); got == "ok" || got == "" {
 		t.Fatalf("expected error without an active season, got %q", got)
+	}
+}
+
+func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
+	t.Parallel()
+	repo := newFakeSeasonRepo()
+	fixed := time.UnixMilli(1_700_000_000_000)
+	n := 0
+	svc := season.NewService(repo, func() time.Time { return fixed }, func() string {
+		n++
+		return fmt.Sprintf("id-%d", n)
+	}, fakeAppNameSearcher{byQuery: map[string][]match.Candidate{
+		"Anime With Chapter": {
+			{Title: "Anime With Chapter", PageURL: "https://jkanime.net/anime-with-chapter/"},
+		},
+	}})
+	svc.SetAvailabilityDeps(fakeAppAvailabilityProbe{chapters: map[string]int{
+		"https://jkanime.net/anime-with-chapter/": 1,
+	}}, nil)
+	app := &App{ctx: context.Background(), seasonService: svc}
+
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	if got := app.ImportSeasonIntake("Anime With Chapter"); got != "ok" {
+		t.Fatalf("ImportSeasonIntake: %q", got)
+	}
+
+	if got := app.RunSeasonMatching(); got != "ok" {
+		t.Fatalf("RunSeasonMatching: %q", got)
+	}
+
+	rows := app.GetSeasonAnimes()
+	if len(rows) != 1 {
+		t.Fatalf("expected one row, got %+v", rows)
+	}
+	if rows[0].MatchStatus != "matched" || rows[0].Availability != "available" || rows[0].AvailableChapters != 1 {
+		t.Fatalf("matching must immediately expose creatable rows, got %+v", rows[0])
 	}
 }
 

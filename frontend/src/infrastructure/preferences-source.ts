@@ -1,4 +1,4 @@
-import { GetSeasonMode } from '../../wailsjs/go/main/App';
+import { GetDownloadsRoot, GetSeasonMode, PickFolder, SetDownloadsRoot } from '../../wailsjs/go/main/App';
 
 /** Poll interval (ms) while waiting for the Wails runtime to become ready. */
 export const PREFERENCES_BINDINGS_POLL_MS = 50;
@@ -13,6 +13,12 @@ export const PREFERENCES_BINDINGS_TIMEOUT_MS = 5000;
  */
 export interface PreferencesSource {
   readonly getSeasonMode: () => Promise<boolean>;
+  /** The configured global downloads root, or '' when unset / runtime unavailable. */
+  readonly getDownloadsRoot: () => Promise<string>;
+  /** Persists the global downloads root; resolves to 'ok' or an error string. */
+  readonly setDownloadsRoot: (path: string) => Promise<string>;
+  /** Opens the native folder picker; resolves to the chosen path or '' when cancelled. */
+  readonly pickFolder: (title: string) => Promise<string>;
 }
 
 function hasGoBinding(name: string): boolean {
@@ -59,6 +65,21 @@ export function createPreferencesSource(): PreferencesSource {
     getSeasonMode() {
       return waitForBindings(() => hasGoBinding('GetSeasonMode')).then((isReady) => {
         return isReady ? (GetSeasonMode() as Promise<boolean>) : Promise.resolve(false);
+      });
+    },
+    getDownloadsRoot() {
+      return waitForBindings(() => hasGoBinding('GetDownloadsRoot')).then((isReady) => {
+        return isReady ? (GetDownloadsRoot() as Promise<string>) : Promise.resolve('');
+      });
+    },
+    setDownloadsRoot(path: string) {
+      return waitForBindings(() => hasGoBinding('SetDownloadsRoot')).then((isReady) => {
+        return isReady ? (SetDownloadsRoot(path) as Promise<string>) : Promise.resolve('runtime unavailable');
+      });
+    },
+    pickFolder(title: string) {
+      return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
+        return isReady ? (PickFolder(title) as Promise<string>) : Promise.resolve('');
       });
     },
   };

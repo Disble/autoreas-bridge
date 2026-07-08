@@ -339,6 +339,7 @@ func (s *WriteService) CreateAnime(ctx context.Context, create contracts.AnimeCr
 		Section:      create.Section,
 		Orden:        create.Orden,
 		CreatedAt:    s.now(),
+		Carpeta:      create.Carpeta,
 		Tipo:         create.Tipo,
 		FechaEstreno: create.FechaEstreno,
 	})

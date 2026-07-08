@@ -65,6 +65,53 @@ func TestSQLiteStoreCreateAndActiveSeason(t *testing.T) {
 	}
 }
 
+func TestSQLiteStoreListSeasonsAndSeasonByID(t *testing.T) {
+	db := openTestSeasonDB(t)
+	store := NewSQLiteStore(db)
+	ctx := context.Background()
+
+	t1 := time.UnixMilli(1_600_000_000_000)
+	t2 := time.UnixMilli(1_700_000_000_000)
+	old := domain.NewSeason("season-old", "Abril 2026", t1)
+	if err := store.CreateSeason(ctx, old); err != nil {
+		t.Fatalf("CreateSeason old: %v", err)
+	}
+	if err := old.Close(t2); err != nil { // free the single-open slot before the next
+		t.Fatalf("close old: %v", err)
+	}
+	if err := store.UpdateSeason(ctx, old); err != nil {
+		t.Fatalf("UpdateSeason old: %v", err)
+	}
+	newer := domain.NewSeason("season-new", "Julio 2026", t2)
+	if err := store.CreateSeason(ctx, newer); err != nil {
+		t.Fatalf("CreateSeason new: %v", err)
+	}
+
+	all, err := store.ListSeasons(ctx)
+	if err != nil {
+		t.Fatalf("ListSeasons: %v", err)
+	}
+	if len(all) != 2 || all[0].ID != "season-new" || all[1].ID != "season-old" {
+		t.Fatalf("ListSeasons = %+v, want newest-first [season-new, season-old]", all)
+	}
+
+	got, err := store.SeasonByID(ctx, "season-old")
+	if err != nil {
+		t.Fatalf("SeasonByID: %v", err)
+	}
+	if got == nil || !got.IsClosed() {
+		t.Fatalf("SeasonByID(season-old) = %+v, want a closed season", got)
+	}
+
+	missing, err := store.SeasonByID(ctx, "nope")
+	if err != nil {
+		t.Fatalf("SeasonByID(missing): %v", err)
+	}
+	if missing != nil {
+		t.Fatalf("SeasonByID(missing) = %+v, want nil", missing)
+	}
+}
+
 func TestSQLiteStoreActiveSeasonNilWhenNoneOpen(t *testing.T) {
 	db := openTestSeasonDB(t)
 	store := NewSQLiteStore(db)

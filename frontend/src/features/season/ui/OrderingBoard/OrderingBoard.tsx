@@ -15,7 +15,24 @@ import { useOrderingBoard } from './use-ordering-board';
  * reopened. All state and the drag reshuffle live in the colocated `useOrderingBoard`.
  */
 export function OrderingBoard() {
-  const { rail, columns, instances, counts, changeCount, scheduledCount, readOnly, onDragOver, duplicate, removeCard, onApply, onReset, onReopen, onCloseSeason } =
+  const {
+    rail,
+    columns,
+    instances,
+    counts,
+    changeCount,
+    scheduledCount,
+    hasInvalidWeekdayPlacements,
+    readOnly,
+    isPastSeason,
+    onDragOver,
+    duplicate,
+    removeCard,
+    onApply,
+    onReset,
+    onReopen,
+    onCloseSeason,
+  } =
     useOrderingBoard();
 
   const canRemove = (animeId: string) => (counts[animeId] ?? 0) > 1;
@@ -24,21 +41,31 @@ export function OrderingBoard() {
     <DragDropProvider onDragOver={onDragOver}>
       <section className="flex flex-col gap-4">
         {readOnly && (
-          <Alert status="success">
+          <Alert status={isPastSeason ? 'warning' : 'success'}>
             <Alert.Content>
               <Alert.Description>
-                Schedule applied — {scheduledCount} animes scheduled. Close the season to turn season mode off (the
-                registry stays queryable), or reopen ordering to make corrections.
+                {isPastSeason
+                  ? 'Past season — the schedule is read-only. Ordering reflects the live schedule, which may have changed since this season closed.'
+                  : `Schedule applied — ${scheduledCount} animes scheduled. Close the season to turn season mode off (the registry stays queryable), or reopen ordering to make corrections.`}
               </Alert.Description>
             </Alert.Content>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onPress={() => void onReopen()}>
-                Reopen ordering
-              </Button>
-              <Button size="sm" variant="primary" onPress={onCloseSeason}>
-                Close season
-              </Button>
-            </div>
+            {!isPastSeason && (
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onPress={() => void onReopen()}>
+                  Reopen ordering
+                </Button>
+                <Button size="sm" variant="primary" onPress={onCloseSeason}>
+                  Close season
+                </Button>
+              </div>
+            )}
+          </Alert>
+        )}
+        {hasInvalidWeekdayPlacements && !readOnly && (
+          <Alert status="danger">
+            <Alert.Content>
+              <Alert.Description>Each weekday column may contain one card per anime. Fix duplicate weekday cards before saving or applying.</Alert.Description>
+            </Alert.Content>
           </Alert>
         )}
 
@@ -62,6 +89,7 @@ export function OrderingBoard() {
                         showOrder={false}
                         readOnly={readOnly}
                         canRemove={canRemove(instance.animeId)}
+                        onDuplicate={() => duplicate(instance.animeId)}
                         onRemove={() => removeCard(instance.key)}
                       />
                     ))}
@@ -107,20 +135,22 @@ export function OrderingBoard() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-muted">{changeCount} changes</span>
-          <Button isDisabled={readOnly || changeCount === 0} variant="tertiary" onPress={onReset}>
-            Reset draft
-          </Button>
-          <Button
-            className="ml-auto"
-            isDisabled={readOnly || changeCount === 0}
-            variant="primary"
-            onPress={() => void onApply()}
-          >
-            Apply schedule
-          </Button>
-        </div>
+        {!isPastSeason && (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-muted">{changeCount} changes</span>
+            <Button isDisabled={readOnly || changeCount === 0} variant="tertiary" onPress={onReset}>
+              Reset draft
+            </Button>
+            <Button
+              className="ml-auto"
+              isDisabled={readOnly || changeCount === 0 || hasInvalidWeekdayPlacements}
+              variant="primary"
+              onPress={() => void onApply()}
+            >
+              Apply schedule
+            </Button>
+          </div>
+        )}
       </section>
 
       <DragOverlay>

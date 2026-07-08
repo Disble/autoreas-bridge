@@ -341,6 +341,7 @@ type AnimeCreate struct {
 	Pagina       string `json:"pagina"`
 	Section      string `json:"section"`
 	Orden        int    `json:"orden"`
+	Carpeta      string `json:"carpeta,omitempty"`
 	Tipo         *int   `json:"tipo,omitempty"`
 	FechaEstreno *int64 `json:"fechaEstreno,omitempty"`
 }

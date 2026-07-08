@@ -25,6 +25,10 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
+    pickFolder: vi.fn().mockResolvedValue(''),
+    listSeasons: vi.fn().mockResolvedValue([]),
+    getPastSeason: vi.fn().mockResolvedValue(null),
+    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
@@ -70,8 +74,41 @@ describe('useIntakePanel', () => {
     await act(async () => {
       result.current.onCreate();
     });
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2']);
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {});
     expect(result.current.selected.size).toBe(0);
+  });
+
+  it('onPickFolder records a per-row override that onCreate forwards for that row only', async () => {
+    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('E:/Custom/Naruto S2') });
+    const { result } = renderHook(() => useIntakePanel(source));
+
+    act(() => result.current.toggleSelect('sa-1'));
+    act(() => result.current.toggleSelect('sa-2'));
+    await act(async () => {
+      result.current.onPickFolder('sa-2');
+    });
+    expect(result.current.folderOverrides['sa-2']).toBe('E:/Custom/Naruto S2');
+
+    await act(async () => {
+      result.current.onCreate();
+    });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], { 'sa-2': 'E:/Custom/Naruto S2' });
+  });
+
+  it('ignores a cancelled folder picker (no override recorded)', async () => {
+    const source = createSource({ pickFolder: vi.fn().mockResolvedValue('') });
+    const { result } = renderHook(() => useIntakePanel(source));
+
+    act(() => result.current.toggleSelect('sa-1'));
+    await act(async () => {
+      result.current.onPickFolder('sa-1');
+    });
+    expect(result.current.folderOverrides['sa-1']).toBeUndefined();
+
+    await act(async () => {
+      result.current.onCreate();
+    });
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1'], {});
   });
 
   it('switching to raw builds the draft from editable names and switching back flushes', async () => {
@@ -108,5 +145,21 @@ describe('useIntakePanel', () => {
     });
     expect(source.resolveMatch).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone/');
     expect(source.discardName).toHaveBeenCalledWith('sa-2');
+  });
+
+  it('exposes matched rows waiting for availability and rechecks them on demand', async () => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'a', rawName: 'Anime A', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableChapters: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+    ];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useIntakePanel(source));
+
+    await waitFor(() => expect(result.current.availabilityPendingCount).toBe(1));
+    await act(async () => {
+      result.current.onRecheckAvailability();
+    });
+
+    expect(source.recheckAvailability).toHaveBeenCalled();
   });
 });

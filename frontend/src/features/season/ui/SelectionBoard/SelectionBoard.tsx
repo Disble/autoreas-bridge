@@ -17,6 +17,7 @@ import { useSelectionBoard } from './use-selection-board';
  */
 export function SelectionBoard() {
   const {
+    readOnly,
     minApprovalGrade,
     slots,
     rows,
@@ -50,7 +51,7 @@ export function SelectionBoard() {
               <div className="flex items-center gap-2">
                 <Button
                   aria-label="Decrease minimum approval grade"
-                  isDisabled={minApprovalGrade <= MIN_GRADE}
+                  isDisabled={minApprovalGrade <= MIN_GRADE || readOnly}
                   size="sm"
                   variant="secondary"
                   onPress={() => onSetMinApprovalGrade(minApprovalGrade - 1)}
@@ -60,7 +61,7 @@ export function SelectionBoard() {
                 <span className="w-6 text-center text-sm font-semibold text-foreground">{minApprovalGrade}</span>
                 <Button
                   aria-label="Increase minimum approval grade"
-                  isDisabled={minApprovalGrade >= MAX_GRADE}
+                  isDisabled={minApprovalGrade >= MAX_GRADE || readOnly}
                   size="sm"
                   variant="secondary"
                   onPress={() => onSetMinApprovalGrade(minApprovalGrade + 1)}
@@ -75,7 +76,7 @@ export function SelectionBoard() {
               <div className="flex items-center gap-2">
                 <Button
                   aria-label="Decrease slots"
-                  isDisabled={slots <= 1}
+                  isDisabled={slots <= 1 || readOnly}
                   size="sm"
                   variant="secondary"
                   onPress={() => onSetSlots(slots - 1)}
@@ -83,7 +84,7 @@ export function SelectionBoard() {
                   −
                 </Button>
                 <span className="w-6 text-center text-sm font-semibold text-foreground">{slots}</span>
-                <Button aria-label="Increase slots" size="sm" variant="secondary" onPress={() => onSetSlots(slots + 1)}>
+                <Button aria-label="Increase slots" isDisabled={readOnly} size="sm" variant="secondary" onPress={() => onSetSlots(slots + 1)}>
                   +
                 </Button>
               </div>
@@ -93,6 +94,7 @@ export function SelectionBoard() {
               {approvedCount} / {slots} approved
             </Chip>
 
+            {!readOnly && (
             <div className="ml-auto">
               <Modal>
                 <Button isDisabled={rows.length === 0} variant="primary">
@@ -124,6 +126,7 @@ export function SelectionBoard() {
                 </Modal.Backdrop>
               </Modal>
             </div>
+            )}
           </div>
         </Card.Content>
       </Card>
@@ -146,27 +149,31 @@ export function SelectionBoard() {
                     <Table.Cell>{row.rawName}</Table.Cell>
                     <Table.Cell>{row.grade >= 1 ? row.grade : '—'}</Table.Cell>
                     <Table.Cell>
-                      <Select
-                        aria-label={`Consideration for ${row.rawName}`}
-                        value={row.consideration}
-                        onChange={(value) => onSetConsideration(row.id, value?.toString() ?? 'none')}
-                      >
-                        <Label className="sr-only">Consideration</Label>
-                        <Select.Trigger>
-                          <Select.Value>{getConsiderationLabel(row.consideration)}</Select.Value>
-                          <Select.Indicator />
-                        </Select.Trigger>
-                        <Select.Popover>
-                          <ListBox>
-                            {CONSIDERATION_OPTIONS.map((option) => (
-                              <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                                {option.label}
-                                <ListBox.ItemIndicator />
-                              </ListBox.Item>
-                            ))}
-                          </ListBox>
-                        </Select.Popover>
-                      </Select>
+                      {readOnly ? (
+                        <span className="text-sm text-foreground">{getConsiderationLabel(row.consideration)}</span>
+                      ) : (
+                        <Select
+                          aria-label={`Consideration for ${row.rawName}`}
+                          value={row.consideration}
+                          onChange={(value) => onSetConsideration(row.id, value?.toString() ?? 'none')}
+                        >
+                          <Label className="sr-only">Consideration</Label>
+                          <Select.Trigger>
+                            <Select.Value>{getConsiderationLabel(row.consideration)}</Select.Value>
+                            <Select.Indicator />
+                          </Select.Trigger>
+                          <Select.Popover>
+                            <ListBox>
+                              {CONSIDERATION_OPTIONS.map((option) => (
+                                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+                                  {option.label}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              ))}
+                            </ListBox>
+                          </Select.Popover>
+                        </Select>
+                      )}
                     </Table.Cell>
                     <Table.Cell>
                       <Chip color={row.verdict === 'approved' ? 'success' : 'default'} size="sm" variant="soft">

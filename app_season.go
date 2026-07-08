@@ -137,7 +137,13 @@ func (a *App) GetSeasonAnimes() []SeasonAnimeDTO {
 	if err != nil {
 		return []SeasonAnimeDTO{}
 	}
-	sections := a.animeSectionsByID(a.seasonCtx())
+	return a.seasonAnimeDTOs(a.seasonCtx(), rows)
+}
+
+// seasonAnimeDTOs maps a season's intake rows to DTOs, overlaying each created
+// anime's current Estrenos section. Shared by the active and past-season reads.
+func (a *App) seasonAnimeDTOs(ctx context.Context, rows []domain.SeasonAnime) []SeasonAnimeDTO {
+	sections := a.animeSectionsByID(ctx)
 	out := make([]SeasonAnimeDTO, 0, len(rows))
 	for _, r := range rows {
 		dto := seasonAnimeToDTO(r)
@@ -169,7 +175,17 @@ func (a *App) ReconcileSeasonIntake(rawText string) string {
 // RunSeasonMatching resolves every pending intake row against jkanime.
 func (a *App) RunSeasonMatching() string {
 	return a.withActiveSeason(func(seasonID string) error {
-		return a.seasonService.RunMatching(a.seasonCtx(), seasonID)
+		if err := a.seasonService.RunMatching(a.seasonCtx(), seasonID); err != nil {
+			return err
+		}
+		res, err := a.seasonService.RecheckAvailability(a.seasonCtx(), seasonID)
+		if err != nil && !errors.Is(err, season.ErrAvailabilityDepsUnavailable) {
+			return err
+		}
+		if len(res.Available) > 0 {
+			a.notifySeasonAvailable(a.seasonCtx(), res.Available)
+		}
+		return nil
 	})
 }
 
@@ -411,12 +427,23 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 // CreateSeasonAnimes is the explicit, user-initiated creation gate: it creates
 // the anime(s) for the given AVAILABLE intake rows into "Sin ver" (irreversible,
 // soft-delete only), skipping rows that are not available or already created.
-// No download is triggered — that happens only on Send to Ver hoy.
-func (a *App) CreateSeasonAnimes(rowIDs []string) string {
+// Each new anime's download folder defaults to the configured downloads root
+// joined with its sanitized name; folders maps a rowID to a user-picked override
+// that wins over that default. No download is triggered — that happens only on
+// Send to Ver hoy.
+func (a *App) CreateSeasonAnimes(rowIDs []string, folders map[string]string) string {
 	if a.seasonService == nil {
 		return "season service unavailable"
 	}
-	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs); err != nil {
+	root := ""
+	if a.settingsStore != nil {
+		r, err := a.settingsStore.DownloadsRoot(a.seasonCtx())
+		if err != nil {
+			return err.Error()
+		}
+		root = r
+	}
+	if _, err := a.seasonService.CreateSeasonAnimes(a.seasonCtx(), rowIDs, root, folders); err != nil {
 		return err.Error()
 	}
 	a.broadcastSeasonChanged()

@@ -34,8 +34,21 @@ interface SeasonStoreState {
   readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setConsideration: (source: SeasonSource, rowId: string, consideration: string) => Promise<void>;
   readonly confirmSelection: (source: SeasonSource) => Promise<ConfirmSelectionResult>;
-  readonly createSeasonAnimes: (source: SeasonSource, rowIds: readonly string[]) => Promise<void>;
+  readonly createSeasonAnimes: (
+    source: SeasonSource,
+    rowIds: readonly string[],
+    folders: Readonly<Record<string, string>>,
+  ) => Promise<void>;
   readonly recheckAvailability: (source: SeasonSource) => Promise<void>;
+  /** The past season being viewed read-only, or null in live/active mode. */
+  readonly viewSeasonId: string | null;
+  /** True while a past season is open read-only; panels hide their mutations. */
+  readonly readOnly: boolean;
+  /** The past-seasons history list (loaded when no season is open). */
+  readonly pastSeasons: readonly SeasonSnapshot[];
+  readonly loadPastSeasons: (source?: SeasonSource) => Promise<void>;
+  readonly viewPastSeason: (source: SeasonSource, seasonId: string) => Promise<void>;
+  readonly exitPastSeason: (source?: SeasonSource) => Promise<void>;
 }
 
 /**
@@ -52,8 +65,16 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   hasLoadedAnimes: false,
   errorMessage: undefined,
   busyMessage: undefined,
+  viewSeasonId: null,
+  readOnly: false,
+  pastSeasons: [],
 
   refresh: async (source: SeasonSource = seasonSource) => {
+    // While viewing a past season, the active-season fetch (mount effects,
+    // realtime season_changed) must not clobber the read-only snapshot.
+    if (get().viewSeasonId !== null) {
+      return;
+    }
     try {
       const season = await source.getSeason();
       set({ season, hasLoaded: true, errorMessage: undefined });
@@ -79,7 +100,46 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
     }
   },
 
+  loadPastSeasons: async (source: SeasonSource = seasonSource) => {
+    try {
+      const pastSeasons = await source.listSeasons();
+      set({ pastSeasons, errorMessage: undefined });
+    } catch (error) {
+      set({ errorMessage: error instanceof Error ? error.message : 'Failed to load past seasons' });
+    }
+  },
+
+  viewPastSeason: async (source: SeasonSource, seasonId: string) => {
+    try {
+      const [season, seasonAnimes] = await Promise.all([
+        source.getPastSeason(seasonId),
+        source.getPastSeasonAnimes(seasonId),
+      ]);
+      set({
+        season,
+        seasonAnimes,
+        viewSeasonId: seasonId,
+        readOnly: true,
+        hasLoaded: true,
+        hasLoadedAnimes: true,
+        errorMessage: undefined,
+      });
+    } catch (error) {
+      set({ errorMessage: error instanceof Error ? error.message : 'Failed to load season' });
+    }
+  },
+
+  exitPastSeason: async (source: SeasonSource = seasonSource) => {
+    // Leave read-only mode FIRST so the guarded refreshes run again.
+    set({ viewSeasonId: null, readOnly: false, season: null, seasonAnimes: [], hasLoadedAnimes: false });
+    await get().refresh(source);
+    await get().loadPastSeasons(source);
+  },
+
   setMinApprovalGrade: async (source: SeasonSource, grade: number) => {
+    if (get().readOnly) {
+      return;
+    }
     const previous = get().season;
     if (previous) {
       set({ season: { ...previous, minApprovalGrade: grade }, errorMessage: undefined });
@@ -95,6 +155,9 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   setSlots: async (source: SeasonSource, slots: number) => {
+    if (get().readOnly) {
+      return;
+    }
     const previous = get().season;
     if (previous) {
       set({ season: { ...previous, slots }, errorMessage: undefined });
@@ -124,6 +187,9 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   refreshAnimes: async (source: SeasonSource = seasonSource) => {
+    if (get().viewSeasonId !== null) {
+      return; // read-only past season: keep its loaded snapshot
+    }
     try {
       const seasonAnimes = await source.getSeasonAnimes();
       set({ seasonAnimes, errorMessage: undefined });
@@ -133,7 +199,7 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   ensureAnimesLoaded: async (source: SeasonSource = seasonSource) => {
-    if (get().hasLoadedAnimes) {
+    if (get().hasLoadedAnimes || get().viewSeasonId !== null) {
       return;
     }
     // Mark loaded up front so concurrently-mounting cards trigger a single fetch;
@@ -168,6 +234,9 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   sendToVerHoy: async (source: SeasonSource, animeIds: readonly string[]) => {
+    if (get().readOnly) {
+      return { status: 'read-only', pastDownloadTime: false, downloadTime: '' };
+    }
     set({ busyMessage: 'Sending to Ver hoy…' });
     try {
       const result = await source.sendToVerHoy(animeIds);
@@ -199,11 +268,14 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
     await runIntakeCommand(get, set, () => source.setConsideration(rowId, consideration), source, 'Failed to set consideration');
   },
 
-  createSeasonAnimes: async (source: SeasonSource, rowIds: readonly string[]) => {
-    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds), source, 'Failed to create animes', 'Creating animes…');
+  createSeasonAnimes: async (source: SeasonSource, rowIds: readonly string[], folders: Readonly<Record<string, string>>) => {
+    await runIntakeCommand(get, set, () => source.createSeasonAnimes(rowIds, folders), source, 'Failed to create animes', 'Creating animes…');
   },
 
   confirmSelection: async (source: SeasonSource) => {
+    if (get().readOnly) {
+      return { status: 'read-only', approved: 0, rejected: 0, quotaExceeded: false };
+    }
     try {
       const result = await source.confirmSelection();
       if (result.status !== 'ok') {
@@ -238,6 +310,9 @@ async function runIntakeCommand(
   fallbackMessage: string,
   busyMessage?: string,
 ): Promise<void> {
+  if (get().readOnly) {
+    return; // a past season is read-only — never mutate it
+  }
   if (busyMessage !== undefined) {
     set({ busyMessage });
   }
@@ -267,5 +342,8 @@ export function resetSeasonStore(): void {
     hasLoadedAnimes: false,
     errorMessage: undefined,
     busyMessage: undefined,
+    viewSeasonId: null,
+    readOnly: false,
+    pastSeasons: [],
   });
 }

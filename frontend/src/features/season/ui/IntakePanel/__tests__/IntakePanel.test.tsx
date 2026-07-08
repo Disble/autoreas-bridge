@@ -31,6 +31,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    readOnly: false,
     mode: 'list',
     switchMode: vi.fn(),
     rawDraft: '',
@@ -38,12 +39,16 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     editableRows: [],
     selected: new Set<string>(),
     toggleSelect: vi.fn(),
+    folderOverrides: {},
+    onPickFolder: vi.fn(),
     availableCount: 0,
+    availabilityPendingCount: 0,
     onCreate: vi.fn(),
     unresolvedCount: 0,
     errorMessage: undefined,
     busyMessage: undefined,
     onRunMatching: vi.fn(),
+    onRecheckAvailability: vi.fn(),
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
     ...overrides,
@@ -106,10 +111,23 @@ describe('IntakePanel', () => {
   });
 
   it('shows a disabled checkbox for a not-yet-available row', () => {
-    mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })] });
+    mockHook({ editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })], availabilityPendingCount: 1 });
     render(<IntakePanel />);
     // The checkbox is always shown for alignment, but disabled until available.
     expect(screen.getByRole('checkbox')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Check availability' })).toBeEnabled();
+  });
+
+  it('triggers an availability check from the intake list', () => {
+    const onRecheckAvailability = vi.fn();
+    mockHook({
+      editableRows: [row({ matchStatus: 'matched', availability: 'waiting' })],
+      availabilityPendingCount: 1,
+      onRecheckAvailability,
+    });
+    render(<IntakePanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Check availability' }));
+    expect(onRecheckAvailability).toHaveBeenCalled();
   });
 
   it('discards an editable row', () => {
@@ -118,6 +136,19 @@ describe('IntakePanel', () => {
     render(<IntakePanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Discard Dr. Stone' }));
     expect(onDiscard).toHaveBeenCalledWith('sa-1');
+  });
+
+  it('hides mutation controls in read-only mode', () => {
+    mockHook({
+      readOnly: true,
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+    });
+    render(<IntakePanel />);
+
+    expect(screen.queryByRole('button', { name: /^Create/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run matching' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raw' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Discard Dr. Stone' })).not.toBeInTheDocument();
   });
 
   it('surfaces an error message', () => {

@@ -13,6 +13,11 @@ type Repository interface {
 	CreateSeason(ctx context.Context, s domain.Season) error
 	ActiveSeason(ctx context.Context) (*domain.Season, error)
 	UpdateSeason(ctx context.Context, s domain.Season) error
+	// ListSeasons returns every season (open + closed), newest first, for the
+	// past-seasons history view.
+	ListSeasons(ctx context.Context) ([]domain.Season, error)
+	// SeasonByID returns a single season by id, or (nil, nil) when absent.
+	SeasonByID(ctx context.Context, id string) (*domain.Season, error)
 
 	CreateSeasonAnime(ctx context.Context, sa domain.SeasonAnime) error
 	ListSeasonAnimes(ctx context.Context, seasonID string) ([]domain.SeasonAnime, error)
@@ -41,6 +46,9 @@ type AnimeCreateInput struct {
 	Nombre  string
 	Pagina  string
 	Section string
+	// Carpeta is the absolute download folder for the new anime. Empty means the
+	// record is created without a carpeta (downloads skip it until one is set).
+	Carpeta string
 }
 
 // AnimeGateway is the narrow port into the anime context: it creates an anime

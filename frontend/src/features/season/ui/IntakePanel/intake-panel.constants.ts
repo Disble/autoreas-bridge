@@ -13,3 +13,5 @@ export const INTAKE_PASTE_PLACEHOLDER = 'One anime name per line…';
 export const INTAKE_EMPTY_MESSAGE = 'Paste the season intake list to begin.';
 /** Debounce (ms) before a raw-text edit reconciles into the intake rows. */
 export const INTAKE_RECONCILE_DEBOUNCE_MS = 600;
+/** Native folder-picker dialog title for a per-anime download folder override. */
+export const INTAKE_FOLDER_PICKER_TITLE = 'Choose download folder for this anime';

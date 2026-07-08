@@ -10,7 +10,7 @@ import { useDailyBoard } from './use-daily-board';
  * I/O and state live in the colocated `useDailyBoard` hook.
  */
 export function DailyBoard() {
-  const { sections, selected, toggleSelect, onSendToVerHoy, downloadNotice, onDownloadNow, onDismissNotice, onRecheck, errorMessage } =
+  const { readOnly, sections, selected, toggleSelect, onSendToVerHoy, downloadNotice, onDownloadNow, onDismissNotice, onRecheck, errorMessage } =
     useDailyBoard();
   const isEmpty = sections.sinVer.length === 0 && sections.verHoy.length === 0 && sections.visto.length === 0;
 
@@ -48,11 +48,13 @@ export function DailyBoard() {
         </Alert>
       )}
 
-      <div className="flex items-center gap-3">
-        <Button variant="tertiary" onPress={onRecheck}>
-          Re-check now
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-3">
+          <Button variant="tertiary" onPress={onRecheck}>
+            Re-check now
+          </Button>
+        </div>
+      )}
 
       {isEmpty ? (
         <p className="text-sm text-muted">{DAILY_BOARD_EMPTY_MESSAGE}</p>
@@ -72,22 +74,28 @@ export function DailyBoard() {
                 <ul className="flex flex-col gap-2">
                   {sections.sinVer.map((row) => (
                     <li key={row.id}>
-                      <LabeledCheckbox
-                        isSelected={selected.has(row.animeId)}
-                        onChange={() => toggleSelect(row.animeId)}
-                      >
-                        {row.rawName}
-                      </LabeledCheckbox>
+                      {readOnly ? (
+                        <span className="text-sm text-foreground">{row.rawName}</span>
+                      ) : (
+                        <LabeledCheckbox
+                          isSelected={selected.has(row.animeId)}
+                          onChange={() => toggleSelect(row.animeId)}
+                        >
+                          {row.rawName}
+                        </LabeledCheckbox>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
-              <div className="mt-3 flex items-center gap-3">
-                <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
-                  Send to Ver hoy
-                </Button>
-                <span className="text-sm text-muted">{selected.size} selected for today</span>
-              </div>
+              {!readOnly && (
+                <div className="mt-3 flex items-center gap-3">
+                  <Button isDisabled={selected.size === 0} variant="primary" onPress={onSendToVerHoy}>
+                    Send to Ver hoy
+                  </Button>
+                  <span className="text-sm text-muted">{selected.size} selected for today</span>
+                </div>
+              )}
             </Card.Content>
           </Card>
 

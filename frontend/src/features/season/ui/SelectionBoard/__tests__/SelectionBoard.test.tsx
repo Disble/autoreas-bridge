@@ -16,6 +16,7 @@ function selRow(overrides: Partial<SelectionRow> = {}): SelectionRow {
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    readOnly: false,
     seasonName: 'Julio 2026',
     minApprovalGrade: 4,
     slots: 12,

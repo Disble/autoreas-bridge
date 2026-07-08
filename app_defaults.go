@@ -177,6 +177,11 @@ func (a *App) ensureRuntimeDependencies() {
 			return exec.Command("explorer", path).Start()
 		}
 	}
+	if a.pickFolder == nil {
+		a.pickFolder = func(ctx context.Context, title string) (string, error) {
+			return wruntime.OpenDirectoryDialog(ctx, wruntime.OpenDialogOptions{Title: title})
+		}
+	}
 	if a.memLogger == nil {
 		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
 			Capacity: 500,

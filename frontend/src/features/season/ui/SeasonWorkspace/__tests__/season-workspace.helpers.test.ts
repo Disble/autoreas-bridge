@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SeasonSnapshot } from '../../../../../infrastructure/season-source';
 import { SEASON_SECTION_TABS } from '../season-workspace.constants';
-import { buildSeasonOverview, suggestSeasonName } from '../season-workspace.helpers';
+import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from '../season-workspace.helpers';
 
 function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
   return {
@@ -39,6 +39,24 @@ describe('buildSeasonOverview', () => {
     const overview = buildSeasonOverview(makeSeason({ status: 'closed' }));
     expect(overview.statusLabel).toBe('Closed');
     expect(overview.statusColor).toBe('default');
+  });
+});
+
+describe('buildPastSeasonEntries', () => {
+  it('maps seasons to history rows with status chip and created label', () => {
+    const entries = buildPastSeasonEntries([
+      makeSeason({ id: 's1', name: 'Julio 2026', status: 'closed' }),
+      makeSeason({ id: 's2', name: 'Abril 2026', status: 'open', createdAt: 0 }),
+    ]);
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ id: 's1', name: 'Julio 2026', statusLabel: 'Closed', statusColor: 'default' });
+    expect(entries[0]?.createdLabel.length).toBeGreaterThan(0);
+    expect(entries[1]).toMatchObject({ statusLabel: 'Open', statusColor: 'success', createdLabel: '' });
+  });
+
+  it('returns an empty list when there are no seasons', () => {
+    expect(buildPastSeasonEntries([])).toHaveLength(0);
   });
 });
 

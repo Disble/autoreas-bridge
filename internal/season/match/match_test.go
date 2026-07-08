@@ -60,6 +60,57 @@ func TestScore(t *testing.T) {
 	}
 }
 
+// TestScoreDegenerateInputs triangulates the empty and sub-trigram (<3 char)
+// branches of Score/trigrams: both are the paths auto-matching hits for very
+// short titles (e.g. "K", "Gto"), where the Dice trigram set degenerates.
+func TestScoreDegenerateInputs(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b string
+		want float64
+	}{
+		{name: "both empty are identical", a: "", b: "", want: 1.0},
+		{name: "empty vs non-empty is disjoint", a: "", b: "naruto", want: 0.0},
+		{name: "non-empty vs empty is disjoint", a: "gto", b: "", want: 0.0},
+		{name: "equal two-char strings match fully", a: "ai", b: "ai", want: 1.0},
+		{name: "different two-char strings are disjoint", a: "ai", b: "gt", want: 0.0},
+		{name: "equal single-char strings match fully", a: "k", b: "k", want: 1.0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Score(tc.a, tc.b); got != tc.want {
+				t.Fatalf("Score(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNormalizeFoldsEveryAccent triangulates foldAccent across every accented
+// vowel variant plus ñ/ç, so Spanish/romanized titles ("Pokémon", "Ñoño")
+// normalize to the same key regardless of diacritics.
+func TestNormalizeFoldsEveryAccent(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"áàäâãå", "aaaaaa"},
+		{"éèëê", "eeee"},
+		{"íìïî", "iiii"},
+		{"óòöôõ", "ooooo"},
+		{"úùüû", "uuuu"},
+		{"ñç", "nc"},
+		{"Pokémon", "pokemon"},
+		{"Ñoño", "nono"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			if got := Normalize(tc.in); got != tc.want {
+				t.Fatalf("Normalize(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestResolveExactSingleWinnerMatches(t *testing.T) {
 	res := Resolve("Dr. Stone: Science Future Part 3", []Candidate{
 		{Title: "Dr. Stone: Science Future Part 3", PageURL: "https://jkanime.net/dr-stone-science-future-part-3/"},

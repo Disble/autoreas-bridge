@@ -7,6 +7,7 @@ import { useSeasonStore } from '../../../../shared/store/season-store';
 import {
   EMPTY_ORDERING_BOARD,
   ORDERING_AUTOSAVE_DEBOUNCE_MS,
+  ORDERING_DUPLICATE_WEEKDAY_ERROR,
   RAIL_CONTAINER_ID,
   WEEKDAYS,
 } from './ordering-board.constants';
@@ -15,11 +16,13 @@ import {
   cardCounts,
   countChanges,
   duplicate as applyDuplicate,
+  hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
   removeCard as applyRemoveCard,
   scheduledCount as computeScheduled,
   serializeDraft,
+  shouldCancelForbiddenWeekdayHover,
 } from './ordering-board.helpers';
 import type { WorkingState } from './ordering-board.types';
 
@@ -37,6 +40,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
 
   // 3. Context/3rd Party Hooks
   const closeSeason = useSeasonStore((store) => store.closeSeason);
+  const isPastSeason = useSeasonStore((store) => store.readOnly);
 
   // 5. Derived State (useMemo)
   const rail = useMemo(() => instancesIn(state, RAIL_CONTAINER_ID), [state]);
@@ -50,7 +54,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   const counts = useMemo(() => cardCounts(state), [state]);
   const changeCount = useMemo(() => countChanges(board, state), [board, state]);
   const scheduledCount = useMemo(() => computeScheduled(state), [state]);
-  const readOnly = board.appliedAt !== undefined;
+  const hasInvalidWeekdayPlacements = useMemo(() => hasDuplicateWeekdayPlacements(state), [state]);
+  // A past season (viewed from history) locks the board just like an applied one.
+  const readOnly = typeof board.appliedAt === 'number' || isPastSeason;
 
   // 6. Callbacks
   const load = useCallback(async () => {
@@ -59,11 +65,15 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     setState(initialWorkingState(loaded));
   }, [source]);
 
-  // Live reshuffle while dragging: `move` reorders the container map; applyOrder rejects
-  // a drop that would place two clones of the same anime on one day.
+  // Live reshuffle while dragging: block forbidden same-anime weekday hovers first, then
+  // let `move` project valid targets; applyOrder remains the invariant backstop.
   const onDragOver = useCallback((event: DragOverEvent) => {
+    if (shouldCancelForbiddenWeekdayHover(state, event)) {
+      event.preventDefault();
+      return;
+    }
     setState((current) => applyOrder(current, move(current.order as Record<string, string[]>, event)));
-  }, []);
+  }, [state]);
   const duplicate = useCallback((animeId: string) => {
     setState((current) => applyDuplicate(current, animeId));
   }, []);
@@ -71,6 +81,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     setState((current) => applyRemoveCard(current, key));
   }, []);
   const onApply = useCallback(async (): Promise<ApplyScheduleResult> => {
+    if (hasDuplicateWeekdayPlacements(state)) {
+      return { status: ORDERING_DUPLICATE_WEEKDAY_ERROR, applied: 0, failed: [] };
+    }
     await source.saveOrderingDraft(serializeDraft(state));
     const result = await source.applySchedule();
     await load();
@@ -94,14 +107,14 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
 
   // Debounced autosave of the working draft (skipped while applied/read-only).
   useEffect(() => {
-    if (readOnly) {
+    if (readOnly || hasInvalidWeekdayPlacements) {
       return undefined;
     }
     const timer = setTimeout(() => {
       void source.saveOrderingDraft(serializeDraft(state));
     }, ORDERING_AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [state, source, readOnly]);
+  }, [state, source, readOnly, hasInvalidWeekdayPlacements]);
 
   return {
     rail,
@@ -110,7 +123,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     counts,
     changeCount,
     scheduledCount,
+    hasInvalidWeekdayPlacements,
     readOnly,
+    isPastSeason,
     onDragOver,
     duplicate,
     removeCard,

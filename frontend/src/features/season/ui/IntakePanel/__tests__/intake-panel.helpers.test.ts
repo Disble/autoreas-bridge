@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
 import {
   buildRawText,
+  countMatchedWaitingForAvailability,
   countUnresolved,
   formatCandidateOption,
   getMatchStatusColor,
@@ -89,5 +90,17 @@ describe('countUnresolved', () => {
       row({ matchStatus: 'not_found' }),
     ];
     expect(countUnresolved(rows)).toBe(2);
+  });
+});
+
+describe('countMatchedWaitingForAvailability', () => {
+  it('counts matched rows that still need an availability check before creation', () => {
+    const rows = [
+      row({ matchStatus: 'matched', availability: 'waiting' }),
+      row({ matchStatus: 'matched', availability: 'available' }),
+      row({ matchStatus: 'ambiguous', availability: 'waiting' }),
+      row({ matchStatus: 'matched', availability: 'created', animeId: 'anime-a' }),
+    ];
+    expect(countMatchedWaitingForAvailability(rows)).toBe(1);
   });
 });

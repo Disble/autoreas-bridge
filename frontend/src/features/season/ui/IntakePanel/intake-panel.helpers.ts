@@ -44,6 +44,15 @@ export function countUnresolved(rows: readonly SeasonAnimeRow[]): number {
 }
 
 /**
+ * Counts matched rows that are blocked only by the availability probe. These
+ * rows are valid matches, but creation stays disabled until the app verifies
+ * that chapter 1 is online.
+ */
+export function countMatchedWaitingForAvailability(rows: readonly SeasonAnimeRow[]): number {
+  return rows.filter((row) => row.matchStatus === 'matched' && row.availability === 'waiting').length;
+}
+
+/**
  * An intake row is EDITABLE (part of the raw text) only while it is still just a
  * name: not yet created and not discarded. Created rows have a real anime record
  * and graduate out of the freely-editable raw document.

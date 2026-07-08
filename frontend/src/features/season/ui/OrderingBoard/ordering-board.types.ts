@@ -1,4 +1,11 @@
 import type { ReactNode } from 'react';
+import type { CONTAINERS, WEEKDAYS } from './ordering-board.constants';
+
+/** Known dnd-kit container ids for the ordering board: rail + weekdays. */
+export type ContainerId = (typeof CONTAINERS)[number];
+
+/** One real weekday column id. */
+export type Weekday = (typeof WEEKDAYS)[number];
 
 /** One anime's intended placement — a weekday+position or its Estrenos section. */
 export interface DraftPlacement {
@@ -15,6 +22,7 @@ export interface OrderingInstance {
   readonly key: string;
   readonly animeId: string;
   readonly name: string;
+  readonly isPendingDuplicate: boolean;
   readonly section: string;
   readonly orden: number;
   readonly isNewcomer: boolean;

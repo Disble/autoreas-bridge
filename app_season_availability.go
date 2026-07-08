@@ -75,6 +75,7 @@ func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCrea
 		Pagina:  in.Pagina,
 		Section: in.Section,
 		Orden:   g.nextOrden(ctx, in.Section),
+		Carpeta: in.Carpeta,
 	})
 }
 

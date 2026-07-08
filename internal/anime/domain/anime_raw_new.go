@@ -17,6 +17,7 @@ type NewAnimeSpec struct {
 	CreatedAt    time.Time
 	Tipo         *int
 	FechaEstreno *int64 // epoch milliseconds
+	Carpeta      string // absolute download folder; omitted from the record when empty
 }
 
 // NewAnimeRaw builds a complete, valid LegacyAnimeRaw for a new anime: estado 0
@@ -36,6 +37,9 @@ func NewAnimeRaw(spec NewAnimeSpec) (LegacyAnimeRaw, error) {
 		"fechaCreacion": map[string]int64{"$$date": spec.CreatedAt.UnixMilli()},
 		"dias":          []map[string]any{{"dia": spec.Section, "orden": spec.Orden}},
 		"pagina":        spec.Pagina,
+	}
+	if spec.Carpeta != "" {
+		obj["carpeta"] = spec.Carpeta
 	}
 	if spec.Tipo != nil {
 		obj["tipo"] = *spec.Tipo

@@ -30,8 +30,8 @@ export function CreateSeason(arg1) {
   return window['go']['main']['App']['CreateSeason'](arg1);
 }
 
-export function CreateSeasonAnimes(arg1) {
-  return window['go']['main']['App']['CreateSeasonAnimes'](arg1);
+export function CreateSeasonAnimes(arg1, arg2) {
+  return window['go']['main']['App']['CreateSeasonAnimes'](arg1, arg2);
 }
 
 export function DiscardSeasonName(arg1) {
@@ -78,6 +78,10 @@ export function GetDownloadConfig() {
   return window['go']['main']['App']['GetDownloadConfig']();
 }
 
+export function GetDownloadsRoot() {
+  return window['go']['main']['App']['GetDownloadsRoot']();
+}
+
 export function GetEffectiveAddress() {
   return window['go']['main']['App']['GetEffectiveAddress']();
 }
@@ -88,6 +92,14 @@ export function GetJDStatus() {
 
 export function GetPairingToken() {
   return window['go']['main']['App']['GetPairingToken']();
+}
+
+export function GetPastSeason(arg1) {
+  return window['go']['main']['App']['GetPastSeason'](arg1);
+}
+
+export function GetPastSeasonAnimes(arg1) {
+  return window['go']['main']['App']['GetPastSeasonAnimes'](arg1);
 }
 
 export function GetRecentLogs() {
@@ -130,12 +142,20 @@ export function ListDownloadRuns() {
   return window['go']['main']['App']['ListDownloadRuns']();
 }
 
+export function ListSeasons() {
+  return window['go']['main']['App']['ListSeasons']();
+}
+
 export function OpenAnimeFolder(arg1) {
   return window['go']['main']['App']['OpenAnimeFolder'](arg1);
 }
 
 export function OpenAnimePage(arg1) {
   return window['go']['main']['App']['OpenAnimePage'](arg1);
+}
+
+export function PickFolder(arg1) {
+  return window['go']['main']['App']['PickFolder'](arg1);
 }
 
 export function PullAnimesFromLegacy() {
@@ -184,6 +204,10 @@ export function SetAnimeDays(arg1, arg2, arg3) {
 
 export function SetAnimeState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetAnimeState'](arg1, arg2, arg3);
+}
+
+export function SetDownloadsRoot(arg1) {
+  return window['go']['main']['App']['SetDownloadsRoot'](arg1);
 }
 
 export function SetHosterPriority(arg1, arg2) {

@@ -2,8 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
-import { INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
-import { buildRawText, countUnresolved, isCreatableRow, splitIntakeRows } from './intake-panel.helpers';
+import { INTAKE_FOLDER_PICKER_TITLE, INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
+import {
+  buildRawText,
+  countMatchedWaitingForAvailability,
+  countUnresolved,
+  isCreatableRow,
+  splitIntakeRows,
+} from './intake-panel.helpers';
 import type { IntakeMode } from './intake-panel.types';
 
 /**
@@ -17,9 +23,11 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   const [mode, setMode] = useState<IntakeMode>('list');
   const [rawDraft, setRawDraft] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [folderOverrides, setFolderOverrides] = useState<Readonly<Record<string, string>>>({});
 
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
+  const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const busyMessage = useSeasonStore((state) => state.busyMessage);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
@@ -28,11 +36,13 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   const resolveMatch = useSeasonStore((state) => state.resolveMatch);
   const discardName = useSeasonStore((state) => state.discardName);
   const createSeasonAnimes = useSeasonStore((state) => state.createSeasonAnimes);
+  const recheckAvailability = useSeasonStore((state) => state.recheckAvailability);
 
   // 5. Derived State (useMemo)
   const { editable } = useMemo(() => splitIntakeRows(seasonAnimes), [seasonAnimes]);
   const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
   const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
+  const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
 
   // 6. Callbacks
   const switchMode = useCallback(
@@ -56,6 +66,9 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   const onRunMatching = useCallback(() => {
     void runMatching(source);
   }, [runMatching, source]);
+  const onRecheckAvailability = useCallback(() => {
+    void recheckAvailability(source);
+  }, [recheckAvailability, source]);
   const onResolve = useCallback(
     (rowId: string, pageUrl: string) => {
       void resolveMatch(source, rowId, pageUrl);
@@ -79,14 +92,31 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
       return next;
     });
   }, []);
+  const onPickFolder = useCallback(
+    (rowId: string) => {
+      void source.pickFolder(INTAKE_FOLDER_PICKER_TITLE).then((picked) => {
+        if (picked !== '') {
+          setFolderOverrides((prev) => ({ ...prev, [rowId]: picked }));
+        }
+      });
+    },
+    [source],
+  );
   const onCreate = useCallback(() => {
     if (selected.size === 0) {
       return;
     }
     const ids = [...selected];
+    const folders: Record<string, string> = {};
+    for (const id of ids) {
+      const override = folderOverrides[id];
+      if (override !== undefined && override !== '') {
+        folders[id] = override;
+      }
+    }
     setSelected(new Set());
-    void createSeasonAnimes(source, ids);
-  }, [selected, createSeasonAnimes, source]);
+    void createSeasonAnimes(source, ids, folders);
+  }, [selected, folderOverrides, createSeasonAnimes, source]);
 
   // 7. Effects
   useEffect(() => {
@@ -105,6 +135,7 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   }, [mode, rawDraft, reconcileIntake, source]);
 
   return {
+    readOnly,
     mode,
     switchMode,
     rawDraft,
@@ -112,12 +143,16 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     editableRows: editable,
     selected,
     toggleSelect,
+    folderOverrides,
+    onPickFolder,
     availableCount,
+    availabilityPendingCount,
     onCreate,
     unresolvedCount,
     errorMessage,
     busyMessage,
     onRunMatching,
+    onRecheckAvailability,
     onResolve,
     onDiscard,
   };

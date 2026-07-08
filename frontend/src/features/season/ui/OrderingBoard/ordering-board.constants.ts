@@ -7,6 +7,9 @@ export const ORDERING_EMPTY_MESSAGE = 'No approved animes to place yet — confi
 /** Debounce (ms) before autosaving the working ordering draft. */
 export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 
+/** Frontend invariant message when one weekday column contains the same anime twice. */
+export const ORDERING_DUPLICATE_WEEKDAY_ERROR = 'Duplicate weekday placements are not allowed.';
+
 /** dnd-kit container id for the rail (a real string — '' cannot be a droppable id). */
 export const RAIL_CONTAINER_ID = '__rail__';
 

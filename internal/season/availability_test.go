@@ -3,6 +3,7 @@ package season
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"autoreas-bridge/internal/season/domain"
@@ -189,7 +190,7 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 	seedMatched(t, svc, repo, season.ID, "sa-b", "Anime B", "https://jkanime.net/b/") // waiting
 	mkAvail("sa-c", "Anime C", "https://jkanime.net/c/")
 
-	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"})
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, "", nil)
 	if err != nil {
 		t.Fatalf("CreateSeasonAnimes: %v", err)
 	}
@@ -216,6 +217,49 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 	}
 }
 
+func TestCreateSeasonAnimesDerivesDownloadFolder(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	// sa-c links to an existing anime: its folder must stay untouched (no create).
+	gateway := &fakeGateway{existingByPagina: map[string]string{"https://jkanime.net/c/": "existing-anime"}}
+	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	mkAvail := func(id, name, slug string) {
+		sa := domain.NewSeasonAnime(id, season.ID, name, svc.now())
+		sa.MatchStatus = domain.MatchMatched
+		sa.MatchedSlug = slug
+		sa.Availability = domain.AvailabilityAvailable
+		_ = repo.CreateSeasonAnime(ctx, sa)
+	}
+	mkAvail("sa-a", "Re:Zero", "https://jkanime.net/a/") // default: root + sanitized name
+	mkAvail("sa-b", "Naruto", "https://jkanime.net/b/")  // override wins
+	mkAvail("sa-c", "Linked", "https://jkanime.net/c/")  // linked: no create
+
+	root := filepath.Join("D:", "Anime")
+	override := filepath.Join("E:", "Custom", "Naruto S2")
+	overrides := map[string]string{"sa-b": override}
+
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a", "sa-b", "sa-c"}, root, overrides); err != nil {
+		t.Fatalf("CreateSeasonAnimes: %v", err)
+	}
+
+	folderByPagina := map[string]string{}
+	for _, in := range gateway.created {
+		folderByPagina[in.Pagina] = in.Carpeta
+	}
+	if len(gateway.created) != 2 {
+		t.Fatalf("expected 2 creates (linked one skipped), got %d: %+v", len(gateway.created), gateway.created)
+	}
+	if got, want := folderByPagina["https://jkanime.net/a/"], filepath.Join(root, "Re Zero"); got != want {
+		t.Fatalf("default derived folder = %q, want %q", got, want)
+	}
+	if got := folderByPagina["https://jkanime.net/b/"]; got != override {
+		t.Fatalf("override folder = %q, want %q", got, override)
+	}
+}
+
 func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
@@ -230,10 +274,10 @@ func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
 	sa.Availability = domain.AvailabilityAvailable
 	_ = repo.CreateSeasonAnime(ctx, sa)
 
-	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}); err != nil {
+	if _, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"})
+	res, err := svc.CreateSeasonAnimes(ctx, []string{"sa-a"}, "", nil)
 	if err != nil {
 		t.Fatalf("second create: %v", err)
 	}
@@ -244,7 +288,7 @@ func TestCreateSeasonAnimesIsIdempotent(t *testing.T) {
 
 func TestCreateSeasonAnimesRequiresGateway(t *testing.T) {
 	svc := newTestService(newFakeRepo())
-	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}); err == nil {
+	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}, "", nil); err == nil {
 		t.Fatal("CreateSeasonAnimes without a gateway must error")
 	}
 }

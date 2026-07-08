@@ -54,6 +54,10 @@ var ErrSelectionDepsUnavailable = errors.New("selection anime gateway unavailabl
 // exceed the season's slots; the user resolves it via Insufficient quota.
 var ErrQuotaExceeded = errors.New("approved animes exceed the season slots")
 
+// ErrInvalidOrderingDraft is returned when the saved ordering draft puts the same
+// anime on the same weekday more than once.
+var ErrInvalidOrderingDraft = errors.New("ordering draft contains duplicate weekday placements")
+
 // ConfirmResult summarizes one selection confirmation.
 type ConfirmResult struct {
 	Approved int
@@ -128,6 +132,18 @@ func (s *Service) CreateSeason(ctx context.Context, name string) (domain.Season,
 // ActiveSeason returns the open season, or (nil, nil) when none is open.
 func (s *Service) ActiveSeason(ctx context.Context) (*domain.Season, error) {
 	return s.repo.ActiveSeason(ctx)
+}
+
+// ListSeasons returns every season (open + closed), newest first, for the
+// past-seasons history view shown when no season is open.
+func (s *Service) ListSeasons(ctx context.Context) ([]domain.Season, error) {
+	return s.repo.ListSeasons(ctx)
+}
+
+// SeasonByID returns a single season by id (open or past), or (nil, nil) when
+// absent — the read-only detail view loads a past season through it.
+func (s *Service) SeasonByID(ctx context.Context, id string) (*domain.Season, error) {
+	return s.repo.SeasonByID(ctx, id)
 }
 
 // SetMinApprovalGrade updates the open season's cutoff grade.
@@ -334,7 +350,7 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 // row to created. Rows that are not available (waiting) or already created are
 // skipped — creation is irreversible (soft delete only), so it only ever acts on
 // what the user explicitly picked. No download is triggered here.
-func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string) (CreateResult, error) {
+func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string, root string, overrides map[string]string) (CreateResult, error) {
 	if s.gateway == nil {
 		return CreateResult{}, ErrAvailabilityDepsUnavailable
 	}
@@ -353,10 +369,18 @@ func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string) (Crea
 			return res, err
 		}
 		if !found {
+			// A user-picked override wins; otherwise the folder defaults to the
+			// configured downloads root joined with the sanitized anime name. A
+			// LINKED existing anime (found) keeps its own folder untouched.
+			folder := overrides[rowID]
+			if folder == "" {
+				folder = deriveDownloadFolder(root, sa.RawName)
+			}
 			animeID, err = s.gateway.CreateAnime(ctx, AnimeCreateInput{
 				Nombre:  sa.RawName,
 				Pagina:  sa.MatchedSlug,
 				Section: sinVerSection,
+				Carpeta: folder,
 			})
 			if err != nil {
 				return res, err

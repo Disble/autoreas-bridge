@@ -30,6 +30,7 @@ function created(id: string, animeId: string, section: string): SeasonAnimeRow {
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    readOnly: false,
     sections: { sinVer: [], verHoy: [], visto: [] },
     selected: new Set<string>(),
     toggleSelect: vi.fn(),

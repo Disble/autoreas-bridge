@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import type { DragOverEvent } from '@dnd-kit/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { OrderingBoard, OrderingCard } from '../../../../../infrastructure/season-source';
 import { RAIL_CONTAINER_ID } from '../ordering-board.constants';
@@ -8,11 +9,13 @@ import {
   cardCounts,
   countChanges,
   duplicate,
+  hasDuplicateWeekdayPlacements,
   initialWorkingState,
   instancesIn,
   removeCard,
   scheduledCount,
   serializeDraft,
+  shouldCancelForbiddenWeekdayHover,
 } from '../ordering-board.helpers';
 
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
@@ -21,6 +24,17 @@ function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
 
 function board(overrides: Partial<OrderingBoard> = {}): OrderingBoard {
   return { rail: [], grid: [], ...overrides };
+}
+
+function dragOverEvent(sourceId: string, targetId: string): DragOverEvent {
+  return {
+    preventDefault: vi.fn(),
+    operation: {
+      canceled: false,
+      source: { id: sourceId },
+      target: { id: targetId },
+    },
+  } as unknown as DragOverEvent;
 }
 
 describe('initialWorkingState', () => {
@@ -68,12 +82,61 @@ describe('buildDraft / serializeDraft', () => {
 });
 
 describe('duplicate + removeCard (min-one)', () => {
-  it('duplicate stages one rail copy and is a no-op when a copy already waits', () => {
+  it('duplicate stages one rail copy from a weekday card and allows more approved-rail copies', () => {
     const start = initialWorkingState(board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })] }));
     const once = duplicate(start, 'z');
     expect(instancesIn(once, RAIL_CONTAINER_ID).map((i) => i.animeId)).toEqual(['z']);
     expect(cardCounts(once)['z']).toBe(2);
-    expect(duplicate(once, 'z')).toBe(once); // no second pending copy
+
+    const twice = duplicate(once, 'z');
+
+    expect(instancesIn(twice, RAIL_CONTAINER_ID).map((i) => ({ animeId: i.animeId, isPendingDuplicate: i.isPendingDuplicate }))).toEqual([
+      { animeId: 'z', isPendingDuplicate: true },
+      { animeId: 'z', isPendingDuplicate: true },
+    ]);
+    expect(cardCounts(twice)['z']).toBe(3);
+  });
+
+  it('allows repeated pending rail copies when the existing rail card is the approved source card', () => {
+    const start = initialWorkingState(board({ rail: [card({ animeId: 'z', section: 'Visto', orden: 2 })] }));
+
+    const once = duplicate(start, 'z');
+
+    expect(instancesIn(once, RAIL_CONTAINER_ID).map((instance) => ({ animeId: instance.animeId, section: instance.section, isPendingDuplicate: instance.isPendingDuplicate }))).toEqual([
+      { animeId: 'z', section: 'Visto', isPendingDuplicate: false },
+      { animeId: 'z', section: '', isPendingDuplicate: true },
+    ]);
+    expect(cardCounts(once)['z']).toBe(2);
+
+    const twice = duplicate(once, 'z');
+
+    expect(instancesIn(twice, RAIL_CONTAINER_ID).map((instance) => ({ animeId: instance.animeId, section: instance.section, isPendingDuplicate: instance.isPendingDuplicate }))).toEqual([
+      { animeId: 'z', section: 'Visto', isPendingDuplicate: false },
+      { animeId: 'z', section: '', isPendingDuplicate: true },
+      { animeId: 'z', section: '', isPendingDuplicate: true },
+    ]);
+    expect(cardCounts(twice)['z']).toBe(3);
+  });
+
+  it('allows repeated pending rail copies when the approved source card has an empty section', () => {
+    const start = initialWorkingState(board({ rail: [card({ animeId: 'z', section: '', orden: 0 })] }));
+
+    const once = duplicate(start, 'z');
+
+    expect(instancesIn(once, RAIL_CONTAINER_ID).map((instance) => ({ animeId: instance.animeId, isPendingDuplicate: instance.isPendingDuplicate }))).toEqual([
+      { animeId: 'z', isPendingDuplicate: false },
+      { animeId: 'z', isPendingDuplicate: true },
+    ]);
+    expect(cardCounts(once)['z']).toBe(2);
+
+    const twice = duplicate(once, 'z');
+
+    expect(instancesIn(twice, RAIL_CONTAINER_ID).map((instance) => ({ animeId: instance.animeId, isPendingDuplicate: instance.isPendingDuplicate }))).toEqual([
+      { animeId: 'z', isPendingDuplicate: false },
+      { animeId: 'z', isPendingDuplicate: true },
+      { animeId: 'z', isPendingDuplicate: true },
+    ]);
+    expect(cardCounts(twice)['z']).toBe(3);
   });
 
   it('removeCard deletes a copy but never the anime last card', () => {
@@ -107,6 +170,55 @@ describe('applyOrder (no two copies per day)', () => {
     const bad = { ...multi.order, Lunes: [zLunes, zMartes], Martes: [] };
     multi = applyOrder(multi, bad);
     expect(multi.order['Lunes']).toEqual([zLunes]); // unchanged — rejected
+  });
+});
+
+describe('hasDuplicateWeekdayPlacements', () => {
+  it('reports an invalid state when one weekday contains the same anime twice', () => {
+    const state = initialWorkingState(
+      board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Lunes', orden: 2 })] }),
+    );
+
+    expect(hasDuplicateWeekdayPlacements(state)).toBe(true);
+  });
+
+  it('allows approved-rail duplicates and multi-day weekday placements on different days', () => {
+    let state = initialWorkingState(
+      board({ rail: [card({ animeId: 'z', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'z', dia: 'Martes', orden: 1 })] }),
+    );
+
+    state = duplicate(state, 'z');
+    state = duplicate(state, 'z');
+
+    expect(hasDuplicateWeekdayPlacements(state)).toBe(false);
+  });
+});
+
+describe('shouldCancelForbiddenWeekdayHover', () => {
+  it('cancels dragging a rail duplicate over a weekday that already contains the same anime', () => {
+    let state = initialWorkingState(
+      board({ rail: [card({ animeId: 'z', section: 'Visto', orden: 2 })], grid: [card({ animeId: 'z', dia: 'Jueves', orden: 1 })] }),
+    );
+
+    state = duplicate(state, 'z');
+
+    const railDuplicateKey = instancesIn(state, RAIL_CONTAINER_ID).find((instance) => instance.isPendingDuplicate)?.key;
+    const juevesKey = instancesIn(state, 'Jueves')[0]?.key;
+
+    expect(railDuplicateKey).toBeDefined();
+    expect(juevesKey).toBeDefined();
+    expect(shouldCancelForbiddenWeekdayHover(state, dragOverEvent(railDuplicateKey!, juevesKey!))).toBe(true);
+  });
+
+  it('allows dragging to a weekday that does not already contain the same anime', () => {
+    let state = initialWorkingState(board({ rail: [card({ animeId: 'z', section: 'Visto', orden: 2 })], grid: [] }));
+
+    state = duplicate(state, 'z');
+
+    const railDuplicateKey = instancesIn(state, RAIL_CONTAINER_ID).find((instance) => instance.isPendingDuplicate)?.key;
+
+    expect(railDuplicateKey).toBeDefined();
+    expect(shouldCancelForbiddenWeekdayHover(state, dragOverEvent(railDuplicateKey!, 'Jueves'))).toBe(false);
   });
 });
 

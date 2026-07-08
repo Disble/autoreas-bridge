@@ -35,6 +35,10 @@ function makeSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     setConsideration: vi.fn().mockResolvedValue('ok'),
     confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
     createSeasonAnimes: vi.fn().mockResolvedValue('ok'),
+    pickFolder: vi.fn().mockResolvedValue(''),
+    listSeasons: vi.fn().mockResolvedValue([]),
+    getPastSeason: vi.fn().mockResolvedValue(null),
+    getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
     getOrderingBoard: vi.fn().mockResolvedValue({ rail: [], grid: [] }),
     saveOrderingDraft: vi.fn().mockResolvedValue('ok'),
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
@@ -184,8 +188,8 @@ describe('useSeasonStore', () => {
 
   it('createSeasonAnimes delegates the picked rows and refreshes', async () => {
     const source = makeSource();
-    await useSeasonStore.getState().createSeasonAnimes(source, ['sa-1', 'sa-2']);
-    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2']);
+    await useSeasonStore.getState().createSeasonAnimes(source, ['sa-1', 'sa-2'], {});
+    expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], {});
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
@@ -261,5 +265,99 @@ describe('useSeasonStore', () => {
 
     expect(source.closeSeason).toHaveBeenCalled();
     expect(useSeasonStore.getState().season).toBeNull();
+  });
+
+  it('loadPastSeasons loads the history list', async () => {
+    const past = [makeSeason({ id: 's-old', name: 'Abril 2026', status: 'closed' })];
+    const source = makeSource({ listSeasons: vi.fn().mockResolvedValue(past) });
+
+    await useSeasonStore.getState().loadPastSeasons(source);
+
+    expect(useSeasonStore.getState().pastSeasons).toHaveLength(1);
+    expect(useSeasonStore.getState().pastSeasons[0]?.id).toBe('s-old');
+  });
+
+  it('viewPastSeason loads a past season and its rows read-only', async () => {
+    const source = makeSource({
+      getPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-old', status: 'closed' })),
+      getPastSeasonAnimes: vi
+        .fn()
+        .mockResolvedValue([{ id: 'sa-1', rawName: 'Naruto', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableChapters: 12, animeId: 'anime-1', section: 'Visto', grade: 5, gradeSource: 'manual', skipGrading: false }]),
+    });
+
+    await useSeasonStore.getState().viewPastSeason(source, 's-old');
+
+    const state = useSeasonStore.getState();
+    expect(state.viewSeasonId).toBe('s-old');
+    expect(state.readOnly).toBe(true);
+    expect(state.season?.id).toBe('s-old');
+    expect(state.seasonAnimes).toHaveLength(1);
+  });
+
+  it('while viewing a past season, refresh and refreshAnimes never touch the active season', async () => {
+    const source = makeSource({
+      getPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-old', status: 'closed' })),
+      getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
+    });
+    await useSeasonStore.getState().viewPastSeason(source, 's-old');
+
+    await useSeasonStore.getState().refresh(source);
+    await useSeasonStore.getState().refreshAnimes(source);
+
+    expect(source.getSeason).not.toHaveBeenCalled();
+    expect(source.getSeasonAnimes).not.toHaveBeenCalled();
+    expect(useSeasonStore.getState().season?.id).toBe('s-old');
+  });
+
+  it('read-only mode blocks every workflow mutation from reaching the source', async () => {
+    const source = makeSource({
+      getPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-old', status: 'closed' })),
+      getPastSeasonAnimes: vi.fn().mockResolvedValue([]),
+    });
+    await useSeasonStore.getState().viewPastSeason(source, 's-old');
+    vi.clearAllMocks(); // ignore the load calls; keep the mock implementations
+
+    const store = useSeasonStore.getState();
+    await store.runMatching(source);
+    await store.discardName(source, 'sa-1');
+    await store.createSeasonAnimes(source, ['sa-1'], {});
+    await store.setGrade(source, 'anime-1', 5);
+    await store.setConsideration(source, 'sa-1', 'in');
+    await store.recheckAvailability(source);
+    await store.setMinApprovalGrade(source, 5);
+    await store.setSlots(source, 8);
+    await store.sendToVerHoy(source, ['anime-1']);
+    await store.confirmSelection(source);
+
+    for (const fn of [
+      source.runMatching,
+      source.discardName,
+      source.createSeasonAnimes,
+      source.setGrade,
+      source.setConsideration,
+      source.recheckAvailability,
+      source.setMinApprovalGrade,
+      source.setSlots,
+      source.sendToVerHoy,
+      source.confirmSelection,
+    ]) {
+      expect(fn).not.toHaveBeenCalled();
+    }
+  });
+
+  it('exitPastSeason returns to live mode and refetches the active season', async () => {
+    const source = makeSource({
+      getPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-old', status: 'closed' })),
+      getSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-open' })),
+    });
+    await useSeasonStore.getState().viewPastSeason(source, 's-old');
+
+    await useSeasonStore.getState().exitPastSeason(source);
+
+    const state = useSeasonStore.getState();
+    expect(state.viewSeasonId).toBeNull();
+    expect(state.readOnly).toBe(false);
+    expect(source.getSeason).toHaveBeenCalled();
+    expect(state.season?.id).toBe('s-open');
   });
 });

@@ -20,8 +20,20 @@ import { useSeasonWorkspace } from './use-season-workspace';
  * the colocated `useSeasonWorkspace` hook; this component is presentation-only.
  */
 export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
-  const { season, isLoading, errorMessage, overview, sections, suggestedName, onCreateSeason, onCloseSeason } =
-    useSeasonWorkspace();
+  const {
+    season,
+    isLoading,
+    errorMessage,
+    readOnly,
+    overview,
+    sections,
+    suggestedName,
+    pastSeasonEntries,
+    onCreateSeason,
+    onCloseSeason,
+    onViewPastSeason,
+    onExitPastSeason,
+  } = useSeasonWorkspace();
 
   if (isLoading) {
     return (
@@ -53,37 +65,83 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
       )}
 
       {season === null || overview === null ? (
-        <Card>
-          <Card.Header>
-            <Card.Title>{SEASON_WORKSPACE_EMPTY_TITLE}</Card.Title>
-            <Card.Description>{SEASON_WORKSPACE_EMPTY_MESSAGE}</Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleCreate}>
-              <TextField className="sm:max-w-xs" defaultValue={suggestedName} name="seasonName">
-                <Label>Season name</Label>
-                <Input />
-              </TextField>
-              <Button type="submit" variant="primary">
-                Create season
-              </Button>
-            </form>
-          </Card.Content>
-        </Card>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <Card.Header>
+              <Card.Title>{SEASON_WORKSPACE_EMPTY_TITLE}</Card.Title>
+              <Card.Description>{SEASON_WORKSPACE_EMPTY_MESSAGE}</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleCreate}>
+                <TextField className="sm:max-w-xs" defaultValue={suggestedName} name="seasonName">
+                  <Label>Season name</Label>
+                  <Input />
+                </TextField>
+                <Button type="submit" variant="primary">
+                  Create season
+                </Button>
+              </form>
+            </Card.Content>
+          </Card>
+
+          {pastSeasonEntries.length > 0 && (
+            <Card>
+              <Card.Header>
+                <Card.Title>Past seasons</Card.Title>
+                <Card.Description>Open a past season to review its full workflow read-only.</Card.Description>
+              </Card.Header>
+              <Card.Content>
+                <ul className="flex flex-col gap-2">
+                  {pastSeasonEntries.map((entry) => (
+                    <li key={entry.id}>
+                      <Button
+                        className="w-full justify-between gap-3"
+                        variant="tertiary"
+                        onPress={() => onViewPastSeason(entry.id)}
+                      >
+                        <span className="font-medium text-foreground">{entry.name}</span>
+                        <Chip color={entry.statusColor} size="sm" variant="soft">
+                          {entry.statusLabel}
+                        </Chip>
+                        <span className="text-xs text-muted">{entry.createdLabel}</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </Card.Content>
+            </Card>
+          )}
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
+          {readOnly && (
+            <Alert status="warning">
+              <Alert.Content>
+                <Alert.Title>Read-only</Alert.Title>
+                <Alert.Description>You are viewing a past season. Editing is disabled.</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-foreground">{overview.title}</h2>
             <Chip color={overview.statusColor} size="sm" variant="soft">
               {overview.statusLabel}
             </Chip>
+            {readOnly && (
+              <Button className="ml-auto" variant="secondary" onPress={onExitPastSeason}>
+                Back to history
+              </Button>
+            )}
           </div>
 
-          <Alert status="accent">
-            <Alert.Content>
-              <Alert.Description>{SEASON_WORKSPACE_SEASON_MODE_MESSAGE}</Alert.Description>
-            </Alert.Content>
-          </Alert>
+          {!readOnly && (
+            <Alert status="accent">
+              <Alert.Content>
+                <Alert.Description>{SEASON_WORKSPACE_SEASON_MODE_MESSAGE}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
 
           <Tabs defaultSelectedKey="overview">
             <Tabs.ListContainer>
@@ -138,9 +196,11 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
               <p className="mt-3 text-sm text-muted">{SEASON_WORKSPACE_UPCOMING_MESSAGE}</p>
 
-              <Button className="mt-4" variant="secondary" onPress={onCloseSeason}>
-                Close season
-              </Button>
+              {!readOnly && (
+                <Button className="mt-4" variant="secondary" onPress={onCloseSeason}>
+                  Close season
+                </Button>
+              )}
             </Tabs.Panel>
           </Tabs>
         </div>

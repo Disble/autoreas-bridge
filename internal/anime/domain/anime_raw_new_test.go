@@ -93,6 +93,39 @@ func TestNewAnimeRawOptionalTipoAndFechaEstreno(t *testing.T) {
 	assertJSONField(t, obj, "fechaEstreno", `{"$$date":1699000000000}`)
 }
 
+func TestNewAnimeRawOptionalCarpeta(t *testing.T) {
+	t.Run("carpeta is written when provided", func(t *testing.T) {
+		raw, err := NewAnimeRaw(NewAnimeSpec{
+			ID: "z", Nombre: "Con Carpeta", Pagina: "https://jkanime.net/con-carpeta/",
+			Section: "Sin ver", Orden: 1, CreatedAt: time.UnixMilli(1_700_000_000_000),
+			Carpeta: "D:/Anime/Con Carpeta",
+		})
+		if err != nil {
+			t.Fatalf("NewAnimeRaw: %v", err)
+		}
+		payload, _ := raw.MarshalJSON()
+		var obj map[string]json.RawMessage
+		_ = json.Unmarshal(payload, &obj)
+		assertJSONField(t, obj, "carpeta", `"D:/Anime/Con Carpeta"`)
+	})
+
+	t.Run("carpeta stays absent when empty", func(t *testing.T) {
+		raw, err := NewAnimeRaw(NewAnimeSpec{
+			ID: "z2", Nombre: "Sin Carpeta", Pagina: "https://jkanime.net/sin-carpeta/",
+			Section: "Sin ver", Orden: 1, CreatedAt: time.UnixMilli(1_700_000_000_000),
+		})
+		if err != nil {
+			t.Fatalf("NewAnimeRaw: %v", err)
+		}
+		payload, _ := raw.MarshalJSON()
+		var obj map[string]json.RawMessage
+		_ = json.Unmarshal(payload, &obj)
+		if _, ok := obj["carpeta"]; ok {
+			t.Fatalf("expected carpeta absent, got %s", obj["carpeta"])
+		}
+	})
+}
+
 func assertJSONField(t *testing.T, obj map[string]json.RawMessage, key, want string) {
 	t.Helper()
 	got, ok := obj[key]

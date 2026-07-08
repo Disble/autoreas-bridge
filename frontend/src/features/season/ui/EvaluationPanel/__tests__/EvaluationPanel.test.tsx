@@ -17,6 +17,7 @@ function evalRow(overrides: Partial<EvaluationRow> = {}): EvaluationRow {
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
+    readOnly: false,
     rows: [],
     ungradedCount: 0,
     errorMessage: undefined,

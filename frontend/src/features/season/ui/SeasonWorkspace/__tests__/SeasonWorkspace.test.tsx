@@ -44,11 +44,15 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     season: null,
     isLoading: false,
     errorMessage: undefined,
+    readOnly: false,
     overview: null,
     sections: SECTIONS,
     suggestedName: 'Julio 2026',
+    pastSeasonEntries: [],
     onCreateSeason: vi.fn(),
     onCloseSeason: vi.fn(),
+    onViewPastSeason: vi.fn(),
+    onExitPastSeason: vi.fn(),
     ...overrides,
   });
 }
@@ -130,6 +134,51 @@ describe('SeasonWorkspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
     expect(onCloseSeason).toHaveBeenCalled();
+  });
+
+  it('lists past seasons and opens one on click when no season is open', () => {
+    const onViewPastSeason = vi.fn();
+    mockHook({
+      pastSeasonEntries: [
+        { id: 's-old', name: 'Abril 2026', statusLabel: 'Closed', statusColor: 'default', createdLabel: 'April 6, 2026' },
+      ],
+      onViewPastSeason,
+    });
+    render(<SeasonWorkspace />);
+
+    expect(screen.getByText('Past seasons')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Abril 2026/ }));
+    expect(onViewPastSeason).toHaveBeenCalledWith('s-old');
+  });
+
+  it('shows a read-only banner and a back button (and hides Close season) for a past season', () => {
+    const onExitPastSeason = vi.fn();
+    mockHook({
+      readOnly: true,
+      season: {
+        id: 's-old',
+        name: 'Abril 2026',
+        minApprovalGrade: 4,
+        slots: 12,
+        status: 'closed',
+        createdAt: Date.UTC(2026, 3, 6),
+      },
+      overview: {
+        title: 'Abril 2026',
+        statusLabel: 'Closed',
+        statusColor: 'default',
+        createdLabel: 'April 6, 2026',
+        minApprovalGrade: 4,
+        slots: 12,
+      },
+      onExitPastSeason,
+    });
+    render(<SeasonWorkspace />);
+
+    expect(screen.getByText('Read-only')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close season' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to history' }));
+    expect(onExitPastSeason).toHaveBeenCalled();
   });
 
   it('renders an error alert when the hook returns an error message', () => {

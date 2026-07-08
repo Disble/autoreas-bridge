@@ -6,6 +6,9 @@ import { resetPreferencesStore, usePreferencesStore } from '../preferences-store
 function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
     getSeasonMode: vi.fn().mockResolvedValue(false),
+    getDownloadsRoot: vi.fn().mockResolvedValue(''),
+    setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
+    pickFolder: vi.fn().mockResolvedValue(''),
     ...overrides,
   };
 }

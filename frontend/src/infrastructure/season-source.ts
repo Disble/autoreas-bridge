@@ -10,6 +10,10 @@ import {
   ApplySeasonSchedule,
   ConfirmSeasonSelection,
   CreateSeasonAnimes,
+  PickFolder,
+  ListSeasons,
+  GetPastSeason,
+  GetPastSeasonAnimes,
   GetSeasonOrderingBoard,
   ReopenSeasonOrdering,
   RunSeasonMatching,
@@ -94,7 +98,7 @@ export interface OrderingCard {
 export interface OrderingBoard {
   readonly rail: readonly OrderingCard[];
   readonly grid: readonly OrderingCard[];
-  readonly appliedAt?: number;
+  readonly appliedAt?: number | null;
 }
 
 /** Result of applying the ordering schedule. */
@@ -136,6 +140,12 @@ export interface SeasonSource {
   readonly setSlots: (slots: number) => Promise<string>;
   readonly closeSeason: () => Promise<string>;
   readonly getSeasonAnimes: () => Promise<readonly SeasonAnimeRow[]>;
+  /** Every season (open + closed), newest first, for the past-seasons history. */
+  readonly listSeasons: () => Promise<readonly SeasonSnapshot[]>;
+  /** A specific season by id (read-only detail view), or null when absent. */
+  readonly getPastSeason: (seasonId: string) => Promise<SeasonSnapshot | null>;
+  /** A specific season's intake rows (read-only detail view). */
+  readonly getPastSeasonAnimes: (seasonId: string) => Promise<readonly SeasonAnimeRow[]>;
   readonly reconcileIntake: (rawText: string) => Promise<string>;
   readonly runMatching: () => Promise<string>;
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
@@ -147,7 +157,9 @@ export interface SeasonSource {
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
   readonly confirmSelection: () => Promise<ConfirmSelectionResult>;
-  readonly createSeasonAnimes: (rowIds: readonly string[]) => Promise<string>;
+  readonly createSeasonAnimes: (rowIds: readonly string[], folders: Readonly<Record<string, string>>) => Promise<string>;
+  /** Opens the native folder picker; resolves to the chosen path or '' when cancelled. */
+  readonly pickFolder: (title: string) => Promise<string>;
   readonly getOrderingBoard: () => Promise<OrderingBoard>;
   readonly saveOrderingDraft: (draftJson: string) => Promise<string>;
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
@@ -245,6 +257,21 @@ export function createSeasonSource(): SeasonSource {
         return isReady ? (GetSeasonAnimes() as Promise<readonly SeasonAnimeRow[]>) : Promise.resolve([]);
       });
     },
+    listSeasons() {
+      return waitForBindings(() => hasGoBinding('ListSeasons')).then((isReady) => {
+        return isReady ? (ListSeasons() as Promise<readonly SeasonSnapshot[]>) : Promise.resolve([]);
+      });
+    },
+    getPastSeason(seasonId: string) {
+      return waitForBindings(() => hasGoBinding('GetPastSeason')).then((isReady) => {
+        return isReady ? (GetPastSeason(seasonId) as Promise<SeasonSnapshot | null>) : Promise.resolve(null);
+      });
+    },
+    getPastSeasonAnimes(seasonId: string) {
+      return waitForBindings(() => hasGoBinding('GetPastSeasonAnimes')).then((isReady) => {
+        return isReady ? (GetPastSeasonAnimes(seasonId) as Promise<readonly SeasonAnimeRow[]>) : Promise.resolve([]);
+      });
+    },
     reconcileIntake(rawText: string) {
       return waitForBindings(() => hasGoBinding('ReconcileSeasonIntake')).then((isReady) => {
         return isReady ? ReconcileSeasonIntake(rawText) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
@@ -309,9 +336,14 @@ export function createSeasonSource(): SeasonSource {
         return isReady ? (ConfirmSeasonSelection() as Promise<ConfirmSelectionResult>) : Promise.resolve(CONFIRM_UNAVAILABLE);
       });
     },
-    createSeasonAnimes(rowIds: readonly string[]) {
+    createSeasonAnimes(rowIds: readonly string[], folders: Readonly<Record<string, string>>) {
       return waitForBindings(() => hasGoBinding('CreateSeasonAnimes')).then((isReady) => {
-        return isReady ? CreateSeasonAnimes([...rowIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+        return isReady ? CreateSeasonAnimes([...rowIds], { ...folders }) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+      });
+    },
+    pickFolder(title: string) {
+      return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
+        return isReady ? (PickFolder(title) as Promise<string>) : Promise.resolve('');
       });
     },
     getOrderingBoard() {

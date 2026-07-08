@@ -1,6 +1,7 @@
+import type { DragOverEvent } from '@dnd-kit/react';
 import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/season-source';
 import { CONTAINERS, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
-import type { DraftPlacement, OrderingInstance, WorkingState } from './ordering-board.types';
+import type { ContainerId, DraftPlacement, OrderingInstance, Weekday, WorkingState } from './ordering-board.types';
 
 /** RAIL is the "location" sentinel for a card awaiting placement (not on any weekday). */
 export const RAIL = '';
@@ -47,6 +48,7 @@ export function initialWorkingState(board: OrderingBoard): WorkingState {
       key,
       animeId: card.animeId,
       name: card.name,
+      isPendingDuplicate: false,
       section: card.section,
       orden: card.orden,
       isNewcomer: card.isNewcomer,
@@ -99,11 +101,11 @@ export function scheduledCount(state: WorkingState): number {
   return ids.size;
 }
 
-/** hasDuplicatePerContainer reports whether any container holds two clones of the same anime. */
+/** hasDuplicatePerContainer reports whether any weekday container holds two clones of the same anime. */
 function hasDuplicatePerContainer(order: Record<string, readonly string[]>, instances: Record<string, OrderingInstance>): boolean {
-  for (const container of Object.keys(order)) {
+  for (const container of WEEKDAYS) {
     const seen = new Set<string>();
-    for (const key of order[container]) {
+    for (const key of order[container] ?? []) {
       const animeId = instances[key]?.animeId;
       if (animeId !== undefined) {
         if (seen.has(animeId)) {
@@ -116,10 +118,68 @@ function hasDuplicatePerContainer(order: Record<string, readonly string[]>, inst
   return false;
 }
 
+/** isContainerId narrows an arbitrary string to one of the known rail/weekday container ids. */
+function isContainerId(value: string): value is ContainerId {
+  return (CONTAINERS as readonly string[]).includes(value);
+}
+
+/** isWeekday narrows an arbitrary string to one of the real weekday columns. */
+function isWeekday(value: string): value is Weekday {
+  return (WEEKDAYS as readonly string[]).includes(value);
+}
+
+/** targetContainerFor resolves a drag target id to its weekday/rail container id. */
+function targetContainerFor(state: WorkingState, targetId: string): ContainerId | undefined {
+  if (isContainerId(targetId)) {
+    return targetId;
+  }
+
+  for (const [containerId, keys] of Object.entries(state.order)) {
+    if (keys.includes(targetId)) {
+      return containerId as ContainerId;
+    }
+  }
+
+  return undefined;
+}
+
+/** hasDuplicateWeekdayPlacements validates the strong invariant that weekdays never carry the same anime twice. */
+export function hasDuplicateWeekdayPlacements(state: WorkingState): boolean {
+  return hasDuplicatePerContainer(state.order, state.instances);
+}
+
+/**
+ * shouldCancelForbiddenWeekdayHover blocks optimistic drag projection before dnd-kit moves
+ * a card into a weekday that already contains the same anime. This keeps forbidden
+ * weekday duplicates from ever entering the projected drag state, which avoids the crash
+ * path where app-level validation would roll the move back only after `move(...)` ran.
+ */
+export function shouldCancelForbiddenWeekdayHover(state: WorkingState, event: DragOverEvent): boolean {
+  const sourceId = event.operation.source?.id;
+  const targetId = event.operation.target?.id;
+
+  if (typeof sourceId !== 'string' || typeof targetId !== 'string') {
+    return false;
+  }
+  const targetContainerId = targetContainerFor(state, targetId);
+
+  if (targetContainerId === undefined || !isWeekday(targetContainerId)) {
+    return false;
+  }
+
+  const instance = state.instances[sourceId];
+
+  if (instance === undefined) {
+    return false;
+  }
+
+  return (state.order[targetContainerId] ?? []).some((key) => state.instances[key]?.animeId === instance.animeId && key !== sourceId);
+}
+
 /**
  * applyOrder accepts a reordered container map (produced by `move`) unless it would put
- * two clones of the same anime on one day — the "no two copies per day" rule, which
- * makes a forbidden drop a no-op.
+ * two clones of the same anime on one weekday — the approved rail is exempt from that
+ * rule, so forbidden drops are weekday-only no-ops.
  */
 export function applyOrder(state: WorkingState, order: Record<string, readonly string[]>): WorkingState {
   if (hasDuplicatePerContainer(order, state.instances)) {
@@ -130,13 +190,10 @@ export function applyOrder(state: WorkingState, order: Record<string, readonly s
 
 /**
  * duplicate stages a logical copy of an anime into the rail (same anime — never a
- * second DB row) so it can be dragged onto another weekday. No-op when a copy already
- * waits in the rail.
+ * second DB row) so it can be dragged onto another weekday. The approved rail can keep
+ * several pending copies because it is not a weekday container.
  */
 export function duplicate(state: WorkingState, animeId: string): WorkingState {
-  if (state.order[RAIL_CONTAINER_ID].some((key) => state.instances[key].animeId === animeId)) {
-    return state;
-  }
   const meta = Object.values(state.instances).find((instance) => instance.animeId === animeId);
   if (meta === undefined) {
     return state;
@@ -144,7 +201,7 @@ export function duplicate(state: WorkingState, animeId: string): WorkingState {
   const key = nextKey(state.instances, animeId);
   return {
     order: { ...state.order, [RAIL_CONTAINER_ID]: [...state.order[RAIL_CONTAINER_ID], key] },
-    instances: { ...state.instances, [key]: { ...meta, key, section: RAIL, orden: 0 } },
+    instances: { ...state.instances, [key]: { ...meta, key, isPendingDuplicate: true, section: RAIL, orden: 0 } },
   };
 }
 
@@ -174,7 +231,7 @@ export function removeCard(state: WorkingState, key: string): WorkingState {
  * buildDraft builds the ordering draft (`{animeId: [{dia, orden}]}`): each weekday clone
  * contributes one placement (an anime on several days emits several), renumbered by
  * column position; a genuinely unplaced rail card keeps its Estrenos section placement.
- * A pending duplicate (empty section) adds nothing until dragged onto a day.
+ * A pending duplicate adds nothing until dragged onto a day.
  */
 export function buildDraft(state: WorkingState): Record<string, DraftPlacement[]> {
   const draft: Record<string, DraftPlacement[]> = {};
@@ -186,7 +243,7 @@ export function buildDraft(state: WorkingState): Record<string, DraftPlacement[]
   }
   for (const key of state.order[RAIL_CONTAINER_ID] ?? []) {
     const instance = state.instances[key];
-    if (draft[instance.animeId] === undefined && instance.section !== '') {
+    if (!instance.isPendingDuplicate && draft[instance.animeId] === undefined && instance.section !== '') {
       draft[instance.animeId] = [{ dia: instance.section, orden: instance.orden }];
     }
   }

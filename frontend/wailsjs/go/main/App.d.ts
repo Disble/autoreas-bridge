@@ -18,7 +18,7 @@ export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResul
 
 export function CreateSeason(arg1:string):Promise<string>;
 
-export function CreateSeasonAnimes(arg1:Array<string>):Promise<string>;
+export function CreateSeasonAnimes(arg1:Array<string>,arg2:Record<string, string>):Promise<string>;
 
 export function DiscardSeasonName(arg1:string):Promise<string>;
 
@@ -42,11 +42,17 @@ export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
 
 export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
 
+export function GetDownloadsRoot():Promise<string>;
+
 export function GetEffectiveAddress():Promise<string>;
 
 export function GetJDStatus():Promise<contracts.JDStatus>;
 
 export function GetPairingToken():Promise<string>;
+
+export function GetPastSeason(arg1:string):Promise<main.SeasonDTO>;
+
+export function GetPastSeasonAnimes(arg1:string):Promise<Array<main.SeasonAnimeDTO>>;
 
 export function GetRecentLogs():Promise<Array<logger.LogEntry>>;
 
@@ -68,9 +74,13 @@ export function ImportSeasonIntake(arg1:string):Promise<string>;
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
+export function ListSeasons():Promise<Array<main.SeasonDTO>>;
+
 export function OpenAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
 
 export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+
+export function PickFolder(arg1:string):Promise<string>;
 
 export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
 
@@ -95,6 +105,8 @@ export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<main.SendTo
 export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.ChapterCommandResult>;
 
 export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
+
+export function SetDownloadsRoot(arg1:string):Promise<string>;
 
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
 

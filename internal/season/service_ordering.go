@@ -8,6 +8,10 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
+var orderingWeekdays = map[string]struct{}{
+	"Lunes": {}, "Martes": {}, "Miércoles": {}, "Jueves": {}, "Viernes": {}, "Sábado": {}, "Domingo": {},
+}
+
 // ApplyResult summarizes one ordering apply: how many anime schedules were
 // written and which anime ids failed (partial failure leaves the milestone unset).
 type ApplyResult struct {
@@ -43,6 +47,9 @@ func (s *Service) ApplySchedule(ctx context.Context) (ApplyResult, error) {
 	draft, err := parseOrderingDraft(active.OrderingDraft)
 	if err != nil {
 		return ApplyResult{}, err
+	}
+	if hasDuplicateWeekdayPlacements(draft) {
+		return ApplyResult{}, ErrInvalidOrderingDraft
 	}
 	if len(draft) == 0 {
 		return ApplyResult{}, nil
@@ -93,4 +100,20 @@ func parseOrderingDraft(raw string) (map[string][]domain.Placement, error) {
 		return nil, err
 	}
 	return draft, nil
+}
+
+func hasDuplicateWeekdayPlacements(draft map[string][]domain.Placement) bool {
+	for _, placements := range draft {
+		seen := make(map[string]struct{}, len(placements))
+		for _, placement := range placements {
+			if _, isWeekday := orderingWeekdays[placement.Dia]; !isWeekday {
+				continue
+			}
+			if _, duplicated := seen[placement.Dia]; duplicated {
+				return true
+			}
+			seen[placement.Dia] = struct{}{}
+		}
+	}
+	return false
 }

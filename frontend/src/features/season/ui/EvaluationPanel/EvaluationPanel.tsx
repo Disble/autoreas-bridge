@@ -11,7 +11,7 @@ import { useEvaluationPanel } from './use-evaluation-panel';
  * I/O and state live in the colocated `useEvaluationPanel` hook.
  */
 export function EvaluationPanel() {
-  const { rows, ungradedCount, errorMessage, onSkip } = useEvaluationPanel();
+  const { readOnly, rows, ungradedCount, errorMessage, onSkip } = useEvaluationPanel();
 
   return (
     <section className="flex flex-col gap-4">
@@ -63,15 +63,19 @@ export function EvaluationPanel() {
                     No grade
                   </Chip>
                 )}
-                <RateAnimeModal
-                  animeId={row.animeId}
-                  currentGrade={row.grade}
-                  gradeSource={row.gradeSource}
-                  rawName={row.rawName}
-                />
-                <Button isDisabled={row.skipGrading} size="sm" variant="tertiary" onPress={() => onSkip(row.id)}>
-                  Skip
-                </Button>
+                {!readOnly && (
+                  <>
+                    <RateAnimeModal
+                      animeId={row.animeId}
+                      currentGrade={row.grade}
+                      gradeSource={row.gradeSource}
+                      rawName={row.rawName}
+                    />
+                    <Button isDisabled={row.skipGrading} size="sm" variant="tertiary" onPress={() => onSkip(row.id)}>
+                      Skip
+                    </Button>
+                  </>
+                )}
               </div>
             </li>
           ))}

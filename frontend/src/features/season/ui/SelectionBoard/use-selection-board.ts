@@ -15,6 +15,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
   const season = useSeasonStore((state) => state.season);
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
+  const readOnly = useSeasonStore((state) => state.readOnly);
   const errorMessage = useSeasonStore((state) => state.errorMessage);
   const refresh = useSeasonStore((state) => state.refresh);
   const refreshAnimes = useSeasonStore((state) => state.refreshAnimes);
@@ -49,6 +50,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
   }, [refresh, refreshAnimes, source]);
 
   return {
+    readOnly,
     seasonName: season?.name ?? '',
     minApprovalGrade,
     slots,

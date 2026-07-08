@@ -23,3 +23,43 @@ func (a *App) seasonModeReader() func(context.Context) bool {
 		return err == nil && active != nil
 	}
 }
+
+// GetDownloadsRoot returns the configured global downloads root, or "" when it
+// has never been set. It degrades to "" when the settings store is unavailable.
+func (a *App) GetDownloadsRoot() string {
+	if a.settingsStore == nil {
+		return ""
+	}
+	root, err := a.settingsStore.DownloadsRoot(a.seasonCtx())
+	if err != nil {
+		return ""
+	}
+	return root
+}
+
+// SetDownloadsRoot persists the global downloads root — the base folder joined
+// with a sanitized anime name to form a newly-created season anime's default
+// download folder. Returns "ok" or an error string.
+func (a *App) SetDownloadsRoot(path string) string {
+	if a.settingsStore == nil {
+		return "settings store unavailable"
+	}
+	if err := a.settingsStore.SetDownloadsRoot(a.seasonCtx(), path); err != nil {
+		return err.Error()
+	}
+	return "ok"
+}
+
+// PickFolder opens the native directory picker and returns the chosen absolute
+// path, or "" when the user cancels (or no runtime is available). Shared by the
+// Options downloads-root setting and the per-anime folder override in intake.
+func (a *App) PickFolder(title string) string {
+	if a.pickFolder == nil {
+		return ""
+	}
+	path, err := a.pickFolder(a.seasonCtx(), title)
+	if err != nil {
+		return ""
+	}
+	return path
+}

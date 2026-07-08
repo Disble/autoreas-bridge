@@ -60,6 +60,44 @@ func (s *SQLiteStore) ActiveSeason(ctx context.Context) (*domain.Season, error) 
 	return season, nil
 }
 
+// ListSeasons returns every season (open + closed), newest first.
+func (s *SQLiteStore) ListSeasons(ctx context.Context) ([]domain.Season, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, min_approval_grade, slots, status,
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+		FROM seasons ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("query seasons: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []domain.Season
+	for rows.Next() {
+		season, err := scanSeason(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan season: %w", err)
+		}
+		out = append(out, *season)
+	}
+	return out, rows.Err()
+}
+
+// SeasonByID returns a single season by id, or (nil, nil) when absent.
+func (s *SQLiteStore) SeasonByID(ctx context.Context, id string) (*domain.Season, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, name, min_approval_grade, slots, status,
+		       selection_confirmed_at, applied_at, closed_at, ordering_draft_json, created_at
+		FROM seasons WHERE id = ? LIMIT 1`, id)
+	season, err := scanSeason(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query season %q: %w", id, err)
+	}
+	return season, nil
+}
+
 // UpdateSeason persists the mutable season fields (parameters, status, milestones).
 func (s *SQLiteStore) UpdateSeason(ctx context.Context, season domain.Season) error {
 	_, err := s.db.ExecContext(ctx, `
