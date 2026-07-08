@@ -230,6 +230,10 @@ export function TriggerReconcile() {
   return window['go']['main']['App']['TriggerReconcile']();
 }
 
+export function TriggerSeasonDownloads() {
+  return window['go']['main']['App']['TriggerSeasonDownloads']();
+}
+
 export function UnpairDevice(arg1) {
   return window['go']['main']['App']['UnpairDevice'](arg1);
 }

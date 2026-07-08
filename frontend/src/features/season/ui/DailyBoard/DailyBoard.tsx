@@ -10,7 +10,8 @@ import { useDailyBoard } from './use-daily-board';
  * I/O and state live in the colocated `useDailyBoard` hook.
  */
 export function DailyBoard() {
-  const { sections, selected, toggleSelect, onSendToVerHoy, onRecheck, errorMessage } = useDailyBoard();
+  const { sections, selected, toggleSelect, onSendToVerHoy, downloadNotice, onDownloadNow, onDismissNotice, onRecheck, errorMessage } =
+    useDailyBoard();
   const isEmpty = sections.sinVer.length === 0 && sections.verHoy.length === 0 && sections.visto.length === 0;
 
   const readonlyGroups = [
@@ -28,6 +29,25 @@ export function DailyBoard() {
         </Alert>
       )}
 
+      {downloadNotice !== null && (
+        <Alert status="warning">
+          <Alert.Content>
+            <Alert.Description>
+              Sent to Ver hoy after today&apos;s {downloadNotice.downloadTime || 'scheduled'} auto-download. Download now
+              so you have episodes to watch today.
+            </Alert.Description>
+          </Alert.Content>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="primary" onPress={onDownloadNow}>
+              Download now
+            </Button>
+            <Button size="sm" variant="tertiary" onPress={onDismissNotice}>
+              Dismiss
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       <div className="flex items-center gap-3">
         <Button variant="tertiary" onPress={onRecheck}>
           Re-check now
@@ -41,7 +61,9 @@ export function DailyBoard() {
           <Card>
             <Card.Header>
               <Card.Title>Sin ver — pick what you watch today</Card.Title>
-              <Card.Description>Selected animes download automatically once sent to Ver hoy.</Card.Description>
+              <Card.Description>
+                Sent animes download at the daily scheduled time — or manually if that window has already passed.
+              </Card.Description>
             </Card.Header>
             <Card.Content>
               {sections.sinVer.length === 0 ? (

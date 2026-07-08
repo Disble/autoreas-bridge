@@ -5,6 +5,7 @@ import type {
   SeasonAnimeRow,
   SeasonSnapshot,
   SeasonSource,
+  SendToVerHoyResult,
 } from '../../infrastructure/season-source';
 import { seasonSource } from '../../infrastructure/season-source';
 
@@ -28,7 +29,7 @@ interface SeasonStoreState {
   readonly resolveMatch: (source: SeasonSource, rowId: string, pageUrl: string) => Promise<void>;
   readonly discardName: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setAnimeDays: (source: SeasonSource, animeId: string, dias: readonly string[]) => Promise<void>;
-  readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<void>;
+  readonly sendToVerHoy: (source: SeasonSource, animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
   readonly setGrade: (source: SeasonSource, animeId: string, grade: number) => Promise<void>;
   readonly skipGrading: (source: SeasonSource, rowId: string) => Promise<void>;
   readonly setConsideration: (source: SeasonSource, rowId: string, consideration: string) => Promise<void>;
@@ -167,7 +168,23 @@ export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   },
 
   sendToVerHoy: async (source: SeasonSource, animeIds: readonly string[]) => {
-    await runIntakeCommand(get, set, () => source.sendToVerHoy(animeIds), source, 'Failed to send to Ver hoy', 'Sending to Ver hoy…');
+    set({ busyMessage: 'Sending to Ver hoy…' });
+    try {
+      const result = await source.sendToVerHoy(animeIds);
+      if (result.status !== 'ok') {
+        set({ errorMessage: result.status || 'Failed to send to Ver hoy' });
+        return result;
+      }
+      set({ errorMessage: undefined });
+      await get().refreshAnimes(source);
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send to Ver hoy';
+      set({ errorMessage: message });
+      return { status: message, pastDownloadTime: false, downloadTime: '' };
+    } finally {
+      set({ busyMessage: undefined });
+    }
   },
 
   setGrade: async (source: SeasonSource, animeId: string, grade: number) => {

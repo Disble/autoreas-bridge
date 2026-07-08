@@ -13,6 +13,8 @@ import { groupCreatedBySection } from './daily-board.helpers';
 export function useDailyBoard(source: SeasonSource = seasonSource) {
   // 2. State
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // Set when a batch is sent after the daily auto-download window: prompts a manual download.
+  const [downloadNotice, setDownloadNotice] = useState<{ readonly downloadTime: string } | null>(null);
 
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
@@ -42,8 +44,17 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
     }
     const ids = [...selected];
     setSelected(new Set());
-    void sendToVerHoy(source, ids);
+    void sendToVerHoy(source, ids).then((result) => {
+      setDownloadNotice(result.pastDownloadTime ? { downloadTime: result.downloadTime } : null);
+    });
   }, [selected, sendToVerHoy, source]);
+  const onDownloadNow = useCallback(() => {
+    setDownloadNotice(null);
+    void source.triggerSeasonDownloads();
+  }, [source]);
+  const onDismissNotice = useCallback(() => {
+    setDownloadNotice(null);
+  }, []);
   const onRecheck = useCallback(() => {
     void recheckAvailability(source);
   }, [recheckAvailability, source]);
@@ -58,6 +69,9 @@ export function useDailyBoard(source: SeasonSource = seasonSource) {
     selected,
     toggleSelect,
     onSendToVerHoy,
+    downloadNotice,
+    onDownloadNow,
+    onDismissNotice,
     onRecheck,
     errorMessage,
   };

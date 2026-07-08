@@ -887,6 +887,22 @@ export namespace main {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class SendToVerHoyDTO {
+	    status: string;
+	    pastDownloadTime: boolean;
+	    downloadTime: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SendToVerHoyDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.pastDownloadTime = source["pastDownloadTime"];
+	        this.downloadTime = source["downloadTime"];
+	    }
+	}
 
 }
 

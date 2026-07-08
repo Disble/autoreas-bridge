@@ -308,24 +308,89 @@ func (a *App) runSeasonAvailability(ctx context.Context, _ string) (string, erro
 	return fmt.Sprintf("checked=%d available=%d", res.Checked, len(res.Available)), nil
 }
 
+// SendToVerHoyDTO reports the outcome of staging animes into "Ver hoy". When the
+// daily auto-download window has already passed (PastDownloadTime), the scheduled
+// run will not pick the animes up today, so the UI surfaces a manual download
+// option; otherwise the scheduled run downloads them automatically at DownloadTime.
+type SendToVerHoyDTO struct {
+	Status           string `json:"status"`
+	PastDownloadTime bool   `json:"pastDownloadTime"`
+	DownloadTime     string `json:"downloadTime"`
+}
+
 // SendSeasonAnimesToVerHoy stages the given created animes into "Ver hoy" (the
-// Daily Board's multi-select "watch today") and chains a download run so they
-// download automatically.
-func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) string {
+// Daily Board's multi-select "watch today"). It does NOT force a download run:
+// the animes ride the scheduled daily download at DownloadTime. When that window
+// has already passed for today (PastDownloadTime), it notifies the user and the UI
+// offers a manual download so they still have episodes to watch today.
+func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 	if a.chapterService == nil {
-		return "chapter service unavailable"
+		return SendToVerHoyDTO{Status: "chapter service unavailable"}
 	}
 	for _, id := range animeIDs {
 		if _, err := a.chapterService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
 			AnimeID: id,
 			Dias:    []string{"Ver hoy"},
 		}); err != nil {
-			return err.Error()
+			return SendToVerHoyDTO{Status: err.Error()}
 		}
 	}
-	a.triggerDownloadsForSeason(a.seasonCtx())
 	a.broadcastSeasonChanged()
+
+	downloadTime, passed := a.seasonDownloadWindowPassed()
+	if passed {
+		a.notifySeasonPastDownloadWindow(a.seasonCtx(), len(animeIDs), downloadTime)
+	}
+	return SendToVerHoyDTO{Status: "ok", PastDownloadTime: passed, DownloadTime: downloadTime}
+}
+
+// TriggerSeasonDownloads is the manual "download now" the Daily Board offers when a
+// Ver hoy batch missed the daily auto-download window. Degrades to "ok" (no-op)
+// when the scheduler is unavailable, mirroring the season bindings' nil-tolerance.
+func (a *App) TriggerSeasonDownloads() string {
+	a.triggerDownloadsForSeason(a.seasonCtx())
 	return "ok"
+}
+
+// seasonDownloadWindowPassed reports the configured daily download time and whether
+// today's auto-download window has already passed — true when the schedule is
+// disabled/absent or now is past the configured HH:MM, so the scheduled run will
+// not catch a just-sent batch today.
+func (a *App) seasonDownloadWindowPassed() (string, bool) {
+	if a.downloadStore == nil {
+		return "", true
+	}
+	cfg, err := a.downloadStore.GetScheduleConfig(a.downloadCtx())
+	if err != nil {
+		return "", true
+	}
+	if !cfg.Enabled || cfg.DailyTimeHHMM == "" {
+		return cfg.DailyTimeHHMM, true
+	}
+	scheduled, err := time.Parse("15:04", cfg.DailyTimeHHMM)
+	if err != nil {
+		return cfg.DailyTimeHHMM, true
+	}
+	now := time.Now()
+	window := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, now.Location())
+	return cfg.DailyTimeHHMM, now.After(window)
+}
+
+func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhmm string) {
+	if a.notifier == nil {
+		return
+	}
+	body := fmt.Sprintf("%d anime sent to Ver hoy after today's download. Download them manually to watch today.", count)
+	if hhmm != "" {
+		body = fmt.Sprintf("%d anime sent to Ver hoy after the %s auto-download. Download them manually to watch today.", count, hhmm)
+	}
+	_ = a.notifier.Notify(ctx, notification.Notification{
+		Title:     "Past today's download window",
+		Body:      body,
+		Level:     notification.LevelWarning,
+		Source:    "season",
+		Timestamp: time.Now(),
+	})
 }
 
 func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {

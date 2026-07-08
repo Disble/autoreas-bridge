@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 )
@@ -269,19 +270,69 @@ func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 	chapter := &stubAppChapterService{}
 	app := &App{ctx: context.Background(), chapterService: chapter}
 
-	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got != "ok" {
-		t.Fatalf("SendSeasonAnimesToVerHoy: %q", got)
+	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+	if got.Status != "ok" {
+		t.Fatalf("SendSeasonAnimesToVerHoy: %q", got.Status)
 	}
 	if chapter.lastDays.AnimeID != "anime-1" || len(chapter.lastDays.Dias) != 1 || chapter.lastDays.Dias[0] != "Ver hoy" {
 		t.Fatalf("expected a Ver hoy move for anime-1, got %+v", chapter.lastDays)
+	}
+	// No download store configured -> the window is treated as passed (offer manual).
+	if !got.PastDownloadTime {
+		t.Fatalf("expected PastDownloadTime=true without a download schedule, got %+v", got)
+	}
+}
+
+func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
+	t.Parallel()
+	chapter := &stubAppChapterService{}
+	future := time.Now().Add(2 * time.Hour).Format("15:04")
+	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}}
+	sched := &fakeAppScheduler{}
+	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store, downloadScheduler: sched}
+
+	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+	if got.Status != "ok" || got.PastDownloadTime {
+		t.Fatalf("before the window the send is automatic (no manual prompt), got %+v", got)
+	}
+	if got.DownloadTime != future {
+		t.Fatalf("expected DownloadTime %q, got %q", future, got.DownloadTime)
+	}
+	if sched.triggerNowCalls != 0 {
+		t.Fatalf("send must not force a download run; the schedule handles it, got %d triggers", sched.triggerNowCalls)
+	}
+}
+
+func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
+	t.Parallel()
+	chapter := &stubAppChapterService{}
+	past := time.Now().Add(-2 * time.Hour).Format("15:04")
+	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past}}
+	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store}
+
+	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
+	if got.Status != "ok" || !got.PastDownloadTime {
+		t.Fatalf("past the window the send must flag a manual download, got %+v", got)
 	}
 }
 
 func TestSendSeasonAnimesToVerHoyNoChapterService(t *testing.T) {
 	t.Parallel()
 	app := &App{ctx: context.Background()}
-	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got == "ok" || got == "" {
-		t.Fatalf("expected error without chapter service, got %q", got)
+	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got.Status == "ok" || got.Status == "" {
+		t.Fatalf("expected error without chapter service, got %q", got.Status)
+	}
+}
+
+func TestTriggerSeasonDownloads(t *testing.T) {
+	t.Parallel()
+	sched := &fakeAppScheduler{}
+	app := &App{ctx: context.Background(), downloadScheduler: sched}
+	if got := app.TriggerSeasonDownloads(); got != "ok" {
+		t.Fatalf("TriggerSeasonDownloads: %q", got)
+	}
+	if sched.triggerNowCalls != 1 {
+		t.Fatalf("expected one manual download trigger, got %d", sched.triggerNowCalls)
 	}
 }
 

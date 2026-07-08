@@ -90,7 +90,7 @@ export function RunSeasonMatching():Promise<string>;
 
 export function SaveSeasonOrderingDraft(arg1:string):Promise<string>;
 
-export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<string>;
+export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<main.SendToVerHoyDTO>;
 
 export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.ChapterCommandResult>;
 
@@ -117,5 +117,7 @@ export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.Chapt
 export function TriggerDownloadCheck():Promise<string>;
 
 export function TriggerReconcile():Promise<string>;
+
+export function TriggerSeasonDownloads():Promise<string>;
 
 export function UnpairDevice(arg1:string):Promise<string>;

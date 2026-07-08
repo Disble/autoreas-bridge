@@ -15,6 +15,7 @@ import {
   RunSeasonMatching,
   SaveSeasonOrderingDraft,
   SendSeasonAnimesToVerHoy,
+  TriggerSeasonDownloads,
   SetAnimeDays,
   SetSeasonConsideration,
   SetSeasonGrade,
@@ -103,6 +104,17 @@ export interface ApplyScheduleResult {
   readonly failed: readonly string[];
 }
 
+/**
+ * Result of sending a batch to Ver hoy. When `pastDownloadTime` is true the daily
+ * auto-download at `downloadTime` has already passed today, so the UI offers a
+ * manual download; otherwise the scheduled run downloads the batch automatically.
+ */
+export interface SendToVerHoyResult {
+  readonly status: string;
+  readonly pastDownloadTime: boolean;
+  readonly downloadTime: string;
+}
+
 /** Result of confirming the season selection reconciliation. */
 export interface ConfirmSelectionResult {
   /** 'ok' on success, or a descriptive error message. */
@@ -129,7 +141,8 @@ export interface SeasonSource {
   readonly resolveMatch: (rowId: string, pageUrl: string) => Promise<string>;
   readonly discardName: (rowId: string) => Promise<string>;
   readonly setAnimeDays: (animeId: string, dias: readonly string[]) => Promise<string>;
-  readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<string>;
+  readonly sendToVerHoy: (animeIds: readonly string[]) => Promise<SendToVerHoyResult>;
+  readonly triggerSeasonDownloads: () => Promise<string>;
   readonly setGrade: (animeId: string, grade: number) => Promise<string>;
   readonly skipGrading: (rowId: string) => Promise<string>;
   readonly setConsideration: (rowId: string, consideration: string) => Promise<string>;
@@ -148,6 +161,13 @@ const CONFIRM_UNAVAILABLE: ConfirmSelectionResult = {
   approved: 0,
   rejected: 0,
   quotaExceeded: false,
+};
+
+/** Fallback send-to-Ver-hoy result when the Wails runtime is unavailable. */
+const SEND_UNAVAILABLE: SendToVerHoyResult = {
+  status: SEASON_RUNTIME_UNAVAILABLE,
+  pastDownloadTime: false,
+  downloadTime: '',
 };
 
 /** Fallback board / apply results when the Wails runtime is unavailable. */
@@ -259,7 +279,14 @@ export function createSeasonSource(): SeasonSource {
     },
     sendToVerHoy(animeIds: readonly string[]) {
       return waitForBindings(() => hasGoBinding('SendSeasonAnimesToVerHoy')).then((isReady) => {
-        return isReady ? SendSeasonAnimesToVerHoy([...animeIds]) : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
+        return isReady
+          ? (SendSeasonAnimesToVerHoy([...animeIds]) as Promise<SendToVerHoyResult>)
+          : Promise.resolve(SEND_UNAVAILABLE);
+      });
+    },
+    triggerSeasonDownloads() {
+      return waitForBindings(() => hasGoBinding('TriggerSeasonDownloads')).then((isReady) => {
+        return isReady ? TriggerSeasonDownloads() : Promise.resolve(SEASON_RUNTIME_UNAVAILABLE);
       });
     },
     setGrade(animeId: string, grade: number) {

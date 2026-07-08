@@ -14,7 +14,8 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     closeSeason: vi.fn().mockResolvedValue('ok'),
     getSeasonAnimes: vi.fn().mockResolvedValue([] as SeasonAnimeRow[]),
     reconcileIntake: vi.fn().mockResolvedValue('ok'),
-    sendToVerHoy: vi.fn().mockResolvedValue('ok'),
+    sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: false, downloadTime: '21:00' }),
+    triggerSeasonDownloads: vi.fn().mockResolvedValue('ok'),
     runMatching: vi.fn().mockResolvedValue('ok'),
     resolveMatch: vi.fn().mockResolvedValue('ok'),
     discardName: vi.fn().mockResolvedValue('ok'),
@@ -86,6 +87,33 @@ describe('useDailyBoard', () => {
 
     expect(source.sendToVerHoy).toHaveBeenCalledWith(['anime-a', 'anime-b']);
     expect(result.current.selected.size).toBe(0);
+  });
+
+  it('raises a manual-download notice when the batch missed the auto-download window', async () => {
+    const source = createSource({
+      sendToVerHoy: vi.fn().mockResolvedValue({ status: 'ok', pastDownloadTime: true, downloadTime: '21:00' }),
+    });
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-a'));
+
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+    expect(result.current.downloadNotice).toEqual({ downloadTime: '21:00' });
+
+    act(() => result.current.onDownloadNow());
+    expect(source.triggerSeasonDownloads).toHaveBeenCalled();
+    expect(result.current.downloadNotice).toBeNull();
+  });
+
+  it('keeps no notice when the batch rides the scheduled auto-download', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useDailyBoard(source));
+    act(() => result.current.toggleSelect('anime-a'));
+    await act(async () => {
+      result.current.onSendToVerHoy();
+    });
+    expect(result.current.downloadNotice).toBeNull();
   });
 
   it('onSendToVerHoy is a no-op with an empty selection', async () => {
