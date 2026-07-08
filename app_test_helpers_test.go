@@ -152,10 +152,11 @@ func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacy
 // app_runtime_test.go's GetAnimeDetail cases. Only GetMobileAnime is
 // exercised by those tests; the other methods return zero values.
 type stubAnimeQueryService struct {
-	mobileAnime *contracts.MobileAnime
-	err         error
-	history     []contracts.AnimeHistoryItem
-	historyErr  error
+	mobileAnime  *contracts.MobileAnime
+	mobileAnimes []contracts.MobileAnime
+	err          error
+	history      []contracts.AnimeHistoryItem
+	historyErr   error
 }
 
 func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -163,7 +164,7 @@ func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*con
 }
 
 func (s *stubAnimeQueryService) ListMobileAnimes(context.Context) ([]contracts.MobileAnime, error) {
-	return nil, nil
+	return s.mobileAnimes, s.err
 }
 
 func (s *stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contracts.MobileAnime, error) {

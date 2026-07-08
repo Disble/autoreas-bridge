@@ -53,12 +53,12 @@ describe('useOrderingBoard', () => {
     expect(result.current.readOnly).toBe(false);
   });
 
-  it('moveToDay places a rail card and bumps the change count', async () => {
+  it('addToDay places a rail card and bumps the change count', async () => {
     const source = createSource({ rail: [card({ animeId: 'r', section: 'Visto' })], grid: [] });
     const { result } = renderHook(() => useOrderingBoard(source));
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
-    act(() => result.current.moveToDay('r', 'Domingo'));
+    act(() => result.current.addToDay('r', 'Domingo'));
     expect(result.current.columns['Domingo'].map((c) => c.animeId)).toEqual(['r']);
     expect(result.current.rail).toHaveLength(0);
     expect(result.current.changeCount).toBe(1);
@@ -68,7 +68,7 @@ describe('useOrderingBoard', () => {
     const source = createSource({ rail: [card({ animeId: 'r', section: 'Visto' })], grid: [] });
     const { result } = renderHook(() => useOrderingBoard(source));
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
-    act(() => result.current.moveToDay('r', 'Lunes'));
+    act(() => result.current.addToDay('r', 'Lunes'));
 
     await act(async () => {
       await result.current.onApply();

@@ -3,7 +3,38 @@ package main
 import (
 	"context"
 	"testing"
+
+	"autoreas-bridge/internal/api/contracts"
 )
+
+func TestGetSeasonOrderingBoardEmitsCloneForEachWeekday(t *testing.T) {
+	t.Parallel()
+	repo := newFakeSeasonRepo()
+	app := newTestSeasonApp(repo, nil)
+	if got := app.CreateSeason("Julio 2026"); got != "ok" {
+		t.Fatalf("CreateSeason: %q", got)
+	}
+	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
+		ID: "anime-a", Nombre: "Multi Day", Activo: 1, Dias: []contracts.MobileAnimeDay{
+			{Dia: "Lunes", Orden: 2}, {Dia: "Miércoles", Orden: 1},
+		},
+	}}}
+
+	board := app.GetSeasonOrderingBoard()
+	if len(board.Grid) != 2 {
+		t.Fatalf("multi-day anime must clone one grid card per weekday, got %d: %+v", len(board.Grid), board.Grid)
+	}
+	byDay := map[string]int{}
+	for _, c := range board.Grid {
+		if c.AnimeID != "anime-a" {
+			t.Fatalf("unexpected grid card: %+v", c)
+		}
+		byDay[c.Dia] = c.Orden
+	}
+	if byDay["Lunes"] != 2 || byDay["Miércoles"] != 1 {
+		t.Fatalf("clones must keep per-day orden, got %+v", byDay)
+	}
+}
 
 func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 	t.Parallel()

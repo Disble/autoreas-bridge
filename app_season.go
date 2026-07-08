@@ -331,10 +331,14 @@ func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
 		if m.Activo != 1 {
 			continue
 		}
-		if dia, orden, onWeekday := firstWeekdayPlacement(m.Dias); onWeekday {
-			board.Grid = append(board.Grid, OrderingCardDTO{
-				AnimeID: m.ID, Name: m.Nombre, Dia: dia, Orden: orden, IsNewcomer: approved[m.ID],
-			})
+		if weekdays := weekdayPlacements(m.Dias); len(weekdays) > 0 {
+			// One grid card per weekday placement: an anime that airs on several days
+			// shows as a clone in each column (Legacy multi-day ordering).
+			for _, d := range weekdays {
+				board.Grid = append(board.Grid, OrderingCardDTO{
+					AnimeID: m.ID, Name: m.Nombre, Dia: d.Dia, Orden: d.Orden, IsNewcomer: approved[m.ID],
+				})
+			}
 			continue
 		}
 		if approved[m.ID] {
@@ -350,15 +354,16 @@ func (a *App) GetSeasonOrderingBoard() OrderingBoardDTO {
 	return board
 }
 
-// firstWeekdayPlacement returns the anime's first weekday dias entry (dia, orden),
-// or ok=false when it sits only in Estrenos sections.
-func firstWeekdayPlacement(dias []contracts.MobileAnimeDay) (string, int, bool) {
+// weekdayPlacements returns every weekday dias entry (an anime may air on more than
+// one day — Legacy multi-day ordering), skipping Estrenos-section entries.
+func weekdayPlacements(dias []contracts.MobileAnimeDay) []contracts.MobileAnimeDay {
+	out := make([]contracts.MobileAnimeDay, 0, len(dias))
 	for _, d := range dias {
 		if _, ok := seasonWeekdays[d.Dia]; ok {
-			return d.Dia, d.Orden, true
+			out = append(out, d)
 		}
 	}
-	return "", 0, false
+	return out
 }
 
 // withActiveSeason resolves the open season id and runs fn, broadcasting on
