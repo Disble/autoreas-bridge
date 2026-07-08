@@ -2,6 +2,9 @@ import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/sea
 import { WEEKDAYS } from './ordering-board.constants';
 import type { DraftPlacement, WorkingState } from './ordering-board.types';
 
+/** RAIL is the "location" sentinel for a card awaiting placement (not on any weekday). */
+export const RAIL = '';
+
 /**
  * groupGridByDay groups the grid cards into the seven weekday columns, each sorted
  * by orden ascending. Every weekday key is always present (empty columns render).
@@ -32,8 +35,9 @@ export function renumber(cards: readonly OrderingCard[]): OrderingCard[] {
 /**
  * buildDraft builds the ordering draft (`{animeId: [{dia, orden}]}`): each weekday
  * clone contributes one placement (an anime on several days emits several),
- * renumbered by column position; rail cards get their current Estrenos section
- * placement (so an unmoved rail card diffs to no change).
+ * renumbered by column position; a genuinely unplaced rail card keeps its Estrenos
+ * section placement. A pending duplicate (empty section, or an anime that already
+ * has weekday placements) adds nothing — it only matters once dragged onto a day.
  */
 export function buildDraft(
   columns: Record<string, readonly OrderingCard[]>,
@@ -46,7 +50,9 @@ export function buildDraft(
     });
   }
   for (const card of rail) {
-    draft[card.animeId] = [{ dia: card.section, orden: card.orden }];
+    if (draft[card.animeId] === undefined && card.section !== '') {
+      draft[card.animeId] = [{ dia: card.section, orden: card.orden }];
+    }
   }
   return draft;
 }
@@ -79,104 +85,101 @@ function findCard(state: WorkingState, animeId: string): OrderingCard | undefine
   return undefined;
 }
 
-/** isPlaced reports whether the anime has at least one weekday clone. */
-function isPlaced(columns: Record<string, readonly OrderingCard[]>, animeId: string): boolean {
-  return WEEKDAYS.some((day) => (columns[day] ?? []).some((c) => c.animeId === animeId));
+/** cardCount totals an anime's cards across the rail and every weekday column. */
+export function cardCount(state: WorkingState, animeId: string): number {
+  let total = state.rail.filter((c) => c.animeId === animeId).length;
+  for (const day of WEEKDAYS) {
+    total += state.columns[day].filter((c) => c.animeId === animeId).length;
+  }
+  return total;
 }
 
 /**
- * addToDay places an anime as a clone on a weekday at a given position (clamped),
- * WITHOUT removing it from its other days — that is how an anime becomes multi-day.
- * Adding to a day it already sits on reorders that day's clone. Leaves the rail.
+ * duplicate stages a logical copy of an already-placed anime into the rail (same
+ * animeId — never a second DB anime) so it can be dragged onto another weekday.
+ * No-op when a pending copy already waits in the rail.
  */
-export function addToDay(state: WorkingState, animeId: string, day: string, index: number): WorkingState {
-  if (state.columns[day] === undefined) {
+export function duplicate(state: WorkingState, animeId: string): WorkingState {
+  if (state.rail.some((c) => c.animeId === animeId)) {
     return state;
   }
   const card = findCard(state, animeId);
   if (card === undefined) {
     return state;
   }
-  const rail = state.rail.filter((c) => c.animeId !== animeId);
-  const column = state.columns[day].filter((c) => c.animeId !== animeId);
-  const clamped = Math.max(0, Math.min(index, column.length));
-  column.splice(clamped, 0, { ...card, dia: day });
-  return { rail, columns: { ...state.columns, [day]: renumber(column) } };
+  return { rail: [...state.rail, { ...card, dia: RAIL }], columns: state.columns };
 }
 
 /**
- * removeFromDay removes a single day's clone of an anime. When it was the anime's
- * last weekday placement, the anime returns to the rail (awaiting placement again).
+ * removeCard deletes one card of an anime from a location (a weekday or the rail).
+ * Guarded by the minimum-one rule: the anime's last remaining card can never be
+ * deleted — it must always sit somewhere.
  */
-export function removeFromDay(state: WorkingState, animeId: string, day: string): WorkingState {
-  if (state.columns[day] === undefined) {
+export function removeCard(state: WorkingState, animeId: string, location: string): WorkingState {
+  if (cardCount(state, animeId) <= 1) {
     return state;
   }
-  const card = state.columns[day].find((c) => c.animeId === animeId);
-  if (card === undefined) {
+  if (location === RAIL) {
+    if (!state.rail.some((c) => c.animeId === animeId)) {
+      return state;
+    }
+    return { rail: state.rail.filter((c) => c.animeId !== animeId), columns: state.columns };
+  }
+  if (state.columns[location] === undefined || !state.columns[location].some((c) => c.animeId === animeId)) {
     return state;
   }
-  const columns = { ...state.columns, [day]: renumber(state.columns[day].filter((c) => c.animeId !== animeId)) };
-  const rail = isPlaced(columns, animeId) ? state.rail : [...state.rail, { ...card, dia: '' }];
-  return { rail, columns };
+  return {
+    rail: state.rail,
+    columns: { ...state.columns, [location]: renumber(state.columns[location].filter((c) => c.animeId !== animeId)) },
+  };
 }
 
 /**
- * moveClone relocates a single clone (drag-and-drop). From the rail (sourceDay '')
- * or another day it removes the source placement and inserts into targetDay at the
- * drop position; within the same day it reorders. Other days are untouched.
+ * moveClone is the single drag-and-drop primitive: it relocates one card from a
+ * source location to a target (a weekday, or the rail to unplace) at the drop
+ * position. Drag changes BOTH day and order. Dropping onto a day that already holds
+ * the anime is rejected (no two copies per day); dropping within the same day
+ * reorders. Renumbers the touched columns.
  */
 export function moveClone(
   state: WorkingState,
   animeId: string,
-  sourceDay: string,
-  targetDay: string,
+  source: string,
+  target: string,
   index: number,
 ): WorkingState {
   const card = findCard(state, animeId);
-  if (card === undefined || state.columns[targetDay] === undefined) {
+  if (card === undefined) {
     return state;
   }
+  if (target !== RAIL && state.columns[target] === undefined) {
+    return state;
+  }
+  if (target !== RAIL && source !== target && state.columns[target].some((c) => c.animeId === animeId)) {
+    return state; // no two copies of the same anime on one day
+  }
+
   let rail = state.rail;
   let columns = state.columns;
-  if (sourceDay === '') {
+  if (source === RAIL) {
     rail = rail.filter((c) => c.animeId !== animeId);
-  } else if (sourceDay !== targetDay && columns[sourceDay] !== undefined) {
-    columns = { ...columns, [sourceDay]: renumber(columns[sourceDay].filter((c) => c.animeId !== animeId)) };
+  } else {
+    columns = { ...columns, [source]: renumber(columns[source].filter((c) => c.animeId !== animeId)) };
   }
-  const target = columns[targetDay].filter((c) => c.animeId !== animeId);
-  const clamped = Math.max(0, Math.min(index, target.length));
-  target.splice(clamped, 0, { ...card, dia: targetDay });
-  return { rail, columns: { ...columns, [targetDay]: renumber(target) } };
-}
 
-/** moveWithinDay swaps an anime with its neighbour in a specific column, renumbering. */
-export function moveWithinDay(
-  state: WorkingState,
-  animeId: string,
-  day: string,
-  direction: 'up' | 'down',
-): WorkingState {
-  const column = state.columns[day];
-  if (column === undefined) {
-    return state;
+  if (target === RAIL) {
+    rail = rail.some((c) => c.animeId === animeId) ? rail : [...rail, { ...card, dia: RAIL }];
+    return { rail, columns };
   }
-  const index = column.findIndex((c) => c.animeId === animeId);
-  if (index === -1) {
-    return state;
-  }
-  const target = direction === 'up' ? index - 1 : index + 1;
-  if (target < 0 || target >= column.length) {
-    return state;
-  }
-  const next = [...column];
-  [next[index], next[target]] = [next[target], next[index]];
-  return { rail: state.rail, columns: { ...state.columns, [day]: renumber(next) } };
+  const column = columns[target].filter((c) => c.animeId !== animeId);
+  const clamped = Math.max(0, Math.min(index, column.length));
+  column.splice(clamped, 0, { ...card, dia: target });
+  return { rail, columns: { ...columns, [target]: renumber(column) } };
 }
 
 /**
  * countChanges reports how many animes' placement SET differs from the loaded board.
- * Both sides are normalized through serializeDraft (renumbered per day) so a stable
+ * Both sides are normalized through buildDraft (renumbered per day) so a stable
  * layout diffs to zero regardless of stored orden gaps — multi-day aware.
  */
 export function countChanges(

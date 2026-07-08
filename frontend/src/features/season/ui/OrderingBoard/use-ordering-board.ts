@@ -4,12 +4,12 @@ import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
 import { EMPTY_ORDERING_BOARD, ORDERING_AUTOSAVE_DEBOUNCE_MS } from './ordering-board.constants';
 import {
-  addToDay as applyAddToDay,
+  cardCount,
   countChanges,
+  duplicate as applyDuplicate,
   initialWorkingState,
   moveClone as applyMoveClone,
-  moveWithinDay as applyMoveWithinDay,
-  removeFromDay as applyRemoveFromDay,
+  removeCard as applyRemoveCard,
   serializeDraft,
 } from './ordering-board.helpers';
 import type { WorkingState } from './ordering-board.types';
@@ -40,6 +40,18 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     }
     return ids.size;
   }, [state]);
+  // Total cards per anime (rail + all days) — the delete guard disables removing the last one.
+  const cardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const seen = new Set<string>();
+    for (const card of [...state.rail, ...Object.values(state.columns).flat()]) {
+      seen.add(card.animeId);
+    }
+    for (const animeId of seen) {
+      counts[animeId] = cardCount(state, animeId);
+    }
+    return counts;
+  }, [state]);
   const readOnly = board.appliedAt !== undefined;
 
   // 6. Callbacks
@@ -49,17 +61,14 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     setState(initialWorkingState(loaded));
   }, [source]);
 
-  const addToDay = useCallback((animeId: string, day: string) => {
-    setState((current) => applyAddToDay(current, animeId, day, Number.MAX_SAFE_INTEGER));
+  const moveClone = useCallback((animeId: string, source: string, target: string, index: number) => {
+    setState((current) => applyMoveClone(current, animeId, source, target, index));
   }, []);
-  const moveClone = useCallback((animeId: string, sourceDay: string, targetDay: string, index: number) => {
-    setState((current) => applyMoveClone(current, animeId, sourceDay, targetDay, index));
+  const duplicate = useCallback((animeId: string) => {
+    setState((current) => applyDuplicate(current, animeId));
   }, []);
-  const moveWithinDay = useCallback((animeId: string, day: string, direction: 'up' | 'down') => {
-    setState((current) => applyMoveWithinDay(current, animeId, day, direction));
-  }, []);
-  const removeFromDay = useCallback((animeId: string, day: string) => {
-    setState((current) => applyRemoveFromDay(current, animeId, day));
+  const removeCard = useCallback((animeId: string, location: string) => {
+    setState((current) => applyRemoveCard(current, animeId, location));
   }, []);
   const onApply = useCallback(async (): Promise<ApplyScheduleResult> => {
     await source.saveOrderingDraft(serializeDraft(state.columns, state.rail));
@@ -99,11 +108,11 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     columns: state.columns,
     changeCount,
     scheduledCount,
+    cardCounts,
     readOnly,
-    addToDay,
     moveClone,
-    moveWithinDay,
-    removeFromDay,
+    duplicate,
+    removeCard,
     onApply,
     onReset,
     onReopen,

@@ -53,22 +53,35 @@ describe('useOrderingBoard', () => {
     expect(result.current.readOnly).toBe(false);
   });
 
-  it('addToDay places a rail card and bumps the change count', async () => {
+  it('moveClone places a rail card onto a day and bumps the change count', async () => {
     const source = createSource({ rail: [card({ animeId: 'r', section: 'Visto' })], grid: [] });
     const { result } = renderHook(() => useOrderingBoard(source));
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
 
-    act(() => result.current.addToDay('r', 'Domingo'));
+    act(() => result.current.moveClone('r', '', 'Domingo', 0));
     expect(result.current.columns['Domingo'].map((c) => c.animeId)).toEqual(['r']);
     expect(result.current.rail).toHaveLength(0);
     expect(result.current.changeCount).toBe(1);
+  });
+
+  it('duplicate then removeCard keeps the last card (min-one guard)', async () => {
+    const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
+    const { result } = renderHook(() => useOrderingBoard(source));
+    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(1));
+
+    act(() => result.current.duplicate('g'));
+    expect(result.current.cardCounts['g']).toBe(2);
+    act(() => result.current.removeCard('g', ''));
+    expect(result.current.cardCounts['g']).toBe(1);
+    act(() => result.current.removeCard('g', 'Lunes')); // blocked: last card
+    expect(result.current.columns['Lunes']).toHaveLength(1);
   });
 
   it('onApply saves the draft then applies the schedule', async () => {
     const source = createSource({ rail: [card({ animeId: 'r', section: 'Visto' })], grid: [] });
     const { result } = renderHook(() => useOrderingBoard(source));
     await waitFor(() => expect(result.current.rail).toHaveLength(1));
-    act(() => result.current.addToDay('r', 'Lunes'));
+    act(() => result.current.moveClone('r', '', 'Lunes', 0));
 
     await act(async () => {
       await result.current.onApply();
