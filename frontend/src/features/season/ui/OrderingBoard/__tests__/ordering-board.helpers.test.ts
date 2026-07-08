@@ -1,24 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
 import type { OrderingCard } from '../../../../../infrastructure/season-source';
-import { WEEKDAYS } from '../ordering-board.constants';
+import { RAIL_CONTAINER_ID, WEEKDAYS } from '../ordering-board.constants';
 import {
   buildDraft,
   cardCount,
+  containerFor,
   countChanges,
+  decodeSortableId,
   duplicate,
   groupGridByDay,
   initialWorkingState,
+  locationFor,
   moveClone,
   RAIL,
   removeCard,
   renumber,
   serializeDraft,
+  sortableId,
 } from '../ordering-board.helpers';
 
 function card(overrides: Partial<OrderingCard> = {}): OrderingCard {
   return { animeId: 'a', name: 'A', dia: '', orden: 0, section: 'Visto', isNewcomer: false, ...overrides };
 }
+
+describe('dnd-kit id encoding', () => {
+  it('round-trips an anime id and location through sortableId/decodeSortableId', () => {
+    const id = sortableId('anime-1', 'Lunes');
+    expect(id).toBe('anime-1::Lunes');
+    expect(decodeSortableId(id)).toEqual({ animeId: 'anime-1', location: 'Lunes' });
+  });
+
+  it('maps the rail location to a real container id and back (empty string is not a valid id)', () => {
+    expect(containerFor(RAIL)).toBe(RAIL_CONTAINER_ID);
+    expect(locationFor(RAIL_CONTAINER_ID)).toBe(RAIL);
+    expect(decodeSortableId(sortableId('a', RAIL))).toEqual({ animeId: 'a', location: RAIL });
+  });
+});
 
 describe('groupGridByDay', () => {
   it('groups grid cards by weekday (clones included), sorted by orden, all seven columns present', () => {

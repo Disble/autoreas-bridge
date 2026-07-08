@@ -7,5 +7,8 @@ export const ORDERING_EMPTY_MESSAGE = 'No approved animes to place yet — confi
 /** Debounce (ms) before autosaving the working ordering draft. */
 export const ORDERING_AUTOSAVE_DEBOUNCE_MS = 600;
 
+/** dnd-kit container id for the rail (a real string — '' cannot be a droppable id). */
+export const RAIL_CONTAINER_ID = '__rail__';
+
 /** Empty board used before the runtime board loads. */
 export const EMPTY_ORDERING_BOARD = { rail: [], grid: [] } as const;

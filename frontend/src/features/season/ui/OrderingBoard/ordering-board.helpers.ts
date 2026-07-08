@@ -1,9 +1,33 @@
 import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/season-source';
-import { WEEKDAYS } from './ordering-board.constants';
+import { RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import type { DraftPlacement, WorkingState } from './ordering-board.types';
 
 /** RAIL is the "location" sentinel for a card awaiting placement (not on any weekday). */
 export const RAIL = '';
+
+/** containerFor maps a location (weekday or RAIL) to its dnd-kit droppable container id. */
+export function containerFor(location: string): string {
+  return location === RAIL ? RAIL_CONTAINER_ID : location;
+}
+
+/** locationFor is the inverse of containerFor: a dnd-kit container id back to a placement location. */
+export function locationFor(containerId: string): string {
+  return containerId === RAIL_CONTAINER_ID ? RAIL : containerId;
+}
+
+/** sortableId builds the globally-unique dnd-kit id for a card (a clone is unique per container). */
+export function sortableId(animeId: string, location: string): string {
+  return `${animeId}::${containerFor(location)}`;
+}
+
+/** decodeSortableId splits a sortableId back into its anime id and placement location. */
+export function decodeSortableId(id: string): { animeId: string; location: string } {
+  const marker = id.lastIndexOf('::');
+  if (marker === -1) {
+    return { animeId: id, location: RAIL };
+  }
+  return { animeId: id.slice(0, marker), location: locationFor(id.slice(marker + 2)) };
+}
 
 /**
  * groupGridByDay groups the grid cards into the seven weekday columns, each sorted

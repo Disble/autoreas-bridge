@@ -64,6 +64,45 @@ describe('useOrderingBoard', () => {
     expect(result.current.changeCount).toBe(1);
   });
 
+  it('onDragEnd maps a drop onto an empty column to a placement', async () => {
+    const source = createSource({ rail: [card({ animeId: 'r', section: 'Visto' })], grid: [] });
+    const { result } = renderHook(() => useOrderingBoard(source));
+    await waitFor(() => expect(result.current.rail).toHaveLength(1));
+
+    act(() =>
+      // dnd-kit: dragged the rail card, dropped over the empty "Domingo" column droppable.
+      result.current.onDragEnd({
+        active: { id: 'r::__rail__' },
+        over: { id: 'Domingo', data: { current: {} } },
+      } as unknown as Parameters<typeof result.current.onDragEnd>[0]),
+    );
+    expect(result.current.columns['Domingo'].map((c) => c.animeId)).toEqual(['r']);
+    expect(result.current.rail).toHaveLength(0);
+  });
+
+  it('onDragEnd maps a drop over a card to that card position (day + order)', async () => {
+    const source = createSource({
+      rail: [],
+      grid: [
+        card({ animeId: 'a', dia: 'Lunes', orden: 1 }),
+        card({ animeId: 'b', dia: 'Lunes', orden: 2 }),
+        card({ animeId: 'c', dia: 'Martes', orden: 1 }),
+      ],
+    });
+    const { result } = renderHook(() => useOrderingBoard(source));
+    await waitFor(() => expect(result.current.columns['Lunes']).toHaveLength(2));
+
+    act(() =>
+      // dragged c from Martes, dropped over 'a' (index 0 of the Lunes container)
+      result.current.onDragEnd({
+        active: { id: 'c::Martes' },
+        over: { id: 'a::Lunes', data: { current: { sortable: { containerId: 'Lunes', index: 0 } } } },
+      } as unknown as Parameters<typeof result.current.onDragEnd>[0]),
+    );
+    expect(result.current.columns['Lunes'].map((c) => c.animeId)).toEqual(['c', 'a', 'b']);
+    expect(result.current.columns['Martes']).toHaveLength(0);
+  });
+
   it('duplicate then removeCard keeps the last card (min-one guard)', async () => {
     const source = createSource({ rail: [], grid: [card({ animeId: 'g', dia: 'Lunes', orden: 1 })] });
     const { result } = renderHook(() => useOrderingBoard(source));
