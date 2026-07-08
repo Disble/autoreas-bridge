@@ -87,10 +87,11 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
 
           <Tabs defaultSelectedKey="overview">
             <Tabs.ListContainer>
-              <Tabs.List>
+              <Tabs.List aria-label="Season workflow">
                 {sections.map((tab) => (
                   <Tabs.Tab key={tab.id} id={tab.id} isDisabled={!tab.available}>
                     {tab.label}
+                    <Tabs.Indicator />
                   </Tabs.Tab>
                 ))}
               </Tabs.List>
