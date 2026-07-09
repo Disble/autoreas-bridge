@@ -55,8 +55,10 @@ interface SeasonStoreState {
  * useSeasonStore is the single frontend read-model for the active season. Wails
  * stays behind SeasonSource; this store exposes the season snapshot to the
  * workspace without direct Wails binding calls. Unlike the preferences store it
- * re-fetches after mutations (the season evolves across the workflow), and it
- * also refreshes on the `season_changed` realtime signal.
+ * re-fetches after mutations (the season evolves across the workflow). There is
+ * no realtime channel here: the `season_changed` signal is mobile-only and has
+ * no listener in `frontend/src` — every panel refetches on mount (HeroUI Tabs
+ * unmount inactive panels) and after each successful mutation instead.
  */
 export const useSeasonStore = create<SeasonStoreState>((set, get) => ({
   season: null,

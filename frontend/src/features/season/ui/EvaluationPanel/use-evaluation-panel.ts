@@ -8,7 +8,9 @@ import { countUngraded, toEvaluationRows } from './evaluation-panel.helpers';
  * useEvaluationPanel drives the Evaluation progress list: created candidates with
  * their grade, source, and rated-at, plus a per-row skip override. Grading itself
  * flows through the shared RateAnimeModal; this hook owns the list + skip. All
- * Wails I/O flows through the season store, refreshed live on `season_changed`.
+ * Wails I/O flows through the season store, which refetches on mount (HeroUI
+ * Tabs unmount inactive panels) and after each successful mutation — there is
+ * no realtime signal listener in `frontend/src` (`season_changed` is mobile-only).
  */
 export function useEvaluationPanel(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
