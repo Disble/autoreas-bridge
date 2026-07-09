@@ -143,6 +143,45 @@ export function buildGradeHistogramData(rows: readonly SeasonAnimeRow[], minAppr
 }
 
 /**
+ * sumStackTotal sums the numeric segment values of a single stacked-bar datum
+ * across the given keys, ignoring the string index field. Used to pin the
+ * chart's `maxValue` to the true bar total so a part-to-whole bar always fills
+ * the full track — nivo's auto scale otherwise rounds the axis max up to a
+ * "nice" value and leaves a dead, hover-less gap after the last segment.
+ */
+export function sumStackTotal(datum: Readonly<Record<string, string | number>>, keys: readonly string[]): number {
+  let total = 0;
+  for (const key of keys) {
+    const value = datum[key];
+    if (typeof value === 'number') {
+      total += value;
+    }
+  }
+  return total;
+}
+
+/** Nice integer tick steps, smallest first. */
+const TICK_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000] as const;
+
+/**
+ * buildIntegerTicks returns whole-number axis tick values from 0 to `total`,
+ * stepping by the smallest "nice" integer that keeps the tick count readable.
+ * Count axes must never show fractional ticks (0.2, 0.4, ...), which nivo's
+ * auto ticks produce on small domains.
+ */
+export function buildIntegerTicks(total: number): number[] {
+  if (total <= 0) {
+    return [0];
+  }
+  const step = TICK_STEPS.find((s) => total / s <= 8) ?? TICK_STEPS[TICK_STEPS.length - 1];
+  const ticks: number[] = [];
+  for (let t = 0; t <= total; t += step) {
+    ticks.push(t);
+  }
+  return ticks;
+}
+
+/**
  * buildSlotsMeterModel derives the approved-vs-slots meter state. `approved`
  * and `status` delegate to `countApproved`/`quotaStatus` (the same derivation as
  * the Approved KPI tile) — `meterValue` clamps to `slots` so the HeroUI Meter

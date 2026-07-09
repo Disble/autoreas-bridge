@@ -1,5 +1,5 @@
 import { ResponsiveBar } from '@nivo/bar';
-import { getIntakeHealthSegmentColor } from './overview-panel.helpers';
+import { buildIntegerTicks, getIntakeHealthSegmentColor, sumStackTotal } from './overview-panel.helpers';
 import { CHART_HEIGHT_SHORT, CHART_SURFACE, INTAKE_HEALTH_EMPTY_MESSAGE, NIVO_THEME } from './overview-panel.constants';
 import type { IntakeHealthChartProps } from './overview-panel.types';
 
@@ -16,10 +16,14 @@ export function IntakeHealthChart({ data, keys, hasIntake }: Readonly<IntakeHeal
     return <p className="text-sm text-muted">{INTAKE_HEALTH_EMPTY_MESSAGE}</p>;
   }
 
+  const total = sumStackTotal(data[0], keys);
+
   return (
     <div className={CHART_HEIGHT_SHORT} data-testid="intake-health-chart">
       <ResponsiveBar
+        axisBottom={{ tickValues: buildIntegerTicks(total) }}
         axisLeft={null}
+        valueScale={{ type: 'linear', min: 0, max: total }}
         borderColor={CHART_SURFACE}
         borderWidth={2}
         colors={(bar) => getIntakeHealthSegmentColor(String(bar.id))}

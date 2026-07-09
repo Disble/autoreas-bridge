@@ -6,11 +6,13 @@ import { INTAKE_HEALTH_CHART_COLORS } from '../overview-panel.constants';
 import {
   buildGradeHistogramData,
   buildIntakeHealthData,
+  buildIntegerTicks,
   buildKpiSummary,
   buildOverviewViewModel,
   buildSlotsMeterModel,
   buildWatchingPipelineData,
   getIntakeHealthSegmentColor,
+  sumStackTotal,
 } from '../overview-panel.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
@@ -137,6 +139,38 @@ describe('buildIntakeHealthData', () => {
     const total = Object.values(data[0]).reduce<number>((sum, v) => (typeof v === 'number' ? sum + v : sum), 0);
     expect(total).toBe(8);
     expect(data[0].matched).toBe(3);
+  });
+});
+
+describe('sumStackTotal', () => {
+  it('sums only the segment keys of a stacked datum, ignoring the index field', () => {
+    const datum = { dim: 'intake', pending: 0, matched: 17, ambiguous: 3, not_found: 1, discarded: 0 };
+    expect(sumStackTotal(datum, ['pending', 'matched', 'ambiguous', 'not_found', 'discarded'])).toBe(21);
+  });
+
+  it('returns 0 for an all-zero stack', () => {
+    expect(sumStackTotal({ stage: 'pipeline', 'Sin ver': 0, 'Ver hoy': 0, Visto: 0 }, ['Sin ver', 'Ver hoy', 'Visto'])).toBe(0);
+  });
+});
+
+describe('buildIntegerTicks', () => {
+  it('returns whole-number ticks for a single-count domain (never fractional ticks)', () => {
+    expect(buildIntegerTicks(1)).toEqual([0, 1]);
+  });
+
+  it('enumerates every integer for small totals', () => {
+    expect(buildIntegerTicks(8)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('steps by a nice integer for larger totals, never exceeding the total', () => {
+    expect(buildIntegerTicks(21)).toEqual([0, 5, 10, 15, 20]);
+    const ticks = buildIntegerTicks(21);
+    expect(Math.max(...ticks)).toBeLessThanOrEqual(21);
+    expect(ticks.every((t) => Number.isInteger(t))).toBe(true);
+  });
+
+  it('handles zero defensively', () => {
+    expect(buildIntegerTicks(0)).toEqual([0]);
   });
 });
 

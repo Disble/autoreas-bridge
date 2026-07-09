@@ -1,4 +1,5 @@
 import { ResponsiveBar } from '@nivo/bar';
+import { buildIntegerTicks, sumStackTotal } from './overview-panel.helpers';
 import { CHART_HEIGHT_SHORT, CHART_SURFACE, NIVO_THEME, PIPELINE_COLORS, PIPELINE_EMPTY_MESSAGE } from './overview-panel.constants';
 import type { WatchingPipelineChartProps } from './overview-panel.types';
 
@@ -13,10 +14,14 @@ export function WatchingPipelineChart({ data, keys, hasCreated }: Readonly<Watch
     return <p className="text-sm text-muted">{PIPELINE_EMPTY_MESSAGE}</p>;
   }
 
+  const total = sumStackTotal(data[0], keys);
+
   return (
     <div className={CHART_HEIGHT_SHORT} data-testid="watching-pipeline-chart">
       <ResponsiveBar
+        axisBottom={{ tickValues: buildIntegerTicks(total) }}
         axisLeft={null}
+        valueScale={{ type: 'linear', min: 0, max: total }}
         borderColor={CHART_SURFACE}
         borderWidth={2}
         colors={(bar) => PIPELINE_COLORS[String(bar.id)] ?? CHART_SURFACE}
