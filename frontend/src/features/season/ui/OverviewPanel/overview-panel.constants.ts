@@ -56,8 +56,8 @@ export const INTAKE_HEALTH_EMPTY_MESSAGE = 'No intake rows yet.';
 /** Empty-state copy for the grade histogram when there are no graded animes yet. */
 export const GRADE_HISTOGRAM_EMPTY_MESSAGE = 'No graded animes yet — the histogram fills in as animes are rated.';
 
-/** Short chart wrapper height (one-row stacked bars), including their axis band. */
-export const CHART_HEIGHT_SHORT = 'h-[140px]';
+/** Short chart wrapper height (one-row stacked bars), including their axis band and legend row. */
+export const CHART_HEIGHT_SHORT = 'h-[168px]';
 /** Tall chart wrapper height (the grade histogram), including its grade axis. */
 export const CHART_HEIGHT_TALL = 'h-[240px]';
 

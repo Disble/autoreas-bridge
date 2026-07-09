@@ -35,13 +35,13 @@ export function IntakeHealthChart({ data, keys, hasIntake }: Readonly<IntakeHeal
             dataFrom: 'keys',
             anchor: 'bottom',
             direction: 'row',
-            translateY: 36,
+            translateY: 56,
             itemWidth: 82,
             itemHeight: 18,
             symbolSize: 12,
           },
         ]}
-        margin={{ top: 8, right: 8, bottom: 48, left: 8 }}
+        margin={{ top: 8, right: 8, bottom: 72, left: 8 }}
         theme={NIVO_THEME}
         tooltipLabel={(datum) => `${datum.id}: ${datum.value}`}
       />

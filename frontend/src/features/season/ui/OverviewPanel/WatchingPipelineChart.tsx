@@ -32,13 +32,13 @@ export function WatchingPipelineChart({ data, keys, hasCreated }: Readonly<Watch
             dataFrom: 'keys',
             anchor: 'bottom',
             direction: 'row',
-            translateY: 36,
+            translateY: 56,
             itemWidth: 90,
             itemHeight: 18,
             symbolSize: 12,
           },
         ]}
-        margin={{ top: 8, right: 8, bottom: 48, left: 8 }}
+        margin={{ top: 8, right: 8, bottom: 72, left: 8 }}
         theme={NIVO_THEME}
       />
     </div>
