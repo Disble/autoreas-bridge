@@ -17,7 +17,7 @@
 | `bridge-debugging` | `skills/bridge-debugging` | Investigación de bugs y regresiones en filesystem, SQLite, parser y sync |
 | `frontend-theme` | `skills/frontend-theme` | Theming y tokens de color del frontend (HeroUI v3 + Tailwind v4): elegir utilities que SÍ renderizan, estados activo/hover/focus, y debug de "no se ve el color/fondo" |
 | `dnd-kit` | `.claude/skills/dnd-kit` | Drag-and-drop del frontend: listas sortable y tableros kanban/multi-columna con el NUEVO `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode, pointer-based para WebView2); migración desde `@dnd-kit/core` legacy; debug de "no arrastra nada" |
-| `fallow` | `.agents/skills/fallow` | Dead code, dependency hygiene, duplication, complexity y changed-code audit del frontend con la pol?tica local documentada en `docs/fallow-usage.md` |
+| `fallow-repo-setup` | `.agents/skills/fallow-repo-setup` | Dead code, dependency hygiene, duplication, complexity y changed-code audit del frontend con la pol?tica local documentada en `docs/fallow-usage.md` |
 
 ## User-level skills (deduplicated, non-SDD)
 

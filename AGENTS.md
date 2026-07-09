@@ -65,7 +65,7 @@
 
 ## Frontend Static Analysis (Fallow)
 
-- Load `fallow` when auditing frontend dead code, dependency hygiene, duplication, complexity, or changed-code risk.
+- Load `fallow-repo-setup` when auditing frontend dead code, dependency hygiene, duplication, complexity, or changed-code risk.
 - Fallow is frontend-scoped in this repo: run it with `bun --cwd="frontend" run fallow ...`.
 - The enforced config lives in `frontend/.fallowrc.json`; treat it as repo truth and do not add remote config inheritance.
 - `lefthook.yml` runs `bun --cwd="frontend" run fallow audit --quiet` as the pre-commit changed-code gate.
@@ -119,7 +119,7 @@
 | `bridge-testing` | Parser, watcher, SQLite, sync, HTTP, event bus tests |
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
-| `fallow` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
+| `fallow-repo-setup` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
 
 ## References
 

@@ -1,0 +1,773 @@
+﻿{
+  "plugins": [
+    {
+      "name": "vite"
+    },
+    {
+      "name": "vitest"
+    },
+    {
+      "name": "eslint"
+    },
+    {
+      "name": "typescript"
+    },
+    {
+      "name": "tailwind"
+    }
+  ],
+  "file_count": 319,
+  "files": [
+    "eslint/architecture-rules.js",
+    "eslint.config.js",
+    "index.html",
+    "scripts/__tests__/check-file-size-warnings.test.mjs",
+    "scripts/check-file-size-warnings.mjs",
+    "scripts/generate-feature.js",
+    "src/App.tsx",
+    "src/app/AppLayout.tsx",
+    "src/app/NotificationToasts.tsx",
+    "src/app/__tests__/App.test.tsx",
+    "src/app/__tests__/NotificationToasts.test.tsx",
+    "src/app/routes/AnimeDetailRoute.tsx",
+    "src/app/routes/BridgeStatusRoute.tsx",
+    "src/app/routes/CatalogRoute.tsx",
+    "src/app/routes/ChaptersRoute.tsx",
+    "src/app/routes/DownloadsRoute.tsx",
+    "src/app/routes/HistoryRoute.tsx",
+    "src/app/routes/NetworkRoute.tsx",
+    "src/app/routes/NotFoundRoute.tsx",
+    "src/app/routes/PairingRoute.tsx",
+    "src/app/routes/PreferencesRoute.tsx",
+    "src/app/routes/SeasonRoute.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/AnimeDetail.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/AnimeRepetitionTimeline.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeDetail.test.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeRepetitionTimeline.test.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/__tests__/anime-detail.helpers.test.ts",
+    "src/features/anime-detail/ui/AnimeDetail/__tests__/use-anime-detail.test.tsx",
+    "src/features/anime-detail/ui/AnimeDetail/anime-detail.constants.ts",
+    "src/features/anime-detail/ui/AnimeDetail/anime-detail.helpers.ts",
+    "src/features/anime-detail/ui/AnimeDetail/anime-detail.schema.ts",
+    "src/features/anime-detail/ui/AnimeDetail/anime-detail.types.ts",
+    "src/features/anime-detail/ui/AnimeDetail/index.ts",
+    "src/features/anime-detail/ui/AnimeDetail/use-anime-detail.ts",
+    "src/features/catalog/ui/CatalogFilterBar/CatalogFilterBar.tsx",
+    "src/features/catalog/ui/CatalogFilterBar/__tests__/CatalogFilterBar.test.tsx",
+    "src/features/catalog/ui/CatalogFilterBar/catalog-filter-bar.types.ts",
+    "src/features/catalog/ui/CatalogFilterBar/index.ts",
+    "src/features/catalog/ui/CatalogPanel/CatalogPanel.tsx",
+    "src/features/catalog/ui/CatalogPanel/__tests__/CatalogPanel.test.tsx",
+    "src/features/catalog/ui/CatalogPanel/__tests__/catalog-panel.helpers.test.ts",
+    "src/features/catalog/ui/CatalogPanel/__tests__/use-catalog-panel.test.ts",
+    "src/features/catalog/ui/CatalogPanel/catalog-panel.constants.ts",
+    "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+    "src/features/catalog/ui/CatalogPanel/catalog-panel.schema.ts",
+    "src/features/catalog/ui/CatalogPanel/catalog-panel.types.ts",
+    "src/features/catalog/ui/CatalogPanel/index.ts",
+    "src/features/catalog/ui/CatalogPanel/use-catalog-panel.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/ChapterScheduleCard.tsx",
+    "src/features/chapters/ui/ChapterSchedulePanel/ChapterSchedulePanel.tsx",
+    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterScheduleCard.test.tsx",
+    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterSchedulePanel.test.tsx",
+    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/chapter-schedule-panel.helpers.test.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/use-chapter-schedule-panel.test.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.constants.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.helpers.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.schema.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.types.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/index.ts",
+    "src/features/chapters/ui/ChapterSchedulePanel/use-chapter-schedule-panel.ts",
+    "src/features/dashboard/index.ts",
+    "src/features/dashboard/ui/BridgeDashboard/BridgeDashboard.tsx",
+    "src/features/dashboard/ui/BridgeDashboard/__tests__/bridge-dashboard.helpers.test.ts",
+    "src/features/dashboard/ui/BridgeDashboard/__tests__/use-bridge-dashboard.test.ts",
+    "src/features/dashboard/ui/BridgeDashboard/bridge-dashboard.constants.ts",
+    "src/features/dashboard/ui/BridgeDashboard/bridge-dashboard.helpers.ts",
+    "src/features/dashboard/ui/BridgeDashboard/bridge-dashboard.types.ts",
+    "src/features/dashboard/ui/BridgeDashboard/index.ts",
+    "src/features/dashboard/ui/BridgeDashboard/use-bridge-dashboard.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/BridgeStatusCard.tsx",
+    "src/features/dashboard/ui/BridgeStatusCard/__tests__/bridge-status-card.helpers.test.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/__tests__/use-bridge-status-card.test.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/bridge-status-card.helpers.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/bridge-status-card.types.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/index.ts",
+    "src/features/dashboard/ui/BridgeStatusCard/use-bridge-status-card.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/ObservabilityPanel.tsx",
+    "src/features/dashboard/ui/ObservabilityPanel/__tests__/ObservabilityPanel.test.tsx",
+    "src/features/dashboard/ui/ObservabilityPanel/__tests__/observability-panel.helpers.test.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/__tests__/use-observability-panel.test.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/index.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/observability-panel.constants.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/observability-panel.helpers.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/observability-panel.types.ts",
+    "src/features/dashboard/ui/ObservabilityPanel/use-observability-panel.ts",
+    "src/features/dashboard/ui/PairingPanel/PairingPanel.tsx",
+    "src/features/dashboard/ui/PairingPanel/__tests__/pairing-panel.helpers.test.ts",
+    "src/features/dashboard/ui/PairingPanel/__tests__/use-pairing-panel.test.ts",
+    "src/features/dashboard/ui/PairingPanel/index.ts",
+    "src/features/dashboard/ui/PairingPanel/pairing-panel.helpers.ts",
+    "src/features/dashboard/ui/PairingPanel/pairing-panel.types.ts",
+    "src/features/dashboard/ui/PairingPanel/use-pairing-panel.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/SyncingAnimePanel.tsx",
+    "src/features/dashboard/ui/SyncingAnimePanel/__tests__/SyncingAnimePanel.test.tsx",
+    "src/features/dashboard/ui/SyncingAnimePanel/__tests__/syncing-anime-panel.helpers.test.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/__tests__/use-syncing-anime-panel.test.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/index.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/syncing-anime-panel.constants.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/syncing-anime-panel.helpers.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/syncing-anime-panel.schema.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/syncing-anime-panel.types.ts",
+    "src/features/dashboard/ui/SyncingAnimePanel/use-syncing-anime-panel.ts",
+    "src/features/download/ui/HosterPriorityEditor/HosterPriorityEditor.tsx",
+    "src/features/download/ui/HosterPriorityEditor/__tests__/HosterPriorityEditor.test.tsx",
+    "src/features/download/ui/HosterPriorityEditor/__tests__/hoster-priority-editor.helpers.test.ts",
+    "src/features/download/ui/HosterPriorityEditor/__tests__/use-hoster-priority-editor.test.ts",
+    "src/features/download/ui/HosterPriorityEditor/hoster-priority-editor.constants.ts",
+    "src/features/download/ui/HosterPriorityEditor/hoster-priority-editor.helpers.ts",
+    "src/features/download/ui/HosterPriorityEditor/hoster-priority-editor.types.ts",
+    "src/features/download/ui/HosterPriorityEditor/index.ts",
+    "src/features/download/ui/HosterPriorityEditor/use-hoster-priority-editor.ts",
+    "src/features/download/ui/JDConfigPanel/JDConfigPanel.tsx",
+    "src/features/download/ui/JDConfigPanel/__tests__/JDConfigPanel.test.tsx",
+    "src/features/download/ui/JDConfigPanel/__tests__/jdconfig-panel.helpers.test.ts",
+    "src/features/download/ui/JDConfigPanel/__tests__/use-jdconfig-panel.test.ts",
+    "src/features/download/ui/JDConfigPanel/index.ts",
+    "src/features/download/ui/JDConfigPanel/jdconfig-panel.constants.ts",
+    "src/features/download/ui/JDConfigPanel/jdconfig-panel.helpers.ts",
+    "src/features/download/ui/JDConfigPanel/jdconfig-panel.types.ts",
+    "src/features/download/ui/JDConfigPanel/use-jdconfig-panel.ts",
+    "src/features/download/ui/ManualTriggerButton/ManualTriggerButton.tsx",
+    "src/features/download/ui/ManualTriggerButton/__tests__/ManualTriggerButton.test.tsx",
+    "src/features/download/ui/ManualTriggerButton/__tests__/manual-trigger-button.helpers.test.ts",
+    "src/features/download/ui/ManualTriggerButton/__tests__/use-manual-trigger-button.test.ts",
+    "src/features/download/ui/ManualTriggerButton/index.ts",
+    "src/features/download/ui/ManualTriggerButton/manual-trigger-button.helpers.ts",
+    "src/features/download/ui/ManualTriggerButton/manual-trigger-button.types.ts",
+    "src/features/download/ui/ManualTriggerButton/use-manual-trigger-button.ts",
+    "src/features/download/ui/RunHistoryPanel/RunHistoryPanel.tsx",
+    "src/features/download/ui/RunHistoryPanel/__tests__/RunHistoryPanel.test.tsx",
+    "src/features/download/ui/RunHistoryPanel/__tests__/run-history-panel.helpers.test.ts",
+    "src/features/download/ui/RunHistoryPanel/__tests__/use-run-history-panel.test.ts",
+    "src/features/download/ui/RunHistoryPanel/index.ts",
+    "src/features/download/ui/RunHistoryPanel/run-history-panel.helpers.ts",
+    "src/features/download/ui/RunHistoryPanel/run-history-panel.types.ts",
+    "src/features/download/ui/RunHistoryPanel/use-run-history-panel.ts",
+    "src/features/download/ui/SchedulePanel/SchedulePanel.tsx",
+    "src/features/download/ui/SchedulePanel/__tests__/SchedulePanel.test.tsx",
+    "src/features/download/ui/SchedulePanel/__tests__/schedule-panel.helpers.test.ts",
+    "src/features/download/ui/SchedulePanel/__tests__/use-schedule-panel.test.ts",
+    "src/features/download/ui/SchedulePanel/index.ts",
+    "src/features/download/ui/SchedulePanel/schedule-panel.constants.ts",
+    "src/features/download/ui/SchedulePanel/schedule-panel.helpers.ts",
+    "src/features/download/ui/SchedulePanel/schedule-panel.types.ts",
+    "src/features/download/ui/SchedulePanel/use-schedule-panel.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel.tsx",
+    "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/SoloAnimeDownloadPanel.test.tsx",
+    "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/solo-anime-download-panel.helpers.test.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/use-solo-anime-download-panel.test.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/index.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/solo-anime-download-panel.constants.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/solo-anime-download-panel.helpers.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/solo-anime-download-panel.types.ts",
+    "src/features/download/ui/SoloAnimeDownloadPanel/use-solo-anime-download-panel.ts",
+    "src/features/history/ui/HistoryTable/HistoryTable.tsx",
+    "src/features/history/ui/HistoryTable/__tests__/HistoryTable.test.tsx",
+    "src/features/history/ui/HistoryTable/__tests__/history-table.helpers.test.ts",
+    "src/features/history/ui/HistoryTable/__tests__/use-history-table.test.tsx",
+    "src/features/history/ui/HistoryTable/history-table.constants.ts",
+    "src/features/history/ui/HistoryTable/history-table.helpers.ts",
+    "src/features/history/ui/HistoryTable/history-table.types.ts",
+    "src/features/history/ui/HistoryTable/index.ts",
+    "src/features/history/ui/HistoryTable/use-history-table.ts",
+    "src/features/network/index.ts",
+    "src/features/network/ui/NetworkDetail/NetworkDetail.tsx",
+    "src/features/network/ui/NetworkDetail/NetworkDetailGeneral.tsx",
+    "src/features/network/ui/NetworkDetail/NetworkDetailMetadata.tsx",
+    "src/features/network/ui/NetworkDetail/NetworkDetailTrace.tsx",
+    "src/features/network/ui/NetworkDetail/index.ts",
+    "src/features/network/ui/NetworkFilterBar/NetworkFilterBar.tsx",
+    "src/features/network/ui/NetworkFilterBar/index.ts",
+    "src/features/network/ui/NetworkPanel/NetworkPanel.tsx",
+    "src/features/network/ui/NetworkPanel/__tests__/NetworkPanel.test.tsx",
+    "src/features/network/ui/NetworkPanel/__tests__/autoscroll.test.tsx",
+    "src/features/network/ui/NetworkPanel/__tests__/network-panel.helpers.test.ts",
+    "src/features/network/ui/NetworkPanel/__tests__/use-network-panel.test.ts",
+    "src/features/network/ui/NetworkPanel/index.ts",
+    "src/features/network/ui/NetworkPanel/network-panel.constants.ts",
+    "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+    "src/features/network/ui/NetworkPanel/network-panel.types.ts",
+    "src/features/network/ui/NetworkPanel/use-network-panel.ts",
+    "src/features/network/ui/NetworkTable/NetworkTable.tsx",
+    "src/features/network/ui/NetworkTable/index.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/ConnectedDevicesPanel.tsx",
+    "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/ConnectedDevicesPanel.test.tsx",
+    "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/connected-devices-panel.helpers.test.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/use-connected-devices-panel.test.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/connected-devices-panel.constants.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/connected-devices-panel.helpers.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/connected-devices-panel.schema.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/connected-devices-panel.types.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/index.ts",
+    "src/features/preferences/ui/ConnectedDevicesPanel/use-connected-devices-panel.ts",
+    "src/features/preferences/ui/DownloadsRootPanel/DownloadsRootPanel.tsx",
+    "src/features/preferences/ui/DownloadsRootPanel/__tests__/DownloadsRootPanel.test.tsx",
+    "src/features/preferences/ui/DownloadsRootPanel/__tests__/use-downloads-root-panel.test.ts",
+    "src/features/preferences/ui/DownloadsRootPanel/downloads-root-panel.constants.ts",
+    "src/features/preferences/ui/DownloadsRootPanel/downloads-root-panel.types.ts",
+    "src/features/preferences/ui/DownloadsRootPanel/index.ts",
+    "src/features/preferences/ui/DownloadsRootPanel/use-downloads-root-panel.ts",
+    "src/features/season/ui/DailyBoard/DailyBoard.tsx",
+    "src/features/season/ui/DailyBoard/__tests__/DailyBoard.checkbox.test.tsx",
+    "src/features/season/ui/DailyBoard/__tests__/DailyBoard.test.tsx",
+    "src/features/season/ui/DailyBoard/__tests__/daily-board.helpers.test.ts",
+    "src/features/season/ui/DailyBoard/__tests__/use-daily-board.test.ts",
+    "src/features/season/ui/DailyBoard/daily-board.constants.ts",
+    "src/features/season/ui/DailyBoard/daily-board.helpers.ts",
+    "src/features/season/ui/DailyBoard/daily-board.types.ts",
+    "src/features/season/ui/DailyBoard/index.ts",
+    "src/features/season/ui/DailyBoard/use-daily-board.ts",
+    "src/features/season/ui/EvaluationPanel/EvaluationPanel.tsx",
+    "src/features/season/ui/EvaluationPanel/__tests__/EvaluationPanel.test.tsx",
+    "src/features/season/ui/EvaluationPanel/__tests__/evaluation-panel.helpers.test.ts",
+    "src/features/season/ui/EvaluationPanel/__tests__/use-evaluation-panel.test.ts",
+    "src/features/season/ui/EvaluationPanel/evaluation-panel.constants.ts",
+    "src/features/season/ui/EvaluationPanel/evaluation-panel.helpers.ts",
+    "src/features/season/ui/EvaluationPanel/evaluation-panel.types.ts",
+    "src/features/season/ui/EvaluationPanel/index.ts",
+    "src/features/season/ui/EvaluationPanel/use-evaluation-panel.ts",
+    "src/features/season/ui/IntakePanel/IntakePanel.tsx",
+    "src/features/season/ui/IntakePanel/__tests__/IntakePanel.test.tsx",
+    "src/features/season/ui/IntakePanel/__tests__/intake-panel.helpers.test.ts",
+    "src/features/season/ui/IntakePanel/__tests__/use-intake-panel.test.ts",
+    "src/features/season/ui/IntakePanel/index.ts",
+    "src/features/season/ui/IntakePanel/intake-panel.constants.ts",
+    "src/features/season/ui/IntakePanel/intake-panel.helpers.ts",
+    "src/features/season/ui/IntakePanel/intake-panel.types.ts",
+    "src/features/season/ui/IntakePanel/use-intake-panel.ts",
+    "src/features/season/ui/OrderingBoard/DroppableColumn.tsx",
+    "src/features/season/ui/OrderingBoard/OrderingBoard.tsx",
+    "src/features/season/ui/OrderingBoard/SortableCard.tsx",
+    "src/features/season/ui/OrderingBoard/__tests__/OrderingBoard.test.tsx",
+    "src/features/season/ui/OrderingBoard/__tests__/ordering-board.helpers.test.ts",
+    "src/features/season/ui/OrderingBoard/__tests__/use-ordering-board.test.ts",
+    "src/features/season/ui/OrderingBoard/index.ts",
+    "src/features/season/ui/OrderingBoard/ordering-board.constants.ts",
+    "src/features/season/ui/OrderingBoard/ordering-board.helpers.ts",
+    "src/features/season/ui/OrderingBoard/ordering-board.types.ts",
+    "src/features/season/ui/OrderingBoard/use-ordering-board.ts",
+    "src/features/season/ui/RateAnimeModal/RateAnimeModal.tsx",
+    "src/features/season/ui/RateAnimeModal/__tests__/RateAnimeModal.test.tsx",
+    "src/features/season/ui/RateAnimeModal/__tests__/rate-anime-modal.helpers.test.ts",
+    "src/features/season/ui/RateAnimeModal/__tests__/use-rate-anime-modal.test.ts",
+    "src/features/season/ui/RateAnimeModal/index.ts",
+    "src/features/season/ui/RateAnimeModal/rate-anime-modal.constants.ts",
+    "src/features/season/ui/RateAnimeModal/rate-anime-modal.helpers.ts",
+    "src/features/season/ui/RateAnimeModal/rate-anime-modal.types.ts",
+    "src/features/season/ui/RateAnimeModal/use-rate-anime-modal.ts",
+    "src/features/season/ui/SeasonRateAction/SeasonRateAction.tsx",
+    "src/features/season/ui/SeasonRateAction/__tests__/SeasonRateAction.test.tsx",
+    "src/features/season/ui/SeasonRateAction/__tests__/season-rate-action.helpers.test.ts",
+    "src/features/season/ui/SeasonRateAction/__tests__/use-season-rate-action.test.ts",
+    "src/features/season/ui/SeasonRateAction/index.ts",
+    "src/features/season/ui/SeasonRateAction/season-rate-action.helpers.ts",
+    "src/features/season/ui/SeasonRateAction/season-rate-action.types.ts",
+    "src/features/season/ui/SeasonRateAction/use-season-rate-action.ts",
+    "src/features/season/ui/SeasonWorkspace/SeasonWorkspace.tsx",
+    "src/features/season/ui/SeasonWorkspace/__tests__/SeasonWorkspace.test.tsx",
+    "src/features/season/ui/SeasonWorkspace/__tests__/season-workspace.helpers.test.ts",
+    "src/features/season/ui/SeasonWorkspace/__tests__/use-season-workspace.test.ts",
+    "src/features/season/ui/SeasonWorkspace/index.ts",
+    "src/features/season/ui/SeasonWorkspace/season-workspace.constants.ts",
+    "src/features/season/ui/SeasonWorkspace/season-workspace.helpers.ts",
+    "src/features/season/ui/SeasonWorkspace/season-workspace.types.ts",
+    "src/features/season/ui/SeasonWorkspace/use-season-workspace.ts",
+    "src/features/season/ui/SelectionBoard/SelectionBoard.tsx",
+    "src/features/season/ui/SelectionBoard/__tests__/SelectionBoard.test.tsx",
+    "src/features/season/ui/SelectionBoard/__tests__/selection-board.helpers.test.ts",
+    "src/features/season/ui/SelectionBoard/__tests__/use-selection-board.test.ts",
+    "src/features/season/ui/SelectionBoard/index.ts",
+    "src/features/season/ui/SelectionBoard/selection-board.constants.ts",
+    "src/features/season/ui/SelectionBoard/selection-board.helpers.ts",
+    "src/features/season/ui/SelectionBoard/selection-board.types.ts",
+    "src/features/season/ui/SelectionBoard/use-selection-board.ts",
+    "src/hooks/__tests__/use-notification-toasts.test.ts",
+    "src/hooks/use-notification-toasts.ts",
+    "src/infrastructure/__tests__/bridge-runtime-source.test.ts",
+    "src/infrastructure/__tests__/download-runtime-source.test.ts",
+    "src/infrastructure/__tests__/notification-source.test.ts",
+    "src/infrastructure/__tests__/observability-log-source.test.ts",
+    "src/infrastructure/bridge-runtime-source.ts",
+    "src/infrastructure/download-runtime-source.ts",
+    "src/infrastructure/notification-source.ts",
+    "src/infrastructure/observability-log-source.ts",
+    "src/infrastructure/preferences-source.ts",
+    "src/infrastructure/season-source.ts",
+    "src/main.tsx",
+    "src/shared/constants/__tests__/anime-estado.test.ts",
+    "src/shared/constants/anime-estado.ts",
+    "src/shared/contracts/anime.types.ts",
+    "src/shared/contracts/download.types.ts",
+    "src/shared/contracts/notification.types.ts",
+    "src/shared/contracts/observability.types.ts",
+    "src/shared/contracts/syncing-anime.types.ts",
+    "src/shared/datetime/__tests__/datetime.helpers.test.ts",
+    "src/shared/datetime/datetime.helpers.ts",
+    "src/shared/hooks/__tests__/use-debounce.test.ts",
+    "src/shared/hooks/use-debounce.ts",
+    "src/shared/store/__tests__/download-runtime-store.test.ts",
+    "src/shared/store/__tests__/network-store.helpers.test.ts",
+    "src/shared/store/__tests__/network-store.test.ts",
+    "src/shared/store/__tests__/preferences-store.test.ts",
+    "src/shared/store/__tests__/season-store.test.ts",
+    "src/shared/store/download-runtime-store.ts",
+    "src/shared/store/download-runtime-store.types.ts",
+    "src/shared/store/network-store.constants.ts",
+    "src/shared/store/network-store.helpers.ts",
+    "src/shared/store/network-store.ts",
+    "src/shared/store/network-store.types.ts",
+    "src/shared/store/preferences-store.ts",
+    "src/shared/store/season-store.ts",
+    "src/shared/ui/AnimeCoverPlaceholder.tsx",
+    "src/shared/ui/CoverPlaceholderScene.tsx",
+    "src/shared/ui/LabeledCheckbox.tsx",
+    "src/shared/ui/__tests__/LabeledCheckbox.test.tsx",
+    "src/style.css",
+    "src/test/setup.ts",
+    "src/vite-env.d.ts",
+    "vite.config.ts"
+  ],
+  "entry_point_count": 105,
+  "entry_points": [
+    {
+      "path": "scripts/check-file-size-warnings.mjs",
+      "source": "package.json script"
+    },
+    {
+      "path": "scripts/generate-feature.js",
+      "source": "package.json script"
+    },
+    {
+      "path": "src/main.tsx",
+      "source": "manual entry"
+    },
+    {
+      "path": "wailsjs/runtime/runtime.d.ts",
+      "source": "package.json main"
+    },
+    {
+      "path": "wailsjs/runtime/runtime.js",
+      "source": "package.json main"
+    },
+    {
+      "path": "eslint.config.js",
+      "source": "eslint"
+    },
+    {
+      "path": "index.html",
+      "source": "vite"
+    },
+    {
+      "path": "src/app/__tests__/App.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/app/__tests__/NotificationToasts.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeDetail.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeRepetitionTimeline.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/__tests__/anime-detail.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/__tests__/use-anime-detail.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogFilterBar/__tests__/CatalogFilterBar.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/__tests__/CatalogPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/__tests__/catalog-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/__tests__/use-catalog-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterScheduleCard.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterSchedulePanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/chapter-schedule-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/use-chapter-schedule-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeDashboard/__tests__/bridge-dashboard.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeDashboard/__tests__/use-bridge-dashboard.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeStatusCard/__tests__/bridge-status-card.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeStatusCard/__tests__/use-bridge-status-card.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/__tests__/ObservabilityPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/__tests__/observability-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/__tests__/use-observability-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/PairingPanel/__tests__/pairing-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/PairingPanel/__tests__/use-pairing-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/SyncingAnimePanel/__tests__/SyncingAnimePanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/SyncingAnimePanel/__tests__/syncing-anime-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/dashboard/ui/SyncingAnimePanel/__tests__/use-syncing-anime-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/HosterPriorityEditor/__tests__/HosterPriorityEditor.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/HosterPriorityEditor/__tests__/hoster-priority-editor.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/HosterPriorityEditor/__tests__/use-hoster-priority-editor.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/JDConfigPanel/__tests__/JDConfigPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/JDConfigPanel/__tests__/jdconfig-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/JDConfigPanel/__tests__/use-jdconfig-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/ManualTriggerButton/__tests__/ManualTriggerButton.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/ManualTriggerButton/__tests__/manual-trigger-button.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/ManualTriggerButton/__tests__/use-manual-trigger-button.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/__tests__/RunHistoryPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/__tests__/run-history-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/__tests__/use-run-history-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/__tests__/SchedulePanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/__tests__/schedule-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/__tests__/use-schedule-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/SoloAnimeDownloadPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/solo-anime-download-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/__tests__/use-solo-anime-download-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/history/ui/HistoryTable/__tests__/HistoryTable.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/history/ui/HistoryTable/__tests__/history-table.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/history/ui/HistoryTable/__tests__/use-history-table.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/__tests__/NetworkPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/__tests__/autoscroll.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/__tests__/network-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/__tests__/use-network-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/ConnectedDevicesPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/connected-devices-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/preferences/ui/ConnectedDevicesPanel/__tests__/use-connected-devices-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/preferences/ui/DownloadsRootPanel/__tests__/DownloadsRootPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/preferences/ui/DownloadsRootPanel/__tests__/use-downloads-root-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/__tests__/DailyBoard.checkbox.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/__tests__/DailyBoard.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/__tests__/daily-board.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/__tests__/use-daily-board.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/EvaluationPanel/__tests__/EvaluationPanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/EvaluationPanel/__tests__/evaluation-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/EvaluationPanel/__tests__/use-evaluation-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/__tests__/IntakePanel.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/__tests__/intake-panel.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/__tests__/use-intake-panel.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/__tests__/OrderingBoard.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/__tests__/ordering-board.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/__tests__/use-ordering-board.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/RateAnimeModal/__tests__/RateAnimeModal.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/RateAnimeModal/__tests__/rate-anime-modal.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/RateAnimeModal/__tests__/use-rate-anime-modal.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonRateAction/__tests__/SeasonRateAction.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonRateAction/__tests__/season-rate-action.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonRateAction/__tests__/use-season-rate-action.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonWorkspace/__tests__/SeasonWorkspace.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonWorkspace/__tests__/season-workspace.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SeasonWorkspace/__tests__/use-season-workspace.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SelectionBoard/__tests__/SelectionBoard.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SelectionBoard/__tests__/selection-board.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/features/season/ui/SelectionBoard/__tests__/use-selection-board.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/hooks/__tests__/use-notification-toasts.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/infrastructure/__tests__/bridge-runtime-source.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/infrastructure/__tests__/download-runtime-source.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/infrastructure/__tests__/notification-source.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/infrastructure/__tests__/observability-log-source.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/main.tsx",
+      "source": "vite"
+    },
+    {
+      "path": "src/shared/constants/__tests__/anime-estado.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/datetime/__tests__/datetime.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/hooks/__tests__/use-debounce.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/store/__tests__/download-runtime-store.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/store/__tests__/network-store.helpers.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/store/__tests__/network-store.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/store/__tests__/preferences-store.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/store/__tests__/season-store.test.ts",
+      "source": "vitest"
+    },
+    {
+      "path": "src/shared/ui/__tests__/LabeledCheckbox.test.tsx",
+      "source": "vitest"
+    },
+    {
+      "path": "tsconfig.node.json",
+      "source": "typescript"
+    },
+    {
+      "path": "vite.config.ts",
+      "source": "vite"
+    }
+  ],
+  "workspace_count": 1,
+  "workspaces": [
+    {
+      "name": "@wailsapp/runtime",
+      "path": "wailsjs/runtime",
+      "is_internal_dependency": false
+    }
+  ],
+  "workspace_diagnostics": []
+}

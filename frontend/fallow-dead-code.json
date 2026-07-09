@@ -1,0 +1,2027 @@
+{
+  "kind": "dead-code",
+  "schema_version": 7,
+  "version": "3.3.0",
+  "elapsed_ms": 84,
+  "total_issues": 96,
+  "entry_points": {
+    "total": 104,
+    "sources": {
+      "manual_entry": 1,
+      "package.json": 4,
+      "plugin": 99
+    }
+  },
+  "summary": {
+    "total_issues": 96,
+    "unused_files": 40,
+    "unused_exports": 44,
+    "unused_types": 9,
+    "private_type_leaks": 0,
+    "unused_dependencies": 0,
+    "unused_enum_members": 0,
+    "unused_class_members": 0,
+    "unused_store_members": 0,
+    "unprovided_injects": 0,
+    "unrendered_components": 0,
+    "unused_component_props": 0,
+    "unused_component_emits": 0,
+    "unused_component_inputs": 0,
+    "unused_component_outputs": 0,
+    "unused_svelte_events": 0,
+    "unused_server_actions": 0,
+    "unused_load_data_keys": 0,
+    "unresolved_imports": 0,
+    "unlisted_dependencies": 1,
+    "duplicate_exports": 0,
+    "type_only_dependencies": 0,
+    "test_only_dependencies": 0,
+    "dev_dependencies_in_production": 2,
+    "circular_dependencies": 0,
+    "re_export_cycles": 0,
+    "boundary_violations": 0,
+    "boundary_coverage_violations": 0,
+    "boundary_call_violations": 0,
+    "policy_violations": 0,
+    "stale_suppressions": 0,
+    "unused_catalog_entries": 0,
+    "empty_catalog_groups": 0,
+    "unresolved_catalog_references": 0,
+    "unused_dependency_overrides": 0,
+    "misconfigured_dependency_overrides": 0,
+    "invalid_client_exports": 0,
+    "mixed_client_server_barrels": 0,
+    "misplaced_directives": 0,
+    "route_collisions": 0,
+    "dynamic_segment_name_conflicts": 0
+  },
+  "unused_files": [
+    {
+      "path": "scripts/__tests__/check-file-size-warnings.test.mjs",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/anime-detail.schema.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogFilterBar/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.schema.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.schema.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeDashboard/bridge-dashboard.types.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeDashboard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeStatusCard/bridge-status-card.types.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/BridgeStatusCard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/PairingPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/SyncingAnimePanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/SyncingAnimePanel/syncing-anime-panel.schema.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/HosterPriorityEditor/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/JDConfigPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/ManualTriggerButton/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/history/ui/HistoryTable/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkDetail/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkFilterBar/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkTable/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/preferences/ui/ConnectedDevicesPanel/connected-devices-panel.schema.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/preferences/ui/ConnectedDevicesPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/EvaluationPanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/RateAnimeModal/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/SeasonRateAction/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/SeasonWorkspace/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/SelectionBoard/index.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    },
+    {
+      "path": "src/test/setup.ts",
+      "actions": [
+        {
+          "type": "delete-file",
+          "auto_fixable": false,
+          "description": "Delete this file",
+          "note": "File deletion may remove runtime functionality not visible to static analysis"
+        },
+        {
+          "type": "suppress-file",
+          "auto_fixable": false,
+          "description": "Suppress with a file-level comment at the top of the file",
+          "comment": "// fallow-ignore-file unused-file"
+        }
+      ]
+    }
+  ],
+  "unused_exports": [
+    {
+      "path": "eslint/architecture-rules.js",
+      "export_name": "appLayerReactHooksPattern",
+      "is_type_only": false,
+      "line": 182,
+      "col": 2,
+      "span_start": 8436,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "eslint/architecture-rules.js",
+      "export_name": "schemaPlacementSyntaxRules",
+      "is_type_only": false,
+      "line": 193,
+      "col": 2,
+      "span_start": 8784,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/anime-detail/ui/AnimeDetail/anime-detail.helpers.ts",
+      "export_name": "normalizeAnimeDetailPortadaUrl",
+      "is_type_only": false,
+      "line": 116,
+      "col": 16,
+      "span_start": 4108,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.constants.ts",
+      "export_name": "CATALOG_PANEL_LIST_LABEL",
+      "is_type_only": false,
+      "line": 29,
+      "col": 13,
+      "span_start": 822,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.constants.ts",
+      "export_name": "ANIME_TIPO_OPTIONS",
+      "is_type_only": false,
+      "line": 69,
+      "col": 13,
+      "span_start": 2125,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "getAnimeGapLabel",
+      "is_type_only": false,
+      "line": 54,
+      "col": 16,
+      "span_start": 1704,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "normalizeAnimeQuery",
+      "is_type_only": false,
+      "line": 104,
+      "col": 16,
+      "span_start": 3190,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeQuery",
+      "is_type_only": false,
+      "line": 111,
+      "col": 16,
+      "span_start": 3366,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeEstado",
+      "is_type_only": false,
+      "line": 124,
+      "col": 16,
+      "span_start": 3687,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeActivo",
+      "is_type_only": false,
+      "line": 135,
+      "col": 16,
+      "span_start": 3956,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeTipo",
+      "is_type_only": false,
+      "line": 146,
+      "col": 16,
+      "span_start": 4218,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeDia",
+      "is_type_only": false,
+      "line": 157,
+      "col": 16,
+      "span_start": 4473,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/catalog/ui/CatalogPanel/catalog-panel.helpers.ts",
+      "export_name": "matchesAnimeGeneros",
+      "is_type_only": false,
+      "line": 168,
+      "col": 16,
+      "span_start": 4768,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.helpers.ts",
+      "export_name": "formatChapterNumber",
+      "is_type_only": false,
+      "line": 91,
+      "col": 16,
+      "span_start": 4055,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/observability-panel.helpers.ts",
+      "export_name": "getSummaryLabels",
+      "is_type_only": false,
+      "line": 115,
+      "col": 16,
+      "span_start": 3502,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/PairingPanel/pairing-panel.helpers.ts",
+      "export_name": "DEFAULT_PAIRING_QR_OPTIONS",
+      "is_type_only": false,
+      "line": 4,
+      "col": 13,
+      "span_start": 165,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/schedule-panel.constants.ts",
+      "export_name": "SCHEDULE_PANEL_EMPTY_CONFIG",
+      "is_type_only": false,
+      "line": 30,
+      "col": 13,
+      "span_start": 1314,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/solo-anime-download-panel.constants.ts",
+      "export_name": "SOLO_ANIME_DOWNLOAD_EMPTY_ITEMS",
+      "is_type_only": false,
+      "line": 13,
+      "col": 13,
+      "span_start": 645,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+      "export_name": "formatNetworkTime",
+      "is_type_only": false,
+      "line": 21,
+      "col": 16,
+      "span_start": 731,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+      "export_name": "getNetworkMessage",
+      "is_type_only": false,
+      "line": 93,
+      "col": 16,
+      "span_start": 2880,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+      "export_name": "getNetworkMetadataEntries",
+      "is_type_only": false,
+      "line": 152,
+      "col": 16,
+      "span_start": 4789,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+      "export_name": "getNetworkDetailFields",
+      "is_type_only": false,
+      "line": 164,
+      "col": 16,
+      "span_start": 5325,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/network/ui/NetworkPanel/network-panel.helpers.ts",
+      "export_name": "getNetworkTraceEntries",
+      "is_type_only": false,
+      "line": 182,
+      "col": 16,
+      "span_start": 6179,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/intake-panel.helpers.ts",
+      "export_name": "isEditableRow",
+      "is_type_only": false,
+      "line": 84,
+      "col": 16,
+      "span_start": 2913,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/ordering-board.helpers.ts",
+      "export_name": "RAIL",
+      "is_type_only": false,
+      "line": 7,
+      "col": 13,
+      "span_start": 453,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/ordering-board.helpers.ts",
+      "export_name": "containerFor",
+      "is_type_only": false,
+      "line": 10,
+      "col": 16,
+      "span_start": 574,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/OrderingBoard/ordering-board.helpers.ts",
+      "export_name": "locationFor",
+      "is_type_only": false,
+      "line": 15,
+      "col": 16,
+      "span_start": 797,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/SeasonWorkspace/season-workspace.helpers.ts",
+      "export_name": "formatSeasonCreatedLabel",
+      "is_type_only": false,
+      "line": 18,
+      "col": 16,
+      "span_start": 775,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/SelectionBoard/selection-board.constants.ts",
+      "export_name": "CONSIDERATION_NONE",
+      "is_type_only": false,
+      "line": 4,
+      "col": 13,
+      "span_start": 154,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/bridge-runtime-source.ts",
+      "export_name": "WAILS_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 34,
+      "col": 13,
+      "span_start": 1018,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/download-runtime-source.ts",
+      "export_name": "DOWNLOAD_BINDINGS_POLL_MS",
+      "is_type_only": false,
+      "line": 23,
+      "col": 13,
+      "span_start": 543,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/download-runtime-source.ts",
+      "export_name": "DOWNLOAD_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 25,
+      "col": 13,
+      "span_start": 679,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/notification-source.ts",
+      "export_name": "NOTIFICATION_BINDINGS_POLL_MS",
+      "is_type_only": false,
+      "line": 7,
+      "col": 13,
+      "span_start": 281,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/notification-source.ts",
+      "export_name": "NOTIFICATION_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 9,
+      "col": 13,
+      "span_start": 414,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/observability-log-source.ts",
+      "export_name": "WAILS_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 8,
+      "col": 13,
+      "span_start": 422,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/preferences-source.ts",
+      "export_name": "PREFERENCES_BINDINGS_POLL_MS",
+      "is_type_only": false,
+      "line": 4,
+      "col": 13,
+      "span_start": 200,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/preferences-source.ts",
+      "export_name": "PREFERENCES_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 6,
+      "col": 13,
+      "span_start": 339,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/preferences-source.ts",
+      "export_name": "createPreferencesSource",
+      "is_type_only": false,
+      "line": 59,
+      "col": 16,
+      "span_start": 2263,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/season-source.ts",
+      "export_name": "SEASON_BINDINGS_POLL_MS",
+      "is_type_only": false,
+      "line": 32,
+      "col": 13,
+      "span_start": 718,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/season-source.ts",
+      "export_name": "SEASON_BINDINGS_TIMEOUT_MS",
+      "is_type_only": false,
+      "line": 34,
+      "col": 13,
+      "span_start": 852,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/season-source.ts",
+      "export_name": "SEASON_RUNTIME_UNAVAILABLE",
+      "is_type_only": false,
+      "line": 37,
+      "col": 13,
+      "span_start": 983,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/infrastructure/season-source.ts",
+      "export_name": "createSeasonSource",
+      "is_type_only": false,
+      "line": 224,
+      "col": 16,
+      "span_start": 8420,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/shared/store/network-store.constants.ts",
+      "export_name": "EMPTY_NETWORK_ROW",
+      "is_type_only": false,
+      "line": 7,
+      "col": 13,
+      "span_start": 253,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    },
+    {
+      "path": "src/shared/store/network-store.helpers.ts",
+      "export_name": "selectRowById",
+      "is_type_only": false,
+      "line": 178,
+      "col": 16,
+      "span_start": 6199,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the unused export from the public API"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-export"
+        }
+      ]
+    }
+  ],
+  "unused_types": [
+    {
+      "path": "src/features/dashboard/ui/ObservabilityPanel/observability-panel.types.ts",
+      "export_name": "ObservabilityPanelProps",
+      "is_type_only": true,
+      "line": 6,
+      "col": 12,
+      "span_start": 233,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/dashboard/ui/PairingPanel/pairing-panel.types.ts",
+      "export_name": "PairingPanelProps",
+      "is_type_only": true,
+      "line": 2,
+      "col": 12,
+      "span_start": 93,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/JDConfigPanel/jdconfig-panel.types.ts",
+      "export_name": "JDConfigPanelViewModel",
+      "is_type_only": true,
+      "line": 21,
+      "col": 17,
+      "span_start": 756,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/run-history-panel.types.ts",
+      "export_name": "RunHistoryPanelState",
+      "is_type_only": true,
+      "line": 30,
+      "col": 17,
+      "span_start": 1108,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/RunHistoryPanel/run-history-panel.types.ts",
+      "export_name": "ManualLink",
+      "is_type_only": true,
+      "line": 37,
+      "col": 14,
+      "span_start": 1345,
+      "is_re_export": true,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration",
+          "note": "This finding originates from a re-export; verify it is not part of your public API before removing"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SchedulePanel/schedule-panel.types.ts",
+      "export_name": "SchedulePanelStatus",
+      "is_type_only": true,
+      "line": 7,
+      "col": 12,
+      "span_start": 217,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/download/ui/SoloAnimeDownloadPanel/solo-anime-download-panel.types.ts",
+      "export_name": "SoloAnimeDownloadViewModel",
+      "is_type_only": true,
+      "line": 21,
+      "col": 17,
+      "span_start": 735,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/DailyBoard/daily-board.types.ts",
+      "export_name": "DailyBoardProps",
+      "is_type_only": true,
+      "line": 4,
+      "col": 17,
+      "span_start": 164,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    },
+    {
+      "path": "src/features/season/ui/IntakePanel/intake-panel.types.ts",
+      "export_name": "IntakePanelProps",
+      "is_type_only": true,
+      "line": 2,
+      "col": 17,
+      "span_start": 84,
+      "is_re_export": false,
+      "actions": [
+        {
+          "type": "remove-export",
+          "auto_fixable": true,
+          "description": "Remove the `export` (or `export type`) keyword from the type declaration"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the line",
+          "comment": "// fallow-ignore-next-line unused-type"
+        }
+      ]
+    }
+  ],
+  "private_type_leaks": [],
+  "unused_dependencies": [],
+  "unused_dev_dependencies": [],
+  "unused_optional_dependencies": [],
+  "unused_enum_members": [],
+  "unused_class_members": [],
+  "unresolved_imports": [],
+  "unlisted_dependencies": [
+    {
+      "package_name": "react-aria-components",
+      "imported_from": [
+        {
+          "path": "src/features/download/ui/HosterPriorityEditor/HosterPriorityEditor.tsx",
+          "line": 2,
+          "col": 9
+        }
+      ],
+      "actions": [
+        {
+          "type": "install-dependency",
+          "auto_fixable": false,
+          "description": "Add this package to dependencies in package.json",
+          "note": "Verify this package should be a direct dependency before adding"
+        },
+        {
+          "type": "add-to-config",
+          "auto_fixable": false,
+          "description": "Add \"react-aria-components\" to ignoreDependencies in fallow config",
+          "config_key": "ignoreDependencies",
+          "value": "react-aria-components",
+          "value_schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json#/properties/ignoreDependencies/items"
+        }
+      ]
+    }
+  ],
+  "duplicate_exports": [],
+  "type_only_dependencies": [],
+  "test_only_dependencies": [],
+  "dev_dependencies_in_production": [
+    {
+      "package_name": "eslint",
+      "path": "package.json",
+      "line": 44,
+      "actions": [
+        {
+          "type": "move-to-prod",
+          "auto_fixable": false,
+          "description": "Move to dependencies (production code imports this at runtime)",
+          "note": "A production-only install (`pnpm install --prod`) omits devDependencies, so this import would break at runtime"
+        },
+        {
+          "type": "add-to-config",
+          "auto_fixable": false,
+          "description": "Add \"eslint\" to ignoreDependencies in fallow config",
+          "config_key": "ignoreDependencies",
+          "value": "eslint",
+          "value_schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json#/properties/ignoreDependencies/items"
+        }
+      ]
+    },
+    {
+      "package_name": "tailwindcss",
+      "path": "package.json",
+      "line": 55,
+      "actions": [
+        {
+          "type": "move-to-prod",
+          "auto_fixable": false,
+          "description": "Move to dependencies (production code imports this at runtime)",
+          "note": "A production-only install (`pnpm install --prod`) omits devDependencies, so this import would break at runtime"
+        },
+        {
+          "type": "add-to-config",
+          "auto_fixable": false,
+          "description": "Add \"tailwindcss\" to ignoreDependencies in fallow config",
+          "config_key": "ignoreDependencies",
+          "value": "tailwindcss",
+          "value_schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json#/properties/ignoreDependencies/items"
+        }
+      ]
+    }
+  ],
+  "circular_dependencies": [],
+  "re_export_cycles": [],
+  "boundary_violations": [],
+  "boundary_coverage_violations": [],
+  "boundary_call_violations": [],
+  "policy_violations": [],
+  "stale_suppressions": [],
+  "unused_catalog_entries": [],
+  "empty_catalog_groups": [],
+  "unresolved_catalog_references": [],
+  "unused_dependency_overrides": [],
+  "misconfigured_dependency_overrides": [],
+  "invalid_client_exports": [],
+  "mixed_client_server_barrels": [],
+  "misplaced_directives": [],
+  "route_collisions": [],
+  "dynamic_segment_name_conflicts": [],
+  "next_steps": [
+    {
+      "id": "trace-unused-export",
+      "command": "fallow dead-code --trace eslint/architecture-rules.js:appLayerReactHooksPattern",
+      "reason": "verify an export is truly unused before deleting"
+    },
+    {
+      "id": "audit-changed",
+      "command": "fallow audit",
+      "reason": "gate only the files your branch changed (auto-detects the base)"
+    }
+  ],
+  "_meta": {
+    "telemetry": {
+      "analysis_run_id": "run_cc2eb48d994a9c1e"
+    }
+  }
+}
