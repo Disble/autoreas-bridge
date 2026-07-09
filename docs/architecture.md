@@ -84,6 +84,15 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 - Los helpers exportados requieren JSDoc y las props en `*.types.ts` deben ser `readonly`.
 - Cuando haga falta scaffolding de una feature nueva, debe usarse `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` en vez de crear carpetas complejas manualmente.
 
+### Fallow como capa de análisis estático del frontend
+
+- El repo usa **Fallow** dentro de `frontend/` para detectar dead code, problemas de dependencias, duplicación y riesgo de cambios.
+- La puerta de entrada operativa es `bun --cwd="frontend" run fallow audit --quiet`, ejecutada desde `lefthook.yml`.
+- La configuración viva está en `frontend/.fallowrc.json`.
+- `wailsjs/**` se ignora porque es código generado del bridge/runtime.
+- `src/test/setup.ts` se declara manualmente como entry point para evitar falsos positivos sobre el setup de Vitest.
+- El detalle operativo y de triage queda documentado en `docs/fallow-usage.md`.
+
 ---
 
 ## 6. Política Transversal de Tamaño de Archivo

@@ -7,6 +7,7 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 - `AGENTS.md`
 - `openspec/config.yaml`
 - `.atl/skill-registry.md`
+- `docs/fallow-usage.md`
 
 ## Project Notes
 
@@ -23,6 +24,7 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 11. `tools/checkgofilesize/baseline.yaml` is expected to be empty (`files: []`). Temporary oversized Go files are not accepted as permanent state; any exception must shrink and disappear at `<=500` effective lines.
 12. For implementation details, see `docs/file-size-policy.md`.
 13. **Code is English by default** (identifiers, DB columns, error strings, comments). Spanish is allowed ONLY at the legacy adapter surface (`LegacyAnimeRaw` byte-compat fields), as runtime data literals (`"Sin ver"`/`"Ver hoy"`/`"Visto"`/`"No me gusto"`), and in UI copy. Cross-service wire fields are English too (`"grade"`, not `"nota"`). A slice English-ifies the Spanish vocabulary it owns (rename + additive migration) but does not rename shipped Spanish owned by another pending slice. See `docs/adr/007-english-code-spanish-boundaries.md`.
+14. Load `fallow` for frontend dead-code, duplication, dependency hygiene, complexity, or changed-code audit work. Run it from repo root as `bun --cwd="frontend" run fallow ...`, and use `docs/fallow-usage.md` as the project contract.
 
 ## Frontend Architecture Constraints
 

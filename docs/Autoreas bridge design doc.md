@@ -133,6 +133,11 @@ graph TB
 | Fuente de verdad | `animes.dat` (NeDB JSON-line) | No se modifica autoreas desktop |
 | Entregable | `.exe` único para Windows | Sin instaladores de runtime |
 
+
+### 4.2.1 Contrato de an?lisis est?tico del frontend
+
+El frontend del bridge usa **Fallow** como capa de an?lisis est?tico para dead code, dependencias, duplicaci?n y riesgo sobre cambios recientes. La operaci?n diaria se hace con Bun dentro de `frontend/`, la puerta de commit es `bun --cwd="frontend" run fallow audit --quiet`, y la pol?tica viva queda centralizada en `frontend/.fallowrc.json`. La gu?a operativa del proyecto vive en `docs/fallow-usage.md`.
+
 **¿Por qué Go y no Node.js?** Node tiene la ventaja del parser nativo de NeDB (es una librería JS), pero el parser es un componente acotado del proyecto. Go ofrece mejores características para un servicio de background de larga ejecución: binario único (~10MB), menor consumo de RAM (~15MB vs ~50MB), y concurrencia nativa para manejar file watcher, HTTP, WebSocket y mDNS simultáneamente.
 
 **¿Por qué Wails y no un server HTTP puro + navegador?** El bridge podría funcionar como Syncthing (web UI en el navegador via `localhost`). Pero si en el futuro el bridge evoluciona para reemplazar funciones de autoreas desktop, necesitará acceso nativo al OS (abrir carpetas, lanzar aplicaciones). Wails ofrece esa capacidad desde el día uno sin cambiar de arquitectura.

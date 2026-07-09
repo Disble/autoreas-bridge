@@ -9,8 +9,9 @@ Documented conventions are not enough when humans and agents both modify the fro
 ## Decision
 We enforce the frontend architecture with multiple barriers:
 1. ESLint rules for max-lines, delivery purity, strict colocation, readonly props, and helper JSDoc.
-2. Generator-based scaffolding for complex feature folders.
-3. Repeated instruction blocks in `AGENTS.md` and `CLAUDE.md`.
+2. Fallow for dead code, dependency hygiene, duplication, and changed-code audit pressure.
+3. Generator-based scaffolding for complex feature folders.
+4. Repeated instruction blocks in `AGENTS.md` and `CLAUDE.md`.
 
 ## Consequences
 * **Positive:** architectural intent becomes executable and verifiable.

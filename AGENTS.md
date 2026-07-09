@@ -58,10 +58,20 @@
 ## Pre-commit Gate
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
-- The gate is intentionally **complete**, not partial: frontend lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
+- The gate is intentionally **complete**, not partial: frontend Fallow audit + lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
 - Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
 - An active change MUST have `proposal.md`, `design.md`, `tasks.md`, at least one `spec.md`, and a `verify-report.md` whose verdict is `PASS` or `PASS WITH WARNINGS`.
+
+## Frontend Static Analysis (Fallow)
+
+- Load `fallow` when auditing frontend dead code, dependency hygiene, duplication, complexity, or changed-code risk.
+- Fallow is frontend-scoped in this repo: run it with `bun --cwd="frontend" run fallow ...`.
+- The enforced config lives in `frontend/.fallowrc.json`; treat it as repo truth and do not add remote config inheritance.
+- `lefthook.yml` runs `bun --cwd="frontend" run fallow audit --quiet` as the pre-commit changed-code gate.
+- `wailsjs/**` is generated bridge/runtime code and intentionally ignored by Fallow.
+- `src/test/setup.ts` is a required manual entry point in Fallow config; do not remove it casually or Vitest setup can be misclassified as dead code.
+- For operational details and triage rules, see `docs/fallow-usage.md`.
 
 ## Language Policy (Code in English)
 
@@ -109,12 +119,14 @@
 | `bridge-testing` | Parser, watcher, SQLite, sync, HTTP, event bus tests |
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
+| `fallow` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
 
 ## References
 
 - `docs/sdd-tree.md`
 - `docs/architecture.md`
 - `docs/autoreas-bridge-design-doc.md`
+- `docs/fallow-usage.md`
 - `docs/adr/007-english-code-spanish-boundaries.md`
 - `openspec/config.yaml`
 - `.atl/skill-registry.md`

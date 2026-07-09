@@ -33,6 +33,9 @@ Ambas se ejecutan en `lefthook.yml`:
 pre-commit:
   parallel: false
   jobs:
+    - name: frontend-fallow
+      run: bun --cwd="frontend" run fallow audit --quiet
+
     - name: frontend-filesize-warning
       run: bun --cwd="frontend" run filesize:warning
 
