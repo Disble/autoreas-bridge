@@ -70,6 +70,15 @@ describe('useDailyBoard', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
+  it('passes a Sin-ver row\'s availableChapters through unchanged', async () => {
+    const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableChapters: 4 }];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const { result } = renderHook(() => useDailyBoard(source));
+
+    await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
+    expect(result.current.sections.sinVer[0]?.availableChapters).toBe(4);
+  });
+
   it('toggleSelect adds and removes anime ids', () => {
     const source = createSource();
     const { result } = renderHook(() => useDailyBoard(source));

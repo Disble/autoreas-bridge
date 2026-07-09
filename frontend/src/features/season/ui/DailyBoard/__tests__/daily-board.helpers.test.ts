@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
-import { groupCreatedBySection } from '../daily-board.helpers';
+import { formatAvailableChapters, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
@@ -39,5 +39,35 @@ describe('groupCreatedBySection', () => {
     const rows = [row({ id: 'a', availability: 'waiting', availableChapters: 0, matchStatus: 'pending', animeId: '', section: '' })];
     const groups = groupCreatedBySection(rows);
     expect(groups.sinVer).toHaveLength(0);
+  });
+});
+
+describe('formatAvailableChapters', () => {
+  it('pluralizes "chapters" for zero', () => {
+    expect(formatAvailableChapters(0)).toBe('0 chapters available');
+  });
+
+  it('uses the singular "chapter" for exactly one', () => {
+    expect(formatAvailableChapters(1)).toBe('1 chapter available');
+  });
+
+  it('pluralizes "chapters" for more than one', () => {
+    expect(formatAvailableChapters(5)).toBe('5 chapters available');
+  });
+});
+
+describe('getSinVerAvailabilityIndicator', () => {
+  it('is success with a chapters-available label when chapters are online', () => {
+    expect(getSinVerAvailabilityIndicator(row({ availableChapters: 3 }))).toEqual({
+      color: 'success',
+      label: '3 chapters available',
+    });
+  });
+
+  it('is danger when no chapters are online yet', () => {
+    expect(getSinVerAvailabilityIndicator(row({ availableChapters: 0 }))).toEqual({
+      color: 'danger',
+      label: 'No chapters online yet',
+    });
   });
 });

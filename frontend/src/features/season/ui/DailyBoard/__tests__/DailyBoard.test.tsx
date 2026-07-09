@@ -103,4 +103,22 @@ describe('DailyBoard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Re-check now' }));
     expect(onRecheck).toHaveBeenCalled();
   });
+
+  it('shows chapter count, an open-page link, and the availability dot for a Sin-ver row', () => {
+    const row = created('a', 'anime-a', 'Sin ver');
+    mockHook({ sections: { sinVer: [{ ...row, availableChapters: 5, matchedSlug: 'https://example.com/a' }], verHoy: [], visto: [] } });
+    render(<DailyBoard />);
+    expect(screen.getByText('5 chapters available')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Open the page for A/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('5 chapters available')).toBeInTheDocument();
+  });
+
+  it('does not render an open-page link when the Sin-ver row has no matched slug', () => {
+    const row = created('a', 'anime-a', 'Sin ver');
+    mockHook({ sections: { sinVer: [{ ...row, availableChapters: 0, matchedSlug: '' }], verHoy: [], visto: [] } });
+    render(<DailyBoard />);
+    expect(screen.getByText('0 chapters available')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open the page for A/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('No chapters online yet')).toBeInTheDocument();
+  });
 });

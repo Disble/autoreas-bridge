@@ -1,6 +1,9 @@
-import { Alert, Button, Card, Chip } from '@heroui/react';
+import linkIcon from '@iconify-icons/solar/link-round-broken';
+import { Icon } from '@iconify/react';
+import { Alert, Button, Card, Chip, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
+import { formatAvailableChapters, getSinVerAvailabilityIndicator } from './daily-board.helpers';
 import { useDailyBoard } from './use-daily-board';
 
 /**
@@ -72,20 +75,53 @@ export function DailyBoard() {
                 <p className="text-sm text-muted">Nothing left to schedule.</p>
               ) : (
                 <ul className="flex flex-col gap-2">
-                  {sections.sinVer.map((row) => (
-                    <li key={row.id}>
-                      {readOnly ? (
-                        <span className="text-sm text-foreground">{row.rawName}</span>
-                      ) : (
-                        <LabeledCheckbox
-                          isSelected={selected.has(row.animeId)}
-                          onChange={() => toggleSelect(row.animeId)}
-                        >
-                          {row.rawName}
-                        </LabeledCheckbox>
-                      )}
-                    </li>
-                  ))}
+                  {sections.sinVer.map((row) => {
+                    const indicator = getSinVerAvailabilityIndicator(row);
+                    return (
+                      <li key={row.id} className="flex flex-wrap items-center gap-3">
+                        {readOnly ? (
+                          <span className="text-sm text-foreground">{row.rawName}</span>
+                        ) : (
+                          <LabeledCheckbox
+                            isSelected={selected.has(row.animeId)}
+                            onChange={() => toggleSelect(row.animeId)}
+                          >
+                            {row.rawName}
+                          </LabeledCheckbox>
+                        )}
+                        <span className="text-xs text-muted">{formatAvailableChapters(row.availableChapters)}</span>
+                        <div className="ml-auto flex items-center gap-2">
+                          {row.matchedSlug !== '' && (
+                            <Tooltip>
+                              <a
+                                aria-label={`Open the page for ${row.rawName}`}
+                                className="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-accent"
+                                href={row.matchedSlug}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                <Icon className="size-4" icon={linkIcon} />
+                              </a>
+                              <Tooltip.Content showArrow>
+                                <Tooltip.Arrow />
+                                Open page
+                              </Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          <Tooltip>
+                            <span
+                              aria-label={indicator.label}
+                              className={`size-2.5 shrink-0 rounded-full ${indicator.color === 'success' ? 'bg-success' : 'bg-danger'}`}
+                            />
+                            <Tooltip.Content showArrow>
+                              <Tooltip.Arrow />
+                              {indicator.label}
+                            </Tooltip.Content>
+                          </Tooltip>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {!readOnly && (
