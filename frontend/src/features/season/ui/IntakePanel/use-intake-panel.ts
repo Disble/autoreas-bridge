@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { preferencesSource, type PreferencesSource } from '../../../../infrastructure/preferences-source';
 import type { SeasonSource } from '../../../../infrastructure/season-source';
 import { seasonSource } from '../../../../infrastructure/season-source';
 import { useSeasonStore } from '../../../../shared/store/season-store';
@@ -7,6 +8,7 @@ import {
   buildRawText,
   countMatchedWaitingForAvailability,
   countUnresolved,
+  deriveIntakeDownloadFolder,
   isCreatableRow,
   splitIntakeRows,
 } from './intake-panel.helpers';
@@ -18,12 +20,16 @@ import type { IntakeMode } from './intake-panel.types';
  * List mode renders the editable rows plus a read-only "already created"
  * section. All Wails I/O flows through the season store.
  */
-export function useIntakePanel(source: SeasonSource = seasonSource) {
+export function useIntakePanel(
+  source: SeasonSource = seasonSource,
+  downloadsRootSource: Pick<PreferencesSource, 'getDownloadsRoot'> = preferencesSource,
+) {
   // 2. State
   const [mode, setMode] = useState<IntakeMode>('list');
   const [rawDraft, setRawDraft] = useState('');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [folderOverrides, setFolderOverrides] = useState<Readonly<Record<string, string>>>({});
+  const [downloadsRoot, setDownloadsRoot] = useState('');
 
   // 3. Context/3rd Party Hooks
   const seasonAnimes = useSeasonStore((state) => state.seasonAnimes);
@@ -43,6 +49,21 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
   const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
   const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
   const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
+  const folderPreviews = useMemo(() => {
+    const previews: Record<string, string> = {};
+    for (const row of editable) {
+      const override = folderOverrides[row.id];
+      if (override !== undefined && override !== '') {
+        previews[row.id] = override;
+        continue;
+      }
+      const defaultFolder = deriveIntakeDownloadFolder(downloadsRoot, row.rawName);
+      if (defaultFolder !== '') {
+        previews[row.id] = defaultFolder;
+      }
+    }
+    return previews;
+  }, [downloadsRoot, editable, folderOverrides]);
 
   // 6. Callbacks
   const switchMode = useCallback(
@@ -123,6 +144,12 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     void refreshAnimes(source);
   }, [refreshAnimes, source]);
 
+  useEffect(() => {
+    void downloadsRootSource.getDownloadsRoot().then((root) => {
+      setDownloadsRoot(root);
+    });
+  }, [downloadsRootSource]);
+
   // Debounced reconcile while editing the raw draft.
   useEffect(() => {
     if (mode !== 'raw') {
@@ -144,6 +171,7 @@ export function useIntakePanel(source: SeasonSource = seasonSource) {
     selected,
     toggleSelect,
     folderOverrides,
+    folderPreviews,
     onPickFolder,
     availableCount,
     availabilityPendingCount,

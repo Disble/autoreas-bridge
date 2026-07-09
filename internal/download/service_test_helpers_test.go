@@ -383,7 +383,10 @@ func ptrInt(i int) *int       { return &i }
 func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
 	deps.Counter = counter
 	flattenCalls := map[string]int{}
+	var flattenMu sync.Mutex
 	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
+		flattenMu.Lock()
+		defer flattenMu.Unlock()
 		flattenCalls[folder]++
 		if flattenCalls[folder] > 1 {
 			counter.Flatten(folder)

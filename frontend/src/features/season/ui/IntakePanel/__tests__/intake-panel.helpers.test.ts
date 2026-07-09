@@ -5,6 +5,7 @@ import {
   buildRawText,
   countMatchedWaitingForAvailability,
   countUnresolved,
+  deriveIntakeDownloadFolder,
   formatCandidateOption,
   getMatchStatusColor,
   getMatchStatusLabel,
@@ -102,5 +103,17 @@ describe('countMatchedWaitingForAvailability', () => {
       row({ matchStatus: 'matched', availability: 'created', animeId: 'anime-a' }),
     ];
     expect(countMatchedWaitingForAvailability(rows)).toBe(1);
+  });
+});
+
+describe('deriveIntakeDownloadFolder', () => {
+  it('previews the backend default folder using the configured downloads root and sanitized anime name', () => {
+    expect(deriveIntakeDownloadFolder('D:/Anime', 'Re:Zero')).toBe('D:/Anime/Re Zero');
+    expect(deriveIntakeDownloadFolder('D:\\Anime', 'Fate/stay night')).toBe('D:\\Anime\\Fate stay night');
+  });
+
+  it('returns an empty preview when the root or sanitized name is empty', () => {
+    expect(deriveIntakeDownloadFolder('', 'Naruto')).toBe('');
+    expect(deriveIntakeDownloadFolder('D:/Anime', `:/\\|`)).toBe('');
   });
 });

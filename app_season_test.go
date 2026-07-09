@@ -358,10 +358,11 @@ func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	t.Parallel()
 	chapter := &stubAppChapterService{}
-	future := time.Now().Add(2 * time.Hour).Format("15:04")
+	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
+	future := fixedNow.Add(2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}}
 	sched := &fakeAppScheduler{}
-	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store, downloadScheduler: sched}
+	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store, downloadScheduler: sched, nowTime: func() time.Time { return fixedNow }}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
 	if got.Status != "ok" || got.PastDownloadTime {
@@ -378,9 +379,10 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 	t.Parallel()
 	chapter := &stubAppChapterService{}
-	past := time.Now().Add(-2 * time.Hour).Format("15:04")
+	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
+	past := fixedNow.Add(-2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past}}
-	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store}
+	app := &App{ctx: context.Background(), chapterService: chapter, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
 	if got.Status != "ok" || !got.PastDownloadTime {

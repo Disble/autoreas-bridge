@@ -33,6 +33,7 @@ export function IntakePanel() {
     selected,
     toggleSelect,
     folderOverrides,
+    folderPreviews,
     onPickFolder,
     availableCount,
     availabilityPendingCount,
@@ -131,19 +132,21 @@ export function IntakePanel() {
                         )}
                         {creatable && !readOnly && (
                           <Tooltip>
-                            <Button
-                              isIconOnly
-                              aria-label={`Set download folder for ${row.rawName}`}
-                              className={folderOverrides[row.id] === undefined ? 'hover:text-success' : 'text-success'}
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => onPickFolder(row.id)}
-                            >
-                              <Icon className="size-4" icon={folderIcon} />
-                            </Button>
+                            <span title={folderPreviews[row.id] ?? 'Default download folder'}>
+                              <Button
+                                isIconOnly
+                                aria-label={`Set download folder for ${row.rawName}`}
+                                className={folderOverrides[row.id] === undefined ? 'hover:text-success' : 'text-success'}
+                                size="sm"
+                                variant="tertiary"
+                                onPress={() => onPickFolder(row.id)}
+                              >
+                                <Icon className="size-4" icon={folderIcon} />
+                              </Button>
+                            </span>
                             <Tooltip.Content showArrow>
                               <Tooltip.Arrow />
-                              {folderOverrides[row.id] ?? 'Default download folder'}
+                              {folderPreviews[row.id] ?? 'Default download folder'}
                             </Tooltip.Content>
                           </Tooltip>
                         )}

@@ -372,9 +372,16 @@ func (a *App) seasonDownloadWindowPassed() (string, bool) {
 	if err != nil {
 		return cfg.DailyTimeHHMM, true
 	}
-	now := time.Now()
+	now := a.currentTime()
 	window := time.Date(now.Year(), now.Month(), now.Day(), scheduled.Hour(), scheduled.Minute(), 0, 0, now.Location())
 	return cfg.DailyTimeHHMM, now.After(window)
+}
+
+func (a *App) currentTime() time.Time {
+	if a != nil && a.nowTime != nil {
+		return a.nowTime()
+	}
+	return time.Now()
 }
 
 func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhmm string) {

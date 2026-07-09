@@ -53,6 +53,30 @@ export function countMatchedWaitingForAvailability(rows: readonly SeasonAnimeRow
 }
 
 /**
+ * Mirrors the backend's default season download-folder derivation so the UI can
+ * preview the exact folder that creation will request: downloads root plus a
+ * Windows-safe anime-name segment.
+ */
+export function deriveIntakeDownloadFolder(root: string, name: string): string {
+  if (root === '') {
+    return '';
+  }
+  const segment = name
+    // eslint-disable-next-line no-control-regex -- mirrors the backend sanitizeFolderName control-char strip (internal/season/folder.go), not an accidental range.
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ')
+    .replace(/[. ]+$/g, '');
+  if (segment === '') {
+    return '';
+  }
+  const separator = root.includes('\\') ? '\\' : '/';
+  return `${root.replace(/[\\/]+$/g, '')}${separator}${segment}`;
+}
+
+/**
  * An intake row is EDITABLE (part of the raw text) only while it is still just a
  * name: not yet created and not discarded. Created rows have a real anime record
  * and graduate out of the freely-editable raw document.

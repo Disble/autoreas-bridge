@@ -5,6 +5,12 @@ import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure
 import { resetSeasonStore } from '../../../../../shared/store/season-store';
 import { useIntakePanel } from '../use-intake-panel';
 
+function createDownloadsRootSource(root = 'D:/Anime') {
+  return {
+    getDownloadsRoot: vi.fn().mockResolvedValue(root),
+  };
+}
+
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue(null),
@@ -93,6 +99,18 @@ describe('useIntakePanel', () => {
       result.current.onCreate();
     });
     expect(source.createSeasonAnimes).toHaveBeenCalledWith(['sa-1', 'sa-2'], { 'sa-2': 'E:/Custom/Naruto S2' });
+  });
+
+  it('exposes the default download folder preview for creatable rows', async () => {
+    const rows: SeasonAnimeRow[] = [
+      { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableChapters: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+    ];
+    const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
+    const downloadsRootSource = createDownloadsRootSource('D:/Anime');
+    const { result } = renderHook(() => useIntakePanel(source, downloadsRootSource));
+
+    await waitFor(() => expect(downloadsRootSource.getDownloadsRoot).toHaveBeenCalled());
+    expect(result.current.folderPreviews['sa-1']).toBe('D:/Anime/Re Zero');
   });
 
   it('ignores a cancelled folder picker (no override recorded)', async () => {

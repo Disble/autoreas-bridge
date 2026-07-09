@@ -40,6 +40,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     selected: new Set<string>(),
     toggleSelect: vi.fn(),
     folderOverrides: {},
+    folderPreviews: {},
     onPickFolder: vi.fn(),
     availableCount: 0,
     availabilityPendingCount: 0,
@@ -128,6 +129,15 @@ describe('IntakePanel', () => {
     render(<IntakePanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Check availability' }));
     expect(onRecheckAvailability).toHaveBeenCalled();
+  });
+
+  it('shows the default folder path preview on the folder trigger', () => {
+    mockHook({
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+      folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
+    });
+    render(<IntakePanel />);
+    expect(screen.getByTitle('D:/Anime/Dr. Stone')).toBeInTheDocument();
   });
 
   it('discards an editable row', () => {

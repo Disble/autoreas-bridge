@@ -94,6 +94,7 @@ type App struct {
 	openFolder              func(path string) error
 	pickFolder              func(ctx context.Context, title string) (string, error)
 	copyText                func(ctx context.Context, value string) error
+	nowTime                 func() time.Time
 }
 
 const observabilityEventName = "observability.log"
