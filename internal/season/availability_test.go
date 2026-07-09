@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"autoreas-bridge/internal/season/domain"
@@ -157,6 +158,239 @@ func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 	}
 	if len(res.Available) != 0 {
 		t.Fatalf("an already-available row must not be re-reported, got %v", res.Available)
+	}
+}
+
+func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, chapters int) {
+	t.Helper()
+	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
+	sa.MatchStatus = domain.MatchMatched
+	sa.MatchedSlug = slug
+	sa.Availability = domain.AvailabilityCreated
+	sa.AnimeID = animeID
+	sa.AvailableChapters = chapters
+	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+}
+
+func findRow(t *testing.T, svc *Service, seasonID, id string) domain.SeasonAnime {
+	t.Helper()
+	rows, err := svc.ListSeasonAnimes(context.Background(), seasonID)
+	if err != nil {
+		t.Fatalf("ListSeasonAnimes: %v", err)
+	}
+	for _, r := range rows {
+		if r.ID == id {
+			return r
+		}
+	}
+	t.Fatalf("row %q not found", id)
+	return domain.SeasonAnime{}
+}
+
+// A created row still parked in "Sin ver" MUST have its AvailableChapters
+// refreshed live; Availability, MatchStatus, AnimeID stay untouched and the
+// row is never reported in res.Available (ADR-3, ADR-4).
+func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/created/": 5}}
+	gateway := &fakeGateway{placements: map[string][]domain.Placement{
+		"anime-created": {{Dia: sinVerSection, Orden: 1}},
+	}}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+
+	res, err := svc.RecheckAvailability(ctx, season.ID)
+	if err != nil {
+		t.Fatalf("RecheckAvailability: %v", err)
+	}
+
+	row := findRow(t, svc, season.ID, "sa-created")
+	if row.AvailableChapters != 5 {
+		t.Fatalf("AvailableChapters = %d, want 5", row.AvailableChapters)
+	}
+	if row.Availability != domain.AvailabilityCreated {
+		t.Fatalf("Availability = %v, want AvailabilityCreated (must never flip)", row.Availability)
+	}
+	if row.MatchStatus != domain.MatchMatched || row.AnimeID != "anime-created" {
+		t.Fatalf("MatchStatus/AnimeID must stay untouched, got %+v", row)
+	}
+	if res.Checked != 1 {
+		t.Fatalf("res.Checked = %d, want 1", res.Checked)
+	}
+	for _, name := range res.Available {
+		if name == "Anime Created" {
+			t.Fatal("a Sin-ver created row's refresh must NEVER appear in res.Available")
+		}
+	}
+}
+
+// A created row parked in "Ver hoy" must never be probed.
+func TestRecheckAvailabilitySkipsVerHoyCreatedRow(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/verhoy/": 9}}
+	gateway := &fakeGateway{placements: map[string][]domain.Placement{
+		"anime-verhoy": {{Dia: verHoySection, Orden: 1}},
+	}}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-verhoy", "Anime VerHoy", "https://jkanime.net/verhoy/", "anime-verhoy", 3)
+
+	res, err := svc.RecheckAvailability(ctx, season.ID)
+	if err != nil {
+		t.Fatalf("RecheckAvailability: %v", err)
+	}
+
+	row := findRow(t, svc, season.ID, "sa-verhoy")
+	if row.AvailableChapters != 3 {
+		t.Fatalf("AvailableChapters must stay frozen at 3, got %d", row.AvailableChapters)
+	}
+	if res.Checked != 0 {
+		t.Fatalf("res.Checked = %d, want 0 (Ver hoy row must not be probed)", res.Checked)
+	}
+}
+
+// A created row parked in "Visto" must never be probed.
+func TestRecheckAvailabilitySkipsVistoCreatedRow(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/visto/": 9}}
+	gateway := &fakeGateway{placements: map[string][]domain.Placement{
+		"anime-visto": {{Dia: vistoSection, Orden: 1}},
+	}}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-visto", "Anime Visto", "https://jkanime.net/visto/", "anime-visto", 4)
+
+	res, err := svc.RecheckAvailability(ctx, season.ID)
+	if err != nil {
+		t.Fatalf("RecheckAvailability: %v", err)
+	}
+
+	row := findRow(t, svc, season.ID, "sa-visto")
+	if row.AvailableChapters != 4 {
+		t.Fatalf("AvailableChapters must stay frozen at 4, got %d", row.AvailableChapters)
+	}
+	if res.Checked != 0 {
+		t.Fatalf("res.Checked = %d, want 0 (Visto row must not be probed)", res.Checked)
+	}
+}
+
+// A created row whose anime id has no entry in CurrentPlacements' result
+// (empty/absent placements) must be skipped exactly like an unresolvable row
+// is today.
+func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/unresolved/": 9}}
+	gateway := &fakeGateway{placements: map[string][]domain.Placement{}}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-unresolved", "Anime Unresolved", "https://jkanime.net/unresolved/", "anime-unresolved", 1)
+
+	res, err := svc.RecheckAvailability(ctx, season.ID)
+	if err != nil {
+		t.Fatalf("RecheckAvailability: %v", err)
+	}
+
+	row := findRow(t, svc, season.ID, "sa-unresolved")
+	if row.AvailableChapters != 1 {
+		t.Fatalf("AvailableChapters must stay frozen at 1, got %d", row.AvailableChapters)
+	}
+	if res.Checked != 0 {
+		t.Fatalf("res.Checked = %d, want 0 (unresolvable row must not be probed)", res.Checked)
+	}
+}
+
+// gatewayPlacementsErr is a fakeGateway whose CurrentPlacements always errors,
+// to assert the whole run tolerates a batched-lookup failure.
+type gatewayPlacementsErr struct {
+	fakeGateway
+}
+
+func (g *gatewayPlacementsErr) CurrentPlacements(_ context.Context, _ []string) (map[string][]domain.Placement, error) {
+	return nil, errors.New("placements lookup failed")
+}
+
+// If gateway.CurrentPlacements errors, every created row is left untouched
+// this run, but the existing matched-uncreated path still runs and the call
+// as a whole does not fail.
+func TestRecheckAvailabilityToleratesPlacementsError(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{
+		"https://jkanime.net/created/": 9,
+		"https://jkanime.net/a/":       3,
+	}}
+	gateway := &gatewayPlacementsErr{}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+	seedMatched(t, svc, repo, season.ID, "sa-a", "Anime A", "https://jkanime.net/a/")
+
+	res, err := svc.RecheckAvailability(ctx, season.ID)
+	if err != nil {
+		t.Fatalf("RecheckAvailability must not fail on a placements lookup error: %v", err)
+	}
+
+	created := findRow(t, svc, season.ID, "sa-created")
+	if created.AvailableChapters != 2 {
+		t.Fatalf("created row must stay untouched on placements error, got %d", created.AvailableChapters)
+	}
+
+	matched := findRow(t, svc, season.ID, "sa-a")
+	if matched.Availability != domain.AvailabilityAvailable || matched.AvailableChapters != 3 {
+		t.Fatalf("matched-uncreated row must still be probed despite placements error, got %+v", matched)
+	}
+	if res.Checked != 1 {
+		t.Fatalf("res.Checked = %d, want 1 (only the matched-uncreated row)", res.Checked)
+	}
+}
+
+// Two consecutive RecheckAvailability calls with a stable probe leave a
+// Sin-ver created row identical (idempotency).
+func TestRecheckAvailabilitySinVerCreatedRowIsIdempotent(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo)
+	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/created/": 5}}
+	gateway := &fakeGateway{placements: map[string][]domain.Placement{
+		"anime-created": {{Dia: sinVerSection, Orden: 1}},
+	}}
+	svc.SetAvailabilityDeps(probe, gateway)
+
+	ctx := context.Background()
+	season, _ := svc.CreateSeason(ctx, "Julio 2026")
+	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+
+	if _, err := svc.RecheckAvailability(ctx, season.ID); err != nil {
+		t.Fatalf("first recheck: %v", err)
+	}
+	first := findRow(t, svc, season.ID, "sa-created")
+
+	if _, err := svc.RecheckAvailability(ctx, season.ID); err != nil {
+		t.Fatalf("second recheck: %v", err)
+	}
+	second := findRow(t, svc, season.ID, "sa-created")
+
+	if !reflect.DeepEqual(first, second) {
+		t.Fatalf("Sin-ver created row must be identical across runs, first=%+v second=%+v", first, second)
+	}
+	if second.AvailableChapters != 5 {
+		t.Fatalf("AvailableChapters = %d, want 5", second.AvailableChapters)
 	}
 }
 

@@ -300,10 +300,16 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 
 // RecheckAvailability probes chapter availability for every matched, uncreated
 // row and records it (Availability + AvailableChapters) — it NEVER creates an
-// anime. Creating is a separate, explicit, consent-gated action (creation and
+// anime. It ALSO refreshes AvailableChapters for already-created rows still
+// parked in the "Sin ver" Estrenos section (resolved via the batched
+// AnimeGateway.CurrentPlacements), leaving Availability/MatchStatus/AnimeID
+// untouched so a created row never re-enters the creation-eligible state.
+// Creating is a separate, explicit, consent-gated action (creation and
 // soft-delete are the only irreversible steps of the workflow). A probe error
-// leaves a row unchanged; the run never fails as a whole. Reports the names that
-// NEWLY became available (a row already available is not re-reported).
+// leaves a row unchanged; the run never fails as a whole. res.Checked counts
+// every row probed either path. Reports the names that NEWLY became available
+// for creation (a row already available, or an already-created row, is never
+// reported).
 func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (RecheckResult, error) {
 	if s.probe == nil {
 		return RecheckResult{}, ErrAvailabilityDepsUnavailable
@@ -313,32 +319,60 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 		return RecheckResult{}, err
 	}
 
+	var createdAnimeIDs []string
+	for _, row := range rows {
+		if row.Availability == domain.AvailabilityCreated && row.MatchStatus == domain.MatchMatched && row.AnimeID != "" {
+			createdAnimeIDs = append(createdAnimeIDs, row.AnimeID)
+		}
+	}
+	var placements map[string][]domain.Placement
+	if len(createdAnimeIDs) > 0 {
+		// On error, treat every created row as ineligible this run rather than
+		// failing the whole call — mirrors the per-row probe-error tolerance below.
+		placements, _ = s.gateway.CurrentPlacements(ctx, createdAnimeIDs)
+	}
+
 	var res RecheckResult
 	for _, row := range rows {
-		if row.MatchStatus != domain.MatchMatched || row.Availability == domain.AvailabilityCreated {
-			continue
-		}
-		res.Checked++
+		switch {
+		case row.MatchStatus == domain.MatchMatched && row.Availability != domain.AvailabilityCreated:
+			res.Checked++
 
-		chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
-		if probeErr != nil {
-			// Leave the row unchanged; a scrape error must not fail the whole run.
-			continue
-		}
-
-		wasAvailable := row.Availability == domain.AvailabilityAvailable
-		if chapters >= 1 {
-			row.Availability = domain.AvailabilityAvailable
-			row.AvailableChapters = chapters
-			if !wasAvailable {
-				res.Available = append(res.Available, row.RawName)
+			chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
+			if probeErr != nil {
+				// Leave the row unchanged; a scrape error must not fail the whole run.
+				continue
 			}
-		} else {
-			row.Availability = domain.AvailabilityWaiting
-			row.AvailableChapters = 0
-		}
-		if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-			return res, err
+
+			wasAvailable := row.Availability == domain.AvailabilityAvailable
+			if chapters >= 1 {
+				row.Availability = domain.AvailabilityAvailable
+				row.AvailableChapters = chapters
+				if !wasAvailable {
+					res.Available = append(res.Available, row.RawName)
+				}
+			} else {
+				row.Availability = domain.AvailabilityWaiting
+				row.AvailableChapters = 0
+			}
+			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+				return res, err
+			}
+
+		case row.Availability == domain.AvailabilityCreated && row.MatchStatus == domain.MatchMatched && row.AnimeID != "":
+			placed := placements[row.AnimeID]
+			if len(placed) == 0 || placed[0].Dia != sinVerSection {
+				continue
+			}
+			res.Checked++
+			chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
+			if probeErr != nil {
+				continue
+			}
+			row.AvailableChapters = chapters
+			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
+				return res, err
+			}
 		}
 	}
 	return res, nil
