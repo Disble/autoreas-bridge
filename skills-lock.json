@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "fallow": {
+      "source": "fallow-rs/fallow-skills",
+      "sourceType": "github",
+      "skillPath": "fallow/skills/fallow/SKILL.md",
+      "computedHash": "982e817f0795963d13b7d084a3eca31c4da6717c3069cba24201efba1dfc816d"
+    },
     "heroui-react": {
       "source": "heroui-inc/heroui",
       "sourceType": "github",
