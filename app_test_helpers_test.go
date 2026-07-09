@@ -407,6 +407,9 @@ type fakeAppDownloadStore struct {
 	scheduleConfig download.ScheduleConfig
 	hosterPriority []download.HosterPriorityEntry
 	runs           []download.DownloadRun
+	openedRuns     []download.DownloadRun
+	finalizedRuns  []download.DownloadRun
+	finalized      chan download.DownloadRun
 
 	setHosterPriorityEntries []download.HosterPriorityEntry
 	setJDConfigCfg           download.JDConfig
@@ -456,13 +459,22 @@ func (f *fakeAppDownloadStore) MarkScheduleRun(context.Context, int64, string, i
 	return nil
 }
 
-func (f *fakeAppDownloadStore) OpenRun(context.Context, download.DownloadRun) error { return nil }
+func (f *fakeAppDownloadStore) OpenRun(_ context.Context, run download.DownloadRun) error {
+	f.openedRuns = append(f.openedRuns, run)
+	return nil
+}
 
 func (f *fakeAppDownloadStore) UpdateRunProgress(context.Context, download.DownloadRun) error {
 	return nil
 }
 
-func (f *fakeAppDownloadStore) FinalizeRun(context.Context, download.DownloadRun) error { return nil }
+func (f *fakeAppDownloadStore) FinalizeRun(_ context.Context, run download.DownloadRun) error {
+	f.finalizedRuns = append(f.finalizedRuns, run)
+	if f.finalized != nil {
+		f.finalized <- run
+	}
+	return nil
+}
 
 func (f *fakeAppDownloadStore) ListRuns(context.Context, int) ([]download.DownloadRun, error) {
 	return f.runs, nil

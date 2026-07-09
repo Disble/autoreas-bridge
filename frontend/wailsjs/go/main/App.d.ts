@@ -126,6 +126,8 @@ export function SkipSeasonGrading(arg1:string):Promise<string>;
 
 export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
+export function TriggerAnimeDownload(arg1:string):Promise<string>;
+
 export function TriggerDownloadCheck():Promise<string>;
 
 export function TriggerReconcile():Promise<string>;

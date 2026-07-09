@@ -7,6 +7,8 @@ package filesystem
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"autoreas-bridge/internal/download/config"
@@ -20,6 +22,13 @@ type EpisodeCounter interface {
 	// CountRecursive tallies video files in folder + all subfolders -- used during completion
 	// polling, before Flatten has had a chance to move JD's package subfolders to root.
 	CountRecursive(folder string) int
+	// HighestEpisodeAtRoot returns the highest episode number detected from video files directly
+	// in folder. It is the preferred baseline for catch-up decisions because online latest is an
+	// episode NUMBER, not a file count.
+	HighestEpisodeAtRoot(folder string) int
+	// HighestEpisodeRecursive returns the highest episode number detected from videos anywhere
+	// under folder. It is used while waiting for JD package subfolders to finish landing.
+	HighestEpisodeRecursive(folder string) int
 }
 
 type episodeCounter struct{}
@@ -69,12 +78,55 @@ func (episodeCounter) CountRecursive(folder string) int {
 	return count
 }
 
+func (episodeCounter) HighestEpisodeAtRoot(folder string) int {
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		return 0
+	}
+
+	highest := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !isVideoFile(entry.Name()) {
+			continue
+		}
+		highest = max(highest, episodeNumberFromName(entry.Name()))
+	}
+	return highest
+}
+
+func (episodeCounter) HighestEpisodeRecursive(folder string) int {
+	highest := 0
+	_ = filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !isVideoFile(info.Name()) {
+			return nil
+		}
+		highest = max(highest, episodeNumberFromName(info.Name()))
+		return nil
+	})
+	return highest
+}
+
 // isVideoFile checks a file name's extension against the shared PR1 allowlist
 // (config.VideoFileExtensions) so EpisodeCounter and Flatten agree with the rest of the
 // download context on what counts as a downloaded episode.
 func isVideoFile(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return config.VideoFileExtensions[ext]
+}
+
+var trailingEpisodeNumberPattern = regexp.MustCompile(`(?:^|[^0-9])([0-9]{1,4})(?:[^0-9]*)$`)
+
+func episodeNumberFromName(name string) int {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	matches := trailingEpisodeNumberPattern.FindStringSubmatch(base)
+	if len(matches) != 2 {
+		return 0
+	}
+	n, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 var _ EpisodeCounter = episodeCounter{}

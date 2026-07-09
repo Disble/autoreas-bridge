@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"autoreas-bridge/internal/activity"
@@ -83,6 +84,7 @@ type App struct {
 	downloadStore           download.DownloadStore
 	downloadService         *download.Service
 	downloadScheduler       schedule.Scheduler
+	soloDownloadMu          sync.Mutex
 	newSeasonStore          func(db *sql.DB) season.Repository
 	seasonService           *season.Service
 	settingsStore           appSettingsStore

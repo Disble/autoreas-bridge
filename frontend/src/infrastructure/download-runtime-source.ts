@@ -6,6 +6,7 @@ import {
   SetHosterPriority,
   SetJDConfig,
   SetScheduleConfig,
+  TriggerAnimeDownload,
   TriggerDownloadCheck,
 } from '../../wailsjs/go/main/App';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
@@ -67,6 +68,7 @@ export interface DownloadRuntimeSource {
   readonly setScheduleConfig: (config: ScheduleConfig) => Promise<string>;
   readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<string>;
   readonly triggerDownloadCheck: () => Promise<string>;
+  readonly triggerAnimeDownload: (animeID: string) => Promise<string>;
   readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
   readonly subscribeRunEvents: (listener: () => void) => () => void;
 }
@@ -188,6 +190,11 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     triggerDownloadCheck() {
       return waitForBindings(() => hasGoBinding('TriggerDownloadCheck')).then((isReady) => {
         return isReady ? TriggerDownloadCheck() : Promise.resolve('runtime unavailable');
+      });
+    },
+    triggerAnimeDownload(animeID) {
+      return waitForBindings(() => hasGoBinding('TriggerAnimeDownload')).then((isReady) => {
+        return isReady ? TriggerAnimeDownload(animeID) : Promise.resolve('runtime unavailable');
       });
     },
     listDownloadRuns() {

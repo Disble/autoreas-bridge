@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/filesystem"
@@ -63,6 +64,272 @@ func TestRunOnceCatchesUpSequentialMissingEpisodesForOneAnime(t *testing.T) {
 	}
 	if got := counter.CountAtRoot(folder); got != 12 {
 		t.Fatalf("expected final CountAtRoot=12, got %d", got)
+	}
+}
+
+func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	folder := t.TempDir()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/solo/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/solo/3/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/solo/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+			"https://jkanime.net/solo/2/": {{URL: "http://mediafire.example/2", Hoster: "Mediafire"}},
+			"https://jkanime.net/solo/3/": {{URL: "http://mediafire.example/3", Hoster: "Mediafire"}},
+		},
+	}
+	registry := NewStaticRegistry()
+	registry.Register(source)
+	deps.Sites = registry
+	counter := newCatchupCounter(map[string]int{folder: 0})
+	deps.Counter = counter
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
+	deps.JD = &recordingCatchupJD{counter: counter}
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Solo Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/solo/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
+	if !ok {
+		t.Fatalf("expected run %q persisted", result.RunID)
+	}
+	if run.AnimesChecked != 1 || run.EpisodesFound != 3 || run.EpisodesDownloaded != 3 {
+		t.Fatalf("expected final solo counters to be complete, got %#v", run)
+	}
+
+	snapshots := deps.Store.(*svcFakeDownloadStore).progressSnapshots()
+	if len(snapshots) < 4 {
+		t.Fatalf("expected live progress snapshots during solo run, got %d", len(snapshots))
+	}
+	if snapshots[1].AnimesChecked != 1 {
+		t.Fatalf("expected selected anime to be counted before episode completion, got %#v", snapshots[1])
+	}
+	foundBeforeDone := false
+	downloadedOne := false
+	downloadedTwo := false
+	for _, snapshot := range snapshots {
+		if snapshot.EpisodesFound > 0 && snapshot.EpisodesDownloaded < 3 {
+			foundBeforeDone = true
+		}
+		if snapshot.EpisodesDownloaded == 1 {
+			downloadedOne = true
+		}
+		if snapshot.EpisodesDownloaded == 2 {
+			downloadedTwo = true
+		}
+	}
+	if !foundBeforeDone {
+		t.Fatalf("expected EpisodesFound to advance before all downloads finish, got %#v", snapshots)
+	}
+	if !downloadedOne || !downloadedTwo {
+		t.Fatalf("expected EpisodesDownloaded to advance per chapter before final completion, got %#v", snapshots)
+	}
+}
+
+func TestRunAnimeFlattensExistingSubfolderDownloadsBeforeChoosingNextEpisode(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	folder := t.TempDir()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/solo/": {LatestEpisode: 7, EpisodePageURL: "https://jkanime.net/solo/7/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/solo/7/": {{URL: "http://mediafire.example/7", Hoster: "Mediafire"}},
+		},
+	}
+	registry := NewStaticRegistry()
+	registry.Register(source)
+	deps.Sites = registry
+	counter := newCatchupCounter(map[string]int{folder: 5})
+	counter.setRecursive(folder, 6)
+	deps.Counter = counter
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
+	jd := &recordingCatchupJD{counter: counter}
+	deps.JD = jd
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Solo Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/solo/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result, got %#v", result)
+	}
+	if got, want := jd.episodes(), []int{7}; !equalInts(got, want) {
+		t.Fatalf("expected only the truly missing episode to be enqueued, got %v", got)
+	}
+}
+
+func TestRunAnimeRetriesFlattenUntilDownloadedEpisodeReachesRoot(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	deps.Clock = func() time.Time { return now }
+	deps.PollSleep = func(d time.Duration) { now = now.Add(d) }
+	folder := t.TempDir()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/solo/": {LatestEpisode: 10, EpisodePageURL: "https://jkanime.net/solo/10/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/solo/10/": {{URL: "http://mediafire.example/10", Hoster: "Mediafire"}},
+		},
+	}
+	registry := NewStaticRegistry()
+	registry.Register(source)
+	deps.Sites = registry
+	counter := newCatchupCounter(map[string]int{folder: 9})
+	deps.Counter = counter
+	deps.JD = &recordingCatchupJD{counter: counter}
+	flattenAttempts := 0
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
+		flattenAttempts++
+		if flattenAttempts > 1 {
+			counter.Flatten(folder)
+		}
+	}}
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Solo Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/solo/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result, got %#v", result)
+	}
+	if got := counter.CountAtRoot(folder); got != 10 {
+		t.Fatalf("expected final chapter to be flattened into root count, got %d", got)
+	}
+}
+
+func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	deps.Clock = func() time.Time { return now }
+	deps.PollSleep = func(d time.Duration) { now = now.Add(d) }
+	folder := t.TempDir()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/solo/": {LatestEpisode: 11, EpisodePageURL: "https://jkanime.net/solo/11/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/solo/11/": {{URL: "http://mediafire.example/11", Hoster: "Mediafire"}},
+		},
+	}
+	registry := NewStaticRegistry()
+	registry.Register(source)
+	deps.Sites = registry
+	counter := newCatchupCounter(map[string]int{folder: 10})
+	deps.Counter = counter
+	deps.JD = &recordingCatchupJD{counter: counter}
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Solo Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/solo/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result, got %#v", result)
+	}
+	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
+	if !ok {
+		t.Fatalf("expected run %q persisted", result.RunID)
+	}
+	if run.EpisodesFound != 1 || run.EpisodesDownloaded != 1 || run.EpisodesFailed != 0 {
+		t.Fatalf("expected one found and one downloaded episode, got %#v", run)
+	}
+}
+
+func TestRunAnimeCompletesFromFilesystemWhenJDPackageStateIsNotReliable(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	deps.Clock = func() time.Time { return now }
+	deps.PollSleep = func(d time.Duration) { now = now.Add(d) }
+	folder := t.TempDir()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/solo/": {LatestEpisode: 11, EpisodePageURL: "https://jkanime.net/solo/11/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/solo/11/": {{URL: "http://mediafire.example/11", Hoster: "Mediafire"}},
+		},
+	}
+	registry := NewStaticRegistry()
+	registry.Register(source)
+	deps.Sites = registry
+	counter := newCatchupCounter(map[string]int{folder: 10})
+	deps.Counter = counter
+	deps.JD = &neverFinishedCatchupJD{recordingCatchupJD: recordingCatchupJD{counter: counter}}
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
+
+	anime := contracts.MobileAnime{
+		ID:      "anime-1",
+		Nombre:  "Solo Anime",
+		Activo:  1,
+		Pagina:  ptrStr("https://jkanime.net/solo/"),
+		Carpeta: ptrStr(folder),
+	}
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Status != "ok" {
+		t.Fatalf("expected ok result even when JD package status is unreliable, got %#v", result)
+	}
+	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
+	if !ok {
+		t.Fatalf("expected run %q persisted", result.RunID)
+	}
+	if run.EpisodesFound != 1 || run.EpisodesDownloaded != 1 || run.EpisodesFailed != 0 {
+		t.Fatalf("expected filesystem-confirmed completion, got %#v", run)
 	}
 }
 
@@ -155,6 +422,20 @@ func (c *catchupCounter) CountRecursive(folder string) int {
 	return c.recursive[folder]
 }
 
+func (c *catchupCounter) HighestEpisodeAtRoot(folder string) int {
+	return c.CountAtRoot(folder)
+}
+
+func (c *catchupCounter) HighestEpisodeRecursive(folder string) int {
+	return c.CountRecursive(folder)
+}
+
+func (c *catchupCounter) setRecursive(folder string, count int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.recursive[folder] = count
+}
+
 func (c *catchupCounter) markRecursiveDownloaded(folder string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -193,6 +474,14 @@ func (j *recordingCatchupJD) episodes() []int {
 	out := make([]int, len(j.seen))
 	copy(out, j.seen)
 	return out
+}
+
+type neverFinishedCatchupJD struct {
+	recordingCatchupJD
+}
+
+func (j *neverFinishedCatchupJD) PackagesFinished(ctx context.Context, deviceName string) (bool, error) {
+	return false, nil
 }
 
 func episodeFromURL(raw string) int {

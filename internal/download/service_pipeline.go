@@ -20,7 +20,23 @@ import (
 // scrape -> hoster-ordered enqueue with fallback -> filesystem completion poll -> flatten), with
 // every error contained to this anime's outcome -- it NEVER panics or returns an error that would
 // abort the fan-out loop (download-orchestration spec "Per-Anime Fan-Out With Failure Isolation").
-func (s *Service) processAnime(ctx context.Context, runID string, anime contracts.MobileAnime, jdOnline bool) animeRunOutcome {
+func (s *Service) processAnime(
+	ctx context.Context,
+	runID string,
+	anime contracts.MobileAnime,
+	jdOnline bool,
+	progress ...func(animeProgressDelta),
+) animeRunOutcome {
+	var onProgress func(animeProgressDelta)
+	if len(progress) > 0 {
+		onProgress = progress[0]
+	}
+	emitProgress := func(delta animeProgressDelta) {
+		if onProgress != nil {
+			onProgress(delta)
+		}
+	}
+
 	decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
 		Tipo:    anime.Tipo,
 		Pagina:  anime.Pagina,
@@ -31,20 +47,30 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			map[string]any{"reason": string(decision.SkipReason)},
 			"anime %s skipped: %s", anime.Nombre, decision.SkipReason)
 		s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: string(decision.SkipReason), CorrelationID: runID})
+		emitProgress(animeProgressDelta{skipped: true})
 		return animeRunOutcome{skipped: true}
 	}
 
-	onDiskCount := 0
-	if s.deps.Counter != nil {
-		onDiskCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
-	}
-	if anime.TotalCap != nil && *anime.TotalCap > 0 && *anime.TotalCap == onDiskCount {
+	s.flattenDownloadFolder(ctx, runID, anime)
+
+	onDiskEpisode := s.downloadedEpisodeBaseline(*anime.Carpeta)
+	if anime.TotalCap != nil && *anime.TotalCap > 0 && *anime.TotalCap == onDiskEpisode {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{
 			"reason":      "season_complete_on_disk",
 			"totalcap":    *anime.TotalCap,
-			"onDiskCount": onDiskCount,
-		}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Nombre, onDiskCount, *anime.TotalCap)
-		return animeRunOutcome{upToDate: true}
+			"onDiskCount": onDiskEpisode,
+		}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Nombre, onDiskEpisode, *anime.TotalCap)
+		emitProgress(animeProgressDelta{checked: true, upToDate: true})
+		return animeRunOutcome{checked: true, upToDate: true}
+	}
+
+	if s.deps.Sites == nil {
+		s.logf(logger.LevelError, runID, anime.ID, "download.failed",
+			map[string]any{"failureKind": FailureKindHosterDown},
+			"anime %s: site registry unavailable", anime.Nombre)
+		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
+		emitProgress(animeProgressDelta{checked: true})
+		return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindHosterDown}
 	}
 
 	source, err := s.deps.Sites.Resolve(*anime.Pagina)
@@ -53,6 +79,7 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			map[string]any{"reason": "site_unsupported"},
 			"anime %s skipped: %v", anime.Nombre, err)
 		s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: "site_unsupported", CorrelationID: runID})
+		emitProgress(animeProgressDelta{skipped: true})
 		return animeRunOutcome{skipped: true}
 	}
 
@@ -62,20 +89,24 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			map[string]any{"failureKind": FailureKindHosterDown},
 			"anime %s: list episodes failed: %v", anime.Nombre, err)
 		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
-		return animeRunOutcome{failed: true, failureKind: FailureKindHosterDown}
+		emitProgress(animeProgressDelta{checked: true})
+		return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindHosterDown}
 	}
 
-	if !NeedsDownload(listing.LatestEpisode, onDiskCount) {
+	if !NeedsDownload(listing.LatestEpisode, onDiskEpisode) {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{
 			"reason":       "no_new_episode",
 			"latestOnline": listing.LatestEpisode,
-			"onDiskCount":  onDiskCount,
-		}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Nombre, listing.LatestEpisode, onDiskCount)
-		return animeRunOutcome{upToDate: true}
+			"onDiskCount":  onDiskEpisode,
+		}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Nombre, listing.LatestEpisode, onDiskEpisode)
+		emitProgress(animeProgressDelta{checked: true, upToDate: true})
+		return animeRunOutcome{checked: true, upToDate: true}
 	}
 
-	outcome := animeRunOutcome{}
-	current := onDiskCount
+	missingEpisodes := listing.LatestEpisode - onDiskEpisode
+	outcome := animeRunOutcome{checked: true, episodesFound: missingEpisodes}
+	emitProgress(animeProgressDelta{checked: true, episodesFound: missingEpisodes})
+	current := onDiskEpisode
 	for current < listing.LatestEpisode {
 		nextEpisode := current + 1
 		episodePageURL, err := source.EpisodePageURL(ctx, *anime.Pagina, nextEpisode)
@@ -84,10 +115,10 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 				map[string]any{"failureKind": FailureKindHosterDown},
 				"anime %s: resolve episode %d page failed: %v", anime.Nombre, nextEpisode, err)
 			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
-			outcome.episodesFound++
 			outcome.episodesFailed++
 			outcome.failed = true
 			outcome.failureKind = FailureKindHosterDown
+			emitProgress(animeProgressDelta{episodesFailed: 1})
 			if !jdOnline {
 				current++
 				continue
@@ -106,10 +137,10 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 				map[string]any{"failureKind": FailureKindHosterDown},
 				"anime %s: extract links failed: %v", anime.Nombre, err)
 			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
-			outcome.episodesFound++
 			outcome.episodesFailed++
 			outcome.failed = true
 			outcome.failureKind = FailureKindHosterDown
+			emitProgress(animeProgressDelta{episodesFailed: 1})
 			if !jdOnline {
 				current++
 				continue
@@ -117,13 +148,14 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			return outcome
 		}
 
-		outcome.episodesFound++
 		if !jdOnline {
-			outcome.manualLinks = append(outcome.manualLinks, ManualLink{
+			manualLink := ManualLink{
 				Anime:   anime.Nombre,
 				Episode: nextEpisode,
 				Links:   linkURLs(links),
-			})
+			}
+			outcome.manualLinks = append(outcome.manualLinks, manualLink)
+			emitProgress(animeProgressDelta{manualLinks: []ManualLink{manualLink}})
 			current++
 			continue
 		}
@@ -138,6 +170,7 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			outcome.episodesFailed++
 			outcome.failed = true
 			outcome.failureKind = failureKind
+			emitProgress(animeProgressDelta{episodesFailed: 1})
 			return outcome
 		}
 
@@ -150,15 +183,13 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			}
 		}
 
-		nextCount := current
-		if s.deps.Counter != nil {
-			nextCount = s.deps.Counter.CountAtRoot(*anime.Carpeta)
-		}
+		nextCount := s.downloadedEpisodeBaseline(*anime.Carpeta)
 		if !downloaded {
 			s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindSlowOrTimeout, CorrelationID: runID})
 			outcome.episodesFailed++
 			outcome.failed = true
 			outcome.failureKind = FailureKindSlowOrTimeout
+			emitProgress(animeProgressDelta{episodesFailed: 1})
 			return outcome
 		}
 		if nextCount <= current {
@@ -166,6 +197,7 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 			outcome.episodesFailed++
 			outcome.failed = true
 			outcome.failureKind = FailureKindSlowOrTimeout
+			emitProgress(animeProgressDelta{episodesFailed: 1})
 			return outcome
 		}
 
@@ -175,6 +207,7 @@ func (s *Service) processAnime(ctx context.Context, runID string, anime contract
 		s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 
 		outcome.episodesDownloaded++
+		emitProgress(animeProgressDelta{episodesDownloaded: 1})
 		current = nextCount
 	}
 
@@ -229,6 +262,42 @@ func (s *Service) orderHosters(site string, links []sites.DownloadLink) []hoster
 	return out
 }
 
+func (s *Service) flattenDownloadFolder(ctx context.Context, runID string, anime contracts.MobileAnime) {
+	if s.deps.Flattener == nil || anime.Carpeta == nil || *anime.Carpeta == "" {
+		return
+	}
+	moved, err := s.deps.Flattener.Flatten(ctx, *anime.Carpeta)
+	if err != nil {
+		s.logf(logger.LevelWarn, runID, anime.ID, "download.flatten_failed",
+			map[string]any{"moved": moved},
+			"anime %s: pre-download flatten moved %d files with errors: %v", anime.Nombre, moved, err)
+		return
+	}
+	if moved > 0 {
+		s.logf(logger.LevelInfo, runID, anime.ID, "download.flattened",
+			map[string]any{"moved": moved},
+			"anime %s: pre-download flatten moved %d files", anime.Nombre, moved)
+	}
+}
+
+func (s *Service) downloadedEpisodeBaseline(folder string) int {
+	if s.deps.Counter == nil {
+		return 0
+	}
+	highest := s.deps.Counter.HighestEpisodeAtRoot(folder)
+	count := s.deps.Counter.CountAtRoot(folder)
+	return max(highest, count)
+}
+
+func (s *Service) downloadedEpisodeRecursive(folder string) int {
+	if s.deps.Counter == nil {
+		return 0
+	}
+	highest := s.deps.Counter.HighestEpisodeRecursive(folder)
+	count := s.deps.Counter.CountRecursive(folder)
+	return max(highest, count)
+}
+
 // enqueueWithFallback tries each hoster group in order, classifying and moving to the next hoster
 // on failure (download-sites spec "Hoster-Ordered Enqueue With Fallback"). Returns
 // (true, "") on the first successful AddAndStart, or (false, lastFailureKind) if every hoster
@@ -257,8 +326,9 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	return false, lastFailureKind
 }
 
-// pollCompletion waits for the on-disk recursive count to exceed baselineCount, ctx-cancellable,
-// bounded by config.FilesystemCompletionPollTimeout (design §5.1 PoC orchestrator.go pattern).
+// pollCompletion waits for the root completion baseline to exceed baselineCount, retrying
+// flattening whenever a recursive video appears. This makes the filesystem move/rename boundary
+// the source of truth: if JD still owns the file on Windows, Flatten fails and the loop retries.
 // A nil Counter dependency degrades to "assume not downloaded" rather than panicking or spinning.
 func (s *Service) pollCompletion(ctx context.Context, folder string, baselineCount int) bool {
 	if s.deps.Counter == nil {
@@ -267,7 +337,10 @@ func (s *Service) pollCompletion(ctx context.Context, folder string, baselineCou
 
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
-		if s.deps.Counter.CountRecursive(folder) > baselineCount {
+		if s.downloadedEpisodeRecursive(folder) > baselineCount && s.deps.Flattener != nil {
+			_, _ = s.deps.Flattener.Flatten(ctx, folder)
+		}
+		if s.downloadedEpisodeBaseline(folder) > baselineCount {
 			return true
 		}
 		if s.deps.Clock().After(deadline) {

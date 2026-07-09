@@ -7,6 +7,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/jdownloader"
+	"autoreas-bridge/internal/schedule"
 	jd "github.com/rkosegi/jdownloader-go/jdownloader"
 	"go.uber.org/zap"
 )
@@ -273,6 +274,41 @@ func (a *App) TriggerDownloadCheck() string {
 	if err := a.downloadScheduler.TriggerNow(a.downloadCtx(), "manual"); err != nil {
 		return err.Error()
 	}
+	return "ok"
+}
+
+// TriggerAnimeDownload starts a background catch-up run for one selected anime. It reuses the
+// download Service's normal run-history/events path, but scopes candidate selection to the anime
+// id chosen by the Downloads UI instead of today's schedule/season-mode set.
+func (a *App) TriggerAnimeDownload(animeID string) string {
+	if a.animeQuery == nil {
+		return "anime query unavailable"
+	}
+	if a.downloadService == nil {
+		return "download service unavailable"
+	}
+	if a.downloadScheduler != nil && a.downloadScheduler.Status(a.downloadCtx()).Running {
+		return schedule.ErrRunInProgress.Error()
+	}
+	if !a.soloDownloadMu.TryLock() {
+		return schedule.ErrRunInProgress.Error()
+	}
+
+	anime, err := a.animeQuery.GetMobileAnime(a.downloadCtx(), animeID)
+	if err != nil {
+		a.soloDownloadMu.Unlock()
+		return err.Error()
+	}
+	if anime == nil {
+		a.soloDownloadMu.Unlock()
+		return "anime not found"
+	}
+
+	go func(selected contracts.MobileAnime) {
+		defer a.soloDownloadMu.Unlock()
+		_, _ = a.downloadService.RunAnime(a.downloadCtx(), "manual_anime", selected)
+	}(*anime)
+
 	return "ok"
 }
 

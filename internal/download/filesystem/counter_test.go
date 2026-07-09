@@ -104,6 +104,37 @@ func TestCountAtRootAndCountRecursiveDifferWhenFilesAreInASubfolder(t *testing.T
 	}
 }
 
+func TestHighestEpisodeAtRootUsesTrailingEpisodeNumberFromVideoFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "trigunstampedesvs-06.mp4"))
+	writeFile(t, filepath.Join(root, "trigunstampadesesq-08.mp4"))
+	writeFile(t, filepath.Join(root, "trigunstampadeevs-09.mp4"))
+	writeFile(t, filepath.Join(root, "trigunstampadesvqs-10.mp4"))
+	writeFile(t, filepath.Join(root, "trigunstampedestems-11", "episode.mp4"))
+
+	counter := NewEpisodeCounter()
+	got := counter.HighestEpisodeAtRoot(root)
+	if got != 10 {
+		t.Fatalf("expected highest root episode 10, got %d", got)
+	}
+}
+
+func TestHighestEpisodeRecursiveSeesNestedJDFolderVideoNumbers(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "trigunstampadesvqs-10.mp4"))
+	writeFile(t, filepath.Join(root, "trigunstampedestems-11", "trigunstampedestems-11.mp4"))
+
+	counter := NewEpisodeCounter()
+	got := counter.HighestEpisodeRecursive(root)
+	if got != 11 {
+		t.Fatalf("expected highest recursive episode 11, got %d", got)
+	}
+}
+
 // --- Flatten ---
 
 func TestFlattenMovesFilesFromSubfoldersToRootAndRemovesEmptiedDirs(t *testing.T) {

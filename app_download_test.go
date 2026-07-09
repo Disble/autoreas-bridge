@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
@@ -263,6 +264,71 @@ func TestTriggerDownloadCheckSurfacesErrRunInProgress(t *testing.T) {
 	app := &App{ctx: context.Background(), downloadScheduler: sched}
 
 	if got := app.TriggerDownloadCheck(); got != schedule.ErrRunInProgress.Error() {
+		t.Fatalf("expected ErrRunInProgress message, got %q", got)
+	}
+}
+
+func TestTriggerAnimeDownloadReturnsUnavailableWhenServiceNil(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{}}
+	got := app.TriggerAnimeDownload("anime-1")
+	if got == "ok" || got == "" {
+		t.Fatalf("expected non-ok error string when download service is nil, got %q", got)
+	}
+}
+
+func TestTriggerAnimeDownloadRunsSelectedAnimeOnly(t *testing.T) {
+	t.Parallel()
+
+	page := "https://jkanime.net/frieren"
+	folder := "D:/Anime/Frieren"
+	store := &fakeAppDownloadStore{finalized: make(chan download.DownloadRun, 1)}
+	service := download.NewService(download.ServiceDeps{
+		Store:    store,
+		Clock:    func() time.Time { return time.UnixMilli(1_750_000_000_000) },
+		NewRunID: func() string { return "run-solo" },
+	})
+	app := &App{
+		ctx:             context.Background(),
+		downloadService: service,
+		animeQuery: &stubAnimeQueryService{
+			mobileAnime: &contracts.MobileAnime{
+				ID:      "anime-1",
+				Nombre:  "Frieren",
+				Activo:  1,
+				Pagina:  &page,
+				Carpeta: &folder,
+			},
+		},
+	}
+
+	if got := app.TriggerAnimeDownload("anime-1"); got != "ok" {
+		t.Fatalf("expected ok, got %q", got)
+	}
+
+	select {
+	case run := <-store.finalized:
+		if run.RunID != "run-solo" || run.Trigger != "manual_anime" {
+			t.Fatalf("unexpected solo run %#v", run)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for solo download run to finalize")
+	}
+}
+
+func TestTriggerAnimeDownloadRejectsWhileSchedulerRunning(t *testing.T) {
+	t.Parallel()
+
+	service := download.NewService(download.ServiceDeps{})
+	app := &App{
+		ctx:               context.Background(),
+		downloadService:   service,
+		animeQuery:        &stubAnimeQueryService{},
+		downloadScheduler: &fakeAppScheduler{status: schedule.Status{Running: true}},
+	}
+
+	if got := app.TriggerAnimeDownload("anime-1"); got != schedule.ErrRunInProgress.Error() {
 		t.Fatalf("expected ErrRunInProgress message, got %q", got)
 	}
 }

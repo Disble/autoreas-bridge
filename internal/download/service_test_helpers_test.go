@@ -142,6 +142,9 @@ func (f *svcFakeCounter) CountAtRoot(folder string) int {
 	}
 	if f.flattenedFolders != nil && f.flattenedFolders[folder] {
 		if v, ok := f.recursive[folder]; ok {
+			if root := f.atRoot[folder]; root > v {
+				return root
+			}
 			return v
 		}
 	}
@@ -152,6 +155,14 @@ func (f *svcFakeCounter) CountRecursive(folder string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.recursive[folder]
+}
+
+func (f *svcFakeCounter) HighestEpisodeAtRoot(folder string) int {
+	return f.CountAtRoot(folder)
+}
+
+func (f *svcFakeCounter) HighestEpisodeRecursive(folder string) int {
+	return f.CountRecursive(folder)
 }
 
 func (f *svcFakeCounter) Flatten(folder string) {
@@ -371,7 +382,13 @@ func ptrInt(i int) *int       { return &i }
 
 func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
 	deps.Counter = counter
-	deps.Flattener = &svcFakeFlattener{onFlatten: counter.Flatten}
+	flattenCalls := map[string]int{}
+	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
+		flattenCalls[folder]++
+		if flattenCalls[folder] > 1 {
+			counter.Flatten(folder)
+		}
+	}}
 }
 
 func todayDiaName(now time.Time) string {

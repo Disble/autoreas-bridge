@@ -246,6 +246,10 @@ export function SoftDeleteAnime(arg1, arg2) {
   return window['go']['main']['App']['SoftDeleteAnime'](arg1, arg2);
 }
 
+export function TriggerAnimeDownload(arg1) {
+  return window['go']['main']['App']['TriggerAnimeDownload'](arg1);
+}
+
 export function TriggerDownloadCheck() {
   return window['go']['main']['App']['TriggerDownloadCheck']();
 }

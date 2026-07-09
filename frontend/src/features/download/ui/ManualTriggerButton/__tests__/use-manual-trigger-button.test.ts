@@ -12,6 +12,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setScheduleConfig: vi.fn(),
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn().mockResolvedValue('ok'),
+    triggerAnimeDownload: vi.fn(),
     listDownloadRuns: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
@@ -55,6 +56,7 @@ describe('useManualTriggerButton', () => {
   it('moves to "already-in-progress" when the backend reports a concurrent run', async () => {
     const source = createSource({
       triggerDownloadCheck: vi.fn().mockResolvedValue('schedule: a download run is already in progress'),
+    triggerAnimeDownload: vi.fn(),
     });
     const { result } = renderHook(() => useManualTriggerButton(source));
 
@@ -68,6 +70,7 @@ describe('useManualTriggerButton', () => {
   it('moves to "error" with the message when the backend reports a generic failure', async () => {
     const source = createSource({
       triggerDownloadCheck: vi.fn().mockResolvedValue('download scheduler unavailable'),
+    triggerAnimeDownload: vi.fn(),
     });
     const { result } = renderHook(() => useManualTriggerButton(source));
 

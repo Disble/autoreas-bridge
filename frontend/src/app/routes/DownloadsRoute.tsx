@@ -4,6 +4,7 @@ import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfig
 import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerButton/ManualTriggerButton';
 import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunHistoryPanel';
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
+import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel';
 
 export function DownloadsRoute() {
   return (
@@ -21,6 +22,16 @@ export function DownloadsRoute() {
           </Card.Header>
           <Card.Content>
             <ManualTriggerButton />
+          </Card.Content>
+        </Card>
+
+        <Card>
+          <Card.Header>
+            <Card.Title>Solo anime download</Card.Title>
+            <Card.Description>Search one anime and download every missing chapter until it is up to date</Card.Description>
+          </Card.Header>
+          <Card.Content>
+            <SoloAnimeDownloadPanel />
           </Card.Content>
         </Card>
 
