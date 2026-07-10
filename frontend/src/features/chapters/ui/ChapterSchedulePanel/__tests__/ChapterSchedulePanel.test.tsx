@@ -138,6 +138,23 @@ describe('ChapterSchedulePanel', () => {
     expect(screen.getByRole('button', { name: 'Add one chapter for Paused. Secondary click adds half chapter.' })).toBeDisabled();
   });
 
+  describe('view lens toggle', () => {
+    it('switches the filter row from season lenses to weekdays when Daily is selected, with season mode on', async () => {
+      const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+
+      render(<ChapterSchedulePanel source={source} />);
+
+      // Season mode is on, so the filter row opens on the season lenses.
+      expect(await screen.findByRole('radio', { name: /Sin ver/ })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Daily' }));
+
+      // The lens override swaps the filter row to weekdays without leaving season mode.
+      expect(await screen.findByRole('radio', { name: /Lunes/ })).toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: /Sin ver/ })).not.toBeInTheDocument();
+    });
+  });
+
   describe('day count badges', () => {
     it('shows a count badge on a day ToggleButton with qualifying entries', async () => {
       const source = createSource({ getChapterDayCounts: vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]) });

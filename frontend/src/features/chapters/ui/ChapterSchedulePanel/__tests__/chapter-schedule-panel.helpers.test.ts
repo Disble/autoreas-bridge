@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayBadge, getChapterFilterOptions, getDefaultChapterDay, getInitialChapterSelection, toChapterScheduleRows } from '../chapter-schedule-panel.helpers';
+import { dayBadge, getChapterFilterOptions, getDefaultChapterDay, getDefaultLensSelection, getInitialChapterSelection, toChapterScheduleRows, toChapterViewLens } from '../chapter-schedule-panel.helpers';
 import type { ChapterDayCount, ChapterScheduleItem, CoverEntry } from '../chapter-schedule-panel.types';
 
 describe('toChapterScheduleRows', () => {
@@ -141,6 +141,31 @@ describe('chapter filter selection', () => {
   it('uses weekday lenses and starts on today when season mode is inactive', () => {
     expect(getChapterFilterOptions(false)).toContain('Sábado');
     expect(getInitialChapterSelection({ isSeasonMode: false, today: new Date('2026-07-04T12:00:00') })).toBe('Sábado');
+  });
+});
+
+describe('getDefaultLensSelection', () => {
+  it('opens the season lens on Ver hoy', () => {
+    expect(getDefaultLensSelection('season', new Date('2026-07-04T12:00:00'))).toBe('Ver hoy');
+  });
+
+  it('opens the daily lens on the current weekday', () => {
+    expect(getDefaultLensSelection('daily', new Date('2026-07-04T12:00:00'))).toBe('Sábado');
+  });
+});
+
+describe('toChapterViewLens', () => {
+  it('keeps the season key', () => {
+    expect(toChapterViewLens('season')).toBe('season');
+  });
+
+  it('keeps the daily key', () => {
+    expect(toChapterViewLens('daily')).toBe('daily');
+  });
+
+  it('falls back to the daily lens for any unknown key', () => {
+    expect(toChapterViewLens('')).toBe('daily');
+    expect(toChapterViewLens('garbage')).toBe('daily');
   });
 });
 

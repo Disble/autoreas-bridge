@@ -1,3 +1,6 @@
+/** Which lens the Chapters list groups by: season watch-states or weekdays. */
+export type ChapterViewLens = 'season' | 'daily';
+
 /** Props accepted by the operational chapter schedule panel. */
 export interface ChapterSchedulePanelProps {
   /** Optional source for tests or non-Wails adapters. */

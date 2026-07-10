@@ -1,5 +1,5 @@
 import { CHAPTER_DAY_OPTIONS, CHAPTER_SEASON_OPTIONS, CHAPTER_STATE_LABELS } from './chapter-schedule-panel.constants';
-import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
+import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, ChapterViewLens, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
 
 const spanishWeekdayFormatter = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
 const EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();
@@ -67,6 +67,25 @@ export function getChapterFilterOptions(isSeasonMode: boolean): readonly string[
 }
 
 /**
+ * Returns the default selected filter for a lens: the season lens opens on
+ * "Ver hoy", the daily lens opens on the current Spanish weekday. This is the
+ * single source of truth for a lens's landing filter, shared by first mount and
+ * by the in-view lens toggle so both stay in sync.
+ */
+export function getDefaultLensSelection(lens: ChapterViewLens, today: Date = new Date()): string {
+  return lens === 'season' ? 'Ver hoy' : getDefaultChapterDay(today);
+}
+
+/**
+ * Narrows a raw ToggleButtonGroup selection key to a ChapterViewLens, defaulting
+ * to the daily lens for any value that is not the explicit season key. Keeps the
+ * dumb component free of lens-validation logic.
+ */
+export function toChapterViewLens(value: string): ChapterViewLens {
+  return value === 'season' ? 'season' : 'daily';
+}
+
+/**
  * Resolves the selected schedule filter using Legacy semantics: season mode opens
  * on "Ver hoy", while normal mode opens on the current Spanish weekday.
  */
@@ -74,7 +93,7 @@ export function getInitialChapterSelection(input: InitialChapterSelectionInput):
   if (input.initialDay !== undefined) {
     return input.initialDay;
   }
-  return input.isSeasonMode ? 'Ver hoy' : getDefaultChapterDay(input.today);
+  return getDefaultLensSelection(input.isSeasonMode ? 'season' : 'daily', input.today);
 }
 
 /**

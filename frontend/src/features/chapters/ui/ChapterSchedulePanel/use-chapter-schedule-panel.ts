@@ -3,8 +3,8 @@ import { toast } from '@heroui/react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
 import { preferencesSource } from '../../../../infrastructure/preferences-source';
 import { CHAPTER_RUNTIME_UNAVAILABLE_RESULT } from './chapter-schedule-panel.constants';
-import { getChapterFilterOptions, getInitialChapterSelection, toAnimeCover, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
-import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource, CoverEntry } from './chapter-schedule-panel.types';
+import { getChapterFilterOptions, getDefaultLensSelection, getInitialChapterSelection, toAnimeCover, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
+import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource, ChapterViewLens, CoverEntry } from './chapter-schedule-panel.types';
 
 
 /**
@@ -16,7 +16,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
 
   // 2. State
   const [selectedDay, setSelectedDay] = useState(props.initialDay ?? '');
-  const [isSeasonMode, setIsSeasonMode] = useState(false);
+  const [lens, setLens] = useState<ChapterViewLens>('daily');
   const [items, setItems] = useState<readonly ChapterScheduleItem[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [covers, setCovers] = useState<ReadonlyMap<string, CoverEntry>>(new Map());
@@ -44,7 +44,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
       },
     [props.source, rawGetAnimeCover],
   );
-  const filterOptions = useMemo(() => getChapterFilterOptions(isSeasonMode), [isSeasonMode]);
+  const filterOptions = useMemo(() => getChapterFilterOptions(lens === 'season'), [lens]);
   const rows = useMemo(() => toChapterScheduleRows(items, covers), [items, covers]);
 
   // 6. Callbacks (useCallback calling pure helpers)
@@ -65,6 +65,11 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
 
   const selectDay = useCallback((day: string) => {
     setSelectedDay(day);
+  }, []);
+
+  const selectLens = useCallback((nextLens: ChapterViewLens) => {
+    setLens(nextLens);
+    setSelectedDay(getDefaultLensSelection(nextLens));
   }, []);
 
   const refreshDayCounts = useCallback(() => {
@@ -135,12 +140,12 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
         if (!isActive) {
           return;
         }
-        setIsSeasonMode(enabled);
+        setLens(enabled ? 'season' : 'daily');
         setSelectedDay(getInitialChapterSelection({ isSeasonMode: enabled }));
       })
       .catch(() => {
         if (isActive) {
-          setIsSeasonMode(false);
+          setLens('daily');
         }
       });
     return () => {
@@ -201,11 +206,12 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     dayCounts,
     errorMessage,
     filterOptions,
-    isSeasonMode,
+    lens,
     openAnimeFolder,
     openAnimePage,
     rows,
     selectDay,
+    selectLens,
     selectedDay,
     setAnimeState,
   };

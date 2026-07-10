@@ -3,12 +3,22 @@ import closeCircleIcon from '@iconify-icons/solar/close-circle-bold-duotone';
 import pauseCircleIcon from '@iconify-icons/solar/pause-circle-bold-duotone';
 import playCircleIcon from '@iconify-icons/solar/play-circle-bold-duotone';
 import { ANIME_ESTADO_LABELS } from '../../../../shared/constants/anime-estado';
+import type { ChapterViewLens } from './chapter-schedule-panel.types';
 
 /** Legacy weekday keys supported by anime schedule records. */
 export const CHAPTER_DAY_OPTIONS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'] as const;
 
 /** Legacy season keys used when season mode groups anime by watch state. */
 export const CHAPTER_SEASON_OPTIONS = ['Sin ver', 'Visto', 'Ver hoy'] as const;
+
+/** Accessible name for the in-view lens toggle (season watch-states vs weekdays). */
+export const CHAPTER_LENS_TOGGLE_LABEL = 'Chapters view lens';
+
+/** Selectable lenses for the Chapters view toggle, in display order. */
+export const CHAPTER_LENS_OPTIONS: readonly { readonly id: ChapterViewLens; readonly label: string }[] = [
+  { id: 'season', label: 'Season' },
+  { id: 'daily', label: 'Daily' },
+];
 
 /** Empty-state copy for days with no active scheduled anime. */
 export const CHAPTERS_EMPTY_MESSAGE = 'No active anime are scheduled for this filter.';
