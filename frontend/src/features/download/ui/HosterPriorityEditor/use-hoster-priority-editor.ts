@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
+import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { HosterPriorityItem } from '../../../../shared/contracts/download.types';
 import { HOSTER_PRIORITY_DEFAULT_SITE } from './hoster-priority-editor.constants';
 import {

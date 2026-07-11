@@ -1,6 +1,9 @@
 import { Card } from '@heroui/react';
 import { Link } from 'react-router';
 
+/**
+ * NotFoundRoute shows the fallback screen for unknown bridge UI paths.
+ */
 export function NotFoundRoute() {
   return (
     <Card>

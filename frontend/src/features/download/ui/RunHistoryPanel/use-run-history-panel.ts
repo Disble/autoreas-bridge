@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import { connectDownloadRuntimeStore, useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store';
+import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { toRunHistoryPanelViewModel } from './run-history-panel.helpers';
 
 /**

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { PreferencesSource } from '../../../../infrastructure/preferences-source';
-import { preferencesSource } from '../../../../infrastructure/preferences-source';
-import { connectDownloadRuntimeStore, useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store';
-import { usePreferencesStore } from '../../../../shared/store/preferences-store';
+import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
+import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
+import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
 import { toSchedulePanelViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
 import type { ScheduleSaveEdits } from './schedule-panel.types';
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
-import type { SeasonSource } from '../../../../infrastructure/season-source';
-import { seasonSource } from '../../../../infrastructure/season-source';
-import { useSeasonStore } from '../../../../shared/store/season-store';
+import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
+import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { findSeasonCandidate } from './season-rate-action.helpers';
 
 /**

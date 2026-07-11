@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PreferencesSource } from '../../../infrastructure/preferences-source';
-import { resetPreferencesStore, usePreferencesStore } from '../preferences-store';
+import { getPreferencesStoreState, resetPreferencesStore } from '../preferences-store';
+
+it('keeps the state interface in the colocated types module', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const storePath = join(process.cwd(), 'src/shared/store/preferences-store/preferences-store.ts');
+  const sourceText = readFileSync(storePath, 'utf8');
+
+  expect(sourceText).not.toMatch(/interface\s+PreferencesStoreState\b/);
+});
 
 function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
@@ -19,7 +28,7 @@ describe('preferences-store', () => {
   });
 
   it('starts with safe defaults: seasonMode false, hasLoaded false, no errorMessage', () => {
-    const state = usePreferencesStore.getState();
+    const state = getPreferencesStoreState();
 
     expect(state.seasonMode).toBe(false);
     expect(state.hasLoaded).toBe(false);
@@ -29,18 +38,18 @@ describe('preferences-store', () => {
   it('refresh sets seasonMode and hasLoaded when the source resolves', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
 
-    await usePreferencesStore.getState().refresh(source);
+    await getPreferencesStoreState().refresh(source);
 
-    expect(usePreferencesStore.getState().seasonMode).toBe(true);
-    expect(usePreferencesStore.getState().hasLoaded).toBe(true);
-    expect(usePreferencesStore.getState().errorMessage).toBeUndefined();
+    expect(getPreferencesStoreState().seasonMode).toBe(true);
+    expect(getPreferencesStoreState().hasLoaded).toBe(true);
+    expect(getPreferencesStoreState().errorMessage).toBeUndefined();
   });
 
   it('refresh does not refetch if already loaded', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(false) });
 
-    await usePreferencesStore.getState().refresh(source);
-    await usePreferencesStore.getState().refresh(source);
+    await getPreferencesStoreState().refresh(source);
+    await getPreferencesStoreState().refresh(source);
 
     expect(source.getSeasonMode).toHaveBeenCalledTimes(1);
   });
@@ -48,20 +57,20 @@ describe('preferences-store', () => {
   it('refresh sets errorMessage when the source rejects', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockRejectedValue(new Error('network error')) });
 
-    await usePreferencesStore.getState().refresh(source);
+    await getPreferencesStoreState().refresh(source);
 
-    expect(usePreferencesStore.getState().hasLoaded).toBe(true);
-    expect(usePreferencesStore.getState().errorMessage).toBe('network error');
+    expect(getPreferencesStoreState().hasLoaded).toBe(true);
+    expect(getPreferencesStoreState().errorMessage).toBe('network error');
   });
 
   it('resetPreferencesStore clears all state back to defaults', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
 
-    await usePreferencesStore.getState().refresh(source);
+    await getPreferencesStoreState().refresh(source);
     resetPreferencesStore();
 
-    expect(usePreferencesStore.getState().seasonMode).toBe(false);
-    expect(usePreferencesStore.getState().hasLoaded).toBe(false);
-    expect(usePreferencesStore.getState().errorMessage).toBeUndefined();
+    expect(getPreferencesStoreState().seasonMode).toBe(false);
+    expect(getPreferencesStoreState().hasLoaded).toBe(false);
+    expect(getPreferencesStoreState().errorMessage).toBeUndefined();
   });
 });

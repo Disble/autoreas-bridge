@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ObservabilityLogEntry } from '../../contracts/observability.types';
-import { foldByCorrelationId, keepRecent, selectEntryById, selectEntryViewRows } from '../network-store.helpers';
+import {
+  foldByCorrelationId,
+  keepRecent,
+  selectEntryById,
+  selectEntryViewRows,
+} from '../network-store/network-store.helpers';
 
 function entry(overrides: Partial<ObservabilityLogEntry>): ObservabilityLogEntry {
   return {
@@ -12,6 +19,14 @@ function entry(overrides: Partial<ObservabilityLogEntry>): ObservabilityLogEntry
 }
 
 describe('network-store.helpers', () => {
+  it('keeps helper-only contracts in the colocated types module', () => {
+    const helperPath = join(process.cwd(), 'src/shared/store/network-store/network-store.helpers.ts');
+    const sourceText = readFileSync(helperPath, 'utf8');
+
+    expect(sourceText).not.toMatch(/interface\s+MutableRowAccumulator\b/);
+    expect(sourceText).not.toMatch(/export interface\s+EntryWithId\b/);
+  });
+
   describe('keepRecent', () => {
     it('returns the buffer unchanged when under the cap', () => {
       const buffer = [entry({ timestamp: 't1' }), entry({ timestamp: 't2' })];

@@ -1,6 +1,5 @@
 import type { ManualTriggerResult } from './manual-trigger-button.types';
-
-const ALREADY_IN_PROGRESS_MESSAGE = 'schedule: a download run is already in progress';
+import { MANUAL_TRIGGER_ALREADY_IN_PROGRESS_MESSAGE } from './manual-trigger-button.constants';
 
 /**
  * Maps `TriggerDownloadCheck`'s raw response string to a typed result.
@@ -13,7 +12,7 @@ export function toManualTriggerResult(response: string): ManualTriggerResult {
     return { status: 'success' };
   }
 
-  if (response === ALREADY_IN_PROGRESS_MESSAGE) {
+  if (response === MANUAL_TRIGGER_ALREADY_IN_PROGRESS_MESSAGE) {
     return { status: 'already-in-progress' };
   }
 

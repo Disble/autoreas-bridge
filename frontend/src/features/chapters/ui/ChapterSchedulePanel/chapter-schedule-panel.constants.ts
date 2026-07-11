@@ -2,7 +2,8 @@ import checkCircleIcon from '@iconify-icons/solar/check-circle-bold-duotone';
 import closeCircleIcon from '@iconify-icons/solar/close-circle-bold-duotone';
 import pauseCircleIcon from '@iconify-icons/solar/pause-circle-bold-duotone';
 import playCircleIcon from '@iconify-icons/solar/play-circle-bold-duotone';
-import { ANIME_ESTADO_LABELS } from '../../../../shared/constants/anime-estado';
+import { ANIME_ESTADO_LABELS } from '../../../../shared/constants/anime-estado.constants';
+import type { CoverEntry } from './chapter-schedule-panel.types';
 
 /** Legacy weekday keys supported by anime schedule records. */
 export const CHAPTER_DAY_OPTIONS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'] as const;
@@ -15,7 +16,7 @@ export const CHAPTERS_EMPTY_MESSAGE = 'No active anime are scheduled for this fi
 
 /**
  * User-facing labels for Legacy anime state ids. Sourced from the canonical
- * shared vocabulary (`shared/constants/anime-estado.ts`) so Chapters shows the
+ * shared vocabulary (`shared/constants/anime-estado.constants.ts`) so Chapters shows the
  * same Spanish estado wording as History/Catalog/AnimeDetail.
  */
 export const CHAPTER_STATE_LABELS: Readonly<Record<number, string>> = ANIME_ESTADO_LABELS;
@@ -39,3 +40,9 @@ export const CHAPTER_STATE_OPTIONS = [
  * change the card height.
  */
 export const CHAPTER_COVER_SLOT_CLASS = 'relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden';
+
+/** Hoisted Spanish weekday formatter used by the chapter schedule default-day helper. */
+export const CHAPTER_SCHEDULE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
+
+/** Shared empty cover cache used when no cover map is provided to the row helper. */
+export const CHAPTER_SCHEDULE_EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();

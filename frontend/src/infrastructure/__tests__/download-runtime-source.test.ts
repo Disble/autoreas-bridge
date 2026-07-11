@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('download-runtime-source', () => {
@@ -193,5 +195,22 @@ describe('download-runtime-source', () => {
     await resultPromise;
 
     expect(setHosterPriorityMock).toHaveBeenCalledWith('default', items);
+  });
+
+  it('keeps source-adapter declarations in colocated sibling modules', () => {
+    const sourceRoot = join(process.cwd(), 'src/infrastructure/download-runtime-source');
+    const indexPath = join(sourceRoot, 'index.ts');
+    const helperPath = join(sourceRoot, 'download-runtime-source.helpers.ts');
+    const sourceText = readFileSync(indexPath, 'utf8');
+    const helperText = readFileSync(helperPath, 'utf8');
+
+    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(join(process.cwd(), 'src/infrastructure/download-runtime-source.ts'))).toBe(false);
+    expect(sourceText).toContain("from './download-runtime-source.types'");
+    expect(sourceText).toContain("from './download-runtime-source.helpers'");
+    expect(sourceText).not.toMatch(/export interface\s+DownloadRuntimeSource\b/);
+    expect(sourceText).not.toMatch(/export function\s+/);
+    expect(sourceText).not.toMatch(/export const\s+/);
+    expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 });

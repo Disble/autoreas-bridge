@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { isWailsRuntimeAvailable, observabilityLogSource } from '../../../../infrastructure/observability-log-source';
-import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
-import { connectNetworkStore, useNetworkStore } from '../../../../shared/store/network-store';
-import { selectEntryById, selectEntryViewRows } from '../../../../shared/store/network-store.helpers';
-import { countEntries, countErrorEntries, toNetworkDetailViewModel, toNetworkEntryViewModel } from './network-panel.helpers';
+import { isWailsRuntimeAvailable, observabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.helpers';
+import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.types';
+import { connectNetworkStore } from '../../../../shared/store/network-store/network-store.helpers';
+import { useNetworkStore } from '../../../../shared/store/network-store/network-store';
+import { getNetworkPanelRows, getNetworkPanelSelection, getNetworkPanelSummary } from './network-panel.helpers';
 import type { NetworkDetailTab, NetworkDomainFilter, NetworkLevelFilter } from './network-panel.types';
 
 /**
@@ -37,24 +37,19 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const entryRows = useMemo(
-    () => selectEntryViewRows(buffer, query, levelFilter, domainFilter),
+  const rows = useMemo(
+    () => getNetworkPanelRows(buffer, query, levelFilter, domainFilter),
     [buffer, query, levelFilter, domainFilter],
   );
-  const rows = useMemo(() => entryRows.map(toNetworkEntryViewModel), [entryRows]);
-  const allEntryRows = useMemo(() => selectEntryViewRows(buffer, '', 'all'), [buffer]);
-  const selectedEntry = useMemo(() => selectEntryById(buffer, selectedId), [buffer, selectedId]);
-  const selectedDetail = useMemo(() => {
-    if (selectedId === null || selectedEntry === null) {
-      return null;
-    }
-
-    return toNetworkDetailViewModel({ id: selectedId, entry: selectedEntry }, allEntryRows);
-  }, [selectedId, selectedEntry, allEntryRows]);
+  const { selectedEntry, selectedDetail } = useMemo(
+    () => getNetworkPanelSelection(buffer, selectedId),
+    [buffer, selectedId],
+  );
   const captureUnavailable = !isLoading && !isWailsRuntimeAvailable();
-  const entryCount = useMemo(() => countEntries(buffer), [buffer]);
-  const errorCount = useMemo(() => countErrorEntries(buffer), [buffer]);
-  const shownCount = rows.length;
+  const { entryCount, errorCount, shownCount } = useMemo(
+    () => getNetworkPanelSummary(buffer, rows.length),
+    [buffer, rows.length],
+  );
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onSelect = useCallback((id: string) => select(id), [select]);
@@ -72,7 +67,7 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
 
   // 7. Effects
   useEffect(() => {
-    connectNetworkStore(source);
+    return connectNetworkStore(source);
   }, [source]);
 
   useEffect(() => {

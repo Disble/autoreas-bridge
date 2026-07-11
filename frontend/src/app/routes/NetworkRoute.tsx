@@ -1,6 +1,10 @@
-import { Typography } from '@heroui/react';
-import { NetworkPanel } from '../../features/network/ui/NetworkPanel/NetworkPanel';
+import { Typography } from "@heroui/react";
+import { NetworkPanel } from "../../features/network/ui/NetworkPanel/NetworkPanel";
 
+/**
+ * NetworkRoute hosts the network activity workspace within the delivery-layer
+ * route shell.
+ */
 export function NetworkRoute() {
   return (
     <div className="flex flex-col gap-4">

@@ -49,6 +49,19 @@ describe('useNetworkPanel', () => {
     });
   });
 
+  it('disconnects the shared network bridge when the panel unmounts', () => {
+    const unsubscribe = vi.fn();
+    const source = createFakeSource({ subscribe: vi.fn().mockReturnValue(unsubscribe) });
+
+    const { unmount } = renderHook(() => useNetworkPanel(source));
+
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes one row per entry mapped from the replayed entries once getRecentLogs resolves', async () => {
     const recent = [
       entry({ timestamp: 't1', domain: 'anime', message: 'publishing anime.changed', eventType: 'anime.publish' }),

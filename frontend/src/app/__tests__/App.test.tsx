@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import App from '../../App';
-import { NAV_ITEMS } from '../AppLayout';
+import { APP_LAYOUT_NAV_ITEMS } from '../../shared/navigation/app-layout.constants';
 import { resetNetworkStore } from '../../shared/store/network-store';
 
 describe('App routing', () => {
@@ -208,7 +208,7 @@ describe('App routing', () => {
   });
 
   it('keeps exactly 10 primary navigation entries after the Season workspace is added', () => {
-    expect(NAV_ITEMS.length).toBe(10);
+    expect(APP_LAYOUT_NAV_ITEMS.length).toBe(10);
   });
 
   it('renders a not found route for unknown paths', async () => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import {
@@ -149,7 +149,7 @@ export function useHistoryTable(
     writeParams({ q: debouncedQuery, page: 1 }, { replace: true });
     // Only the debounced value (not urlState.q or writeParams) should retrigger this write --
     // urlState.q changes as a RESULT of this effect, and including it would fight the write.
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-doctor/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
   return {

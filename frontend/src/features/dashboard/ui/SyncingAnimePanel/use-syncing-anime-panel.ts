@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { SyncingAnime } from '../../../../shared/contracts/syncing-anime.types';
 import type { SyncingAnimePanelProps } from './syncing-anime-panel.types';
 import { toSyncingAnimePanelViewModel } from './syncing-anime-panel.helpers';

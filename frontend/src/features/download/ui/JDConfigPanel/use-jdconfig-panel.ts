@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
+import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { JDCONFIG_PANEL_EMPTY_STATUS } from './jdconfig-panel.constants';
 import { toJDConfigFormValues, toJDConfigInput } from './jdconfig-panel.helpers';
 import type { JDConfigFormValues } from './jdconfig-panel.types';

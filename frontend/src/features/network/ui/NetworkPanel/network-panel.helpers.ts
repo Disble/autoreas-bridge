@@ -1,15 +1,19 @@
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
 import { formatLocalDateTime, formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
+import { selectEntryById, selectEntryViewRows } from '../../../../shared/store/network-store/network-store.helpers';
 import {
   NETWORK_EMPTY_LABEL,
   NETWORK_HTTP_EVENT_TYPE,
   NETWORK_LEVEL_ACCENT_BORDER_CLASS,
 } from './network-panel.constants';
+import type { NetworkPanelSelection, NetworkPanelSummary } from './network-panel-selection.types';
 import type {
   EntryWithId,
   HeroChipColor,
   NetworkDetailViewModel,
+  NetworkDomainFilter,
   NetworkEntryViewModel,
+  NetworkLevelFilter,
   NetworkTraceEntryViewModel,
 } from './network-panel.types';
 
@@ -233,7 +237,7 @@ export function countErrorEntries(buffer: readonly ObservabilityLogEntry[]): num
  * into the detail inspector's full view-model: header fields, metadata
  * table, and trace siblings.
  */
-export function toNetworkDetailViewModel(
+function toNetworkDetailViewModel(
   selected: EntryWithId,
   buffer: readonly EntryWithId[],
 ): NetworkDetailViewModel {
@@ -248,6 +252,63 @@ export function toNetworkDetailViewModel(
     fields: getNetworkDetailFields(entry),
     metadataEntries: getNetworkMetadataEntries(entry),
     traceEntries: getNetworkTraceEntries(buffer, selected),
+  };
+}
+
+/**
+ * Derives the table row view-models from the raw Network buffer and active
+ * filters in one pure seam. The hook keeps store orchestration, while this
+ * helper owns the read-model projection used by the dumb table component.
+ */
+export function getNetworkPanelRows(
+  buffer: readonly ObservabilityLogEntry[],
+  query: string,
+  levelFilter: NetworkLevelFilter,
+  domainFilter: NetworkDomainFilter,
+): readonly NetworkEntryViewModel[] {
+  return selectEntryViewRows(buffer, query, levelFilter, domainFilter).map(toNetworkEntryViewModel);
+}
+
+/**
+ * Resolves the selected raw entry and its detail view-model together so the
+ * hook no longer duplicates selection guard logic. Trace lookup intentionally
+ * uses the unfiltered buffer to preserve the existing detail-panel behavior.
+ */
+export function getNetworkPanelSelection(
+  buffer: readonly ObservabilityLogEntry[],
+  selectedId: string | null,
+): NetworkPanelSelection {
+  const selectedEntry = selectEntryById(buffer, selectedId);
+
+  if (selectedId === null || selectedEntry === null) {
+    return {
+      selectedEntry: null,
+      selectedDetail: null,
+    };
+  }
+
+  return {
+    selectedEntry,
+    selectedDetail: toNetworkDetailViewModel(
+      { id: selectedId, entry: selectedEntry },
+      selectEntryViewRows(buffer, '', 'all', 'all'),
+    ),
+  };
+}
+
+/**
+ * Derives the Network panel status-bar counters from the raw buffer plus the
+ * already-filtered shown row count. Total/error counts remain independent of
+ * the active table filters, matching the pre-refactor hook contract.
+ */
+export function getNetworkPanelSummary(
+  buffer: readonly ObservabilityLogEntry[],
+  shownCount: number,
+): NetworkPanelSummary {
+  return {
+    entryCount: countEntries(buffer),
+    errorCount: countErrorEntries(buffer),
+    shownCount,
   };
 }
 

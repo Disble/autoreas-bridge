@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 
 /** Drives the dashboard reconcile action, exposing sync state and the trigger callback. */
 export function useBridgeDashboard(source: BridgeRuntimeSource = bridgeRuntimeSource) {

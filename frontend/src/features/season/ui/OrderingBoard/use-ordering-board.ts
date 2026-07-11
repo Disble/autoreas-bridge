@@ -1,9 +1,9 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ApplyScheduleResult, OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source';
-import { seasonSource } from '../../../../infrastructure/season-source';
-import { useSeasonStore } from '../../../../shared/store/season-store';
+import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
+import type { ApplyScheduleResult, OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import {
   EMPTY_ORDERING_BOARD,
   ORDERING_AUTOSAVE_DEBOUNCE_MS,

@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source';
 import type { DownloadRunView, ScheduleConfig } from '../../contracts/download.types';
-import { connectDownloadRuntimeStore, resetDownloadRuntimeStore, useDownloadRuntimeStore } from '../download-runtime-store';
+import {
+  connectDownloadRuntimeStore,
+  getDownloadRuntimeStoreState,
+  resetDownloadRuntimeStore,
+} from '../download-runtime-store';
 
 const scheduleConfig: ScheduleConfig = {
   mode: 'in_process',
@@ -54,7 +58,7 @@ describe('download-runtime-store', () => {
   });
 
   it('starts with empty schedule and run-history read-models', () => {
-    const state = useDownloadRuntimeStore.getState();
+    const state = getDownloadRuntimeStoreState();
 
     expect(state.scheduleHasLoaded).toBe(false);
     expect(state.runHistoryHasLoaded).toBe(false);
@@ -65,19 +69,19 @@ describe('download-runtime-store', () => {
   it('refreshSchedule stores the latest schedule snapshot', async () => {
     const source = createSource();
 
-    await useDownloadRuntimeStore.getState().refreshSchedule(source);
+    await getDownloadRuntimeStoreState().refreshSchedule(source);
 
-    expect(useDownloadRuntimeStore.getState().scheduleConfig).toEqual(scheduleConfig);
-    expect(useDownloadRuntimeStore.getState().scheduleHasLoaded).toBe(true);
+    expect(getDownloadRuntimeStoreState().scheduleConfig).toEqual(scheduleConfig);
+    expect(getDownloadRuntimeStoreState().scheduleHasLoaded).toBe(true);
   });
 
   it('refreshRunHistory stores the latest run-history snapshot', async () => {
     const source = createSource();
 
-    await useDownloadRuntimeStore.getState().refreshRunHistory(source);
+    await getDownloadRuntimeStoreState().refreshRunHistory(source);
 
-    expect(useDownloadRuntimeStore.getState().runHistory).toEqual(runHistory);
-    expect(useDownloadRuntimeStore.getState().runHistoryHasLoaded).toBe(true);
+    expect(getDownloadRuntimeStoreState().runHistory).toEqual(runHistory);
+    expect(getDownloadRuntimeStoreState().runHistoryHasLoaded).toBe(true);
   });
 
   it('connectDownloadRuntimeStore is idempotent across panels', () => {
@@ -104,10 +108,10 @@ describe('download-runtime-store', () => {
     });
 
     connectDownloadRuntimeStore(source);
-    await useDownloadRuntimeStore.getState().refreshRunHistory(source);
+    await getDownloadRuntimeStoreState().refreshRunHistory(source);
     listener?.();
 
-    await vi.waitFor(() => expect(useDownloadRuntimeStore.getState().runHistory[0]?.runId).toBe('run-2'));
+    await vi.waitFor(() => expect(getDownloadRuntimeStoreState().runHistory[0]?.runId).toBe('run-2'));
     expect(source.getScheduleConfig).not.toHaveBeenCalled();
   });
 
@@ -116,11 +120,11 @@ describe('download-runtime-store', () => {
     const source = createSource({ subscribeRunEvents: vi.fn().mockReturnValue(unsubscribe) });
 
     connectDownloadRuntimeStore(source);
-    useDownloadRuntimeStore.getState().selectRun('run-1');
+    getDownloadRuntimeStoreState().selectRun('run-1');
     resetDownloadRuntimeStore();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
-    expect(useDownloadRuntimeStore.getState().selectedRunId).toBeUndefined();
-    expect(useDownloadRuntimeStore.getState().runHistory).toEqual([]);
+    expect(getDownloadRuntimeStoreState().selectedRunId).toBeUndefined();
+    expect(getDownloadRuntimeStoreState().runHistory).toEqual([]);
   });
 });

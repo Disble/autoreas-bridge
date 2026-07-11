@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE } from './solo-anime-download-panel.constants';
 import { getSoloAnimeDownloadOptions } from './solo-anime-download-panel.helpers';
 import type { SoloAnimeDownloadState } from './solo-anime-download-panel.types';
@@ -56,7 +56,7 @@ export function useSoloAnimeDownloadPanel(
       (option) => option.id === state.selectedAnimeID,
     );
 
-    if (selectedOption === undefined || !selectedOption.canDownload) {
+    if (!selectedOption?.canDownload) {
       return;
     }
 

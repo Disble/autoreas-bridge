@@ -1,7 +1,8 @@
-import { getAnimeEstadoLabel } from '../../../../shared/constants/anime-estado';
+import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
 import {
   ANIME_DETAIL_DURATION_TILE_LABEL,
+  ANIME_DETAIL_LONG_DATE_FORMATTER,
   ANIME_DETAIL_NO_DATA_LABEL,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
   ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE,
@@ -18,11 +19,6 @@ import type {
   HeroChipColor,
 } from './anime-detail.types';
 
-// Hoisted per react-doctor/js-hoist-intl: constructing an Intl.DateTimeFormat
-// is expensive, so it must not happen on every format call. Mirrors
-// `history-table.helpers.ts`'s LONG_DATE_FORMATTER, duplicated feature-locally.
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
 /**
  * Formats epoch millis as a long-form local date (e.g. "June 30, 2026") for
  * the general-data section's estreno/creación/últ. cap visto fields,
@@ -34,7 +30,7 @@ export function formatAnimeDetailLongDate(millis?: number): string | undefined {
     return undefined;
   }
 
-  return LONG_DATE_FORMATTER.format(new Date(millis));
+  return ANIME_DETAIL_LONG_DATE_FORMATTER.format(new Date(millis));
 }
 
 /**
@@ -49,7 +45,7 @@ export function formatAnimeDetailRepetitionDate(millis?: number): string {
 
 /**
  * Estado label from the canonical shared vocabulary
- * (`shared/constants/anime-estado.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
+ * (`shared/helpers/anime-estado.helpers.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
  * 3=En pausa. Falls back to the raw estado for any unrecognized value.
  */
 export function getAnimeDetailEstadoLabel(estado: number): string {
@@ -247,7 +243,9 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
  * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetir ?? []).map(toAnimeRepeticionViewModel);
+  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetir ?? []).map((entry, index) =>
+    toAnimeRepeticionViewModel(entry, index),
+  );
   const totalLabel = formatAnimeDetailTotalLabel(detail.totalcap);
   const durationLabel = formatAnimeDetailDurationLabel(detail.duracion);
   const estadoLabel = getAnimeDetailEstadoLabel(detail.estado);

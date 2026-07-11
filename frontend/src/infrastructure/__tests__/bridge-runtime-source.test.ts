@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('bridge-runtime-source', () => {
@@ -451,5 +453,26 @@ describe('bridge-runtime-source', () => {
     expect(listener).toHaveBeenCalledTimes(1);
 
     unsubscribe();
+  });
+
+  it('keeps source-adapter declarations in colocated sibling modules', () => {
+    const sourceRoot = join(process.cwd(), 'src/infrastructure/bridge-runtime-source');
+    const indexPath = join(sourceRoot, 'index.ts');
+    const helperPath = join(sourceRoot, 'bridge-runtime-source.helpers.ts');
+    const sourceText = readFileSync(indexPath, 'utf8');
+    const helperText = readFileSync(helperPath, 'utf8');
+
+    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(join(process.cwd(), 'src/infrastructure/bridge-runtime-source.ts'))).toBe(false);
+    expect(sourceText).toContain("from './bridge-runtime-source.types'");
+    expect(sourceText).toContain("from './bridge-runtime-source.helpers'");
+    expect(sourceText).toContain("from '../wails-bindings.helpers'");
+    expect(sourceText).not.toMatch(/export interface\s+BridgeRuntimeSource\b/);
+    expect(sourceText).not.toMatch(/export function\s+/);
+    expect(sourceText).not.toMatch(/export const\s+/);
+    expect(helperText).toContain("from '../wails-bindings.helpers'");
+    expect(sourceText).not.toMatch(/function hasGoBinding\s*\(/);
+    expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
+    expect(sourceText).not.toMatch(/export const\s+bridgeRuntimeSource\b/);
   });
 });

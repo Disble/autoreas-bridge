@@ -1,23 +1,19 @@
-import { getAnimeEstadoLabel } from '../../../../shared/constants/anime-estado';
+import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
 import {
   HISTORY_TABLE_ESTADO_ALL_VALUE,
   HISTORY_TABLE_ESTADO_OPTIONS,
+  HISTORY_TABLE_LONG_DATE_FORMATTER,
+  HISTORY_TABLE_MILLIS_PER_DAY,
   HISTORY_TABLE_SORT_FECHA_CREACION_VALUE,
   HISTORY_TABLE_SORT_NOMBRE_VALUE,
   HISTORY_TABLE_SORT_OPTIONS,
   HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE,
   HISTORY_TABLE_TIPO_ALL_VALUE,
   HISTORY_TABLE_TIPO_OPTIONS,
+  HISTORY_TABLE_WEEKDAY_FORMATTER,
 } from './history-table.constants';
 import type { HeroChipColor, HistoryPageItem, HistoryParamsState, HistoryRowViewModel } from './history-table.types';
-
-const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// Hoisted per react-doctor/js-hoist-intl: constructing an Intl.DateTimeFormat
-// is expensive, so it must not happen on every format call.
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
 
 /** Zero-pads a number to a two-digit string, mirroring `datetime.helpers.ts`'s `padTwo`. */
 function padTwo(value: number): string {
@@ -29,12 +25,12 @@ function padTwo(value: number): string {
  * exceeding the Legacy floor per the "History Timestamps Read Well" spec.
  */
 export function formatHistoryLongDate(millis: number): string {
-  return LONG_DATE_FORMATTER.format(new Date(millis));
+  return HISTORY_TABLE_LONG_DATE_FORMATTER.format(new Date(millis));
 }
 
 /** Formats epoch millis as a local weekday name (e.g. "Tuesday"). */
 export function formatHistoryWeekday(millis: number): string {
-  return WEEKDAY_FORMATTER.format(new Date(millis));
+  return HISTORY_TABLE_WEEKDAY_FORMATTER.format(new Date(millis));
 }
 
 /** Formats epoch millis as a local, zero-padded 24-hour `HH:MM` time (e.g. "12:12"). */
@@ -62,7 +58,7 @@ function startOfLocalDay(millis: number): number {
  * overridable for deterministic tests.
  */
 export function formatHistoryRelativeRecency(millis: number, now: number = Date.now()): string {
-  const dayDiff = Math.round((startOfLocalDay(now) - startOfLocalDay(millis)) / MILLIS_PER_DAY);
+  const dayDiff = Math.round((startOfLocalDay(now) - startOfLocalDay(millis)) / HISTORY_TABLE_MILLIS_PER_DAY);
 
   if (dayDiff <= 0) {
     return 'Today';
@@ -75,7 +71,7 @@ export function formatHistoryRelativeRecency(millis: number, now: number = Date.
 
 /**
  * Estado label from the canonical shared vocabulary
- * (`shared/constants/anime-estado.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
+ * (`shared/helpers/anime-estado.helpers.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
  * 3=En pausa. Falls back to the raw estado for any unrecognized value.
  */
 export function getHistoryEstadoLabel(estado: number): string {

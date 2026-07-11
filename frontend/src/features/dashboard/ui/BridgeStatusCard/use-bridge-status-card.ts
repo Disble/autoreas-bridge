@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { getSQLiteStatusTone, isSQLiteStatusLoading } from './bridge-status-card.helpers';
 
 /** Loads the SQLite status from the backend and derives its display tone. */

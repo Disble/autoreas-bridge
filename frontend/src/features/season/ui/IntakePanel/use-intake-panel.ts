@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { preferencesSource, type PreferencesSource } from '../../../../infrastructure/preferences-source';
-import type { SeasonSource } from '../../../../infrastructure/season-source';
-import { seasonSource } from '../../../../infrastructure/season-source';
-import { useSeasonStore } from '../../../../shared/store/season-store';
+import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
+import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
+import type { SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { INTAKE_FOLDER_PICKER_TITLE, INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
 import {
   buildRawText,

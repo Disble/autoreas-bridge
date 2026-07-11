@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from '@heroui/react';
-import { preferencesSource } from '../../../../infrastructure/preferences-source';
+import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import {
   DOWNLOADS_ROOT_ERROR_MESSAGE,
   DOWNLOADS_ROOT_PICKER_TITLE,

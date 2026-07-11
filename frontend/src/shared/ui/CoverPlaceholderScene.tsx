@@ -1,6 +1,4 @@
-interface CoverPlaceholderSceneProps {
-  readonly className?: string;
-}
+import type { CoverPlaceholderSceneProps } from './CoverPlaceholderScene.types';
 
 /**
  * Full-bleed night-scene illustration used as the default anime cover:
@@ -8,7 +6,7 @@ interface CoverPlaceholderSceneProps {
  * identity, answering Legacy's `before_dawn.svg`). Scales to fill its slot
  * regardless of aspect ratio via `preserveAspectRatio="slice"`.
  */
-export function CoverPlaceholderScene({ className }: CoverPlaceholderSceneProps) {
+export function CoverPlaceholderScene({ className }: Readonly<CoverPlaceholderSceneProps>) {
   return (
     <svg aria-label="No cover art" className={className} preserveAspectRatio="xMidYMid slice" role="img" viewBox="0 0 96 128" xmlns="http://www.w3.org/2000/svg">
       <defs>

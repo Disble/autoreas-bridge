@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ObservabilityLogEntry } from '../../contracts/observability.types';
 import type { ObservabilityLogSource } from '../../../infrastructure/observability-log-source';
-import { connectNetworkStore, resetNetworkStore, useNetworkStore } from '../network-store';
-import { selectFilteredRows } from '../network-store.helpers';
+import { connectNetworkStore, getNetworkStoreState, resetNetworkStore } from '../network-store';
+import { selectFilteredRows } from '../network-store/network-store.helpers';
 
 function entry(overrides: Partial<ObservabilityLogEntry>): ObservabilityLogEntry {
   return {
@@ -27,7 +27,7 @@ describe('network-store', () => {
   });
 
   it('starts with an empty buffer, no selection, no filters', () => {
-    const state = useNetworkStore.getState();
+    const state = getNetworkStoreState();
 
     expect(state.buffer).toEqual([]);
     expect(state.selectedId).toBeNull();
@@ -38,13 +38,13 @@ describe('network-store', () => {
   });
 
   it('ingest appends an entry and caps the buffer at 200', () => {
-    const { ingest } = useNetworkStore.getState();
+    const { ingest } = getNetworkStoreState();
 
     for (let index = 0; index < 205; index += 1) {
       ingest(entry({ timestamp: `t${index}` }));
     }
 
-    const { buffer } = useNetworkStore.getState();
+    const { buffer } = getNetworkStoreState();
 
     expect(buffer).toHaveLength(200);
     expect(buffer[0].timestamp).toBe('t5');
@@ -52,58 +52,58 @@ describe('network-store', () => {
   });
 
   it('seed replaces the buffer with a capped recent snapshot', () => {
-    const { seed } = useNetworkStore.getState();
+    const { seed } = getNetworkStoreState();
     const recent = Array.from({ length: 3 }, (_, index) => entry({ timestamp: `r${index}` }));
 
     seed(recent);
 
-    expect(useNetworkStore.getState().buffer).toEqual(recent);
+    expect(getNetworkStoreState().buffer).toEqual(recent);
   });
 
   it('select sets and clears the selected correlationId', () => {
-    const { select } = useNetworkStore.getState();
+    const { select } = getNetworkStoreState();
 
     select('c1');
-    expect(useNetworkStore.getState().selectedId).toBe('c1');
+    expect(getNetworkStoreState().selectedId).toBe('c1');
 
     select(null);
-    expect(useNetworkStore.getState().selectedId).toBeNull();
+    expect(getNetworkStoreState().selectedId).toBeNull();
   });
 
   it('setQuery and setStatusFilter update filter state', () => {
-    const { setQuery, setStatusFilter } = useNetworkStore.getState();
+    const { setQuery, setStatusFilter } = getNetworkStoreState();
 
     setQuery('sync');
     setStatusFilter('error');
 
-    expect(useNetworkStore.getState().query).toBe('sync');
-    expect(useNetworkStore.getState().statusFilter).toBe('error');
+    expect(getNetworkStoreState().query).toBe('sync');
+    expect(getNetworkStoreState().statusFilter).toBe('error');
   });
 
   it('setLevelFilter updates the level filter state independent of statusFilter', () => {
-    const { setLevelFilter } = useNetworkStore.getState();
+    const { setLevelFilter } = getNetworkStoreState();
 
     setLevelFilter('error');
 
-    expect(useNetworkStore.getState().levelFilter).toBe('error');
+    expect(getNetworkStoreState().levelFilter).toBe('error');
   });
 
   it('setDomainFilter updates the domain filter state independent of other filters', () => {
-    const { setDomainFilter } = useNetworkStore.getState();
+    const { setDomainFilter } = getNetworkStoreState();
 
     setDomainFilter('sync');
 
-    expect(useNetworkStore.getState().domainFilter).toBe('sync');
+    expect(getNetworkStoreState().domainFilter).toBe('sync');
   });
 
   it('select keys selection on a per-entry id (not just correlationId)', () => {
-    const { select } = useNetworkStore.getState();
+    const { select } = getNetworkStoreState();
 
     select('__row_1');
-    expect(useNetworkStore.getState().selectedId).toBe('__row_1');
+    expect(getNetworkStoreState().selectedId).toBe('__row_1');
 
     select(null);
-    expect(useNetworkStore.getState().selectedId).toBeNull();
+    expect(getNetworkStoreState().selectedId).toBeNull();
   });
 
   it('connectNetworkStore seeds from getRecentLogs then subscribes to live ingest', async () => {
@@ -113,7 +113,7 @@ describe('network-store', () => {
     const disconnect = connectNetworkStore(source);
 
     await vi.waitFor(() => {
-      expect(useNetworkStore.getState().buffer).toEqual(recent);
+      expect(getNetworkStoreState().buffer).toEqual(recent);
     });
 
     expect(source.subscribe).toHaveBeenCalledTimes(1);
@@ -121,16 +121,20 @@ describe('network-store', () => {
     disconnect();
   });
 
-  it('connectNetworkStore is idempotent across multiple calls (single bridge)', () => {
-    const source = createFakeSource();
+  it('shares one bridge across consumers and releases it after the final disconnect', () => {
+    const unsubscribe = vi.fn();
+    const source = createFakeSource({ subscribe: vi.fn().mockReturnValue(unsubscribe) });
 
     const disconnectA = connectNetworkStore(source);
     const disconnectB = connectNetworkStore(source);
 
-    expect(disconnectA).toBe(disconnectB);
     expect(source.subscribe).toHaveBeenCalledTimes(1);
 
     disconnectA();
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    disconnectB();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it('connectNetworkStore forwards live events from subscribe into ingest', async () => {
@@ -150,9 +154,154 @@ describe('network-store', () => {
 
     handler?.(entry({ timestamp: 'live-1' }));
 
-    expect(useNetworkStore.getState().buffer.some((item) => item.timestamp === 'live-1')).toBe(true);
+    expect(getNetworkStoreState().buffer.some((item) => item.timestamp === 'live-1')).toBe(true);
 
     disconnect();
+  });
+
+  it('keeps one entry when replay resolves before live delivers the same entry', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const replayedEntry = entry({
+      timestamp: 't1',
+      correlationId: 'c1',
+      eventType: 'http.request',
+      message: 'request completed',
+      metadata: { method: 'GET', path: '/sync', status: 200 },
+    });
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+
+    await vi.waitFor(() => {
+      expect(getNetworkStoreState().buffer).toEqual([replayedEntry]);
+    });
+
+    liveHandler?.({ ...replayedEntry, metadata: { status: 200, path: '/sync', method: 'GET' } });
+
+    expect(getNetworkStoreState().buffer).toEqual([replayedEntry]);
+
+    disconnect();
+  });
+
+  it('keeps different events that share a correlationId', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const replayedEntry = entry({ correlationId: 'c1', eventType: 'request.started', message: 'started' });
+    const liveEntry = entry({ correlationId: 'c1', eventType: 'request.finished', message: 'finished' });
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+    await vi.waitFor(() => expect(getNetworkStoreState().buffer).toEqual([replayedEntry]));
+
+    liveHandler?.(liveEntry);
+
+    expect(getNetworkStoreState().buffer).toEqual([replayedEntry, liveEntry]);
+    disconnect();
+  });
+
+  it('keeps the same message when timestamps differ', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const replayedEntry = entry({ timestamp: 't1', message: 'sync complete' });
+    const liveEntry = entry({ timestamp: 't2', message: 'sync complete' });
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+    await vi.waitFor(() => expect(getNetworkStoreState().buffer).toEqual([replayedEntry]));
+
+    liveHandler?.(liveEntry);
+
+    expect(getNetworkStoreState().buffer).toEqual([replayedEntry, liveEntry]);
+    disconnect();
+  });
+
+  it('keeps distinct entries without correlation IDs', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const replayedEntry = entry({ timestamp: 't1', message: 'request', metadata: { path: '/one' } });
+    const liveEntry = entry({ timestamp: 't1', message: 'request', metadata: { path: '/two' } });
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+    await vi.waitFor(() => expect(getNetworkStoreState().buffer).toEqual([replayedEntry]));
+
+    liveHandler?.(liveEntry);
+
+    expect(getNetworkStoreState().buffer).toEqual([replayedEntry, liveEntry]);
+    disconnect();
+  });
+
+  it('replay replaces stale pre-connection state', async () => {
+    const staleEntry = entry({ timestamp: 'stale' });
+    const replayedEntry = entry({ timestamp: 'replayed' });
+    getNetworkStoreState().ingest(staleEntry);
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]) });
+
+    const disconnect = connectNetworkStore(source);
+
+    await vi.waitFor(() => expect(getNetworkStoreState().buffer).toEqual([replayedEntry]));
+    disconnect();
+  });
+
+  it('matches metadata deterministically regardless of key order', async () => {
+    let liveHandler: ((liveEntry: ObservabilityLogEntry) => void) | undefined;
+    const replayedEntry = entry({ metadata: { method: 'GET', nested: { path: '/sync', status: 200 } } });
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockResolvedValue([replayedEntry]),
+      subscribe: vi.fn().mockImplementation((listener: (liveEntry: ObservabilityLogEntry) => void) => {
+        liveHandler = listener;
+        return () => undefined;
+      }),
+    });
+
+    const disconnect = connectNetworkStore(source);
+    await vi.waitFor(() => expect(getNetworkStoreState().buffer).toEqual([replayedEntry]));
+
+    liveHandler?.(entry({ metadata: { nested: { status: 200, path: '/sync' }, method: 'GET' } }));
+
+    expect(getNetworkStoreState().buffer).toEqual([replayedEntry]);
+    disconnect();
+  });
+
+  it('ignores a replay that resolves after the final disconnect', async () => {
+    let resolveRecentLogs: ((value: readonly ObservabilityLogEntry[]) => void) | undefined;
+    const source = createFakeSource({
+      getRecentLogs: vi.fn().mockImplementation(
+        () =>
+          new Promise<readonly ObservabilityLogEntry[]>((resolve) => {
+            resolveRecentLogs = resolve;
+          }),
+      ),
+    });
+
+    const disconnect = connectNetworkStore(source);
+    disconnect();
+    resolveRecentLogs?.([entry({ timestamp: 'stale-replay' })]);
+
+    await Promise.resolve();
+
+    expect(getNetworkStoreState().buffer).toEqual([]);
   });
 
   it('resetNetworkStore tears down the bridge and clears state', () => {
@@ -160,16 +309,16 @@ describe('network-store', () => {
     const sourceWithUnsubscribe = createFakeSource({ subscribe: vi.fn().mockReturnValue(unsubscribeMock) });
 
     connectNetworkStore(sourceWithUnsubscribe);
-    useNetworkStore.getState().select('c1');
-    useNetworkStore.getState().setDomainFilter('sync');
+    getNetworkStoreState().select('c1');
+    getNetworkStoreState().setDomainFilter('sync');
 
     resetNetworkStore();
 
     expect(unsubscribeMock).toHaveBeenCalledTimes(1);
-    expect(useNetworkStore.getState().selectedId).toBeNull();
-    expect(useNetworkStore.getState().buffer).toEqual([]);
-    expect(useNetworkStore.getState().levelFilter).toBe('all');
-    expect(useNetworkStore.getState().domainFilter).toBe('all');
+    expect(getNetworkStoreState().selectedId).toBeNull();
+    expect(getNetworkStoreState().buffer).toEqual([]);
+    expect(getNetworkStoreState().levelFilter).toBe('all');
+    expect(getNetworkStoreState().domainFilter).toBe('all');
   });
 
   it('a realistic set of http.request entries (no correlationId) renders N distinct rows end-to-end via connectNetworkStore + selectFilteredRows', async () => {
@@ -183,10 +332,10 @@ describe('network-store', () => {
     const disconnect = connectNetworkStore(source);
 
     await vi.waitFor(() => {
-      expect(useNetworkStore.getState().buffer).toHaveLength(3);
+      expect(getNetworkStoreState().buffer).toHaveLength(3);
     });
 
-    const { buffer, query, statusFilter } = useNetworkStore.getState();
+    const { buffer, query, statusFilter } = getNetworkStoreState();
     const rows = selectFilteredRows(buffer, query, statusFilter);
 
     expect(rows).toHaveLength(3);
@@ -220,13 +369,10 @@ describe('network-store', () => {
     resolveRecentLogs?.([sharedEntry]);
 
     await vi.waitFor(() => {
-      expect(useNetworkStore.getState().buffer.length).toBeGreaterThan(0);
+      expect(getNetworkStoreState().buffer.length).toBeGreaterThan(0);
     });
 
-    const { buffer, query, statusFilter } = useNetworkStore.getState();
-    const rows = selectFilteredRows(buffer, query, statusFilter);
-
-    expect(rows).toHaveLength(1);
+    expect(getNetworkStoreState().buffer).toEqual([sharedEntry]);
 
     disconnect();
   });

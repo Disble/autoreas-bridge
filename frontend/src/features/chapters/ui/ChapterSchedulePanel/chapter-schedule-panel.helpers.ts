@@ -1,15 +1,21 @@
-import { CHAPTER_DAY_OPTIONS, CHAPTER_SEASON_OPTIONS, CHAPTER_STATE_LABELS } from './chapter-schedule-panel.constants';
+import {
+  CHAPTER_DAY_OPTIONS,
+  CHAPTER_SCHEDULE_EMPTY_COVERS,
+  CHAPTER_SCHEDULE_WEEKDAY_FORMATTER,
+  CHAPTER_SEASON_OPTIONS,
+  CHAPTER_STATE_LABELS,
+} from './chapter-schedule-panel.constants';
 import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
-
-const spanishWeekdayFormatter = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
-const EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();
 
 /**
  * Converts backend chapter schedule DTOs into UI rows with explicit labels so the
  * rendering component stays dumb and does not duplicate progress math. `covers`
  * carries the hook's per-session cover cache, keyed by anime id.
  */
-export function toChapterScheduleRows(items: readonly ChapterScheduleItem[], covers: ReadonlyMap<string, CoverEntry> = EMPTY_COVERS): readonly ChapterScheduleRow[] {
+export function toChapterScheduleRows(
+  items: readonly ChapterScheduleItem[],
+  covers: ReadonlyMap<string, CoverEntry> = CHAPTER_SCHEDULE_EMPTY_COVERS,
+): readonly ChapterScheduleRow[] {
   return items.map((item) => {
     const remaining = item.totalcap === undefined ? undefined : item.totalcap - item.nrocapvisto;
     const watchedLabel = `${formatChapterNumber(item.nrocapvisto)} watched`;
@@ -82,7 +88,7 @@ export function getInitialChapterSelection(input: InitialChapterSelectionInput):
  * anime schedule stores days in Spanish.
  */
 export function getDefaultChapterDay(date: Date = new Date()): string {
-  return spanishWeekdayFormatter.format(date).replace(/^./, (char) => char.toUpperCase());
+  return CHAPTER_SCHEDULE_WEEKDAY_FORMATTER.format(date).replace(/^./, (char) => char.toUpperCase());
 }
 
 /**

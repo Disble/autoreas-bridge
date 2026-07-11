@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,5 +27,13 @@ describe('LabeledCheckbox', () => {
     );
     fireEvent.click(screen.getByRole('checkbox'));
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps props contracts in a colocated types file with a readonly boundary', () => {
+    const componentPath = join(process.cwd(), 'src/shared/ui/LabeledCheckbox.tsx');
+    const sourceText = readFileSync(componentPath, 'utf8');
+
+    expect(sourceText).not.toMatch(/interface\s+LabeledCheckboxProps\b/);
+    expect(sourceText).toContain('Readonly<LabeledCheckboxProps>');
   });
 });

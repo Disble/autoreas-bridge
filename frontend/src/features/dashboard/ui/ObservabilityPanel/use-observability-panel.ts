@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { observabilityLogSource } from '../../../../infrastructure/observability-log-source';
-import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
+import { observabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.helpers';
+import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.types';
 import { keepRecentEntries, toObservabilityPanelViewModel } from './observability-panel.helpers';
 import type { ObservabilityLogEntry, ObservabilityPanelViewModel } from './observability-panel.types';
 

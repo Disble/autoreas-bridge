@@ -1,8 +1,11 @@
 import type { RefObject } from 'react';
 import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
-import type { EntryWithId } from '../../../../shared/store/network-store.helpers';
-import type { NetworkDomainFilter, NetworkLevelFilter } from '../../../../shared/store/network-store.types';
+import type {
+  EntryWithId,
+  NetworkDomainFilter,
+  NetworkLevelFilter,
+} from '../../../../shared/store/network-store/network-store.types';
 
 export type { EntryWithId, NetworkDomainFilter, NetworkLevelFilter };
 

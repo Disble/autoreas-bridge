@@ -2,7 +2,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source';
 import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
-import { resetNetworkStore, useNetworkStore } from '../../../../../shared/store/network-store';
+import { getNetworkStoreState, resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
 import { NetworkPanel } from '../NetworkPanel';
 
 function entry(overrides: Partial<ObservabilityLogEntry> = {}): ObservabilityLogEntry {
@@ -49,7 +49,7 @@ describe('NetworkPanel autoscroll (stick-to-bottom)', () => {
     const geom = mockGeometry(scroller as HTMLElement, 5000, 400);
 
     await act(async () => {
-      useNetworkStore.getState().ingest(entry({ timestamp: 't1', message: 'fresh entry' }));
+      getNetworkStoreState().ingest(entry({ timestamp: 't1', message: 'fresh entry' }));
     });
 
     await waitFor(() => {

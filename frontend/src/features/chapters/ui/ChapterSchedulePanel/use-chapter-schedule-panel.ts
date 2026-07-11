@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@heroui/react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
-import { preferencesSource } from '../../../../infrastructure/preferences-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import { CHAPTER_RUNTIME_UNAVAILABLE_RESULT } from './chapter-schedule-panel.constants';
 import { getChapterFilterOptions, getInitialChapterSelection, toAnimeCover, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
 import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource, CoverEntry } from './chapter-schedule-panel.types';
@@ -149,15 +149,26 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
   }, [props.initialDay, source]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-doctor/no-derived-state -- The selected day is interactive UI state that starts from runtime defaults and then diverges through user selection.
     refresh();
   }, [refresh]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-doctor/no-derived-state -- Day counts come from an async backend query and are not derivable from the local render state.
     refreshDayCounts();
   }, [refreshDayCounts]);
 
   useEffect(() => {
-    const idsToFetch = items.filter((item) => item.hasCover && !fetchedCoverIdsRef.current.has(item.animeId)).map((item) => item.animeId);
+    const idsToFetch: string[] = [];
+
+    for (const item of items) {
+      if (!item.hasCover || fetchedCoverIdsRef.current.has(item.animeId)) {
+        continue;
+      }
+
+      idsToFetch.push(item.animeId);
+    }
+
     if (idsToFetch.length === 0) {
       return;
     }
@@ -166,6 +177,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
       fetchedCoverIdsRef.current.add(animeID);
     }
 
+    // eslint-disable-next-line react-doctor/no-adjust-state-on-prop-change -- Cover placeholders are async fetch state keyed by freshly loaded items, so the loading map must update when the fetched schedule changes.
     setCovers((previous) => {
       const next = new Map(previous);
       for (const animeID of idsToFetch) {

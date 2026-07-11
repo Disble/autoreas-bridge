@@ -1,8 +1,21 @@
-import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado';
+import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado.constants';
 import type { HistoryFilterOption } from './history-table.types';
 
 /** Number of History rows shown per page (Legacy parity). */
 export const HISTORY_TABLE_PAGE_SIZE = 10;
+
+/** Milliseconds in one calendar day for History recency calculations. */
+export const HISTORY_TABLE_MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Shared long-date formatter hoisted once for History row rendering. */
+export const HISTORY_TABLE_LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+/** Shared weekday formatter hoisted once for History row rendering. */
+export const HISTORY_TABLE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
 
 /** Debounce delay applied to the free-text name search before it filters rows. */
 export const HISTORY_TABLE_SEARCH_DEBOUNCE_MS = 200;
@@ -12,7 +25,7 @@ export const HISTORY_TABLE_ESTADO_ALL_VALUE = 'all';
 
 /**
  * Options for the visible estado filter control. Labels come from the
- * canonical shared vocabulary (`shared/constants/anime-estado.ts`) so estado
+ * canonical shared vocabulary (`shared/constants/anime-estado.constants.ts`) so estado
  * wording stays consistent across every feature; only the "All" sentinel is
  * feature-local.
  */

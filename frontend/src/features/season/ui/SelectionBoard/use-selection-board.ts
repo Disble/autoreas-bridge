@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source';
-import { seasonSource } from '../../../../infrastructure/season-source';
-import { useSeasonStore } from '../../../../shared/store/season-store';
+import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
+import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
+import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS } from './selection-board.constants';
 import { countApproved, quotaStatus, toSelectionRows } from './selection-board.helpers';
 

@@ -6,6 +6,10 @@ import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunH
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
 import { SoloAnimeDownloadPanel } from '../../features/download/ui/SoloAnimeDownloadPanel/SoloAnimeDownloadPanel';
 
+/**
+ * DownloadsRoute assembles the download-management panels exposed under the
+ * routed Downloads workspace.
+ */
 export function DownloadsRoute() {
   return (
     <div className="flex flex-col gap-4">

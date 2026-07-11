@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
-import { resetSeasonStore, useSeasonStore } from '../../../../../shared/store/season-store';
+import { resetSeasonStore, setSeasonStoreState } from '../../../../../shared/store/season-store/season-store.helpers';
 import { DailyBoard } from '../DailyBoard';
 
 // Integration test with the REAL useDailyBoard hook and the REAL HeroUI Checkbox
@@ -33,7 +33,7 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
   });
 
   it('renders a real, clickable checkbox per Sin ver row', () => {
-    useSeasonStore.setState({ seasonAnimes: [createdRow('a', 'anime-a'), createdRow('b', 'anime-b')] });
+    setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a'), createdRow('b', 'anime-b')] });
     render(<DailyBoard />);
 
     // The bug was that no interactive checkbox rendered at all.
@@ -42,7 +42,7 @@ describe('DailyBoard Sin ver checkboxes (real component)', () => {
   });
 
   it('selecting a checkbox updates the "selected for today" count and enables Send', () => {
-    useSeasonStore.setState({ seasonAnimes: [createdRow('a', 'anime-a')] });
+    setSeasonStoreState({ seasonAnimes: [createdRow('a', 'anime-a')] });
     render(<DailyBoard />);
 
     expect(screen.getByText('0 selected for today')).toBeInTheDocument();

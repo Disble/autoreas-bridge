@@ -1,5 +1,9 @@
 import { ChapterSchedulePanel } from '../../features/chapters/ui/ChapterSchedulePanel/ChapterSchedulePanel';
 
+/**
+ * ChaptersRoute presents the schedule workspace used to update today's anime
+ * progress from the main routed shell.
+ */
 export function ChaptersRoute() {
   return (
     <div className="flex flex-col gap-4">

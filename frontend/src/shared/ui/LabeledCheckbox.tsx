@@ -1,14 +1,5 @@
 import { Checkbox } from '@heroui/react';
-import type { ReactNode } from 'react';
-
-interface LabeledCheckboxProps {
-  readonly isSelected: boolean;
-  readonly onChange: (isSelected: boolean) => void;
-  readonly children: ReactNode;
-  readonly className?: string;
-  /** Shown but non-interactive when true (e.g. a row not yet eligible to pick). */
-  readonly isDisabled?: boolean;
-}
+import type { LabeledCheckboxProps } from './LabeledCheckbox.types';
 
 /**
  * LabeledCheckbox wraps HeroUI v3's COMPOUND Checkbox with the required
@@ -18,7 +9,7 @@ interface LabeledCheckboxProps {
  * When disabled it stays VISIBLE (a dimmed but present box) so a not-yet-eligible
  * row still shows its checkbox. Use this for any selectable list item.
  */
-export function LabeledCheckbox({ isSelected, onChange, children, className, isDisabled }: LabeledCheckboxProps) {
+export function LabeledCheckbox({ isSelected, onChange, children, className, isDisabled }: Readonly<LabeledCheckboxProps>) {
   return (
     <Checkbox className={className} isDisabled={isDisabled} isSelected={isSelected} onChange={onChange}>
       <Checkbox.Content>

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
 import {
@@ -9,6 +11,9 @@ import {
   getNetworkStatusLabel,
   getNetworkDomainColor,
   getNetworkLevelAccentBorderClass,
+  getNetworkPanelRows,
+  getNetworkPanelSelection,
+  getNetworkPanelSummary,
   toNetworkEntryViewModel,
 } from '../network-panel.helpers';
 
@@ -29,6 +34,15 @@ describe('getNetworkLevelLabel', () => {
 
   it('returns the level unchanged when present', () => {
     expect(getNetworkLevelLabel('error')).toBe('error');
+  });
+});
+
+describe('network-panel.helpers architecture', () => {
+  it('keeps helper-only contracts in the colocated types module', () => {
+    const helperPath = join(process.cwd(), 'src/features/network/ui/NetworkPanel/network-panel.helpers.ts');
+    const sourceText = readFileSync(helperPath, 'utf8');
+
+    expect(sourceText).not.toMatch(/interface\s+(NetworkPanelSelection|NetworkPanelSummary)\b/);
   });
 });
 
@@ -178,5 +192,72 @@ describe('getNetworkLevelAccentBorderClass', () => {
 
   it('falls back to a neutral divider border for unknown levels', () => {
     expect(getNetworkLevelAccentBorderClass('trace')).toBe('border-l-divider');
+  });
+});
+
+describe('getNetworkPanelRows', () => {
+  it('derives filtered row view-models from the raw buffer', () => {
+    const buffer = [
+      entry({ timestamp: 't1', domain: 'sync', level: 'info', message: 'syncing catalogue' }),
+      entry({ timestamp: 't2', domain: 'anime', level: 'error', message: 'publishing failed' }),
+    ];
+
+    const rows = getNetworkPanelRows(buffer, 'publish', 'error', 'anime');
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].domain).toBe('anime');
+    expect(rows[0].level).toBe('error');
+    expect(rows[0].message).toBe('publishing failed');
+  });
+
+  it('preserves one row per entry when entries share a correlation id', () => {
+    const buffer = [
+      entry({ timestamp: 't1', correlationId: 'c1', message: 'first' }),
+      entry({ timestamp: 't2', correlationId: 'c1', message: 'second' }),
+    ];
+
+    const rows = getNetworkPanelRows(buffer, '', 'all', 'all');
+
+    expect(rows.map((row) => row.message)).toEqual(['first', 'second']);
+  });
+});
+
+describe('getNetworkPanelSelection', () => {
+  it('returns the selected entry and detail view-model for a matching row id', () => {
+    const selected = entry({ timestamp: 't1', correlationId: 'trace-1', message: 'selected' });
+    const sibling = entry({ timestamp: 't2', correlationId: 'trace-1', message: 'sibling' });
+    const selectedId = getNetworkPanelRows([selected], '', 'all', 'all')[0].id;
+
+    const selection = getNetworkPanelSelection([selected, sibling], selectedId);
+
+    expect(selection.selectedEntry).toBe(selected);
+    expect(selection.selectedDetail?.message).toBe('selected');
+    expect(selection.selectedDetail?.traceEntries.map((traceEntry) => traceEntry.message)).toEqual(['selected', 'sibling']);
+  });
+
+  it('returns null selection state when no row is selected', () => {
+    const selection = getNetworkPanelSelection([entry({ timestamp: 't1', message: 'ignored' })], null);
+
+    expect(selection.selectedEntry).toBeNull();
+    expect(selection.selectedDetail).toBeNull();
+  });
+});
+
+describe('getNetworkPanelSummary', () => {
+  it('derives total, error, and shown counts for the panel status bar', () => {
+    const summary = getNetworkPanelSummary(
+      [
+        entry({ timestamp: 't1', level: 'info' }),
+        entry({ timestamp: 't2', level: 'error' }),
+        entry({ timestamp: 't3', level: 'ERROR' }),
+      ],
+      1,
+    );
+
+    expect(summary).toEqual({
+      entryCount: 3,
+      errorCount: 2,
+      shownCount: 1,
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANIME_ESTADO_FILTER_ENTRIES, ANIME_ESTADO_LABELS, getAnimeEstadoLabel } from '../anime-estado';
+import { ANIME_ESTADO_FILTER_ENTRIES, ANIME_ESTADO_LABELS } from '../anime-estado.constants';
 
 describe('anime estado canonical vocabulary', () => {
   it.each([
@@ -9,11 +9,6 @@ describe('anime estado canonical vocabulary', () => {
     [3, 'En pausa'],
   ])('maps estado %i to the Legacy-truth label %s', (estado, label) => {
     expect(ANIME_ESTADO_LABELS[estado]).toBe(label);
-    expect(getAnimeEstadoLabel(estado)).toBe(label);
-  });
-
-  it('falls back to the raw estado as string for unknown values', () => {
-    expect(getAnimeEstadoLabel(99)).toBe('99');
   });
 
   it('exposes the four numeric estado values as filter entries in canonical order', () => {

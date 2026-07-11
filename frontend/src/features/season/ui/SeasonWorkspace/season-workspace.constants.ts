@@ -20,6 +20,9 @@ export const SEASON_MONTHS_ES = [
 /** Section identifiers for the Season Workspace tab shell. */
 export type SeasonSectionId = 'overview' | 'intake' | 'daily' | 'evaluation' | 'selection' | 'ordering';
 
+/**
+ * Route-tab contract for the Season Workspace sections shown in the shell.
+ */
 export interface SeasonSectionTab {
   readonly id: SeasonSectionId;
   readonly label: string;

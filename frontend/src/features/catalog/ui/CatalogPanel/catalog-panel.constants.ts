@@ -1,4 +1,4 @@
-import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado';
+import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado.constants';
 import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 import type { AnimeFilterOption } from './catalog-panel.types';
 
@@ -41,7 +41,7 @@ export const ANIME_FILTER_DEBOUNCE_MS = 200;
 
 /**
  * Options for the "estado" filter select. Labels come from the canonical
- * shared vocabulary (`shared/constants/anime-estado.ts`); only the "All"
+ * shared vocabulary (`shared/constants/anime-estado.constants.ts`); only the "All"
  * sentinel is feature-local.
  */
 export const ANIME_ESTADO_OPTIONS: readonly AnimeFilterOption[] = [

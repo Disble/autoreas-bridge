@@ -1,6 +1,13 @@
 /** Fallback shown for a studios/origin field the legacy record left empty. */
 export const ANIME_DETAIL_UNKNOWN_LABEL = 'Unknown';
 
+/** Shared long-date formatter hoisted once for Anime Detail helper formatting. */
+export const ANIME_DETAIL_LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
 /** Message rendered while the detail fetch is in flight. */
 export const ANIME_DETAIL_LOADING_MESSAGE = 'Loading anime detail...';
 

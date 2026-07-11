@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { toConnectedDeviceRows } from './connected-devices-panel.helpers';
 import type { ConnectedDevice, ConnectedDevicesPanelProps } from './connected-devices-panel.types';
 
@@ -67,6 +67,7 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
 
   // 7. Effects
   useEffect(() => {
+    // eslint-disable-next-line react-doctor/no-derived-state -- A pending request has no derivable source; loading must persist until it settles.
     refresh();
   }, [refresh]);
 

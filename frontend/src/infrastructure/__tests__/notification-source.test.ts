@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('notification-source', () => {
@@ -118,5 +120,22 @@ describe('notification-source', () => {
     unsubscribe();
 
     expect(runtimeUnsubscribeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps source-adapter declarations in colocated sibling modules', () => {
+    const sourceRoot = join(process.cwd(), 'src/infrastructure/notification-source');
+    const indexPath = join(sourceRoot, 'index.ts');
+    const helperPath = join(sourceRoot, 'notification-source.helpers.ts');
+    const sourceText = readFileSync(indexPath, 'utf8');
+    const helperText = readFileSync(helperPath, 'utf8');
+
+    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(join(process.cwd(), 'src/infrastructure/notification-source.ts'))).toBe(false);
+    expect(sourceText).toContain("from './notification-source.types'");
+    expect(sourceText).toContain("from './notification-source.helpers'");
+    expect(sourceText).not.toMatch(/export interface\s+NotificationSource\b/);
+    expect(sourceText).not.toMatch(/export function\s+/);
+    expect(sourceText).not.toMatch(/export const\s+/);
+    expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 });
