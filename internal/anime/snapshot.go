@@ -113,6 +113,11 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 		}
 
 		persisted := baseline[id]
+		if isSoftDeletedSnapshot(persisted) {
+			current[id] = persisted
+			continue
+		}
+
 		softDeletedPayload, err := softDeleteCanonicalJSON(persisted.CanonicalJSON, time.Now())
 		if err != nil {
 			// Malformed baseline payload: fall back to the pre-SDD-30 prune
@@ -142,6 +147,15 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 	eventsOut = append(eventsOut, softDeletes...)
 
 	return eventsOut, pruneIDs
+}
+
+func isSoftDeletedSnapshot(record SnapshotRecord) bool {
+	var raw domain.LegacyAnimeRaw
+	if err := raw.UnmarshalJSON(record.CanonicalJSON); err != nil {
+		return false
+	}
+
+	return raw.Activo.TriState() == domain.TriStateFalse && raw.FechaEliminacion.Time() != nil
 }
 
 // softDeleteCanonicalJSON takes a baseline record's canonical JSON and

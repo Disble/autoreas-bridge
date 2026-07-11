@@ -1,6 +1,7 @@
 package anime
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
@@ -227,5 +228,49 @@ func TestDiffSnapshotsSoftDeletesAbsentBaselineRecord(t *testing.T) {
 	}
 	if gotRecord.ModifiedAt <= baselineRecord.ModifiedAt {
 		t.Fatalf("expected soft-delete to bump ModifiedAt above baseline %d, got %d", baselineRecord.ModifiedAt, gotRecord.ModifiedAt)
+	}
+}
+
+func TestDiffSnapshotsCarriesForwardAbsentSoftDeletedRecordUnchanged(t *testing.T) {
+	t.Parallel()
+
+	const deletedAt = int64(1700000000123)
+	baselinePayload := []byte(`{"_id":"gone","nombre":"Gone Anime","nrocapvisto":4,"activo":false,"fechaEliminacion":{"$$date":1700000000123}}`)
+	baselineRecord := SnapshotRecord{
+		AnimeID:       "gone",
+		CanonicalJSON: baselinePayload,
+		Hash:          HashSnapshot(baselinePayload),
+		ModifiedAt:    1710000000456,
+	}
+	current := map[string]SnapshotRecord{}
+
+	deltas, pruneIDs := DiffSnapshots(current, map[string]SnapshotRecord{"gone": baselineRecord})
+
+	if len(deltas) != 0 {
+		t.Fatalf("expected no deltas for an absent persisted soft-delete, got %+v", deltas)
+	}
+	if len(pruneIDs) != 0 {
+		t.Fatalf("expected no prune ids for an absent persisted soft-delete, got %v", pruneIDs)
+	}
+	got, ok := current["gone"]
+	if !ok {
+		t.Fatal("expected persisted soft-delete to be carried forward in current")
+	}
+	if !bytes.Equal(got.CanonicalJSON, baselineRecord.CanonicalJSON) {
+		t.Fatalf("expected canonical payload to remain unchanged, got %s", got.CanonicalJSON)
+	}
+	if got.Hash != baselineRecord.Hash {
+		t.Fatalf("expected hash %q to remain unchanged, got %q", baselineRecord.Hash, got.Hash)
+	}
+	if got.ModifiedAt != baselineRecord.ModifiedAt {
+		t.Fatalf("expected ModifiedAt %d to remain unchanged, got %d", baselineRecord.ModifiedAt, got.ModifiedAt)
+	}
+
+	var raw domain.LegacyAnimeRaw
+	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
+		t.Fatalf("unmarshal carried-forward soft-delete payload: %v", err)
+	}
+	if raw.FechaEliminacion.Time() == nil || raw.FechaEliminacion.Time().UnixMilli() != deletedAt {
+		t.Fatalf("expected deletion timestamp %d to remain unchanged, got %v", deletedAt, raw.FechaEliminacion.Time())
 	}
 }
