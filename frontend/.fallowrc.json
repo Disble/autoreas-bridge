@@ -6,7 +6,24 @@
     "src/main.{ts,tsx,js,jsx}",
     "src/test/setup.ts"
   ],
+  "ignoreExports": [
+    {
+      "file": "src/**/index.ts",
+      "exports": ["*"]
+    }
+  ],
   "ignorePatterns": ["wailsjs/**"],
+  "overrides": [
+    {
+      "files": ["src/**/index.ts"],
+      "rules": {
+        "unused-types": "off"
+      }
+    }
+  ],
+  "audit": {
+    "dupesBaseline": ".fallow/baselines/dupes.json"
+  },
   "duplicates": {
     "mode": "semantic",
     "threshold": 3,

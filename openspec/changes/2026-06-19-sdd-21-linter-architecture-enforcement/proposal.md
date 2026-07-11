@@ -1,76 +1,65 @@
-# Proposal: Deterministic Linter-Enforced Architecture Constraints
-
-> Retroactive proposal. The change is ALREADY IMPLEMENTED, VERIFIED, and green. This documents reality to satisfy the sdd-gate.
+# Proposal: Frontend Global Declaration Governance
 
 ## Intent
 
-Architecture constraints (Dumb-UI, Hook Anatomy, colocation, domain purity, transport confinement) were prose-only in `AGENTS.md`/`ARCHITECTURE.md` and therefore non-enforceable — they drifted silently. Make them DETERMINISTIC: enforced by linters wired into the lefthook pre-commit gate. User norm: "guidelines must be deterministic via linters first, transversal by default." Rules ported from sibling `ollama-telemetry`, itself an adaptation of `autoreas-mobile` standards (same family).
+Revise the active lint-governance change so the contract matches the user-confirmed frontend standards: maintained source is governed globally, generated `wailsjs/**` is the narrow documentation exception, split modules live behind folder entrypoints, and fixtures prove every rejection and exception.
 
 ## Scope
 
 ### In Scope
-- Frontend ESLint v8 legacy → v9 flat config; codify architecture rules as a rules module.
-- Backend golangci-lint `depguard` boundary rules (domain purity, ports-vs-adapters, Wails confinement).
-- Wire `frontend-typecheck` into the lefthook gate (no-undef is delegated to `tsc`).
-- Document deterministic enforcement in `ARCHITECTURE.md` section 10.
-- Make existing `frontend/src/features/dashboard/**` green under the new rules.
+- Define global rules for maintained frontend declarations under `frontend/src/**`.
+- Require folder-owned split modules with pure `index.ts` public entrypoints.
+- Define declaration ownership for `*.types.ts`, `*.constants.ts`, `*.helpers.ts`, and main UI/hook/adapter/delivery modules.
+- Expand the fixture matrix to cover accepted, rejected, harness-only, and generated-exception cases.
+- Identify which policies use stock ESLint selectors and which need custom repo support.
 
 ### Out of Scope
-- Fixing recorded drift `internal/anime/domain → internal/api/contracts` (left as-is, documented).
-- `doctor:react` in the gate (advisory + network-dependent — kept as a manual script).
-- Any runtime/behavior change. These are build-time guards only.
+- Implementing lint/config/code changes in this phase.
+- Backend lint-policy expansion.
+- Runtime behavior changes.
 
 ## Capabilities
 
 ### New Capabilities
-None — no runtime behavior introduced; this is a build-time governance change.
+None.
 
 ### Modified Capabilities
-None at the spec level. Pure tooling/config + docs change.
+- `architecture-enforcement`: enforce global frontend declaration governance, pure barrel entrypoints, ownership-by-file-role, global JSDoc coverage, harness-only invalid fixtures, and the generated `wailsjs/**` documentation carve-out.
 
 ## Approach
 
-- FRONTEND: remove `.eslintrc.cjs`; add `eslint.config.js` (flat) + `eslint/architecture-rules.js` + `eslint/README.md`. Plugins (bun): eslint@9, @eslint/js, eslint-import-resolver-typescript, eslint-plugin-check-file, eslint-plugin-import-x, eslint-plugin-react-doctor, eslint-plugin-sonarjs; keep eslint-plugin-react-hooks. Enforce: Dumb-UI (no useEffect/useLayoutEffect, no Wails bindings in feature `.tsx`), Hook Anatomy (useMemo→useCallback→useEffect order, hook ends with return), strict colocation (no inline interfaces/types/consts/helpers/Zod in views & hooks, tests in `__tests__/`, kebab-case folders via check-file), `Readonly<Props>` boundary, JSDoc on exported hooks/types/constants/schemas/helpers, 500-line max. Transversal: import-x/no-cycle, sonarjs (warn), react-doctor (warn). Decisions: `no-undef` OFF (delegated to tsc); `@typescript-eslint/no-unused-vars` (TS-aware). New scripts: typecheck, validate, doctor:react.
-- BACKEND: `.golangci.yml` enables `depguard` with 3 boundary rules — verified to actually fail via a negative probe.
-- GATE: add `frontend-typecheck` job so `tsc` runs (compensates `no-undef` off).
+Use `frontend/src/**` as the maintained-surface default. Public declarations MUST carry JSDoc. `wailsjs/**` stays excluded as generated code. A split module that uses `*.helpers.ts`, `*.types.ts`, or `*.constants.ts` MUST live in its own folder with an `index.ts` barrel that contains re-exports only. `*.types.ts` owns interfaces/types, `*.constants.ts` owns constants, `*.helpers.ts` owns helper functions, and main UI/hook/adapter/delivery files own only their named main function. The final topology removes all six migrated infrastructure adapter flat facades, leaves no compatibility shims, and leaves no production allowlist entries behind. Stock ESLint selectors can enforce most declaration and JSDoc rules. Pure-barrel validation, sibling-file ownership, and the fixture rejection catalog need custom plugin or harness/script support.
 
 ## Affected Areas
 
 | Area | Impact | Description |
 |------|--------|-------------|
-| `frontend/.eslintrc.cjs` | Removed | Legacy v8 config |
-| `frontend/eslint.config.js`, `frontend/eslint/**` | New | Flat config + rules module + README |
-| `frontend/package.json` | Modified | New plugins + typecheck/validate/doctor:react scripts |
-| `frontend/src/features/dashboard/**` | Modified | Real JSDoc + 2 unused-var fixes to go green |
-| `.golangci.yml` | Modified | depguard boundary rules |
-| `lefthook.yml` | Modified | Added `frontend-typecheck` job |
-| `ARCHITECTURE.md` | Modified | Section 10 rewritten for deterministic enforcement |
+| `frontend/eslint.config.js` | Modified | Global maintained-surface scope and generated-code exception |
+| `frontend/eslint/architecture-rules.js` | Modified | Ownership, barrel, and declaration-governance selectors/helpers |
+| `frontend/eslint/__tests__/**`, `__fixtures__/**` | Modified | Fixture matrix for valid, invalid, exempt, and harness-only paths |
+| `frontend/eslint/README.md`, `docs/architecture.md` | Modified | Document rule ownership, pure barrel contract, and exception matrix |
+| `openspec/changes/.../*` | Modified | Align proposal/spec/design/tasks/verify with stacked review plan |
 
 ## Risks
 
 | Risk | Likelihood | Mitigation |
 |------|------------|------------|
-| `no-undef` off lets undefined symbols slip | Medium | `frontend-typecheck` (tsc) in the gate |
-| Flat-config migration breaks lint locally | Low | Verified green; README documents setup |
-| depguard false negatives on layering | Low | Negative probe confirmed rules fail on violation |
-| sonarjs/react-doctor noise blocks commits | Low | Configured as advisory `warn`, not error |
+| Pure barrels become a loophole | Medium | Restrict to re-export-only `index.ts` files and fixture-test every edge |
+| Folder-ownership checks exceed stock ESLint power | High | Plan custom rule or repo-owned validation script explicitly |
+| Global coverage exposes latent debt | Medium | Keep delivery as `stacked-to-main` with fixture/policy slice first |
 
 ## Rollback Plan
 
-Revert the 4 config/doc files; restore `.eslintrc.cjs` from git; remove the `frontend-typecheck` job from `lefthook.yml` and the `depguard` block from `.golangci.yml`. Dashboard JSDoc edits are harmless and may stay. No runtime/behavior impact — guards are build-time only.
+Restore the previous proposal contract, drop the folder-ownership expansion, and keep the earlier narrower documentation wording. No runtime rollback is needed.
 
 ## Dependencies
 
-- bun for frontend dependency install.
-- golangci-lint already available in the gate.
-
-## Recorded Drift (code wins as runtime truth)
-
-`internal/anime/domain` imports `internal/api/contracts` (domain→api is backwards for pure hexagonal). NOT broken, NOT enforced against — left as-is and documented. Out of scope for this change.
+- `openspec/changes/2026-06-19-sdd-21-linter-architecture-enforcement/exploration.md`
+- `openspec/changes/2026-06-19-sdd-21-linter-architecture-enforcement/specs/architecture-enforcement/spec.md`
 
 ## Success Criteria
 
-- [x] Frontend `lint` + `typecheck` green under v9 flat config.
-- [x] `golangci-lint run` green with depguard; negative probe confirms it fails on violation.
-- [x] `lefthook` pre-commit gate runs frontend-typecheck + golangci-lint.
-- [x] `ARCHITECTURE.md` section 10 documents the deterministic enforcement.
+- [ ] Artifacts describe global frontend governance and the generated `wailsjs/**` exception consistently.
+- [ ] The proposal names the pure `index.ts` barrel rule and declaration ownership rules explicitly.
+- [ ] The fixture matrix covers green, red, exempt, and harness-only cases.
+- [ ] Custom-support policies are separated clearly from stock-selector enforcement.

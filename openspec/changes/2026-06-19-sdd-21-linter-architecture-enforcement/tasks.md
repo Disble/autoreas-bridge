@@ -1,76 +1,62 @@
-# Tasks: Deterministic Linter-Enforced Architecture Constraints
-
-> Retroactive task list. Implementation predates this SDD run; tasks below
-> are checked `[x]` where verified-green reality already matches the spec.
-> Only Phase 6 (verification & close) is genuinely outstanding.
+# Tasks: Frontend Global Governance Enforcement
 
 ## Review Workload Forecast
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines | ~350-450 (config/tooling + small JSDoc/var fixes; already merged in working tree) |
-| 400-line budget risk | Medium |
-| Chained PRs recommended | No |
-| Suggested split | Single PR (retroactive docs only; code already implemented) |
-| Delivery strategy | ask-on-risk |
-| Chain strategy | size-exception |
+| Estimated changed lines | ~800-1100 |
+| 400-line budget risk | High |
+| Chained PRs recommended | Yes |
+| Suggested split | PR 1 fixtures+catalog → PR 2 checker+gate → PR 3 adapter migration → PR 4 docs+verify |
+| Delivery strategy | auto-chain |
+| Chain strategy | stacked-to-main |
 
 Decision needed before apply: No
-Chained PRs recommended: No
-Chain strategy: size-exception
-400-line budget risk: Medium
-
-Rationale: implementation is done and verified; remaining work is
-SDD-gate paperwork (verify-report + active-change pointer) plus one
-commit. No new code to split across PRs. `size-exception` applies because
-config+lint-rule+JSDoc diffs are mechanical, low-risk, and already
-green — splitting further adds coordination cost without reducing risk.
+Chained PRs recommended: Yes
+Chain strategy: stacked-to-main
+400-line budget risk: High
 
 ### Suggested Work Units
 
 | Unit | Goal | Likely PR | Notes |
 |------|------|-----------|-------|
-| 1 | Retroactive tooling + docs (already implemented) | PR 1 (single) | All Phases 1-5; size-exception, no further split needed |
+| 1 | Fixture matrix and shared ESLint catalogs | PR 1 | Start fixtures; end harness GREEN; rollback revert `frontend/eslint/**` |
+| 2 | Repo checker, tests, and lint gate wiring | PR 2 | Start checker scaffold; end gate invocation; rollback revert `frontend/scripts/**`, config, tests |
+| 3 | Source-adapter folder migration and facade removal | PR 3 | Start one adapter folder move; end all `src/infrastructure/*-source.ts` facades removed and folder entrypoints live; rollback restore flat entrypoints |
+| 4 | Docs, generator, artifacts, and final verify | PR 4 | Start docs/templates; end `verify-report.md`; rollback revert docs/templates/artifacts |
 
-## Phase 1: Frontend infrastructure (DONE)
+## Phase 1: Fixture matrix RED
 
-- [x] 1.1 Install `eslint@9` + plugins (`@typescript-eslint`, `import-x`, `sonarjs`, `react-doctor`, `eslint-plugin-react-hooks`, `check-file`) via `bun add -D` in `frontend/`.
-- [x] 1.2 Remove `frontend/.eslintrc.cjs` (legacy v8 config).
-- [x] 1.3 Add `frontend/eslint.config.js` flat config wiring all plugins.
-- [x] 1.4 Add `frontend/eslint/architecture-rules.js` with first-party selectors (dumb-UI, hook anatomy, colocation, Readonly Props, JSDoc).
-- [x] 1.5 Add `frontend/eslint/README.md` documenting each custom rule's intent.
-- [x] 1.6 Add `typecheck`, `validate`, `doctor:react` scripts to `frontend/package.json`.
+- [x] 1.1 Add RED, GREEN, EXEMPT, and HARNESS-ONLY fixtures under `frontend/eslint/__fixtures__/architecture-policy/**` for pure barrels, sibling-role ownership, `window.go`, generated `wailsjs/**`, and flat facade shims.
+- [x] 1.2 Extend `frontend/eslint/__tests__/architecture-policy.test.mjs` to assert the full matrix first, including structural-check expectations and negative cases from the spec scenarios.
 
-## Phase 2: Frontend rule definitions (DONE)
+## Phase 2: Shared ESLint catalogs GREEN
 
-- [x] 2.1 Dumb-UI purity rule: forbid `useEffect`/`useLayoutEffect` and Wails binding imports in `.tsx` under `frontend/src/features/**` — satisfies *Frontend Dumb-UI Purity*.
-- [x] 2.2 Hook anatomy rule: enforce derived state/callbacks before `useEffect`, trailing `return` in `use-*.ts` — satisfies *Frontend Hook Anatomy*.
-- [x] 2.3 Strict colocation rule + `check-file` plugin: forbid inline interfaces/types/helpers/Zod schemas, enforce `__tests__/` placement, kebab-case feature folders — satisfies *Frontend Strict Colocation*.
-- [x] 2.4 `Readonly<Props>` rule: require `readonly` on every `*Props` field and `Readonly<...>` wrapping at component/hook boundaries — satisfies *Frontend Type Contracts*.
-- [x] 2.5 JSDoc contexts rule: require JSDoc on exported hooks/types/constants/schemas/helpers — satisfies *Frontend Public Documentation*.
-- [x] 2.6 Wire `import-x/no-cycle`, `sonarjs` + `react-doctor` (WARN, advisory only), `max-lines: 500` — satisfies *Frontend Transversal Hygiene* (cycle + size).
-- [x] 2.7 Set base `no-undef: off`; enable `@typescript-eslint/no-unused-vars` (TS-aware) — defers undefined-symbol detection to `tsc`, completing *Frontend Transversal Hygiene* (typecheck clause).
+- [x] 2.1 Consolidate global declaration and runtime selector catalogs in `frontend/eslint/architecture-rules.js`, including delivery remap messages and documentation contexts.
+- [x] 2.2 Recompose `frontend/eslint.config.js` around the shared catalogs so governed `frontend/src/**/*.{ts,tsx}` stays global-by-default with only generated and harness exclusions.
+- [x] 2.3 Run the architecture-policy harness after each selector change until all Phase 1 RED cases turn GREEN without weakening existing frontend rules.
 
-## Phase 3: Make existing frontend code green (DONE)
+## Phase 3: Repo-local structural checker
 
-- [x] 3.1 Add real JSDoc to exported members across `frontend/src/features/dashboard/**` to satisfy the new JSDoc rule.
-- [x] 3.2 Fix 2 unused-variable violations in `frontend/src/features/dashboard/**` flagged by `@typescript-eslint/no-unused-vars`.
+- [x] 3.1 Create `frontend/scripts/check-frontend-architecture.mjs` to validate pure `index.ts` barrels, folder-owned role files, facade allowlist boundaries, and folder/index topology.
+- [x] 3.2 Add checker coverage in `frontend/eslint/__tests__/architecture-policy.test.mjs` and `frontend/scripts/__tests__/` for pass, fail, and allowlisted-shim paths.
 
-## Phase 4: Backend depguard rules (DONE)
+## Phase 4: Gate integration
 
-- [x] 4.1 Add `domain-purity` depguard rule to `.golangci.yml`: deny `net/http`, `database/sql`, `github.com/wailsapp/wails/v2` under `internal/anime/domain/**` — satisfies *Backend Domain Purity*.
-- [x] 4.2 Add `contracts-are-ports` depguard rule: deny `internal/api/handlers`, `net/http`, `database/sql`, `github.com/wailsapp/wails/v2` under `internal/api/contracts/**` — satisfies *Backend Ports Isolation*.
-- [x] 4.3 Add `wails-confined-to-edge` depguard rule: deny `github.com/wailsapp/wails/v2` under `internal/**` — satisfies *Backend Transport Confinement*.
-- [x] 4.4 Run negative probe (temporary forbidden import) to confirm each depguard rule actually fires non-zero — prevents a silently-disabled rule.
+- [x] 4.1 Wire the structural checker into `frontend/package.json`, `lefthook.yml`, and any lint entrypoint consumed by repo gates.
+- [x] 4.2 Verify the merged lint path reports scoped failures for selector rules and topology rules from one frontend gate.
 
-## Phase 5: Gate integration + documentation (DONE)
+## Phase 5: Source-adapter migration
 
-- [x] 5.1 Add `frontend-typecheck` job (`bun run typecheck`) to `lefthook.yml` pre-commit, alongside existing `frontend-lint` and `golangci-lint` — satisfies *Pre-Commit Gate Integration*.
-- [x] 5.2 Rewrite `ARCHITECTURE.md` section 10 to describe the deterministic enforcement topology (frontend ESLint flat config + backend depguard + lefthook gate) replacing prose-only constraints.
+- [x] 5.1 Migrate `frontend/src/infrastructure/{bridge-runtime-source,download-runtime-source,notification-source,observability-log-source,preferences-source,season-source}.ts` into folder entrypoints with colocated `index.ts`, role files, and removed flat facades.
+- [x] 5.2 Update `frontend/src/infrastructure/__tests__/**` and importing call sites to the folder/index structure, then clear production allowlist entries tied to the retired facades.
 
-## Phase 6: Verification & close (DONE)
+## Phase 6: Docs, generator, and artifacts
 
-- [x] 6.1 Ran final verification (orchestrating agent) against the spec: full gate battery green + two negative probes (Go `net/http` in domain → depguard bites; `useEffect` in feature `.tsx` → Dumb UI Rule bites). Verdict PASS.
-- [x] 6.2 Set `.atl/active-sdd-change` to `2026-06-19-sdd-21-linter-architecture-enforcement` (disambiguates from the 2 other active changes).
-- [x] 6.3 Wrote `verify-report.md` with PASS verdict (+ Engram `sdd/linter-architecture-enforcement/verify-report`, #4159).
-- [x] 6.4 Orchestrating agent creates the commit; lefthook pre-commit gate (frontend-lint, frontend-typecheck, frontend-test, gofmt, golangci-lint, go-vet, go-test, go-cover, openapi, sdd-gate) runs and passes as part of commit creation.
+- [x] 6.1 Update `frontend/scripts/generate-feature.js`, its tests, `frontend/eslint/README.md`, and `docs/architecture.md` so new scaffolds and docs describe the global rule, barrel purity, and folder ownership contract.
+- [x] 6.2 Align `openspec/changes/2026-06-19-sdd-21-linter-architecture-enforcement/{design.md,tasks.md,verify-report.md}` with the final slice boundaries, checker ownership, and migration status.
+
+## Phase 7: Final verification
+
+- [x] 7.1 Run `bun --cwd="frontend" run test -- architecture-policy`, script tests, `bun --cwd="frontend" run lint`, `bun --cwd="frontend" run typecheck`, and repo-owned gate checks; record exact results in `verify-report.md`.
+- [x] 7.2 Re-check changed-line totals per slice, confirm stacked-to-main PR boundaries held, and document each slice's finish state before `sdd-apply` starts.

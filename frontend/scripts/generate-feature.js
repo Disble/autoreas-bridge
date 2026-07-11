@@ -32,7 +32,8 @@ const files = new Map([
   [`${componentName}.tsx`, `import type { ${componentName}Props } from './${kebabComponentName}.types';
 import { use${componentName} } from './use-${kebabComponentName}';
 
-export function ${componentName}(props: ${componentName}Props) {
+/** Renders the ${componentName} scaffold using the colocated feature hook. */
+export function ${componentName}(props: Readonly<${componentName}Props>) {
   const { title, description } = use${componentName}(props);
 
   return (
@@ -47,7 +48,10 @@ export function ${componentName}(props: ${componentName}Props) {
 import type { ${componentName}Props } from './${kebabComponentName}.types';
 import { get${componentName}Description, get${componentName}Title } from './${kebabComponentName}.helpers';
 
-export function use${componentName}(props: ${componentName}Props) {
+/**
+ * Resolves the ${componentName} view model so the TSX file stays presentational.
+ */
+export function use${componentName}(props: Readonly<${componentName}Props>) {
   // 1. Refs
 
   // 2. State
@@ -70,12 +74,15 @@ export function use${componentName}(props: ${componentName}Props) {
   };
 }
 `],
-  [`${kebabComponentName}.types.ts`, `export interface ${componentName}Props {
+  [`${kebabComponentName}.types.ts`, `/** Public props contract for the ${componentName} scaffold. */
+export interface ${componentName}Props {
   readonly title?: string;
   readonly description?: string;
 }
 `],
-  [`${kebabComponentName}.constants.ts`, `export const ${componentName}DefaultTitle = '${componentName}';
+  [`${kebabComponentName}.constants.ts`, `/** Default title used by the ${componentName} scaffold. */
+export const ${componentName}DefaultTitle = '${componentName}';
+/** Default description used by the ${componentName} scaffold. */
 export const ${componentName}DefaultDescription = 'Replace this scaffold with real feature content.';
 `],
   [`${kebabComponentName}.helpers.ts`, `import { ${componentName}DefaultDescription, ${componentName}DefaultTitle } from './${kebabComponentName}.constants';
@@ -96,6 +103,7 @@ export function get${componentName}Description(description?: string) {
 `],
   [`${kebabComponentName}.schema.ts`, `import { z } from 'zod';
 
+/** Validation schema for the ${componentName} scaffold contract. */
 export const ${componentName}Schema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
@@ -158,6 +166,13 @@ describe('${componentName}', () => {
 
     expect(screen.getByText('Custom title')).toBeInTheDocument();
     expect(screen.getByText('Custom description')).toBeInTheDocument();
+  });
+
+  it('renders fallback content when props are omitted', () => {
+    render(<${componentName} />);
+
+    expect(screen.getByText('${componentName}')).toBeInTheDocument();
+    expect(screen.getByText('Replace this scaffold with real feature content.')).toBeInTheDocument();
   });
 });
 `],

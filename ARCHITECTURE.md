@@ -39,6 +39,8 @@ frontend/src/features/dashboard/ui/BridgeStatusCard/
     └── bridge-status-card.helpers.test.ts
 ```
 
+Folder-owned modules expose their public surface through a pure re-export `index.ts`. Flat re-export facades are not part of the maintained topology.
+
 ## 4. Delivery Layer Rule (`frontend/src/App.tsx`, `frontend/src/app/**`)
 
 Delivery files are composition-only.
@@ -108,11 +110,15 @@ commit lands — deterministic first, transversal by default.
 
 Rules live in the colocated `frontend/eslint/` module. They enforce:
 * **Delivery purity:** `App.tsx` / `app/**` cannot import Wails bindings, React hooks, or feature hooks.
-* **Dumb UI:** feature `.tsx` cannot import Wails bindings or use `useEffect`/`useLayoutEffect`.
-* **Hook anatomy:** `useMemo` → `useCallback` → `useEffect` ordering; hooks end with a `return`.
-* **Strict colocation:** no inline interfaces/types/consts/helpers/Zod in views & hooks; tests live in `__tests__/`; feature folders are `kebab-case` (`check-file`).
-* **Type contracts:** every `*Props` field is `readonly`; props parameters use `Readonly<Props>` at the boundary.
-* **Public JSDoc:** exported hooks, helpers, constants, types, and schemas require documentation.
+* **Global production defaults:** the architecture policy applies to production source under `frontend/src/` by default.
+* **Explicit exceptions only:** generated `wailsjs/**`, `src/**/__tests__/**`, `src/**/*.test.*`, `src/test/**`, pure re-export-only barrels with no local implementation API, and deliberately invalid lint fixtures stay outside the global documentation default or are governed by dedicated rules and harnesses.
+* **Dumb UI:** production `.tsx` under `src/` cannot import Wails bindings or use `useEffect`/`useLayoutEffect`; delivery files keep their own narrower rule set.
+* **Hook anatomy:** every production `src/**/use-*.ts` follows `useMemo` → `useCallback` → `useEffect` ordering and ends with a `return`.
+* **Strict colocation:** no inline interfaces/types/consts/helpers/Zod in governed views, hooks, or source adapters; tests live in `__tests__/`; feature folders are `kebab-case` (`check-file`).
+* **Type contracts:** every production `src/**/*.types.ts` `*Props` field is `readonly`; props parameters use `Readonly<Props>` at the boundary.
+* **Public JSDoc:** every public declaration exported from maintained production `src/**/*.{ts,tsx}` requires JSDoc, including delivery exports and source adapters; pure re-export-only barrels remain the single narrow exception.
+* **Source adapters:** `frontend/src/infrastructure/<adapter>/index.ts` owns the public entrypoint for each adapter folder, with declaration-placement and schema-colocation enforcement applied across the colocated role files. No flat `*-source.ts` compatibility facades remain once an infrastructure adapter is migrated.
+* **Scripts:** `frontend/scripts/**` is linted through a Node-oriented block; only generated/output directories stay ignored.
 * **Transversal hygiene:** no circular imports (`import-x/no-cycle`), cognitive complexity & duplication (`sonarjs`), React anti-patterns (`react-doctor`, advisory), 500-line max.
 * **Type safety:** `no-undef` is delegated to TypeScript; `bun run typecheck` runs in the gate.
 
@@ -125,7 +131,7 @@ The Hexagonal / Ports & Adapters boundaries are enforced deterministically:
 
 ### Other barriers
 
-* **Generators:** complex feature scaffolding should come from `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
+* **Generators:** complex feature scaffolding should come from `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`, and the generated files must already satisfy the global documentation default, the pure-barrel carve-out, the folder-owned `index.ts` entrypoint contract, and colocated test-first scaffolding expectations.
 * **Instruction Files:** `AGENTS.md` and `CLAUDE.md` repeat the same constraints so future agents start with the right mental model.
 
 ---
