@@ -28,6 +28,10 @@ vi.mock('../../OrderingBoard/OrderingBoard', () => ({
   OrderingBoard: () => <div>ordering board</div>,
 }));
 
+vi.mock('../../OverviewPanel/OverviewPanel', () => ({
+  OverviewPanel: () => <div>overview panel</div>,
+}));
+
 const mockedUseSeasonWorkspace = vi.mocked(useSeasonWorkspace);
 type HookReturn = ReturnType<typeof useSeasonWorkspace>;
 
@@ -105,6 +109,7 @@ describe('SeasonWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Julio 2026' })).toBeInTheDocument();
     expect(screen.getByText('Open')).toBeInTheDocument();
     expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('overview panel')).toBeInTheDocument();
     expect(screen.getByText('Selection')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close season' })).toBeInTheDocument();
   });

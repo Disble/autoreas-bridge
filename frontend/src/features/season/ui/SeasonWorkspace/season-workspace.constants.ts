@@ -49,8 +49,6 @@ export const SEASON_WORKSPACE_TITLE = 'Season Workspace';
 export const SEASON_WORKSPACE_EMPTY_TITLE = 'No open season';
 /** Empty-state helper message shown alongside the create-season form. */
 export const SEASON_WORKSPACE_EMPTY_MESSAGE = 'Create a season to start the selection workflow.';
-/** Placeholder shown under the Overview for workflow sections not yet shipped. */
-export const SEASON_WORKSPACE_UPCOMING_MESSAGE = 'This section arrives in an upcoming slice.';
 /** Explains that season mode is derived from the open season (SDD-41b). */
 export const SEASON_WORKSPACE_SEASON_MODE_MESSAGE =
   'Season mode is active while this season is open. Closing the season turns it off.';

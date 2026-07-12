@@ -5,12 +5,12 @@ import {
   SEASON_WORKSPACE_EMPTY_TITLE,
   SEASON_WORKSPACE_SEASON_MODE_MESSAGE,
   SEASON_WORKSPACE_TITLE,
-  SEASON_WORKSPACE_UPCOMING_MESSAGE,
 } from './season-workspace.constants';
 import { DailyBoard } from '../DailyBoard/DailyBoard';
 import { EvaluationPanel } from '../EvaluationPanel/EvaluationPanel';
 import { IntakePanel } from '../IntakePanel/IntakePanel';
 import { OrderingBoard } from '../OrderingBoard/OrderingBoard';
+import { OverviewPanel } from '../OverviewPanel/OverviewPanel';
 import { SelectionBoard } from '../SelectionBoard/SelectionBoard';
 import type { SeasonWorkspaceProps } from './season-workspace.types';
 import { useSeasonWorkspace } from './use-season-workspace';
@@ -175,32 +175,19 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
             </Tabs.Panel>
 
             <Tabs.Panel id="overview">
-              <Card>
-                <Card.Content>
-                  <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <div>
-                      <dt className="text-xs text-muted">Created</dt>
-                      <dd className="text-sm text-foreground">{overview.createdLabel}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted">Minimum approval grade</dt>
-                      <dd className="text-sm text-foreground">{overview.minApprovalGrade}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted">Slots</dt>
-                      <dd className="text-sm text-foreground">{overview.slots}</dd>
-                    </div>
-                  </dl>
-                </Card.Content>
-              </Card>
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted">
+                  Created {overview.createdLabel} · Minimum approval grade {overview.minApprovalGrade} · Slots {overview.slots}
+                </p>
 
-              <p className="mt-3 text-sm text-muted">{SEASON_WORKSPACE_UPCOMING_MESSAGE}</p>
+                <OverviewPanel />
 
-              {!readOnly && (
-                <Button className="mt-4" variant="secondary" onPress={onCloseSeason}>
-                  Close season
-                </Button>
-              )}
+                {!readOnly && (
+                  <Button className="self-start" variant="secondary" onPress={onCloseSeason}>
+                    Close season
+                  </Button>
+                )}
+              </div>
             </Tabs.Panel>
           </Tabs>
         </div>
