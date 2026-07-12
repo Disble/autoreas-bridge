@@ -1,5 +1,8 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
 
+/** Which lens groups the Chapters list: season watch states or weekdays. */
+export type ChapterViewLens = 'season' | 'daily';
+
 /** Props accepted by the operational chapter schedule panel. */
 export interface ChapterSchedulePanelProps {
   /** Optional source for tests or non-Wails adapters. */

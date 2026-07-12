@@ -8,7 +8,7 @@ import {
 } from './chapter-schedule-panel.constants';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, ChapterScheduleSource, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
+import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, ChapterScheduleSource, ChapterViewLens, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
@@ -100,6 +100,16 @@ export function getChapterFilterOptions(isSeasonMode: boolean): readonly string[
   return isSeasonMode ? CHAPTER_SEASON_OPTIONS : CHAPTER_DAY_OPTIONS;
 }
 
+/** Returns the landing filter for the selected Chapters lens. */
+export function getDefaultLensSelection(lens: ChapterViewLens, today: Date = new Date()): string {
+  return lens === 'season' ? 'Ver hoy' : getDefaultChapterDay(today);
+}
+
+/** Narrows a raw toggle key to a supported Chapters lens. */
+export function toChapterViewLens(value: string): ChapterViewLens {
+  return value === 'season' ? 'season' : 'daily';
+}
+
 /**
  * Resolves the selected schedule filter using Legacy semantics: season mode opens
  * on "Ver hoy", while normal mode opens on the current Spanish weekday.
@@ -108,7 +118,7 @@ export function getInitialChapterSelection(input: InitialChapterSelectionInput):
   if (input.initialDay !== undefined) {
     return input.initialDay;
   }
-  return input.isSeasonMode ? 'Ver hoy' : getDefaultChapterDay(input.today);
+  return getDefaultLensSelection(input.isSeasonMode ? 'season' : 'daily', input.today);
 }
 
 /**

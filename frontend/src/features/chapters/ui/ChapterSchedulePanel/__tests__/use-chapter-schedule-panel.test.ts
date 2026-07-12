@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChapterSchedulePanel } from '../use-chapter-schedule-panel';
+import { getDefaultChapterDay } from '../chapter-schedule-panel.helpers';
 import type { ChapterScheduleSource } from '../chapter-schedule-panel.types';
 
 const toastMock = vi.hoisted(() => ({
@@ -68,6 +69,41 @@ describe('useChapterSchedulePanel', () => {
 
     await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     await waitFor(() => expect(source.getChapterSchedule).toHaveBeenLastCalledWith('Ver hoy'));
+    expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
+  });
+
+  it('initializes the view lens from the global season mode preference', async () => {
+    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+
+    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+
+    await waitFor(() => expect(result.current.lens).toBe('season'));
+  });
+
+  it('overrides the chapter lens to daily without mutating the global season mode', async () => {
+    const getSeasonMode = vi.fn().mockResolvedValue(true);
+    const source = createSource({ getSeasonMode });
+    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+
+    await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
+    act(() => result.current.selectLens('daily'));
+
+    await waitFor(() => expect(result.current.lens).toBe('daily'));
+    expect(result.current.filterOptions).toContain('Sábado');
+    expect(result.current.selectedDay).toBe(getDefaultChapterDay());
+    expect(getSeasonMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches back to the season lens and reopens on Ver hoy', async () => {
+    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+    await waitFor(() => expect(result.current.lens).toBe('season'));
+
+    act(() => result.current.selectLens('daily'));
+    await waitFor(() => expect(result.current.lens).toBe('daily'));
+    act(() => result.current.selectLens('season'));
+
+    await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
   });
 

@@ -1,7 +1,7 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { ChapterScheduleCard } from './ChapterScheduleCard';
-import { CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
-import { dayBadge } from './chapter-schedule-panel.helpers';
+import { CHAPTER_LENS_OPTIONS, CHAPTER_LENS_TOGGLE_LABEL, CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
+import { dayBadge, toChapterViewLens } from './chapter-schedule-panel.helpers';
 import type { ChapterSchedulePanelProps } from './chapter-schedule-panel.types';
 import { useChapterSchedulePanel } from './use-chapter-schedule-panel';
 
@@ -9,7 +9,7 @@ import { useChapterSchedulePanel } from './use-chapter-schedule-panel';
  * Renders the operational schedule for updating anime chapter progress.
  */
 export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>) {
-  const { adjustWatchedChapters, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, openAnimeFolder, openAnimePage, rows, selectDay, selectedDay, setAnimeState } = useChapterSchedulePanel(props);
+  const { adjustWatchedChapters, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState } = useChapterSchedulePanel(props);
 
   if (errorMessage !== '') {
     return (
@@ -25,9 +25,18 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
   return (
     <section className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
-        <Typography type="h1" className="text-3xl font-semibold tracking-tight text-foreground">
-          {selectedDay}
-        </Typography>
+        <div className="flex items-center justify-between gap-3">
+          <Typography type="h1" className="text-3xl font-semibold tracking-tight text-foreground">
+            {selectedDay}
+          </Typography>
+          <ToggleButtonGroup aria-label={CHAPTER_LENS_TOGGLE_LABEL} disallowEmptySelection selectedKeys={[lens]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectLens(toChapterViewLens(String(Array.from(keys)[0] ?? lens)))}>
+            {CHAPTER_LENS_OPTIONS.map((option) => (
+              <ToggleButton id={option.id} key={option.id}>
+                {option.label}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+        </div>
         <ToggleButtonGroup disallowEmptySelection selectedKeys={[selectedDay]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectDay(String(Array.from(keys)[0] ?? selectedDay))}>
           {filterOptions.map((day) => {
             const badgeCount = dayBadge(day, dayCounts);
