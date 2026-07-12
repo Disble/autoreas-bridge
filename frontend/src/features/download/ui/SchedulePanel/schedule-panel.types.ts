@@ -1,3 +1,5 @@
+import type { ScheduleConfig } from '../../../../shared/contracts/download.types';
+
 /** Props for the `SchedulePanel` dumb-UI component. */
 export interface SchedulePanelProps {
   readonly className?: string;
@@ -11,25 +13,22 @@ export interface WeekdayOption {
 }
 
 /** View model rendered by `SchedulePanel`, derived from `ScheduleConfig` and preferences. */
-export interface SchedulePanelViewModel {
-  readonly enabled: boolean;
-  readonly dailyTimeHHMM: string;
-  readonly running: boolean;
+export type SchedulePanelViewModel = Pick<
+  ScheduleConfig,
+  'enabled' | 'dailyTimeHHMM' | 'running' | 'lastRunStatus' | 'enabledWeekdays'
+> & {
   readonly lastRunLabel: string;
-  readonly lastRunStatus: string;
   readonly nextRunLabel: string;
-  readonly enabledWeekdays: number;
   /** ToggleButton ids of the currently-enabled weekdays, for `selectedKeys`. */
   readonly selectedWeekdayValues: readonly string[];
   /** True when the schedule is enabled but NO weekday is selected — it will never fire. */
   readonly willNeverRun: boolean;
   /** True when season mode is active — each run downloads the "Ver hoy" set. */
   readonly seasonModeActive: boolean;
-}
+};
 
 /** The user-editable subset of `ScheduleConfig` the form can change. */
-export interface ScheduleSaveEdits {
-  readonly enabled: boolean;
-  readonly dailyTimeHHMM: string;
-  readonly enabledWeekdays: number;
-}
+export type ScheduleSaveEdits = Pick<
+  ScheduleConfig,
+  'enabled' | 'dailyTimeHHMM' | 'enabledWeekdays'
+>;

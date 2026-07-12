@@ -38,10 +38,9 @@ export interface AnimeDetailDay {
 
 /**
  * AnimeDetail is the rich, read-only detail DTO returned by `GetAnimeDetail`.
- * Deliberately standalone rather than a superset of `Anime`: `Anime`'s slim
- * `hasDownloadPage`/`hasFolder` booleans are a different shape than the
- * detail's raw `pagina`/`carpeta` string-or-undefined fields, so extending
- * `Anime` would fight that mismatch (design.md "Open assumptions").
+ * Shares only the scalar catalog fields with `Anime`. It deliberately does
+ * not extend the full catalog DTO because `dias`, download-page, and folder
+ * data have richer detail-specific representations.
  *
  * `repetir` is optional (not just empty-array) because the Go contract omits
  * it from the wire payload via `omitempty` even for a non-nil empty slice
@@ -49,17 +48,13 @@ export interface AnimeDetailDay {
  * vast majority of anime have no repetition history, so callers must treat a
  * missing `repetir` the same as an empty timeline.
  */
-export interface AnimeDetail {
+export interface AnimeDetail extends Omit<
+  Anime,
+  'id' | 'dias' | 'hasDownloadPage' | 'hasFolder'
+> {
   readonly _id: string;
-  readonly nombre: string;
-  readonly estado: number;
-  readonly nrocapvisto: number;
-  readonly totalcap?: number;
-  readonly activo: number;
   readonly primeravez: number;
   readonly dias: readonly AnimeDetailDay[];
-  readonly generos: readonly string[];
-  readonly tipo?: number;
   readonly fechaUltCapVisto?: number;
   readonly fechaEstreno?: number;
   readonly fechaCreacion?: number;
@@ -81,15 +76,13 @@ export interface AnimeDetail {
  * membership-filtered (only animes with a present `fechaUltCapVisto`) --
  * never re-derived or re-sorted on the frontend.
  */
-export interface AnimeHistoryEntry {
-  readonly id: string;
-  readonly nombre: string;
-  readonly nrocapvisto: number;
+export type AnimeHistoryEntry = Pick<
+  Anime,
+  'id' | 'nombre' | 'nrocapvisto' | 'estado' | 'tipo'
+> & {
   readonly fechaUltCapVisto: number;
-  readonly estado: number;
-  readonly tipo?: number;
   readonly fechaCreacion?: number;
-}
+};
 
 /** Status values returned by the manual bridge<-legacy anime pull. */
 export type AnimeLegacyPullStatus = 'ok' | 'error' | 'in_progress';

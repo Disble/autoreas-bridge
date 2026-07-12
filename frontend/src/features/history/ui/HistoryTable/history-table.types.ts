@@ -1,3 +1,6 @@
+import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
+import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
+
 /** HeroUI Chip color tokens supported by the project's design system (mirrors `NetworkPanel`'s `HeroChipColor`). */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
@@ -26,19 +29,18 @@ export interface HistoryParamsState {
 }
 
 /** Presentation-ready shape of a single History table row. */
-export interface HistoryRowViewModel {
-  readonly id: string;
+export type HistoryRowViewModel = Pick<
+  AnimeHistoryEntry,
+  'id' | 'nombre' | 'nrocapvisto' | 'estado'
+> & {
   readonly rowNumber: number;
-  readonly nombre: string;
-  readonly nrocapvisto: number;
   readonly longDateLabel: string;
   readonly weekdayLabel: string;
   readonly timeLabel: string;
   readonly relativeRecencyLabel: string;
-  readonly estado: number;
   readonly estadoLabel: string;
   readonly estadoColor: HeroChipColor;
-}
+};
 
 /**
  * State returned by `useHistoryTable`. Every callback here is a client-side
@@ -66,4 +68,3 @@ export interface HistoryTableState {
   readonly onSortOrderChange: (sort: string) => void;
   readonly onPageChange: (page: number) => void;
 }
-import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';

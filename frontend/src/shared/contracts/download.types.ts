@@ -29,13 +29,12 @@ export interface JDStatus {
  * `SetJDConfig` accepts. `plaintextPassword` is optional/write-only — pass
  * `undefined` to leave the existing encrypted blob untouched.
  */
-export interface JDConfigInput {
-  readonly email: string;
+export type JDConfigInput = Pick<
+  JDStatus,
+  'email' | 'deviceName' | 'exePathOverride' | 'defaultDestDir'
+> & {
   readonly plaintextPassword?: string;
-  readonly deviceName: string;
-  readonly exePathOverride: string;
-  readonly defaultDestDir: string;
-}
+};
 
 /**
  * ScheduleConfig mirrors `contracts.ScheduleConfig` (Go): the scheduler's

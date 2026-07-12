@@ -1,3 +1,5 @@
+import type { Anime } from '../../../../shared/contracts/anime.types';
+
 /** Props accepted by the operational chapter schedule panel. */
 export interface ChapterSchedulePanelProps {
   /** Optional source for tests or non-Wails adapters. */
@@ -21,12 +23,12 @@ export interface ChapterScheduleSource {
 }
 
 /** Wails-facing schedule item returned by the backend chapter command service. */
-export interface ChapterScheduleItem {
+export type ChapterScheduleItem = Pick<
+  Anime,
+  'estado' | 'nrocapvisto' | 'totalcap'
+> & {
   readonly animeId: string;
   readonly animeName: string;
-  readonly estado: number;
-  readonly nrocapvisto: number;
-  readonly totalcap?: number;
   readonly day: string;
   readonly dayOrder: number;
   readonly modified_at: number;
@@ -35,7 +37,7 @@ export interface ChapterScheduleItem {
   readonly hasCover: boolean;
   readonly lastWatched?: number;
   readonly firstWatched?: number;
-}
+};
 
 /** Cover resolution result for one anime, fetched lazily and cached per session. */
 export interface AnimeCover {

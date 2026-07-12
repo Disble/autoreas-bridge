@@ -34,9 +34,6 @@
     "dupesBaseline": ".fallow/baselines/dupes.json"
   },
   "duplicates": {
-    // Type contracts intentionally repeat readonly fields to mirror distinct
-    // wire and view-model boundaries; they are not executable copy-paste.
-    "ignore": ["**/*.types.ts"],
     "mode": "semantic",
     "threshold": 3,
     // Hide pair-only clones; focus on widespread copy-paste

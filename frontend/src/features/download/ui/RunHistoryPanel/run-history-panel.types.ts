@@ -9,14 +9,13 @@ export interface RunHistoryPanelProps {
 export type RunHistoryPanelStatus = 'loading' | 'empty' | 'error' | 'ready';
 
 /** A single row rendered in the master list, with a human-readable label pre-computed. */
-export interface RunHistoryRowViewModel {
-  readonly runId: string;
+export type RunHistoryRowViewModel = Pick<
+  DownloadRunView,
+  'runId' | 'trigger' | 'episodesDownloaded' | 'episodesFailed'
+> & {
   readonly startedLabel: string;
   readonly statusLabel: string;
-  readonly trigger: string;
-  readonly episodesDownloaded: number;
-  readonly episodesFailed: number;
-}
+};
 
 /** Aggregate view model returned by `useRunHistoryPanel`. */
 export interface RunHistoryPanelViewModel {
