@@ -23,6 +23,7 @@
     "@heroui/styles": "^3.2.2",
     "@iconify-icons/solar": "^1.2.3",
     "@iconify/react": "^6.0.2",
+    "@nivo/bar": "^0.99.0",
     "qrcode": "1.5.4",
     "react": "19.2.5",
     "react-aria-components": "1.19.0",
