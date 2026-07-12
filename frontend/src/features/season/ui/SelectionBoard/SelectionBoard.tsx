@@ -30,7 +30,14 @@ export function SelectionBoard() {
     onConfirm,
   } = useSelectionBoard();
 
-  const quotaColor = quota === 'over' ? 'danger' : quota === 'at' ? 'warning' : 'success';
+  let quotaColor: 'danger' | 'warning' | 'success' = 'success';
+
+  if (quota === 'over') {
+    quotaColor = 'danger';
+  } else if (quota === 'at') {
+    quotaColor = 'warning';
+  }
+
   const rejectedCount = rows.length - approvedCount;
 
   return (
@@ -95,37 +102,37 @@ export function SelectionBoard() {
             </Chip>
 
             {!readOnly && (
-            <div className="ml-auto">
-              <Modal>
-                <Button isDisabled={rows.length === 0} variant="primary">
-                  Confirm selection
-                </Button>
-                <Modal.Backdrop variant="blur">
-                  <Modal.Container>
-                    <Modal.Dialog className="sm:max-w-[440px]">
-                      <Modal.CloseTrigger />
-                      <Modal.Header>
-                        <Modal.Heading>Confirm selection</Modal.Heading>
-                      </Modal.Header>
-                      <Modal.Body>
-                        <p className="text-sm text-foreground">
-                          {approvedCount} approved · {rejectedCount} rejected. Rejected animes become “No me gusto” and are
-                          deactivated; re-approved animes are restored. Soft delete only — reversible while the season is open.
-                        </p>
-                        {quota === 'over' && (
-                          <p className="mt-2 text-sm text-danger">
-                            Over quota ({approvedCount} / {slots}). Resolve with “Insufficient quota” before confirming.
+              <div className="ml-auto">
+                <Modal>
+                  <Button isDisabled={rows.length === 0} variant="primary">
+                    Confirm selection
+                  </Button>
+                  <Modal.Backdrop variant="blur">
+                    <Modal.Container>
+                      <Modal.Dialog className="sm:max-w-[440px]">
+                        <Modal.CloseTrigger />
+                        <Modal.Header>
+                          <Modal.Heading>Confirm selection</Modal.Heading>
+                        </Modal.Header>
+                        <Modal.Body>
+                          <p className="text-sm text-foreground">
+                            {approvedCount} approved · {rejectedCount} rejected. Rejected animes become “No me gusto” and are
+                            deactivated; re-approved animes are restored. Soft delete only — reversible while the season is open.
                           </p>
-                        )}
-                        <Button className="mt-4" variant="primary" onPress={() => void onConfirm()}>
-                          Apply reconciliation
-                        </Button>
-                      </Modal.Body>
-                    </Modal.Dialog>
-                  </Modal.Container>
-                </Modal.Backdrop>
-              </Modal>
-            </div>
+                          {quota === 'over' && (
+                            <p className="mt-2 text-sm text-danger">
+                              Over quota ({approvedCount} / {slots}). Resolve with “Insufficient quota” before confirming.
+                            </p>
+                          )}
+                          <Button className="mt-4" variant="primary" onPress={() => void onConfirm()}>
+                            Apply reconciliation
+                          </Button>
+                        </Modal.Body>
+                      </Modal.Dialog>
+                    </Modal.Container>
+                  </Modal.Backdrop>
+                </Modal>
+              </div>
             )}
           </div>
         </Card.Content>

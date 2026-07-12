@@ -3,7 +3,7 @@ import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { ObservabilityLogEntry } from '../../shared/contracts/observability.types';
 import { OBSERVABILITY_EVENT_NAME, OBSERVABILITY_LOG_SOURCE_STATE } from './observability-log-source.constants';
 import type { ObservabilityLogSource } from './observability-log-source.types';
-import { hasRuntimeBindings, waitForBindings } from '../wails-bindings.helpers';
+import { createRuntimeSubscription, waitForBindings } from '../wails-bindings.helpers';
 
 /**
  * Reports whether the app is running inside a Wails-backed environment right now.
@@ -12,7 +12,9 @@ import { hasRuntimeBindings, waitForBindings } from '../wails-bindings.helpers';
  * deciding whether to show the capture-unavailable warning.
  */
 export function isWailsRuntimeAvailable(): boolean {
-  return Boolean(window.go?.main?.App) && typeof window.runtime === 'object' && window.runtime !== null;
+  const runtime = window.runtime;
+
+  return Boolean(window.go?.main?.App) && typeof runtime === 'object' && runtime instanceof Object;
 }
 
 /**
@@ -23,62 +25,21 @@ export function createObservabilityLogSource(): ObservabilityLogSource {
     return OBSERVABILITY_LOG_SOURCE_STATE.sharedSource;
   }
 
-  const listeners = new Set<(entry: ObservabilityLogEntry) => void>();
-  let runtimeUnsubscribe: (() => void) | null = null;
-
-  const handleRuntimeEntry = (entry: unknown) => {
-    if (entry === undefined) {
-      return;
-    }
-
-    for (const listener of listeners) {
-      listener(entry as ObservabilityLogEntry);
-    }
-  };
-
-  const releaseRuntimeListener = () => {
-    if (runtimeUnsubscribe === null) {
-      return;
-    }
-
-    const unsubscribe = runtimeUnsubscribe;
-    runtimeUnsubscribe = null;
-    unsubscribe();
-  };
-
-  const ensureRuntimeListener = () => {
-    void waitForBindings(hasRuntimeBindings).then((isReady) => {
-      if (!isReady || runtimeUnsubscribe !== null || listeners.size === 0) {
-        return;
+  const logSubscription = createRuntimeSubscription<ObservabilityLogEntry>((emit) => {
+    return EventsOn(OBSERVABILITY_EVENT_NAME, (entry: unknown) => {
+      if (entry !== undefined) {
+        emit(entry as ObservabilityLogEntry);
       }
-
-      runtimeUnsubscribe = EventsOn(OBSERVABILITY_EVENT_NAME, handleRuntimeEntry);
     });
-  };
+  });
 
   OBSERVABILITY_LOG_SOURCE_STATE.sharedSource = {
     subscribe(listener) {
-      listeners.add(listener);
-      ensureRuntimeListener();
-
-      let subscribed = true;
-
-      return () => {
-        if (!subscribed) {
-          return;
-        }
-
-        subscribed = false;
-        listeners.delete(listener);
-
-        if (listeners.size === 0) {
-          releaseRuntimeListener();
-        }
-      };
+      return logSubscription.subscribe(listener);
     },
     getRecentLogs() {
       return waitForBindings(() => Boolean(window.go?.main?.App)).then((isReady) => {
-        return isReady ? (GetRecentLogs() as Promise<readonly ObservabilityLogEntry[]>) : Promise.resolve([]);
+        return isReady ? GetRecentLogs() : Promise.resolve([]);
       });
     },
   };

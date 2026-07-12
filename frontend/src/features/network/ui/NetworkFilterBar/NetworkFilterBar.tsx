@@ -5,7 +5,6 @@ import {
   NETWORK_LEVEL_FILTER_OPTIONS,
 } from '../NetworkPanel/network-panel.constants';
 import type {
-  NetworkDomainFilter,
   NetworkFilterBarProps,
   NetworkLevelFilter,
 } from '../NetworkPanel/network-panel.types';
@@ -35,10 +34,7 @@ export function NetworkFilterBar({
         isDetached
         onSelectionChange={(keys) => {
           const [first] = keys;
-
-          if (first !== undefined) {
-            onDomainFilterChange(String(first) as NetworkDomainFilter);
-          }
+          onDomainFilterChange(`${first}`);
         }}
         selectedKeys={[domainFilter]}
         selectionMode="single"
@@ -57,10 +53,7 @@ export function NetworkFilterBar({
         isDetached
         onSelectionChange={(keys) => {
           const [first] = keys;
-
-          if (first !== undefined) {
-            onLevelFilterChange(String(first) as NetworkLevelFilter);
-          }
+          onLevelFilterChange(String(first) as NetworkLevelFilter);
         }}
         selectedKeys={[levelFilter]}
         selectionMode="single"

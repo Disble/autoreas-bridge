@@ -1,8 +1,3 @@
-/** Props for the IntakePanel; all data flows through its hook. */
-export interface IntakePanelProps {
-  readonly className?: string;
-}
-
 /** The two intake editing modes: plain-text draft vs rendered rows. */
 export type IntakeMode = 'raw' | 'list';
 

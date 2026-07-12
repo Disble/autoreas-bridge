@@ -4,7 +4,7 @@ import type { ObservabilityLogSource } from '../../../../infrastructure/observab
 import { connectNetworkStore } from '../../../../shared/store/network-store/network-store.helpers';
 import { useNetworkStore } from '../../../../shared/store/network-store/network-store';
 import { getNetworkPanelRows, getNetworkPanelSelection, getNetworkPanelSummary } from './network-panel.helpers';
-import type { NetworkDetailTab, NetworkDomainFilter, NetworkLevelFilter } from './network-panel.types';
+import type { NetworkDetailTab, NetworkLevelFilter } from './network-panel.types';
 
 /**
  * useNetworkPanel wires the Zustand Network store into the Network feature.
@@ -59,7 +59,7 @@ export function useNetworkPanel(source: ObservabilityLogSource = observabilityLo
     [setLevelFilter],
   );
   const onDomainFilterChange = useCallback(
-    (nextDomainFilter: NetworkDomainFilter) => setDomainFilter(nextDomainFilter),
+    (nextDomainFilter: string) => setDomainFilter(nextDomainFilter),
     [setDomainFilter],
   );
   const onDetailTabChange = useCallback((nextTab: NetworkDetailTab) => setDetailTab(nextTab), []);

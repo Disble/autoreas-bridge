@@ -1,4 +1,5 @@
-import { Input, Label, ListBox, Select } from '@heroui/react';
+import { Input } from '@heroui/react';
+import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import type { CatalogFilterBarProps } from './catalog-filter-bar.types';
 
 /**
@@ -35,152 +36,67 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Select
-          aria-label="Filter by status"
+        <LabeledSelect
+          ariaLabel="Filter by status"
+          fallbackValue="all"
+          label="Status"
+          options={estadoOptions}
           placeholder="Status"
           value={filters.estado}
-          onChange={(value) => onEstadoChange(value?.toString() ?? 'all')}
-        >
-          <Label>Status</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {estadoOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onEstadoChange}
+        />
 
-        <Select
-          aria-label="Filter by active state"
+        <LabeledSelect
+          ariaLabel="Filter by active state"
+          fallbackValue="all"
+          label="Active"
+          options={activoOptions}
           placeholder="Active"
           value={filters.activo}
-          onChange={(value) => onActivoChange(value?.toString() ?? 'all')}
-        >
-          <Label>Active</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {activoOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onActivoChange}
+        />
 
-        <Select
-          aria-label="Filter by type"
+        <LabeledSelect
+          ariaLabel="Filter by type"
+          fallbackValue="all"
+          label="Type"
+          options={tipoOptions}
           placeholder="Type"
           value={filters.tipo}
-          onChange={(value) => onTipoChange(value?.toString() ?? 'all')}
-        >
-          <Label>Type</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {tipoOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onTipoChange}
+        />
 
-        <Select
-          aria-label="Filter by day"
+        <LabeledSelect
+          ariaLabel="Filter by day"
+          fallbackValue="all"
+          label="Day"
+          options={diaOptions}
           placeholder="Day"
           value={filters.dia}
-          onChange={(value) => onDiaChange(value?.toString() ?? 'all')}
-        >
-          <Label>Day</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {diaOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onDiaChange}
+        />
 
-        <Select
-          aria-label="Filter by download gap"
+        <LabeledSelect
+          ariaLabel="Filter by download gap"
+          fallbackValue="all"
+          label="Download gap"
+          options={gapOptions}
           placeholder="Download gap"
           value={filters.gap}
-          onChange={(value) => onGapChange(value?.toString() ?? 'all')}
-        >
-          <Label>Download gap</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {gapOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onGapChange}
+        />
       </div>
 
-      <Select
-        aria-label="Filter by genres"
+      <LabeledSelect
+        ariaLabel="Filter by genres"
         className="w-full"
+        label="Genres"
+        options={generoOptions}
         placeholder="Genres"
         selectionMode="multiple"
         value={filters.generos}
-        onChange={(value) =>
-          onGenerosChange(
-            (Array.isArray(value) ? value : [value ?? '']).map((item) =>
-              typeof item === 'number' ? String(item) : item,
-            ),
-          )
-        }
-      >
-        <Label>Genres</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox selectionMode="multiple">
-            {generoOptions.map((option) => (
-              <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                {option.label}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-      </Select>
+        onChange={onGenerosChange}
+      />
     </section>
   );
 }

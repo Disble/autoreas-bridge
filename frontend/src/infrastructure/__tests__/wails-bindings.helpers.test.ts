@@ -63,4 +63,59 @@ describe('wails-bindings.helpers', () => {
 
     await expect(resultPromise).resolves.toBe(false);
   });
+
+  it('invokes a ready Go binding and otherwise returns its source-specific fallback', async () => {
+    const { WAILS_BINDINGS_TIMEOUT_MS, invokeGoBinding } = await import('../wails-bindings.helpers');
+    const invoke = vi.fn().mockResolvedValue('runtime value');
+    const fallback = vi.fn().mockReturnValue('fallback value');
+
+    window.go = { main: { App: { GetSeason: invoke } } } as never;
+
+    await expect(invokeGoBinding('GetSeason', invoke, fallback)).resolves.toBe('runtime value');
+    expect(fallback).not.toHaveBeenCalled();
+
+    Reflect.deleteProperty(window, 'go');
+
+    const unavailableResult = invokeGoBinding('GetSeason', invoke, fallback);
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_TIMEOUT_MS);
+
+    await expect(unavailableResult).resolves.toBe('fallback value');
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one runtime attachment and releases it after the last subscriber', async () => {
+    const { WAILS_BINDINGS_POLL_MS, WAILS_BINDINGS_TIMEOUT_MS, createRuntimeSubscription } = await import('../wails-bindings.helpers');
+    const runtimeUnsubscribe = vi.fn();
+    const attachRuntime = vi.fn().mockReturnValue(runtimeUnsubscribe);
+    const subscription = createRuntimeSubscription(attachRuntime);
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+
+    const unsubscribeFirst = subscription.subscribe(firstListener);
+    const unsubscribeSecond = subscription.subscribe(secondListener);
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_TIMEOUT_MS);
+
+    expect(attachRuntime).toHaveBeenCalledTimes(0);
+
+    window.runtime = { EventsOn: vi.fn() } as never;
+    const unsubscribeThird = subscription.subscribe(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    expect(attachRuntime).toHaveBeenCalledTimes(1);
+
+    const emit = attachRuntime.mock.calls[0]?.[0] as (payload: string) => void;
+    emit('updated');
+
+    expect(firstListener).toHaveBeenCalledWith('updated');
+    expect(secondListener).toHaveBeenCalledWith('updated');
+
+    unsubscribeFirst();
+    unsubscribeSecond();
+    expect(runtimeUnsubscribe).not.toHaveBeenCalled();
+
+    unsubscribeThird();
+    expect(runtimeUnsubscribe).toHaveBeenCalledTimes(1);
+  });
 });

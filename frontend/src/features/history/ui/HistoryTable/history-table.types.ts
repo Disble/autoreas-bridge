@@ -9,11 +9,8 @@ export interface HistoryTableProps {
 /** One entry of the numbered-pagination control: a page number or a gap marker. */
 export type HistoryPageItem = number | 'ellipsis';
 
-/** A single option shown in a visible labeled filter/sort control (estado, tipo, sort). */
-export interface HistoryFilterOption {
-  readonly value: string;
-  readonly label: string;
-}
+/** A single option shown in a visible History filter/sort control. */
+export type HistoryFilterOption = LabeledSelectOption;
 
 /**
  * Parsed shape of the `/history` URL query-string state (spec: "History
@@ -69,3 +66,4 @@ export interface HistoryTableState {
   readonly onSortOrderChange: (sort: string) => void;
   readonly onPageChange: (page: number) => void;
 }
+import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';

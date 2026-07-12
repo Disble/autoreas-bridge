@@ -63,7 +63,13 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
           </Alert>
         )}
 
-        <Switch isDisabled={isSaving} isSelected={viewModel.enabled} onChange={(isSelected) => setEnabled(isSelected)}>
+        <Switch
+          isDisabled={isSaving}
+          isSelected={viewModel.enabled}
+          onChange={(isSelected) => {
+            setEnabled(isSelected).catch(() => undefined);
+          }}
+        >
           <Switch.Content>
             <Switch.Control>
               <Switch.Thumb />
@@ -79,7 +85,9 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
             fullWidth
             type="time"
             value={dailyTimeDraft}
-            onBlur={() => void commitDailyTime()}
+            onBlur={() => {
+              commitDailyTime().catch(() => undefined);
+            }}
             onChange={(event) => setDailyTimeDraft(event.target.value)}
           />
         </TextField>
@@ -90,7 +98,9 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
             aria-label="Days of the week the schedule runs on"
             isDetached
             isDisabled={isSaving || !viewModel.enabled}
-            onSelectionChange={(keys) => setWeekdays(weekdayValuesToMask([...keys].map(String)))}
+            onSelectionChange={(keys) => {
+              setWeekdays(weekdayValuesToMask([...keys].map(String))).catch(() => undefined);
+            }}
             selectedKeys={viewModel.selectedWeekdayValues}
             selectionMode="multiple"
             size="sm"

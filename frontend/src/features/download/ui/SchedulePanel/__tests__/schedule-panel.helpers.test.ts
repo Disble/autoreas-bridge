@@ -54,6 +54,12 @@ describe('toSchedulePanelViewModel', () => {
     expect(viewModel.nextRunLabel).toBe('Not scheduled');
   });
 
+  it('renders "Not scheduled" for nextRunLabel when the enabled time is invalid', () => {
+    const viewModel = toSchedulePanelViewModel({ ...baseConfig, dailyTimeHHMM: '99:99' });
+
+    expect(viewModel.nextRunLabel).toBe('Not scheduled');
+  });
+
   it('passes lastRunStatus through unchanged', () => {
     const viewModel = toSchedulePanelViewModel(baseConfig);
 

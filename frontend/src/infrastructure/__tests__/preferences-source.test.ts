@@ -27,6 +27,35 @@ describe('preferences-source', () => {
     await expect(downloadsRootPromise).resolves.toBe('');
   });
 
+  it('preserves live Wails preference values and folder selection results', async () => {
+    const getDownloadsRootMock = vi.fn().mockResolvedValue('D:/Downloads');
+    const getSeasonModeMock = vi.fn().mockResolvedValue(true);
+    const pickFolderMock = vi.fn().mockResolvedValue('D:/Anime');
+    const setDownloadsRootMock = vi.fn().mockResolvedValue('saved');
+    window.go = {
+      main: {
+        App: {
+          GetDownloadsRoot: getDownloadsRootMock,
+          GetSeasonMode: getSeasonModeMock,
+          PickFolder: pickFolderMock,
+          SetDownloadsRoot: setDownloadsRootMock,
+        },
+      },
+    } as never;
+
+    const { createPreferencesSource } = await import('../preferences-source');
+    const source = createPreferencesSource();
+
+    await expect(source.getSeasonMode()).resolves.toBe(true);
+    await expect(source.getDownloadsRoot()).resolves.toBe('D:/Downloads');
+    await expect(source.setDownloadsRoot('D:/Downloads')).resolves.toBe('saved');
+    await expect(source.pickFolder('Choose anime directory')).resolves.toBe('D:/Anime');
+    expect(getSeasonModeMock).toHaveBeenCalledTimes(1);
+    expect(getDownloadsRootMock).toHaveBeenCalledTimes(1);
+    expect(setDownloadsRootMock).toHaveBeenCalledWith('D:/Downloads');
+    expect(pickFolderMock).toHaveBeenCalledWith('Choose anime directory');
+  });
+
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/preferences-source');
     const indexPath = join(sourceRoot, 'index.ts');
@@ -43,4 +72,5 @@ describe('preferences-source', () => {
     expect(sourceText).not.toMatch(/export const\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
+
 });

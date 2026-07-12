@@ -43,12 +43,13 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   }, [refreshRunHistory, source]);
 
   const baseViewModel = toRunHistoryPanelViewModel(runs, selectedRunId);
-  const viewModel =
-    errorMessage !== undefined
-      ? { ...baseViewModel, status: 'error' as const, errorMessage }
-      : !hasLoaded
-        ? { ...baseViewModel, status: 'loading' as const }
-        : baseViewModel;
+  let viewModel = baseViewModel;
+
+  if (errorMessage !== undefined) {
+    viewModel = { ...baseViewModel, status: 'error' as const, errorMessage };
+  } else if (!hasLoaded) {
+    viewModel = { ...baseViewModel, status: 'loading' as const };
+  }
 
   return {
     viewModel,

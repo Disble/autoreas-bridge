@@ -37,32 +37,38 @@ export function EvaluationPanel() {
         <p className="text-sm text-muted">{EVALUATION_EMPTY_MESSAGE}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
-            >
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-foreground">{row.rawName}</span>
-                <span className="text-xs text-muted">
-                  {getGradeSourceLabel(row.gradeSource) !== '' ? `${getGradeSourceLabel(row.gradeSource)} · ` : ''}
-                  {formatRatedAt(row.ratedAt)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {row.grade >= 1 ? (
-                  <Chip color="success" size="sm" variant="soft">
-                    Grade {row.grade}
-                  </Chip>
-                ) : row.skipGrading ? (
-                  <Chip size="sm" variant="soft">
-                    Skipped
-                  </Chip>
-                ) : (
-                  <Chip color="warning" size="sm" variant="soft">
-                    No grade
-                  </Chip>
-                )}
+          {rows.map((row) => {
+            let gradeChip = (
+              <Chip color="warning" size="sm" variant="soft">
+                No grade
+              </Chip>
+            );
+
+            if (row.grade >= 1) {
+              gradeChip = (
+                <Chip color="success" size="sm" variant="soft">
+                  Grade {row.grade}
+                </Chip>
+              );
+            } else if (row.skipGrading) {
+              gradeChip = (
+                <Chip size="sm" variant="soft">
+                  Skipped
+                </Chip>
+              );
+            }
+
+            return (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground">{row.rawName}</span>
+                  <span className="text-xs text-muted">
+                    {getGradeSourceLabel(row.gradeSource) !== '' ? `${getGradeSourceLabel(row.gradeSource)} · ` : ''}
+                    {formatRatedAt(row.ratedAt)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {gradeChip}
                 {!readOnly && (
                   <>
                     <RateAnimeModal
@@ -76,9 +82,10 @@ export function EvaluationPanel() {
                     </Button>
                   </>
                 )}
-              </div>
-            </li>
-          ))}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

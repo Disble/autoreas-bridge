@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
+import { formatLocalDateTime } from '../../../../../shared/datetime/datetime.helpers';
 import {
   countEntries,
   countErrorEntries,
@@ -233,6 +234,43 @@ describe('getNetworkPanelSelection', () => {
     expect(selection.selectedEntry).toBe(selected);
     expect(selection.selectedDetail?.message).toBe('selected');
     expect(selection.selectedDetail?.traceEntries.map((traceEntry) => traceEntry.message)).toEqual(['selected', 'sibling']);
+  });
+
+  it('keeps sorted metadata entries and fallback detail fields in the selected detail view-model', () => {
+    const selected = entry({
+      timestamp: '2026-06-20T10:30:45Z',
+      correlationId: 'trace-2',
+      eventType: undefined,
+      entityId: undefined,
+      durationMs: undefined,
+      metadata: {
+        status: 200,
+        method: 'GET',
+        path: '/api/status',
+      },
+      message: '',
+    });
+    const selectedId = getNetworkPanelRows([selected], '', 'all', 'all')[0].id;
+
+    const selection = getNetworkPanelSelection([selected], selectedId);
+
+    expect(selection.selectedDetail?.metadataEntries).toEqual([
+      ['method', 'GET'],
+      ['path', '/api/status'],
+      ['status', '200'],
+    ]);
+    expect(selection.selectedDetail?.fields).toEqual([
+      [
+        'timestamp',
+        formatLocalDateTime('2026-06-20T10:30:45Z'),
+      ],
+      ['domain', 'anime'],
+      ['eventType', '—'],
+      ['level', 'info'],
+      ['correlationId', 'trace-2'],
+      ['entityId', '—'],
+      ['durationMs', '—'],
+    ]);
   });
 
   it('returns null selection state when no row is selected', () => {

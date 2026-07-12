@@ -328,6 +328,15 @@ describe('toAnimeDetailViewModel', () => {
     },
   );
 
+  it('trims a surrounding-whitespace portada path before exposing it to the view', () => {
+    const viewModel = toAnimeDetailViewModel({
+      ...baseDetail,
+      portada: '  C:/legacy/portadas/frieren.jpg  ',
+    });
+
+    expect(viewModel.portadaUrl).toBe('C:/legacy/portadas/frieren.jpg');
+  });
+
   it('uses studios and origin when present', () => {
     const viewModel = toAnimeDetailViewModel({
       ...baseDetail,

@@ -69,6 +69,40 @@ describe('season-source', () => {
     expect(getSeasonMock).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves Wails collection and historical snapshot payloads once their bindings are ready', async () => {
+    const season = {
+      id: 'season-2025-fall',
+      name: 'Fall 2025',
+      minApprovalGrade: 3,
+      slots: 10,
+      status: 'closed',
+      createdAt: 2000,
+    };
+    const seasonAnimes = [{ id: 'anime-1', name: 'Dandadan' }];
+    const getSeasonAnimesMock = vi.fn().mockResolvedValue(seasonAnimes);
+    const getPastSeasonMock = vi.fn().mockResolvedValue(season);
+    const listSeasonsMock = vi.fn().mockResolvedValue([season]);
+    window.go = {
+      main: {
+        App: {
+          GetPastSeason: getPastSeasonMock,
+          GetSeasonAnimes: getSeasonAnimesMock,
+          ListSeasons: listSeasonsMock,
+        },
+      },
+    } as never;
+
+    const { createSeasonSource } = await import('../season-source');
+    const source = createSeasonSource();
+
+    await expect(source.getSeasonAnimes()).resolves.toEqual(seasonAnimes);
+    await expect(source.getPastSeason('season-2025-fall')).resolves.toEqual(season);
+    await expect(source.listSeasons()).resolves.toEqual([season]);
+    expect(getSeasonAnimesMock).toHaveBeenCalledTimes(1);
+    expect(getPastSeasonMock).toHaveBeenCalledWith('season-2025-fall');
+    expect(listSeasonsMock).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the shared Wails binding readiness helper instead of local duplicate plumbing', () => {
     const seasonSourcePath = join(process.cwd(), 'src/infrastructure/season-source/season-source.helpers.ts');
     const sourceText = readFileSync(seasonSourcePath, 'utf8');

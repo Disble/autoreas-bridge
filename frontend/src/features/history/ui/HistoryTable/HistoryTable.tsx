@@ -1,5 +1,6 @@
-import { Chip, Input, Label, ListBox, Pagination, Select, Skeleton, Table } from '@heroui/react';
+import { Chip, Input, Label, Pagination, Skeleton, Table } from '@heroui/react';
 import { Link, useNavigate } from 'react-router';
+import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import {
   HISTORY_TABLE_EMPTY_MESSAGE,
   HISTORY_TABLE_EMPTY_TITLE,
@@ -58,77 +59,38 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
           />
         </div>
 
-        <Select
-          aria-label="Filter by status"
+        <LabeledSelect
+          ariaLabel="Filter by status"
           className="w-full sm:w-48"
+          fallbackValue="all"
+          label="Status"
+          options={estadoOptions}
           placeholder="Status"
           value={estadoFilter}
-          onChange={(value) => onEstadoFilterChange(value?.toString() ?? 'all')}
-        >
-          <Label>Status</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {estadoOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onEstadoFilterChange}
+        />
 
-        <Select
-          aria-label="Filter by type"
+        <LabeledSelect
+          ariaLabel="Filter by type"
           className="w-full sm:w-48"
+          fallbackValue="all"
+          label="Type"
+          options={tipoOptions}
           placeholder="Type"
           value={tipoFilter}
-          onChange={(value) => onTipoFilterChange(value?.toString() ?? 'all')}
-        >
-          <Label>Type</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {tipoOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onTipoFilterChange}
+        />
 
-        <Select
-          aria-label="Sort order"
+        <LabeledSelect
+          ariaLabel="Sort order"
           className="w-full sm:w-48"
+          fallbackValue={HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE}
+          label="Sort"
+          options={sortOptions}
           placeholder="Sort"
           value={sortOrder}
-          onChange={(value) => onSortOrderChange(value?.toString() ?? HISTORY_TABLE_SORT_ULT_CAP_VISTO_VALUE)}
-        >
-          <Label>Sort</Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              {sortOptions.map((option) => (
-                <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
-                  {option.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
+          onChange={onSortOrderChange}
+        />
       </section>
 
       {isLoading ? (
@@ -168,7 +130,9 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
                         className="cursor-pointer"
                         id={row.id}
                         key={row.id}
-                        onAction={() => navigate(`/catalog/detail/${row.id}`)}
+                        onAction={() => {
+                          void navigate(`/catalog/detail/${row.id}`);
+                        }}
                       >
                         <Table.Cell>{row.rowNumber}</Table.Cell>
                         <Table.Cell>

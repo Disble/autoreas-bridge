@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import { CONSIDERATION_OPTIONS } from '../selection-board.constants';
 import {
   countApproved,
   decideVerdict,
@@ -95,5 +96,14 @@ describe('labels', () => {
     expect(getConsiderationLabel('insufficient_quota')).toBe('Insufficient quota');
     expect(getConsiderationLabel('temporarily_approved')).toBe('Temporarily approved');
     expect(getConsiderationLabel('spare_quota')).toBe('Spare quota');
+  });
+
+  it('keeps the consideration select options in none-first order', () => {
+    expect(CONSIDERATION_OPTIONS.map((option) => option.value)).toEqual([
+      'none',
+      'insufficient_quota',
+      'temporarily_approved',
+      'spare_quota',
+    ]);
   });
 });

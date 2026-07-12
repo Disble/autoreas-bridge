@@ -14,22 +14,22 @@ export function createPreferencesSource(): PreferencesSource {
   PREFERENCES_SOURCE_STATE.sharedSource = {
     getSeasonMode() {
       return waitForBindings(() => hasGoBinding('GetSeasonMode')).then((isReady) => {
-        return isReady ? (GetSeasonMode() as Promise<boolean>) : Promise.resolve(false);
+        return isReady ? GetSeasonMode() : Promise.resolve(false);
       });
     },
     getDownloadsRoot() {
       return waitForBindings(() => hasGoBinding('GetDownloadsRoot')).then((isReady) => {
-        return isReady ? (GetDownloadsRoot() as Promise<string>) : Promise.resolve('');
+        return isReady ? GetDownloadsRoot() : Promise.resolve('');
       });
     },
     setDownloadsRoot(path: string) {
       return waitForBindings(() => hasGoBinding('SetDownloadsRoot')).then((isReady) => {
-        return isReady ? (SetDownloadsRoot(path) as Promise<string>) : Promise.resolve('runtime unavailable');
+        return isReady ? SetDownloadsRoot(path) : Promise.resolve('runtime unavailable');
       });
     },
     pickFolder(title: string) {
       return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
-        return isReady ? (PickFolder(title) as Promise<string>) : Promise.resolve('');
+        return isReady ? PickFolder(title) : Promise.resolve('');
       });
     },
   };

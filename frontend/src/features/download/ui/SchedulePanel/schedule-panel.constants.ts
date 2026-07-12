@@ -1,4 +1,3 @@
-import type { ScheduleConfig } from '../../../../shared/contracts/download.types';
 import type { WeekdayOption } from './schedule-panel.types';
 
 /** Full 7-bit weekday mask (every day enabled) — mirrors the Go `all-days=127` sentinel. */
@@ -25,15 +24,3 @@ export const SEASON_MODE_BANNER_TITLE = 'Season mode is on';
 /** Description for the season-mode informational banner. */
 export const SEASON_MODE_BANNER_DESCRIPTION =
   'Each run downloads the "Ver hoy" set, regardless of the days selected below.';
-
-/** Safe default schedule config shown before the first `getScheduleConfig` resolves. */
-export const SCHEDULE_PANEL_EMPTY_CONFIG: ScheduleConfig = {
-  mode: 'in_process',
-  dailyTimeHHMM: '',
-  enabled: false,
-  lastRunAtMs: 0,
-  lastRunStatus: '',
-  nextRunAtMs: 0,
-  running: false,
-  enabledWeekdays: ALL_WEEKDAYS_MASK,
-};

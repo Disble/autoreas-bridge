@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
+import { useAsyncList } from '../../../../shared/hooks/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import {
   HISTORY_TABLE_ESTADO_OPTIONS,
@@ -41,15 +42,13 @@ export function useHistoryTable(
   // 1. Refs
 
   // 2. State
-  const [entries, setEntries] = useState<readonly AnimeHistoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   // 3. Context/3rd Party Hooks
   const [searchParams, setSearchParams] = useSearchParams();
   const urlState = useMemo(() => parseHistoryParams(searchParams), [searchParams]);
   const [searchQuery, setSearchQuery] = useState(urlState.q);
 
   // 4. Queries/Mutations
+  const { items: entries, isLoading } = useAsyncList<AnimeHistoryEntry>(() => source.getAnimeHistory(), source);
 
   // 5. Derived State (useMemo)
   const debouncedQuery = useDebounce(searchQuery, HISTORY_TABLE_SEARCH_DEBOUNCE_MS);
@@ -112,35 +111,6 @@ export function useHistoryTable(
   );
 
   // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    setIsLoading(true);
-
-    void source
-      .getAnimeHistory()
-      .then((nextEntries) => {
-        if (!active) {
-          return;
-        }
-
-        setEntries(nextEntries);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-
-        setEntries([]);
-        setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [source]);
-
   useEffect(() => {
     if (debouncedQuery === urlState.q) {
       return;

@@ -29,6 +29,7 @@ describe('useManualTriggerButton', () => {
 
   it('moves to "triggering" while the call is in flight, then "success"', async () => {
     let resolveTrigger: (value: string) => void = () => {};
+    let pendingTrigger: Promise<void> | undefined;
     const source = createSource({
       triggerDownloadCheck: vi.fn().mockImplementation(
         () =>
@@ -40,14 +41,14 @@ describe('useManualTriggerButton', () => {
     const { result } = renderHook(() => useManualTriggerButton(source));
 
     act(() => {
-      void result.current.trigger();
+      pendingTrigger = result.current.trigger();
     });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('triggering'));
 
     await act(async () => {
       resolveTrigger('ok');
-      await Promise.resolve();
+      await pendingTrigger;
     });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('success'));

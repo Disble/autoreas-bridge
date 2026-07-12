@@ -75,7 +75,13 @@ export function useJDConfigPanel(source: DownloadRuntimeSource = downloadRuntime
     void refresh();
   }, [refresh]);
 
-  const status = !hasLoaded ? 'loading' : loadErrorMessage !== undefined ? 'error' : 'ready';
+  let status: 'loading' | 'error' | 'ready' = 'ready';
+
+  if (!hasLoaded) {
+    status = 'loading';
+  } else if (loadErrorMessage !== undefined) {
+    status = 'error';
+  }
 
   return {
     status,

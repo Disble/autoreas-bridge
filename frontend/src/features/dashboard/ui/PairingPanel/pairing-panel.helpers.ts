@@ -1,14 +1,6 @@
 import { toDataURL } from 'qrcode';
+import { DEFAULT_PAIRING_QR_OPTIONS } from './pairing-panel.constants';
 import type { PairingQrImageOptions, PairingQrPayloadInput, ParsedEffectiveAddress } from './pairing-panel.types';
-
-/**
- * Default QR rendering options kept in one exported constant so UI and tests
- * share the same pairing image dimensions.
- */
-export const DEFAULT_PAIRING_QR_OPTIONS: PairingQrImageOptions = {
-  margin: 1,
-  width: 160,
-};
 
 /**
  * Splits the effective Wails address into IP and port segments.

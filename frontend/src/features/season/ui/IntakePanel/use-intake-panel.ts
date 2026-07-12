@@ -52,17 +52,23 @@ export function useIntakePanel(
   const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
   const folderPreviews = useMemo(() => {
     const previews: Record<string, string> = {};
+
     for (const row of editable) {
-      const override = folderOverrides[row.id];
-      if (override !== undefined && override !== '') {
-        previews[row.id] = override;
-        continue;
+      if (Object.hasOwn(folderOverrides, row.id)) {
+        const override = folderOverrides[row.id] ?? '';
+
+        if (override !== '') {
+          previews[row.id] = override;
+          continue;
+        }
       }
+
       const defaultFolder = deriveIntakeDownloadFolder(downloadsRoot, row.rawName);
       if (defaultFolder !== '') {
         previews[row.id] = defaultFolder;
       }
     }
+
     return previews;
   }, [downloadsRoot, editable, folderOverrides]);
 
@@ -130,12 +136,17 @@ export function useIntakePanel(
     }
     const ids = [...selected];
     const folders: Record<string, string> = {};
+
     for (const id of ids) {
-      const override = folderOverrides[id];
-      if (override !== undefined && override !== '') {
-        folders[id] = override;
+      if (Object.hasOwn(folderOverrides, id)) {
+        const override = folderOverrides[id] ?? '';
+
+        if (override !== '') {
+          folders[id] = override;
+        }
       }
     }
+
     setSelected(new Set());
     void createSeasonAnimes(source, ids, folders);
   }, [selected, folderOverrides, createSeasonAnimes, source]);

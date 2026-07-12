@@ -18,10 +18,7 @@ export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef 
               }
 
               const [first] = keys;
-
-              if (first !== undefined) {
-                onSelect(String(first));
-              }
+              onSelect(String(first));
             }}
             selectedKeys={selectedId === null ? [] : [selectedId]}
             selectionMode="single"

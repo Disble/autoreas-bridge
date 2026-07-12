@@ -207,8 +207,8 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('keeps exactly 10 primary navigation entries after the Season workspace is added', () => {
-    expect(APP_LAYOUT_NAV_ITEMS.length).toBe(10);
+  it('declares exactly 10 primary navigation entries in the shared layout constants', () => {
+    expect(APP_LAYOUT_NAV_ITEMS).toHaveLength(10);
   });
 
   it('renders a not found route for unknown paths', async () => {

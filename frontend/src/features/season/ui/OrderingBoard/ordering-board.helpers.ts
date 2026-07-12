@@ -3,19 +3,6 @@ import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/sea
 import { CONTAINERS, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import type { ContainerId, DraftPlacement, OrderingInstance, Weekday, WorkingState } from './ordering-board.types';
 
-/** RAIL is the "location" sentinel for a card awaiting placement (not on any weekday). */
-export const RAIL = '';
-
-/** containerFor maps a location (weekday or RAIL) to its dnd-kit droppable container id. */
-export function containerFor(location: string): string {
-  return location === RAIL ? RAIL_CONTAINER_ID : location;
-}
-
-/** locationFor is the inverse of containerFor: a dnd-kit container id back to a placement location. */
-export function locationFor(containerId: string): string {
-  return containerId === RAIL_CONTAINER_ID ? RAIL : containerId;
-}
-
 /** emptyOrder builds a container→[] map with every container present (rail + seven days). */
 function emptyOrder(): Record<string, string[]> {
   const order: Record<string, string[]> = {};
@@ -106,13 +93,11 @@ function hasDuplicatePerContainer(order: Record<string, readonly string[]>, inst
   for (const container of WEEKDAYS) {
     const seen = new Set<string>();
     for (const key of order[container] ?? []) {
-      const animeId = instances[key]?.animeId;
-      if (animeId !== undefined) {
-        if (seen.has(animeId)) {
-          return true;
-        }
-        seen.add(animeId);
+      const animeId = instances[key].animeId;
+      if (seen.has(animeId)) {
+        return true;
       }
+      seen.add(animeId);
     }
   }
   return false;
@@ -169,10 +154,6 @@ export function shouldCancelForbiddenWeekdayHover(state: WorkingState, event: Dr
 
   const instance = state.instances[sourceId];
 
-  if (instance === undefined) {
-    return false;
-  }
-
   return (state.order[targetContainerId] ?? []).some((key) => state.instances[key]?.animeId === instance.animeId && key !== sourceId);
 }
 
@@ -199,10 +180,10 @@ export function duplicate(state: WorkingState, animeId: string): WorkingState {
     return state;
   }
   const key = nextKey(state.instances, animeId);
-  return {
-    order: { ...state.order, [RAIL_CONTAINER_ID]: [...state.order[RAIL_CONTAINER_ID], key] },
-    instances: { ...state.instances, [key]: { ...meta, key, isPendingDuplicate: true, section: RAIL, orden: 0 } },
-  };
+    return {
+      order: { ...state.order, [RAIL_CONTAINER_ID]: [...state.order[RAIL_CONTAINER_ID], key] },
+      instances: { ...state.instances, [key]: { ...meta, key, isPendingDuplicate: true, section: '', orden: 0 } },
+    };
 }
 
 /**
@@ -211,9 +192,6 @@ export function duplicate(state: WorkingState, animeId: string): WorkingState {
  */
 export function removeCard(state: WorkingState, key: string): WorkingState {
   const instance = state.instances[key];
-  if (instance === undefined) {
-    return state;
-  }
   const total = Object.values(state.instances).filter((i) => i.animeId === instance.animeId).length;
   if (total <= 1) {
     return state;
@@ -238,7 +216,9 @@ export function buildDraft(state: WorkingState): Record<string, DraftPlacement[]
   for (const day of WEEKDAYS) {
     (state.order[day] ?? []).forEach((key, index) => {
       const instance = state.instances[key];
-      (draft[instance.animeId] ??= []).push({ dia: day, orden: index + 1 });
+      const placements = draft[instance.animeId] ?? [];
+      placements.push({ dia: day, orden: index + 1 });
+      draft[instance.animeId] = placements;
     });
   }
   for (const key of state.order[RAIL_CONTAINER_ID] ?? []) {
@@ -266,7 +246,7 @@ export function countChanges(board: OrderingBoard, state: WorkingState): number 
   const key = (placements: readonly DraftPlacement[]): string =>
     placements
       .map((p) => `${p.dia}#${p.orden}`)
-      .toSorted()
+      .toSorted((left, right) => left.localeCompare(right))
       .join('|');
 
   const ids = new Set([...Object.keys(original), ...Object.keys(working)]);

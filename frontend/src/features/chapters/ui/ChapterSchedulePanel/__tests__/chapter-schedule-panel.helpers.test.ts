@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { dayBadge, getChapterFilterOptions, getDefaultChapterDay, getInitialChapterSelection, toChapterScheduleRows } from '../chapter-schedule-panel.helpers';
-import type { ChapterDayCount, ChapterScheduleItem, CoverEntry } from '../chapter-schedule-panel.types';
+import { createChapterScheduleSource, dayBadge, getChapterFilterOptions, getDefaultChapterDay, getInitialChapterSelection, toChapterScheduleRows } from '../chapter-schedule-panel.helpers';
+import type { ChapterDayCount, ChapterScheduleItem, ChapterScheduleSource, CoverEntry } from '../chapter-schedule-panel.types';
 
 describe('toChapterScheduleRows', () => {
+  it('preserves an explicitly injected source for isolated hook tests', () => {
+    const source = {} as ChapterScheduleSource;
+
+    expect(createChapterScheduleSource(source)).toBe(source);
+  });
+
   it('maps progress and remaining labels without hiding fractional progress', () => {
     const items: readonly ChapterScheduleItem[] = [
       {
@@ -39,6 +45,28 @@ describe('toChapterScheduleRows', () => {
         showCoverPlaceholder: true,
       },
     ]);
+  });
+
+  it('clamps remaining chapters to zero while keeping fractional watched progress', () => {
+    const items: readonly ChapterScheduleItem[] = [
+      {
+        animeId: 'anime-1',
+        animeName: 'Frieren',
+        day: 'Viernes',
+        dayOrder: 1,
+        estado: 0,
+        hasCover: false,
+        modified_at: 1000,
+        nrocapvisto: 12.5,
+        totalcap: 12,
+      },
+    ];
+
+    expect(toChapterScheduleRows(items)[0]).toMatchObject({
+      watchedLabel: '12.5 watched',
+      remainingLabel: '0 remaining',
+      progressTitle: '12.5 watched of 12 · 0 remaining',
+    });
   });
 
   it('marks completed, paused, and dropped anime as blocked for direct progress changes', () => {

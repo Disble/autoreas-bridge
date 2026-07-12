@@ -61,6 +61,7 @@ describe('useSoloAnimeDownloadPanel', () => {
   it('triggers a solo download for the selected anime', async () => {
     const downloadSource = createDownloadSource();
     const { result } = renderHook(() => useSoloAnimeDownloadPanel(createAnimeSource(), downloadSource));
+    let triggerPromise: Promise<void> | undefined;
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -70,8 +71,9 @@ describe('useSoloAnimeDownloadPanel', () => {
     await waitFor(() => expect(result.current.selected?.id).toBe('anime-1'));
     expect(result.current.canTrigger).toBe(true);
     act(() => {
-      void result.current.onTriggerDownload();
+      triggerPromise = result.current.onTriggerDownload();
     });
+    await triggerPromise;
     expect(downloadSource.triggerAnimeDownload).toHaveBeenCalledWith('anime-1');
 
   });
@@ -79,6 +81,7 @@ describe('useSoloAnimeDownloadPanel', () => {
   it('sends the selected anime id when the backend later reports an error', async () => {
     const downloadSource = createDownloadSource({ triggerAnimeDownload: vi.fn().mockResolvedValue('boom') });
     const { result } = renderHook(() => useSoloAnimeDownloadPanel(createAnimeSource(), downloadSource));
+    let triggerPromise: Promise<void> | undefined;
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
@@ -88,8 +91,9 @@ describe('useSoloAnimeDownloadPanel', () => {
     await waitFor(() => expect(result.current.selected?.id).toBe('anime-1'));
     expect(result.current.canTrigger).toBe(true);
     act(() => {
-      void result.current.onTriggerDownload();
+      triggerPromise = result.current.onTriggerDownload();
     });
+    await triggerPromise;
 
     expect(downloadSource.triggerAnimeDownload).toHaveBeenCalledWith('anime-1');
   });

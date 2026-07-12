@@ -173,7 +173,7 @@ describe('CatalogPanel', () => {
   });
 
   it('renders a Pull from legacy action wired to the hook callback', () => {
-    const onPullFromLegacy = vi.fn();
+    const onPullFromLegacy = vi.fn().mockResolvedValue(undefined);
     useCatalogPanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
 
     const view = render(
@@ -186,6 +186,22 @@ describe('CatalogPanel', () => {
     fireEvent.click(button);
 
     expect(onPullFromLegacy).toHaveBeenCalledTimes(1);
+  });
+
+  it('owns a rejected legacy pull promise at the press boundary', () => {
+    const catchHandler = vi.fn();
+    const onPullFromLegacy = vi.fn().mockReturnValueOnce({ catch: catchHandler });
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pull from legacy' }));
+
+    expect(onPullFromLegacy).toHaveBeenCalledTimes(1);
+    expect(catchHandler).toHaveBeenCalledTimes(1);
   });
 
   it('shows pull progress and result feedback', () => {

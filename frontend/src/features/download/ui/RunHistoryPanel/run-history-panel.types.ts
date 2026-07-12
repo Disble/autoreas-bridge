@@ -1,4 +1,4 @@
-import type { DownloadRunView, ManualLink } from '../../../../shared/contracts/download.types';
+import type { DownloadRunView } from '../../../../shared/contracts/download.types';
 
 /** Props for the `RunHistoryPanel` dumb-UI component. */
 export interface RunHistoryPanelProps {
@@ -25,13 +25,3 @@ export interface RunHistoryPanelViewModel {
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
 }
-
-/** Internal hook state consolidating the run-history load result into a single object. */
-export interface RunHistoryPanelState {
-  readonly runs: readonly DownloadRunView[];
-  readonly hasLoaded: boolean;
-  readonly errorMessage: string | undefined;
-}
-
-/** Re-export for callers rendering manual-link rows in the detail pane. */
-export type { ManualLink };

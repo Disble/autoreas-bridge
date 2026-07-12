@@ -1,6 +1,3 @@
-/** Props for the PairingPanel view. It reads pairing data from its own hook. */
-export type PairingPanelProps = Record<string, never>;
-
 /** Host and port parsed out of the backend's effective address string. */
 export interface ParsedEffectiveAddress {
   readonly ip: string;

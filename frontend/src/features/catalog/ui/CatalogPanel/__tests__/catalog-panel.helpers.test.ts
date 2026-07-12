@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import {
+  filterAnimes,
   formatAnimeProgress,
   matchesAnimeGap,
   sortAnimesByName,
@@ -120,6 +121,72 @@ describe('matchesAnimeGap', () => {
   });
 });
 
+describe('filterAnimes', () => {
+  const actionAnime: Anime = {
+    ...baseAnime,
+    id: 'action',
+    nombre: '  Solo Leveling  ',
+    estado: 1,
+    activo: 1,
+    tipo: 2,
+    dias: ['Friday'],
+    generos: ['Action'],
+  };
+
+  const dramaAnime: Anime = {
+    ...baseAnime,
+    id: 'drama',
+    nombre: 'Violet Evergarden',
+    estado: 2,
+    activo: 0,
+    tipo: 3,
+    dias: ['Sunday'],
+    generos: ['Drama'],
+  };
+
+  it('filters by trimmed query plus estado, activo, and tipo values', () => {
+    const result = filterAnimes([actionAnime, dramaAnime], {
+      query: '  solo LEVELING ',
+      estado: '1',
+      activo: '1',
+      tipo: '2',
+      dia: ANIME_FILTER_ALL_VALUE,
+      generos: [],
+      gap: ANIME_FILTER_ALL_VALUE,
+    });
+
+    expect(result).toEqual([actionAnime]);
+  });
+
+  it('keeps every item when query is blank and the select filters stay on all', () => {
+    const result = filterAnimes([actionAnime, dramaAnime], {
+      query: '   ',
+      estado: ANIME_FILTER_ALL_VALUE,
+      activo: ANIME_FILTER_ALL_VALUE,
+      tipo: ANIME_FILTER_ALL_VALUE,
+      dia: ANIME_FILTER_ALL_VALUE,
+      generos: [],
+      gap: ANIME_FILTER_ALL_VALUE,
+    });
+
+    expect(result).toEqual([actionAnime, dramaAnime]);
+  });
+
+  it('filters by day and genres case-insensitively', () => {
+    const result = filterAnimes([actionAnime, dramaAnime], {
+      query: '',
+      estado: ANIME_FILTER_ALL_VALUE,
+      activo: ANIME_FILTER_ALL_VALUE,
+      tipo: ANIME_FILTER_ALL_VALUE,
+      dia: 'friday',
+      generos: ['action'],
+      gap: ANIME_FILTER_ALL_VALUE,
+    });
+
+    expect(result).toEqual([actionAnime]);
+  });
+});
+
 describe('sortAnimesByName', () => {
   it('sorts by name ascending', () => {
     const a: Anime = { ...baseAnime, id: 'a', nombre: 'Zeta' };
@@ -133,6 +200,13 @@ describe('sortAnimesByName', () => {
     const b: Anime = { ...baseAnime, id: 'a', nombre: 'Same' };
 
     expect([a, b].sort(sortAnimesByName).map((item) => item.id)).toEqual(['a', 'b']);
+  });
+
+  it('returns zero when both name and id match', () => {
+    const a: Anime = { ...baseAnime, id: 'same-id', nombre: 'Same' };
+    const b: Anime = { ...baseAnime, id: 'same-id', nombre: 'Same' };
+
+    expect(sortAnimesByName(a, b)).toBe(0);
   });
 
   it('is case-insensitive', () => {

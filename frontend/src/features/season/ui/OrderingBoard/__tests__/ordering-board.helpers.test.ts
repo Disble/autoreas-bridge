@@ -232,10 +232,29 @@ describe('countChanges + scheduledCount', () => {
     expect(countChanges(loaded, state)).toBe(0); // untouched
   });
 
+  it('countChanges treats equivalent multi-day placements as unchanged regardless of source card order', () => {
+    const loaded = board({
+      grid: [
+        card({ animeId: 'z', dia: 'Viernes', orden: 1 }),
+        card({ animeId: 'z', dia: 'Lunes', orden: 1 }),
+      ],
+    });
+
+    expect(countChanges(loaded, initialWorkingState(loaded))).toBe(0);
+  });
+
   it('scheduledCount counts distinct animes on weekdays (clones once)', () => {
     const state = initialWorkingState(
       board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 }), card({ animeId: 'z', dia: 'Martes', orden: 1 })] }),
     );
     expect(scheduledCount(state)).toBe(1);
+  });
+
+  it('countChanges ignores a pending rail duplicate until it is placed on a weekday', () => {
+    const loaded = board({ grid: [card({ animeId: 'z', dia: 'Lunes', orden: 1 })] });
+
+    const duplicated = duplicate(initialWorkingState(loaded), 'z');
+
+    expect(countChanges(loaded, duplicated)).toBe(0);
   });
 });

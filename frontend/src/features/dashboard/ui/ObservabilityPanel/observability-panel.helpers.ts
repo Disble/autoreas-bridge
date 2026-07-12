@@ -112,7 +112,7 @@ export function formatMetadataLabel(key: string, value: string) {
  * Builds the compact summary labels shown next to each log header.
  * Prefixes make dense structured fields scannable without forcing the user to infer meaning.
  */
-export function getSummaryLabels(entry: ObservabilityLogEntry): string[] {
+function getSummaryLabels(entry: ObservabilityLogEntry): string[] {
   const durationLabel = formatDurationLabel(entry.durationMs);
 
   return [

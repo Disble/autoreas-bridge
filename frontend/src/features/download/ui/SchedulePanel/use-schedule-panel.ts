@@ -113,7 +113,13 @@ export function useSchedulePanel(
     void refreshPreferences(prefSource);
   }, [refreshPreferences, prefSource]);
 
-  const status = !hasLoaded ? 'loading' : loadErrorMessage !== undefined ? 'error' : 'ready';
+  let status: 'loading' | 'error' | 'ready' = 'ready';
+
+  if (!hasLoaded) {
+    status = 'loading';
+  } else if (loadErrorMessage !== undefined) {
+    status = 'error';
+  }
 
   return {
     status,

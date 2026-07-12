@@ -82,7 +82,8 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
           hasLoaded: true,
           errorMessage: outcome.errorMessage,
         }));
-      });
+      })
+      .catch(() => undefined);
 
     return () => {
       active = false;

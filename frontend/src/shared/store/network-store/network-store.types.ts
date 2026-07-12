@@ -6,9 +6,6 @@ export type NetworkStatusFilter = 'all' | 'success' | 'error' | 'pending';
 /** Level-based filter applied to the per-entry Network rows. */
 export type NetworkLevelFilter = 'all' | 'info' | 'debug' | 'warn' | 'error';
 
-/** Domain-based filter applied to the per-entry Network rows. `'all'` disables filtering. */
-export type NetworkDomainFilter = 'all' | string;
-
 /**
  * NetworkRequestRow is a single Network-tab row produced by `foldByCorrelationId`.
  * Each log entry without a `correlationId` becomes its own row (stable per-entry
@@ -64,12 +61,12 @@ export interface NetworkStoreState {
   readonly query: string;
   readonly statusFilter: NetworkStatusFilter;
   readonly levelFilter: NetworkLevelFilter;
-  readonly domainFilter: NetworkDomainFilter;
+  readonly domainFilter: string;
   readonly ingest: (entry: ObservabilityLogEntry) => void;
   readonly seed: (entries: readonly ObservabilityLogEntry[]) => void;
   readonly select: (id: string | null) => void;
   readonly setQuery: (query: string) => void;
   readonly setStatusFilter: (filter: NetworkStatusFilter) => void;
   readonly setLevelFilter: (filter: NetworkLevelFilter) => void;
-  readonly setDomainFilter: (filter: NetworkDomainFilter) => void;
+  readonly setDomainFilter: (filter: string) => void;
 }

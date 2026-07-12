@@ -33,5 +33,5 @@ export function useNotificationToasts(source: NotificationSource = notificationS
     return unsubscribe;
   }, [source]);
 
-  return;
+  return undefined;
 }

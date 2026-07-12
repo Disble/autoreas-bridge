@@ -30,7 +30,13 @@ export function SortableCard({
     accept: 'item',
     disabled: readOnly,
   });
-  const cursorClassName = readOnly ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab';
+  let cursorClassName = 'cursor-grab';
+
+  if (readOnly) {
+    cursorClassName = 'cursor-default';
+  } else if (isDragging) {
+    cursorClassName = 'cursor-grabbing';
+  }
 
   return (
     <li

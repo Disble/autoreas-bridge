@@ -20,14 +20,12 @@ export function HosterPriorityEditor({ className }: Readonly<HosterPriorityEdito
     getItems: (keys) =>
       [...keys].map((key) => ({ 'text/plain': String(key) })),
     onReorder: (event) => {
-      const [draggedKey] = [...event.keys];
-      const [targetKey] = [...[event.target.key]];
+      const draggedKey = String([...event.keys][0]);
+      const targetKey = String(event.target.key);
 
-      if (draggedKey === undefined || targetKey === undefined) {
-        return;
-      }
-
-      void reorder(String(draggedKey), String(targetKey), event.target.dropPosition === 'after' ? 'after' : 'before');
+      reorder(String(draggedKey), String(targetKey), event.target.dropPosition === 'after' ? 'after' : 'before').catch(
+        () => undefined,
+      );
     },
   });
 

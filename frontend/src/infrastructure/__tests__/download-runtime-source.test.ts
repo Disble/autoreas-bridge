@@ -181,6 +181,34 @@ describe('download-runtime-source', () => {
     await expect(resultPromise).resolves.toMatchObject({ hosterPriority: [] });
   });
 
+  it('preserves status, schedule, and run payloads returned by live Wails bindings', async () => {
+    const jdStatus = { connected: true, status: 'online' };
+    const scheduleConfig = { enabled: true, mode: 'daily', dailyTimeHHMM: '03:00' };
+    const downloadRuns = [{ id: 'run-1', status: 'finished' }];
+    const getJDStatusMock = vi.fn().mockResolvedValue(jdStatus);
+    const getScheduleConfigMock = vi.fn().mockResolvedValue(scheduleConfig);
+    const listDownloadRunsMock = vi.fn().mockResolvedValue(downloadRuns);
+    window.go = {
+      main: {
+        App: {
+          GetJDStatus: getJDStatusMock,
+          GetScheduleConfig: getScheduleConfigMock,
+          ListDownloadRuns: listDownloadRunsMock,
+        },
+      },
+    } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const source = createDownloadRuntimeSource();
+
+    await expect(source.getJDStatus()).resolves.toEqual(jdStatus);
+    await expect(source.getScheduleConfig()).resolves.toEqual(scheduleConfig);
+    await expect(source.listDownloadRuns()).resolves.toEqual(downloadRuns);
+    expect(getJDStatusMock).toHaveBeenCalledTimes(1);
+    expect(getScheduleConfigMock).toHaveBeenCalledTimes(1);
+    expect(listDownloadRunsMock).toHaveBeenCalledTimes(1);
+  });
+
   it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {
     const setHosterPriorityMock = vi.fn().mockResolvedValue('ok');
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
@@ -213,4 +241,5 @@ describe('download-runtime-source', () => {
     expect(sourceText).not.toMatch(/export const\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
+
 });

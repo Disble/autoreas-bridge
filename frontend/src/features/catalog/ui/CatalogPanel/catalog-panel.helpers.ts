@@ -51,7 +51,7 @@ export function formatAnimeProgress(current: number, total?: number): string {
  * (page, folder, or both) is missing. Returns `undefined` when neither is
  * missing — callers use this to decide whether to render a gap badge at all.
  */
-export function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): string | undefined {
+function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): string | undefined {
   if (!hasDownloadPage && !hasFolder) {
     return ANIME_GAP_LABEL_MISSING_BOTH;
   }
@@ -94,21 +94,30 @@ export function sortAnimesByName(a: Anime, b: Anime): number {
   if (nameA !== nameB) {
     return nameA < nameB ? -1 : 1;
   }
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+  if (a.id < b.id) {
+    return -1;
+  }
+
+  if (a.id > b.id) {
+    return 1;
+  }
+
+  return 0;
 }
 
 /**
  * Normalizes a free-text query by trimming whitespace and lowercasing it.
  * Empty queries match every item.
  */
-export function normalizeAnimeQuery(query: string): string {
+function normalizeAnimeQuery(query: string): string {
   return query.trim().toLowerCase();
 }
 
 /**
  * Returns true when the anime name contains the normalized query.
  */
-export function matchesAnimeQuery(item: Anime, query: string): boolean {
+function matchesAnimeQuery(item: Anime, query: string): boolean {
   const normalized = normalizeAnimeQuery(query);
 
   if (normalized.length === 0) {
@@ -121,7 +130,7 @@ export function matchesAnimeQuery(item: Anime, query: string): boolean {
 /**
  * Returns true when the anime `estado` matches the selected filter value.
  */
-export function matchesAnimeEstado(item: Anime, value: string): boolean {
+function matchesAnimeEstado(item: Anime, value: string): boolean {
   if (value === ANIME_FILTER_ALL_VALUE) {
     return true;
   }
@@ -132,7 +141,7 @@ export function matchesAnimeEstado(item: Anime, value: string): boolean {
 /**
  * Returns true when the anime `activo` flag matches the selected filter value.
  */
-export function matchesAnimeActivo(item: Anime, value: string): boolean {
+function matchesAnimeActivo(item: Anime, value: string): boolean {
   if (value === ANIME_FILTER_ALL_VALUE) {
     return true;
   }
@@ -143,7 +152,7 @@ export function matchesAnimeActivo(item: Anime, value: string): boolean {
 /**
  * Returns true when the anime `tipo` matches the selected filter value.
  */
-export function matchesAnimeTipo(item: Anime, value: string): boolean {
+function matchesAnimeTipo(item: Anime, value: string): boolean {
   if (value === ANIME_FILTER_ALL_VALUE) {
     return true;
   }
@@ -154,7 +163,7 @@ export function matchesAnimeTipo(item: Anime, value: string): boolean {
 /**
  * Returns true when the anime has at least one of the selected days.
  */
-export function matchesAnimeDia(item: Anime, value: string): boolean {
+function matchesAnimeDia(item: Anime, value: string): boolean {
   if (value === ANIME_FILTER_ALL_VALUE) {
     return true;
   }
@@ -165,7 +174,7 @@ export function matchesAnimeDia(item: Anime, value: string): boolean {
 /**
  * Returns true when the anime has at least one of the selected genres.
  */
-export function matchesAnimeGeneros(item: Anime, values: readonly string[]): boolean {
+function matchesAnimeGeneros(item: Anime, values: readonly string[]): boolean {
   if (values.length === 0) {
     return true;
   }
@@ -263,4 +272,3 @@ export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeF
     label: value,
   }));
 }
-

@@ -1,4 +1,5 @@
 import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
+import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
 /**
  * Props for the CatalogPanel component. The panel is self-contained and reads
@@ -33,13 +34,8 @@ export interface AnimeViewModel {
   readonly gapLabel: string | undefined;
 }
 
-/**
- * Single option rendered by a filter select control.
- */
-export interface AnimeFilterOption {
-  readonly value: string;
-  readonly label: string;
-}
+/** Single option rendered by a Catalog filter select control. */
+export type AnimeFilterOption = LabeledSelectOption;
 
 /**
  * Current values of all filter controls.

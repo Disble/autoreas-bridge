@@ -15,7 +15,7 @@ export function suggestSeasonName(now: Date): string {
  * Formats a created-at epoch (ms) as a human-readable date label. Falls back to
  * an empty string for a missing timestamp so the UI never renders "Invalid Date".
  */
-export function formatSeasonCreatedLabel(createdAt: number): string {
+function formatSeasonCreatedLabel(createdAt: number): string {
   if (!createdAt) {
     return '';
   }

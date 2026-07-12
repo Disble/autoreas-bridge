@@ -11,7 +11,6 @@ import type {
   EntryWithId,
   HeroChipColor,
   NetworkDetailViewModel,
-  NetworkDomainFilter,
   NetworkEntryViewModel,
   NetworkLevelFilter,
   NetworkTraceEntryViewModel,
@@ -22,7 +21,7 @@ import type {
  * delegating to the shared {@link formatLocalTime} so all bridge times render
  * in the computer's own timezone rather than the backend's UTC.
  */
-export function formatNetworkTime(timestamp: string): string {
+function formatNetworkTime(timestamp: string): string {
   return formatLocalTime(timestamp);
 }
 
@@ -94,7 +93,7 @@ function readMetadataNumber(metadata: Readonly<Record<string, unknown>> | undefi
  * when the entry is an `http.request` event. Non-HTTP entries always keep
  * their original message — they are never reduced to a placeholder.
  */
-export function getNetworkMessage(entry: ObservabilityLogEntry): string {
+function getNetworkMessage(entry: ObservabilityLogEntry): string {
   if (entry.eventType === NETWORK_HTTP_EVENT_TYPE) {
     const method = readMetadataString(entry.metadata, 'method') ?? '';
     const path = readMetadataString(entry.metadata, 'path') ?? '';
@@ -153,7 +152,7 @@ export function toNetworkEntryViewModel({ id, entry }: EntryWithId): NetworkEntr
  * inspector renders a deterministic order, mirroring `ObservabilityPanel`'s
  * `getMetadataEntries`.
  */
-export function getNetworkMetadataEntries(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
+function getNetworkMetadataEntries(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
   return Object.entries(entry.metadata ?? {})
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
     .map(([key, value]) => [key, String(value)] as const);
@@ -165,7 +164,7 @@ export function getNetworkMetadataEntries(entry: ObservabilityLogEntry): Readonl
  * entityId, durationMs), each falling back to the Null Object em-dash when
  * absent.
  */
-export function getNetworkDetailFields(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
+function getNetworkDetailFields(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
   return [
     ['timestamp', formatLocalDateTime(entry.timestamp)],
     ['domain', entry.domain],
@@ -183,7 +182,7 @@ export function getNetworkDetailFields(entry: ObservabilityLogEntry): ReadonlyAr
  * flagged. Returns an empty array when the entry has no `correlationId` —
  * callers MUST omit the Trace section entirely in that case.
  */
-export function getNetworkTraceEntries(
+function getNetworkTraceEntries(
   buffer: readonly EntryWithId[],
   selected: EntryWithId,
 ): readonly NetworkTraceEntryViewModel[] {
@@ -264,7 +263,7 @@ export function getNetworkPanelRows(
   buffer: readonly ObservabilityLogEntry[],
   query: string,
   levelFilter: NetworkLevelFilter,
-  domainFilter: NetworkDomainFilter,
+  domainFilter: string,
 ): readonly NetworkEntryViewModel[] {
   return selectEntryViewRows(buffer, query, levelFilter, domainFilter).map(toNetworkEntryViewModel);
 }

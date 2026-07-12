@@ -11,7 +11,7 @@ function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {
     minApprovalGrade: 4,
     slots: 12,
     status: 'open',
-    createdAt: Date.UTC(2026, 6, 6),
+    createdAt: Date.UTC(2026, 6, 6, 12),
     ...overrides,
   };
 }
@@ -32,7 +32,7 @@ describe('buildSeasonOverview', () => {
     expect(overview.statusColor).toBe('success');
     expect(overview.minApprovalGrade).toBe(4);
     expect(overview.slots).toBe(12);
-    expect(overview.createdLabel.length).toBeGreaterThan(0);
+    expect(overview.createdLabel).toBe('July 6, 2026');
   });
 
   it('maps a closed season to a neutral status', () => {

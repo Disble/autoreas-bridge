@@ -18,7 +18,7 @@ import {
   EMPTY_SCHEDULE_CONFIG,
 } from './download-runtime-source.constants';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
-import { hasGoBinding, hasRuntimeBindings, waitForBindings } from '../wails-bindings.helpers';
+import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
  * Normalizes the backend payload so `hosterPriority` is always an array for the UI.
@@ -38,103 +38,40 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     return DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource;
   }
 
-  const runListeners = new Set<() => void>();
-  let runtimeUnsubscribes: readonly (() => void)[] = [];
-
-  const handleRunEvent = () => {
-    for (const listener of runListeners) {
-      listener();
-    }
-  };
-
-  const releaseRunRuntimeListeners = () => {
-    if (runtimeUnsubscribes.length === 0) {
-      return;
-    }
-
-    const unsubscribes = runtimeUnsubscribes;
-    runtimeUnsubscribes = [];
-    for (const unsubscribe of unsubscribes) {
-      unsubscribe();
-    }
-  };
-
-  const ensureRunRuntimeListeners = () => {
-    void waitForBindings(hasRuntimeBindings).then((isReady) => {
-      if (!isReady || runtimeUnsubscribes.length > 0 || runListeners.size === 0) {
-        return;
-      }
-
-      runtimeUnsubscribes = DOWNLOAD_RUN_EVENT_NAMES.map((eventName) => EventsOn(eventName, handleRunEvent));
-    });
-  };
+  const runSubscription = createRuntimeSubscription<void>((emit) => {
+    return DOWNLOAD_RUN_EVENT_NAMES.map((eventName) => EventsOn(eventName, () => emit(undefined)));
+  });
 
   DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource = {
     getDownloadConfig() {
-      return waitForBindings(() => hasGoBinding('GetDownloadConfig')).then((isReady) => {
-        return isReady
-          ? (GetDownloadConfig() as Promise<import('../../shared/contracts/download.types').DownloadConfig>).then(normalizeDownloadConfig)
-          : Promise.resolve(EMPTY_DOWNLOAD_CONFIG);
-      });
+      return invokeGoBinding('GetDownloadConfig', GetDownloadConfig, () => EMPTY_DOWNLOAD_CONFIG).then(normalizeDownloadConfig);
     },
     getJDStatus() {
-      return waitForBindings(() => hasGoBinding('GetJDStatus')).then((isReady) => {
-        return isReady ? (GetJDStatus() as Promise<import('../../shared/contracts/download.types').JDStatus>) : Promise.resolve(EMPTY_JD_STATUS);
-      });
+      return invokeGoBinding('GetJDStatus', GetJDStatus, () => EMPTY_JD_STATUS);
     },
     setJDConfig(input) {
-      return waitForBindings(() => hasGoBinding('SetJDConfig')).then((isReady) => {
-        return isReady ? SetJDConfig(input) : Promise.resolve('runtime unavailable');
-      });
+      return invokeGoBinding('SetJDConfig', () => SetJDConfig(input), () => 'runtime unavailable');
     },
     getScheduleConfig() {
-      return waitForBindings(() => hasGoBinding('GetScheduleConfig')).then((isReady) => {
-        return isReady ? (GetScheduleConfig() as Promise<import('../../shared/contracts/download.types').ScheduleConfig>) : Promise.resolve(EMPTY_SCHEDULE_CONFIG);
-      });
+      return invokeGoBinding('GetScheduleConfig', GetScheduleConfig, () => EMPTY_SCHEDULE_CONFIG);
     },
     setScheduleConfig(config) {
-      return waitForBindings(() => hasGoBinding('SetScheduleConfig')).then((isReady) => {
-        return isReady ? SetScheduleConfig(config) : Promise.resolve('runtime unavailable');
-      });
+      return invokeGoBinding('SetScheduleConfig', () => SetScheduleConfig(config), () => 'runtime unavailable');
     },
     setHosterPriority(site, items) {
-      return waitForBindings(() => hasGoBinding('SetHosterPriority')).then((isReady) => {
-        return isReady ? SetHosterPriority(site, [...items]) : Promise.resolve('runtime unavailable');
-      });
+      return invokeGoBinding('SetHosterPriority', () => SetHosterPriority(site, [...items]), () => 'runtime unavailable');
     },
     triggerDownloadCheck() {
-      return waitForBindings(() => hasGoBinding('TriggerDownloadCheck')).then((isReady) => {
-        return isReady ? TriggerDownloadCheck() : Promise.resolve('runtime unavailable');
-      });
+      return invokeGoBinding('TriggerDownloadCheck', TriggerDownloadCheck, () => 'runtime unavailable');
     },
     triggerAnimeDownload(animeID) {
-      return waitForBindings(() => hasGoBinding('TriggerAnimeDownload')).then((isReady) => {
-        return isReady ? TriggerAnimeDownload(animeID) : Promise.resolve('runtime unavailable');
-      });
+      return invokeGoBinding('TriggerAnimeDownload', () => TriggerAnimeDownload(animeID), () => 'runtime unavailable');
     },
     listDownloadRuns() {
-      return waitForBindings(() => hasGoBinding('ListDownloadRuns')).then((isReady) => {
-        return isReady ? (ListDownloadRuns() as Promise<readonly import('../../shared/contracts/download.types').DownloadRunView[]>) : Promise.resolve([]);
-      });
+      return invokeGoBinding('ListDownloadRuns', ListDownloadRuns, () => []);
     },
     subscribeRunEvents(listener) {
-      runListeners.add(listener);
-      ensureRunRuntimeListeners();
-
-      let subscribed = true;
-
-      return () => {
-        if (!subscribed) {
-          return;
-        }
-
-        subscribed = false;
-        runListeners.delete(listener);
-
-        if (runListeners.size === 0) {
-          releaseRunRuntimeListeners();
-        }
-      };
+      return runSubscription.subscribe(listener);
     },
   };
 

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { Anime } from '../../../../shared/contracts/anime.types';
+import { useAsyncList } from '../../../../shared/hooks/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import {
   ANIME_ACTIVO_OPTIONS,
@@ -29,8 +30,6 @@ export function useCatalogPanel(
   // 1. Refs
 
   // 2. State
-  const [items, setItems] = useState<readonly Anime[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isPullingFromLegacy, setIsPullingFromLegacy] = useState(false);
   const [pullResult, setPullResult] = useState<CatalogPanelState['pullResult']>(undefined);
   const [filters, setFilters] = useState<AnimeFilterState>({
@@ -46,6 +45,7 @@ export function useCatalogPanel(
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const { items, isLoading, reload } = useAsyncList<Anime>(() => source.getAnimes(), source);
 
   // 5. Derived State (useMemo)
   const debouncedQuery = useDebounce(filters.query, ANIME_FILTER_DEBOUNCE_MS);
@@ -98,45 +98,16 @@ export function useCatalogPanel(
       setPullResult(nextPullResult);
 
       if (nextPullResult.status === 'ok') {
-        const nextItems = await source.getAnimes();
-        setItems(nextItems);
+        reload();
       }
     } catch {
       setPullResult(ANIME_LEGACY_PULL_FAILED_RESULT);
     } finally {
       setIsPullingFromLegacy(false);
     }
-  }, [source]);
+  }, [reload, source]);
 
   // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    setIsLoading(true);
-
-    void source
-      .getAnimes()
-      .then((nextItems) => {
-        if (!active) {
-          return;
-        }
-
-        setItems(nextItems);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-
-        setItems([]);
-        setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [source]);
 
   return {
     items: viewItems,

@@ -46,4 +46,19 @@ describe('solo anime download helpers', () => {
 
     expect(options.map((option) => option.name)).toEqual(['Alpha']);
   });
+
+  it('caps the selector list at eight items after sorting', () => {
+    const options = getSoloAnimeDownloadOptions(
+      Array.from({ length: 10 }, (_, index) => ({
+        ...baseAnime,
+        id: `anime-${index + 1}`,
+        nombre: `Anime ${String(10 - index).padStart(2, '0')}`,
+      })),
+      '',
+    );
+
+    expect(options).toHaveLength(8);
+    expect(options[0]?.name).toBe('Anime 01');
+    expect(options[7]?.name).toBe('Anime 08');
+  });
 });

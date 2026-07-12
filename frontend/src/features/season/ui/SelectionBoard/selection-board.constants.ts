@@ -1,7 +1,7 @@
 import type { ConsiderationOption } from './selection-board.types';
 
 /** Consideration token: no override (mirror of the Go domain enum). */
-export const CONSIDERATION_NONE = 'none';
+const CONSIDERATION_NONE = 'none';
 /** Consideration token: reject a passing anime for lack of quota. */
 export const CONSIDERATION_INSUFFICIENT_QUOTA = 'insufficient_quota';
 /** Consideration token: approve a failing anime temporarily. */

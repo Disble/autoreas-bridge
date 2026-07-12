@@ -132,6 +132,18 @@ describe('bridge-runtime-source', () => {
     expect(getAnimesMock).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves syncing anime items returned by the live Wails binding', async () => {
+    const syncingItems = [{ animeId: 'anime-1', nombre: 'Frieren', progress: 0.5 }];
+    const getSyncingAnimeItemsMock = vi.fn().mockResolvedValue(syncingItems);
+    window.go = { main: { App: { GetSyncingAnimeItems: getSyncingAnimeItemsMock } } } as never;
+
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    await expect(source.getSyncingAnimeItems()).resolves.toEqual(syncingItems);
+    expect(getSyncingAnimeItemsMock).toHaveBeenCalledTimes(1);
+  });
+
   it('calls GetAnimeDetail once Go bindings become ready and resolves the mapped DTO', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
@@ -475,4 +487,5 @@ describe('bridge-runtime-source', () => {
     expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
     expect(sourceText).not.toMatch(/export const\s+bridgeRuntimeSource\b/);
   });
+
 });

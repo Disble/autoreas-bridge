@@ -2,6 +2,22 @@ import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastru
 import { MATCH_STATUS_LABELS } from './intake-panel.constants';
 import type { IntakeChipColor } from './intake-panel.types';
 
+function trimTrailingWindowsNameCharacters(value: string): string {
+  let end = value.length;
+  while (end > 0 && (value[end - 1] === '.' || value[end - 1] === ' ')) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
+function trimTrailingPathSeparators(value: string): string {
+  let end = value.length;
+  while (end > 0 && (value[end - 1] === '/' || value[end - 1] === '\\')) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 /**
  * Returns a readable label for an intake match status, falling back to the raw
  * value for any unrecognized status.
@@ -67,13 +83,13 @@ export function deriveIntakeDownloadFolder(root: string, name: string): string {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .join(' ')
-    .replace(/[. ]+$/g, '');
-  if (segment === '') {
+    .join(' ');
+  const sanitizedSegment = trimTrailingWindowsNameCharacters(segment);
+  if (sanitizedSegment === '') {
     return '';
   }
   const separator = root.includes('\\') ? '\\' : '/';
-  return `${root.replace(/[\\/]+$/g, '')}${separator}${segment}`;
+  return `${trimTrailingPathSeparators(root)}${separator}${sanitizedSegment}`;
 }
 
 /**
@@ -81,7 +97,7 @@ export function deriveIntakeDownloadFolder(root: string, name: string): string {
  * name: not yet created and not discarded. Created rows have a real anime record
  * and graduate out of the freely-editable raw document.
  */
-export function isEditableRow(row: SeasonAnimeRow): boolean {
+function isEditableRow(row: SeasonAnimeRow): boolean {
   return row.availability !== 'created' && row.matchStatus !== 'discarded';
 }
 

@@ -57,7 +57,9 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           <Button
             isDisabled={isLoading || isPullingFromLegacy}
             isPending={isPullingFromLegacy}
-            onPress={onPullFromLegacy}
+            onPress={() => {
+              onPullFromLegacy().catch(() => undefined);
+            }}
             variant="secondary"
           >
             {isPullingFromLegacy ? 'Pulling from legacy...' : 'Pull from legacy'}

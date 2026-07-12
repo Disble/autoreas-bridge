@@ -3,6 +3,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HosterPriorityEditor } from '../HosterPriorityEditor';
 import { useHosterPriorityEditor } from '../use-hoster-priority-editor';
 
+const dragAndDropOptions = vi.hoisted(() => ({ current: undefined as undefined | { onReorder: (event: unknown) => void } }));
+
+vi.mock('react-aria-components', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-aria-components')>();
+  return {
+    ...actual,
+    useDragAndDrop: (options: { onReorder: (event: unknown) => void }) => {
+      dragAndDropOptions.current = options;
+      return { dragAndDropHooks: {} };
+    },
+  };
+});
+
 vi.mock('../use-hoster-priority-editor', () => ({
   useHosterPriorityEditor: vi.fn(),
 }));
@@ -88,5 +101,26 @@ describe('HosterPriorityEditor', () => {
     render(<HosterPriorityEditor />);
 
     expect(document.querySelector('[aria-live]')).not.toBeNull();
+  });
+
+  it('owns a rejected reorder promise at the drag-and-drop boundary', () => {
+    const catchHandler = vi.fn();
+    const reorder = vi.fn().mockReturnValue({ catch: catchHandler });
+    mockedUseHosterPriorityEditor.mockReturnValue({
+      status: 'ready',
+      items: [{ id: 'mega', hoster: 'mega', priority: 0, enabled: true }],
+      isSaving: false,
+      errorMessage: undefined,
+      reorder,
+    });
+
+    render(<HosterPriorityEditor />);
+    dragAndDropOptions.current?.onReorder({
+      keys: new Set(['mega']),
+      target: { key: 'mediafire', dropPosition: 'before' },
+    });
+
+    expect(reorder).toHaveBeenCalledWith('mega', 'mediafire', 'before');
+    expect(catchHandler).toHaveBeenCalledTimes(1);
   });
 });

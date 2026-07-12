@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { execPath } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,7 +36,7 @@ describe('generate-feature scaffolding', () => {
   it('emits frontend files that satisfy the global architecture policy defaults', () => {
     const workspace = createWorkspace();
 
-    execFileSync('node', [path.join('scripts', 'generate-feature.js'), 'dashboard', 'BridgeStatusCard'], {
+    execFileSync(execPath, [path.join('scripts', 'generate-feature.js'), 'dashboard', 'BridgeStatusCard'], {
       cwd: workspace,
       stdio: 'pipe',
     });

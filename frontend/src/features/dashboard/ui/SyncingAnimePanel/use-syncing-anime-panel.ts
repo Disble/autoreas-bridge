@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { SyncingAnime } from '../../../../shared/contracts/syncing-anime.types';
+import { useAsyncList } from '../../../../shared/hooks/use-async-list';
 import type { SyncingAnimePanelProps } from './syncing-anime-panel.types';
 import { toSyncingAnimePanelViewModel } from './syncing-anime-panel.helpers';
 
@@ -13,12 +14,14 @@ export function useSyncingAnimePanel(
   // 1. Refs
 
   // 2. State
-  const [items, setItems] = useState<readonly SyncingAnime[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
+  const { items, isLoading } = useAsyncList<SyncingAnime>(
+    () => source.getSyncingAnimeItems(),
+    props.refreshToken,
+    source,
+  );
 
   // 5. Derived State (useMemo)
   const viewItems = useMemo(() => items.map(toSyncingAnimePanelViewModel), [items]);
@@ -27,34 +30,6 @@ export function useSyncingAnimePanel(
   // 6. Callbacks (useCallback calling pure helpers)
 
   // 7. Effects
-  useEffect(() => {
-    let active = true;
-
-    setIsLoading(true);
-
-    void source
-      .getSyncingAnimeItems()
-      .then((nextItems) => {
-        if (!active) {
-          return;
-        }
-
-        setItems(nextItems);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-
-        setItems([]);
-        setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [props.refreshToken, source]);
 
   return {
     items: viewItems,

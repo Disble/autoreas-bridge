@@ -31,7 +31,14 @@ export function PairingPanel() {
           <code id="pairing-token" className="flex-1 rounded-lg bg-surface-secondary px-3 py-2 text-sm text-foreground">
             {token || '—'}
           </code>
-          <Button isDisabled={!token} onPress={onCopyToken} size="sm" variant={copied ? 'secondary' : 'outline'}>
+          <Button
+            isDisabled={!token}
+            onPress={() => {
+              onCopyToken().catch(() => undefined);
+            }}
+            size="sm"
+            variant={copied ? 'secondary' : 'outline'}
+          >
             {copied ? 'Copied!' : 'Copy'}
           </Button>
         </div>

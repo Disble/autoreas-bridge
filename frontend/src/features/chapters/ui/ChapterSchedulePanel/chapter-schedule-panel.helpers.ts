@@ -1,11 +1,39 @@
 import {
   CHAPTER_DAY_OPTIONS,
+  CHAPTER_RUNTIME_UNAVAILABLE_RESULT,
   CHAPTER_SCHEDULE_EMPTY_COVERS,
   CHAPTER_SCHEDULE_WEEKDAY_FORMATTER,
   CHAPTER_SEASON_OPTIONS,
   CHAPTER_STATE_LABELS,
 } from './chapter-schedule-panel.constants';
-import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
+import type { AnimeCover, ChapterDayCount, ChapterScheduleItem, ChapterScheduleRow, ChapterScheduleSource, CoverEntry, InitialChapterSelectionInput } from './chapter-schedule-panel.types';
+
+/**
+ * Returns an injected schedule source when supplied, otherwise assembles the
+ * runtime-backed source with browser-safe fallbacks outside the React hook.
+ */
+export function createChapterScheduleSource(source?: ChapterScheduleSource): ChapterScheduleSource {
+  if (source !== undefined) {
+    return source;
+  }
+
+  const getAnimeCover = bridgeRuntimeSource.getAnimeCover;
+
+  return {
+    adjustWatchedChapters: bridgeRuntimeSource.adjustWatchedChapters ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
+    getChapterDayCounts: bridgeRuntimeSource.getChapterDayCounts ?? (() => Promise.resolve([])),
+    getChapterSchedule: bridgeRuntimeSource.getChapterSchedule ?? (() => Promise.resolve([])),
+    getSeasonMode: preferencesSource.getSeasonMode,
+    openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+  };
+}
 
 /**
  * Converts backend chapter schedule DTOs into UI rows with explicit labels so the
@@ -60,7 +88,7 @@ export function dayBadge(day: string, counts: readonly ChapterDayCount[]): numbe
  * generated from the Go contract) into the feature's narrower `AnimeCover`
  * union, treating any non-'cover' source or a missing data URL as a placeholder.
  */
-export function toAnimeCover(raw: { readonly dataUrl?: string; readonly source: string }): AnimeCover {
+function toAnimeCover(raw: { readonly dataUrl?: string; readonly source: string }): AnimeCover {
   return raw.source === 'cover' && raw.dataUrl !== undefined ? { dataUrl: raw.dataUrl, source: 'cover' } : { source: 'placeholder' };
 }
 
@@ -94,6 +122,6 @@ export function getDefaultChapterDay(date: Date = new Date()): string {
 /**
  * Formats chapter progress while preserving fractional half-episode values.
  */
-export function formatChapterNumber(value: number): string {
+function formatChapterNumber(value: number): string {
   return String(value);
 }

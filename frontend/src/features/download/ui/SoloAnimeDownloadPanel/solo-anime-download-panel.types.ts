@@ -17,19 +17,6 @@ export interface SoloAnimeDownloadOptionViewModel {
 /** Current lifecycle state for the one-off anime download action. */
 export type SoloAnimeDownloadStatus = 'loading' | 'ready' | 'triggering' | 'success' | 'already-in-progress' | 'error';
 
-/** Hook state returned to the dumb panel component. */
-export interface SoloAnimeDownloadViewModel {
-  readonly status: SoloAnimeDownloadStatus;
-  readonly query: string;
-  readonly options: readonly SoloAnimeDownloadOptionViewModel[];
-  readonly selected: SoloAnimeDownloadOptionViewModel | undefined;
-  readonly errorMessage: string | undefined;
-  readonly canTrigger: boolean;
-  readonly onQueryChange: (query: string) => void;
-  readonly onSelectAnime: (animeID: string) => void;
-  readonly onTriggerDownload: () => Promise<void>;
-}
-
 /** Internal state shape for the hook. */
 export interface SoloAnimeDownloadState {
   readonly items: readonly Anime[];

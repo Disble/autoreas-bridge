@@ -31,7 +31,7 @@ import {
   RUNTIME_UNAVAILABLE_PULL_RESULT,
 } from './bridge-runtime-source.constants';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
-import { hasGoBinding, hasRuntimeBindings, waitForBindings } from '../wails-bindings.helpers';
+import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
  * Normalizes legacy-pull payloads to the frontend contract, forcing unknown statuses
@@ -68,169 +68,82 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
     return BRIDGE_RUNTIME_SOURCE_STATE.sharedSource;
   }
 
-  const listeners = new Set<() => void>();
-  let runtimeUnsubscribe: (() => void) | null = null;
-
-  const handleRuntimeEvent = () => {
-    for (const listener of listeners) {
-      listener();
-    }
-  };
-
-  const releaseRuntimeListener = () => {
-    if (runtimeUnsubscribe === null) {
-      return;
-    }
-
-    const unsubscribe = runtimeUnsubscribe;
-    runtimeUnsubscribe = null;
-    unsubscribe();
-  };
-
-  const ensureRuntimeListener = () => {
-    void waitForBindings(hasRuntimeBindings).then((isReady) => {
-      if (!isReady || runtimeUnsubscribe !== null || listeners.size === 0) {
-        return;
-      }
-
-      runtimeUnsubscribe = EventsOn(PAIRING_TOKEN_CONSUMED_EVENT_NAME, handleRuntimeEvent);
-    });
-  };
+  const pairingTokenSubscription = createRuntimeSubscription<void>((emit) => {
+    return EventsOn(PAIRING_TOKEN_CONSUMED_EVENT_NAME, () => emit(undefined));
+  });
 
   BRIDGE_RUNTIME_SOURCE_STATE.sharedSource = {
     getSQLiteStatus() {
-      return waitForBindings(() => hasGoBinding('GetSQLiteStatus')).then((isReady) => {
-        return isReady ? GetSQLiteStatus() : 'runtime unavailable';
-      });
+      return invokeGoBinding('GetSQLiteStatus', GetSQLiteStatus, () => 'runtime unavailable');
     },
     getEffectiveAddress() {
-      return waitForBindings(() => hasGoBinding('GetEffectiveAddress')).then((isReady) => {
-        return isReady ? GetEffectiveAddress() : '';
-      });
+      return invokeGoBinding('GetEffectiveAddress', GetEffectiveAddress, () => '');
     },
     getPairingToken() {
-      return waitForBindings(() => hasGoBinding('GetPairingToken')).then((isReady) => {
-        return isReady ? GetPairingToken() : '';
-      });
+      return invokeGoBinding('GetPairingToken', GetPairingToken, () => '');
     },
     getSyncingAnimeItems() {
-      return waitForBindings(() => hasGoBinding('GetSyncingAnimeItems')).then((isReady) => {
-        return isReady ? (GetSyncingAnimeItems() as Promise<readonly import('../../shared/contracts/syncing-anime.types').SyncingAnime[]>) : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetSyncingAnimeItems', GetSyncingAnimeItems, () => []);
     },
     getAnimes() {
-      return waitForBindings(() => hasGoBinding('GetAnimes')).then((isReady) => {
-        return isReady ? (GetAnimes() as Promise<readonly import('../../shared/contracts/anime.types').Anime[]>) : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetAnimes', GetAnimes, () => []);
     },
     getAnimeDetail(id) {
-      return waitForBindings(() => hasGoBinding('GetAnimeDetail')).then((isReady) => {
-        return isReady ? (GetAnimeDetail(id) as Promise<import('../../shared/contracts/anime.types').AnimeDetail | null>) : Promise.resolve(null);
-      });
+      return invokeGoBinding('GetAnimeDetail', () => GetAnimeDetail(id), () => null);
     },
     getAnimeHistory() {
-      return waitForBindings(() => hasGoBinding('GetAnimeHistory')).then((isReady) => {
-        return isReady ? (GetAnimeHistory() as Promise<readonly import('../../shared/contracts/anime.types').AnimeHistoryEntry[]>) : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);
     },
     getChapterSchedule(day) {
-      return waitForBindings(() => hasGoBinding('GetChapterSchedule')).then((isReady) => {
-        return isReady ? GetChapterSchedule(day) : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetChapterSchedule', () => GetChapterSchedule(day), () => []);
     },
     getAnimeCover(animeID) {
-      return waitForBindings(() => hasGoBinding('GetAnimeCover')).then((isReady) => {
-        return isReady ? GetAnimeCover(animeID) : Promise.resolve({ source: 'placeholder' });
-      });
+      return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' }));
     },
     getChapterDayCounts() {
-      return waitForBindings(() => hasGoBinding('GetChapterDayCounts')).then((isReady) => {
-        return isReady ? GetChapterDayCounts() : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetChapterDayCounts', GetChapterDayCounts, () => []);
     },
     adjustWatchedChapters(animeID, delta, base) {
-      return waitForBindings(() => hasGoBinding('AdjustWatchedChapters')).then((isReady) => {
-        return isReady ? AdjustWatchedChapters(animeID, delta, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('AdjustWatchedChapters', () => AdjustWatchedChapters(animeID, delta, base), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     setAnimeState(animeID, estado, base) {
-      return waitForBindings(() => hasGoBinding('SetAnimeState')).then((isReady) => {
-        return isReady ? SetAnimeState(animeID, estado, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('SetAnimeState', () => SetAnimeState(animeID, estado, base), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     softDeleteAnime(animeID, base) {
-      return waitForBindings(() => hasGoBinding('SoftDeleteAnime')).then((isReady) => {
-        return isReady ? SoftDeleteAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('SoftDeleteAnime', () => SoftDeleteAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     restoreAnime(animeID, base) {
-      return waitForBindings(() => hasGoBinding('RestoreAnime')).then((isReady) => {
-        return isReady ? RestoreAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('RestoreAnime', () => RestoreAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     repeatAnime(animeID, base) {
-      return waitForBindings(() => hasGoBinding('RepeatAnime')).then((isReady) => {
-        return isReady ? RepeatAnime(animeID, base) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('RepeatAnime', () => RepeatAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     openAnimePage(animeID) {
-      return waitForBindings(() => hasGoBinding('OpenAnimePage')).then((isReady) => {
-        return isReady ? OpenAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('OpenAnimePage', () => OpenAnimePage(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     copyAnimePage(animeID) {
-      return waitForBindings(() => hasGoBinding('CopyAnimePage')).then((isReady) => {
-        return isReady ? CopyAnimePage(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('CopyAnimePage', () => CopyAnimePage(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     openAnimeFolder(animeID) {
-      return waitForBindings(() => hasGoBinding('OpenAnimeFolder')).then((isReady) => {
-        return isReady ? OpenAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('OpenAnimeFolder', () => OpenAnimeFolder(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     copyAnimeFolder(animeID) {
-      return waitForBindings(() => hasGoBinding('CopyAnimeFolder')).then((isReady) => {
-        return isReady ? CopyAnimeFolder(animeID) : Promise.resolve({ status: 'error', message: 'runtime unavailable' });
-      });
+      return invokeGoBinding('CopyAnimeFolder', () => CopyAnimeFolder(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
     },
     getConnectedDevices() {
-      return waitForBindings(() => hasGoBinding('GetConnectedDevices')).then((isReady) => {
-        return isReady ? GetConnectedDevices() : Promise.resolve([]);
-      });
+      return invokeGoBinding('GetConnectedDevices', GetConnectedDevices, () => []);
     },
     pullAnimesFromLegacy() {
-      return waitForBindings(() => hasGoBinding('PullAnimesFromLegacy')).then((isReady) => {
-        return isReady ? PullAnimesFromLegacy().then(toAnimeLegacyPullResult) : RUNTIME_UNAVAILABLE_PULL_RESULT;
-      });
+      return invokeGoBinding('PullAnimesFromLegacy', PullAnimesFromLegacy, () => RUNTIME_UNAVAILABLE_PULL_RESULT).then(toAnimeLegacyPullResult);
     },
     triggerReconcile() {
-      return waitForBindings(() => hasGoBinding('TriggerReconcile')).then((isReady) => {
-        return isReady ? TriggerReconcile() : 'runtime unavailable';
-      });
+      return invokeGoBinding('TriggerReconcile', TriggerReconcile, () => 'runtime unavailable');
     },
     unpairDevice(deviceID) {
-      return waitForBindings(() => hasGoBinding('UnpairDevice')).then((isReady) => {
-        return isReady ? UnpairDevice(deviceID) : 'runtime unavailable';
-      });
+      return invokeGoBinding('UnpairDevice', () => UnpairDevice(deviceID), () => 'runtime unavailable');
     },
     onPairingTokenConsumed(listener) {
-      listeners.add(listener);
-      ensureRuntimeListener();
-
-      let subscribed = true;
-
-      return () => {
-        if (!subscribed) {
-          return;
-        }
-
-        subscribed = false;
-        listeners.delete(listener);
-
-        if (listeners.size === 0) {
-          releaseRuntimeListener();
-        }
-      };
+      return pairingTokenSubscription.subscribe(listener);
     },
   };
 

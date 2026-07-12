@@ -4,7 +4,16 @@
   "entry": [
     "src/index.{ts,tsx,js,jsx}",
     "src/main.{ts,tsx,js,jsx}",
-    "src/test/setup.ts"
+    "src/test/setup.ts",
+    // Vitest discovers this ESM script test, but Fallow does not infer it as
+    // a test root because it lives outside `src`.
+    "scripts/__tests__/check-file-size-warnings.test.mjs"
+  ],
+  "ignoreDependencies": [
+    // `eslint` is imported only by `scripts/check-file-size-warnings.mjs`, a
+    // repo-owned quality script reached from package.json scripts rather than
+    // shipped frontend runtime code.
+    "eslint"
   ],
   "ignoreExports": [
     {
@@ -25,6 +34,9 @@
     "dupesBaseline": ".fallow/baselines/dupes.json"
   },
   "duplicates": {
+    // Type contracts intentionally repeat readonly fields to mirror distinct
+    // wire and view-model boundaries; they are not executable copy-paste.
+    "ignore": ["**/*.types.ts"],
     "mode": "semantic",
     "threshold": 3,
     // Hide pair-only clones; focus on widespread copy-paste

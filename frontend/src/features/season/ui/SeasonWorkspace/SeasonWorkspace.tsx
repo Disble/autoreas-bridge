@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { Alert, Button, Card, Chip, Input, Label, Skeleton, Tabs, TextField } from '@heroui/react';
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
@@ -43,7 +43,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
     );
   }
 
-  const handleCreate = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreate: NonNullable<ComponentPropsWithoutRef<'form'>['onSubmit']> = (event) => {
     event.preventDefault();
     const value = new FormData(event.currentTarget).get('seasonName');
     onCreateSeason(typeof value === 'string' && value.trim() !== '' ? value.trim() : suggestedName);

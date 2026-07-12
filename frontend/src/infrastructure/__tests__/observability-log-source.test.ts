@@ -27,6 +27,24 @@ describe('observability-log-source', () => {
     await expect(recentLogsPromise).resolves.toEqual([]);
   });
 
+  it('reports the runtime as available when Go bindings and the runtime object exist', async () => {
+    const { isWailsRuntimeAvailable } = await import('../observability-log-source');
+
+    window.go = { main: { App: {} } } as never;
+    window.runtime = {} as never;
+
+    expect(isWailsRuntimeAvailable()).toBe(true);
+  });
+
+  it('reports the runtime as unavailable when the runtime object is null', async () => {
+    const { isWailsRuntimeAvailable } = await import('../observability-log-source');
+
+    window.go = { main: { App: {} } } as never;
+    window.runtime = null as never;
+
+    expect(isWailsRuntimeAvailable()).toBe(false);
+  });
+
   it('resolves recent logs from the Go runtime once bindings become ready', async () => {
     const { createObservabilityLogSource, WAILS_BINDINGS_POLL_MS } = await import('../observability-log-source');
     const source = createObservabilityLogSource();
@@ -141,4 +159,5 @@ describe('observability-log-source', () => {
     expect(sourceText).not.toMatch(/export const\s+observabilityLogSource\b/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
+
 });

@@ -1,13 +1,9 @@
 import type { RefObject } from 'react';
 import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
-import type {
-  EntryWithId,
-  NetworkDomainFilter,
-  NetworkLevelFilter,
-} from '../../../../shared/store/network-store/network-store.types';
+import type { EntryWithId, NetworkLevelFilter } from '../../../../shared/store/network-store/network-store.types';
 
-export type { EntryWithId, NetworkDomainFilter, NetworkLevelFilter };
+export type { EntryWithId, NetworkLevelFilter };
 
 /** Active tab in the DevTools-style detail inspector. */
 export type NetworkDetailTab = 'general' | 'metadata' | 'trace';
@@ -68,10 +64,10 @@ export interface NetworkTableProps {
 export interface NetworkFilterBarProps {
   readonly query: string;
   readonly levelFilter: NetworkLevelFilter;
-  readonly domainFilter: NetworkDomainFilter;
+  readonly domainFilter: string;
   readonly onQueryChange: (query: string) => void;
   readonly onLevelFilterChange: (levelFilter: NetworkLevelFilter) => void;
-  readonly onDomainFilterChange: (domainFilter: NetworkDomainFilter) => void;
+  readonly onDomainFilterChange: (domainFilter: string) => void;
 }
 
 /** Props for the dumb NetworkDetail presentational component. */
@@ -90,6 +86,6 @@ export interface NetworkLevelFilterOption {
 
 /** A domain-filter pill option (`network-panel.constants.ts`). */
 export interface NetworkDomainFilterOption {
-  readonly value: NetworkDomainFilter;
+  readonly value: string;
   readonly label: string;
 }

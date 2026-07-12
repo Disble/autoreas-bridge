@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@heroui/react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import { CHAPTER_RUNTIME_UNAVAILABLE_RESULT } from './chapter-schedule-panel.constants';
-import { getChapterFilterOptions, getInitialChapterSelection, toAnimeCover, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
-import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterScheduleSource, CoverEntry } from './chapter-schedule-panel.types';
+import { createChapterScheduleSource, getChapterFilterOptions, getInitialChapterSelection, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
+import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, CoverEntry } from './chapter-schedule-panel.types';
 
 
 /**
@@ -27,23 +24,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const rawGetAnimeCover = bridgeRuntimeSource.getAnimeCover;
-  const source = useMemo<ChapterScheduleSource>(
-    () =>
-      props.source ?? {
-        adjustWatchedChapters: bridgeRuntimeSource.adjustWatchedChapters ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-        copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-        copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-        getAnimeCover: rawGetAnimeCover ? (animeID: string) => rawGetAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
-        getChapterDayCounts: bridgeRuntimeSource.getChapterDayCounts ?? (() => Promise.resolve([])),
-        getChapterSchedule: bridgeRuntimeSource.getChapterSchedule ?? (() => Promise.resolve([])),
-        getSeasonMode: preferencesSource.getSeasonMode,
-        openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-        openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-        setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
-      },
-    [props.source, rawGetAnimeCover],
-  );
+  const source = useMemo(() => createChapterScheduleSource(props.source), [props.source]);
   const filterOptions = useMemo(() => getChapterFilterOptions(isSeasonMode), [isSeasonMode]);
   const rows = useMemo(() => toChapterScheduleRows(items, covers), [items, covers]);
 

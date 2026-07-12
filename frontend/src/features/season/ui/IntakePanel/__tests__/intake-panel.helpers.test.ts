@@ -66,6 +66,17 @@ describe('buildRawText', () => {
     ];
     expect(buildRawText(rows)).toBe('Anime A\nAnime D');
   });
+
+  it('keeps matched and not-found rows in the raw editor until they are created or discarded', () => {
+    const rows = [
+      row({ rawName: 'Matched waiting', matchStatus: 'matched', availability: 'waiting' }),
+      row({ rawName: 'Not found', matchStatus: 'not_found' }),
+      row({ rawName: 'Created', matchStatus: 'matched', availability: 'created', animeId: 'anime-a' }),
+      row({ rawName: 'Discarded', matchStatus: 'discarded' }),
+    ];
+
+    expect(buildRawText(rows)).toBe('Matched waiting\nNot found');
+  });
 });
 
 describe('splitIntakeRows', () => {
@@ -110,6 +121,7 @@ describe('deriveIntakeDownloadFolder', () => {
   it('previews the backend default folder using the configured downloads root and sanitized anime name', () => {
     expect(deriveIntakeDownloadFolder('D:/Anime', 'Re:Zero')).toBe('D:/Anime/Re Zero');
     expect(deriveIntakeDownloadFolder('D:\\Anime', 'Fate/stay night')).toBe('D:\\Anime\\Fate stay night');
+    expect(deriveIntakeDownloadFolder('D:/Anime///', '  Steins;Gate...  ')).toBe('D:/Anime/Steins;Gate');
   });
 
   it('returns an empty preview when the root or sanitized name is empty', () => {

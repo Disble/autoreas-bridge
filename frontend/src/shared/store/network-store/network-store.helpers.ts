@@ -6,7 +6,6 @@ import { MAX_LOG_ENTRIES, NETWORK_STORE_INTERNAL_STATE } from './network-store.c
 import type {
   EntryWithId,
   MutableRowAccumulator,
-  NetworkDomainFilter,
   NetworkLevelFilter,
   NetworkRequestRow,
   NetworkStatusFilter,
@@ -210,7 +209,7 @@ function matchesEntryLevelFilter(entry: ObservabilityLogEntry, levelFilter: Netw
   return level === levelFilter;
 }
 
-function matchesEntryDomainFilter(entry: ObservabilityLogEntry, domainFilter: NetworkDomainFilter): boolean {
+function matchesEntryDomainFilter(entry: ObservabilityLogEntry, domainFilter: string): boolean {
   if (domainFilter === 'all') {
     return true;
   }
@@ -226,7 +225,7 @@ export function selectEntryViewRows(
   buffer: readonly ObservabilityLogEntry[],
   query: string,
   levelFilter: NetworkLevelFilter,
-  domainFilter: NetworkDomainFilter = 'all',
+  domainFilter: string = 'all',
 ): readonly EntryWithId[] {
   const rows: EntryWithId[] = [];
 
@@ -297,7 +296,7 @@ export function connectNetworkStore(source: ObservabilityLogSource = observabili
     const record = value as Readonly<Record<string, unknown>>;
 
     return `{${Object.keys(record)
-      .sort()
+      .sort((left, right) => left.localeCompare(right))
       .map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`)
       .join(',')}}`;
   };

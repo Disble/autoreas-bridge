@@ -164,4 +164,15 @@ describe('toObservabilityPanelViewModel', () => {
       '512ms',
     ]);
   });
+
+  it('omits missing structured labels from the summary view-model', () => {
+    const viewModel = toObservabilityPanelViewModel({
+      timestamp: '2026-04-13T18:09:15Z',
+      domain: 'sync',
+      level: 'info',
+      message: 'background sync completed',
+    });
+
+    expect(viewModel.summaryLabels).toEqual([]);
+  });
 });

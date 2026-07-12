@@ -109,7 +109,7 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
  * or sentinel paths MUST resolve to `undefined` (placeholder path) instead
  * of reaching the `<img>`.
  */
-export function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
+function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
   const trimmed = portada?.trim();
 
   return trimmed === undefined || trimmed === '' || trimmed === 'null' ? undefined : trimmed;

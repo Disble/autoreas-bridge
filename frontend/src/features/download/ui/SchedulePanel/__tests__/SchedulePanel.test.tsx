@@ -81,7 +81,8 @@ describe('SchedulePanel', () => {
   });
 
   it('calls setEnabled when the enabled switch is toggled', () => {
-    const setEnabled = vi.fn();
+    const catchHandler = vi.fn();
+    const setEnabled = vi.fn().mockReturnValue({ catch: catchHandler });
     mockHook({ setEnabled });
 
     render(<SchedulePanel />);
@@ -89,6 +90,7 @@ describe('SchedulePanel', () => {
     fireEvent.click(screen.getByRole('switch', { name: /enable scheduled downloads/i }));
 
     expect(setEnabled).toHaveBeenCalledWith(false);
+    expect(catchHandler).toHaveBeenCalledTimes(1);
   });
 
   it('nests the switch control inside the clickable switch button so the toggle itself is pressable', () => {
@@ -118,7 +120,8 @@ describe('SchedulePanel', () => {
   });
 
   it('commits the daily time when the input loses focus', () => {
-    const commitDailyTime = vi.fn();
+    const catchHandler = vi.fn();
+    const commitDailyTime = vi.fn().mockReturnValue({ catch: catchHandler });
     mockHook({ commitDailyTime });
 
     render(<SchedulePanel />);
@@ -126,6 +129,7 @@ describe('SchedulePanel', () => {
     fireEvent.blur(screen.getByLabelText(/daily run time/i));
 
     expect(commitDailyTime).toHaveBeenCalledTimes(1);
+    expect(catchHandler).toHaveBeenCalledTimes(1);
   });
 
   it('renders a weekday toggle for each day', () => {
@@ -139,7 +143,8 @@ describe('SchedulePanel', () => {
   });
 
   it('calls setWeekdays with the updated mask when a day is toggled off', () => {
-    const setWeekdays = vi.fn();
+    const catchHandler = vi.fn();
+    const setWeekdays = vi.fn().mockReturnValue({ catch: catchHandler });
     mockHook({ setWeekdays });
 
     render(<SchedulePanel />);
@@ -148,6 +153,7 @@ describe('SchedulePanel', () => {
 
     // Starting from all-days (127), deselecting Sunday (bit 0) yields 126.
     expect(setWeekdays).toHaveBeenCalledWith(126);
+    expect(catchHandler).toHaveBeenCalledTimes(1);
   });
 
   it('shows a warning when the schedule is enabled but no day is selected', () => {

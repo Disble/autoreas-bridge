@@ -3,9 +3,6 @@ export interface SchedulePanelProps {
   readonly className?: string;
 }
 
-/** Loading/error/ready states for the schedule panel (2026 quality bar). */
-export type SchedulePanelStatus = 'loading' | 'error' | 'ready';
-
 /** A single weekday choice in the picker: a stable id, a label, and its Go-mask bit index. */
 export interface WeekdayOption {
   readonly value: string;

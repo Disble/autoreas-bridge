@@ -27,7 +27,13 @@ export function BridgeDashboard() {
           <p className="text-sm text-muted">{BRIDGE_DASHBOARD_SUBTITLE}</p>
         </div>
         <div className="sm:shrink-0">
-          <Button isDisabled={isSyncing} isPending={isSyncing} onPress={onTriggerSync}>
+          <Button
+            isDisabled={isSyncing}
+            isPending={isSyncing}
+            onPress={() => {
+              onTriggerSync().catch(() => undefined);
+            }}
+          >
             {({ isPending }) => (
               <>
                 {isPending ? <Spinner color="current" size="sm" /> : null}

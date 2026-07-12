@@ -54,9 +54,9 @@ export function useAnimeDetail(
   }, []);
   const onBack = useCallback(() => {
     if (hasPreviousHistoryEntry(window.history.state)) {
-      navigate(-1);
+      void navigate(-1);
     } else {
-      navigate('/history');
+      void navigate('/history');
     }
   }, [navigate]);
 
