@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.7"
+  version: "1.0.9"
   scope: project
   updates: living
 ---
@@ -49,6 +49,8 @@ Semantic tokens in use: `accent`, `success`, `warning`, `danger`, `default`, plu
 
 These mappings live in `*-panel.helpers.ts` (`getNetworkLevelColor`, `getNetworkDomainColor`, etc.). Reuse the helper; don't re-derive the switch.
 
+**Anime `estado` → canonical LABELS** (Legacy domain vocabulary, Spanish data literals like "Sin ver"/"Ver hoy"/"Visto"): `0 → Viendo · 1 → Finalizado · 2 → No me gusto · 3 → En pausa`. The wording lives in ONE place — `frontend/src/shared/constants/anime-estado.ts` (`ANIME_ESTADO_LABELS`, `getAnimeEstadoLabel`, `ANIME_ESTADO_FILTER_ENTRIES`). Import labels from there; **never re-hardcode estado wording in a feature** (History, Catalog, AnimeDetail, Chapters all consume this module — a deliberate, scoped exception to per-feature colocation so a rewording is a one-file change). This corrected a three-way drift where estado 2/3 were mislabeled "Abandonado"/"Pendiente" (ES) and "Dropped"/"Paused" (EN). **Estado COLORS stay feature-local** (presentation, not vocabulary): the established mapping is `Viendo → accent · Finalizado → success · No me gusto → danger · En pausa → warning`.
+
 ## Brand & action hierarchy (bridge's OWN theme — never Legacy's colors)
 
 The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/blue:
@@ -57,6 +59,40 @@ The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/
 - **Secondary action** = `Button variant="secondary"` → `--default` surface with `--accent-soft-foreground` text. The counterpart of the primary in a paired control (e.g. Chapters "−").
 - **Utility actions** = `variant="tertiary"` icons that TINT with intent on hover via Tailwind semantic utilities: folder → `hover:text-success`, page/link → `hover:text-accent`, status → `hover:text-warning`. Color-on-interaction is a UX signal (Legacy did this with green/blue/yellow); port the *pattern* with bridge tokens, never Legacy's literal hues.
 - Rule of thumb when porting Legacy UI: ask "what ROLE does this color play?" and map the role to a bridge token. Copying Legacy hex/danger-for-red is a regression (user-rejected in the SDD-38→hotfix cycle).
+
+## Chart palette (nivo, literal hex)
+
+`@nivo/bar` (the only charting dependency, SDD-47) cannot consume Tailwind classes or HeroUI `color` props — it needs literal color strings, because HeroUI v3 exposes no readable CSS variable for it. Every chart color below is a literal hex constant in `frontend/src/features/season/ui/OverviewPanel/overview-panel.constants.ts`, sourced from the HeroUI dark tokens actually in effect and validated against the active dark surface (`--surface #18181B`).
+
+**Surface & ink (chart chrome):**
+
+| Role | hex | source |
+|---|---|---|
+| Chart surface (Card bg) | `#18181B` | `--surface` (dark) |
+| Page plane behind cards | `#09090B` | `--background` (dark) |
+| Primary ink (labels/values) | `#FCFCFC` | `--foreground`/`--snow` |
+| Muted ink (axis/ticks) | `#9F9FA9` | `--muted` |
+| Gridline / hairline | `#27272A` | `--border` |
+
+**Semantic status set** (effective dark tokens): accent `#0385F7` · success `#17C964` · warning `#F7B750` · danger `#DB3B3E`.
+
+**Chart-tuned neutrals** — the HeroUI `--default` dark token (`#27272A`) is only one lightness step off the `#18181B` card surface and is **invisible as a chart bar fill**; charts use lifted zinc-hue grays instead (same hue, snapped into the dark lightness band): neutral/in-progress `#71717A` (zinc-500) · de-emphasis `#62626C`.
+
+**Categorical set — intake health** (5-segment stacked bar, workflow order; HeroUI chip tokens FAILED the dark-mode lightness band as bar fills — these are chart-grade steps of the same hues, hold hue / move lightness):
+
+| segment | role | hex |
+|---|---|---|
+| pending | neutral in-progress | `#71717A` |
+| matched | chart-success | `#17AB55` |
+| ambiguous | chart-warning | `#C58703` |
+| not_found | danger | `#DB3B3E` |
+| discarded | de-emphasis | `#62626C` |
+
+Colors resolve through `getIntakeHealthSegmentColor` (`overview-panel.helpers.ts`), which delegates the semantic role to `getMatchStatusColor` (`intake-panel.helpers.ts`) and never re-derives it — `discarded` is the one exception, since `getMatchStatusColor('discarded')` resolves to the same `default` role as `pending` but the validated palette gives it its own de-emphasis gray. The `discarded` segment's contrast lands at 2.94:1 (WARN) — relief is the legend + per-segment tooltip counts, which are OBLIGATORY on this chart (never drop them).
+
+**Ordinal set — watching pipeline** (Sin ver → Ver hoy → Visto; a light→dark single-hue ramp of the accent blue, NOT the estado status mapping — these are conveyor *stages*, not good/bad statuses): Sin ver `#5CA7FF` → Ver hoy `#0385F7` (the accent) → Visto `#0061C0`.
+
+**Emphasis pair — grade histogram** (at/above `minApprovalGrade` vs below it — emphasis highlights the relevant side rather than implying pass/fail per bar): emphasis `#0385F7` · de-emphasis `#62626C` · threshold hairline + "Min N" label ink `#9F9FA9` (muted), drawn as a custom nivo layer at the band boundary.
 
 ## Card cover slot pattern (full-bleed edge image)
 
@@ -90,6 +126,8 @@ The bridge's brand colors are HeroUI's token pair, NOT Legacy's Materialize red/
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.9` — Added the "Chart palette (nivo, literal hex)" section (SDD-47, `OverviewPanel`'s watching-pipeline/intake-health/grade-histogram charts): the surface/ink neutrals, the semantic status set, the chart-tuned neutrals, the validated categorical intake set (with its `getMatchStatusColor`-role mapping and the `discarded`-gray exception), the ordinal pipeline ramp, and the histogram emphasis pair. Documented the `--default`-dark-invisible-as-bar gotcha: HeroUI's `--default` dark token (`#27272A`) is one lightness step off the `#18181B` card surface and disappears as a bar fill, so charts use lifted zinc-hue grays (`#71717A`/`#62626C`) instead.
+- `1.0.8` — Added the canonical anime `estado` vocabulary rule (SDD-40): labels live in `shared/constants/anime-estado.ts`, imported everywhere (scoped exception to per-feature colocation); colors stay feature-local. Fixed the three-way label drift (2/3 were "Abandonado"/"Pendiente" and "Dropped"/"Paused"; Legacy truth is "No me gusto"/"En pausa").
 - `1.0.7` — Added the brand & action hierarchy section (primary=accent / secondary=default+accent-soft; hover intent tints for utility icons), the full-bleed card cover slot pattern (negative-margin bleed + absolute art, aspect-ratio-proof), and the toast feedback convention — all from the Chapters card hotfix after the user rejected Legacy-literal red/blue.
 - `1.0.6` — Corrected the main-worktree package reality: `@heroui/react@3.2.1` exports `Typography`. A stale Codex worktree had `3.0.2` exports (`Text`), which broke `wails dev` on real `main`; always verify against the target worktree's installed package.
 - `1.0.5` — Corrected the text primitive for the installed package: `@heroui/react@3.0.2` exports `Text`, not `Typography`. Newer docs mention `Typography`, but installed code wins; verify exports before importing docs-only components.
