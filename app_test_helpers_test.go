@@ -122,8 +122,9 @@ type stubAppChangelogStore struct{}
 type stubAppDeviceStore struct{}
 
 type stubAppHTTPServer struct {
-	started bool
-	stopped bool
+	started  bool
+	stopped  bool
+	startErr error
 }
 
 type stubAppRealtimeHub struct {
@@ -306,7 +307,7 @@ func (stubAppDeviceService) ListDevices(context.Context) ([]contracts.DeviceInfo
 }
 func (stubAppDeviceService) RevokeDevice(context.Context, string) error { return nil }
 
-func (s *stubAppHTTPServer) Start() error                   { s.started = true; return nil }
+func (s *stubAppHTTPServer) Start() error                   { s.started = true; return s.startErr }
 func (s *stubAppHTTPServer) Shutdown(context.Context) error { s.stopped = true; return nil }
 func (*stubAppHTTPServer) Addr() string                     { return "127.0.0.1:0" }
 func (*stubAppHTTPServer) EffectiveAddress() string         { return "192.168.1.50:8080" }

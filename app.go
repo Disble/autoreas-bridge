@@ -173,6 +173,7 @@ func (a *App) startup(ctx context.Context) {
 	if a.startupErr != nil {
 		return
 	}
+	a.ensureDownloadStore()
 
 	animeDataPath, err := a.resolveAnimeDataPath()
 	if err != nil {

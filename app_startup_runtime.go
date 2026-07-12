@@ -205,7 +205,10 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 	if a.bridgeDB == nil {
 		return
 	}
-	a.downloadStore = a.newDownloadStore(a.bridgeDB)
+	a.ensureDownloadStore()
+	if a.downloadStore == nil {
+		return
+	}
 	registry := download.NewStaticRegistry()
 	registry.Register(jkanime.New(nil))
 	hosterResolver := download.NewHosterResolver(func(site string) []download.HosterPriorityEntry {
@@ -245,6 +248,13 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Log: a.sharedLogger,
 	})
 	a.downloadScheduler.Start(ctx)
+}
+
+func (a *App) ensureDownloadStore() {
+	if a.downloadStore != nil || a.bridgeDB == nil {
+		return
+	}
+	a.downloadStore = a.newDownloadStore(a.bridgeDB)
 }
 
 func (a *App) downloadJDDeviceName(ctx context.Context) string {

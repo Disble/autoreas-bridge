@@ -10,10 +10,12 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/realtime"
+	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 )
 
@@ -59,6 +61,41 @@ func TestAppStartupStoresSQLiteBootstrapError(t *testing.T) {
 	}
 	if app.bridgeDB != nil {
 		t.Fatal("expected no db handle when bootstrap fails")
+	}
+}
+
+func TestAppStartupInitializesDownloadStoreBeforeHTTPServerFailure(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("http server failed")
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	app := newAppTestApp(t)
+	app.bootstrapBridgeDB = func() (*sql.DB, error) {
+		return bridgeSync.OpenBridgeDB(dbPath)
+	}
+	app.newDownloadStore = nil
+	app.newHTTPServer = func(api.Config) api.Server {
+		return &stubAppHTTPServer{startErr: wantErr}
+	}
+	t.Cleanup(func() {
+		if app.bridgeDB != nil {
+			_ = app.bridgeDB.Close()
+		}
+	})
+
+	app.startup(context.Background())
+
+	if !errors.Is(app.startupErr, wantErr) {
+		t.Fatalf("expected startupErr %v, got %v", wantErr, app.startupErr)
+	}
+	got := app.SetScheduleConfig(contracts.ScheduleConfig{
+		Mode:            "in_process",
+		DailyTimeHHMM:   "09:00",
+		Enabled:         true,
+		EnabledWeekdays: 127,
+	})
+	if got != "ok" {
+		t.Fatalf("expected schedule config to persist through the initialized download store, got %q", got)
 	}
 }
 
