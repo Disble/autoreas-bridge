@@ -1,15 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as ReactRouter from 'react-router';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { useAnimeDetail } from '../use-anime-detail';
 
-const navigateMock = vi.hoisted(() => vi.fn());
-
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// Spy instead of vi.mock: with deps.optimizer enabled, importOriginal-based
+// partial mocks cannot re-import the original module.
+const navigateMock = vi.fn();
 
 const populatedDetail: AnimeDetail = {
   _id: 'anime-1',
@@ -48,6 +46,7 @@ function createSource(
 
 describe('useAnimeDetail', () => {
   beforeEach(() => {
+    vi.spyOn(ReactRouter, 'useNavigate').mockReturnValue(navigateMock);
     navigateMock.mockClear();
     window.history.replaceState(null, '');
   });

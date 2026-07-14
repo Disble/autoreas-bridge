@@ -1,12 +1,18 @@
+import { toast } from '@heroui/react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DownloadsRootPanel } from '../DownloadsRootPanel';
 
-afterEach(cleanup);
+// Spy instead of vi.mock: @heroui/react is pre-bundled by deps.optimizer,
+// which does not support importOriginal-based partial mocks.
+beforeEach(() => {
+  vi.spyOn(toast, 'success').mockReturnValue(undefined as never);
+  vi.spyOn(toast, 'danger').mockReturnValue(undefined as never);
+});
 
-vi.mock('@heroui/react', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@heroui/react')>();
-  return { ...actual, toast: { success: vi.fn(), danger: vi.fn() } };
+afterEach(() => {
+  vi.restoreAllMocks();
+  cleanup();
 });
 
 describe('DownloadsRootPanel', () => {

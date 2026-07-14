@@ -1,14 +1,12 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as ReactRouter from 'react-router';
 import { MemoryRouter } from 'react-router';
 import { HistoryTable } from '../HistoryTable';
 
-const navigateMock = vi.hoisted(() => vi.fn());
-
-vi.mock('react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
-});
+// Spy instead of vi.mock: with deps.optimizer enabled, importOriginal-based
+// partial mocks cannot re-import the original module.
+const navigateMock = vi.fn();
 import * as useHistoryTableModule from '../use-history-table';
 import {
   HISTORY_TABLE_ESTADO_OPTIONS,
@@ -43,6 +41,7 @@ function mockState(overrides: Partial<HistoryTableState>): HistoryTableState {
 }
 
 function renderTable(overrides: Partial<HistoryTableState>) {
+  vi.spyOn(ReactRouter, 'useNavigate').mockReturnValue(navigateMock);
   vi.spyOn(useHistoryTableModule, 'useHistoryTable').mockReturnValue(mockState(overrides));
 
   return render(
