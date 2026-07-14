@@ -177,6 +177,7 @@ func TestDiffSnapshotsSkipsUnchangedEffectiveRecords(t *testing.T) {
 	deltas, pruneIDs := DiffSnapshots(
 		map[string]SnapshotRecord{"same": record},
 		map[string]SnapshotRecord{"same": record},
+		nil,
 	)
 
 	if len(deltas) != 0 {

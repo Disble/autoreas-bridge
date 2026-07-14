@@ -19,6 +19,10 @@ type snapshotPullPipelineConfig struct {
 	openFile     func(path string) (io.ReadCloser, error)
 	eventType    string
 	logPrefix    string
+	// ownership is the SDD-48 (ADR-48-2) Bridge-native ownership registry.
+	// A nil registry yields a nil ownedIDs map, reproducing pre-SDD-48
+	// behavior exactly (rollback lever).
+	ownership BridgeNativeRegistry
 }
 
 type snapshotPullPipelineResult struct {
@@ -44,7 +48,13 @@ func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineCon
 		return snapshotPullPipelineResult{}, err
 	}
 
-	deltas, pruneIDs := DiffSnapshots(current, baseline)
+	ownedIDs, err := loadOwnedIDs(ctx, config.ownership)
+	if err != nil {
+		log.Errorf("failed to load bridge-native ownership set for %s: %v", config.logPrefix, err)
+		return snapshotPullPipelineResult{}, fmt.Errorf("list owned ids: %w", err)
+	}
+
+	deltas, pruneIDs := DiffSnapshots(current, baseline, ownedIDs)
 
 	for _, warning := range warnings {
 		if config.logger != nil {

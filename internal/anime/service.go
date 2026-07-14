@@ -74,6 +74,11 @@ type WriteServiceDeps struct {
 	// true, a divergence is logged-only and applies last-call-wins (no
 	// InsertConflict, no Notify). Default false (full enforcement).
 	OCCObserveOnly bool
+	// Ownership is the SDD-48 (ADR-48-3) Bridge-native ownership registry.
+	// CreateAnime registers the new id here BEFORE the durable write
+	// (register-first, fail-closed): nil means "skip" (no-op, pre-SDD-48
+	// behavior), matching Conflicts/Notifier's nil-safe convention.
+	Ownership BridgeNativeRegistry
 }
 
 type WriteService struct {
@@ -349,6 +354,15 @@ func (s *WriteService) CreateAnime(ctx context.Context, create contracts.AnimeCr
 	payload, err := raw.MarshalJSON()
 	if err != nil {
 		return "", fmt.Errorf("marshal new anime %q: %w", id, err)
+	}
+	// SDD-48 ADR-48-3: register ownership BEFORE the durable write
+	// (register-first, fail-closed). The worst-case failure this ordering
+	// leaves is a harmless orphan id in bridge_owned_animes (never
+	// written-but-unregistered, which is the exact bug this change fixes).
+	if s.deps.Ownership != nil {
+		if err := s.deps.Ownership.RegisterOwned(ctx, id); err != nil {
+			return "", fmt.Errorf("register bridge-native anime %q: %w", id, err)
+		}
 	}
 	if err := s.applyWrite(ctx, id, payload); err != nil {
 		return "", err

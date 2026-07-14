@@ -73,7 +73,15 @@ func cloneSnapshotRecords(input map[string]SnapshotRecord) map[string]SnapshotRe
 // guarantees current -- which callers persist verbatim via ReplaceBaseline
 // (watcher.go/startup_catchup.go) -- always carries a correct token without
 // requiring every call site to duplicate the stamping rule.
-func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]SnapshotRecord) ([]events.AnimeChangedEvent, []string) {
+//
+// ownedIDs (SDD-48, ADR-48-2) is the Bridge-native ownership set: a baseline
+// id present in ownedIDs is exempted from the reconcile-absence soft-delete
+// below -- it is carried forward verbatim, exactly like an already
+// soft-deleted baseline record. DiffSnapshots stays a PURE diff: it never
+// queries the DB itself; the caller (pipeline/watcher) loads ownedIDs and
+// passes it in. A nil ownedIDs map is the rollback lever -- every id is
+// treated as unowned, reproducing the pre-SDD-48 behavior exactly.
+func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]SnapshotRecord, ownedIDs map[string]struct{}) ([]events.AnimeChangedEvent, []string) {
 	currentIDs := sortedSnapshotIDs(current)
 	updates := make([]events.AnimeChangedEvent, 0, len(currentIDs))
 	for _, id := range currentIDs {
@@ -113,7 +121,12 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 		}
 
 		persisted := baseline[id]
-		if isSoftDeletedSnapshot(persisted) {
+		if _, owned := ownedIDs[id]; owned || isSoftDeletedSnapshot(persisted) {
+			// Retain the baseline row verbatim: no Activo flip, no
+			// FechaEliminacion stamp, no modified_at bump, no event. An owned
+			// id absent from Legacy's animes.dat is not a deletion signal
+			// (SDD-48, ADR-48-2); an already soft-deleted id keeps its
+			// tombstone (SDD-30, ADR-30-3b) — both mean "leave as-is".
 			current[id] = persisted
 			continue
 		}

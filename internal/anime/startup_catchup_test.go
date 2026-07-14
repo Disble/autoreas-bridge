@@ -293,6 +293,12 @@ func (s *stubSnapshotStore) lastPruneIDs() []string {
 	return append([]string(nil), s.prune...)
 }
 
+func (s *stubSnapshotStore) lastPersistedCurrent() map[string]SnapshotRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return cloneSnapshotRecords(s.lastCurrent)
+}
+
 type recordingPublisher struct {
 	mu         sync.Mutex
 	eventsList []events.Event

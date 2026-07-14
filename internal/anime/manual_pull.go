@@ -22,6 +22,10 @@ type LegacyPullServiceConfig struct {
 	Logger       WarningLogger
 	SharedLogger sharedlogger.Logger
 	OpenFile     func(path string) (io.ReadCloser, error)
+	// Ownership is the SDD-48 (ADR-48-2) Bridge-native ownership registry,
+	// threaded into the manual pull's DiffSnapshots call. Nil is safe
+	// (rollback lever): it reproduces pre-SDD-48 behavior.
+	Ownership BridgeNativeRegistry
 }
 
 type legacyPullService struct {
@@ -32,6 +36,7 @@ type legacyPullService struct {
 	logger       WarningLogger
 	sharedLogger sharedlogger.Logger
 	openFile     func(path string) (io.ReadCloser, error)
+	ownership    BridgeNativeRegistry
 	running      atomic.Bool
 }
 
@@ -44,6 +49,7 @@ func NewLegacyPullService(config LegacyPullServiceConfig) LegacyPullService {
 		logger:       config.Logger,
 		sharedLogger: config.SharedLogger,
 		openFile:     config.OpenFile,
+		ownership:    config.Ownership,
 	}
 	if service.openFile == nil {
 		service.openFile = defaultOpenFile
@@ -70,6 +76,7 @@ func (s *legacyPullService) Pull(ctx context.Context) contracts.AnimeLegacyPullR
 		openFile:     s.openFile,
 		eventType:    "anime.manual_pull",
 		logPrefix:    "manual legacy pull",
+		ownership:    s.ownership,
 	})
 	if err != nil {
 		return contracts.AnimeLegacyPullResult{

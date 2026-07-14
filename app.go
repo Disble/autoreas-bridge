@@ -30,71 +30,81 @@ import (
 
 // App struct
 type App struct {
-	ctx                     context.Context
-	bridgeDB                *sql.DB
-	startupErr              error
-	sharedLogger            *sharedlogger.FanoutLogger
-	memLogger               *sharedlogger.MemLogger
-	syncTrigger             *bridgeSync.TriggerService
-	bootstrapBridgeDB       func() (*sql.DB, error)
-	resolveAnimeDataPath    func() (string, error)
-	newSnapshotParser       func() anime.SnapshotParser
-	newSnapshotStore        func(db *sql.DB) anime.SnapshotStore
-	newStartupCoordinator   func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
-	newLegacyPullService    func(config anime.LegacyPullServiceConfig) anime.LegacyPullService
-	newRuntimeWatcher       func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
-	newSelfEchoRegistry     func() anime.SelfEchoRegistry
-	newUpdateWriter         func(config anime.UpdateWriterConfig) anime.UpdateWriter
-	newChangelogStore       func(db *sql.DB) changelogPendingStore
-	newChangelogRecorder    func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
-	newDeviceStore          func(db *sql.DB) device.Store
-	newDeviceService        func(store device.Store) device.AuthService
-	newNotifier             func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
-	newRealtimeHub          func(ctx context.Context) realtime.Hub
-	newHTTPServer           func(config api.Config) api.Server
-	newTrayManager          func() tray.TrayManager
-	newTracerBulletRunner   func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
-	newTracerBulletSink     func() tracerbullet.TraceSink
-	emitFn                  func(ctx context.Context, eventName string, optionalData ...interface{})
-	hideWindow              func(context.Context)
-	showWindow              func(context.Context)
-	unminimiseWindow        func(context.Context)
-	quitApp                 func(context.Context)
-	eventBus                events.Bus
-	animeStartupCoordinator anime.StartupCoordinator
-	animeLegacyPull         anime.LegacyPullService
-	animeRuntimeWatcher     anime.RuntimeWatcher
-	animeUpdateWriter       anime.UpdateWriter
-	chapterService          chapterCommandService
-	syncChangelogRecorder   changelogRecorder
-	realtimeHub             realtime.Hub
-	httpServer              api.Server
-	trayManager             tray.TrayManager
-	tracerBulletRunner      tracerBulletRunner
-	catchUpContext          context.Context
-	catchUpCancel           context.CancelFunc
-	deviceStore             device.Store
-	newToken                func() (string, error)
-	animeQuery              contracts.AnimeQueryService
-	coverResolver           coverResolver
-	notifier                notification.Notifier
-	newDownloadStore        func(db *sql.DB) download.DownloadStore
-	newDownloadService      func(deps download.ServiceDeps) *download.Service
-	newDownloadScheduler    func(deps schedule.Deps) schedule.Scheduler
-	downloadStore           download.DownloadStore
-	downloadService         *download.Service
-	downloadScheduler       schedule.Scheduler
-	soloDownloadMu          sync.Mutex
-	newSeasonStore          func(db *sql.DB) season.Repository
-	seasonService           *season.Service
-	settingsStore           appSettingsStore
-	animeWrite              *anime.WriteService
-	seasonScheduler         schedule.Scheduler
-	openURL                 func(ctx context.Context, url string)
-	openFolder              func(path string) error
-	pickFolder              func(ctx context.Context, title string) (string, error)
-	copyText                func(ctx context.Context, value string) error
-	nowTime                 func() time.Time
+	ctx                   context.Context
+	bridgeDB              *sql.DB
+	startupErr            error
+	sharedLogger          *sharedlogger.FanoutLogger
+	memLogger             *sharedlogger.MemLogger
+	syncTrigger           *bridgeSync.TriggerService
+	bootstrapBridgeDB     func() (*sql.DB, error)
+	resolveAnimeDataPath  func() (string, error)
+	newSnapshotParser     func() anime.SnapshotParser
+	newSnapshotStore      func(db *sql.DB) anime.SnapshotStore
+	newStartupCoordinator func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator
+	newLegacyPullService  func(config anime.LegacyPullServiceConfig) anime.LegacyPullService
+	newRuntimeWatcher     func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher
+	// newBridgeNativeRegistry constructs the SDD-48 (ADR-48-1/48-2) ownership
+	// registry over the bridge DB. One instance is built at startup and
+	// shared across the catch-up coordinator, legacy pull, runtime watcher,
+	// WriteService, and the one-time restore repair.
+	newBridgeNativeRegistry func(db *sql.DB) anime.BridgeNativeRegistry
+	// restoreBridgeNativeAnimes runs the SDD-48 (ADR-48-4/48-5) one-time
+	// restore repair. A fully swappable hook (like the other lifecycle
+	// factories) so tests can no-op it without touching a real bridge DB.
+	restoreBridgeNativeAnimes func(ctx context.Context) error
+	bridgeNativeRegistry      anime.BridgeNativeRegistry
+	newSelfEchoRegistry       func() anime.SelfEchoRegistry
+	newUpdateWriter           func(config anime.UpdateWriterConfig) anime.UpdateWriter
+	newChangelogStore         func(db *sql.DB) changelogPendingStore
+	newChangelogRecorder      func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
+	newDeviceStore            func(db *sql.DB) device.Store
+	newDeviceService          func(store device.Store) device.AuthService
+	newNotifier               func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
+	newRealtimeHub            func(ctx context.Context) realtime.Hub
+	newHTTPServer             func(config api.Config) api.Server
+	newTrayManager            func() tray.TrayManager
+	newTracerBulletRunner     func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
+	newTracerBulletSink       func() tracerbullet.TraceSink
+	emitFn                    func(ctx context.Context, eventName string, optionalData ...interface{})
+	hideWindow                func(context.Context)
+	showWindow                func(context.Context)
+	unminimiseWindow          func(context.Context)
+	quitApp                   func(context.Context)
+	eventBus                  events.Bus
+	animeStartupCoordinator   anime.StartupCoordinator
+	animeLegacyPull           anime.LegacyPullService
+	animeRuntimeWatcher       anime.RuntimeWatcher
+	animeUpdateWriter         anime.UpdateWriter
+	chapterService            chapterCommandService
+	syncChangelogRecorder     changelogRecorder
+	realtimeHub               realtime.Hub
+	httpServer                api.Server
+	trayManager               tray.TrayManager
+	tracerBulletRunner        tracerBulletRunner
+	catchUpContext            context.Context
+	catchUpCancel             context.CancelFunc
+	deviceStore               device.Store
+	newToken                  func() (string, error)
+	animeQuery                contracts.AnimeQueryService
+	coverResolver             coverResolver
+	notifier                  notification.Notifier
+	newDownloadStore          func(db *sql.DB) download.DownloadStore
+	newDownloadService        func(deps download.ServiceDeps) *download.Service
+	newDownloadScheduler      func(deps schedule.Deps) schedule.Scheduler
+	downloadStore             download.DownloadStore
+	downloadService           *download.Service
+	downloadScheduler         schedule.Scheduler
+	soloDownloadMu            sync.Mutex
+	newSeasonStore            func(db *sql.DB) season.Repository
+	seasonService             *season.Service
+	settingsStore             appSettingsStore
+	animeWrite                *anime.WriteService
+	seasonScheduler           schedule.Scheduler
+	openURL                   func(ctx context.Context, url string)
+	openFolder                func(path string) error
+	pickFolder                func(ctx context.Context, title string) (string, error)
+	copyText                  func(ctx context.Context, value string) error
+	nowTime                   func() time.Time
 }
 
 const observabilityEventName = "observability.log"
@@ -173,6 +183,16 @@ func (a *App) startup(ctx context.Context) {
 	if a.startupErr != nil {
 		return
 	}
+	// SDD-48 ADR-48-5: construct the ownership registry and run the
+	// one-time restore repair SYNCHRONOUSLY, right after bridge.db is ready
+	// and BEFORE startAnimeRuntime launches the async catch-up
+	// coordinator/watcher -- so the restored ids' registration is durably
+	// committed before either reconcile path ever loads ownedIDs.
+	a.bridgeNativeRegistry = a.newBridgeNativeRegistry(a.bridgeDB)
+	if err := a.restoreBridgeNativeAnimes(ctx); err != nil {
+		a.startupErr = err
+		return
+	}
 	a.ensureDownloadStore()
 
 	animeDataPath, err := a.resolveAnimeDataPath()
@@ -229,6 +249,9 @@ func (a *App) startup(ctx context.Context) {
 		Notifier:       a.notifier,
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
+		// SDD-48 ADR-48-3: register every new season/bridge-created anime as
+		// Bridge-native so it survives the next reconcile-absence soft-delete.
+		Ownership: a.bridgeNativeRegistry,
 	})
 	a.wireChapterServiceWithWriter(a.animeWrite)
 	mobileAnimeWrite := activityAnimeWriteService{

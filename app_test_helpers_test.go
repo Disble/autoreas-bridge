@@ -36,10 +36,18 @@ func newAppTestApp(t *testing.T) *App {
 		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator {
 			return &stubAppCoordinator{}
 		},
-		newRuntimeWatcher:   func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
-		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
-		newUpdateWriter:     func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
-		newChangelogStore:   func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		newRuntimeWatcher: func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
+		newBridgeNativeRegistry: func(*sql.DB) anime.BridgeNativeRegistry {
+			return &stubAppBridgeNativeRegistry{}
+		},
+		// restoreBridgeNativeAnimes is a fully swappable hook precisely so
+		// tests using a fake/zero-value *sql.DB (wantDB := &sql.DB{}) never
+		// touch a real bridge DB during startup(). Tests exercising the
+		// real repair set this explicitly.
+		restoreBridgeNativeAnimes: func(context.Context) error { return nil },
+		newSelfEchoRegistry:       anime.NewSelfEchoRegistry,
+		newUpdateWriter:           func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:         func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
 		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
 			return &stubAppChangelogRecorder{}
 		},
@@ -376,6 +384,22 @@ type stubAppParser struct{}
 
 func (stubAppParser) Parse(io.Reader) (map[string]anime.SnapshotRecord, []anime.ParseWarning, error) {
 	return nil, nil, nil
+}
+
+// stubAppBridgeNativeRegistry is the app-level test double for
+// anime.BridgeNativeRegistry (SDD-48), mirroring stubAppStore's shape.
+type stubAppBridgeNativeRegistry struct {
+	owned     map[string]struct{}
+	registers []string
+}
+
+func (s *stubAppBridgeNativeRegistry) ListOwnedIDs(context.Context) (map[string]struct{}, error) {
+	return s.owned, nil
+}
+
+func (s *stubAppBridgeNativeRegistry) RegisterOwned(_ context.Context, animeID string) error {
+	s.registers = append(s.registers, animeID)
+	return nil
 }
 
 type stubAppStore struct{}

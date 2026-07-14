@@ -63,6 +63,16 @@ const (
 			last_seen_at_ms INTEGER NOT NULL,
 			sync_status TEXT NOT NULL DEFAULT 'active'
 		)`
+
+	// bridgeOwnedAnimesDDL (SDD-48, ADR-48-1) tracks anime ids created natively
+	// in Bridge (e.g. season creates via WriteService.CreateAnime), so the
+	// reconcile diff can exempt them from the legacy-absence soft-delete
+	// signal. Additive, create-only: it holds no anime state, only a hint the
+	// reconcile consults.
+	bridgeOwnedAnimesDDL = `
+		CREATE TABLE IF NOT EXISTS bridge_owned_animes (
+			anime_id TEXT PRIMARY KEY
+		)`
 )
 
 // schemaTables returns the TableSchema descriptors for all sync-owned bridge tables.
@@ -133,6 +143,13 @@ func schemaTables() []persistence.TableSchema {
 			// main's pre-registry bootstrap still created it. Create-only.
 			Name:      "device_sync_state",
 			CreateDDL: deviceSyncStateDDL,
+		},
+		{
+			// bridge_owned_animes (SDD-48): idempotent create-only, no
+			// ColumnAdds, no Migrate. A missing row means "not known to be
+			// Bridge-native" — the reconcile treats absence as unowned.
+			Name:      "bridge_owned_animes",
+			CreateDDL: bridgeOwnedAnimesDDL,
 		},
 	}
 }

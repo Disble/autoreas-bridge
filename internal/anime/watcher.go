@@ -51,6 +51,11 @@ type RuntimeWatcherConfig struct {
 	// download.ServiceDeps.Notifier. Optional: a nil Notifier is a safe
 	// no-op.
 	Notifier notification.Notifier
+	// Ownership is the SDD-48 (ADR-48-2) Bridge-native ownership registry.
+	// The watcher loads ownedIDs from it right before every DiffSnapshots
+	// call, closing the runtime-recurrence hole (a nil Registry here yields
+	// a nil ownedIDs map, reproducing pre-SDD-48 behavior).
+	Ownership BridgeNativeRegistry
 }
 
 type runtimeWatcher struct {
@@ -69,6 +74,7 @@ type runtimeWatcher struct {
 	watcherFactory   func() (FileWatcher, error)
 	timerFactory     func() DebounceTimer
 	notifier         notification.Notifier
+	ownership        BridgeNativeRegistry
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -94,6 +100,7 @@ func NewRuntimeWatcher(config RuntimeWatcherConfig) RuntimeWatcher {
 		watcherFactory:   config.WatcherFactory,
 		timerFactory:     config.TimerFactory,
 		notifier:         config.Notifier,
+		ownership:        config.Ownership,
 	}
 
 	if watcher.debounceWindow <= 0 {
@@ -259,7 +266,13 @@ func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 		return fmt.Errorf("list baseline snapshots: %w", err)
 	}
 
-	deltas, pruneIDs := DiffSnapshots(current, baseline)
+	ownedIDs, err := w.loadOwnedIDs(ctx)
+	if err != nil {
+		log.Errorf("failed to load bridge-native ownership set: %v", err)
+		return fmt.Errorf("list owned ids: %w", err)
+	}
+
+	deltas, pruneIDs := DiffSnapshots(current, baseline, ownedIDs)
 	for _, delta := range deltas {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -285,6 +298,14 @@ func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// loadOwnedIDs returns the Bridge-native ownership set (SDD-48, ADR-48-2), or
+// nil when no registry is configured -- the rollback lever: a nil Ownership
+// dep yields a nil ownedIDs map, which DiffSnapshots treats as "everything
+// unowned", reproducing pre-SDD-48 behavior exactly.
+func (w *runtimeWatcher) loadOwnedIDs(ctx context.Context) (map[string]struct{}, error) {
+	return loadOwnedIDs(ctx, w.ownership)
 }
 
 func (w *runtimeWatcher) setErr(err error) {

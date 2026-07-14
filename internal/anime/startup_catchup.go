@@ -47,6 +47,10 @@ type StartupCoordinatorConfig struct {
 	FileExists    func(path string) bool
 	OpenFile      func(path string) (io.ReadCloser, error)
 	TickerFactory func(interval time.Duration) Ticker
+	// Ownership is the SDD-48 (ADR-48-2) Bridge-native ownership registry,
+	// threaded into the catch-up reconcile's DiffSnapshots call. Nil is
+	// safe (rollback lever): it reproduces pre-SDD-48 behavior.
+	Ownership BridgeNativeRegistry
 }
 
 type startupCoordinator struct {
@@ -60,6 +64,7 @@ type startupCoordinator struct {
 	fileExists    func(path string) bool
 	openFile      func(path string) (io.ReadCloser, error)
 	tickerFactory func(interval time.Duration) Ticker
+	ownership     BridgeNativeRegistry
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -81,6 +86,7 @@ func NewStartupCoordinator(config StartupCoordinatorConfig) StartupCoordinator {
 		fileExists:    config.FileExists,
 		openFile:      config.OpenFile,
 		tickerFactory: config.TickerFactory,
+		ownership:     config.Ownership,
 	}
 
 	if coordinator.pollInterval <= 0 {
@@ -173,6 +179,7 @@ func (c *startupCoordinator) catchUp(ctx context.Context) error {
 		openFile:     c.openFile,
 		eventType:    "anime.catchup",
 		logPrefix:    "startup catch-up",
+		ownership:    c.ownership,
 	})
 	return err
 }

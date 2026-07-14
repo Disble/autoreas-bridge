@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"os/exec"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
@@ -17,6 +18,7 @@ import (
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
@@ -71,6 +73,21 @@ func (a *App) ensureRuntimeDependencies() {
 	if a.newRuntimeWatcher == nil {
 		a.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
 			return anime.NewRuntimeWatcher(config)
+		}
+	}
+	if a.newBridgeNativeRegistry == nil {
+		a.newBridgeNativeRegistry = func(db *sql.DB) anime.BridgeNativeRegistry {
+			return bridgeSync.NewBridgeOwnedAnimeStore(db)
+		}
+	}
+	if a.restoreBridgeNativeAnimes == nil {
+		a.restoreBridgeNativeAnimes = func(ctx context.Context) error {
+			if a.bridgeDB == nil {
+				return nil
+			}
+			store := a.newSnapshotStore(a.bridgeDB)
+			settingsStore := settings.NewSQLiteStore(a.bridgeDB)
+			return anime.RestoreBridgeNativeAnimes(ctx, store, a.bridgeNativeRegistry, settingsStore, time.Now)
 		}
 	}
 	if a.newSelfEchoRegistry == nil {

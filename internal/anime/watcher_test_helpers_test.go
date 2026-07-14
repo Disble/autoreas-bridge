@@ -2,6 +2,7 @@ package anime
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"sync"
@@ -75,6 +76,58 @@ func (s *stubDebounceTimer) C() <-chan time.Time { return s.ch }
 func (s *stubDebounceTimer) Reset(time.Duration) {}
 func (s *stubDebounceTimer) Stop() bool          { return true }
 func (s *stubDebounceTimer) fire()               { s.ch <- time.Now() }
+
+// stubBridgeNativeRegistry is the shared SDD-48 test double for
+// BridgeNativeRegistry, reused across watcher/pipeline/service tests in this
+// package (no-duplication skill: one helper, many call sites).
+type stubBridgeNativeRegistry struct {
+	mu            sync.Mutex
+	owned         map[string]struct{}
+	listCalls     int
+	listErr       error
+	registerCalls []string
+	registerErr   error
+}
+
+func (s *stubBridgeNativeRegistry) ListOwnedIDs(context.Context) (map[string]struct{}, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.listCalls++
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	out := make(map[string]struct{}, len(s.owned))
+	for id := range s.owned {
+		out[id] = struct{}{}
+	}
+	return out, nil
+}
+
+func (s *stubBridgeNativeRegistry) RegisterOwned(_ context.Context, animeID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.registerErr != nil {
+		return s.registerErr
+	}
+	s.registerCalls = append(s.registerCalls, animeID)
+	if s.owned == nil {
+		s.owned = make(map[string]struct{})
+	}
+	s.owned[animeID] = struct{}{}
+	return nil
+}
+
+func (s *stubBridgeNativeRegistry) listCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listCalls
+}
+
+func (s *stubBridgeNativeRegistry) registeredIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.registerCalls...)
+}
 
 func snapshotRecordFromPayload(t *testing.T, payload string) SnapshotRecord {
 	t.Helper()

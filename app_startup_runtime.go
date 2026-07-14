@@ -134,6 +134,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		Publisher:    a.eventBus,
 		Logger:       anime.NewStdLogger(),
 		SharedLogger: a.sharedLogger,
+		Ownership:    a.bridgeNativeRegistry,
 	})
 	a.animeStartupCoordinator.StartAsync(catchUpContext)
 	a.animeLegacyPull = a.newLegacyPullService(anime.LegacyPullServiceConfig{
@@ -143,6 +144,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		Publisher:    a.eventBus,
 		Logger:       anime.NewStdLogger(),
 		SharedLogger: a.sharedLogger,
+		Ownership:    a.bridgeNativeRegistry,
 	})
 	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
 		FilePath:         animeDataPath,
@@ -154,6 +156,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		SelfEchoRegistry: selfEchoRegistry,
 		RetryDelay:       100 * time.Millisecond,
 		Notifier:         a.notifier,
+		Ownership:        a.bridgeNativeRegistry,
 	})
 	a.animeRuntimeWatcher.StartAsync(catchUpContext)
 	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
