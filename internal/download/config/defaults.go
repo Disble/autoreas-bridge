@@ -12,13 +12,17 @@ type HosterPrioritySeed struct {
 }
 
 // DefaultHosterPrioritySeed matches the validated PoC defaults (cmd/poc/scraper.go
-// hosterPriority): Mediafire and Mega are preferred (fast, reliable, JD-native support);
-// any hoster not listed here is "unconfigured" and falls back to alphabetical ordering
-// (download.HosterResolver, design §4.4 / ADR-HOSTER). download-config spec "First run
-// seeds defaults".
+// hosterPriority): Mediafire and Mega are preferred (fast, reliable, JD-native support),
+// followed by Vidhide, Mp4upload, and Mixdrop; any hoster not listed here is "unconfigured"
+// and falls back to alphabetical ordering (download.HosterResolver, design §4.4 / ADR-HOSTER).
+// download-config spec "First run seeds defaults". New defaults are appended to existing
+// installs (never reordering user-configured rows) by ensureDefaultHosterPriority.
 var DefaultHosterPrioritySeed = []HosterPrioritySeed{
 	{Hoster: "Mediafire", Priority: 0},
 	{Hoster: "Mega", Priority: 1},
+	{Hoster: "Vidhide", Priority: 2},
+	{Hoster: "Mp4upload", Priority: 3},
+	{Hoster: "Mixdrop", Priority: 4},
 }
 
 // RunRetentionLimit is the maximum number of download_runs rows retained after each

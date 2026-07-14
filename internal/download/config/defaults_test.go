@@ -8,11 +8,20 @@ import (
 func TestDefaultHosterPrioritySeedMatchesValidatedPoCDefaults(t *testing.T) {
 	t.Parallel()
 
-	if DefaultHosterPrioritySeed[0].Hoster != "Mediafire" || DefaultHosterPrioritySeed[0].Priority != 0 {
-		t.Fatalf("expected Mediafire at priority 0, got %#v", DefaultHosterPrioritySeed[0])
+	want := []HosterPrioritySeed{
+		{Hoster: "Mediafire", Priority: 0},
+		{Hoster: "Mega", Priority: 1},
+		{Hoster: "Vidhide", Priority: 2},
+		{Hoster: "Mp4upload", Priority: 3},
+		{Hoster: "Mixdrop", Priority: 4},
 	}
-	if DefaultHosterPrioritySeed[1].Hoster != "Mega" || DefaultHosterPrioritySeed[1].Priority != 1 {
-		t.Fatalf("expected Mega at priority 1, got %#v", DefaultHosterPrioritySeed[1])
+	if len(DefaultHosterPrioritySeed) != len(want) {
+		t.Fatalf("expected %d default hoster seed rows, got %d (%#v)", len(want), len(DefaultHosterPrioritySeed), DefaultHosterPrioritySeed)
+	}
+	for i, expected := range want {
+		if DefaultHosterPrioritySeed[i] != expected {
+			t.Fatalf("expected seed row %d to be %#v, got %#v", i, expected, DefaultHosterPrioritySeed[i])
+		}
 	}
 }
 

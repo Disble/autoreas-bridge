@@ -10,24 +10,27 @@ func TestSQLiteStoreSeedsHosterPriorityOnlyWhenEmpty(t *testing.T) {
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
+	// Use a site the bootstrap does not seed (bootstrap pre-seeds the default
+	// hosters for "jkanime") so this exercises SeedHosterPriorityIfEmpty in isolation.
+	const site = "animeflv"
 	seed := []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}
-	if err := store.SeedHosterPriorityIfEmpty(ctx, "jkanime", seed); err != nil {
+	if err := store.SeedHosterPriorityIfEmpty(ctx, site, seed); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	got, err := store.ListHosterPriority(ctx, "jkanime")
+	got, err := store.ListHosterPriority(ctx, site)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("expected 2 seeded rows, got %d", len(got))
 	}
-	if err := store.SetHosterPriority(ctx, "jkanime", []HosterPriorityEntry{{Hoster: "Mega", Priority: 0, Enabled: true}, {Hoster: "Mediafire", Priority: 1, Enabled: true}}); err != nil {
+	if err := store.SetHosterPriority(ctx, site, []HosterPriorityEntry{{Hoster: "Mega", Priority: 0, Enabled: true}, {Hoster: "Mediafire", Priority: 1, Enabled: true}}); err != nil {
 		t.Fatalf("set: %v", err)
 	}
-	if err := store.SeedHosterPriorityIfEmpty(ctx, "jkanime", seed); err != nil {
+	if err := store.SeedHosterPriorityIfEmpty(ctx, site, seed); err != nil {
 		t.Fatalf("re-seed: %v", err)
 	}
-	got, err = store.ListHosterPriority(ctx, "jkanime")
+	got, err = store.ListHosterPriority(ctx, site)
 	if err != nil {
 		t.Fatalf("list after re-seed: %v", err)
 	}

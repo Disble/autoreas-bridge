@@ -119,7 +119,13 @@ func TestBootstrapBridgeDBSeedsDefaultHosterPriorityWhenEmpty(t *testing.T) {
 		t.Fatalf("iterate seeded hoster priority rows: %v", err)
 	}
 
-	want := []seedRow{{hoster: "Mediafire", priority: 0}, {hoster: "Mega", priority: 1}}
+	want := []seedRow{
+		{hoster: "Mediafire", priority: 0},
+		{hoster: "Mega", priority: 1},
+		{hoster: "Vidhide", priority: 2},
+		{hoster: "Mp4upload", priority: 3},
+		{hoster: "Mixdrop", priority: 4},
+	}
 	if len(got) != len(want) {
 		t.Fatalf("expected %d seeded hoster priority rows, got %#v", len(want), got)
 	}
@@ -127,6 +133,83 @@ func TestBootstrapBridgeDBSeedsDefaultHosterPriorityWhenEmpty(t *testing.T) {
 		if got[i] != expected {
 			t.Fatalf("expected seeded row %d to be %#v, got %#v", i, expected, got[i])
 		}
+	}
+}
+
+func TestEnsureDefaultHosterPriorityBackfillsMissingHostersPreservingUserOrder(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+
+	// Simulate an existing install: the table is already populated with the
+	// original two defaults in a user-reordered order (Mega first). Wipe the
+	// fresh-bootstrap seed and re-seed just those two rows.
+	if _, err := db.Exec(`DELETE FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite); err != nil {
+		t.Fatalf("clear seeded rows: %v", err)
+	}
+	for _, row := range []struct {
+		hoster   string
+		priority int
+	}{{"Mega", 0}, {"Mediafire", 1}} {
+		if _, err := db.Exec(`INSERT INTO download_hoster_priority (site, hoster, priority, enabled) VALUES (?, ?, ?, 1)`, defaultHosterPrioritySite, row.hoster, row.priority); err != nil {
+			t.Fatalf("seed existing row %q: %v", row.hoster, err)
+		}
+	}
+
+	if err := ensureDefaultHosterPriority(db); err != nil {
+		t.Fatalf("ensure default hoster priority: %v", err)
+	}
+
+	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = ? ORDER BY priority ASC`, defaultHosterPrioritySite)
+	if err != nil {
+		t.Fatalf("query hoster priority: %v", err)
+	}
+	defer rows.Close()
+
+	type seedRow struct {
+		hoster   string
+		priority int
+	}
+	var got []seedRow
+	for rows.Next() {
+		var row seedRow
+		if err := rows.Scan(&row.hoster, &row.priority); err != nil {
+			t.Fatalf("scan row: %v", err)
+		}
+		got = append(got, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate rows: %v", err)
+	}
+
+	// User's original ordering is preserved; missing defaults are appended after
+	// the current max priority in seed order.
+	want := []seedRow{
+		{hoster: "Mega", priority: 0},
+		{hoster: "Mediafire", priority: 1},
+		{hoster: "Vidhide", priority: 2},
+		{hoster: "Mp4upload", priority: 3},
+		{hoster: "Mixdrop", priority: 4},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d rows after backfill, got %#v", len(want), got)
+	}
+	for i, expected := range want {
+		if got[i] != expected {
+			t.Fatalf("expected row %d to be %#v, got %#v", i, expected, got[i])
+		}
+	}
+
+	// Running again must be a no-op (idempotent).
+	if err := ensureDefaultHosterPriority(db); err != nil {
+		t.Fatalf("second ensure: %v", err)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite).Scan(&count); err != nil {
+		t.Fatalf("count after second ensure: %v", err)
+	}
+	if count != len(want) {
+		t.Fatalf("expected ensure to be idempotent (%d rows), got %d", len(want), count)
 	}
 }
 

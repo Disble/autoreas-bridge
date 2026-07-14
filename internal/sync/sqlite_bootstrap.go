@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"autoreas-bridge/internal/activity"
 	downloadconfig "autoreas-bridge/internal/download/config"
@@ -123,32 +124,55 @@ func initializeBridgeDB(db *sql.DB) error {
 		}
 	}
 
-	if err := seedDefaultHosterPriorityIfEmpty(db); err != nil {
+	if err := ensureDefaultHosterPriority(db); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// seedDefaultHosterPriorityIfEmpty seeds the validated PoC defaults (Mediafire=0, Mega=1)
-// for the jkanime site the first time download_hoster_priority is empty, per
-// download-config spec "First run seeds defaults". It never overwrites user-configured data.
-func seedDefaultHosterPriorityIfEmpty(db *sql.DB) error {
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite).Scan(&count); err != nil {
-		return fmt.Errorf("count download_hoster_priority for site %q: %w", defaultHosterPrioritySite, err)
+// ensureDefaultHosterPriority guarantees every default hoster (DefaultHosterPrioritySeed:
+// Mediafire, Mega, Vidhide, Mp4upload, Mixdrop) exists for the jkanime site, per the
+// download-config spec "First run seeds defaults". On a fresh install it seeds them in
+// order; on an existing install it appends only the defaults that are missing — matched
+// case-insensitively — after the current max priority, so user-configured ordering is
+// preserved and never overwritten. It is idempotent across bootstraps.
+func ensureDefaultHosterPriority(db *sql.DB) error {
+	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite)
+	if err != nil {
+		return fmt.Errorf("read download_hoster_priority for site %q: %w", defaultHosterPrioritySite, err)
 	}
-	if count > 0 {
-		return nil
+	defer rows.Close()
+
+	existing := make(map[string]bool)
+	nextPriority := 0
+	for rows.Next() {
+		var hoster string
+		var priority int
+		if err := rows.Scan(&hoster, &priority); err != nil {
+			return fmt.Errorf("scan download_hoster_priority row for site %q: %w", defaultHosterPrioritySite, err)
+		}
+		existing[strings.ToLower(hoster)] = true
+		if priority >= nextPriority {
+			nextPriority = priority + 1
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate download_hoster_priority rows for site %q: %w", defaultHosterPrioritySite, err)
 	}
 
 	for _, entry := range downloadconfig.DefaultHosterPrioritySeed {
+		if existing[strings.ToLower(entry.Hoster)] {
+			continue
+		}
 		if _, err := db.Exec(`
 			INSERT INTO download_hoster_priority (site, hoster, priority, enabled)
 			VALUES (?, ?, ?, 1)
-		`, defaultHosterPrioritySite, entry.Hoster, entry.Priority); err != nil {
+		`, defaultHosterPrioritySite, entry.Hoster, nextPriority); err != nil {
 			return fmt.Errorf("seed default hoster priority %q for site %q: %w", entry.Hoster, defaultHosterPrioritySite, err)
 		}
+		existing[strings.ToLower(entry.Hoster)] = true
+		nextPriority++
 	}
 	return nil
 }
