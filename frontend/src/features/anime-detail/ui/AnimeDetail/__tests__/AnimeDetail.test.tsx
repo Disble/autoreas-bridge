@@ -13,6 +13,9 @@ function createDetailViewModel(overrides = {}) {
   return {
     id: 'anime-1',
     nombre: 'Frieren',
+    modifiedAt: 1000,
+    canRepeat: true,
+    canRestore: false,
     portadaUrl: undefined,
     estadoLabel: 'No me gusto',
     tipoLabel: 'Serie',
@@ -49,6 +52,14 @@ function mockAnimeDetailState(overrides = {}) {
     onPortadaError: vi.fn(),
     onPortadaLoad: vi.fn(),
     onBack: vi.fn(),
+    confirmation: undefined,
+    feedback: undefined,
+    isMutating: false,
+    onRequestRepeat: vi.fn(),
+    onRequestRestore: vi.fn(),
+    onCancelAction: vi.fn(),
+    onConfirmationOpenChange: vi.fn(),
+    onConfirmAction: vi.fn(),
     ...overrides,
   });
 }
@@ -136,6 +147,90 @@ describe('AnimeDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Repeat and Restore only when the loaded anime is eligible', () => {
+    const onRequestRepeat = vi.fn();
+    const onRequestRestore = vi.fn();
+    mockAnimeDetailState({
+      detail: createDetailViewModel({ canRepeat: true, canRestore: true }),
+      onRequestRepeat,
+      onRequestRestore,
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+    expect(onRequestRepeat).toHaveBeenCalledTimes(1);
+    expect(onRequestRestore).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides Repeat and Restore for an active watching anime', () => {
+    mockAnimeDetailState({
+      detail: createDetailViewModel({ canRepeat: false, canRestore: false }),
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.queryByRole('button', { name: 'Repeat' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
+  });
+
+  it('renders an explicit HeroUI confirmation whose cancel path never confirms', () => {
+    const onCancelAction = vi.fn();
+    const onConfirmAction = vi.fn();
+    mockAnimeDetailState({
+      confirmation: {
+        action: 'repeat',
+        heading: 'Repeat Frieren?',
+        description: 'This starts a new watch cycle.',
+        confirmLabel: 'Confirm Repeat',
+      },
+      onCancelAction,
+      onConfirmAction,
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Repeat Frieren?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancelAction).toHaveBeenCalledTimes(1);
+    expect(onConfirmAction).not.toHaveBeenCalled();
+  });
+
+  it('delegates a confirmed action to the hook', () => {
+    const onConfirmAction = vi.fn();
+    mockAnimeDetailState({
+      confirmation: {
+        action: 'restore',
+        heading: 'Restore Frieren?',
+        description: 'This makes the anime active again.',
+        confirmLabel: 'Confirm Restore',
+      },
+      onConfirmAction,
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Restore' }));
+    expect(onConfirmAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders authoritative mutation feedback from the hook', () => {
+    mockAnimeDetailState({
+      feedback: {
+        status: 'warning',
+        title: 'Repeat not applied',
+        description: 'Current version: 42. Conflict: conflict-7.',
+      },
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByText('Repeat not applied')).toBeInTheDocument();
+    expect(screen.getByText('Current version: 42. Conflict: conflict-7.')).toBeInTheDocument();
   });
 
   it('renders the per-chapter stat tiles with explicit fallbacks', () => {

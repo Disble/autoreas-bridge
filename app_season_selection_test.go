@@ -14,20 +14,22 @@ type fakeAppGateway struct {
 	selections map[string][2]int // animeID -> {estado, activo(0/1)}
 }
 
-func (g *fakeAppGateway) CreateAnime(context.Context, season.AnimeCreateInput) (string, error) {
-	return "created", nil
+func (g *fakeAppGateway) CreateAnime(context.Context, season.AnimeCreateInput) (season.AnimeMutationResult, error) {
+	return season.AnimeMutationResult{AnimeID: "created", Outcome: season.AnimeMutationApplied}, nil
 }
 func (g *fakeAppGateway) FindActiveByPagina(context.Context, string) (string, bool, error) {
 	return "", false, nil
 }
-func (g *fakeAppGateway) MoveToSection(context.Context, string, string) error { return nil }
+func (g *fakeAppGateway) MoveToSection(_ context.Context, animeID, _ string) (season.AnimeMutationResult, error) {
+	return season.AnimeMutationResult{AnimeID: animeID, Outcome: season.AnimeMutationApplied}, nil
+}
 func (g *fakeAppGateway) CurrentPlacements(context.Context, []string) (map[string][]domain.Placement, error) {
 	return map[string][]domain.Placement{}, nil
 }
-func (g *fakeAppGateway) SetAnimeSchedule(context.Context, string, []domain.Placement) error {
-	return nil
+func (g *fakeAppGateway) SetAnimeSchedule(_ context.Context, animeID string, _ []domain.Placement) (season.AnimeMutationResult, error) {
+	return season.AnimeMutationResult{AnimeID: animeID, Outcome: season.AnimeMutationApplied}, nil
 }
-func (g *fakeAppGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) error {
+func (g *fakeAppGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) (season.AnimeMutationResult, error) {
 	if g.selections == nil {
 		g.selections = map[string][2]int{}
 	}
@@ -36,7 +38,7 @@ func (g *fakeAppGateway) SetSelection(_ context.Context, animeID string, estado 
 		a = 1
 	}
 	g.selections[animeID] = [2]int{estado, a}
-	return nil
+	return season.AnimeMutationResult{AnimeID: animeID, Outcome: season.AnimeMutationApplied}, nil
 }
 
 func seedSelectionApp(t *testing.T, hub *stubAppRealtimeHub, slots int) (*App, *fakeAppGateway) {

@@ -1,14 +1,13 @@
 package anime
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 )
 
 func TestSnapshotParserStripsUTF8BOMFromFirstLine(t *testing.T) {
@@ -192,18 +191,13 @@ func TestDiffSnapshotsSkipsUnchangedEffectiveRecords(t *testing.T) {
 func assertSnapshotMatchesPayload(t *testing.T, got SnapshotRecord, wantPayload string) {
 	t.Helper()
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal([]byte(wantPayload), &raw); err != nil {
-		t.Fatalf("unmarshal wanted legacy payload: %v", err)
-	}
-
-	canonical, err := raw.MarshalJSON()
+	value, canonical, err := legacy.Decode([]byte(wantPayload))
 	if err != nil {
-		t.Fatalf("marshal wanted canonical payload: %v", err)
+		t.Fatalf("decode wanted legacy payload: %v", err)
 	}
 
-	if got.AnimeID != raw.ID {
-		t.Fatalf("expected anime id %q, got %q", raw.ID, got.AnimeID)
+	if got.AnimeID != value.ID {
+		t.Fatalf("expected anime id %q, got %q", value.ID, got.AnimeID)
 	}
 
 	if string(got.CanonicalJSON) != string(canonical) {

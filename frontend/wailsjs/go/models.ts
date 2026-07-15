@@ -232,6 +232,9 @@ export namespace contracts {
 	    status: string;
 	    message?: string;
 	    animeId?: string;
+	    outcome?: string;
+	    modifiedAt: number;
+	    conflictId?: string;
 	    animeName?: string;
 	    estado?: number;
 	    nrocapvisto?: number;
@@ -247,6 +250,9 @@ export namespace contracts {
 	        this.status = source["status"];
 	        this.message = source["message"];
 	        this.animeId = source["animeId"];
+	        this.outcome = source["outcome"];
+	        this.modifiedAt = source["modifiedAt"];
+	        this.conflictId = source["conflictId"];
 	        this.animeName = source["animeName"];
 	        this.estado = source["estado"];
 	        this.nrocapvisto = source["nrocapvisto"];

@@ -31,6 +31,7 @@ type Event interface {
 }
 
 type AnimeChangedEvent struct {
+	EventID       string
 	AnimeID       string
 	Payload       []byte
 	ChangeType    string

@@ -16,16 +16,17 @@ type activityAnimeWriteService struct {
 	now      func() int64
 }
 
-func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) error {
+func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) (contracts.AnimePatchResult, error) {
 	before, err := s.query.GetMobileAnime(ctx, id)
 	if err != nil {
-		return err
+		return contracts.AnimePatchResult{}, err
 	}
-	if err := s.writer.PatchAnime(ctx, id, patch); err != nil {
-		return err
+	result, err := s.writer.PatchAnime(ctx, id, patch)
+	if err != nil {
+		return contracts.AnimePatchResult{}, err
 	}
-	if s.recorder == nil {
-		return nil
+	if result.Outcome != contracts.AnimePatchOutcomeApplied || s.recorder == nil {
+		return result, nil
 	}
 
 	after := anime.ActivityAnimeSnapshot{
@@ -58,7 +59,7 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 		actionType = anime.ActivityActionAnimeRepeated
 	}
 	if actionType == "" {
-		return nil
+		return result, nil
 	}
 
 	now := s.now
@@ -70,7 +71,7 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 	if source == "" {
 		source = anime.ActivitySourceSystem
 	}
-	return s.recorder.RecordActivity(ctx, anime.ActivityRecord{
+	if err := s.recorder.RecordActivity(ctx, anime.ActivityRecord{
 		Source:        source,
 		ActionType:    actionType,
 		AnimeID:       id,
@@ -83,5 +84,8 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 			Activo:      before.Activo,
 		},
 		After: after,
-	})
+	}); err != nil {
+		return contracts.AnimePatchResult{}, err
+	}
+	return result, nil
 }

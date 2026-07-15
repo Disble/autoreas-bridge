@@ -2,7 +2,6 @@ package anime
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -208,18 +207,15 @@ func TestDiffSnapshotsSoftDeletesAbsentBaselineRecord(t *testing.T) {
 		t.Fatal("expected soft-delete delta to carry a non-empty payload (not a tombstone/prune)")
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(delta.Payload, &raw); err != nil {
-		t.Fatalf("unmarshal soft-delete payload: %v", err)
+	value := decodeAnimeDomainInternal(t, delta.Payload)
+	if value.Active != domain.TriStateFalse {
+		t.Fatalf("expected soft-deleted payload inactive, got state %v", value.Active)
 	}
-	if raw.Activo.TriState() != domain.TriStateFalse {
-		t.Fatalf("expected soft-deleted payload Activo=false, got tristate %v", raw.Activo.TriState())
-	}
-	if raw.FechaEliminacion.Time() == nil {
+	if value.DeletedAt == nil {
 		t.Fatal("expected soft-deleted payload to carry a FechaEliminacion timestamp")
 	}
-	if raw.Nombre != "Gone Anime" {
-		t.Fatalf("expected soft-deleted payload to retain original nombre, got %q", raw.Nombre)
+	if value.Title != "Gone Anime" {
+		t.Fatalf("expected soft-deleted payload to retain original title, got %q", value.Title)
 	}
 
 	gotRecord, ok := current["gone"]
@@ -266,12 +262,9 @@ func TestDiffSnapshotsCarriesForwardAbsentSoftDeletedRecordUnchanged(t *testing.
 		t.Fatalf("expected ModifiedAt %d to remain unchanged, got %d", baselineRecord.ModifiedAt, got.ModifiedAt)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal carried-forward soft-delete payload: %v", err)
-	}
-	if raw.FechaEliminacion.Time() == nil || raw.FechaEliminacion.Time().UnixMilli() != deletedAt {
-		t.Fatalf("expected deletion timestamp %d to remain unchanged, got %v", deletedAt, raw.FechaEliminacion.Time())
+	value := decodeAnimeDomainInternal(t, got.CanonicalJSON)
+	if value.DeletedAt == nil || value.DeletedAt.UnixMilli() != deletedAt {
+		t.Fatalf("expected deletion timestamp %d to remain unchanged, got %v", deletedAt, value.DeletedAt)
 	}
 }
 
@@ -309,14 +302,11 @@ func TestDiffSnapshotsOwnedIDSurvivesAbsenceFromCurrent(t *testing.T) {
 		t.Fatalf("expected owned id's ModifiedAt %d to remain unchanged, got %d", baselineRecord.ModifiedAt, got.ModifiedAt)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal retained owned payload: %v", err)
-	}
-	if raw.Activo.TriState() != domain.TriStateTrue {
+	value := decodeAnimeDomainInternal(t, got.CanonicalJSON)
+	if value.Active != domain.TriStateTrue {
 		t.Fatal("expected owned id to remain active (Activo=true), got it flipped")
 	}
-	if raw.FechaEliminacion.Time() != nil {
+	if value.DeletedAt != nil {
 		t.Fatal("expected owned id to have no FechaEliminacion stamped")
 	}
 }
@@ -343,14 +333,11 @@ func TestDiffSnapshotsUnownedIDStillSoftDeletesOnAbsence(t *testing.T) {
 		t.Fatalf("expected exactly 1 soft-delete delta for the unowned id, got %+v", deltas)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(deltas[0].Payload, &raw); err != nil {
-		t.Fatalf("unmarshal soft-delete payload: %v", err)
-	}
-	if raw.Activo.TriState() != domain.TriStateFalse {
+	value := decodeAnimeDomainInternal(t, deltas[0].Payload)
+	if value.Active != domain.TriStateFalse {
 		t.Fatal("expected unowned id to be soft-deleted (Activo=false)")
 	}
-	if raw.FechaEliminacion.Time() == nil {
+	if value.DeletedAt == nil {
 		t.Fatal("expected unowned id to carry a FechaEliminacion stamp")
 	}
 }
@@ -417,12 +404,9 @@ func TestDiffSnapshotsOwnedIDAlreadySoftDeletedStaysTombstone(t *testing.T) {
 		t.Fatalf("expected ModifiedAt %d to remain unchanged, got %d", baselineRecord.ModifiedAt, got.ModifiedAt)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal carried-forward owned soft-delete payload: %v", err)
-	}
-	if raw.FechaEliminacion.Time() == nil || raw.FechaEliminacion.Time().UnixMilli() != deletedAt {
-		t.Fatalf("expected deletion timestamp %d to remain unchanged, got %v", deletedAt, raw.FechaEliminacion.Time())
+	value := decodeAnimeDomainInternal(t, got.CanonicalJSON)
+	if value.DeletedAt == nil || value.DeletedAt.UnixMilli() != deletedAt {
+		t.Fatalf("expected deletion timestamp %d to remain unchanged, got %v", deletedAt, value.DeletedAt)
 	}
 }
 
@@ -445,11 +429,8 @@ func TestDiffSnapshotsNilOwnedIDsReproducesPriorBehavior(t *testing.T) {
 		t.Fatalf("expected 1 soft-delete delta with nil ownedIDs, got %+v", deltas)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(deltas[0].Payload, &raw); err != nil {
-		t.Fatalf("unmarshal soft-delete payload: %v", err)
-	}
-	if raw.Activo.TriState() != domain.TriStateFalse {
+	value := decodeAnimeDomainInternal(t, deltas[0].Payload)
+	if value.Active != domain.TriStateFalse {
 		t.Fatal("expected nil ownedIDs to still soft-delete an absent baseline id")
 	}
 }

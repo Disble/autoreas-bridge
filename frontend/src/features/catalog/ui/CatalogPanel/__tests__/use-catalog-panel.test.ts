@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
@@ -73,6 +73,18 @@ describe('useCatalogPanel', () => {
     expect(result.current.items[1].nombre).toBe('Beta');
     expect(result.current.items[0].status).toBe('active');
     expect(result.current.items[1].status).toBe('inactive');
+  });
+
+  it('restores every active and inactive record after an explicit active-only filter is cleared', async () => {
+    const source = createSource([animeA, animeB]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    act(() => result.current.onActivoChange('1'));
+    await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['anime-a']));
+
+    act(() => result.current.onActivoChange('all'));
+    await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['anime-a', 'anime-b']));
   });
 
   it('returns empty when the source returns an empty list', async () => {

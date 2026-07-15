@@ -220,6 +220,9 @@ type ChapterCommandResult struct {
 	Status        string  `json:"status"`
 	Message       string  `json:"message,omitempty"`
 	AnimeID       string  `json:"animeId,omitempty"`
+	Outcome       string  `json:"outcome,omitempty"`
+	ModifiedAt    int64   `json:"modifiedAt"`
+	ConflictID    string  `json:"conflictId,omitempty"`
 	AnimeName     string  `json:"animeName,omitempty"`
 	Estado        int     `json:"estado,omitempty"`
 	NroCapVisto   float64 `json:"nrocapvisto,omitempty"`
@@ -332,6 +335,24 @@ type AnimePatch struct {
 	Base *int64 `json:"base,omitempty"`
 }
 
+type AnimePatchOutcome string
+
+const (
+	AnimePatchOutcomeApplied  AnimePatchOutcome = "applied"
+	AnimePatchOutcomeNoOp     AnimePatchOutcome = "no_op"
+	AnimePatchOutcomeConflict AnimePatchOutcome = "conflict"
+)
+
+// AnimePatchResult is the authoritative semantic result of an anime mutation.
+// Transport status remains separate so Wails and internal adapters cannot lose
+// the current OCC token or recorded conflict identity.
+type AnimePatchResult struct {
+	AnimeID    string            `json:"animeId"`
+	Outcome    AnimePatchOutcome `json:"outcome"`
+	ModifiedAt int64             `json:"modifiedAt"`
+	ConflictID string            `json:"conflictId,omitempty"`
+}
+
 // AnimeCreate is the input for creating a brand-new anime (SDD-43). A new anime
 // lands with estado 0 (Viendo), nrocapvisto 0, activo true, primeravez true, and
 // a single dias entry in Section at Orden. ID is optional — generated when empty.
@@ -363,7 +384,7 @@ type AnimeQueryService interface {
 }
 
 type AnimeWriteService interface {
-	PatchAnime(ctx context.Context, id string, patch AnimePatch) error
+	PatchAnime(ctx context.Context, id string, patch AnimePatch) (AnimePatchResult, error)
 }
 
 type SyncTriggerService interface {

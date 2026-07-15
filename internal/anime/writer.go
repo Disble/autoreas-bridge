@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 )
@@ -19,10 +21,11 @@ type UpdateWriter interface {
 }
 
 type writeRequest struct {
-	animeID       string
-	payload       []byte
-	correlationID string
-	result        chan<- error
+	animeID        string
+	payload        []byte
+	correlationID  string
+	publishChanged bool
+	result         chan<- error
 }
 
 type UpdateWriterConfig struct {
@@ -96,9 +99,10 @@ func (w *updateWriter) StartAsync(ctx context.Context) {
 			}
 
 			request := writeRequest{
-				animeID:       update.AnimeID,
-				payload:       append([]byte(nil), update.Payload...),
-				correlationID: update.CorrelationID,
+				animeID:        update.AnimeID,
+				payload:        append([]byte(nil), update.Payload...),
+				correlationID:  update.CorrelationID,
+				publishChanged: true,
 			}
 
 			select {
@@ -127,25 +131,50 @@ func (w *updateWriter) Err() error {
 }
 
 func (w *updateWriter) RequestWrite(ctx context.Context, animeID string, payload []byte) error {
+	return w.request(ctx, animeID, payload, true)
+}
+
+// RequestAppend performs only the durable Legacy append. The gateway publishes
+// anime.changed after SQLite finalization confirms the operation committed.
+func (w *updateWriter) RequestAppend(ctx context.Context, animeID string, payload []byte) error {
+	return w.request(ctx, animeID, payload, false)
+}
+
+func (w *updateWriter) request(ctx context.Context, animeID string, payload []byte, publishChanged bool) error {
+	if err := ctx.Err(); err != nil {
+		return legacy.NewDefiniteAppendError(err)
+	}
 	result := make(chan error, 1)
 	request := writeRequest{
-		animeID: animeID,
-		payload: append([]byte(nil), payload...),
-		result:  result,
+		animeID:        animeID,
+		payload:        append([]byte(nil), payload...),
+		publishChanged: publishChanged,
+		result:         result,
 	}
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return legacy.NewDefiniteAppendError(ctx.Err())
 	case w.queue <- request:
 	}
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return legacy.NewAmbiguousAppendError(ctx.Err())
 	case err := <-result:
 		return err
 	}
+}
+
+func (w *updateWriter) PublishCommitted(eventID, animeID string, payload []byte) {
+	if w.publisher == nil {
+		return
+	}
+	w.publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: animeID, Payload: append([]byte(nil), payload...)})
+}
+
+func (w *updateWriter) LegacyFilePath() string {
+	return w.filePath
 }
 
 func (w *updateWriter) run(ctx context.Context) {
@@ -173,7 +202,10 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 	}
 
 	if appendErr := w.appendLine(w.filePath, request.payload); appendErr != nil {
-		if w.selfEchoRegistry != nil {
+		if !legacy.IsDefiniteAppendError(appendErr) && !legacy.IsAmbiguousAppendError(appendErr) {
+			appendErr = legacy.NewAmbiguousAppendError(appendErr)
+		}
+		if legacy.IsDefiniteAppendError(appendErr) && w.selfEchoRegistry != nil {
 			w.selfEchoRegistry.Forget(request.payload)
 		}
 		wrapped := fmt.Errorf("append anime update for %q at %q: %w", request.animeID, w.filePath, appendErr)
@@ -192,7 +224,7 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 		}, "%v", wrapped)
 		w.setErr(wrapped)
 		err = wrapped
-	} else if w.publisher != nil {
+	} else if request.publishChanged && w.publisher != nil {
 		w.publisher.Publish(events.AnimeChangedEvent{
 			AnimeID:       request.animeID,
 			Payload:       append([]byte(nil), request.payload...),
@@ -219,17 +251,36 @@ func (w *updateWriter) setErr(err error) {
 func defaultAppendLine(path string, payload []byte) error {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return legacy.NewDefiniteAppendError(err)
 	}
-	defer file.Close()
+	appendErr := appendRecord(file, payload)
+	closeErr := file.Close()
+	if appendErr != nil {
+		return appendErr
+	}
+	if closeErr != nil {
+		return legacy.NewAmbiguousAppendError(closeErr)
+	}
+	return nil
+}
 
+type appendSyncWriter interface {
+	Write([]byte) (int, error)
+	Sync() error
+}
+
+func appendRecord(file appendSyncWriter, payload []byte) error {
 	normalized := bytes.TrimRight(payload, "\r\n")
-	if _, err := file.Write(normalized); err != nil {
-		return err
+	record := append(append([]byte(nil), normalized...), '\n')
+	written, err := file.Write(record)
+	if err != nil {
+		return legacy.NewAmbiguousAppendError(err)
 	}
-	if _, err := file.Write([]byte("\n")); err != nil {
-		return err
+	if written != len(record) {
+		return legacy.NewAmbiguousAppendError(io.ErrShortWrite)
 	}
-
+	if err := file.Sync(); err != nil {
+		return legacy.NewAmbiguousAppendError(err)
+	}
 	return nil
 }

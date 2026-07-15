@@ -383,6 +383,9 @@ func toChapterCommandContract(result anime.ChapterCommandResult) contracts.Chapt
 	return contracts.ChapterCommandResult{
 		Status:        "ok",
 		AnimeID:       result.AnimeID,
+		Outcome:       string(result.Outcome),
+		ModifiedAt:    result.ModifiedAt,
+		ConflictID:    result.ConflictID,
 		AnimeName:     result.AnimeName,
 		Estado:        result.Estado,
 		NroCapVisto:   result.NroCapVisto,

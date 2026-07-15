@@ -1,10 +1,11 @@
 package anime
 
 import (
-	"encoding/json"
+	"strings"
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -14,42 +15,37 @@ import (
 // snapshot -- callers that only have a historical changelog payload (no
 // access to the live anime_snapshots row) pass 0, which is itself a
 // legitimate base value, not a sentinel for "unknown".
-func mobileAnimeFromSnapshot(payload []byte, modifiedAt int64) (contracts.MobileAnime, error) {
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(payload, &raw); err != nil {
-		return contracts.MobileAnime{}, err
-	}
-
+func mobileAnimeFromDomain(value domain.Anime, modifiedAt int64) contracts.MobileAnime {
 	item := contracts.MobileAnime{
-		ID:               raw.ID,
-		Nombre:           raw.Nombre,
-		Estado:           intValueOrDefault(raw.EstadoValue(), 0),
-		NroCapVisto:      raw.NroCapVisto,
-		Activo:           triStateToInt(raw.Activo.TriState()),
-		PrimeraVez:       triStateToInt(raw.Primeravez.TriState()),
-		Dias:             mobileDays(raw),
-		Generos:          raw.GenerosStrings(),
-		Tipo:             raw.Tipo.Int(),
-		FechaUltCapVisto: timeToMillis(raw.FechaUltCapVisto.Time()),
-		FechaEstreno:     timeToMillis(raw.FechaEstreno.Time()),
-		FechaCreacion:    timeToMillis(raw.FechaCreacion.Time()),
-		FechaEliminacion: timeToMillis(raw.FechaEliminacion.Time()),
-		Portada:          raw.PortadaPath(),
-		Pagina:           raw.Pagina.String(),
-		Carpeta:          raw.Carpeta.String(),
-		Estudios:         raw.EstudiosString(),
-		Origen:           raw.Origen.String(),
-		Duracion:         raw.Duracion.Int(),
-		Repetir:          raw.Repeticiones(),
+		ID:               value.ID,
+		Nombre:           value.Title,
+		Estado:           intValueOrDefault(value.Status, 0),
+		NroCapVisto:      value.Progress,
+		Activo:           triStateToInt(value.Active),
+		PrimeraVez:       triStateToInt(value.FirstCycle),
+		Dias:             mobileDays(value.Days),
+		Generos:          cloneStrings(value.Genres),
+		Tipo:             cloneInt(value.ContentType),
+		FechaUltCapVisto: timeToMillis(value.LastWatchedAt),
+		FechaEstreno:     timeToMillis(value.PremieredAt),
+		FechaCreacion:    timeToMillis(value.CreatedAt),
+		FechaEliminacion: timeToMillis(value.DeletedAt),
+		Portada:          cloneString(value.CoverPath),
+		Pagina:           cloneString(value.SourceURL),
+		Carpeta:          cloneString(value.Folder),
+		Estudios:         joinedStrings(value.Studios),
+		Origen:           cloneString(value.Origin),
+		Duracion:         floatToInt(value.DurationMinutes),
+		Repetir:          mobileRepetitions(value.Repetitions),
 		ModifiedAt:       modifiedAt,
 	}
 
-	if value := raw.TotalCapValue(); value != nil {
-		converted := int(*value)
+	if value.TotalEpisodes != nil {
+		converted := int(*value.TotalEpisodes)
 		item.TotalCap = &converted
 	}
 
-	return item, nil
+	return item
 }
 
 // MobileAnimeFromSnapshotForSync normalizes a historical changelog snapshot
@@ -61,26 +57,19 @@ func mobileAnimeFromSnapshot(payload []byte, modifiedAt int64) (contracts.Mobile
 // for writes; the query endpoints (GetMobileAnime/ListMobileAnimes) are the
 // source of the live token.
 func MobileAnimeFromSnapshotForSync(payload []byte) (contracts.MobileAnime, error) {
-	return mobileAnimeFromSnapshot(payload, 0)
+	value, _, err := legacy.DecodeDomain(payload)
+	if err != nil {
+		return contracts.MobileAnime{}, err
+	}
+	return mobileAnimeFromDomain(value, 0), nil
 }
 
-func mobileDays(raw domain.LegacyAnimeRaw) []contracts.MobileAnimeDay {
-	values := raw.Dias.Values()
-	if len(values) > 0 {
-		result := make([]contracts.MobileAnimeDay, 0, len(values))
-		for _, value := range values {
-			result = append(result, contracts.MobileAnimeDay{Dia: value.Dia, Orden: int(value.Orden)})
-		}
-		return result
+func mobileDays(values []domain.AnimeDay) []contracts.MobileAnimeDay {
+	result := make([]contracts.MobileAnimeDay, 0, len(values))
+	for _, value := range values {
+		result = append(result, contracts.MobileAnimeDay{Dia: value.Day, Orden: int(value.Order)})
 	}
-
-	day := raw.Dia.String()
-	order := raw.Orden.Int()
-	if day != nil && order != nil {
-		return []contracts.MobileAnimeDay{{Dia: *day, Orden: *order}}
-	}
-
-	return []contracts.MobileAnimeDay{}
+	return result
 }
 
 func triStateToInt(value domain.TriState) int {
@@ -103,4 +92,63 @@ func timeToMillis(value *time.Time) *int64 {
 	}
 	result := value.UnixMilli()
 	return &result
+}
+
+func mobileRepetitions(values []domain.Repetition) []contracts.MobileRepeticion {
+	result := make([]contracts.MobileRepeticion, 0, len(values))
+	for _, value := range values {
+		result = append(result, contracts.MobileRepeticion{
+			NumRepeticion: value.Number, NroCapVisto: value.Progress, Estado: value.Status,
+			FechaCreacion: timeToMillis(value.CreatedAt), FechaEstreno: timeToMillis(value.PremieredAt),
+			FechaUltCapVisto: timeToMillis(value.LastWatchedAt), FechaEliminacion: timeToMillis(value.DeletedAt),
+			FechaRepeticion: timeToMillis(nonZeroTime(value.RepeatedAt)),
+		})
+	}
+	return result
+}
+
+func nonZeroTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
+}
+
+func cloneString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+// cloneStrings copies a string slice into a guaranteed non-nil slice. Empty and
+// nil inputs both yield an empty (`[]`, never `null`) JSON array so the mobile
+// client's array schema accepts the payload -- mirrors mobileDays.
+func cloneStrings(values []string) []string {
+	return append(make([]string, 0, len(values)), values...)
+}
+
+func cloneInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func floatToInt(value *float64) *int {
+	if value == nil {
+		return nil
+	}
+	converted := int(*value)
+	return &converted
+}
+
+func joinedStrings(values []string) *string {
+	if len(values) == 0 {
+		return nil
+	}
+	joined := strings.Join(values, ", ")
+	return &joined
 }

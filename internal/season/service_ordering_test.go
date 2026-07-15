@@ -16,6 +16,31 @@ func newOrderingService(repo *fakeRepo) (*Service, *fakeGateway) {
 	return svc, gw
 }
 
+type scriptedOrderingGateway struct {
+	fakeGateway
+	scheduleCalls   []string
+	scheduleResults map[string]AnimeMutationResult
+	scheduleErrors  map[string]error
+}
+
+func (g *scriptedOrderingGateway) SetAnimeSchedule(_ context.Context, animeID string, dias []domain.Placement) (AnimeMutationResult, error) {
+	g.scheduleCalls = append(g.scheduleCalls, animeID)
+	if err := g.scheduleErrors[animeID]; err != nil {
+		return AnimeMutationResult{}, err
+	}
+	result, ok := g.scheduleResults[animeID]
+	if !ok {
+		result = AnimeMutationResult{AnimeID: animeID, Outcome: AnimeMutationApplied}
+	}
+	if result.Outcome == AnimeMutationApplied || result.Outcome == AnimeMutationNoOp {
+		if g.scheduled == nil {
+			g.scheduled = map[string][]domain.Placement{}
+		}
+		g.scheduled[animeID] = append([]domain.Placement(nil), dias...)
+	}
+	return result, nil
+}
+
 func draftJSON(t *testing.T, draft map[string][]domain.Placement) string {
 	t.Helper()
 	b, err := json.Marshal(draft)
@@ -82,33 +107,99 @@ func TestApplyScheduleDiffsAndStampsApplied(t *testing.T) {
 	}
 }
 
-func TestApplySchedulePartialFailureDoesNotStamp(t *testing.T) {
-	repo := newFakeRepo()
-	svc, gw := newOrderingService(repo)
-	ctx := context.Background()
-	_, _ = svc.CreateSeason(ctx, "Julio 2026")
+func TestApplyScheduleStopsAtFirstNonSuccess(t *testing.T) {
+	writeErr := errors.New("write failed")
+	tests := []struct {
+		name        string
+		result      AnimeMutationResult
+		mutationErr error
+		wantErr     error
+	}{
+		{name: "conflict", result: AnimeMutationResult{AnimeID: "anime-b", Outcome: AnimeMutationConflict, ModifiedAt: 17, ConflictID: "conflict-b"}, wantErr: ErrAnimeMutationConflict},
+		{name: "unknown outcome", result: AnimeMutationResult{AnimeID: "anime-b", Outcome: AnimeMutationOutcome("unexpected")}},
+		{name: "mutation error", mutationErr: writeErr, wantErr: writeErr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			gateway := &scriptedOrderingGateway{
+				fakeGateway: fakeGateway{placements: map[string][]domain.Placement{
+					"anime-a": {{Dia: "Visto", Orden: 1}},
+					"anime-b": {{Dia: "Visto", Orden: 2}},
+					"anime-c": {{Dia: "Visto", Orden: 3}},
+				}},
+				scheduleResults: map[string]AnimeMutationResult{
+					"anime-a": {AnimeID: "anime-a", Outcome: AnimeMutationNoOp},
+					"anime-b": tt.result,
+				},
+				scheduleErrors: map[string]error{"anime-b": tt.mutationErr},
+			}
+			svc := newTestService(repo)
+			svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+			ctx := context.Background()
+			_, _ = svc.CreateSeason(ctx, "Julio 2026")
+			_ = svc.SaveOrderingDraft(ctx, draftJSON(t, map[string][]domain.Placement{
+				"anime-a": {{Dia: "Lunes", Orden: 1}},
+				"anime-b": {{Dia: "Lunes", Orden: 2}},
+				"anime-c": {{Dia: "Lunes", Orden: 3}},
+			}))
 
-	gw.placements = map[string][]domain.Placement{
-		"anime-a": {{Dia: "Visto", Orden: 1}},
-		"anime-b": {{Dia: "Visto", Orden: 2}},
+			res, err := svc.ApplySchedule(ctx)
+			if err == nil {
+				t.Fatalf("expected %s to fail closed, got res=%+v", tt.name, res)
+			}
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+			}
+			if res.Applied != 1 || len(res.Failed) != 1 || res.Failed[0] != "anime-b" {
+				t.Fatalf("expected accepted anime-a and failed anime-b, got %+v", res)
+			}
+			if len(gateway.scheduleCalls) != 2 || gateway.scheduleCalls[0] != "anime-a" || gateway.scheduleCalls[1] != "anime-b" {
+				t.Fatalf("must stop before anime-c after %s, calls=%v", tt.name, gateway.scheduleCalls)
+			}
+			if _, called := gateway.scheduled["anime-c"]; called {
+				t.Fatalf("anime-c must have zero side effects after %s", tt.name)
+			}
+			active, _ := svc.ActiveSeason(ctx)
+			if active.AppliedAt != nil {
+				t.Fatalf("%s must not stamp the applied milestone", tt.name)
+			}
+		})
 	}
-	gw.failSchedule = map[string]bool{"anime-b": true}
-	raw := draftJSON(t, map[string][]domain.Placement{
-		"anime-a": {{Dia: "Lunes", Orden: 1}},
-		"anime-b": {{Dia: "Lunes", Orden: 2}},
-	})
-	_ = svc.SaveOrderingDraft(ctx, raw)
+}
 
-	res, err := svc.ApplySchedule(ctx)
-	if err != nil {
-		t.Fatalf("ApplySchedule: %v", err)
-	}
-	if res.Applied != 1 || len(res.Failed) != 1 || res.Failed[0] != "anime-b" {
-		t.Fatalf("expected 1 applied, anime-b failed, got %+v", res)
-	}
-	active, _ := svc.ActiveSeason(ctx)
-	if active.AppliedAt != nil {
-		t.Fatal("a partial failure must NOT stamp the applied milestone")
+func TestApplyScheduleAcceptsAppliedAndNoOp(t *testing.T) {
+	for _, outcome := range []AnimeMutationOutcome{AnimeMutationApplied, AnimeMutationNoOp} {
+		t.Run(string(outcome), func(t *testing.T) {
+			repo := newFakeRepo()
+			gateway := &scriptedOrderingGateway{
+				fakeGateway: fakeGateway{placements: map[string][]domain.Placement{
+					"anime-a": {{Dia: "Visto", Orden: 1}},
+				}},
+				scheduleResults: map[string]AnimeMutationResult{
+					"anime-a": {AnimeID: "anime-a", Outcome: outcome},
+				},
+			}
+			svc := newTestService(repo)
+			svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
+			ctx := context.Background()
+			_, _ = svc.CreateSeason(ctx, "Julio 2026")
+			_ = svc.SaveOrderingDraft(ctx, draftJSON(t, map[string][]domain.Placement{
+				"anime-a": {{Dia: "Lunes", Orden: 1}},
+			}))
+
+			res, err := svc.ApplySchedule(ctx)
+			if err != nil {
+				t.Fatalf("ApplySchedule(%s): %v", outcome, err)
+			}
+			if res.Applied != 1 || len(res.Failed) != 0 || len(gateway.scheduleCalls) != 1 {
+				t.Fatalf("expected %s to be accepted, res=%+v calls=%v", outcome, res, gateway.scheduleCalls)
+			}
+			active, _ := svc.ActiveSeason(ctx)
+			if active.AppliedAt == nil {
+				t.Fatalf("accepted %s must stamp the applied milestone", outcome)
+			}
+		})
 	}
 }
 

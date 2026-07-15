@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 )
@@ -32,6 +33,45 @@ func TestSelfEchoRegistryConsumesOnlyOwnPayloads(t *testing.T) {
 
 	if registry.ConsumeIfPresent(other) {
 		t.Fatal("expected unrelated payload to remain visible to watcher")
+	}
+}
+
+func TestUpdateWriterRequestAppendClassifiesCancellationAfterEnqueueAsAmbiguous(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	writer := NewUpdateWriter(UpdateWriterConfig{
+		FilePath: "data/animes.dat",
+		Bus:      events.NewBus(),
+		AppendLine: func(string, []byte) error {
+			close(started)
+			<-release
+			return nil
+		},
+	}).(*updateWriter)
+	runCtx, stop := context.WithCancel(context.Background())
+	defer stop()
+	writer.StartAsync(runCtx)
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- writer.RequestAppend(requestCtx, "anime-1", []byte(`{"_id":"anime-1"}`)) }()
+	<-started
+	cancelRequest()
+	err := <-result
+	if !legacy.IsAmbiguousAppendError(err) {
+		t.Fatalf("expected post-enqueue cancellation to be ambiguous, got %v", err)
+	}
+	close(release)
+	stop()
+	writer.Wait()
+}
+
+func TestUpdateWriterRequestAppendClassifiesCanceledPreEnqueueAsDefinite(t *testing.T) {
+	writer := NewUpdateWriter(UpdateWriterConfig{FilePath: "data/animes.dat", Bus: events.NewBus()}).(*updateWriter)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := writer.RequestAppend(ctx, "anime-1", []byte(`{"_id":"anime-1"}`))
+	if !legacy.IsDefiniteAppendError(err) {
+		t.Fatalf("expected pre-enqueue cancellation to be definite, got %v", err)
 	}
 }
 

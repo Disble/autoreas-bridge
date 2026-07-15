@@ -3,13 +3,11 @@ package anime_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/domain"
 )
 
 // TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering
@@ -43,16 +41,13 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 	wantTipoCount := 0
 	wantFechaCreacionCount := 0
 	for _, record := range records {
-		var raw domain.LegacyAnimeRaw
-		if err := json.Unmarshal(record.CanonicalJSON, &raw); err != nil {
-			t.Fatalf("unmarshal canonical record %q: %v", record.AnimeID, err)
-		}
-		if raw.FechaUltCapVisto.Time() != nil {
+		value := decodeAnimeDomain(t, record.CanonicalJSON)
+		if value.LastWatchedAt != nil {
 			wantCount++
-			if raw.Tipo.Int() != nil {
+			if value.ContentType != nil {
 				wantTipoCount++
 			}
-			if raw.FechaCreacion.Time() != nil {
+			if value.CreatedAt != nil {
 				wantFechaCreacionCount++
 			}
 		}

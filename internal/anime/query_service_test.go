@@ -2,6 +2,7 @@ package anime_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -234,8 +235,19 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	if !reflect.DeepEqual(got.Dias, wantDias) {
 		t.Fatalf("expected dias %#v, got %#v", wantDias, got.Dias)
 	}
-	if len(got.Generos) != 0 {
-		t.Fatalf("expected empty generos, got %#v", got.Generos)
+	if got.Generos == nil || len(got.Generos) != 0 {
+		t.Fatalf("expected non-nil empty generos, got %#v", got.Generos)
+	}
+	payload, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal mobile anime: %v", err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &wire); err != nil {
+		t.Fatalf("decode mobile anime JSON: %v", err)
+	}
+	if string(wire["generos"]) != "[]" {
+		t.Fatalf("expected generos JSON array, got %s", wire["generos"])
 	}
 	if got.Portada == nil || *got.Portada != "" {
 		t.Fatalf("expected portada empty string, got %#v", got.Portada)
@@ -306,43 +318,45 @@ func TestQueryServiceGetMobileAnimeReturnsEmptyRepetirWhenAbsent(t *testing.T) {
 	}
 }
 
-func TestQueryServiceListAnimeItemsReturnsActiveAndInactive(t *testing.T) {
+func TestQueryServiceCatalogListsEveryActiveInactiveAndStatusRecord(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-active", `{"_id":"anime-active","nombre":"Active Anime","nrocapvisto":5,"estado":2,"totalcap":12,"activo":true}`)
-	seedAnimeSnapshot(t, store, "anime-inactive", `{"_id":"anime-inactive","nombre":"Inactive Anime","nrocapvisto":3,"estado":0,"activo":false}`)
+	seeds := []struct {
+		id      string
+		payload string
+		estado  int
+		activo  int
+	}{
+		{id: "active-watching", payload: `{"_id":"active-watching","nombre":"Active Watching","nrocapvisto":5,"estado":0,"activo":true}`, estado: 0, activo: 1},
+		{id: "active-finished", payload: `{"_id":"active-finished","nombre":"Active Finished","nrocapvisto":12,"estado":1,"totalcap":12,"activo":true}`, estado: 1, activo: 1},
+		{id: "inactive-finished", payload: `{"_id":"inactive-finished","nombre":"Inactive Finished","nrocapvisto":12,"estado":1,"activo":false}`, estado: 1, activo: 0},
+		{id: "inactive-disliked", payload: `{"_id":"inactive-disliked","nombre":"Inactive Disliked","nrocapvisto":3,"estado":2,"activo":false}`, estado: 2, activo: 0},
+	}
+	for _, seed := range seeds {
+		seedAnimeSnapshot(t, store, seed.id, seed.payload)
+	}
 
 	service := anime.NewQueryService(store)
 	got, err := service.ListAnimeItems(ctx)
 	if err != nil {
 		t.Fatalf("list anime items: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 anime items, got %d", len(got))
+	if len(got) != len(seeds) {
+		t.Fatalf("Catalog must list every stored record, got %d of %d", len(got), len(seeds))
 	}
 
-	byID := make(map[string]contracts.AnimeListItem)
+	byID := make(map[string]contracts.AnimeListItem, len(got))
 	for _, item := range got {
 		byID[item.ID] = item
 	}
-
-	active, ok := byID["anime-active"]
-	if !ok {
-		t.Fatal("expected anime-active in results")
-	}
-	if active.Activo != 1 {
-		t.Fatalf("expected active activo 1, got %d", active.Activo)
-	}
-	if active.TotalCap == nil || *active.TotalCap != 12 {
-		t.Fatalf("expected totalcap 12, got %#v", active.TotalCap)
-	}
-
-	inactive, ok := byID["anime-inactive"]
-	if !ok {
-		t.Fatal("expected anime-inactive in results")
-	}
-	if inactive.Activo != 0 {
-		t.Fatalf("expected inactive activo 0, got %d", inactive.Activo)
+	for _, seed := range seeds {
+		item, ok := byID[seed.id]
+		if !ok {
+			t.Fatalf("Catalog silently excluded %s", seed.id)
+		}
+		if item.Activo != seed.activo || item.Estado != seed.estado {
+			t.Fatalf("Catalog changed %s status: got activo=%d estado=%d", seed.id, item.Activo, item.Estado)
+		}
 	}
 }
 

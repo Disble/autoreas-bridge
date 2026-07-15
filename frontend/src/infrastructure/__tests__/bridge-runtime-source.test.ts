@@ -44,13 +44,13 @@ describe('bridge-runtime-source', () => {
     await expect(syncingAnimePromise).resolves.toEqual([]);
     await expect(animePromise).resolves.toEqual([]);
     await expect(animeDetailPromise).resolves.toBeNull();
-    await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(restorePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(repeatPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(openPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(copyPagePromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(openFolderPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
-    await expect(copyFolderPromise).resolves.toEqual({ message: 'runtime unavailable', status: 'error' });
+    await expect(softDeletePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(restorePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(repeatPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(openPagePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(copyPagePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(openFolderPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
+    await expect(copyFolderPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
     await expect(pullPromise).resolves.toEqual({
       message: 'runtime unavailable',
       prunedCount: 0,
@@ -238,8 +238,16 @@ describe('bridge-runtime-source', () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
     const softDeleteMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
-    const restoreMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
-    const repeatMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
+    const restoreResult = { status: 'ok', animeId: 'anime-1', outcome: 'no_op', modifiedAt: 0 };
+    const repeatResult = {
+      status: 'ok',
+      animeId: 'anime-1',
+      outcome: 'conflict',
+      modifiedAt: 1003,
+      conflictId: 'conflict-7',
+    };
+    const restoreMock = vi.fn().mockResolvedValue(restoreResult);
+    const repeatMock = vi.fn().mockResolvedValue(repeatResult);
 
     const softDeletePromise = source.softDeleteAnime?.('anime-1', 1000);
     const restorePromise = source.restoreAnime?.('anime-1', 1001);
@@ -250,8 +258,8 @@ describe('bridge-runtime-source', () => {
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(softDeletePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
-    await expect(restorePromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
-    await expect(repeatPromise).resolves.toEqual({ status: 'ok', animeId: 'anime-1' });
+    await expect(restorePromise).resolves.toBe(restoreResult);
+    await expect(repeatPromise).resolves.toBe(repeatResult);
     expect(softDeleteMock).toHaveBeenCalledWith('anime-1', 1000);
     expect(restoreMock).toHaveBeenCalledWith('anime-1', 1001);
     expect(repeatMock).toHaveBeenCalledWith('anime-1', 1002);

@@ -378,83 +378,6 @@ func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (Rec
 	return res, nil
 }
 
-// CreateSeasonAnimes is the explicit, user-initiated creation gate: for each row
-// that is currently AVAILABLE, it links an existing active anime with the same
-// page (two-cour continuation) or creates a new one into "Sin ver", advancing the
-// row to created. Rows that are not available (waiting) or already created are
-// skipped — creation is irreversible (soft delete only), so it only ever acts on
-// what the user explicitly picked. No download is triggered here.
-func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string, root string, overrides map[string]string) (CreateResult, error) {
-	if s.gateway == nil {
-		return CreateResult{}, ErrAvailabilityDepsUnavailable
-	}
-	var res CreateResult
-	for _, rowID := range rowIDs {
-		sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
-		if err != nil {
-			return res, err
-		}
-		if sa == nil || sa.Availability != domain.AvailabilityAvailable {
-			continue
-		}
-
-		animeID, found, err := s.gateway.FindActiveByPagina(ctx, sa.MatchedSlug)
-		if err != nil {
-			return res, err
-		}
-		if !found {
-			// A user-picked override wins; otherwise the folder defaults to the
-			// configured downloads root joined with the sanitized anime name. A
-			// LINKED existing anime (found) keeps its own folder untouched.
-			folder := overrides[rowID]
-			if folder == "" {
-				folder = deriveDownloadFolder(root, sa.RawName)
-			}
-			animeID, err = s.gateway.CreateAnime(ctx, AnimeCreateInput{
-				Nombre:  sa.RawName,
-				Pagina:  sa.MatchedSlug,
-				Section: sinVerSection,
-				Carpeta: folder,
-			})
-			if err != nil {
-				return res, err
-			}
-		}
-
-		sa.Availability = domain.AvailabilityCreated
-		sa.AnimeID = animeID
-		if err := s.repo.UpdateSeasonAnime(ctx, *sa); err != nil {
-			return res, err
-		}
-		res.Created = append(res.Created, sa.RawName)
-	}
-	return res, nil
-}
-
-// HandleAnimeWatched is the event-driven Ver hoy → Visto auto-transition: when a
-// created season anime sitting in "Ver hoy" is watched (nrocapvisto >= 1 — they
-// start at 0), it moves to "Visto". Called on every anime change; it early-returns
-// for anything that is not a watched Ver hoy anime, so it is cheap.
-func (s *Service) HandleAnimeWatched(ctx context.Context, animeID, section string, nrocapvisto float64) error {
-	if s.gateway == nil || section != verHoySection || nrocapvisto < 1 || animeID == "" {
-		return nil
-	}
-	active, err := s.repo.ActiveSeason(ctx)
-	if err != nil || active == nil {
-		return err
-	}
-	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
-	if err != nil {
-		return err
-	}
-	for _, row := range rows {
-		if row.AnimeID == animeID && row.Availability == domain.AvailabilityCreated {
-			return s.gateway.MoveToSection(ctx, animeID, vistoSection)
-		}
-	}
-	return nil
-}
-
 // RecordPremiereGrade records a first-episode grade for the anime linked to a row
 // in the OPEN season, applying the domain conflict rule (manual protected from
 // mobile). It validates the 1–6 bound and returns the updated row. A mobile write
@@ -510,47 +433,6 @@ func (s *Service) SetConsideration(ctx context.Context, rowID string, c domain.C
 	return s.mutateSeasonAnime(ctx, rowID, func(sa *domain.SeasonAnime) {
 		sa.Consideration = c
 	})
-}
-
-// ConfirmSelection reconciles the OPEN season's created candidates against their
-// derived verdicts: approved animes become Viendo/active, rejected ones "No me
-// gusto"/inactive (soft delete only), applied through the anime gateway. It is a
-// repeatable, bidirectional milestone — re-confirming after a consideration or
-// min-grade change restores or rejects animes symmetrically. A quota overflow
-// (approved > slots) blocks the whole confirmation.
-func (s *Service) ConfirmSelection(ctx context.Context) (ConfirmResult, error) {
-	if s.gateway == nil {
-		return ConfirmResult{}, ErrSelectionDepsUnavailable
-	}
-	active, err := s.repo.ActiveSeason(ctx)
-	if err != nil {
-		return ConfirmResult{}, err
-	}
-	if active == nil {
-		return ConfirmResult{}, ErrNoActiveSeason
-	}
-	rows, err := s.repo.ListSeasonAnimes(ctx, active.ID)
-	if err != nil {
-		return ConfirmResult{}, err
-	}
-
-	intents := domain.Reconcile(rows, active.MinApprovalGrade)
-	approved := domain.ApprovedCount(intents)
-	if approved > active.Slots {
-		return ConfirmResult{Approved: approved}, ErrQuotaExceeded
-	}
-
-	for _, intent := range intents {
-		if err := s.gateway.SetSelection(ctx, intent.AnimeID, intent.Estado, intent.Activo); err != nil {
-			return ConfirmResult{}, err
-		}
-	}
-
-	active.MarkSelectionConfirmed(s.now())
-	if err := s.repo.UpdateSeason(ctx, *active); err != nil {
-		return ConfirmResult{}, err
-	}
-	return ConfirmResult{Approved: approved, Rejected: len(intents) - approved}, nil
 }
 
 func validConsideration(c domain.Consideration) bool {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -21,22 +22,13 @@ func main() {
 }
 
 func run(root string) error {
+	return runWithArchitectureFS(root, osArchitectureFS{})
+}
+
+func runWithArchitectureFS(root string, source architectureFS) error {
 	var violations []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			if shouldSkipDir(path) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !scannedExtensions[filepath.Ext(path)] {
-			return nil
-		}
-		normalized := filepath.ToSlash(path)
-		content, err := os.ReadFile(path)
+	err := walkArchitectureFiles(root, source, func(path string, content []byte) error {
+		normalized, err := relativePath(root, path)
 		if err != nil {
 			return err
 		}
@@ -44,15 +36,31 @@ func run(root string) error {
 		if strings.Contains(text, "activity_log") && !isActivityBoundaryFile(normalized) {
 			violations = append(violations, fmt.Sprintf("%s references activity_log outside internal/activity", normalized))
 		}
+		if filepath.Ext(path) == ".go" {
+			legacyViolations, checkErr := checkLegacyBoundary(normalized, content)
+			if checkErr != nil {
+				return checkErr
+			}
+			violations = append(violations, legacyViolations...)
+		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 	if len(violations) > 0 {
+		sort.Strings(violations)
 		return fmt.Errorf("architecture violations:\n- %s", strings.Join(violations, "\n- "))
 	}
 	return nil
+}
+
+func relativePath(root, path string) (string, error) {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", fmt.Errorf("resolve architecture-check path %q: %w", path, err)
+	}
+	return filepath.ToSlash(relative), nil
 }
 
 func isActivityBoundaryFile(path string) bool {

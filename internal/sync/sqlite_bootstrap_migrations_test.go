@@ -3,9 +3,91 @@ package sync
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	first, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db first time: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("close bridge db first time: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("reopen bridge db: %v", err)
+	}
+	defer db.Close()
+
+	columns := readTableColumns(t, db, "anime_write_operations")
+	for _, required := range []string{
+		"operation_id", "anime_id", "base_modified_at", "intended_modified_at",
+		"base_snapshot_json", "base_hash", "desired_snapshot_json", "desired_hash",
+		"status", "created_at_ms", "committed_at_ms",
+	} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected anime_write_operations to contain column %q, got %#v", required, columns)
+		}
+	}
+
+	indexes := readIndexNames(t, db, "anime_write_operations")
+	for _, required := range []string{
+		"idx_anime_write_operations_anime_token",
+		"idx_anime_write_operations_recovery",
+	} {
+		if !containsString(indexes, required) {
+			t.Fatalf("expected anime_write_operations index %q, got %#v", required, indexes)
+		}
+	}
+}
+
+func TestWriteOperationMigrationCreatesUniqueLiveReservationIndex(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	var sqlText string
+	err := db.QueryRow(`
+		SELECT sql FROM sqlite_master
+		WHERE type = 'index' AND name = 'idx_anime_write_operations_live_reservation'
+	`).Scan(&sqlText)
+	if err != nil {
+		t.Fatalf("query live reservation index: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(sqlText), "unique") || !strings.Contains(sqlText, "status = 'staged'") {
+		t.Fatalf("expected unique staged-only reservation index, got %q", sqlText)
+	}
+}
+
+func readIndexNames(t *testing.T, db *sql.DB, tableName string) []string {
+	t.Helper()
+
+	rows, err := db.Query(`PRAGMA index_list(` + tableName + `)`)
+	if err != nil {
+		t.Fatalf("pragma index_list(%s): %v", tableName, err)
+	}
+	defer rows.Close()
+
+	indexes := []string{}
+	for rows.Next() {
+		var sequence, unique, originPartial int
+		var name, origin string
+		if err := rows.Scan(&sequence, &name, &unique, &origin, &originPartial); err != nil {
+			t.Fatalf("scan pragma index_list(%s): %v", tableName, err)
+		}
+		indexes = append(indexes, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate pragma index_list(%s): %v", tableName, err)
+	}
+	return indexes
+}
 
 func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
 	t.Parallel()

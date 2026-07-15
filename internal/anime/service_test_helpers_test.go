@@ -8,10 +8,30 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/notification"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
+
+func decodeAnimeDomain(t *testing.T, payload []byte) domain.Anime {
+	t.Helper()
+	value, _, err := legacy.Decode(payload)
+	if err != nil {
+		t.Fatalf("decode anime payload: %v", err)
+	}
+	return value
+}
+
+func decodeJSONFields(t *testing.T, payload []byte) map[string]json.RawMessage {
+	t.Helper()
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatalf("decode JSON fields: %v", err)
+	}
+	return fields
+}
 
 func jsonValueEqual(t *testing.T, got, want []byte) bool {
 	t.Helper()
@@ -101,9 +121,13 @@ type stubAnimeWriter struct {
 	payload []byte
 	err     error
 	calls   int
+	onWrite func()
 }
 
 func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payload []byte) error {
+	if s.onWrite != nil {
+		s.onWrite()
+	}
 	s.calls++
 	s.animeID = animeID
 	s.payload = append([]byte(nil), payload...)
@@ -134,5 +158,22 @@ func updateAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, ani
 	}
 	if err := store.ReplaceBaseline(context.Background(), records, nil); err != nil {
 		t.Fatalf("replace snapshot baseline: %v", err)
+	}
+}
+
+func assertNoPendingAnimeChanged(t *testing.T, store *bridgeSync.AnimeSnapshotStore) {
+	t.Helper()
+	outbox, ok := store.WriteBaseStore().(interface {
+		ListPendingAnimeChanged(context.Context) ([]anime.AnimeChangedOutboxEvent, error)
+	})
+	if !ok {
+		t.Fatal("test store does not expose the anime.changed outbox")
+	}
+	pending, err := outbox.ListPendingAnimeChanged(context.Background())
+	if err != nil {
+		t.Fatalf("ListPendingAnimeChanged: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending anime.changed events = %+v, want none", pending)
 	}
 }

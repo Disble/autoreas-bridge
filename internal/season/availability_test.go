@@ -2,101 +2,12 @@ package season
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"reflect"
 	"testing"
 
 	"autoreas-bridge/internal/season/domain"
 )
-
-// fakeProbe reports the count of available chapters per page URL.
-type fakeProbe struct {
-	chapters map[string]int
-	err      error
-}
-
-func (f *fakeProbe) AvailableChapters(_ context.Context, pageURL string) (int, error) {
-	if f.err != nil {
-		return 0, f.err
-	}
-	return f.chapters[pageURL], nil
-}
-
-// fakeGateway records creates and answers existing-by-pagina lookups.
-type fakeGateway struct {
-	existingByPagina map[string]string
-	created          []AnimeCreateInput
-	nextID           int
-	moved            map[string]string
-	selections       map[string]selectionState
-	placements       map[string][]domain.Placement
-	scheduled        map[string][]domain.Placement
-	failSchedule     map[string]bool
-}
-
-type selectionState struct {
-	estado int
-	activo bool
-}
-
-func (g *fakeGateway) CreateAnime(_ context.Context, in AnimeCreateInput) (string, error) {
-	g.created = append(g.created, in)
-	g.nextID++
-	return "created-anime", nil
-}
-
-func (g *fakeGateway) FindActiveByPagina(_ context.Context, pageURL string) (string, bool, error) {
-	id, ok := g.existingByPagina[pageURL]
-	return id, ok, nil
-}
-
-func (g *fakeGateway) MoveToSection(_ context.Context, animeID, section string) error {
-	if g.moved == nil {
-		g.moved = map[string]string{}
-	}
-	g.moved[animeID] = section
-	return nil
-}
-
-func (g *fakeGateway) SetSelection(_ context.Context, animeID string, estado int, activo bool) error {
-	if g.selections == nil {
-		g.selections = map[string]selectionState{}
-	}
-	g.selections[animeID] = selectionState{estado: estado, activo: activo}
-	return nil
-}
-
-func (g *fakeGateway) CurrentPlacements(_ context.Context, animeIDs []string) (map[string][]domain.Placement, error) {
-	out := map[string][]domain.Placement{}
-	for _, id := range animeIDs {
-		if p, ok := g.placements[id]; ok {
-			out[id] = p
-		}
-	}
-	return out, nil
-}
-
-func (g *fakeGateway) SetAnimeSchedule(_ context.Context, animeID string, dias []domain.Placement) error {
-	if g.failSchedule[animeID] {
-		return errors.New("write failed")
-	}
-	if g.scheduled == nil {
-		g.scheduled = map[string][]domain.Placement{}
-	}
-	g.scheduled[animeID] = dias
-	return nil
-}
-
-func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug string) {
-	t.Helper()
-	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
-	sa.MatchStatus = domain.MatchMatched
-	sa.MatchedSlug = slug
-	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-}
 
 // RecheckAvailability ONLY reports availability — it NEVER creates an anime.
 // Creation is a separate, explicit, consent-gated action (CreateSeasonAnimes).
@@ -312,16 +223,6 @@ func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T)
 	if res.Checked != 0 {
 		t.Fatalf("res.Checked = %d, want 0 (unresolvable row must not be probed)", res.Checked)
 	}
-}
-
-// gatewayPlacementsErr is a fakeGateway whose CurrentPlacements always errors,
-// to assert the whole run tolerates a batched-lookup failure.
-type gatewayPlacementsErr struct {
-	fakeGateway
-}
-
-func (g *gatewayPlacementsErr) CurrentPlacements(_ context.Context, _ []string) (map[string][]domain.Placement, error) {
-	return nil, errors.New("placements lookup failed")
 }
 
 // If gateway.CurrentPlacements errors, every created row is left untouched

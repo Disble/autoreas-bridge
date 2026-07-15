@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 )
 
 const parserBufferSize = 128 * 1024
@@ -76,18 +76,13 @@ func parseSnapshotLine(line []byte) (SnapshotRecord, string, bool) {
 		return SnapshotRecord{AnimeID: envelope.ID}, "", true
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(line, &raw); err != nil {
+	value, canonicalJSON, err := legacy.Decode(line)
+	if err != nil {
 		return SnapshotRecord{}, fmt.Sprintf("decode line: %v", err), false
 	}
 
-	canonicalJSON, err := raw.MarshalJSON()
-	if err != nil {
-		return SnapshotRecord{}, fmt.Sprintf("canonicalize line: %v", err), false
-	}
-
 	return SnapshotRecord{
-		AnimeID:       raw.ID,
+		AnimeID:       value.ID,
 		CanonicalJSON: canonicalJSON,
 		Hash:          HashSnapshot(canonicalJSON),
 	}, "", true

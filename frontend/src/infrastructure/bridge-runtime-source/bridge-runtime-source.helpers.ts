@@ -28,6 +28,7 @@ import type { AnimeLegacyPullResult } from '../../shared/contracts/anime.types';
 import {
   BRIDGE_RUNTIME_SOURCE_STATE,
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
+  RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_PULL_RESULT,
 } from './bridge-runtime-source.constants';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
@@ -104,31 +105,31 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource {
       return invokeGoBinding('GetChapterDayCounts', GetChapterDayCounts, () => []);
     },
     adjustWatchedChapters(animeID, delta, base) {
-      return invokeGoBinding('AdjustWatchedChapters', () => AdjustWatchedChapters(animeID, delta, base), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('AdjustWatchedChapters', () => AdjustWatchedChapters(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     setAnimeState(animeID, estado, base) {
-      return invokeGoBinding('SetAnimeState', () => SetAnimeState(animeID, estado, base), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('SetAnimeState', () => SetAnimeState(animeID, estado, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     softDeleteAnime(animeID, base) {
-      return invokeGoBinding('SoftDeleteAnime', () => SoftDeleteAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('SoftDeleteAnime', () => SoftDeleteAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     restoreAnime(animeID, base) {
-      return invokeGoBinding('RestoreAnime', () => RestoreAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('RestoreAnime', () => RestoreAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     repeatAnime(animeID, base) {
-      return invokeGoBinding('RepeatAnime', () => RepeatAnime(animeID, base), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('RepeatAnime', () => RepeatAnime(animeID, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     openAnimePage(animeID) {
-      return invokeGoBinding('OpenAnimePage', () => OpenAnimePage(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('OpenAnimePage', () => OpenAnimePage(animeID), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     copyAnimePage(animeID) {
-      return invokeGoBinding('CopyAnimePage', () => CopyAnimePage(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('CopyAnimePage', () => CopyAnimePage(animeID), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     openAnimeFolder(animeID) {
-      return invokeGoBinding('OpenAnimeFolder', () => OpenAnimeFolder(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('OpenAnimeFolder', () => OpenAnimeFolder(animeID), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     copyAnimeFolder(animeID) {
-      return invokeGoBinding('CopyAnimeFolder', () => CopyAnimeFolder(animeID), () => ({ status: 'error', message: 'runtime unavailable' }));
+      return invokeGoBinding('CopyAnimeFolder', () => CopyAnimeFolder(animeID), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     getConnectedDevices() {
       return invokeGoBinding('GetConnectedDevices', GetConnectedDevices, () => []);

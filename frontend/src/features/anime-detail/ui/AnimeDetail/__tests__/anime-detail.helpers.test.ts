@@ -250,6 +250,9 @@ describe('toAnimeDetailViewModel', () => {
       subtitleLabel: 'No me gusto • Unknown',
       statusLabel: 'Active',
       statusColor: 'success',
+      modifiedAt: 0,
+      canRepeat: true,
+      canRestore: false,
       statTiles: [
         { label: 'Watched', value: '12' },
         { label: 'Total episodes', value: '28' },
@@ -301,6 +304,8 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel.subtitleLabel).toBe('Viendo • Película');
     expect(viewModel.statusLabel).toBe('Inactive');
     expect(viewModel.statusColor).toBe('danger');
+    expect(viewModel.canRepeat).toBe(false);
+    expect(viewModel.canRestore).toBe(true);
     expect(viewModel.statTiles).toEqual([
       { label: 'Watched', value: '12' },
       { label: 'Total episodes', value: 'No total episodes data' },
@@ -352,6 +357,23 @@ describe('toAnimeDetailViewModel', () => {
     const viewModel = toAnimeDetailViewModel({ ...baseDetail, primeravez: 0 });
 
     expect(viewModel.isFirstWatch).toBe(false);
+  });
+
+  it.each([
+    { name: 'finished inactive', estado: 1, activo: 0, canRepeat: true, canRestore: true },
+    { name: 'watching active', estado: 0, activo: 1, canRepeat: false, canRestore: false },
+    { name: 'finished active', estado: 2, activo: 1, canRepeat: true, canRestore: false },
+    { name: 'watching inactive', estado: 0, activo: 0, canRepeat: false, canRestore: true },
+  ])('derives Repeat and Restore visibility for $name', ({ estado, activo, canRepeat, canRestore }) => {
+    const viewModel = toAnimeDetailViewModel({ ...baseDetail, estado, activo });
+
+    expect(viewModel.canRepeat).toBe(canRepeat);
+    expect(viewModel.canRestore).toBe(canRestore);
+  });
+
+  it('preserves the displayed authoritative modified token including zero', () => {
+    expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 0 }).modifiedAt).toBe(0);
+    expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 9876 }).modifiedAt).toBe(9876);
   });
 
   it('orders repetitions most-recent-first regardless of the wire order', () => {
