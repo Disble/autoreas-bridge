@@ -121,12 +121,24 @@ func (a *App) configureTray(ctx context.Context) bool {
 	return true
 }
 
-func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
+func (a *App) prepareAnimeRuntime(ctx context.Context, animeDataPath string) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
 	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
-	selfEchoRegistry := a.newSelfEchoRegistry()
+	a.animeSelfEchoRegistry = a.newSelfEchoRegistry()
+	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
+		FilePath:         animeDataPath,
+		Bus:              a.eventBus,
+		Publisher:        a.eventBus,
+		Logger:           anime.NewStdLogger(),
+		SharedLogger:     a.sharedLogger,
+		SelfEchoRegistry: a.animeSelfEchoRegistry,
+	})
+	a.animeUpdateWriter.StartAsync(catchUpContext)
+}
+
+func (a *App) startAnimeObservers(animeDataPath string) {
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:     animeDataPath,
 		Parser:       a.newSnapshotParser(),
@@ -136,7 +148,7 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		SharedLogger: a.sharedLogger,
 		Ownership:    a.bridgeNativeRegistry,
 	})
-	a.animeStartupCoordinator.StartAsync(catchUpContext)
+	a.animeStartupCoordinator.StartAsync(a.catchUpContext)
 	a.animeLegacyPull = a.newLegacyPullService(anime.LegacyPullServiceConfig{
 		FilePath:     animeDataPath,
 		Parser:       a.newSnapshotParser(),
@@ -153,21 +165,12 @@ func (a *App) startAnimeRuntime(ctx context.Context, animeDataPath string) {
 		Publisher:        a.eventBus,
 		Logger:           anime.NewStdLogger(),
 		SharedLogger:     a.sharedLogger,
-		SelfEchoRegistry: selfEchoRegistry,
+		SelfEchoRegistry: a.animeSelfEchoRegistry,
 		RetryDelay:       100 * time.Millisecond,
 		Notifier:         a.notifier,
 		Ownership:        a.bridgeNativeRegistry,
 	})
-	a.animeRuntimeWatcher.StartAsync(catchUpContext)
-	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
-		FilePath:         animeDataPath,
-		Bus:              a.eventBus,
-		Publisher:        a.eventBus,
-		Logger:           anime.NewStdLogger(),
-		SharedLogger:     a.sharedLogger,
-		SelfEchoRegistry: selfEchoRegistry,
-	})
-	a.animeUpdateWriter.StartAsync(catchUpContext)
+	a.animeRuntimeWatcher.StartAsync(a.catchUpContext)
 }
 
 func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {

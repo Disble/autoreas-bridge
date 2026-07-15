@@ -2,15 +2,12 @@ package anime_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api"
-	"autoreas-bridge/internal/notification"
 )
 
 func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) {
@@ -19,23 +16,22 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
+	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(1000)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 	if writer.calls != 1 {
 		t.Fatalf("expected 1 RequestWrite call for fast-forward, got %d", writer.calls)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
-	}
-	if raw.NroCapVisto != 5 {
-		t.Fatalf("expected applied nrocapvisto 5, got %v", raw.NroCapVisto)
+	value := decodeAnimeDomain(t, writer.payload)
+	if value.Progress != 5 {
+		t.Fatalf("expected applied progress 5, got %v", value.Progress)
 	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
@@ -53,11 +49,13 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
+	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on divergence, got error: %v", err)
 	}
 	if writer.calls != 0 {
@@ -72,12 +70,9 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 		t.Fatalf("expected current snapshot ModifiedAt to remain 1000 (not clobbered), got %d", got.ModifiedAt)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal current snapshot: %v", err)
-	}
-	if raw.NroCapVisto != 2 {
-		t.Fatalf("expected current snapshot nrocapvisto to remain 2 (not clobbered), got %v", raw.NroCapVisto)
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
+	if value.Progress != 2 {
+		t.Fatalf("expected current snapshot progress to remain 2 (not clobbered), got %v", value.Progress)
 	}
 }
 
@@ -91,7 +86,7 @@ func TestWriteServicePatchAnimeNoOpsWhenDesiredValueAlreadyMatchesCurrent(t *tes
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected no-op success, got error: %v", err)
 	}
 	if writer.calls != 0 {
@@ -116,7 +111,7 @@ func TestWriteServicePatchAnimeCreatesWhenBaseNilAndRecordIsNew(t *testing.T) {
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(1)}
-	if err := service.PatchAnime(ctx, "anime-new", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-new", patch); err != nil {
 		t.Fatalf("expected create to succeed, got error: %v", err)
 	}
 	if writer.calls != 1 {
@@ -142,31 +137,28 @@ func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) 
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(9)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on old-client safe path, got error: %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected 0 RequestWrite calls on old-client safe path (must not silently overwrite), got %d", writer.calls)
+	if writer.calls != 1 {
+		t.Fatalf("expected 1 RequestWrite call on base-less compatibility path, got %d", writer.calls)
 	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
 	if err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}
-	if got.ModifiedAt != 1000 {
-		t.Fatalf("expected current snapshot ModifiedAt to remain 1000 (not clobbered), got %d", got.ModifiedAt)
+	if got.ModifiedAt <= 1000 {
+		t.Fatalf("expected current snapshot ModifiedAt to advance past 1000, got %d", got.ModifiedAt)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(got.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal current snapshot: %v", err)
-	}
-	if raw.NroCapVisto != 2 {
-		t.Fatalf("expected current snapshot nrocapvisto to remain 2 (not clobbered), got %v", raw.NroCapVisto)
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
+	if value.Progress != 9 {
+		t.Fatalf("expected current snapshot progress 9, got %v", value.Progress)
 	}
 }
 
-func TestWriteServicePatchAnimeDefaultDepsAreNilSafeNoOps(t *testing.T) {
+func TestWriteServicePatchAnimeExplicitStaleFailsWhenConflictCannotBeRecorded(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
@@ -176,8 +168,8 @@ func TestWriteServicePatchAnimeDefaultDepsAreNilSafeNoOps(t *testing.T) {
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(9), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
-		t.Fatalf("expected non-blocking success with nil deps, got error: %v", err)
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err == nil {
+		t.Fatal("expected explicit stale write to fail when conflict persistence is unavailable")
 	}
 }
 
@@ -195,7 +187,7 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on divergence, got error: %v", err)
 	}
 	if len(conflicts.inserted) != 1 {
@@ -210,30 +202,20 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 		t.Fatalf("expected local snapshot %s, got %s", currentJSON, gotRecord.LocalSnapshotJSON)
 	}
 
-	var remote domain.LegacyAnimeRaw
-	if err := json.Unmarshal(gotRecord.RemoteSnapshotJSON, &remote); err != nil {
-		t.Fatalf("unmarshal remote snapshot: %v", err)
-	}
-	if remote.NroCapVisto != 7 {
-		t.Fatalf("expected remote snapshot nrocapvisto 7, got %v", remote.NroCapVisto)
+	remote := decodeAnimeDomain(t, gotRecord.RemoteSnapshotJSON)
+	if remote.Progress != 7 {
+		t.Fatalf("expected remote snapshot progress 7, got %v", remote.Progress)
 	}
 
-	if len(notifier.notifications) != 1 {
-		t.Fatalf("expected 1 Notify call, got %d", len(notifier.notifications))
-	}
-	gotNotification := notifier.notifications[0]
-	if gotNotification.Source != "sync" {
-		t.Fatalf("expected notification source %q, got %q", "sync", gotNotification.Source)
-	}
-	if gotNotification.Level != notification.LevelWarning {
-		t.Fatalf("expected notification level %q, got %q", notification.LevelWarning, gotNotification.Level)
+	if len(notifier.notifications) != 0 {
+		t.Fatalf("expected UI result propagation, not a pre-commit notification, got %d", len(notifier.notifications))
 	}
 	if writer.calls != 0 {
 		t.Fatalf("expected 0 RequestWrite calls on divergence, got %d", writer.calls)
 	}
 }
 
-func TestWriteServicePatchAnimeIsolatesConflictWriterFailure(t *testing.T) {
+func TestWriteServicePatchAnimePropagatesConflictWriterFailure(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
@@ -246,8 +228,8 @@ func TestWriteServicePatchAnimeIsolatesConflictWriterFailure(t *testing.T) {
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
-		t.Fatalf("expected success despite conflict writer failure, got error: %v", err)
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err == nil {
+		t.Fatal("expected conflict persistence failure to propagate")
 	}
 }
 
@@ -264,7 +246,7 @@ func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected success despite notifier failure, got error: %v", err)
 	}
 	if len(conflicts.inserted) != 1 {
@@ -272,7 +254,7 @@ func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 	}
 }
 
-func TestWriteServicePatchAnimeObserveOnlyAppliesLastCallWinsWithoutConflict(t *testing.T) {
+func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
@@ -285,16 +267,83 @@ func TestWriteServicePatchAnimeObserveOnlyAppliesLastCallWinsWithoutConflict(t *
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier, OCCObserveOnly: true})
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
-	if err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected success in observe-only mode, got error: %v", err)
 	}
-	if writer.calls != 1 {
-		t.Fatalf("expected 1 RequestWrite call (last-call-wins) in observe-only mode, got %d", writer.calls)
+	if writer.calls != 0 {
+		t.Fatalf("expected no write for explicit stale base, got %d", writer.calls)
 	}
-	if len(conflicts.inserted) != 0 {
-		t.Fatalf("expected 0 InsertConflict calls in observe-only mode, got %d", len(conflicts.inserted))
+	if len(conflicts.inserted) != 1 {
+		t.Fatalf("expected 1 InsertConflict call for explicit stale base, got %d", len(conflicts.inserted))
 	}
 	if len(notifier.notifications) != 0 {
 		t.Fatalf("expected 0 Notify calls in observe-only mode, got %d", len(notifier.notifications))
+	}
+}
+
+func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	conflicts := &stubConflictWriter{}
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, OCCObserveOnly: true})
+	stale := int64(100)
+
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(9), Base: &stale})
+	if err != nil {
+		t.Fatalf("patch stale anime: %v", err)
+	}
+	if result.Outcome != anime.AnimePatchOutcomeConflict || result.ModifiedAt != 200 || result.ConflictID == "" {
+		t.Fatalf("unexpected stale result: %#v", result)
+	}
+	if len(conflicts.inserted) != 1 {
+		t.Fatalf("expected one stored conflict, got %d", len(conflicts.inserted))
+	}
+}
+
+func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	writer := &stubAnimeWriter{}
+	conflicts := &stubConflictWriter{}
+	service := anime.NewWriteService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
+
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(7)})
+	if err != nil {
+		t.Fatalf("patch base-less anime: %v", err)
+	}
+	if result.Outcome != anime.AnimePatchOutcomeApplied || result.ModifiedAt != 300 {
+		t.Fatalf("unexpected base-less result: %#v", result)
+	}
+	if writer.calls != 1 || len(conflicts.inserted) != 0 {
+		t.Fatalf("unexpected compatibility side effects: writes=%d conflicts=%d", writer.calls, len(conflicts.inserted))
+	}
+}
+
+func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	writer := &stubAnimeWriter{}
+	conflicts := &stubConflictWriter{}
+	service := anime.NewWriteService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
+	stale := int64(100)
+
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(2), PreserveLastWatched: true, Base: &stale})
+	if err != nil {
+		t.Fatalf("patch no-op anime: %v", err)
+	}
+	if result.Outcome != anime.AnimePatchOutcomeNoOp || result.ModifiedAt != 200 {
+		t.Fatalf("unexpected no-op result: %#v", result)
+	}
+	if writer.calls != 0 || len(conflicts.inserted) != 0 {
+		t.Fatalf("unexpected no-op side effects: writes=%d conflicts=%d", writer.calls, len(conflicts.inserted))
 	}
 }

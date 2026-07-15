@@ -47,6 +47,7 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 			changeType = events.AnimeChangeTypeUpdate
 		}
 		if err := r.store.InsertPending(ctx, ChangelogEntry{
+			SourceEventID: changed.EventID,
 			AnimeID:       changed.AnimeID,
 			ChangeType:    changeType,
 			ChangedFields: append([]string(nil), changed.ChangedFields...),

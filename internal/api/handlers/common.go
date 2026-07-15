@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -33,6 +35,27 @@ type ListDevicesFunc func(ctx context.Context) ([]DeviceInfo, error)
 type RevokeDeviceFunc func(ctx context.Context, id string) error
 type ListConflictsFunc func(ctx context.Context) ([]ConflictInfo, error)
 type ResolveConflictFunc func(ctx context.Context, id string) error
+
+var ErrAnimePatchConflict = errors.New("anime patch conflict")
+
+// AdaptAnimePatchWriter keeps the established HTTP/mobile error-only seam while
+// refusing to downgrade a semantic conflict into transport success.
+func AdaptAnimePatchWriter(writer contracts.AnimeWriteService) PatchAnimeFunc {
+	return func(ctx context.Context, id string, patch AnimePatch) error {
+		result, err := writer.PatchAnime(ctx, id, patch)
+		if err != nil {
+			return err
+		}
+		switch result.Outcome {
+		case contracts.AnimePatchOutcomeApplied, contracts.AnimePatchOutcomeNoOp:
+			return nil
+		case contracts.AnimePatchOutcomeConflict:
+			return fmt.Errorf("%w: anime=%s modifiedAt=%d conflictId=%s", ErrAnimePatchConflict, result.AnimeID, result.ModifiedAt, result.ConflictID)
+		default:
+			return fmt.Errorf("unexpected anime patch outcome %q", result.Outcome)
+		}
+	}
+}
 
 // SeasonRatingOutcome is the transport-neutral result of ingesting a season
 // rating, mapped to an HTTP status by the handler. The composition root owns the

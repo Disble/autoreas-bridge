@@ -19,9 +19,13 @@ func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry
 	entry = normalizePendingChangelogEntry(entry)
 
 	if _, err := s.execContext(ctx, `
-		INSERT INTO changelog (anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, entry.AnimeID, entry.ChangeType, marshalChangedFields(entry.ChangedFields), string(entry.SnapshotJSON), entry.Status, entry.ChangedAtMs); err != nil {
+		INSERT INTO changelog (
+			anime_id, change_type, changed_fields_json, snapshot_json,
+			source_event_id, status, changed_at_ms
+		)
+		VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?)
+		ON CONFLICT(source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING
+	`, entry.AnimeID, entry.ChangeType, marshalChangedFields(entry.ChangedFields), string(entry.SnapshotJSON), entry.SourceEventID, entry.Status, entry.ChangedAtMs); err != nil {
 		return fmt.Errorf("insert changelog pending for %q: %w", entry.AnimeID, err)
 	}
 
@@ -30,7 +34,7 @@ func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry
 
 func (s *ChangelogStore) ListSinceTimestamp(ctx context.Context, sinceMs int64) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
-		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
+		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
 		FROM changelog
 		WHERE changed_at_ms > ?
 		ORDER BY id ASC
@@ -44,7 +48,7 @@ func (s *ChangelogStore) ListSinceTimestamp(ctx context.Context, sinceMs int64) 
 
 func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
-		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
+		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
 		FROM changelog
 		WHERE id > ?
 		ORDER BY id ASC
@@ -58,7 +62,7 @@ func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]Chang
 
 func (s *ChangelogStore) ListPending(ctx context.Context) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
-		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
+		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
 		FROM changelog
 		WHERE status = ?
 		ORDER BY changed_at_ms DESC, id DESC
@@ -251,7 +255,8 @@ func scanChangelogEntries(rows *sql.Rows) ([]ChangelogEntry, error) {
 		var entry ChangelogEntry
 		var changedFieldsJSON string
 		var snapshotJSON sql.NullString
-		if err := rows.Scan(&entry.ID, &entry.AnimeID, &entry.ChangeType, &changedFieldsJSON, &snapshotJSON, &entry.Status, &entry.ChangedAtMs); err != nil {
+		var sourceEventID sql.NullString
+		if err := rows.Scan(&entry.ID, &entry.AnimeID, &entry.ChangeType, &changedFieldsJSON, &snapshotJSON, &sourceEventID, &entry.Status, &entry.ChangedAtMs); err != nil {
 			return nil, fmt.Errorf("scan changelog entry: %w", err)
 		}
 		if err := json.Unmarshal([]byte(changedFieldsJSON), &entry.ChangedFields); err != nil {
@@ -259,6 +264,9 @@ func scanChangelogEntries(rows *sql.Rows) ([]ChangelogEntry, error) {
 		}
 		if snapshotJSON.Valid {
 			entry.SnapshotJSON = []byte(snapshotJSON.String)
+		}
+		if sourceEventID.Valid {
+			entry.SourceEventID = sourceEventID.String
 		}
 		entries = append(entries, entry)
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"autoreas-bridge/internal/activity"
@@ -10,6 +11,15 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
+
+type stubActivityOutcomeWriter struct {
+	result contracts.AnimePatchResult
+	err    error
+}
+
+func (s stubActivityOutcomeWriter) PatchAnime(context.Context, string, contracts.AnimePatch) (contracts.AnimePatchResult, error) {
+	return s.result, s.err
+}
 
 func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	ctx := context.Background()
@@ -29,7 +39,7 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 
 	progress := 2.0
 	base := int64(1000)
-	if err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 
@@ -64,7 +74,7 @@ func TestActivityAnimeWriteServiceRecordsMobileSoftDelete(t *testing.T) {
 	active := false
 	deletedAt := int64(1710000000123)
 	base := int64(1000)
-	if err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{
 		Activo:              &active,
 		FechaEliminacion:    &deletedAt,
 		PreserveLastWatched: true,
@@ -103,7 +113,7 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 
 	repeatAt := int64(1710000000123)
 	base := int64(1000)
-	if err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{
 		RepeatAt:            &repeatAt,
 		PreserveLastWatched: true,
 		Base:                &base,
@@ -134,5 +144,59 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 	}
 	if after.NroCapVisto != 0 || after.Estado != 0 || after.Activo != 1 {
 		t.Fatalf("expected repeat after snapshot to reset cycle, got %#v", after)
+	}
+}
+
+func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
+	writeErr := errors.New("persistence failed")
+	tests := []struct {
+		name    string
+		result  contracts.AnimePatchResult
+		err     error
+		wantErr error
+	}{
+		{name: "no op", result: contracts.AnimePatchResult{AnimeID: "anime-1", Outcome: contracts.AnimePatchOutcomeNoOp, ModifiedAt: 1000}},
+		{name: "conflict", result: contracts.AnimePatchResult{AnimeID: "anime-1", Outcome: contracts.AnimePatchOutcomeConflict, ModifiedAt: 1000, ConflictID: "conflict-9"}},
+		{name: "error", err: writeErr, wantErr: writeErr},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openRuntimeBridgeDB(t)
+			store := bridgeSync.NewAnimeSnapshotStore(db)
+			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+			service := activityAnimeWriteService{
+				query: anime.NewQueryService(store), writer: stubActivityOutcomeWriter{result: test.result, err: test.err},
+				recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))},
+				source:   anime.ActivitySourceMobile, now: func() int64 { return 1710000000123 },
+			}
+			progress := 2.0
+
+			got, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress})
+			if test.wantErr != nil {
+				if !errors.Is(err, test.wantErr) {
+					t.Fatalf("PatchAnime error = %v, want %v", err, test.wantErr)
+				}
+				if got != (contracts.AnimePatchResult{}) {
+					t.Fatalf("failure result = %#v, want zero value", got)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("PatchAnime: %v", err)
+				}
+				if got != test.result {
+					t.Fatalf("result = %#v, want %#v", got, test.result)
+				}
+			}
+
+			records, listErr := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
+			if listErr != nil {
+				t.Fatalf("list activity rows: %v", listErr)
+			}
+			if len(records) != 0 {
+				t.Fatalf("outcome %q recorded activity: %#v", test.result.Outcome, records)
+			}
+		})
 	}
 }

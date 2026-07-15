@@ -1,4 +1,6 @@
-import type { SyntheticEvent } from 'react';
+import type { Dispatch, SetStateAction, SyntheticEvent } from 'react';
+import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
 
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
@@ -50,6 +52,9 @@ export interface AnimeDetailStatTile {
 export interface AnimeDetailViewModel {
   readonly id: string;
   readonly nombre: string;
+  readonly modifiedAt: number;
+  readonly canRepeat: boolean;
+  readonly canRestore: boolean;
   readonly portadaUrl?: string;
   readonly estadoLabel: string;
   readonly tipoLabel: string;
@@ -75,6 +80,79 @@ export interface AnimeDetailViewModel {
 /** Discriminates the three states the shared detail can render. */
 export type AnimeDetailLoadState = 'loading' | 'loaded' | 'not-found';
 
+/** Destructive anime command selected by the user for explicit confirmation. */
+export type AnimeDetailAction = 'repeat' | 'restore';
+
+/** HeroUI Alert status used for mutation outcome feedback. */
+export type AnimeDetailFeedbackStatus = 'accent' | 'success' | 'warning' | 'danger';
+
+/** Display-ready confirmation copy for the selected mutation. */
+export interface AnimeDetailConfirmationViewModel {
+  readonly action: AnimeDetailAction;
+  readonly heading: string;
+  readonly description: string;
+  readonly confirmLabel: string;
+}
+
+/** Display-ready feedback for an authoritative mutation result. */
+export interface AnimeDetailFeedback {
+  readonly status: AnimeDetailFeedbackStatus;
+  readonly title: string;
+  readonly description: string;
+}
+
+/** Pure interpretation of a mutation result, including whether Detail must refresh. */
+export interface AnimeDetailMutationResolution {
+  readonly feedback: AnimeDetailFeedback;
+  readonly shouldRefetch: boolean;
+}
+
+/** Cohesive hook-owned state for one pending mutation and its feedback. */
+export interface AnimeDetailMutationState {
+  readonly animeId: string;
+  readonly routeGeneration: number;
+  readonly confirmationAction: AnimeDetailAction | undefined;
+  readonly feedback: AnimeDetailFeedback | undefined;
+  readonly isMutating: boolean;
+}
+
+/** Loaded raw detail keyed by route id so prop changes render loading without an effect reset. */
+export interface AnimeDetailLoadSnapshot {
+  readonly animeId: string;
+  readonly detail: AnimeDetailDto | null;
+}
+
+/** Inputs for the mutation-focused hook extracted from the Detail query hook. */
+export interface AnimeDetailMutationHookProps {
+  readonly animeId: string;
+  readonly detailSnapshot: AnimeDetailLoadSnapshot | undefined;
+  readonly source: BridgeRuntimeSource;
+  readonly setDetailSnapshot: Dispatch<SetStateAction<AnimeDetailLoadSnapshot | undefined>>;
+}
+
+/** Route-visit identity and guard used by asynchronous AnimeDetail mutations. */
+export interface AnimeDetailMutationVisitController {
+  readonly routeGeneration: number;
+  readonly isActive: (animeId: string, routeGeneration: number) => boolean;
+}
+
+/** Mutation-only state and callbacks composed into the public AnimeDetail hook. */
+export interface AnimeDetailMutationController {
+  readonly confirmation: AnimeDetailConfirmationViewModel | undefined;
+  readonly feedback: AnimeDetailFeedback | undefined;
+  readonly isMutating: boolean;
+  readonly onRequestRepeat: () => void;
+  readonly onRequestRestore: () => void;
+  readonly onCancelAction: () => void;
+  readonly onConfirmationOpenChange: (isOpen: boolean) => void;
+  readonly onConfirmAction: () => Promise<void>;
+}
+
+/** Props for the dumb action buttons, feedback alert, and confirmation modal. */
+export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationController {
+  readonly detail: AnimeDetailViewModel;
+}
+
 /** State returned by the `useAnimeDetail` hook. */
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
@@ -83,4 +161,12 @@ export interface AnimeDetailState {
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;
+  readonly confirmation: AnimeDetailConfirmationViewModel | undefined;
+  readonly feedback: AnimeDetailFeedback | undefined;
+  readonly isMutating: boolean;
+  readonly onRequestRepeat: () => void;
+  readonly onRequestRestore: () => void;
+  readonly onCancelAction: () => void;
+  readonly onConfirmationOpenChange: (isOpen: boolean) => void;
+  readonly onConfirmAction: () => Promise<void>;
 }

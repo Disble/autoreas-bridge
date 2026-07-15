@@ -1,0 +1,76 @@
+# Anime Create Canonical Specification
+
+Change: `2026-07-14-sdd-49-anime-repeat-restore-edit`
+Capability: `anime-create-canonical`
+
+## Purpose
+
+Bridge creates MUST produce Legacy-compatible records without fabricating
+metadata and MUST return the authoritative version token.
+
+## Requirements
+
+### Requirement: Canonical structural state
+
+A create MUST provide `_id`, `nombre`, `nrocapvisto`, `estado`, `activo`,
+`primeravez`, `fechaCreacion`, at least one valid `dias` entry, and `pagina`.
+The bridge MUST reject the create before append when those fields cannot be
+constructed.
+
+#### Scenario: Structurally invalid create is rejected
+
+- **GIVEN** a create request cannot produce a valid id or schedule entry
+- **WHEN** canonical validation runs
+- **THEN** the bridge returns an error and appends no `animes.dat` line
+
+### Requirement: Honest nullable metadata
+
+`totalcap` and `duracion` MUST be explicitly serialized and MAY be null when an
+authoritative value is unknown. `portada` MUST be a Legacy `{type,path}` object;
+when unavailable it MUST equal `{ "type": "url", "path": "" }`. The bridge
+MUST NOT infer announced `totalcap` from the latest aired episode.
+
+#### Scenario: Authoritative announced count is written
+
+- **GIVEN** metadata provides an authoritative announced total of 24
+- **WHEN** the anime is created
+- **THEN** `totalcap` is serialized as 24
+
+#### Scenario: Unknown metadata stays honest
+
+- **GIVEN** announced total and duration are unavailable
+- **WHEN** the anime is created
+- **THEN** `totalcap` and `duracion` are serialized as null
+- **AND** `portada` uses the documented empty-path sentinel
+- **AND** no latest-aired value is substituted
+
+### Requirement: Enrichment failure is explicit
+
+Metadata lookup MAY degrade to documented null/sentinel values. A source,
+gateway, ownership-registration, or persistence failure MUST return an error and
+MUST NOT claim the create succeeded.
+
+#### Scenario: Persistence fails
+
+- **GIVEN** a canonical record has been built
+- **WHEN** the gateway cannot persist it
+- **THEN** the caller receives an error and no success result
+
+### Requirement: Register-first ownership and result
+
+The bridge MUST register the id as Bridge-native before append and MUST fail
+closed if registration fails. A successful create MUST return the id and its
+current `modified_at` token.
+
+#### Scenario: Ownership registration fails
+
+- **GIVEN** a valid create request
+- **WHEN** Bridge-native registration fails
+- **THEN** no Legacy write occurs and the create returns an error
+
+#### Scenario: Create completes
+
+- **GIVEN** registration and persistence succeed
+- **WHEN** the create returns
+- **THEN** the result contains the id and current `modified_at`
+- **AND** reconcile recognizes the id as Bridge-native

@@ -62,14 +62,22 @@ scope").
   the bridge MUST treat the write as a legitimate create — apply it, NOT
   a conflict.
 - **Backward-compat safe path (unverifiable base on an existing
-  record).** When `base == null` or the field is absent on a write for
-  an anime the bridge ALREADY has a record/`modified_at` for (an old
-  client that does not send `base`), the bridge MUST treat the base as
-  unverifiable and take the safe path: it MUST NOT silently fast-forward
-  apply over a value it cannot prove the client observed. It MUST record
-  a conflict per the divergence rule above (preserving both values) and
-  notify, UNLESS the no-op guard already applies (incoming value already
-  equals current value).
+  record).** When `base == null` or is absent for an existing anime, a
+  legacy/mobile write MUST temporarily use the staged observe-only
+  compatibility path. If the desired value differs, the bridge MUST apply it
+  last-write-wins, advance `modified_at`, and return the existing successful
+  mobile/HTTP response. It MUST NOT insert a conflict or notify as though OCC
+  had been enforced; observability MAY report the would-be divergence. If the
+  desired value already equals current state, the bridge MUST retain the no-op
+  guard and MUST NOT write, stamp, record, or notify. This exception MUST apply
+  only when the base is absent. Bridge Repeat/Restore MUST always send an
+  explicit base. When that base is stale and the desired state differs, the
+  bridge MUST NOT apply it, MUST record the conflict, MUST preserve both states,
+  and MUST return the current token and conflict outcome.
+
+  Previously, a base-less write for an existing record took the enforced safe
+  path: it did not apply a differing value, recorded a conflict, and notified,
+  unless the no-op guard applied.
 - **Non-blocking guarantee across all outcomes.** None of the above
   paths (fast-forward, no-op, divergence, create, backward-compat safe
   path) MUST return an HTTP error or otherwise block/reject the mobile
@@ -134,21 +142,26 @@ scope").
 - **And** no conflict row is recorded
 
 ### Scenario: Old client without base on an existing record takes the safe path
-- **Given** an anime with current `modified_at = T1` and `NroCapVisto = 12`
-- **When** an old-client mobile patch arrives with `base` absent and
-  `NroCapVisto = 13` (a value different from current)
-- **Then** the bridge does NOT silently apply `NroCapVisto = 13` over the
-  current value
-- **And** the bridge accepts the write without error to mobile
-- **And** a conflict row is inserted holding both values
-- **And** `Notify(Source: "sync", Level: warning)` is called
+
+- **GIVEN** an anime with current `modified_at = T1` and `NroCapVisto = 12`
+- **WHEN** an old-client mobile patch arrives with `base` absent and `NroCapVisto = 13`
+- **THEN** the bridge applies `NroCapVisto = 13` and advances `modified_at`
+- **AND** it returns the existing successful response without a conflict row
+- **AND** no conflict notification is sent
 
 ### Scenario: Old client without base sending an already-current value is a no-op
-- **Given** an anime with current `modified_at = T1` and `NroCapVisto = 12`
-- **When** an old-client mobile patch arrives with `base` absent and
-  `NroCapVisto = 12` (same as current)
-- **Then** the bridge treats the write as a successful no-op
-- **And** no conflict row is recorded
+
+- **GIVEN** an anime with current `modified_at = T1` and `NroCapVisto = 12`
+- **WHEN** an old-client mobile patch arrives with `base` absent and `NroCapVisto = 12`
+- **THEN** the bridge treats the write as a successful no-op
+- **AND** no conflict row is recorded
+
+### Scenario: Explicit stale Bridge action remains enforced
+
+- **GIVEN** AnimeDetail sends Repeat or Restore with stale base T1 while current is T2
+- **WHEN** the desired state differs from the current state
+- **THEN** the bridge leaves the canonical anime and `modified_at = T2` unchanged
+- **AND** it records both states and returns `conflict`, T2, and the conflict identity
 
 ### Scenario: Notifier failure does not block or fail the divergent write
 - **Given** a divergence per the "stale write diverges" scenario above,

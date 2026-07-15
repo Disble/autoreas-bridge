@@ -25,9 +25,15 @@ const (
 			change_type TEXT NOT NULL,
 			changed_fields_json TEXT NOT NULL,
 			snapshot_json TEXT,
+			source_event_id TEXT,
 			status TEXT NOT NULL,
 			changed_at_ms INTEGER NOT NULL
 		)`
+
+	changelogSourceEventIndexDDL = `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_changelog_source_event
+		ON changelog (source_event_id)
+		WHERE source_event_id IS NOT NULL`
 
 	conflictsDDL = `
 		CREATE TABLE IF NOT EXISTS conflicts (
@@ -73,6 +79,50 @@ const (
 		CREATE TABLE IF NOT EXISTS bridge_owned_animes (
 			anime_id TEXT PRIMARY KEY
 		)`
+
+	animeWriteOperationsDDL = `
+		CREATE TABLE IF NOT EXISTS anime_write_operations (
+			operation_id TEXT PRIMARY KEY,
+			anime_id TEXT NOT NULL,
+			base_modified_at INTEGER NOT NULL,
+			intended_modified_at INTEGER NOT NULL,
+			base_snapshot_json TEXT NOT NULL,
+			base_hash TEXT NOT NULL,
+			desired_snapshot_json TEXT NOT NULL,
+			desired_hash TEXT NOT NULL,
+			status TEXT NOT NULL CHECK (status IN ('staged', 'committed', 'aborted', 'superseded')),
+			created_at_ms INTEGER NOT NULL,
+			committed_at_ms INTEGER
+		)`
+
+	animeWriteOperationsAnimeTokenIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_anime_write_operations_anime_token
+		ON anime_write_operations (anime_id, intended_modified_at, status)`
+
+	animeWriteOperationsRecoveryIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_anime_write_operations_recovery
+		ON anime_write_operations (status, created_at_ms, operation_id)`
+
+	animeWriteOperationsLiveReservationIndexDDL = `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_write_operations_live_reservation
+		ON anime_write_operations (anime_id)
+		WHERE status = 'staged'`
+
+	animeChangedOutboxDDL = `
+		CREATE TABLE IF NOT EXISTS anime_changed_outbox (
+			event_id TEXT PRIMARY KEY,
+			operation_id TEXT NOT NULL UNIQUE,
+			anime_id TEXT NOT NULL,
+			payload_json TEXT NOT NULL,
+			status TEXT NOT NULL CHECK (status IN ('pending', 'published')),
+			created_at_ms INTEGER NOT NULL,
+			published_at_ms INTEGER,
+			FOREIGN KEY (operation_id) REFERENCES anime_write_operations(operation_id)
+		)`
+
+	animeChangedOutboxPendingIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
+		ON anime_changed_outbox (status, created_at_ms, event_id)`
 )
 
 // schemaTables returns the TableSchema descriptors for all sync-owned bridge tables.
@@ -120,8 +170,14 @@ func schemaTables() []persistence.TableSchema {
 			// (rename+copy+drop transaction, which additive ALTER cannot express).
 			Name:      "changelog",
 			CreateDDL: changelogDDL,
+			Indexes:   []string{changelogSourceEventIndexDDL},
 			Migrate: func(db *sql.DB, cols []string) error {
 				if isCurrentChangelogSchema(cols) {
+					if !containsSchemaColumn(cols, "source_event_id") {
+						if _, err := db.Exec(`ALTER TABLE changelog ADD COLUMN source_event_id TEXT`); err != nil {
+							return fmt.Errorf("add changelog source event identity: %w", err)
+						}
+					}
 					return nil
 				}
 				if isLegacyPayloadOnlyChangelogSchema(cols) {
@@ -151,7 +207,33 @@ func schemaTables() []persistence.TableSchema {
 			Name:      "bridge_owned_animes",
 			CreateDDL: bridgeOwnedAnimesDDL,
 		},
+		{
+			// anime_write_operations retains staged and committed pre-write
+			// evidence for recovery and SDD-50. SDD-49 intentionally defines no
+			// pruning path for these rows.
+			Name:      "anime_write_operations",
+			CreateDDL: animeWriteOperationsDDL,
+			Indexes: []string{
+				animeWriteOperationsAnimeTokenIndexDDL,
+				animeWriteOperationsRecoveryIndexDDL,
+				animeWriteOperationsLiveReservationIndexDDL,
+			},
+		},
+		{
+			Name:      "anime_changed_outbox",
+			CreateDDL: animeChangedOutboxDDL,
+			Indexes:   []string{animeChangedOutboxPendingIndexDDL},
+		},
 	}
+}
+
+func containsSchemaColumn(columns []string, want string) bool {
+	for _, column := range columns {
+		if column == want {
+			return true
+		}
+	}
+	return false
 }
 
 func isLegacyAnimeSnapshotsSchema(columns []string) bool {

@@ -3,13 +3,12 @@ package anime
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"sync"
 	"testing"
 	"time"
 
-	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -132,17 +131,12 @@ func (s *stubBridgeNativeRegistry) registeredIDs() []string {
 func snapshotRecordFromPayload(t *testing.T, payload string) SnapshotRecord {
 	t.Helper()
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal([]byte(payload), &raw); err != nil {
-		t.Fatalf("unmarshal payload: %v", err)
-	}
-
-	canonical, err := raw.MarshalJSON()
+	value, canonical, err := legacy.Decode([]byte(payload))
 	if err != nil {
-		t.Fatalf("marshal canonical payload: %v", err)
+		t.Fatalf("decode canonical payload: %v", err)
 	}
 
-	return SnapshotRecord{AnimeID: raw.ID, CanonicalJSON: canonical, Hash: HashSnapshot(canonical)}
+	return SnapshotRecord{AnimeID: value.ID, CanonicalJSON: canonical, Hash: HashSnapshot(canonical)}
 }
 
 func newStaticReader(contents string) io.Reader {

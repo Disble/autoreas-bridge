@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,17 +9,13 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/domain"
-	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/schedule"
-	"autoreas-bridge/internal/season"
-	seasondomain "autoreas-bridge/internal/season/domain"
-	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 const seasonCheckDailyTimeHHMM = "21:00" // local time; the user runs in GMT-5.
@@ -55,132 +50,6 @@ func (p seasonAvailabilityProbe) AvailableChapters(ctx context.Context, pageURL 
 	return listing.LatestEpisode, nil
 }
 
-// animeSnapshotLister is the narrow read seam the gateway needs to find animes
-// by their raw pagina (the query read-models deliberately hide the URL).
-type animeSnapshotLister interface {
-	ListSnapshots(ctx context.Context) (map[string]anime.SnapshotRecord, error)
-}
-
-// seasonAnimeGateway adapts the anime WriteService + snapshot store to
-// season.AnimeGateway at the composition root, so the season context never
-// imports the anime context.
-type seasonAnimeGateway struct {
-	writer    *anime.WriteService
-	snapshots animeSnapshotLister
-}
-
-func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCreateInput) (string, error) {
-	return g.writer.CreateAnime(ctx, contracts.AnimeCreate{
-		Nombre:  in.Nombre,
-		Pagina:  in.Pagina,
-		Section: in.Section,
-		Orden:   g.nextOrden(ctx, in.Section),
-		Carpeta: in.Carpeta,
-	})
-}
-
-func (g seasonAnimeGateway) MoveToSection(ctx context.Context, animeID, section string) error {
-	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
-	// PreserveLastWatched keeps a section change from stamping fechaUltCapVisto.
-	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
-		Dias:                []string{section},
-		PreserveLastWatched: true,
-	})
-}
-
-func (g seasonAnimeGateway) SetSelection(ctx context.Context, animeID string, estado int, activo bool) error {
-	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
-	// PreserveLastWatched keeps a selection write from stamping fechaUltCapVisto.
-	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
-		Estado:              &estado,
-		Activo:              &activo,
-		PreserveLastWatched: true,
-	})
-}
-
-func (g seasonAnimeGateway) SetAnimeSchedule(ctx context.Context, animeID string, dias []seasondomain.Placement) error {
-	days := make([]contracts.MobileAnimeDay, 0, len(dias))
-	for _, d := range dias {
-		days = append(days, contracts.MobileAnimeDay{Dia: d.Dia, Orden: d.Orden})
-	}
-	// base 0 relies on the app's staged-rollout OCCObserveOnly=true (last-call-wins);
-	// PreserveLastWatched keeps a schedule write from stamping fechaUltCapVisto.
-	return g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
-		DiasOrdered:         days,
-		PreserveLastWatched: true,
-	})
-}
-
-func (g seasonAnimeGateway) CurrentPlacements(ctx context.Context, animeIDs []string) (map[string][]seasondomain.Placement, error) {
-	records, err := g.snapshots.ListSnapshots(ctx)
-	if err != nil {
-		return nil, err
-	}
-	want := make(map[string]struct{}, len(animeIDs))
-	for _, id := range animeIDs {
-		want[id] = struct{}{}
-	}
-	out := map[string][]seasondomain.Placement{}
-	for id := range want {
-		rec, ok := records[id]
-		if !ok {
-			continue
-		}
-		var raw domain.LegacyAnimeRaw
-		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
-			continue
-		}
-		var placements []seasondomain.Placement
-		for _, d := range raw.Dias.Values() {
-			placements = append(placements, seasondomain.Placement{Dia: d.Dia, Orden: int(d.Orden)})
-		}
-		out[id] = placements
-	}
-	return out, nil
-}
-
-func (g seasonAnimeGateway) FindActiveByPagina(ctx context.Context, pageURL string) (string, bool, error) {
-	records, err := g.snapshots.ListSnapshots(ctx)
-	if err != nil {
-		return "", false, err
-	}
-	for id, rec := range records {
-		var raw domain.LegacyAnimeRaw
-		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
-			continue
-		}
-		if raw.Activo.TriState() != domain.TriStateTrue {
-			continue
-		}
-		if p := raw.Pagina.String(); p != nil && *p == pageURL {
-			return id, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-// nextOrden returns the next free orden at the end of section, scanning every
-// anime's dias. Degrades to 1 on a read error.
-func (g seasonAnimeGateway) nextOrden(ctx context.Context, section string) int {
-	records, err := g.snapshots.ListSnapshots(ctx)
-	if err != nil {
-		return 1
-	}
-	max := 0
-	for _, rec := range records {
-		var raw domain.LegacyAnimeRaw
-		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
-			continue
-		}
-		for _, d := range raw.Dias.Values() {
-			if d.Dia == section && int(d.Orden) > max {
-				max = int(d.Orden)
-			}
-		}
-	}
-	return max + 1
-}
-
 // seasonScheduleStore is a fixed schedule.ConfigStore for the daily availability
 // job: it runs every day at 21:00 local (SDD-43). Run bookkeeping is kept in
 // memory (the season job needs no persisted schedule config yet).
@@ -212,28 +81,42 @@ func (s *seasonScheduleStore) MarkScheduleRun(_ context.Context, lastAtMs int64,
 	return nil
 }
 
-// animeSectionsByID returns each anime's current section (first dias entry)
+func (a *App) readRecordLister() (animeReadRecordLister, bool) {
+	query, ok := a.animeQuery.(animeReadRecordLister)
+	return query, ok
+}
+
+// animeSectionsByID returns each anime's current section (first days entry)
 // keyed by anime id, so the season board can show which created animes are in
 // Sin ver vs Ver hoy vs Visto. Empty map on any read error.
 func (a *App) animeSectionsByID(ctx context.Context) map[string]string {
 	out := map[string]string{}
-	if a.bridgeDB == nil {
+	query, ok := a.readRecordLister()
+	if !ok {
 		return out
 	}
-	records, err := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB).ListSnapshots(ctx)
+	records, err := query.ListReadRecords(ctx)
 	if err != nil {
 		return out
 	}
-	for id, rec := range records {
-		var raw domain.LegacyAnimeRaw
-		if json.Unmarshal(rec.CanonicalJSON, &raw) != nil {
-			continue
-		}
-		if days := raw.Dias.Values(); len(days) > 0 {
-			out[id] = days[0].Dia
+	for _, record := range records {
+		if days := record.Value.Days; len(days) > 0 {
+			out[record.Value.ID] = days[0].Day
 		}
 	}
 	return out
+}
+
+func animeWatchedState(payload []byte) (string, float64, bool) {
+	value, _, err := legacy.Decode(payload)
+	if err != nil {
+		return "", 0, false
+	}
+	section := ""
+	if len(value.Days) > 0 {
+		section = value.Days[0].Day
+	}
+	return section, value.Progress, true
 }
 
 // startSeasonAvailability wires the probe + gateway into the season service and
@@ -243,11 +126,20 @@ func (a *App) startSeasonAvailability(ctx context.Context) {
 	if a.seasonService == nil || a.animeWrite == nil || a.bridgeDB == nil {
 		return
 	}
+	readQuery, ok := a.readRecordLister()
+	if !ok {
+		return
+	}
 	registry := download.NewStaticRegistry()
 	registry.Register(jkanime.New(nil))
+	probe := seasonAvailabilityProbe{registry: registry}
+	a.animeCreate = anime.NewCreateService(a.animeWrite, seasonAnimeMetadataProvider{registry: registry})
 	a.seasonService.SetAvailabilityDeps(
-		seasonAvailabilityProbe{registry: registry},
-		seasonAnimeGateway{writer: a.animeWrite, snapshots: bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)},
+		probe,
+		seasonAnimeGateway{
+			writer: a.animeWrite, creator: a.animeCreate,
+			records: readQuery,
+		},
 	)
 
 	a.seasonScheduler = schedule.NewScheduler(schedule.Deps{
@@ -272,15 +164,11 @@ func (a *App) subscribeSeasonWatched(ctx context.Context) {
 		if !ok || a.seasonService == nil {
 			return
 		}
-		var raw domain.LegacyAnimeRaw
-		if json.Unmarshal(changed.Payload, &raw) != nil {
+		section, progress, found := animeWatchedState(changed.Payload)
+		if !found {
 			return
 		}
-		section := ""
-		if days := raw.Dias.Values(); len(days) > 0 {
-			section = days[0].Dia
-		}
-		_ = a.seasonService.HandleAnimeWatched(ctx, changed.AnimeID, section, raw.NroCapVisto)
+		_ = a.seasonService.HandleAnimeWatched(ctx, changed.AnimeID, section, progress)
 	})
 }
 
@@ -329,11 +217,19 @@ func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 		return SendToVerHoyDTO{Status: "chapter service unavailable"}
 	}
 	for _, id := range animeIDs {
-		if _, err := a.chapterService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
+		result, err := a.chapterService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
 			AnimeID: id,
 			Dias:    []string{"Ver hoy"},
-		}); err != nil {
+		})
+		if err != nil {
 			return SendToVerHoyDTO{Status: err.Error()}
+		}
+		switch result.Outcome {
+		case anime.AnimePatchOutcomeApplied, anime.AnimePatchOutcomeNoOp:
+		case anime.AnimePatchOutcomeConflict:
+			return SendToVerHoyDTO{Status: fmt.Sprintf("anime mutation conflict: anime=%s modifiedAt=%d conflictId=%s", result.AnimeID, result.ModifiedAt, result.ConflictID)}
+		default:
+			return SendToVerHoyDTO{Status: fmt.Sprintf("unexpected anime mutation outcome %q", result.Outcome)}
 		}
 	}
 	a.broadcastSeasonChanged()

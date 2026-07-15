@@ -1,3 +1,4 @@
+import type { contracts } from '../../../wailsjs/go/models';
 import type { AnimeLegacyPullResult } from '../../shared/contracts/anime.types';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
 
@@ -11,6 +12,13 @@ export const RUNTIME_UNAVAILABLE_PULL_RESULT: AnimeLegacyPullResult = {
   status: 'error',
   updatedCount: 0,
   warningCount: 0,
+};
+
+/** Fail-closed result matching the generated Wails command-result contract. */
+export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.ChapterCommandResult = {
+  message: 'runtime unavailable',
+  modifiedAt: 0,
+  status: 'error',
 };
 
 /** Module-local singleton container for the shared bridge runtime source. */

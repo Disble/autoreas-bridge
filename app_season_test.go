@@ -6,11 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
 )
+
+type appliedDaysChapterService struct {
+	*stubAppChapterService
+}
+
+func (s *appliedDaysChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error) {
+	s.lastDays = cmd
+	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID, Outcome: anime.AnimePatchOutcomeApplied}, s.err
+}
 
 // fakeSeasonRepo is an in-memory season.Repository for binding tests.
 type fakeSeasonRepo struct {
@@ -339,7 +349,7 @@ func TestReconcileSeasonIntakeAddsAndDiscards(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 	t.Parallel()
-	chapter := &stubAppChapterService{}
+	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
 	app := &App{ctx: context.Background(), chapterService: chapter}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
@@ -357,7 +367,7 @@ func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	t.Parallel()
-	chapter := &stubAppChapterService{}
+	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	future := fixedNow.Add(2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}}
@@ -378,7 +388,7 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 	t.Parallel()
-	chapter := &stubAppChapterService{}
+	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	past := fixedNow.Add(-2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past}}

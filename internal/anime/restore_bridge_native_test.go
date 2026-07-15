@@ -2,23 +2,19 @@ package anime
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 )
 
 func softDeletedFixturePayload(t *testing.T, id, nombre string) []byte {
 	t.Helper()
 	payload := []byte(`{"_id":"` + id + `","nombre":"` + nombre + `","nrocapvisto":1,"activo":false,"fechaEliminacion":{"$$date":1700000000000}}`)
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(payload, &raw); err != nil {
-		t.Fatalf("unmarshal fixture payload: %v", err)
-	}
-	canonical, err := raw.MarshalJSON()
+	_, canonical, err := legacy.Decode(payload)
 	if err != nil {
-		t.Fatalf("marshal fixture payload: %v", err)
+		t.Fatalf("decode fixture payload: %v", err)
 	}
 	return canonical
 }
@@ -58,15 +54,12 @@ func TestRestoreBridgeNativeAnimesReactivatesAndRegistersBothKnownIDs(t *testing
 		if !ok {
 			t.Fatalf("expected %q to be present after restore", id)
 		}
-		var raw domain.LegacyAnimeRaw
-		if err := json.Unmarshal(record.CanonicalJSON, &raw); err != nil {
-			t.Fatalf("unmarshal restored payload for %q: %v", id, err)
+		value := decodeAnimeDomainInternal(t, record.CanonicalJSON)
+		if value.Active != domain.TriStateTrue {
+			t.Fatalf("expected %q active after restore, got state %v", id, value.Active)
 		}
-		if raw.Activo.TriState() != domain.TriStateTrue {
-			t.Fatalf("expected %q Activo=true after restore, got tristate %v", id, raw.Activo.TriState())
-		}
-		if raw.FechaEliminacion.Time() != nil {
-			t.Fatalf("expected %q FechaEliminacion cleared after restore, got %v", id, raw.FechaEliminacion.Time())
+		if value.DeletedAt != nil {
+			t.Fatalf("expected %q deletion date cleared after restore, got %v", id, value.DeletedAt)
 		}
 		wantPrevModifiedAt := int64(100)
 		if i == 1 {
@@ -219,11 +212,8 @@ func TestRestoreBridgeNativeAnimesRestoredIDsSurviveSubsequentReconcile(t *testi
 	if !ok {
 		t.Fatal("expected restored id to remain active in current after reconcile")
 	}
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(restored.CanonicalJSON, &raw); err != nil {
-		t.Fatalf("unmarshal post-reconcile payload: %v", err)
-	}
-	if raw.Activo.TriState() != domain.TriStateTrue {
+	value := decodeAnimeDomainInternal(t, restored.CanonicalJSON)
+	if value.Active != domain.TriStateTrue {
 		t.Fatal("expected restored id to remain active after the subsequent reconcile")
 	}
 }

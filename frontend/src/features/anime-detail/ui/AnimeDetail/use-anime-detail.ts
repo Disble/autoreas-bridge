@@ -4,8 +4,16 @@ import { useNavigate } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
-import { hasPreviousHistoryEntry, toAnimeDetailViewModel } from './anime-detail.helpers';
-import type { AnimeDetailProps, AnimeDetailState } from './anime-detail.types';
+import {
+  hasPreviousHistoryEntry,
+  toAnimeDetailViewModel,
+} from './anime-detail.helpers';
+import type {
+  AnimeDetailLoadSnapshot,
+  AnimeDetailProps,
+  AnimeDetailState,
+} from './anime-detail.types';
+import { useAnimeDetailMutation } from './use-anime-detail-mutation';
 
 /**
  * Drives the shared AnimeDetail component by fetching a single anime's rich
@@ -21,15 +29,24 @@ export function useAnimeDetail(
   // 1. Refs
 
   // 2. State
-  const [detail, setDetail] = useState<AnimeDetail | null | undefined>(undefined);
-  const [portadaFailed, setPortadaFailed] = useState(false);
+  const [detailSnapshot, setDetailSnapshot] = useState<AnimeDetailLoadSnapshot | undefined>(undefined);
+  const [failedPortadaAnimeId, setFailedPortadaAnimeId] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const navigate = useNavigate();
+  const mutation = useAnimeDetailMutation({
+    animeId: props.animeId,
+    detailSnapshot,
+    source,
+    setDetailSnapshot,
+  });
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
+  const detail: AnimeDetail | null | undefined = detailSnapshot?.animeId === props.animeId
+    ? detailSnapshot.detail
+    : undefined;
   const loadState = useMemo<AnimeDetailState['loadState']>(() => {
     if (detail === undefined) {
       return 'loading';
@@ -41,17 +58,17 @@ export function useAnimeDetail(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
   );
-  const showPortadaPlaceholder = portadaFailed || viewModel?.portadaUrl === undefined;
+  const showPortadaPlaceholder = failedPortadaAnimeId === props.animeId || viewModel?.portadaUrl === undefined;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onPortadaError = useCallback(() => {
-    setPortadaFailed(true);
-  }, []);
+    setFailedPortadaAnimeId(props.animeId);
+  }, [props.animeId]);
   const onPortadaLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
     if (event.currentTarget.naturalWidth === 0) {
-      setPortadaFailed(true);
+      setFailedPortadaAnimeId(props.animeId);
     }
-  }, []);
+  }, [props.animeId]);
   const onBack = useCallback(() => {
     if (hasPreviousHistoryEntry(window.history.state)) {
       void navigate(-1);
@@ -59,13 +76,9 @@ export function useAnimeDetail(
       void navigate('/history');
     }
   }, [navigate]);
-
   // 7. Effects
   useEffect(() => {
     let active = true;
-
-    setDetail(undefined);
-    setPortadaFailed(false);
 
     void source
       .getAnimeDetail(props.animeId)
@@ -74,14 +87,14 @@ export function useAnimeDetail(
           return;
         }
 
-        setDetail(result);
+        setDetailSnapshot({ animeId: props.animeId, detail: result });
       })
       .catch(() => {
         if (!active) {
           return;
         }
 
-        setDetail(null);
+        setDetailSnapshot({ animeId: props.animeId, detail: null });
       });
 
     return () => {
@@ -93,8 +106,16 @@ export function useAnimeDetail(
     loadState,
     detail: viewModel,
     showPortadaPlaceholder,
+    confirmation: mutation.confirmation,
+    feedback: mutation.feedback,
+    isMutating: mutation.isMutating,
     onPortadaError,
     onPortadaLoad,
     onBack,
+    onRequestRepeat: mutation.onRequestRepeat,
+    onRequestRestore: mutation.onRequestRestore,
+    onCancelAction: mutation.onCancelAction,
+    onConfirmationOpenChange: mutation.onConfirmationOpenChange,
+    onConfirmAction: mutation.onConfirmAction,
   };
 }

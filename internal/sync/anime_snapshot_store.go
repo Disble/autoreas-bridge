@@ -20,6 +20,12 @@ func NewAnimeSnapshotStore(db *sql.DB) *AnimeSnapshotStore {
 	return &AnimeSnapshotStore{db: db}
 }
 
+// WriteBaseStore exposes the staged-write adapter backed by the same SQLite
+// connection as this snapshot reader, keeping gateway construction atomic.
+func (s *AnimeSnapshotStore) WriteBaseStore() anime.WriteBaseStore {
+	return NewWriteBaseStore(s.db)
+}
+
 func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (map[string]anime.SnapshotRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash, modified_at FROM anime_snapshots`)
 	if err != nil {

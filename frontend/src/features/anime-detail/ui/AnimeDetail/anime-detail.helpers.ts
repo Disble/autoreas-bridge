@@ -1,3 +1,4 @@
+import type { contracts } from '../../../../../wailsjs/go/models';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
 import {
@@ -13,11 +14,160 @@ import {
   ANIME_DETAIL_WATCHED_TILE_LABEL,
 } from './anime-detail.constants';
 import type {
+  AnimeDetailAction,
+  AnimeDetailConfirmationViewModel,
+  AnimeDetailMutationResolution,
   AnimeDetailStatTile,
   AnimeDetailViewModel,
   AnimeRepeticionViewModel,
   HeroChipColor,
 } from './anime-detail.types';
+
+/**
+ * Confirms that an async mutation still belongs to the currently rendered
+ * anime route visit, preventing an older visit to the same id from reviving.
+ */
+export function isAnimeDetailMutationRouteActive(
+  activeAnimeId: string,
+  activeRouteGeneration: number,
+  actionAnimeId: string,
+  actionRouteGeneration: number,
+): boolean {
+  return activeAnimeId === actionAnimeId && activeRouteGeneration === actionRouteGeneration;
+}
+
+/**
+ * Confirms that an async mutation still belongs to a mounted instance of the
+ * exact anime route visit that started it.
+ */
+export function isAnimeDetailMutationVisitActive(
+  isMounted: boolean,
+  activeAnimeId: string,
+  activeRouteGeneration: number,
+  actionAnimeId: string,
+  actionRouteGeneration: number,
+): boolean {
+  return isMounted && isAnimeDetailMutationRouteActive(
+    activeAnimeId,
+    activeRouteGeneration,
+    actionAnimeId,
+    actionRouteGeneration,
+  );
+}
+
+/** Advances the route-visit generation only when AnimeDetail changes ids. */
+export function nextAnimeDetailMutationRouteGeneration(
+  activeAnimeId: string,
+  activeRouteGeneration: number,
+  nextAnimeId: string,
+): number {
+  return activeAnimeId === nextAnimeId ? activeRouteGeneration : activeRouteGeneration + 1;
+}
+
+/**
+ * Builds the explicit English confirmation copy for Repeat or Restore so the
+ * dumb component never derives business action text inline.
+ */
+export function toAnimeDetailConfirmation(
+  action: AnimeDetailAction,
+  animeName: string,
+): AnimeDetailConfirmationViewModel {
+  if (action === 'repeat') {
+    return {
+      action,
+      heading: `Repeat ${animeName}?`,
+      description: 'This starts a new watch cycle.',
+      confirmLabel: 'Confirm Repeat',
+    };
+  }
+
+  return {
+    action,
+    heading: `Restore ${animeName}?`,
+    description: 'This makes the anime active again.',
+    confirmLabel: 'Confirm Restore',
+  };
+}
+
+/**
+ * Interprets the authoritative Wails result into honest UI feedback and a
+ * narrowly scoped Detail-refresh decision. Unknown or malformed results fail
+ * closed rather than being presented as successful mutations.
+ */
+export function resolveAnimeDetailMutation(
+  action: AnimeDetailAction,
+  result: contracts.ChapterCommandResult,
+): AnimeDetailMutationResolution {
+  const actionLabel = action === 'repeat' ? 'Repeat' : 'Restore';
+  const failure = (description: string): AnimeDetailMutationResolution => ({
+    feedback: {
+      status: 'danger',
+      title: `${actionLabel} failed`,
+      description,
+    },
+    shouldRefetch: false,
+  });
+
+  if (result.status !== 'ok') {
+    return failure(result.message ?? `${actionLabel} is unavailable.`);
+  }
+
+  if (!Number.isFinite(result.modifiedAt)) {
+    return failure(`${actionLabel} returned an unexpected result without a current version.`);
+  }
+
+  if (result.outcome === 'applied') {
+    return {
+      feedback: {
+        status: 'success',
+        title: `${actionLabel} applied`,
+        description: `${actionLabel} was applied. Current version: ${result.modifiedAt}.`,
+      },
+      shouldRefetch: true,
+    };
+  }
+
+  if (result.outcome === 'no_op') {
+    return {
+      feedback: {
+        status: 'accent',
+        title: `${actionLabel} not needed`,
+        description: `No changes were needed. Current version: ${result.modifiedAt}.`,
+      },
+      shouldRefetch: true,
+    };
+  }
+
+  if (result.outcome === 'conflict' && result.conflictId !== undefined && result.conflictId !== '') {
+    return {
+      feedback: {
+        status: 'warning',
+        title: `${actionLabel} not applied`,
+        description: `The anime changed before ${actionLabel} could be applied. Current version: ${result.modifiedAt}. Conflict: ${result.conflictId}.`,
+      },
+      shouldRefetch: true,
+    };
+  }
+
+  return failure(`${actionLabel} returned an unexpected result and was not applied.`);
+}
+
+/**
+ * Preserves an already-authoritative mutation outcome while making a failed
+ * follow-up Detail refresh explicit, so the UI never rewrites applied as failed.
+ */
+export function withAnimeDetailRefreshFailure(
+  resolution: AnimeDetailMutationResolution,
+): AnimeDetailMutationResolution {
+  return {
+    feedback: {
+      ...resolution.feedback,
+      status: 'warning',
+      description: `${resolution.feedback.description} Anime Detail could not be refreshed.`,
+    },
+    shouldRefetch: false,
+  };
+}
 
 /**
  * Formats epoch millis as a long-form local date (e.g. "June 30, 2026") for
@@ -254,6 +404,9 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
   return {
     id: detail._id,
     nombre: detail.nombre,
+    modifiedAt: detail.modified_at,
+    canRepeat: detail.estado > 0,
+    canRestore: detail.activo === 0,
     portadaUrl: normalizeAnimeDetailPortadaUrl(detail.portada),
     estadoLabel,
     tipoLabel,

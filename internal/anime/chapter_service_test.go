@@ -2,7 +2,6 @@ package anime_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -48,18 +47,15 @@ func TestChapterServiceAdjustWatchedChaptersWritesProgressAndRecordsActivity(t *
 		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
+	value := decodeAnimeDomain(t, writer.payload)
+	if value.Progress != 3 {
+		t.Fatalf("expected writer payload progress 3, got %v", value.Progress)
 	}
-	if raw.NroCapVisto != 3 {
-		t.Fatalf("expected writer payload progress 3, got %v", raw.NroCapVisto)
-	}
-	lastWatched := raw.FechaUltCapVisto.Time()
+	lastWatched := value.LastWatchedAt
 	if lastWatched == nil || lastWatched.UnixMilli() != 1710000000123 {
 		t.Fatalf("expected fechaUltCapVisto to be stamped, got %v", lastWatched)
 	}
-	firstWatched := raw.FechaEstreno.Time()
+	firstWatched := value.PremieredAt
 	if firstWatched == nil || firstWatched.UnixMilli() != 1710000000123 {
 		t.Fatalf("expected fechaEstreno to be stamped on first watch, got %v", firstWatched)
 	}
@@ -168,12 +164,9 @@ func TestChapterServiceSetAnimeDaysWritesDias(t *testing.T) {
 		t.Fatalf("SetAnimeDays: %v", err)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
-	}
-	days := raw.Dias.Values()
-	if len(days) != 1 || days[0].Dia != "Ver hoy" || days[0].Orden != 1 {
+	value := decodeAnimeDomain(t, writer.payload)
+	days := value.Days
+	if len(days) != 1 || days[0].Day != "Ver hoy" || days[0].Order != 1 {
 		t.Fatalf("dias = %+v, want a single Ver hoy/1 entry", days)
 	}
 }
@@ -212,12 +205,9 @@ func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 		t.Fatalf("expected resulting state 3, got %d", result.Estado)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
-	}
-	if raw.EstadoValue() == nil || *raw.EstadoValue() != 3 {
-		t.Fatalf("expected writer payload state 3, got %#v", raw.EstadoValue())
+	value := decodeAnimeDomain(t, writer.payload)
+	if value.Status == nil || *value.Status != 3 {
+		t.Fatalf("expected writer payload state 3, got %#v", value.Status)
 	}
 
 	if len(activity.records) != 1 {
@@ -265,19 +255,16 @@ func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 		t.Fatalf("expected anime-1 result, got %#v", result)
 	}
 
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
+	value := decodeAnimeDomain(t, writer.payload)
+	if value.Active != domain.TriStateFalse {
+		t.Fatalf("expected inactive domain state, got %v", value.Active)
 	}
-	if raw.Activo.TriState() != domain.TriStateFalse {
-		t.Fatalf("expected activo false, got %v", raw.Activo.TriState())
-	}
-	deletedAt := raw.FechaEliminacion.Time()
+	deletedAt := value.DeletedAt
 	if deletedAt == nil || deletedAt.UnixMilli() != 1710000000789 {
 		t.Fatalf("expected fechaEliminacion stamp, got %v", deletedAt)
 	}
-	if raw.FechaUltCapVisto.Time() != nil {
-		t.Fatalf("expected soft delete not to stamp fechaUltCapVisto, got %v", raw.FechaUltCapVisto.Time())
+	if value.LastWatchedAt != nil {
+		t.Fatalf("expected soft delete not to stamp last watched time, got %v", value.LastWatchedAt)
 	}
 
 	if len(activity.records) != 1 {
@@ -289,136 +276,6 @@ func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 	}
 	if record.Before.Activo != 1 || record.After.Activo != 0 {
 		t.Fatalf("expected before/after activo 1 -> 0, got %#v -> %#v", record.Before, record.After)
-	}
-}
-
-func TestChapterServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(
-		t,
-		store,
-		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":false,"fechaEliminacion":{"$$date":1700000000000}}`,
-		1000,
-	)
-
-	writer := &stubAnimeWriter{}
-	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
-		Query:    anime.NewQueryService(store),
-		Writer:   writeService,
-		Activity: activity,
-		Now:      func() time.Time { return time.UnixMilli(1710000000999).UTC() },
-	})
-
-	_, err := service.RestoreAnime(ctx, anime.RestoreAnimeCommand{
-		AnimeID: "anime-1",
-		Base:    int64Ptr(1000),
-		Source:  anime.ActivitySourceDesktop,
-	})
-	if err != nil {
-		t.Fatalf("restore anime: %v", err)
-	}
-
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(writer.payload, &raw); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
-	}
-	if raw.Activo.TriState() != domain.TriStateTrue {
-		t.Fatalf("expected activo true, got %v", raw.Activo.TriState())
-	}
-	if !raw.FechaEliminacion.IsNull() {
-		t.Fatalf("expected fechaEliminacion null, got %#v", raw.FechaEliminacion)
-	}
-	if raw.FechaUltCapVisto.Time() != nil {
-		t.Fatalf("expected restore not to stamp fechaUltCapVisto, got %v", raw.FechaUltCapVisto.Time())
-	}
-
-	if len(activity.records) != 1 {
-		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
-	}
-	record := activity.records[0]
-	if record.ActionType != anime.ActivityActionAnimeRestored {
-		t.Fatalf("expected restore activity, got %q", record.ActionType)
-	}
-	if record.Before.Activo != 0 || record.After.Activo != 1 {
-		t.Fatalf("expected before/after activo 0 -> 1, got %#v -> %#v", record.Before, record.After)
-	}
-}
-
-func TestChapterServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(
-		t,
-		store,
-		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10.5,"estado":1,"totalcap":28,"activo":false,"primeravez":true,"fechaCreacion":{"$$date":1600000000000},"fechaEstreno":{"$$date":1600000100000},"fechaUltCapVisto":{"$$date":1600000200000},"fechaEliminacion":{"$$date":1600000300000},"repetir":[{"numrepeticion":0,"nrocapvisto":8,"estado":1,"fechaRepeticion":{"$$date":1500000000000}}]}`,
-		1000,
-	)
-
-	writer := &stubAnimeWriter{}
-	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
-		Query:    anime.NewQueryService(store),
-		Writer:   writeService,
-		Activity: activity,
-		Now:      func() time.Time { return time.UnixMilli(1710000001111).UTC() },
-	})
-
-	result, err := service.RepeatAnime(ctx, anime.RepeatAnimeCommand{
-		AnimeID: "anime-1",
-		Base:    int64Ptr(1000),
-		Source:  anime.ActivitySourceDesktop,
-	})
-	if err != nil {
-		t.Fatalf("repeat anime: %v", err)
-	}
-	if result.Estado != 0 || result.NroCapVisto != 0 {
-		t.Fatalf("expected reset result, got %#v", result)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(writer.payload, &payload); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
-	}
-	if payload["nrocapvisto"] != float64(0) || payload["estado"] != float64(0) || payload["activo"] != true || payload["primeravez"] != false {
-		t.Fatalf("expected reset progress/state/active/primeravez, got %#v", payload)
-	}
-	if payload["fechaEstreno"] != nil || payload["fechaUltCapVisto"] != nil || payload["fechaEliminacion"] != nil {
-		t.Fatalf("expected repeat to clear watch/deletion dates, got %#v", payload)
-	}
-	createdAt, ok := payload["fechaCreacion"].(map[string]any)
-	if !ok || createdAt["$$date"] != float64(1710000001111) {
-		t.Fatalf("expected new fechaCreacion stamp, got %#v", payload["fechaCreacion"])
-	}
-	repeats, ok := payload["repetir"].([]any)
-	if !ok || len(repeats) != 2 {
-		t.Fatalf("expected two repeat entries, got %#v", payload["repetir"])
-	}
-	nextRepeat, ok := repeats[1].(map[string]any)
-	if !ok {
-		t.Fatalf("expected repeat entry object, got %#v", repeats[1])
-	}
-	if nextRepeat["numrepeticion"] != float64(1) || nextRepeat["nrocapvisto"] != 10.5 || nextRepeat["estado"] != float64(1) {
-		t.Fatalf("expected current cycle snapshot in repeat entry, got %#v", nextRepeat)
-	}
-
-	if len(activity.records) != 1 {
-		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
-	}
-	record := activity.records[0]
-	if record.ActionType != anime.ActivityActionAnimeRepeated {
-		t.Fatalf("expected repeat activity, got %q", record.ActionType)
-	}
-	if record.Before.NroCapVisto != 10.5 || record.Before.Estado != 1 || record.Before.Activo != 0 {
-		t.Fatalf("expected before snapshot from current cycle, got %#v", record.Before)
-	}
-	if record.After.NroCapVisto != 0 || record.After.Estado != 0 || record.After.Activo != 1 {
-		t.Fatalf("expected after snapshot reset, got %#v", record.After)
 	}
 }
 

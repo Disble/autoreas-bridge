@@ -38,17 +38,13 @@ func NewHandler(config Config) http.Handler {
 			QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
 				return config.AnimeQuery.GetEffectiveAnime(ctx, id)
 			},
-			PatchAnime: func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
-				return config.AnimeWrite.PatchAnime(ctx, id, patch)
-			},
+			PatchAnime: apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite),
 			IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
 		})
 	}
 	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
 	if config.AnimeWrite != nil {
-		syncConfig.ApplyPendingPatch = func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
-			return config.AnimeWrite.PatchAnime(ctx, id, patch)
-		}
+		syncConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 	}
 	if config.SyncTrigger != nil {
 		syncConfig.TriggerReconcile = func(ctx context.Context) error {
@@ -86,9 +82,7 @@ func NewHandler(config Config) http.Handler {
 			Logger:       config.Logger,
 		}
 		if config.AnimeWrite != nil {
-			wsConfig.ApplyPendingPatch = func(ctx context.Context, id string, patch apiHandlers.AnimePatch) error {
-				return config.AnimeWrite.PatchAnime(ctx, id, patch)
-			}
+			wsConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 		}
 		if config.SyncTrigger != nil {
 			wsConfig.TriggerReconcile = func(ctx context.Context) error {

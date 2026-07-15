@@ -2,11 +2,10 @@ package anime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 )
 
 // bridgeNativeRestoreIDs are the two known casualties of the SDD-48 bug: bridge-
@@ -89,7 +88,7 @@ func restoreBridgeNativeAnimes(ctx context.Context, store SnapshotStore, registr
 // the SDD-48 (ADR-48-4/48-5) one-time restore repair. The startup sequence
 // (app_startup_runtime.go) calls this synchronously, right after bridge.db
 // bootstrap and BridgeNativeRegistry construction, and BEFORE
-// startAnimeRuntime launches the async catch-up reconcile/watcher -- so the
+// startAnimeObservers launches the async catch-up reconcile/watcher -- so the
 // restored ids' registration is durably committed before either reconcile
 // path ever loads ownedIDs.
 func RestoreBridgeNativeAnimes(ctx context.Context, store SnapshotStore, registry BridgeNativeRegistry, settings RestoreFlagStore, now func() time.Time) error {
@@ -100,17 +99,9 @@ func RestoreBridgeNativeAnimes(ctx context.Context, store SnapshotStore, registr
 // Activo=true and FechaEliminacion cleared, bumping modified_at so mobile/
 // realtime pick up the un-delete (ADR-48-4/(a)).
 func reactivateBridgeNativeSnapshot(record SnapshotRecord, now func() time.Time) (SnapshotRecord, error) {
-	var raw domain.LegacyAnimeRaw
-	if err := json.Unmarshal(record.CanonicalJSON, &raw); err != nil {
-		return SnapshotRecord{}, fmt.Errorf("unmarshal snapshot %q: %w", record.AnimeID, err)
-	}
-
-	raw.SetActivo(true)
-	raw.ClearFechaEliminacion()
-
-	payload, err := raw.MarshalJSON()
+	payload, err := legacy.Reactivate(record.CanonicalJSON)
 	if err != nil {
-		return SnapshotRecord{}, fmt.Errorf("marshal reactivated snapshot %q: %w", record.AnimeID, err)
+		return SnapshotRecord{}, fmt.Errorf("reactivate snapshot %q: %w", record.AnimeID, err)
 	}
 
 	return SnapshotRecord{

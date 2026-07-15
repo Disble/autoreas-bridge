@@ -53,6 +53,15 @@ export const ANIME_DETAIL_PROGRESS_LABEL = 'Episodes watched progress';
 /** Label for the back-navigation button (Anime Detail delta spec, "Back returns to the exact History spot"). */
 export const ANIME_DETAIL_BACK_LABEL = 'Back';
 
+/** Label for the action that starts a new watch cycle. */
+export const ANIME_DETAIL_REPEAT_LABEL = 'Repeat';
+
+/** Label for the action that makes an inactive anime active again. */
+export const ANIME_DETAIL_RESTORE_LABEL = 'Restore';
+
+/** Label for dismissing a pending anime mutation. */
+export const ANIME_DETAIL_CANCEL_LABEL = 'Cancel';
+
 /**
  * Fallback shown for an absent repetition-entry date. Deliberately distinct
  * from `ANIME_DETAIL_UNKNOWN_LABEL` ("Unknown", used by the general-data

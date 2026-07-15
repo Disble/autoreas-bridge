@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -83,6 +84,7 @@ type App struct {
 	tracerBulletRunner        tracerBulletRunner
 	catchUpContext            context.Context
 	catchUpCancel             context.CancelFunc
+	animeSelfEchoRegistry     anime.SelfEchoRegistry
 	deviceStore               device.Store
 	newToken                  func() (string, error)
 	animeQuery                contracts.AnimeQueryService
@@ -99,6 +101,7 @@ type App struct {
 	seasonService             *season.Service
 	settingsStore             appSettingsStore
 	animeWrite                *anime.WriteService
+	animeCreate               anime.AnimeCreator
 	seasonScheduler           schedule.Scheduler
 	openURL                   func(ctx context.Context, url string)
 	openFolder                func(path string) error
@@ -185,7 +188,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	// SDD-48 ADR-48-5: construct the ownership registry and run the
 	// one-time restore repair SYNCHRONOUSLY, right after bridge.db is ready
-	// and BEFORE startAnimeRuntime launches the async catch-up
+	// and BEFORE startAnimeObservers launches the async catch-up
 	// coordinator/watcher -- so the restored ids' registration is durably
 	// committed before either reconcile path ever loads ownedIDs.
 	a.bridgeNativeRegistry = a.newBridgeNativeRegistry(a.bridgeDB)
@@ -201,7 +204,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	a.startAnimeRuntime(ctx, animeDataPath)
+	a.prepareAnimeRuntime(ctx, animeDataPath)
 	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB), a.sharedLogger)
 	a.syncChangelogRecorder.Start(a.catchUpContext)
 	deviceStore := a.newDeviceStore(a.bridgeDB)
@@ -253,6 +256,14 @@ func (a *App) startup(ctx context.Context) {
 		// Bridge-native so it survives the next reconcile-absence soft-delete.
 		Ownership: a.bridgeNativeRegistry,
 	})
+	a.animeCreate = anime.NewCreateService(a.animeWrite, nil)
+	if a.bridgeDB != nil && a.animeWrite.RecoveryConfigured() {
+		if err := a.animeWrite.RecoverWrites(ctx); err != nil {
+			a.startupErr = fmt.Errorf("recover staged anime writes: %w", err)
+			return
+		}
+	}
+	a.startAnimeObservers(animeDataPath)
 	a.wireChapterServiceWithWriter(a.animeWrite)
 	mobileAnimeWrite := activityAnimeWriteService{
 		query:    a.animeQuery,

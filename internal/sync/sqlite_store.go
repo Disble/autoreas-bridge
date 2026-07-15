@@ -36,6 +36,7 @@ type sqliteStore struct {
 
 type ChangelogEntry struct {
 	ID            int64
+	SourceEventID string
 	AnimeID       string
 	ChangeType    string
 	ChangedFields []string

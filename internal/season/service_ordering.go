@@ -3,6 +3,7 @@ package season
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"autoreas-bridge/internal/season/domain"
@@ -30,9 +31,10 @@ func (s *Service) SaveOrderingDraft(ctx context.Context, draftJSON string) error
 
 // ApplySchedule diffs the open season's draft against the animes' current dias and
 // writes only the changed placements (day + explicit orden) via the gateway. Soft
-// state only. On a clean apply it stamps the applied milestone; a partial failure
-// applies what it can, reports the failed anime ids, and leaves the milestone unset
-// so the user can re-apply (idempotent, value-equal writes no-op).
+// state only. On a clean apply it stamps the applied milestone. The first failed
+// mutation is reported and terminates the run so no later anime can be changed;
+// any earlier successful writes remain and the milestone stays unset so the user
+// can re-apply (idempotent, value-equal writes no-op).
 func (s *Service) ApplySchedule(ctx context.Context) (ApplyResult, error) {
 	if s.gateway == nil {
 		return ApplyResult{}, ErrAvailabilityDepsUnavailable
@@ -66,9 +68,14 @@ func (s *Service) ApplySchedule(ctx context.Context) (ApplyResult, error) {
 
 	var res ApplyResult
 	for _, intent := range domain.PlanSchedule(current, draft) {
-		if err := s.gateway.SetAnimeSchedule(ctx, intent.AnimeID, intent.Dias); err != nil {
+		result, err := s.gateway.SetAnimeSchedule(ctx, intent.AnimeID, intent.Dias)
+		if err != nil {
 			res.Failed = append(res.Failed, intent.AnimeID)
-			continue
+			return res, fmt.Errorf("set schedule for anime %s: %w", intent.AnimeID, err)
+		}
+		if err := acceptAnimeMutation(result); err != nil {
+			res.Failed = append(res.Failed, intent.AnimeID)
+			return res, fmt.Errorf("set schedule for anime %s: %w", intent.AnimeID, err)
 		}
 		res.Applied++
 	}

@@ -65,7 +65,7 @@ func TestAppStartupWiresBridgeNativeRegistryIntoAnimeRuntimeConfigs(t *testing.T
 
 // TestAppStartupRunsBridgeNativeRestoreBeforeAnimeRuntimeStarts covers
 // ADR-48-5's ordering requirement: the one-time restore repair MUST run
-// synchronously before startAnimeRuntime launches the async catch-up
+// synchronously before startAnimeObservers launches the async catch-up
 // coordinator/watcher, so the restored ids' registration is committed
 // before either reconcile path loads ownedIDs.
 func TestAppStartupRunsBridgeNativeRestoreBeforeAnimeRuntimeStarts(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"autoreas-bridge/internal/anime/domain"
+	"autoreas-bridge/internal/anime/legacy"
 	"autoreas-bridge/internal/events"
 )
 
@@ -163,30 +163,17 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 }
 
 func isSoftDeletedSnapshot(record SnapshotRecord) bool {
-	var raw domain.LegacyAnimeRaw
-	if err := raw.UnmarshalJSON(record.CanonicalJSON); err != nil {
-		return false
-	}
-
-	return raw.Activo.TriState() == domain.TriStateFalse && raw.FechaEliminacion.Time() != nil
+	softDeleted, err := legacy.IsSoftDeleted(record.CanonicalJSON)
+	return err == nil && softDeleted
 }
 
 // softDeleteCanonicalJSON takes a baseline record's canonical JSON and
 // returns a new canonical payload with Activo forced to false and
 // FechaEliminacion stamped to at (SDD-30, ADR-30-3b). All other fields
-// (including extraFields the domain type round-trips opaquely) are preserved.
+// (including unknown fields the Legacy wire envelope round-trips opaquely) are
+// preserved.
 func softDeleteCanonicalJSON(canonicalJSON []byte, at time.Time) ([]byte, error) {
-	var raw domain.LegacyAnimeRaw
-	if err := raw.UnmarshalJSON(canonicalJSON); err != nil {
-		return nil, err
-	}
-
-	if err := raw.Activo.UnmarshalJSON([]byte("false")); err != nil {
-		return nil, err
-	}
-	raw.FechaEliminacion = domain.NewLegacyDateFieldFromUnixMilli(at.UnixMilli())
-
-	return raw.MarshalJSON()
+	return legacy.Deactivate(canonicalJSON, at)
 }
 
 func sortedSnapshotIDs(records map[string]SnapshotRecord) []string {

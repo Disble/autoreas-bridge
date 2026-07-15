@@ -17,8 +17,9 @@ import (
 func TestWriteServiceCreateAnimeRegistersOwnershipBeforeWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	writer := &stubAnimeWriter{}
-	registry := &stubOwnershipRegistry{}
+	sequence := make([]string, 0, 2)
+	writer := &stubAnimeWriter{onWrite: func() { sequence = append(sequence, "write") }}
+	registry := &stubOwnershipRegistry{onRegister: func() { sequence = append(sequence, "register") }}
 	service := anime.NewWriteService(store, writer)
 	service.SetIDGen(func() string { return "owned-anime-1" })
 	service.SetDeps(anime.WriteServiceDeps{Ownership: registry})
@@ -37,6 +38,9 @@ func TestWriteServiceCreateAnimeRegistersOwnershipBeforeWrite(t *testing.T) {
 	}
 	if writer.calls != 1 {
 		t.Fatalf("expected the durable write to still happen, got %d calls", writer.calls)
+	}
+	if len(sequence) != 2 || sequence[0] != "register" || sequence[1] != "write" {
+		t.Fatalf("create sequence = %v, want [register write]", sequence)
 	}
 }
 
@@ -68,13 +72,13 @@ func TestWriteServiceCreateAnimeFailsClosedOnRegistrationError(t *testing.T) {
 	if writer.calls != 0 {
 		t.Fatalf("expected NO durable write when registration fails, got %d calls", writer.calls)
 	}
+	assertNoPendingAnimeChanged(t, store)
 }
 
-// TestWriteServiceCreateAnimeNilOwnershipDepUnchangedBehavior is the SDD-48
-// rollback guarantee: a nil WriteServiceDeps.Ownership must behave exactly
-// like pre-SDD-48 CreateAnime -- the durable write still happens, with no
-// registration attempted.
-func TestWriteServiceCreateAnimeNilOwnershipDepUnchangedBehavior(t *testing.T) {
+// TestWriteServiceCreateAnimeFailsClosedWithoutOwnershipRegistry makes the
+// ownership dependency mandatory for canonical creates. A missing registry is
+// a configuration failure, not permission to write an unowned Legacy record.
+func TestWriteServiceCreateAnimeFailsClosedWithoutOwnershipRegistry(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	writer := &stubAnimeWriter{}
@@ -83,20 +87,22 @@ func TestWriteServiceCreateAnimeNilOwnershipDepUnchangedBehavior(t *testing.T) {
 	// SetDeps intentionally not called (zero-value WriteServiceDeps).
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{Nombre: "Unowned", Pagina: "p", Section: "Sin ver", Orden: 1})
-	if err != nil {
-		t.Fatalf("CreateAnime: %v", err)
+	if err == nil {
+		t.Fatal("expected CreateAnime to fail without an ownership registry")
 	}
-	if id != "no-ownership-dep" {
-		t.Fatalf("expected generated id, got %q", id)
+	if id != "" {
+		t.Fatalf("id = %q, want empty on ownership configuration failure", id)
 	}
-	if writer.calls != 1 {
-		t.Fatalf("expected the durable write to happen with a nil Ownership dep, got %d calls", writer.calls)
+	if writer.calls != 0 {
+		t.Fatalf("Legacy writes = %d, want zero without ownership registration", writer.calls)
 	}
+	assertNoPendingAnimeChanged(t, store)
 }
 
 type stubOwnershipRegistry struct {
 	registered []string
 	err        error
+	onRegister func()
 }
 
 func (s *stubOwnershipRegistry) ListOwnedIDs(context.Context) (map[string]struct{}, error) {
@@ -106,6 +112,9 @@ func (s *stubOwnershipRegistry) ListOwnedIDs(context.Context) (map[string]struct
 func (s *stubOwnershipRegistry) RegisterOwned(_ context.Context, animeID string) error {
 	if s.err != nil {
 		return s.err
+	}
+	if s.onRegister != nil {
+		s.onRegister()
 	}
 	s.registered = append(s.registered, animeID)
 	return nil

@@ -1,5 +1,6 @@
 import { Button, Card, Chip, ProgressBar } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
+import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
 import {
   ANIME_DETAIL_BACK_LABEL,
@@ -16,7 +17,22 @@ import { useAnimeDetail } from './use-anime-detail';
 
 /** Shared, read-only detail view reachable by id from both Catalog and History. */
 export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
-  const { loadState, detail, showPortadaPlaceholder, onPortadaError, onPortadaLoad, onBack } = useAnimeDetail(props);
+  const {
+    loadState,
+    detail,
+    showPortadaPlaceholder,
+    confirmation,
+    feedback,
+    isMutating,
+    onPortadaError,
+    onPortadaLoad,
+    onBack,
+    onRequestRepeat,
+    onRequestRestore,
+    onCancelAction,
+    onConfirmationOpenChange,
+    onConfirmAction,
+  } = useAnimeDetail(props);
 
   if (loadState === 'not-found') {
     return <p className="text-sm text-muted">{ANIME_DETAIL_NOT_FOUND_MESSAGE}</p>;
@@ -59,6 +75,18 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
             </Chip>
           </div>
         </header>
+
+        <AnimeDetailMutationControls
+          confirmation={confirmation}
+          detail={detail}
+          feedback={feedback}
+          isMutating={isMutating}
+          onCancelAction={onCancelAction}
+          onConfirmationOpenChange={onConfirmationOpenChange}
+          onConfirmAction={onConfirmAction}
+          onRequestRepeat={onRequestRepeat}
+          onRequestRestore={onRequestRestore}
+        />
 
         <section aria-label="Chapter info" className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-foreground">Chapter info</h3>
@@ -141,6 +169,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
             <p className="text-sm text-muted">{ANIME_DETAIL_NO_REPETITIONS_MESSAGE}</p>
           )}
         </section>
+
       </Card.Content>
     </Card>
   );
