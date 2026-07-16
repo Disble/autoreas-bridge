@@ -12,10 +12,17 @@ without implementing merge, resolution behavior, or resolution UI.
 
 ### Requirement: Writes return authoritative outcomes and tokens
 
-A successful Create MUST return its id and current `modified_at`. Repeat and
-Restore MUST return the current token and an explicit `applied`, `no_op`, or
-`conflict` outcome. A conflict result MUST identify the recorded conflict. A
-failed operation MUST return an error instead of an applied outcome.
+A successful Create MUST return its id and current `modified_at`. Repeat,
+Restore, and general editor saves MUST return the current token and an explicit
+`applied`, `no_op`, or `conflict` outcome. A schedule bulk apply MUST return an
+explicit accepted or rejected authoritative outcome for the whole draft plus the
+refreshed authority needed to continue safely. A conflict result MUST identify
+the recorded conflict. A failed operation MUST return an error instead of an
+applied outcome.
+
+(Previously: The requirement covered Create, Repeat, and Restore outcomes, but
+it did not extend the same authoritative contract to general editor saves or
+whole-draft schedule apply.)
 
 #### Scenario: Applied update returns a new token
 
@@ -29,6 +36,13 @@ failed operation MUST return an error instead of an applied outcome.
 - **WHEN** the desired update differs from current state
 - **THEN** the result is `conflict` with the current token and conflict identity
 - **AND** the desired update is not applied
+
+#### Scenario: Schedule bulk apply returns whole-draft authority
+
+- **GIVEN** a schedule draft spans multiple anime with current base tokens
+- **WHEN** the whole draft is accepted
+- **THEN** the result reports accepted authoritative completion for the draft
+- **AND** the caller receives the refreshed authority needed to continue from the new state
 
 ### Requirement: Pre-write state is durable and queryable
 
@@ -73,8 +87,13 @@ the operation is committed.
 
 When a base-aware Bridge update is stale and non-no-op, the bridge MUST record
 the current and requested states, MUST leave canonical state and `modified_at`
-unchanged, and MUST return `conflict`. Base-less older clients MAY remain on the
-staged observe-only compatibility path until migrated.
+unchanged, and MUST return `conflict`. The same rule MUST apply to general
+editor saves and to schedule bulk apply when any participating anime has stale
+authority. Base-less older clients MAY remain on the staged observe-only
+compatibility path until migrated.
+
+(Previously: The stale-base rule applied generally, but it did not explicitly
+call out general editor saves or whole-draft rejection for schedule apply.)
 
 #### Scenario: Stale Repeat records conflict
 
@@ -82,6 +101,13 @@ staged observe-only compatibility path until migrated.
 - **WHEN** divergence is detected
 - **THEN** a pending conflict preserves current and requested states
 - **AND** no append, token advance, merge, or resolution occurs
+
+#### Scenario: One stale anime rejects a shared schedule draft
+
+- **GIVEN** a schedule draft includes anime A and B and anime B advanced after modal open
+- **WHEN** the user applies the draft
+- **THEN** the bridge records the stale conflict against current authority and returns rejection for the whole draft
+- **AND** no participating anime is partially overwritten or advanced
 
 ### Requirement: Resolution remains outside SDD-49
 
