@@ -9,18 +9,25 @@ const (
 )
 
 type AnimeEditorNullableStringDTO struct {
-	Kind  AnimeEditorValueKind `json:"kind"`
-	Value string               `json:"value,omitempty"`
+	Kind AnimeEditorValueKind `json:"kind"`
+	// Value must serialize even when empty — the Kind discriminator distinguishes
+	// missing/null from a present empty string, so omitempty would collapse them.
+	Value string `json:"value"`
 }
 
 type AnimeEditorNullableIntDTO struct {
-	Kind  AnimeEditorValueKind `json:"kind"`
-	Value int                  `json:"value,omitempty"`
+	Kind AnimeEditorValueKind `json:"kind"`
+	// Value must serialize even when 0 — the Kind discriminator already encodes
+	// missing/null, so omitempty would drop a legitimate zero (e.g. tipo=0,
+	// "Anime (TV)") and make it indistinguishable from an absent field.
+	Value int `json:"value"`
 }
 
 type AnimeEditorNullableTimeDTO struct {
-	Kind      AnimeEditorValueKind `json:"kind"`
-	UnixMilli int64                `json:"unixMilli,omitempty"`
+	Kind AnimeEditorValueKind `json:"kind"`
+	// UnixMilli must serialize even when 0 for the same discriminated-union
+	// reason as AnimeEditorNullableIntDTO.Value.
+	UnixMilli int64 `json:"unixMilli"`
 }
 
 type AnimeEditorStringListDTO struct {
