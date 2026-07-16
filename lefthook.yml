@@ -1,5 +1,5 @@
 pre-commit:
-  parallel: false
+  parallel: true
   jobs:
     - name: frontend-fallow
       run: bun --cwd="frontend" run fallow audit --quiet
@@ -30,9 +30,6 @@ pre-commit:
 
     - name: go-vet
       run: go vet ./...
-
-    - name: go-test
-      run: go test ./...
 
     - name: go-cover
       run: go test ./... -cover
