@@ -32,6 +32,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
         placeholder="Search by name..."
         type="search"
         value={filters.query}
+        variant="secondary"
         onChange={(event) => onQueryChange(event.target.value)}
       />
 
@@ -42,6 +43,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
           label="Status"
           options={estadoOptions}
           placeholder="Status"
+          variant="secondary"
           value={filters.estado}
           onChange={onEstadoChange}
         />
@@ -52,6 +54,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
           label="Active"
           options={activoOptions}
           placeholder="Active"
+          variant="secondary"
           value={filters.activo}
           onChange={onActivoChange}
         />
@@ -62,6 +65,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
           label="Type"
           options={tipoOptions}
           placeholder="Type"
+          variant="secondary"
           value={filters.tipo}
           onChange={onTipoChange}
         />
@@ -72,6 +76,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
           label="Day"
           options={diaOptions}
           placeholder="Day"
+          variant="secondary"
           value={filters.dia}
           onChange={onDiaChange}
         />
@@ -82,6 +87,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
           label="Download gap"
           options={gapOptions}
           placeholder="Download gap"
+          variant="secondary"
           value={filters.gap}
           onChange={onGapChange}
         />
@@ -94,6 +100,7 @@ export function CatalogFilterBar(props: Readonly<CatalogFilterBarProps>) {
         options={generoOptions}
         placeholder="Genres"
         selectionMode="multiple"
+        variant="secondary"
         value={filters.generos}
         onChange={onGenerosChange}
       />

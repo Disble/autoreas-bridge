@@ -10,6 +10,7 @@ interface LabeledSelectBaseProps {
   readonly label: string;
   readonly options: readonly LabeledSelectOption[];
   readonly placeholder: string;
+  readonly variant?: 'primary' | 'secondary';
 }
 
 /** Props for single-value labeled selects. */

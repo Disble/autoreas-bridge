@@ -105,6 +105,21 @@ describe('useCatalogPanel', () => {
     expect(result.current.items).toEqual([]);
   });
 
+  it('exposes the canonical named tipo options regardless of catalog contents', async () => {
+    const source = createSource([animeA, animeB]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.tipoOptions).toEqual([
+      { value: 'all', label: 'All' },
+      { value: '0', label: 'Anime (TV)' },
+      { value: '1', label: 'Película' },
+      { value: '2', label: 'Especial' },
+      { value: '3', label: 'OVA' },
+    ]);
+  });
+
   it('exposes a gap filter and onGapChange callback defaulting to "all"', async () => {
     const source = createSource([animeA, animeB]);
     const { result } = renderHook(() => useCatalogPanel({}, source));

@@ -247,14 +247,6 @@ function toDynamicOptions(values: readonly string[]): readonly AnimeFilterOption
 }
 
 /**
- * Builds the "tipo" filter options from the actual catalog values, prepending
- * an "All" option.
- */
-export function getUniqueTipoOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
-  return toDynamicOptions(items.map((item) => (item.tipo === undefined ? '' : String(item.tipo))));
-}
-
-/**
  * Builds the "día" filter options from the actual catalog values, prepending
  * an "All" option.
  */

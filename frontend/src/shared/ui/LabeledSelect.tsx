@@ -14,6 +14,7 @@ export function LabeledSelect(props: Readonly<LabeledSelectProps>) {
         className={props.className}
         placeholder={props.placeholder}
         selectionMode="multiple"
+        variant={props.variant}
         value={props.value}
         onChange={(value) => props.onChange(coerceLabeledSelectValues(value))}
       >
@@ -37,6 +38,7 @@ export function LabeledSelect(props: Readonly<LabeledSelectProps>) {
       className={props.className}
       placeholder={props.placeholder}
       value={props.value}
+      variant={props.variant}
       onChange={(value) => props.onChange(coerceLabeledSelectValue(value, props.fallbackValue))}
     >
       <Label>{props.label}</Label>

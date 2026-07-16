@@ -11,12 +11,12 @@ import {
   ANIME_FILTER_DEBOUNCE_MS,
   ANIME_GAP_OPTIONS,
   ANIME_LEGACY_PULL_FAILED_RESULT,
+  ANIME_TIPO_OPTIONS,
 } from './catalog-panel.constants';
 import {
   filterAnimes,
   getUniqueDiaOptions,
   getUniqueGeneroOptions,
-  getUniqueTipoOptions,
   sortAnimesByName,
   toAnimeViewModel,
 } from './catalog-panel.helpers';
@@ -62,7 +62,6 @@ export function useCatalogPanel(
     [filteredItems],
   );
   const isEmpty = useMemo(() => !isLoading && viewItems.length === 0, [isLoading, viewItems.length]);
-  const tipoOptions = useMemo(() => getUniqueTipoOptions(items), [items]);
   const diaOptions = useMemo(() => getUniqueDiaOptions(items), [items]);
   const generoOptions = useMemo(() => getUniqueGeneroOptions(items), [items]);
 
@@ -116,7 +115,7 @@ export function useCatalogPanel(
     filters,
     estadoOptions: ANIME_ESTADO_OPTIONS,
     activoOptions: ANIME_ACTIVO_OPTIONS,
-    tipoOptions,
+    tipoOptions: ANIME_TIPO_OPTIONS,
     diaOptions,
     generoOptions,
     gapOptions: ANIME_GAP_OPTIONS,

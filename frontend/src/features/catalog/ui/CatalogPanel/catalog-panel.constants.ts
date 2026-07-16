@@ -1,4 +1,5 @@
 import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado.constants';
+import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
 import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 import type { AnimeFilterOption } from './catalog-panel.types';
 
@@ -42,6 +43,17 @@ export const ANIME_FILTER_DEBOUNCE_MS = 200;
 export const ANIME_ESTADO_OPTIONS: readonly AnimeFilterOption[] = [
   { value: 'all', label: 'All' },
   ...ANIME_ESTADO_FILTER_ENTRIES,
+];
+
+/**
+ * Options for the "tipo" (kind) filter select. `tipo` is a closed enum, so the
+ * options are static and named from the canonical shared vocabulary
+ * (`shared/constants/anime-tipo.constants.ts`) — never discovered dynamically
+ * from the catalog data. Only the "All" sentinel is feature-local.
+ */
+export const ANIME_TIPO_OPTIONS: readonly AnimeFilterOption[] = [
+  { value: ANIME_FILTER_ALL_VALUE, label: 'All' },
+  ...ANIME_TIPO_FILTER_ENTRIES,
 ];
 
 /**
