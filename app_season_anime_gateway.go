@@ -61,6 +61,7 @@ func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCrea
 		Section: in.Section,
 		Orden:   order,
 		Carpeta: in.Carpeta,
+		Tipo:    in.Tipo,
 	})
 	if err != nil {
 		return season.AnimeMutationResult{}, err

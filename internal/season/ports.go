@@ -79,6 +79,9 @@ type AnimeCreateInput struct {
 	// Carpeta is the absolute download folder for the new anime. Empty means the
 	// record is created without a carpeta (downloads skip it until one is set).
 	Carpeta string
+	// Tipo is the legacy content type (0 = Serie / Anime TV, 1 = Pelicula, 2 = OVA).
+	// Nil omits the field, which is why season creation always sets a default.
+	Tipo *int
 }
 
 // AnimeGateway is the narrow port into the anime context: it creates an anime

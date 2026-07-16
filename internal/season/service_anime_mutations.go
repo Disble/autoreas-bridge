@@ -6,6 +6,9 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
+// defaultAnimeType is the legacy tipo value for a TV series ("Serie" / Anime TV).
+const defaultAnimeType = 0
+
 // CreateSeasonAnimes is the explicit, user-initiated creation gate: for each row
 // that is currently AVAILABLE, it links an existing active anime with the same
 // page (two-cour continuation) or creates a new one into "Sin ver", advancing the
@@ -38,11 +41,13 @@ func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string, root 
 			if folder == "" {
 				folder = deriveDownloadFolder(root, sa.RawName)
 			}
+			tipo := defaultAnimeType
 			mutation, createErr := s.gateway.CreateAnime(ctx, AnimeCreateInput{
 				Nombre:  sa.RawName,
 				Pagina:  sa.MatchedSlug,
 				Section: sinVerSection,
 				Carpeta: folder,
+				Tipo:    &tipo,
 			})
 			if createErr != nil {
 				return res, createErr

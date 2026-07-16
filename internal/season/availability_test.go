@@ -347,6 +347,9 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 	if len(gateway.created) != 1 || gateway.created[0].Section != "Sin ver" {
 		t.Fatalf("exactly one create into Sin ver expected, got %+v", gateway.created)
 	}
+	if gateway.created[0].Tipo == nil || *gateway.created[0].Tipo != 0 {
+		t.Fatalf("created anime must carry default tipo=0 (Serie / Anime TV), got %#v", gateway.created[0].Tipo)
+	}
 	if len(res.Created) != 2 {
 		t.Fatalf("expected 2 created names (A, C), got %v", res.Created)
 	}

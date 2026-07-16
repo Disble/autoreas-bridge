@@ -143,13 +143,15 @@ func TestAnimeWatchedStateUsesEnglishLegacyProjectionWithoutStoreAccess(t *testi
 }
 
 type fakeSeasonAnimeCreator struct {
-	calls  int
-	result anime.AnimePatchResult
-	err    error
+	calls      int
+	lastCreate contracts.AnimeCreate
+	result     anime.AnimePatchResult
+	err        error
 }
 
-func (f *fakeSeasonAnimeCreator) CreateAnime(context.Context, contracts.AnimeCreate) (anime.AnimePatchResult, error) {
+func (f *fakeSeasonAnimeCreator) CreateAnime(_ context.Context, create contracts.AnimeCreate) (anime.AnimePatchResult, error) {
 	f.calls++
+	f.lastCreate = create
 	return f.result, f.err
 }
 
@@ -159,8 +161,9 @@ func TestSeasonAnimeGatewayCreatePreservesAuthoritativeResult(t *testing.T) {
 	}}
 	gateway := seasonAnimeGateway{creator: creator, records: fakeReadRecordLister{}}
 
+	tipo := 0
 	got, err := gateway.CreateAnime(context.Background(), season.AnimeCreateInput{
-		Nombre: "Frieren", Pagina: "https://jkanime.net/frieren/", Section: "Sin ver",
+		Nombre: "Frieren", Pagina: "https://jkanime.net/frieren/", Section: "Sin ver", Tipo: &tipo,
 	})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)
@@ -168,6 +171,9 @@ func TestSeasonAnimeGatewayCreatePreservesAuthoritativeResult(t *testing.T) {
 	want := season.AnimeMutationResult{AnimeID: "created-anime", Outcome: season.AnimeMutationApplied, ModifiedAt: 1710000000123}
 	if got != want {
 		t.Fatalf("CreateAnime result = %#v, want %#v", got, want)
+	}
+	if creator.lastCreate.Tipo == nil || *creator.lastCreate.Tipo != 0 {
+		t.Fatalf("CreateAnime must forward tipo=0, got %#v", creator.lastCreate.Tipo)
 	}
 }
 
