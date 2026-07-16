@@ -518,6 +518,43 @@ func (a *App) recordSeasonRating() apiHandlers.RecordSeasonRatingFunc {
 	}
 }
 
+// activeSeasonSnapshot projects the open season and its linked, graded candidates
+// into the mobile GET /api/seasons/active read-model. Returns (nil, nil) when no
+// season is open so the handler answers 404. Only rows already linked to a real
+// anime (AnimeID != "") are candidates; ungraded rows carry a nil grade.
+func (a *App) activeSeasonSnapshot() apiHandlers.ActiveSeasonSnapshotFunc {
+	if a.seasonService == nil {
+		return nil
+	}
+	return func(ctx context.Context) (*contracts.ActiveSeasonSnapshot, error) {
+		active, err := a.seasonService.ActiveSeason(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if active == nil {
+			return nil, nil
+		}
+		rows, err := a.seasonService.ListSeasonAnimes(ctx, active.ID)
+		if err != nil {
+			return nil, err
+		}
+		candidates := make([]contracts.ActiveSeasonCandidate, 0, len(rows))
+		for _, row := range rows {
+			if row.AnimeID == "" {
+				continue
+			}
+			candidate := contracts.ActiveSeasonCandidate{AnimeID: row.AnimeID}
+			if row.IsGraded() {
+				grade := row.Grade
+				candidate.Grade = &grade
+				candidate.GradeSource = "bridge"
+			}
+			candidates = append(candidates, candidate)
+		}
+		return &contracts.ActiveSeasonSnapshot{SeasonID: active.ID, Candidates: candidates}, nil
+	}
+}
+
 // RecheckSeasonAvailability triggers an out-of-band availability recheck now
 // (the Daily Board's "Re-check now"). Reuses the scheduler run guard; an
 // already-running recheck is reported as success.

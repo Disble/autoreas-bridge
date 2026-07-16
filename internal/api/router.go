@@ -18,6 +18,7 @@ type Handler struct {
 	patchAnime             http.Handler
 	syncReconcile          http.Handler
 	seasonRatings          http.Handler
+	activeSeason           http.Handler
 	mux                    *http.ServeMux
 	config                 Config
 	onPairingTokenConsumed func()
@@ -64,6 +65,12 @@ func NewHandler(config Config) http.Handler {
 			RecordRating: config.RecordSeasonRating,
 		})
 	}
+	if config.ActiveSeasonSnapshot != nil {
+		h.activeSeason = apiHandlers.NewActiveSeasonHandler(apiHandlers.ActiveSeasonConfig{
+			Authenticate: h.authenticate,
+			Snapshot:     config.ActiveSeasonSnapshot,
+		})
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
 	mux.HandleFunc("/api/devices", h.handleDevices)
@@ -74,6 +81,7 @@ func NewHandler(config Config) http.Handler {
 	mux.HandleFunc("/api/conflicts", h.handleConflicts)
 	mux.HandleFunc("/api/conflicts/", h.handleConflictByID)
 	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
+	mux.HandleFunc("/api/seasons/active", h.handleActiveSeason)
 	mux.HandleFunc("/api/seasons/active/ratings", h.handleSeasonRatings)
 	if config.RealtimeHub != nil {
 		wsConfig := apiHandlers.WebSocketHandlerConfig{
@@ -243,6 +251,14 @@ func (h *Handler) handleSeasonRatings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.seasonRatings.ServeHTTP(w, r)
+}
+
+func (h *Handler) handleActiveSeason(w http.ResponseWriter, r *http.Request) {
+	if h.activeSeason == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "active season unavailable")
+		return
+	}
+	h.activeSeason.ServeHTTP(w, r)
 }
 
 func (h *Handler) handleAnimeChanges(w http.ResponseWriter, r *http.Request) {

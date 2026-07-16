@@ -183,6 +183,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		DeviceAdmin:            deviceService.(device.AdminService),
 		Conflicts:              conflictService,
 		RecordSeasonRating:     a.recordSeasonRating(),
+		ActiveSeasonSnapshot:   a.activeSeasonSnapshot(),
 		RealtimeHub:            a.realtimeHub,
 		Logger:                 a.sharedLogger,
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),

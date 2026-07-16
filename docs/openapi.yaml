@@ -212,6 +212,29 @@ components:
             Base64-encoded canonical anime JSON the mobile client attempted
             to write, which diverged from local_snapshot_json (SDD-30 ADR-30-4).
 
+    ActiveSeasonCandidate:
+      type: object
+      required: [anime_id]
+      properties:
+        anime_id:
+          type: string
+        grade:
+          type: integer
+          nullable: true
+        grade_source:
+          type: string
+
+    ActiveSeasonSnapshot:
+      type: object
+      required: [season_id, candidates]
+      properties:
+        season_id:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveSeasonCandidate'
+
     BridgeStatus:
       type: object
       required: [status, last_changelog_id]
@@ -376,6 +399,46 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/seasons/active:
+    get:
+      summary: Fetch the active season snapshot
+      description: |
+        Returns the current active-season snapshot mobile uses to hydrate season
+        candidates and bridge-owned premiere grades.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active season snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveSeasonSnapshot'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No active season
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Active season read failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Active season snapshot unavailable
           content:
             application/json:
               schema:

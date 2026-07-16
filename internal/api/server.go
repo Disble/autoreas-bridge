@@ -25,6 +25,7 @@ type StatusService = contracts.StatusService
 type DeviceAdminService = contracts.DeviceAdminService
 type ConflictService = contracts.ConflictService
 type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
+type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
 
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
@@ -38,6 +39,7 @@ type Config struct {
 	DeviceAdmin            DeviceAdminService
 	Conflicts              ConflictService
 	RecordSeasonRating     RecordSeasonRatingFunc
+	ActiveSeasonSnapshot   ActiveSeasonSnapshotFunc
 	RealtimeHub            realtime.Hub
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()

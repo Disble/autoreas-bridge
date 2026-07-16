@@ -20,6 +20,8 @@ type ConflictInfo = contracts.ConflictInfo
 type StatusInfo = contracts.StatusInfo
 type ReconcileRequest = contracts.ReconcileRequest
 type ReconcileResponse = contracts.ReconcileResponse
+type ActiveSeasonSnapshot = contracts.ActiveSeasonSnapshot
+type ActiveSeasonCandidate = contracts.ActiveSeasonCandidate
 
 type AuthenticateFunc func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool)
 type QueryAnimeFunc func(ctx context.Context, id string) (*EffectiveAnime, error)
@@ -86,6 +88,11 @@ type SeasonRatingResult struct {
 // active season. ratedAtMs is the epoch-ms watch/grade moment. A non-nil error is
 // an infrastructure failure (HTTP 500); domain outcomes ride SeasonRatingResult.
 type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error)
+
+// ActiveSeasonSnapshotFunc returns the current active-season snapshot for mobile,
+// or (nil, nil) when no season is open (the handler maps nil to HTTP 404). A non-nil
+// error is an infrastructure failure (HTTP 500).
+type ActiveSeasonSnapshotFunc func(ctx context.Context) (*ActiveSeasonSnapshot, error)
 
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
