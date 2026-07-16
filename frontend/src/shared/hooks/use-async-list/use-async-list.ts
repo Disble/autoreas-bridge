@@ -11,14 +11,30 @@ export function useAsyncList<T>(
   refreshKey?: unknown,
   sourceKey?: unknown,
 ): UseAsyncListResult<T> {
+  // 1. Refs
   const loadRef = useRef(load);
+
+  // 2. State
   const [items, setItems] = useState<readonly T[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [resolvedKeys, setResolvedKeys] = useState<{ readonly refreshKey: unknown; readonly sourceKey: unknown }>({
+    refreshKey: Symbol('initial-refresh-key'),
+    sourceKey: Symbol('initial-source-key'),
+  });
+  const [settledVersion, setSettledVersion] = useState(-1);
+
+  // 3. Context/3rd Party Hooks
   const reload = useCallback(() => {
     setReloadVersion((previous) => previous + 1);
   }, []);
 
+  // 4. Queries/Mutations
+
+  // 5. Derived State (useMemo)
+
+  // 6. Callbacks (useCallback calling pure helpers)
+
+  // 7. Effects
   useEffect(() => {
     loadRef.current = load;
   }, [load]);
@@ -26,19 +42,19 @@ export function useAsyncList<T>(
   useEffect(() => {
     let active = true;
 
-    setIsLoading(true);
-
     void loadRef.current()
       .then((nextItems) => {
         if (active) {
           setItems(nextItems);
-          setIsLoading(false);
+          setResolvedKeys({ refreshKey, sourceKey });
+          setSettledVersion(reloadVersion);
         }
       })
       .catch(() => {
         if (active) {
           setItems([]);
-          setIsLoading(false);
+          setResolvedKeys({ refreshKey, sourceKey });
+          setSettledVersion(reloadVersion);
         }
       });
 
@@ -46,6 +62,8 @@ export function useAsyncList<T>(
       active = false;
     };
   }, [refreshKey, reloadVersion, sourceKey]);
+
+  const isLoading = settledVersion !== reloadVersion || resolvedKeys.refreshKey !== refreshKey || resolvedKeys.sourceKey !== sourceKey;
 
   return { items, isLoading, reload };
 }

@@ -32,10 +32,26 @@ describe('useAsyncList', () => {
 
     load.mockResolvedValue(['updated']);
     rerender({ refreshKey: 1 });
+    expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.items).toEqual(['updated']));
 
     load.mockResolvedValue(['reloaded']);
     act(() => result.current.reload());
     await waitFor(() => expect(result.current.items).toEqual(['reloaded']));
+  });
+
+  it('marks loading immediately when the source key changes', async () => {
+    const load = vi.fn().mockResolvedValue(['initial']);
+    const { result, rerender } = renderHook(({ sourceKey }) => useAsyncList(load, undefined, sourceKey), {
+      initialProps: { sourceKey: 'catalog' },
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    load.mockResolvedValue(['history']);
+    rerender({ sourceKey: 'history' });
+
+    expect(result.current.isLoading).toBe(true);
+    await waitFor(() => expect(result.current.items).toEqual(['history']));
   });
 });
