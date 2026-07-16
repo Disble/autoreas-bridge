@@ -43,6 +43,18 @@ type WriteBase = legacy.WriteBase
 // merges or chooses fields.
 type WriteBaseStore = legacy.WriteBaseStore
 
+type BatchReplacementPhase = legacy.BatchReplacementPhase
+
+const (
+	BatchReplacementPhaseStaged      = legacy.BatchReplacementPhaseStaged
+	BatchReplacementPhaseTempDurable = legacy.BatchReplacementPhaseTempDurable
+	BatchReplacementPhaseBackupMoved = legacy.BatchReplacementPhaseBackupMoved
+	BatchReplacementPhasePromoted    = legacy.BatchReplacementPhasePromoted
+	BatchReplacementPhaseFinalized   = legacy.BatchReplacementPhaseFinalized
+)
+
+type BatchReplacementJournal = legacy.BatchReplacementJournal
+
 type AnimeChangedOutboxEvent = legacy.AnimeChangedOutboxEvent
 
 type AnimeChangedOutboxStore = legacy.AnimeChangedOutboxStore

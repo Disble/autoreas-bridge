@@ -52,6 +52,7 @@ function mockAnimeDetailState(overrides = {}) {
     onPortadaError: vi.fn(),
     onPortadaLoad: vi.fn(),
     onBack: vi.fn(),
+    onEditAnime: vi.fn(),
     confirmation: undefined,
     feedback: undefined,
     isMutating: false,
@@ -147,6 +148,17 @@ describe('AnimeDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders an Edit anime action that calls the hook callback', () => {
+    const onEditAnime = vi.fn();
+    mockAnimeDetailState({ onEditAnime });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit anime' }));
+
+    expect(onEditAnime).toHaveBeenCalledTimes(1);
   });
 
   it('shows Repeat and Restore only when the loaded anime is eligible', () => {

@@ -88,6 +88,10 @@ type App struct {
 	deviceStore               device.Store
 	newToken                  func() (string, error)
 	animeQuery                contracts.AnimeQueryService
+	animeEditorQuery          *anime.QueryService
+	animeEditorWrite          *anime.EditorService
+	animeEditorScheduleQuery  *anime.ScheduleQueryService
+	animeEditorScheduleWrite  *anime.ScheduleService
 	coverResolver             coverResolver
 	notifier                  notification.Notifier
 	newDownloadStore          func(db *sql.DB) download.DownloadStore
@@ -231,12 +235,16 @@ func (a *App) startup(ctx context.Context) {
 	}
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
 	a.animeQuery = anime.NewQueryService(snapshotStore)
+	a.animeEditorQuery = anime.NewQueryService(snapshotStore)
 	// cover.NewDefaultResolver never fails construction (a cache-root
 	// resolution error degrades to a no-op cache internally), so this wiring
 	// is nil-safe by design -- see internal/anime/cover/production.go.
 	a.coverResolver = cover.NewDefaultResolver(0)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
+	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeUpdateWriter)
+	a.animeEditorScheduleQuery = anime.NewScheduleQueryService(a.animeEditorQuery)
+	a.animeEditorScheduleWrite = anime.NewScheduleService(a.animeEditorQuery, a.animeUpdateWriter)
 	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
 	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
 	// already constructed by this point (app.go:351).
@@ -255,6 +263,18 @@ func (a *App) startup(ctx context.Context) {
 		// SDD-48 ADR-48-3: register every new season/bridge-created anime as
 		// Bridge-native so it survives the next reconcile-absence soft-delete.
 		Ownership: a.bridgeNativeRegistry,
+	})
+	a.animeEditorWrite.SetDeps(anime.WriteServiceDeps{
+		Conflicts:      conflictService,
+		Notifier:       a.notifier,
+		Logger:         a.sharedLogger,
+		OCCObserveOnly: true,
+	})
+	a.animeEditorScheduleWrite.SetDeps(anime.WriteServiceDeps{
+		Conflicts:      conflictService,
+		Notifier:       a.notifier,
+		Logger:         a.sharedLogger,
+		OCCObserveOnly: true,
 	})
 	a.animeCreate = anime.NewCreateService(a.animeWrite, nil)
 	if a.bridgeDB != nil && a.animeWrite.RecoveryConfigured() {

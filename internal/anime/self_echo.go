@@ -10,11 +10,35 @@ type SelfEchoRegistry interface {
 	Remember(payload []byte)
 	Forget(payload []byte)
 	ConsumeIfPresent(payload []byte) bool
+	BeginReplacement()
+	EndReplacement()
+	ReplacementInFlight() bool
 }
 
 type md5SelfEchoRegistry struct {
-	mu     sync.Mutex
-	counts map[string]int
+	mu           sync.Mutex
+	counts       map[string]int
+	replacements int
+}
+
+func (r *md5SelfEchoRegistry) BeginReplacement() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.replacements++
+}
+
+func (r *md5SelfEchoRegistry) EndReplacement() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.replacements > 0 {
+		r.replacements--
+	}
+}
+
+func (r *md5SelfEchoRegistry) ReplacementInFlight() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.replacements > 0
 }
 
 func NewSelfEchoRegistry() SelfEchoRegistry {

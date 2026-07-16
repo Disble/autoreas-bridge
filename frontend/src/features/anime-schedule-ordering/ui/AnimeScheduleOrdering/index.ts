@@ -1,0 +1,1 @@
+export { AnimeScheduleOrdering } from './AnimeScheduleOrdering';

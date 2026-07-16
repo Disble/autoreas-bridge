@@ -76,6 +76,9 @@ export function useAnimeDetail(
       void navigate('/history');
     }
   }, [navigate]);
+  const onEditAnime = useCallback(() => {
+    void navigate(`/editor/${props.animeId}`);
+  }, [navigate, props.animeId]);
   // 7. Effects
   useEffect(() => {
     let active = true;
@@ -112,6 +115,7 @@ export function useAnimeDetail(
     onPortadaError,
     onPortadaLoad,
     onBack,
+    onEditAnime,
     onRequestRepeat: mutation.onRequestRepeat,
     onRequestRestore: mutation.onRequestRestore,
     onCancelAction: mutation.onCancelAction,

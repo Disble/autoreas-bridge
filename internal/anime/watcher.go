@@ -237,6 +237,9 @@ func (w *runtimeWatcher) waitRetry(ctx context.Context) bool {
 }
 
 func (w *runtimeWatcher) processCurrentFile(ctx context.Context) error {
+	if w.selfEchoRegistry != nil && w.selfEchoRegistry.ReplacementInFlight() {
+		return nil
+	}
 	log := newDomainLogger("anime", w.sharedLogger, w.logger)
 	start := time.Now()
 	correlationID := uuid.NewString()

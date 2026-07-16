@@ -13,6 +13,9 @@ import (
 
 func (a *App) OpenAnimePage(animeID string) contracts.ChapterCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimePageOpened, pageValue, func(ctx context.Context, value string) error {
+		if err := anime.ValidatePageURL(value); err != nil {
+			return err
+		}
 		a.ensureRuntimeDependencies()
 		a.openURL(ctx, value)
 		return nil
@@ -28,6 +31,9 @@ func (a *App) CopyAnimePage(animeID string) contracts.ChapterCommandResult {
 
 func (a *App) OpenAnimeFolder(animeID string) contracts.ChapterCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimeFolderOpened, folderValue, func(_ context.Context, value string) error {
+		if err := anime.ValidateLocalFolder(value); err != nil {
+			return err
+		}
 		a.ensureRuntimeDependencies()
 		return a.openFolder(value)
 	})

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"autoreas-bridge/internal/activity"
@@ -96,6 +97,46 @@ func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
 	if len(records) != 0 {
 		t.Fatalf("expected no activity rows, got %#v", records)
 	}
+}
+
+func TestOpenAnimePageRejectsUnsafeStoredURLAtLaunchSink(t *testing.T) {
+	ctx := context.Background()
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"pagina":"file:///C:/Windows/System32/calc.exe"}`, 1000)
+	opened := false
+	app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openURL: func(context.Context, string) { opened = true }}
+	got := app.OpenAnimePage("anime-1")
+	if got.Status != "error" || opened {
+		t.Fatalf("unsafe stored URL reached BrowserOpenURL: result=%#v opened=%v", got, opened)
+	}
+}
+
+func TestOpenAnimeFolderRejectsUnsafeStoredPathsAtLaunchSink(t *testing.T) {
+	unsafePaths := []string{`\\server\share\anime`, `\\?\C:\Anime`, `relative\anime`, `C:\Anime\..\Windows`}
+	for _, unsafePath := range unsafePaths {
+		t.Run(unsafePath, func(t *testing.T) {
+			ctx := context.Background()
+			db := openRuntimeBridgeDB(t)
+			store := bridgeSync.NewAnimeSnapshotStore(db)
+			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"carpeta":`+mustJSONText(t, unsafePath)+`}`, 1000)
+			opened := false
+			app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openFolder: func(string) error { opened = true; return nil }}
+			got := app.OpenAnimeFolder("anime-1")
+			if got.Status != "error" || opened {
+				t.Fatalf("unsafe stored folder reached explorer: result=%#v opened=%v", got, opened)
+			}
+		})
+	}
+}
+
+func mustJSONText(t *testing.T, value string) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal test string: %v", err)
+	}
+	return string(encoded)
 }
 
 func assertDesktopActionActivity(t *testing.T, db *sql.DB, actionType string) {

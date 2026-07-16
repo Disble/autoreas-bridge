@@ -3,6 +3,7 @@ package legacy
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,73 @@ func TestLegacyWireRejectsMalformedNestedRepetition(t *testing.T) {
 	var wire LegacyAnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err == nil {
 		t.Fatal("expected malformed nested repetition to fail")
+	}
+}
+
+func TestLegacyWireCopiedRealFixtureCoversNullableMetadataVariantMatrix(t *testing.T) {
+	sourcePath := filepath.Join("..", "..", "..", "resources", "autoreas-data", "animes.dat")
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("real fixture not present at %s", sourcePath)
+		}
+		t.Fatalf("open real fixture: %v", err)
+	}
+	defer source.Close()
+	copyPath := filepath.Join(t.TempDir(), "animes.dat")
+	copyFile, err := os.Create(copyPath)
+	if err != nil {
+		t.Fatalf("create copied fixture: %v", err)
+	}
+	if _, err := io.Copy(copyFile, source); err != nil {
+		copyFile.Close()
+		t.Fatalf("copy real fixture: %v", err)
+	}
+	variants := []string{
+		`{"_id":"variant-missing","nombre":"Missing","nrocapvisto":0,"unknown":{"keep":true}}`,
+		`{"_id":"variant-null","nombre":"Null","nrocapvisto":0,"fechaEstreno":null,"estudios":null,"generos":null,"portada":null,"unknown":{"keep":true}}`,
+		`{"_id":"variant-empty","nombre":"Empty","nrocapvisto":0,"estudios":[],"generos":[],"portada":{"type":"url","path":""},"unknown":{"keep":true}}`,
+		`{"_id":"variant-values","nombre":"Values","nrocapvisto":0,"fechaEstreno":{"$$date":1710000000123},"estudios":["A"],"generos":["B"],"portada":{"type":"file","path":"cover.jpg","future":{"keep":true}},"unknown":{"keep":true}}`,
+	}
+	for _, variant := range variants {
+		if _, err := copyFile.WriteString("\n" + variant); err != nil {
+			copyFile.Close()
+			t.Fatalf("append copied fixture variant: %v", err)
+		}
+	}
+	if err := copyFile.Close(); err != nil {
+		t.Fatalf("close copied fixture: %v", err)
+	}
+
+	file, err := os.Open(copyPath)
+	if err != nil {
+		t.Fatalf("open copied fixture: %v", err)
+	}
+	defer file.Close()
+	seen := map[string]bool{}
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.Contains(line, `"_id":"variant-`) {
+			continue
+		}
+		var wire LegacyAnimeRaw
+		if err := json.Unmarshal([]byte(line), &wire); err != nil {
+			t.Fatalf("unmarshal copied fixture variant: %v", err)
+		}
+		encoded, err := json.Marshal(wire)
+		if err != nil {
+			t.Fatalf("marshal copied fixture variant: %v", err)
+		}
+		assertLegacyJSONEqual(t, line, encoded)
+		seen[wire.ID] = true
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan copied fixture: %v", err)
+	}
+	if len(seen) != len(variants) {
+		t.Fatalf("expected every copied fixture variant, got %#v", seen)
 	}
 }
 

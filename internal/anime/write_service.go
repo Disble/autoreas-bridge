@@ -180,7 +180,7 @@ func (s *WriteService) gateway() *legacy.Gateway {
 	if configured, ok := s.writeBases.(legacy.AnimeChangedOutboxStore); ok {
 		outbox = configured
 	}
-	return legacy.NewGateway(legacy.GatewayConfig{
+	config := legacy.GatewayConfig{
 		LoadSnapshot: func(ctx context.Context, id string) (legacy.Snapshot, error) {
 			record, err := s.store.GetSnapshot(ctx, id)
 			return toLegacySnapshot(record), err
@@ -200,7 +200,11 @@ func (s *WriteService) gateway() *legacy.Gateway {
 		Append:         s.append,
 		PublishChanged: s.publishCommitted,
 		Now:            s.nowFuncForToken(),
-	})
+	}
+	if provider, ok := s.writer.(replacementEchoProvider); ok {
+		config.ReplacementEcho = provider.ReplacementEchoRegistry()
+	}
+	return legacy.NewGateway(config)
 }
 
 func (s *WriteService) append(ctx context.Context, _ string, payload []byte) error {

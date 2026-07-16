@@ -27,6 +27,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
     onPortadaError,
     onPortadaLoad,
     onBack,
+    onEditAnime,
     onRequestRepeat,
     onRequestRestore,
     onCancelAction,
@@ -73,6 +74,9 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
             <Chip color={detail.statusColor} size="sm" variant="soft">
               <Chip.Label>{detail.statusLabel}</Chip.Label>
             </Chip>
+            <div className="pt-2">
+              <Button onPress={onEditAnime} size="sm" variant="secondary">Edit anime</Button>
+            </div>
           </div>
         </header>
 

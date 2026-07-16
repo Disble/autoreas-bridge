@@ -20,6 +20,110 @@ type LegacyAnimeRaw struct {
 	extraFields map[string]json.RawMessage
 }
 
+func (r *LegacyAnimeRaw) SetStringField(key string, value *string) {
+	if value == nil {
+		r.extraFields[key] = mustJSON(nil)
+		return
+	}
+	r.extraFields[key] = mustJSON(*value)
+}
+
+func (r *LegacyAnimeRaw) SetIntField(key string, value *int) {
+	if value == nil {
+		r.extraFields[key] = mustJSON(nil)
+		return
+	}
+	r.extraFields[key] = mustJSON(*value)
+}
+
+func (r *LegacyAnimeRaw) SetFloatField(key string, value *float64) {
+	if value == nil {
+		r.extraFields[key] = mustJSON(nil)
+		return
+	}
+	r.extraFields[key] = mustJSON(*value)
+}
+
+func (r *LegacyAnimeRaw) SetBoolField(key string, value bool) {
+	r.extraFields[key] = mustJSON(value)
+}
+
+func (r *LegacyAnimeRaw) SetDateField(key string, value *time.Time) {
+	if value == nil {
+		r.extraFields[key] = mustJSON(nil)
+		return
+	}
+	r.extraFields[key] = mustJSON(legacyDateWrapper{Date: value.UTC().UnixMilli()})
+}
+
+func (r *LegacyAnimeRaw) SetDays(days []LegacyAnimeDay) {
+	r.extraFields["dias"] = mustJSON(days)
+	delete(r.extraFields, "dia")
+	delete(r.extraFields, "orden")
+}
+
+func (r *LegacyAnimeRaw) SetStringArrayField(key string, values []string) {
+	r.extraFields[key] = mustJSON(values)
+}
+
+func (r *LegacyAnimeRaw) SetPortada(path string) {
+	raw := map[string]json.RawMessage{}
+	if current, ok := nonNullField(r.extraFields, "portada"); ok {
+		_ = json.Unmarshal(current, &raw)
+	}
+	if len(raw) == 0 {
+		raw["type"] = mustJSON("url")
+	}
+	raw["path"] = mustJSON(path)
+	if _, ok := raw["type"]; !ok {
+		raw["type"] = mustJSON("url")
+	}
+	r.extraFields["portada"] = mustJSON(raw)
+}
+
+func (r *LegacyAnimeRaw) SetStudios(clear bool, values []string) {
+	if !clear {
+		r.SetStringArrayField("estudios", append([]string{}, values...))
+		return
+	}
+	current, exists := r.extraFields["estudios"]
+	if !exists {
+		return
+	}
+	if bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
+		r.extraFields["estudios"] = mustJSON(nil)
+		return
+	}
+	r.SetStringArrayField("estudios", []string{})
+}
+
+func (r *LegacyAnimeRaw) SetCover(clear bool, coverType, path string, extra map[string]json.RawMessage) {
+	if clear {
+		if current, exists := r.extraFields["portada"]; !exists || bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
+			if exists {
+				r.extraFields["portada"] = mustJSON(nil)
+			}
+			return
+		}
+		r.SetPortada("")
+		return
+	}
+	raw := map[string]json.RawMessage{}
+	if current, ok := nonNullField(r.extraFields, "portada"); ok {
+		_ = json.Unmarshal(current, &raw)
+	}
+	for key, value := range extra {
+		raw[key] = append(json.RawMessage(nil), value...)
+	}
+	raw["type"] = mustJSON(coverType)
+	raw["path"] = mustJSON(path)
+	r.extraFields["portada"] = mustJSON(raw)
+}
+
+func (r *LegacyAnimeRaw) DeleteField(key string) {
+	delete(r.extraFields, key)
+}
+
 type LegacyAnimeDay struct {
 	Dia   string  `json:"dia"`
 	Orden float64 `json:"orden"`

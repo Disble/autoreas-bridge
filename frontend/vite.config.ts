@@ -14,6 +14,7 @@ export default defineConfig(
     test: {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
+      forbidOnly: true,
       server: {
         deps: {
           // Process react-aria-components through the Vite pipeline instead of

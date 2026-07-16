@@ -1,0 +1,58 @@
+import { act, renderHook } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { useAnimeScheduleOrdering } from '../use-anime-schedule-ordering';
+
+const board = {
+  originAnimeId: 'anime-1',
+  boardModifiedAt: 100,
+  destinations: [
+    { id: 'Lunes', label: 'Lunes', kind: 'weekday' },
+    { id: 'Sin ver', label: 'Sin ver', kind: 'special' },
+  ],
+  entries: [
+    { animeId: 'anime-1', name: 'Frieren', active: true, modifiedAt: 100, placements: [{ day: 'Lunes', order: 1 }], status: 0, progress: 1, originHighlighted: true },
+  ],
+} as const;
+
+describe('useAnimeScheduleOrdering', () => {
+  it('reports zero changes for the authoritative board', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
+    expect(result.current.changeCount).toBe(0);
+  });
+
+  it('blocks apply while the draft is invalid', async () => {
+    const onApply = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply }));
+
+    act(() => result.current.onDuplicate('anime-1'));
+    await act(async () => result.current.onApply());
+
+    expect(result.current.validationMessage).toBeDefined();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it('resets the full shared draft to authoritative state', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
+    act(() => result.current.onDuplicate('anime-1'));
+    expect(result.current.changeCount).toBe(1);
+    act(() => result.current.onReset());
+    expect(result.current.changeCount).toBe(0);
+    expect(result.current.validationMessage).toBeUndefined();
+  });
+
+  it('scrolls the highlighted origin card into view', () => {
+    const origin = document.createElement('div');
+    origin.dataset.originAnime = 'anime-1';
+    origin.scrollIntoView = vi.fn();
+    document.body.append(origin);
+    renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
+    expect(origin.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+    origin.remove();
+  });
+
+  it('separates weekday and special destination rows', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
+    expect(result.current.weekdayColumns.map((column) => column.id)).toEqual(['Lunes']);
+    expect(result.current.specialColumns.map((column) => column.id)).toEqual(['Sin ver']);
+  });
+});

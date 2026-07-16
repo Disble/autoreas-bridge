@@ -1,0 +1,200 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
+	bridgeSync "autoreas-bridge/internal/sync"
+)
+
+func TestGetAnimeEditorRecordReturnsNilWhenServiceUnavailable(t *testing.T) {
+	app := &App{}
+	if got := app.GetAnimeEditorRecord("anime-1"); got.Outcome != contracts.AnimePatchOutcomeError || got.Record != nil {
+		t.Fatalf("expected explicit error when editor query is unavailable, got %#v", got)
+	}
+}
+
+func TestGetAnimeEditorRecordDelegatesToEditorQuery(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"estudios":["Madhouse"],"portada":{"type":"url","path":"C:/covers/frieren.jpg"}}`, 777)
+	query := anime.NewQueryService(store)
+	app := &App{ctx: context.Background(), animeEditorQuery: query}
+
+	got := app.GetAnimeEditorRecord("anime-1")
+	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.Record == nil || got.Record.AnimeID != "anime-1" || got.Record.ModifiedAt != 777 {
+		t.Fatalf("unexpected editor record: %#v", got)
+	}
+}
+
+func TestSaveAnimeEditorDelegatesToEditorService(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	writer := &stubAppUpdateWriter{}
+	service := anime.NewEditorService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
+	app := &App{ctx: context.Background(), animeEditorWrite: service}
+	name := "Frieren X"
+
+	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &name}})
+	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 {
+		t.Fatalf("unexpected save result: %#v", got)
+	}
+}
+
+func TestSaveAnimeEditorReturnsExplicitOutcomeWhenServiceUnavailable(t *testing.T) {
+	app := &App{}
+	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{})
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
+		t.Fatalf("expected explicit error outcome when editor service is unavailable, got %#v", got)
+	}
+}
+
+func TestDeactivateAnimeReturnsExplicitOutcomeWhenServiceUnavailable(t *testing.T) {
+	app := &App{}
+	got := app.DeactivateAnime("anime-1", 10)
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
+		t.Fatalf("expected explicit error outcome when deactivate service is unavailable, got %#v", got)
+	}
+}
+
+func TestApplyAnimeEditorScheduleReturnsExplicitOutcomeWhenServiceUnavailable(t *testing.T) {
+	app := &App{}
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{})
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
+		t.Fatalf("expected explicit error outcome when schedule service is unavailable, got %#v", got)
+	}
+}
+
+func TestGetAnimeEditorScheduleBoardDelegatesToScheduleQuery(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","activo":true,"dias":[{"dia":"Viernes","orden":1}]}`, 100)
+	query := anime.NewQueryService(store)
+	app := &App{ctx: context.Background(), animeEditorScheduleQuery: anime.NewScheduleQueryService(query)}
+
+	got := app.GetAnimeEditorScheduleBoard("anime-1")
+	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.Board == nil || len(got.Board.Entries) != 1 || !got.Board.Entries[0].OriginHighlighted {
+		t.Fatalf("unexpected schedule board: %#v", got)
+	}
+}
+
+func TestSaveAnimeEditorReturnsErrorOutcomeForValidationFailure(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	writer := &stubAppUpdateWriter{}
+	service := anime.NewEditorService(store, writer)
+	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	blank := " "
+	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 100, Patch: AnimeEditorPatchDTO{Name: &blank}})
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" || got.Details["operation"] != "save" {
+		t.Fatalf("expected useful validation error outcome, got %#v", got)
+	}
+}
+
+func TestSaveAnimeEditorReturnsConflictWithRefreshedRecord(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
+	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	name := "Stale"
+	got := app.SaveAnimeEditor(SaveAnimeEditorCommandDTO{AnimeID: "anime-1", BaseModifiedAt: 99, Patch: AnimeEditorPatchDTO{Name: &name}})
+	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.Record == nil || got.Record.ModifiedAt != 100 || got.ConflictID == "" {
+		t.Fatalf("expected conflict authority, got %#v", got)
+	}
+}
+
+func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicitOutcome(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	requests := []string{
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"totalEpisodes":{"present":true,"value":"twelve"}}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"modified_at":100}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"repetir":[]}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"primeravez":false}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"_id":"other"}}`,
+	}
+	for _, payload := range requests {
+		var command SaveAnimeEditorCommandDTO
+		if err := json.Unmarshal([]byte(payload), &command); err != nil {
+			t.Fatalf("binding DTO must capture malformed input for explicit outcome: %v", err)
+		}
+		got := app.SaveAnimeEditor(command)
+		if got.Outcome != contracts.AnimePatchOutcomeError || got.Message == "" {
+			t.Fatalf("malformed/forbidden patch returned misleading result: payload=%s result=%#v", payload, got)
+		}
+	}
+}
+
+func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 100)
+	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
+	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
+	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
+	got := app.DeactivateAnime("anime-1", 100)
+	if got.Outcome != contracts.AnimePatchOutcomeApplied || got.ModifiedAt != 200 || got.Record == nil || got.Record.Frequent.Active {
+		t.Fatalf("expected applied deactivate authority, got %#v", got)
+	}
+}
+
+func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Lunes","orden":1}]}`, 100)
+	query := anime.NewQueryService(store)
+	app := &App{
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
+	}
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 99, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 1}}}}})
+	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.Board == nil || got.Board.BoardModifiedAt != 100 || got.Message == "" {
+		t.Fatalf("expected schedule conflict with refreshed authority, got %#v", got)
+	}
+}
+
+func TestApplyAnimeEditorScheduleReturnsValidationErrorWithRefreshedBoard(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Lunes","orden":1}]}`, 100)
+	query := anime.NewQueryService(store)
+	app := &App{
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
+	}
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Dia: "Unsafe", Orden: 1}}}}})
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Board == nil || got.Message == "" || got.Details["operation"] != "apply_schedule" {
+		t.Fatalf("expected validation error with refreshed board, got %#v", got)
+	}
+}
+
+func TestEditorReadBindingsReturnInfrastructureErrorsWithoutZeroValueAuthority(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	query := anime.NewQueryService(store)
+	boardQuery := anime.NewScheduleQueryService(query)
+	if err := db.Close(); err != nil {
+		t.Fatalf("close test database: %v", err)
+	}
+	app := &App{ctx: context.Background(), animeEditorQuery: query, animeEditorScheduleQuery: boardQuery}
+	recordResult := app.GetAnimeEditorRecord("anime-1")
+	boardResult := app.GetAnimeEditorScheduleBoard("anime-1")
+	if recordResult.Outcome != contracts.AnimePatchOutcomeError || recordResult.Record != nil || recordResult.Message == "" {
+		t.Fatalf("unexpected record infrastructure result: %#v", recordResult)
+	}
+	if boardResult.Outcome != contracts.AnimePatchOutcomeError || boardResult.Board != nil || boardResult.Message == "" {
+		t.Fatalf("unexpected board infrastructure result: %#v", boardResult)
+	}
+}

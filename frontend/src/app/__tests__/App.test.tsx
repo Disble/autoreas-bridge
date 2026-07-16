@@ -143,7 +143,7 @@ describe('App routing', () => {
     expect(historyLink).toHaveAttribute('href', '/history');
   });
 
-  it('keeps exactly 10 primary navigation entries after the Season workspace is added', async () => {
+  it('keeps exactly 11 primary navigation entries after the Anime Editor workspace is added', async () => {
     render(
       <MemoryRouter initialEntries={['/network']}>
         <App />
@@ -152,7 +152,27 @@ describe('App routing', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
 
-    expect(within(nav).getAllByRole('link')).toHaveLength(10);
+    expect(within(nav).getAllByRole('link')).toHaveLength(11);
+  });
+
+  it('renders the anime editor route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anime Editor' })).toBeInTheDocument();
+  });
+
+  it('resolves /editor/:id to the anime editor workspace', async () => {
+    render(
+      <MemoryRouter initialEntries={['/editor/anime-1']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anime Editor' })).toBeInTheDocument();
   });
 
   it('renders the catalog route directly', async () => {
@@ -207,8 +227,8 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('declares exactly 10 primary navigation entries in the shared layout constants', () => {
-    expect(APP_LAYOUT_NAV_ITEMS).toHaveLength(10);
+  it('declares exactly 11 primary navigation entries in the shared layout constants', () => {
+    expect(APP_LAYOUT_NAV_ITEMS).toHaveLength(11);
   });
 
   it('renders a not found route for unknown paths', async () => {

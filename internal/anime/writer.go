@@ -249,19 +249,25 @@ func (w *updateWriter) setErr(err error) {
 }
 
 func defaultAppendLine(path string, payload []byte) error {
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return legacy.NewDefiniteAppendError(err)
-	}
-	appendErr := appendRecord(file, payload)
-	closeErr := file.Close()
-	if appendErr != nil {
-		return appendErr
-	}
-	if closeErr != nil {
-		return legacy.NewAmbiguousAppendError(closeErr)
-	}
-	return nil
+	return legacy.WithExclusiveFileMutation(path, func() error {
+		file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return legacy.NewDefiniteAppendError(err)
+		}
+		appendErr := appendRecord(file, payload)
+		closeErr := file.Close()
+		if appendErr != nil {
+			return appendErr
+		}
+		if closeErr != nil {
+			return legacy.NewAmbiguousAppendError(closeErr)
+		}
+		return nil
+	})
+}
+
+func (w *updateWriter) ReplacementEchoRegistry() legacy.ReplacementEchoRegistry {
+	return w.selfEchoRegistry
 }
 
 type appendSyncWriter interface {

@@ -1,11 +1,5 @@
 import type { ReactNode } from 'react';
-import type { CONTAINERS, WEEKDAYS } from './ordering-board.constants';
-
-/** Known dnd-kit container ids for the ordering board: rail + weekdays. */
-export type ContainerId = (typeof CONTAINERS)[number];
-
-/** One real weekday column id. */
-export type Weekday = (typeof WEEKDAYS)[number];
+import type { AnimeScheduleOrderingInstance } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** One anime's intended placement — a weekday+position or its Estrenos section. */
 export interface DraftPlacement {
@@ -18,10 +12,7 @@ export interface DraftPlacement {
  * of the same anime share `animeId` but each has a distinct, stable `key` (the
  * dnd-kit sortable id). `orden` is only meaningful for a rail card's Estrenos section.
  */
-export interface OrderingInstance {
-  readonly key: string;
-  readonly animeId: string;
-  readonly name: string;
+export interface OrderingInstance extends AnimeScheduleOrderingInstance {
   readonly isPendingDuplicate: boolean;
   readonly section: string;
   readonly orden: number;
@@ -35,6 +26,7 @@ export interface OrderingInstance {
 export interface WorkingState {
   readonly order: Record<string, readonly string[]>;
   readonly instances: Record<string, OrderingInstance>;
+  readonly duplicateAllowedDestinations?: readonly string[];
 }
 
 /** Props for a single draggable ordering card (a rail candidate or a placed weekday clone). */

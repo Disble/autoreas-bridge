@@ -238,6 +238,27 @@ type AnimeLegacyPullResult struct {
 	WarningCount int    `json:"warningCount"`
 }
 
+// ActiveSeasonSnapshot is the read-model mobile pulls from GET /api/seasons/active
+// (SDD-44 season sync) to learn the bridge-declared candidate set and their premiere
+// grades. Only rows already linked to a real anime (AnimeID != "") are candidates.
+// A nil snapshot (no open season) is surfaced as HTTP 404, which mobile reads as
+// "no active season".
+type ActiveSeasonSnapshot struct {
+	SeasonID   string                  `json:"season_id"`
+	Candidates []ActiveSeasonCandidate `json:"candidates"`
+}
+
+// ActiveSeasonCandidate is one linked season anime on the mobile snapshot. Grade is
+// a pointer so an ungraded candidate serializes as an explicit null (mobile reads
+// null as "no bridge grade yet"). GradeSource is the literal "bridge" marker when a
+// grade is present, omitted otherwise — mobile only distinguishes bridge-owned from
+// absent, never the internal manual/mobile_sync provenance.
+type ActiveSeasonCandidate struct {
+	AnimeID     string `json:"anime_id"`
+	Grade       *int   `json:"grade"`
+	GradeSource string `json:"grade_source,omitempty"`
+}
+
 type ReconcileRequest struct {
 	DeviceID          string             `json:"device_id"`
 	LastChangelogID   int64              `json:"last_changelog_id"`
@@ -341,12 +362,15 @@ const (
 	AnimePatchOutcomeApplied  AnimePatchOutcome = "applied"
 	AnimePatchOutcomeNoOp     AnimePatchOutcome = "no_op"
 	AnimePatchOutcomeConflict AnimePatchOutcome = "conflict"
+	AnimePatchOutcomeError    AnimePatchOutcome = "error"
 )
 
 // AnimePatchResult is the authoritative semantic result of an anime mutation.
 // Transport status remains separate so Wails and internal adapters cannot lose
 // the current OCC token or recorded conflict identity.
 type AnimePatchResult struct {
+	Status     string            `json:"status,omitempty"`
+	Message    string            `json:"message,omitempty"`
 	AnimeID    string            `json:"animeId"`
 	Outcome    AnimePatchOutcome `json:"outcome"`
 	ModifiedAt int64             `json:"modifiedAt"`

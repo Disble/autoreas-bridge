@@ -6,6 +6,8 @@ import {logger} from '../models';
 
 export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
 
+export function ApplyAnimeEditorSchedule(arg1:main.ApplyAnimeScheduleDraftCommandDTO):Promise<contracts.AnimeEditorScheduleApplyResult>;
+
 export function ApplySeasonSchedule():Promise<main.ApplyScheduleDTO>;
 
 export function CloseSeason():Promise<string>;
@@ -20,6 +22,8 @@ export function CreateSeason(arg1:string):Promise<string>;
 
 export function CreateSeasonAnimes(arg1:Array<string>,arg2:Record<string, string>):Promise<string>;
 
+export function DeactivateAnime(arg1:string,arg2:number):Promise<contracts.AnimeEditorSaveResult>;
+
 export function DiscardSeasonName(arg1:string):Promise<string>;
 
 export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;
@@ -27,6 +31,10 @@ export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;
 export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;
 
 export function GetAnimeDetailView(arg1:string):Promise<contracts.AnimeDetail>;
+
+export function GetAnimeEditorRecord(arg1:string):Promise<contracts.AnimeEditorRecordResult>;
+
+export function GetAnimeEditorScheduleBoard(arg1:string):Promise<contracts.AnimeEditorScheduleBoardResult>;
 
 export function GetAnimeHistory():Promise<Array<contracts.AnimeHistoryItem>>;
 
@@ -97,6 +105,8 @@ export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
 
 export function RunSeasonMatching():Promise<string>;
+
+export function SaveAnimeEditor(arg1:main.SaveAnimeEditorCommandDTO):Promise<contracts.AnimeEditorSaveResult>;
 
 export function SaveSeasonOrderingDraft(arg1:string):Promise<string>;
 

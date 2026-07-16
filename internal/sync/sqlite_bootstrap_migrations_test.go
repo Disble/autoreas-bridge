@@ -28,7 +28,7 @@ func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) 
 
 	columns := readTableColumns(t, db, "anime_write_operations")
 	for _, required := range []string{
-		"operation_id", "anime_id", "base_modified_at", "intended_modified_at",
+		"operation_id", "anime_id", "batch_id", "batch_order", "batch_size", "base_modified_at", "intended_modified_at",
 		"base_snapshot_json", "base_hash", "desired_snapshot_json", "desired_hash",
 		"status", "created_at_ms", "committed_at_ms",
 	} {
@@ -44,6 +44,21 @@ func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) 
 	} {
 		if !containsString(indexes, required) {
 			t.Fatalf("expected anime_write_operations index %q, got %#v", required, indexes)
+		}
+	}
+}
+
+func TestBatchReplacementJournalMigrationCreatesRecoverySchema(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	columns := readTableColumns(t, db, "anime_batch_replacements")
+	for _, required := range []string{
+		"batch_id", "canonical_path", "temp_path", "backup_path", "base_file_hash",
+		"desired_file_hash", "phase", "created_at_ms", "updated_at_ms",
+	} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected anime_batch_replacements to contain column %q, got %#v", required, columns)
 		}
 	}
 }

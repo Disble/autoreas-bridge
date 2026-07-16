@@ -20,17 +20,20 @@ func NewWriteBaseStore(db *sql.DB) *WriteBaseStore {
 }
 
 func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperation) error {
+	if operation.BatchSize <= 0 {
+		operation.BatchSize = 1
+	}
 	if err := validateWriteOperation(operation); err != nil {
 		return err
 	}
 
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO anime_write_operations (
-			operation_id, anime_id, base_modified_at, intended_modified_at,
+			operation_id, anime_id, batch_id, batch_order, batch_size, base_modified_at, intended_modified_at,
 			base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
 			status, created_at_ms
 		)
-		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		WHERE COALESCE((
 			SELECT modified_at FROM anime_snapshots WHERE anime_id = ?
 		), 0) = ?
@@ -41,6 +44,9 @@ func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperati
 	`,
 		operation.OperationID,
 		operation.AnimeID,
+		operation.BatchID,
+		operation.BatchOrder,
+		operation.BatchSize,
 		operation.BaseModifiedAt,
 		operation.IntendedModifiedAt,
 		string(operation.BaseSnapshotJSON),
@@ -74,8 +80,14 @@ func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperati
 }
 
 func (s *WriteBaseStore) classifyStageRejection(ctx context.Context, operation anime.WriteOperation) error {
+	return classifyStageRejectionWithQuerier(ctx, s.db, operation)
+}
+
+func classifyStageRejectionWithQuerier(ctx context.Context, queryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, operation anime.WriteOperation) error {
 	var currentModifiedAt int64
-	err := s.db.QueryRowContext(ctx, `
+	err := queryer.QueryRowContext(ctx, `
 		SELECT COALESCE((SELECT modified_at FROM anime_snapshots WHERE anime_id = ?), 0)
 	`, operation.AnimeID).Scan(&currentModifiedAt)
 	if err != nil {
@@ -87,7 +99,7 @@ func (s *WriteBaseStore) classifyStageRejection(ctx context.Context, operation a
 	}
 
 	var reservationID string
-	err = s.db.QueryRowContext(ctx, `
+	err = queryer.QueryRowContext(ctx, `
 		SELECT operation_id FROM anime_write_operations
 		WHERE anime_id = ? AND status = ?
 		LIMIT 1
@@ -98,6 +110,54 @@ func (s *WriteBaseStore) classifyStageRejection(ctx context.Context, operation a
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("query live write reservation for anime %q: %w", operation.AnimeID, err)
+	}
+	return nil
+}
+
+func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.WriteOperation) error {
+	if len(operations) == 0 {
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin batch stage: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, operation := range operations {
+		if operation.BatchSize <= 0 {
+			operation.BatchSize = len(operations)
+		}
+		if err := validateWriteOperation(operation); err != nil {
+			return err
+		}
+		result, err := tx.ExecContext(ctx, `
+			INSERT INTO anime_write_operations (
+				operation_id, anime_id, batch_id, batch_order, batch_size, base_modified_at, intended_modified_at,
+				base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
+				status, created_at_ms
+			)
+			SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			WHERE COALESCE((SELECT modified_at FROM anime_snapshots WHERE anime_id = ?), 0) = ?
+			AND NOT EXISTS (
+				SELECT 1 FROM anime_write_operations WHERE anime_id = ? AND status = ?
+			)
+		`, operation.OperationID, operation.AnimeID, operation.BatchID, operation.BatchOrder, operation.BatchSize,
+			operation.BaseModifiedAt, operation.IntendedModifiedAt, string(operation.BaseSnapshotJSON), operation.BaseHash,
+			string(operation.DesiredSnapshotJSON), operation.DesiredHash, anime.WriteOperationStatusStaged, operation.CreatedAtMs,
+			operation.AnimeID, operation.BaseModifiedAt, operation.AnimeID, anime.WriteOperationStatusStaged)
+		if err != nil {
+			return fmt.Errorf("stage batch write operation %q: %w", operation.OperationID, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("read staged batch write operation %q result: %w", operation.OperationID, err)
+		}
+		if rows != 1 {
+			return classifyStageRejectionWithQuerier(ctx, tx, operation)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit batch stage: %w", err)
 	}
 	return nil
 }
@@ -132,14 +192,61 @@ func (s *WriteBaseStore) Finalize(ctx context.Context, operationID string, commi
 	return nil
 }
 
+func (s *WriteBaseStore) FinalizeBatch(ctx context.Context, batchID string, committedAtMs int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin batch finalization %q: %w", batchID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	rows, err := tx.QueryContext(ctx, writeOperationSelect+` WHERE batch_id = ? AND status = ? ORDER BY batch_order ASC, operation_id ASC`, batchID, anime.WriteOperationStatusStaged)
+	if err != nil {
+		return fmt.Errorf("query batch operations %q: %w", batchID, err)
+	}
+	defer rows.Close()
+	operations := []anime.WriteOperation{}
+	for rows.Next() {
+		operation, err := scanWriteOperation(rows)
+		if err != nil {
+			return fmt.Errorf("scan batch operation %q: %w", batchID, err)
+		}
+		operations = append(operations, operation)
+	}
+	if len(operations) == 0 {
+		return anime.ErrWriteOperationNotFound
+	}
+	for _, operation := range operations {
+		status, err := finalizeWriteOperation(ctx, tx, operation, committedAtMs)
+		if err != nil {
+			return err
+		}
+		if status == anime.WriteOperationStatusSuperseded {
+			return anime.ErrWriteOperationSuperseded
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit batch finalization %q: %w", batchID, err)
+	}
+	return nil
+}
+
 func (s *WriteBaseStore) Abort(ctx context.Context, operationID string) error {
 	return s.transitionFromStaged(ctx, operationID, anime.WriteOperationStatusAborted)
+}
+
+func (s *WriteBaseStore) AbortBatch(ctx context.Context, batchID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE anime_write_operations SET status = ? WHERE batch_id = ? AND status = ?
+	`, anime.WriteOperationStatusAborted, batchID, anime.WriteOperationStatusStaged)
+	if err != nil {
+		return fmt.Errorf("abort batch %q: %w", batchID, err)
+	}
+	return nil
 }
 
 func (s *WriteBaseStore) ListStaged(ctx context.Context) ([]anime.WriteOperation, error) {
 	rows, err := s.db.QueryContext(ctx, writeOperationSelect+`
 		WHERE status = ?
-		ORDER BY created_at_ms ASC, operation_id ASC
+		ORDER BY created_at_ms ASC, batch_id ASC, batch_order ASC, operation_id ASC
 	`, anime.WriteOperationStatusStaged)
 	if err != nil {
 		return nil, fmt.Errorf("list staged write operations: %w", err)
@@ -231,6 +338,16 @@ func (s *WriteBaseStore) Recover(ctx context.Context, operationID, effectiveHash
 		}
 		return anime.WriteRecoveryActionDivergent, nil
 	}
+}
+
+func (s *WriteBaseStore) MarkBatchSuperseded(ctx context.Context, batchID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE anime_write_operations SET status = ? WHERE batch_id = ? AND status = ?
+	`, anime.WriteOperationStatusSuperseded, batchID, anime.WriteOperationStatusStaged)
+	if err != nil {
+		return fmt.Errorf("mark batch %q superseded: %w", batchID, err)
+	}
+	return nil
 }
 
 func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) ([]anime.AnimeChangedOutboxEvent, error) {
@@ -387,7 +504,7 @@ func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.Wri
 }
 
 const writeOperationSelect = `
-	SELECT operation_id, anime_id, base_modified_at, intended_modified_at,
+	SELECT operation_id, anime_id, batch_id, batch_order, batch_size, base_modified_at, intended_modified_at,
 	       base_snapshot_json, base_hash, desired_snapshot_json, desired_hash,
 	       status, created_at_ms, committed_at_ms
 	FROM anime_write_operations
@@ -417,6 +534,9 @@ func scanWriteOperation(scanner writeOperationScanner) (anime.WriteOperation, er
 	if err := scanner.Scan(
 		&operation.OperationID,
 		&operation.AnimeID,
+		&operation.BatchID,
+		&operation.BatchOrder,
+		&operation.BatchSize,
 		&operation.BaseModifiedAt,
 		&operation.IntendedModifiedAt,
 		&baseJSON,

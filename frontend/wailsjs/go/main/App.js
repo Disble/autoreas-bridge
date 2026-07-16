@@ -6,6 +6,10 @@ export function AdjustWatchedChapters(arg1, arg2, arg3) {
   return window['go']['main']['App']['AdjustWatchedChapters'](arg1, arg2, arg3);
 }
 
+export function ApplyAnimeEditorSchedule(arg1) {
+  return window['go']['main']['App']['ApplyAnimeEditorSchedule'](arg1);
+}
+
 export function ApplySeasonSchedule() {
   return window['go']['main']['App']['ApplySeasonSchedule']();
 }
@@ -34,6 +38,10 @@ export function CreateSeasonAnimes(arg1, arg2) {
   return window['go']['main']['App']['CreateSeasonAnimes'](arg1, arg2);
 }
 
+export function DeactivateAnime(arg1, arg2) {
+  return window['go']['main']['App']['DeactivateAnime'](arg1, arg2);
+}
+
 export function DiscardSeasonName(arg1) {
   return window['go']['main']['App']['DiscardSeasonName'](arg1);
 }
@@ -48,6 +56,14 @@ export function GetAnimeDetail(arg1) {
 
 export function GetAnimeDetailView(arg1) {
   return window['go']['main']['App']['GetAnimeDetailView'](arg1);
+}
+
+export function GetAnimeEditorRecord(arg1) {
+  return window['go']['main']['App']['GetAnimeEditorRecord'](arg1);
+}
+
+export function GetAnimeEditorScheduleBoard(arg1) {
+  return window['go']['main']['App']['GetAnimeEditorScheduleBoard'](arg1);
 }
 
 export function GetAnimeHistory() {
@@ -188,6 +204,10 @@ export function RestoreAnime(arg1, arg2) {
 
 export function RunSeasonMatching() {
   return window['go']['main']['App']['RunSeasonMatching']();
+}
+
+export function SaveAnimeEditor(arg1) {
+  return window['go']['main']['App']['SaveAnimeEditor'](arg1);
 }
 
 export function SaveSeasonOrderingDraft(arg1) {

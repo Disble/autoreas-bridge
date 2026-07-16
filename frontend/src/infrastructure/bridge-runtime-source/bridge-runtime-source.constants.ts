@@ -1,5 +1,5 @@
 import type { contracts } from '../../../wailsjs/go/models';
-import type { AnimeLegacyPullResult } from '../../shared/contracts/anime.types';
+import type { AnimeEditorSaveResult, AnimeLegacyPullResult } from '../../shared/contracts/anime.types';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
 
 /** Event emitted when the active pairing token gets consumed. */
@@ -19,6 +19,13 @@ export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.ChapterCommandResult 
   message: 'runtime unavailable',
   modifiedAt: 0,
   status: 'error',
+};
+
+/** Fail-closed result for anime editor/runtime mutations that require an explicit outcome. */
+export const RUNTIME_UNAVAILABLE_EDITOR_RESULT: AnimeEditorSaveResult = {
+  animeId: '',
+  message: 'runtime unavailable',
+  outcome: 'error',
 };
 
 /** Module-local singleton container for the shared bridge runtime source. */

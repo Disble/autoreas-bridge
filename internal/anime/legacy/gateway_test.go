@@ -207,16 +207,18 @@ func TestGatewayRecoveryFinalizesEffectiveDesiredWithoutDuplicateAppend(t *testi
 }
 
 type gatewayConfig struct {
-	db           *sql.DB
-	path         string
-	clock        int64
-	operations   legacy.WriteBaseStore
-	outbox       legacy.AnimeChangedOutboxStore
-	publish      func(string, []byte)
-	publishEvent func(string, string, []byte)
-	append       func(context.Context, string, []byte) error
-	load         func(context.Context, string) (legacy.Snapshot, error)
-	operationID  string
+	db                *sql.DB
+	path              string
+	clock             int64
+	operations        legacy.WriteBaseStore
+	outbox            legacy.AnimeChangedOutboxStore
+	publish           func(string, []byte)
+	publishEvent      func(string, string, []byte)
+	append            func(context.Context, string, []byte) error
+	load              func(context.Context, string) (legacy.Snapshot, error)
+	operationID       string
+	replaceCheckpoint func(legacy.BatchReplacementPhase) error
+	replacementEcho   legacy.ReplacementEchoRegistry
 }
 
 func newGateway(t *testing.T, config gatewayConfig) *legacy.Gateway {
@@ -271,8 +273,10 @@ func newGateway(t *testing.T, config gatewayConfig) *legacy.Gateway {
 				config.publish(animeID, payload)
 			}
 		},
-		Now:            func() time.Time { return time.UnixMilli(config.clock).UTC() },
-		NewOperationID: func() string { return operationID },
+		Now:               func() time.Time { return time.UnixMilli(config.clock).UTC() },
+		NewOperationID:    func() string { return operationID },
+		ReplaceCheckpoint: config.replaceCheckpoint,
+		ReplacementEcho:   config.replacementEcho,
 	})
 }
 

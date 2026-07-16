@@ -84,6 +84,9 @@ const (
 		CREATE TABLE IF NOT EXISTS anime_write_operations (
 			operation_id TEXT PRIMARY KEY,
 			anime_id TEXT NOT NULL,
+			batch_id TEXT NOT NULL DEFAULT '',
+			batch_order INTEGER NOT NULL DEFAULT 0,
+			batch_size INTEGER NOT NULL DEFAULT 1,
 			base_modified_at INTEGER NOT NULL,
 			intended_modified_at INTEGER NOT NULL,
 			base_snapshot_json TEXT NOT NULL,
@@ -123,6 +126,19 @@ const (
 	animeChangedOutboxPendingIndexDDL = `
 		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
 		ON anime_changed_outbox (status, created_at_ms, event_id)`
+
+	animeBatchReplacementsDDL = `
+		CREATE TABLE IF NOT EXISTS anime_batch_replacements (
+			batch_id TEXT PRIMARY KEY,
+			canonical_path TEXT NOT NULL,
+			temp_path TEXT NOT NULL,
+			backup_path TEXT NOT NULL,
+			base_file_hash TEXT NOT NULL,
+			desired_file_hash TEXT NOT NULL,
+			phase TEXT NOT NULL CHECK (phase IN ('staged', 'temp_durable', 'backup_moved', 'promoted', 'finalized')),
+			created_at_ms INTEGER NOT NULL,
+			updated_at_ms INTEGER NOT NULL
+		)`
 )
 
 // schemaTables returns the TableSchema descriptors for all sync-owned bridge tables.
@@ -218,11 +234,33 @@ func schemaTables() []persistence.TableSchema {
 				animeWriteOperationsRecoveryIndexDDL,
 				animeWriteOperationsLiveReservationIndexDDL,
 			},
+			Migrate: func(db *sql.DB, cols []string) error {
+				if !containsSchemaColumn(cols, "batch_id") {
+					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''`); err != nil {
+						return fmt.Errorf("add anime_write_operations batch_id: %w", err)
+					}
+				}
+				if !containsSchemaColumn(cols, "batch_order") {
+					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_order INTEGER NOT NULL DEFAULT 0`); err != nil {
+						return fmt.Errorf("add anime_write_operations batch_order: %w", err)
+					}
+				}
+				if !containsSchemaColumn(cols, "batch_size") {
+					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1`); err != nil {
+						return fmt.Errorf("add anime_write_operations batch_size: %w", err)
+					}
+				}
+				return nil
+			},
 		},
 		{
 			Name:      "anime_changed_outbox",
 			CreateDDL: animeChangedOutboxDDL,
 			Indexes:   []string{animeChangedOutboxPendingIndexDDL},
+		},
+		{
+			Name:      "anime_batch_replacements",
+			CreateDDL: animeBatchReplacementsDDL,
 		},
 	}
 }

@@ -203,6 +203,19 @@ describe('useAnimeDetail', () => {
     expect(navigateMock).toHaveBeenCalledWith(-1);
   });
 
+  it('deep-links Edit anime to /editor/:id', async () => {
+    const source = createSource(populatedDetail);
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+
+    await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+
+    act(() => {
+      result.current.onEditAnime();
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith('/editor/anime-1');
+  });
+
   it('cancels an explicit confirmation without invoking either binding', async () => {
     const source = createSource(populatedDetail);
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));

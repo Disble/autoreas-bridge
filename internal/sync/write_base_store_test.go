@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime"
 )
@@ -74,6 +75,31 @@ func TestWriteOperationStageDurablyReservesAnimeAndValidatesCurrentBase(t *testi
 	stale := writeOperationFixture("reservation-stale", "anime-1", 99, 202)
 	if err := store.Stage(ctx, stale); !errors.Is(err, anime.ErrWriteBaseChanged) {
 		t.Fatalf("expected atomic current-base rejection, got %v", err)
+	}
+}
+
+func TestWriteOperationStageBatchDoesNotDeadlockSingleConnectionOnRejectedRow(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	db.SetMaxOpenConns(1)
+	store := NewWriteBaseStore(db)
+	seedWriteOperationBase(t, db, writeOperationFixture("seed", "anime-deadlock", 100, 200))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	err := store.StageBatch(ctx, []anime.WriteOperation{
+		writeOperationFixture("operation-deadlock", "anime-deadlock", 99, 201),
+	})
+	if err == nil {
+		t.Fatal("expected stale batch stage rejection")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("stage batch deadlocked under a single SQLite connection: %v", err)
+	}
+	if !errors.Is(err, anime.ErrWriteBaseChanged) {
+		t.Fatalf("expected stale batch stage classification, got %v", err)
 	}
 }
 

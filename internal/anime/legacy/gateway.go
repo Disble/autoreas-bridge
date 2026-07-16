@@ -51,6 +51,9 @@ const (
 type WriteOperation struct {
 	OperationID         string
 	AnimeID             string
+	BatchID             string
+	BatchOrder          int
+	BatchSize           int
 	BaseModifiedAt      int64
 	IntendedModifiedAt  int64
 	BaseSnapshotJSON    []byte
@@ -73,11 +76,48 @@ type WriteBase struct {
 
 type WriteBaseStore interface {
 	Stage(context.Context, WriteOperation) error
+	StageBatch(context.Context, []WriteOperation) error
 	Finalize(context.Context, string, int64) error
+	FinalizeBatch(context.Context, string, int64) error
 	Abort(context.Context, string) error
+	AbortBatch(context.Context, string) error
 	ListStaged(context.Context) ([]WriteOperation, error)
 	GetBase(context.Context, string, int64) (WriteBase, error)
 	Recover(context.Context, string, string, int64) (WriteRecoveryAction, error)
+	MarkBatchSuperseded(context.Context, string) error
+	StageBatchReplacement(context.Context, BatchReplacementJournal) error
+	UpdateBatchReplacementPhase(context.Context, string, BatchReplacementPhase, int64) error
+	GetBatchReplacement(context.Context, string) (BatchReplacementJournal, error)
+}
+
+type BatchReplacementPhase string
+
+const (
+	BatchReplacementPhaseStaged      BatchReplacementPhase = "staged"
+	BatchReplacementPhaseTempDurable BatchReplacementPhase = "temp_durable"
+	BatchReplacementPhaseBackupMoved BatchReplacementPhase = "backup_moved"
+	BatchReplacementPhasePromoted    BatchReplacementPhase = "promoted"
+	BatchReplacementPhaseFinalized   BatchReplacementPhase = "finalized"
+)
+
+type BatchReplacementJournal struct {
+	BatchID         string
+	CanonicalPath   string
+	TempPath        string
+	BackupPath      string
+	BaseFileHash    string
+	DesiredFileHash string
+	Phase           BatchReplacementPhase
+	CreatedAtMs     int64
+	UpdatedAtMs     int64
+}
+
+type ReplacementEchoRegistry interface {
+	Remember([]byte)
+	Forget([]byte)
+	BeginReplacement()
+	EndReplacement()
+	ReplacementInFlight() bool
 }
 
 type Snapshot struct {
@@ -116,21 +156,65 @@ type UpdateCommand struct {
 	Mutate          func(*domain.Anime)
 }
 
+type UpdateRawCommand struct {
+	AnimeID         string
+	Base            *int64
+	CreateIfMissing bool
+	Mutate          func(*LegacyAnimeRaw, *domain.Anime) error
+}
+
 type ConflictWriter interface {
 	InsertConflict(context.Context, contracts.ConflictRecord) error
 }
 
 type GatewayConfig struct {
-	LoadSnapshot   func(context.Context, string) (Snapshot, error)
-	ListSnapshots  func(context.Context) (map[string]Snapshot, error)
-	FilePath       string
-	Operations     WriteBaseStore
-	Outbox         AnimeChangedOutboxStore
-	Conflicts      ConflictWriter
-	Append         func(context.Context, string, []byte) error
-	PublishChanged func(string, string, []byte)
-	Now            func() time.Time
-	NewOperationID func() string
+	LoadSnapshot      func(context.Context, string) (Snapshot, error)
+	ListSnapshots     func(context.Context) (map[string]Snapshot, error)
+	FilePath          string
+	Operations        WriteBaseStore
+	Outbox            AnimeChangedOutboxStore
+	Conflicts         ConflictWriter
+	Append            func(context.Context, string, []byte) error
+	ReplaceFile       func(context.Context, string, [][]byte) error
+	ReplaceCheckpoint func(BatchReplacementPhase) error
+	ReplacementEcho   ReplacementEchoRegistry
+	PublishChanged    func(string, string, []byte)
+	Now               func() time.Time
+	NewOperationID    func() string
+}
+
+type BatchReplaceFailureKind string
+
+const (
+	BatchReplaceFailureDefinite  BatchReplaceFailureKind = "definite"
+	BatchReplaceFailureAmbiguous BatchReplaceFailureKind = "ambiguous"
+)
+
+type BatchReplaceError struct {
+	Kind BatchReplaceFailureKind
+	Err  error
+}
+
+func (e *BatchReplaceError) Error() string { return e.Err.Error() }
+func (e *BatchReplaceError) Unwrap() error { return e.Err }
+
+func NewDefiniteBatchReplaceError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &BatchReplaceError{Kind: BatchReplaceFailureDefinite, Err: err}
+}
+
+func NewAmbiguousBatchReplaceError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &BatchReplaceError{Kind: BatchReplaceFailureAmbiguous, Err: err}
+}
+
+func IsDefiniteBatchReplaceError(err error) bool {
+	var target *BatchReplaceError
+	return errors.As(err, &target) && target.Kind == BatchReplaceFailureDefinite
 }
 
 type Gateway struct {
@@ -224,6 +308,24 @@ func (g *Gateway) Update(ctx context.Context, command UpdateCommand) (AnimePatch
 	}
 }
 
+func (g *Gateway) UpdateRaw(ctx context.Context, command UpdateRawCommand) (AnimePatchResult, error) {
+	for {
+		result, err := g.updateRawOnce(ctx, command)
+		if !errors.Is(err, ErrWriteReservationBusy) && !errors.Is(err, ErrWriteBaseChanged) {
+			return result, err
+		}
+		if errors.Is(err, ErrWriteReservationBusy) {
+			timer := time.NewTimer(writeReservationRetryDelay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return AnimePatchResult{}, ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+}
+
 func (g *Gateway) updateOnce(ctx context.Context, command UpdateCommand) (AnimePatchResult, error) {
 	record, raw, value, err := g.load(ctx, command.AnimeID)
 	if err != nil {
@@ -250,6 +352,43 @@ func (g *Gateway) updateOnce(ctx context.Context, command UpdateCommand) (AnimeP
 	desired, err := merged.MarshalJSON()
 	if err != nil {
 		return AnimePatchResult{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
+	}
+	if bytes.Equal(desired, record.CanonicalJSON) {
+		return AnimePatchResult{AnimeID: command.AnimeID, Outcome: AnimePatchOutcomeNoOp, ModifiedAt: record.ModifiedAt}, nil
+	}
+	if command.Base != nil && *command.Base != record.ModifiedAt {
+		return g.recordConflict(ctx, record, desired)
+	}
+	return g.persist(ctx, command.AnimeID, record.ModifiedAt, record.CanonicalJSON, desired)
+}
+
+func (g *Gateway) updateRawOnce(ctx context.Context, command UpdateRawCommand) (AnimePatchResult, error) {
+	record, raw, value, err := g.load(ctx, command.AnimeID)
+	if err != nil {
+		if !command.CreateIfMissing || !errors.Is(err, contracts.ErrAnimeNotFound) {
+			return AnimePatchResult{}, err
+		}
+		if decodeErr := json.Unmarshal([]byte(`{"_id":"`+command.AnimeID+`"}`), &raw); decodeErr != nil {
+			return AnimePatchResult{}, decodeErr
+		}
+		value, err = g.mapper.ToDomain(raw)
+		if err != nil {
+			return AnimePatchResult{}, err
+		}
+		record = Snapshot{AnimeID: command.AnimeID, CanonicalJSON: []byte(`{"_id":"` + command.AnimeID + `"}`)}
+		record.Hash = hashSnapshot(record.CanonicalJSON)
+	}
+	if command.Mutate != nil {
+		if err := command.Mutate(&raw, &value); err != nil {
+			return AnimePatchResult{}, err
+		}
+	}
+	desired, err := raw.MarshalJSON()
+	if err != nil {
+		return AnimePatchResult{}, fmt.Errorf("marshal desired Legacy anime %q: %w", command.AnimeID, err)
+	}
+	if _, _, _, err := g.decode(desired); err != nil {
+		return AnimePatchResult{}, fmt.Errorf("validate desired Legacy anime %q: %w", command.AnimeID, err)
 	}
 	if bytes.Equal(desired, record.CanonicalJSON) {
 		return AnimePatchResult{AnimeID: command.AnimeID, Outcome: AnimePatchOutcomeNoOp, ModifiedAt: record.ModifiedAt}, nil
@@ -328,6 +467,10 @@ func decode(payload []byte) (LegacyAnimeRaw, domain.Anime, []byte, error) {
 func Decode(payload []byte) (domain.Anime, []byte, error) {
 	_, value, canonical, err := decode(payload)
 	return value, canonical, err
+}
+
+func DecodeForUpdate(payload []byte) (LegacyAnimeRaw, domain.Anime, []byte, error) {
+	return decode(payload)
 }
 
 // DecodeDomain is a compatibility alias for the English Decode contract.

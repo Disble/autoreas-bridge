@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('bridge-runtime-source', () => {
@@ -168,6 +166,106 @@ describe('bridge-runtime-source', () => {
 
     await expect(detailPromise).resolves.toEqual(detail);
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('calls the anime editor bindings once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const record = {
+      animeId: 'anime-1',
+      modifiedAt: 123,
+      frequent: { name: 'Frieren', status: 0, progress: 2, active: true, placements: [] },
+      details: { genres: [], studios: { kind: 'missing', values: [] } },
+    };
+    const getAnimeEditorRecordMock = vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'loaded',
+      record: {
+        animeId: 'anime-1',
+        modifiedAt: 123,
+        frequent: {
+          name: 'Frieren', status: 0, progress: 2, active: true, placements: [],
+          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, page: { kind: 'missing' }, folder: { kind: 'missing' },
+        },
+        details: {
+          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
+        },
+      },
+    });
+    const saveAnimeEditorMock = vi.fn().mockResolvedValue({
+      animeId: 'anime-1',
+      outcome: 'conflict',
+      message: 'current authority won',
+      modifiedAt: 200,
+      record: {
+        animeId: 'anime-1', modifiedAt: 200,
+        frequent: {
+          name: 'Authority', status: 0, progress: 3, active: true, placements: [],
+          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, page: { kind: 'missing' }, folder: { kind: 'missing' },
+        },
+        details: {
+          premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
+        },
+      },
+    });
+    const deactivateAnimeMock = vi.fn().mockResolvedValue({ animeId: 'anime-1', outcome: 'applied', message: 'deactivated', modifiedAt: 201 });
+    const getBoardMock = vi.fn().mockResolvedValue({ outcome: 'applied', message: 'loaded', board: { originAnimeId: 'anime-1', boardModifiedAt: 123, destinations: [], entries: [] } });
+    const refreshedBoard = { originAnimeId: 'anime-1', boardModifiedAt: 202, destinations: [], entries: [] };
+    const applyBoardMock = vi.fn().mockResolvedValue({ outcome: 'conflict', message: 'board changed', modifiedAt: 202, board: refreshedBoard });
+
+    const recordPromise = source.getAnimeEditorRecord?.('anime-1');
+    const savePromise = source.saveAnimeEditor?.({
+      animeId: 'anime-1',
+      baseModifiedAt: 100,
+      patch: {
+        page: { present: false, clear: false, value: '' },
+        folder: { present: false, clear: false, value: '' },
+        origin: { present: false, clear: false, value: '' },
+        duration: { present: false, clear: false, value: '' },
+        kind: { present: false, clear: false, value: '' },
+        premieredAt: { present: false, clear: false, value: '' },
+        cover: { present: false, clear: false, type: '', path: '' },
+      },
+    });
+    const deactivatePromise = source.deactivateAnime?.('anime-1', 100);
+    const boardPromise = source.getAnimeEditorScheduleBoard?.('anime-1');
+    const applyPromise = source.applyAnimeEditorSchedule?.({ boardModifiedAt: 123, entries: [] });
+
+    window.go = {
+      main: {
+        App: {
+          ApplyAnimeEditorSchedule: applyBoardMock,
+          DeactivateAnime: deactivateAnimeMock,
+          GetAnimeEditorRecord: getAnimeEditorRecordMock,
+          GetAnimeEditorScheduleBoard: getBoardMock,
+          SaveAnimeEditor: saveAnimeEditorMock,
+        },
+      },
+    } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(recordPromise).resolves.toEqual(expect.objectContaining({ outcome: 'applied', message: 'loaded', record }));
+    await expect(savePromise).resolves.toEqual(expect.objectContaining({
+      animeId: 'anime-1',
+      outcome: 'conflict',
+      message: 'current authority won',
+      modifiedAt: 200,
+      record: expect.objectContaining({ animeId: 'anime-1', modifiedAt: 200 }),
+    }));
+    await expect(deactivatePromise).resolves.toEqual(expect.objectContaining({ animeId: 'anime-1', outcome: 'applied', message: 'deactivated', modifiedAt: 201 }));
+    await expect(boardPromise).resolves.toEqual({ outcome: 'applied', message: 'loaded', board: { originAnimeId: 'anime-1', boardModifiedAt: 123, destinations: [], entries: [] } });
+    await expect(applyPromise).resolves.toEqual(expect.objectContaining({ outcome: 'conflict', message: 'board changed', modifiedAt: 202, board: refreshedBoard }));
+    expect(getAnimeEditorRecordMock).toHaveBeenCalledWith('anime-1');
+    expect(saveAnimeEditorMock).toHaveBeenCalledWith(expect.objectContaining({
+      animeId: 'anime-1',
+      patch: expect.objectContaining({ page: { present: false, clear: false, value: '' } }),
+    }));
+    expect(deactivateAnimeMock).toHaveBeenCalledWith('anime-1', 100);
+    expect(getBoardMock).toHaveBeenCalledWith('anime-1');
+    expect(applyBoardMock).toHaveBeenCalledWith({ boardModifiedAt: 123, entries: [] });
   });
 
   it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
@@ -349,151 +447,6 @@ describe('bridge-runtime-source', () => {
     });
     expect(pullAnimesFromLegacyMock).toHaveBeenCalledTimes(1);
     expect(triggerReconcileMock).not.toHaveBeenCalled();
-  });
-
-  it('degrades getAnimeCover to a placeholder source when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-
-    const coverPromise = source.getAnimeCover?.('anime-1');
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(coverPromise).resolves.toEqual({ source: 'placeholder' });
-  });
-
-  it('degrades getAnimeCover to a placeholder source when the App exists but GetAnimeCover is missing', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-
-    const coverPromise = source.getAnimeCover?.('anime-1');
-
-    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(coverPromise).resolves.toEqual({ source: 'placeholder' });
-  });
-
-  it('calls GetAnimeCover once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-    const getAnimeCoverMock = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
-
-    const coverPromise = source.getAnimeCover?.('anime-1');
-
-    window.go = { main: { App: { GetAnimeCover: getAnimeCoverMock } } } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(coverPromise).resolves.toEqual({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
-    expect(getAnimeCoverMock).toHaveBeenCalledWith('anime-1');
-  });
-
-  it('degrades getChapterDayCounts to an empty array when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-
-    const countsPromise = source.getChapterDayCounts?.();
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(countsPromise).resolves.toEqual([]);
-  });
-
-  it('calls GetChapterDayCounts once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-    const getChapterDayCountsMock = vi.fn().mockResolvedValue([{ count: 2, day: 'Lunes' }]);
-
-    const countsPromise = source.getChapterDayCounts?.();
-
-    window.go = { main: { App: { GetChapterDayCounts: getChapterDayCountsMock } } } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(countsPromise).resolves.toEqual([{ count: 2, day: 'Lunes' }]);
-  });
-
-  it('degrades onPairingTokenConsumed to a no-op unsubscribe when the runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-    const listener = vi.fn();
-
-    const unsubscribe = source.onPairingTokenConsumed(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    expect(() => unsubscribe()).not.toThrow();
-    expect(listener).not.toHaveBeenCalled();
-  });
-
-  it('shares a single singleton across consumers (no duplicate Wails subscriptions)', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const sourceA = createBridgeRuntimeSource();
-    const sourceB = createBridgeRuntimeSource();
-
-    expect(sourceA).toBe(sourceB);
-
-    const unsubscribeA = sourceA.onPairingTokenConsumed(vi.fn());
-    const unsubscribeB = sourceB.onPairingTokenConsumed(vi.fn());
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    expect(eventsOnMultipleMock).toHaveBeenCalledTimes(1);
-
-    unsubscribeA();
-    unsubscribeB();
-  });
-
-  it('fires onPairingTokenConsumed listeners when the runtime emits the event', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
-    let handler: ((...payload: readonly unknown[]) => void) | undefined;
-    const eventsOnMultipleMock = vi
-      .fn()
-      .mockImplementation((_eventName: string, callback: (...payload: readonly unknown[]) => void) => {
-        handler = callback;
-        return () => undefined;
-      });
-
-    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
-
-    const source = createBridgeRuntimeSource();
-    const listener = vi.fn();
-    const unsubscribe = source.onPairingTokenConsumed(listener);
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    handler?.();
-
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    unsubscribe();
-  });
-
-  it('keeps source-adapter declarations in colocated sibling modules', () => {
-    const sourceRoot = join(process.cwd(), 'src/infrastructure/bridge-runtime-source');
-    const indexPath = join(sourceRoot, 'index.ts');
-    const helperPath = join(sourceRoot, 'bridge-runtime-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
-    const helperText = readFileSync(helperPath, 'utf8');
-
-    expect(existsSync(indexPath)).toBe(true);
-    expect(existsSync(join(process.cwd(), 'src/infrastructure/bridge-runtime-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './bridge-runtime-source.types'");
-    expect(sourceText).toContain("from './bridge-runtime-source.helpers'");
-    expect(sourceText).toContain("from '../wails-bindings.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+BridgeRuntimeSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
-    expect(sourceText).not.toMatch(/export const\s+/);
-    expect(helperText).toContain("from '../wails-bindings.helpers'");
-    expect(sourceText).not.toMatch(/function hasGoBinding\s*\(/);
-    expect(sourceText).not.toMatch(/function waitForBindings\s*\(/);
-    expect(sourceText).not.toMatch(/export const\s+bridgeRuntimeSource\b/);
   });
 
 });

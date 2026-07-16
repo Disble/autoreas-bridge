@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import { BridgeDashboard } from './features/dashboard/ui/BridgeDashboard/BridgeDashboard';
 import { AppLayout } from './app/AppLayout';
 import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
+import { AnimeEditorRoute } from './app/routes/AnimeEditorRoute';
 import { CatalogRoute } from './app/routes/CatalogRoute';
 import { HistoryRoute } from './app/routes/HistoryRoute';
 import { BridgeStatusRoute } from './app/routes/BridgeStatusRoute';
@@ -22,6 +23,8 @@ function App() {
                 <Route path="/dashboard" element={<BridgeDashboard />} />
                 <Route path="/catalog" element={<CatalogRoute />} />
                 <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
+                <Route path="/editor" element={<AnimeEditorRoute />} />
+                <Route path="/editor/:id" element={<AnimeEditorRoute />} />
                 <Route path="/history" element={<HistoryRoute />} />
                 <Route path="/chapters" element={<ChaptersRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />

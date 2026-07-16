@@ -11,7 +11,7 @@ const mockedUseOrderingBoard = vi.mocked(useOrderingBoard);
 type HookReturn = ReturnType<typeof useOrderingBoard>;
 
 function card(overrides: Partial<OrderingInstance> = {}): OrderingInstance {
-  return { key: 'a#0', animeId: 'a', name: 'Anime A', isPendingDuplicate: false, section: 'Visto', orden: 0, isNewcomer: false, ...overrides };
+  return { key: 'a#0', animeId: 'a', name: 'Anime A', baseModifiedAt: 0, originHighlighted: false, isPendingDuplicate: false, section: 'Visto', orden: 0, isNewcomer: false, ...overrides };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {

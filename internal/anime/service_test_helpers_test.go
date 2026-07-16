@@ -3,6 +3,7 @@ package anime_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -122,6 +123,7 @@ type stubAnimeWriter struct {
 	err     error
 	calls   int
 	onWrite func()
+	path    string
 }
 
 func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payload []byte) error {
@@ -132,6 +134,42 @@ func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payloa
 	s.animeID = animeID
 	s.payload = append([]byte(nil), payload...)
 	return s.err
+}
+
+func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, payload []byte) error {
+	if s.onWrite != nil {
+		s.onWrite()
+	}
+	s.calls++
+	s.animeID = animeID
+	s.payload = append([]byte(nil), payload...)
+	if s.path != "" {
+		file, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if _, err := file.Write(append(append([]byte(nil), payload...), '\n')); err != nil {
+			return err
+		}
+	}
+	return s.err
+}
+
+func (s *stubAnimeWriter) LegacyFilePath() string { return s.path }
+
+func writeLegacyDataFile(t *testing.T, payloads ...string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "animes.dat")
+	content := []byte{}
+	for _, payload := range payloads {
+		content = append(content, []byte(payload)...)
+		content = append(content, '\n')
+	}
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("write legacy data file: %v", err)
+	}
+	return path
 }
 
 type capturingAnimeWriter struct {

@@ -161,6 +161,7 @@ export interface AnimeDetailState {
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;
+  readonly onEditAnime: () => void;
   readonly confirmation: AnimeDetailConfirmationViewModel | undefined;
   readonly feedback: AnimeDetailFeedback | undefined;
   readonly isMutating: boolean;

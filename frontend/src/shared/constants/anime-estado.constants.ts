@@ -19,6 +19,14 @@ export const ANIME_ESTADO_LABELS: Readonly<Record<number, string>> = {
 };
 
 /**
+ * The four canonical numeric estado values in Legacy-truth order. Consumed by
+ * the editor form (status input min/max), the editor validator, and any future
+ * surface that needs to range-check an estado. Kept alongside the labels so the
+ * vocabulary stays in one module.
+ */
+export const ANIME_ESTADO_VALID_VALUES: readonly number[] = [0, 1, 2, 3] as const;
+
+/**
  * The four numeric estado values as `{ value, label }` filter entries in
  * canonical order. Shaped to be structurally compatible with each feature's
  * own filter-option type; features prepend their own "All" sentinel entry.
