@@ -8,6 +8,7 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 - `openspec/config.yaml`
 - `.atl/skill-registry.md`
 - `docs/fallow-usage.md`
+- `docs/learning-log.md`
 
 ## Project Notes
 
@@ -25,6 +26,7 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 12. For implementation details, see `docs/file-size-policy.md`.
 13. **Code is English by default** (identifiers, DB columns, error strings, comments). Spanish is allowed ONLY at the legacy adapter surface (`LegacyAnimeRaw` byte-compat fields), as runtime data literals (`"Sin ver"`/`"Ver hoy"`/`"Visto"`/`"No me gusto"`), and in UI copy. Cross-service wire fields are English too (`"grade"`, not `"nota"`). A slice English-ifies the Spanish vocabulary it owns (rename + additive migration) but does not rename shipped Spanish owned by another pending slice. See `docs/adr/007-english-code-spanish-boundaries.md`.
 14. Load `fallow-repo-setup` for frontend dead-code, duplication, dependency hygiene, complexity, or changed-code audit work. Run it from repo root as `bun --cwd="frontend" run fallow ...`, and use `docs/fallow-usage.md` as the project contract.
+15. `docs/learning-log.md` is the "why" vitácora: read it before non-trivial work, and append one line (`- [YYYY-MM-DD]: text`) when you resolve a non-obvious bug or take a deliberate decision. It complements deterministic guards; it never replaces them.
 
 ## Frontend Architecture Constraints
 
@@ -39,3 +41,4 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 9. Prefer `frontend/src/features/dashboard` as the reference feature structure once introduced.
 10. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>` instead of manually scaffolding complex frontend feature folders.
 11. Load `dnd-kit` for any drag-and-drop work (sortable lists, kanban/multi-column boards): use the new `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode safe, pointer-based for WebView2) — never legacy `@dnd-kit/core` and never native HTML5 DnD.
+12. Reusable dumb components live in `frontend/src/shared/ui/` (`LabeledTextField`, `LabeledSelect`, `LabeledCheckbox`, `PathPickerField`, `AnimeCoverPlaceholder`, …). Compose these instead of hand-writing another `Label`/`Input`/`Select` block; when such a pattern repeats 3+ times, extract a new generic `shared/ui` component (readonly props, JSDoc, colocated test) to cut the JSX duplication and render complexity the Fallow gate flags.

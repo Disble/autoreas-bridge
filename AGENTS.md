@@ -24,6 +24,7 @@
 9. **Reference Feature**: If in doubt, use `frontend/src/features/dashboard` as the frontend source-of-truth structure once introduced.
 10. **Scaffolding Generators**: NEVER create complex frontend feature folders manually when a generator can do it. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
 11. **Drag & Drop Rule**: Load the `dnd-kit` skill for any drag-and-drop (sortable, kanban/multi-column). Use the new `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode safe, pointer-based for Wails WebView2). NEVER legacy `@dnd-kit/core`/`sortable`/`utilities`, NEVER native HTML5 DnD, and NEVER remove `React.StrictMode` to make dragging work.
+12. **Shared Dumb Components Rule**: Reusable presentation-only components live in `frontend/src/shared/ui/` — e.g. `LabeledTextField`, `LabeledSelect`, `LabeledCheckbox`, `PathPickerField`, `AnimeCoverPlaceholder`. PREFER composing these over hand-writing another raw `Label`/`Input`/`Select` block. When a Label/Input/Select pattern repeats (3+ instances), EXTRACT a new generic `shared/ui` component (readonly props in a colocated `*.types.ts`, JSDoc, colocated test) — this is the sanctioned way to cut JSX duplication and render complexity that the Fallow gate flags.
 
 ## Mandatory Workflow
 
@@ -112,6 +113,13 @@
 - Verification is a special case: the orchestrating agent MUST perform the final verification itself and MUST NOT delegate the verify phase to a sub-agent. Other phases may still use sub-agents when appropriate.
 - After verify passes, the orchestrating agent MUST create the commit before reporting verify as fully complete. The commit's own hooks/validations are part of the real verification boundary and save the user an extra round-trip.
 
+## Learning Log (Vitácora)
+
+- `docs/learning-log.md` is a human-readable "why" log of decisions taken and non-obvious problems solved.
+- Read it at the start of non-trivial work so you inherit past reasoning instead of rediscovering it.
+- When you resolve a non-obvious bug or take a deliberate decision, append one line: `- [YYYY-MM-DD]: text`.
+- It complements deterministic guards (linters, tests, gates); it does NOT replace them. Enforce the rule in code first, then record the *why* here.
+
 ## Project-local Skills
 
 | Skill | Trigger |
@@ -123,6 +131,7 @@
 
 ## References
 
+- `docs/learning-log.md`
 - `docs/sdd-tree.md`
 - `docs/architecture.md`
 - `docs/autoreas-bridge-design-doc.md`
