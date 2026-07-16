@@ -7,3 +7,5 @@ frontend/package.json.md5
 resources/autoreas-bridge-full-icon.png
 cmd/poc/.env
 *.exe
+.atl/skill-registry.md
+.atl/.skill-registry.cache.json
