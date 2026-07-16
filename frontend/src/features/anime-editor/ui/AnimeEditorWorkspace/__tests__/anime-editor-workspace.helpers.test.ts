@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { computeAnimeEditorListWindow, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 const record = {
   animeId: 'anime-1',
@@ -26,13 +26,6 @@ const record = {
 };
 
 describe('anime-editor-workspace.helpers', () => {
-  it('keeps the orphaned fixed-height windowing helper self-consistent', () => {
-    // Dead code retained by a concurrent process; still validated so it can't rot.
-    const window = computeAnimeEditorListWindow(0, 0, 800, 56);
-    expect(window.startIndex).toBe(0);
-    expect(window.endIndex).toBe(26);
-  });
-
   it('detects when the scroll position is near the bottom (append trigger)', () => {
     // 200px from the bottom is within the 240px threshold -> load more.
     expect(isNearListBottom(4760, 500, 5460)).toBe(true);

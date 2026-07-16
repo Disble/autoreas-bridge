@@ -18,18 +18,6 @@ export interface AnimeEditorStatusOption {
   readonly label: string;
 }
 
-/**
- * Legacy fixed-height windowing shape. Retained only so the orphaned
- * `computeAnimeEditorListWindow` helper still type-checks; the live rail uses
- * progressive rendering (`useAnimeEditorListWindow` → `visibleCount`).
- */
-export interface AnimeEditorListWindow {
-  readonly startIndex: number;
-  readonly endIndex: number;
-  readonly topPad: number;
-  readonly bottomPad: number;
-}
-
 /** Deferred dirty-guard actions the workspace can resume after Save or Discard. */
 export type AnimeEditorPendingAction =
   | { readonly type: 'select'; readonly animeId: string }

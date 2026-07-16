@@ -1,27 +1,8 @@
 import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, ApplyAnimeScheduleDraftEntry, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isWatchingAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel, AnimeEditorListWindow } from './anime-editor-workspace.types';
+import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
-
-/**
- * Computes the visible row slice and spacer paddings for a fixed-row-height
- * virtualized list. Only rows in `[startIndex, endIndex)` are rendered; the
- * `topPad`/`bottomPad` reserve the scroll height of the culled rows so the
- * scrollbar stays accurate. When the viewport is unmeasured (`0`), only
- * `initialCount` rows render (never the whole list), and scrolling still
- * advances the window until the container reports its real height.
- */
-export function computeAnimeEditorListWindow(scrollTop: number, viewportHeight: number, itemCount: number, rowHeight: number, overscan = 6, initialCount = 20): AnimeEditorListWindow {
-  if (itemCount <= 0 || rowHeight <= 0) {
-    return { startIndex: 0, endIndex: 0, topPad: 0, bottomPad: 0 };
-  }
-  const first = Math.floor(Math.max(0, scrollTop) / rowHeight);
-  const visibleCount = viewportHeight <= 0 ? initialCount : Math.ceil(viewportHeight / rowHeight);
-  const startIndex = Math.max(0, first - overscan);
-  const endIndex = Math.min(itemCount, first + visibleCount + overscan);
-  return { startIndex, endIndex, topPad: startIndex * rowHeight, bottomPad: Math.max(0, itemCount - endIndex) * rowHeight };
-}
 
 /**
  * Returns true when a scroll position is within `threshold` px of the bottom of

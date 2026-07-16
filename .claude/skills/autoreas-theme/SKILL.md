@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.9"
+  version: "1.0.11"
   scope: project
   updates: living
 ---
@@ -36,6 +36,7 @@ This is the project's UI source of truth. **The mandate: never hand-roll a `<div
 | Dismiss / close | `CloseButton` (`onPress`, `aria-label`) | `<button>×` |
 | Tag / badge | `Chip` (`color=... size="sm" variant="soft\|tertiary"`, plain text child) | styled `<span>` |
 | Scrollable region | `ScrollShadow` or `Table.ScrollContainer` | `overflow-auto` div (unless you need raw scroll control) |
+| Large selectable list (100s+ rows) | **Progressive render**: `items.slice(0, limit)` of selectable `Button` rows in an `overflow-y-auto` div; grow `limit` by a batch on scroll-near-bottom (short scrollbar that *grows*) | a full mapped `Button` column (renders all 800); **ListBox + `Virtualizer`/`ListLayout` windowing** — tried and rejected here (see changelog `1.0.11`) |
 
 ## Color conventions (semantic, NOT raw colors)
 
@@ -126,6 +127,7 @@ Colors resolve through `getIntakeHealthSegmentColor` (`overview-panel.helpers.ts
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.11` — Settled the large-rail rendering strategy for the Anime Editor left list (800+ animes) on **progressive loading**, and recorded two rejected paths so nobody re-treads them. Approach: render `items.slice(0, renderLimit)` of selectable `Button` rows (`onPress` → select) inside an `overflow-y-auto` div; `renderLimit` starts at 20 and grows by a batch when `isNearListBottom` fires on scroll; reset to 20 on filter/search change via a render-phase reset (`if (itemCount !== seen) { setSeen(itemCount); setRenderLimit(initial) }`, not an effect — dodges `react-doctor/no-derived-state-effect`). The scrollbar starts short and grows, so users don't read it as "everything loaded". **Rejected #1: `ListBox` + `Virtualizer`/`ListLayout` windowing** — DOM stays small but the full-height padded scrollbar reads as "all 842 loaded", and worse, `ListBox` with `selectionMode="single"` fires `onAction` only on **double-click** (single-click just selects), so click-to-navigate silently broke. **Rejected #2: fixed-height windowing** (`slice(start,end)` + top/bottom spacer padding) — same "scrollbar looks full" perception problem. **Bug fixed alongside:** selection locked after the first pick because a `params.id → selectedAnimeId` sync effect reverted the choice during the async-`navigate` intermediate render (stale `params.id`); guard the effect with a previous-param ref so it only reacts to real URL changes. Validate row count with a DOM-count test (`AnimeEditorWorkspace.windowing.test.tsx`), not just the pure math. Also: `bg-accent-soft` is NOT a valid utility here — use `bg-accent/10`.
 - `1.0.9` — Added the "Chart palette (nivo, literal hex)" section (SDD-47, `OverviewPanel`'s watching-pipeline/intake-health/grade-histogram charts): the surface/ink neutrals, the semantic status set, the chart-tuned neutrals, the validated categorical intake set (with its `getMatchStatusColor`-role mapping and the `discarded`-gray exception), the ordinal pipeline ramp, and the histogram emphasis pair. Documented the `--default`-dark-invisible-as-bar gotcha: HeroUI's `--default` dark token (`#27272A`) is one lightness step off the `#18181B` card surface and disappears as a bar fill, so charts use lifted zinc-hue grays (`#71717A`/`#62626C`) instead.
 - `1.0.8` — Added the canonical anime `estado` vocabulary rule (SDD-40): labels live in `shared/constants/anime-estado.ts`, imported everywhere (scoped exception to per-feature colocation); colors stay feature-local. Fixed the three-way label drift (2/3 were "Abandonado"/"Pendiente" and "Dropped"/"Paused"; Legacy truth is "No me gusto"/"En pausa").
 - `1.0.7` — Added the brand & action hierarchy section (primary=accent / secondary=default+accent-soft; hover intent tints for utility icons), the full-bleed card cover slot pattern (negative-margin bleed + absolute art, aspect-ratio-proof), and the toast feedback convention — all from the Chapters card hotfix after the user rejected Legacy-literal red/blue.
