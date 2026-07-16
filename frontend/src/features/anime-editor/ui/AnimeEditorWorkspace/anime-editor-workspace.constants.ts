@@ -31,6 +31,14 @@ export const ANIME_EDITOR_LIST_INITIAL_COUNT = 20;
 /** Extra rows appended each time the user scrolls near the bottom of the rail. */
 export const ANIME_EDITOR_LIST_LOAD_BATCH = 20;
 
+/**
+ * Required anime Type options for Legacy's Editar dropdown, in canonical order.
+ * Re-exported from the shared `tipo` vocabulary (`shared/constants/anime-tipo.constants.ts`)
+ * so the Catalog filter and this editor Select share one source of truth. Type
+ * is mandatory — there is deliberately no empty/"All" option here.
+ */
+export { ANIME_TIPO_FILTER_ENTRIES as ANIME_EDITOR_KIND_OPTIONS } from '../../../../shared/constants/anime-tipo.constants';
+
 /** Cover source options mirroring Legacy's external-URL vs on-disk-image choice. */
 export const ANIME_EDITOR_COVER_TYPE_OPTIONS = [
   { value: 'url', label: 'URL' },

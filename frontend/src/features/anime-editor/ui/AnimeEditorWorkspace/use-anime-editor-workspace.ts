@@ -58,7 +58,7 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, isDeactivateConfirmOpen,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
-    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate,
+    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate,
     onRequestDeactivate, onCancelDeactivate, onConfirmDeactivate,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,
     onStayWithCurrentEditor: transitions.onStayWithCurrentEditor, onDiscardAndContinue: transitions.onDiscardAndContinue,

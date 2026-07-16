@@ -199,6 +199,14 @@ func (a *App) ensureRuntimeDependencies() {
 			return wruntime.OpenDirectoryDialog(ctx, wruntime.OpenDialogOptions{Title: title})
 		}
 	}
+	if a.pickFile == nil {
+		a.pickFile = func(ctx context.Context, title string) (string, error) {
+			return wruntime.OpenFileDialog(ctx, wruntime.OpenDialogOptions{
+				Title:   title,
+				Filters: []wruntime.FileFilter{{DisplayName: "Images (*.jpg;*.jpeg;*.png;*.webp;*.gif)", Pattern: "*.jpg;*.jpeg;*.png;*.webp;*.gif"}},
+			})
+		}
+	}
 	if a.memLogger == nil {
 		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
 			Capacity: 500,

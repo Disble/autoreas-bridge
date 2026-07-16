@@ -63,3 +63,17 @@ func (a *App) PickFolder(title string) string {
 	}
 	return path
 }
+
+// PickFile opens the native file picker (filtered to image types) and returns
+// the chosen absolute path, or "" when the user cancels (or no runtime is
+// available). Backs the reusable path-picker field for on-disk anime covers.
+func (a *App) PickFile(title string) string {
+	if a.pickFile == nil {
+		return ""
+	}
+	path, err := a.pickFile(a.seasonCtx(), title)
+	if err != nil {
+		return ""
+	}
+	return path
+}

@@ -42,6 +42,7 @@ export interface BridgeRuntimeSource {
   readonly openAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
   readonly copyAnimeFolder?: (animeID: string) => Promise<contracts.ChapterCommandResult>;
   readonly pickFolder?: (title: string) => Promise<string>;
+  readonly pickFile?: (title: string) => Promise<string>;
   readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
   readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
@@ -58,4 +59,5 @@ export interface AnimeEditorRuntimeSource {
   readonly getAnimeEditorScheduleBoard: NonNullable<BridgeRuntimeSource['getAnimeEditorScheduleBoard']>;
   readonly applyAnimeEditorSchedule: NonNullable<BridgeRuntimeSource['applyAnimeEditorSchedule']>;
   readonly pickFolder: NonNullable<BridgeRuntimeSource['pickFolder']>;
+  readonly pickFile: NonNullable<BridgeRuntimeSource['pickFile']>;
 }

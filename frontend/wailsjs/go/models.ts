@@ -1,13 +1,13 @@
 export namespace contracts {
-
+	
 	export class AnimeCover {
 	    dataUrl?: string;
 	    source: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeCover(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dataUrl = source["dataUrl"];
@@ -17,11 +17,11 @@ export namespace contracts {
 	export class AnimeDetailDownload {
 	    page?: string;
 	    folder?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDetailDownload(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.page = source["page"];
@@ -35,11 +35,11 @@ export namespace contracts {
 	    studios?: string;
 	    origen?: string;
 	    cover?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDetailContent(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.tipo = source["tipo"];
@@ -55,11 +55,11 @@ export namespace contracts {
 	    firstWatch?: number;
 	    lastWatched?: number;
 	    deleted?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDetailDates(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.created = source["created"];
@@ -71,11 +71,11 @@ export namespace contracts {
 	export class MobileAnimeDay {
 	    dia: string;
 	    orden: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new MobileAnimeDay(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dia = source["dia"];
@@ -86,11 +86,11 @@ export namespace contracts {
 	    watched: number;
 	    total?: number;
 	    remaining?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDetailProgress(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.watched = source["watched"];
@@ -110,11 +110,11 @@ export namespace contracts {
 	    content: AnimeDetailContent;
 	    download: AnimeDetailDownload;
 	    modified_at: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDetail(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -129,7 +129,7 @@ export namespace contracts {
 	        this.download = this.convertValues(source["download"], AnimeDetailDownload);
 	        this.modified_at = source["modified_at"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -148,17 +148,20 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
+	
+	
+	
 	export class AnimeEditorCoverDTO {
 	    kind: string;
 	    type?: string;
 	    path?: string;
 	    raw?: Record<string, any>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorCoverDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -170,11 +173,11 @@ export namespace contracts {
 	export class AnimeEditorStringListDTO {
 	    kind: string;
 	    values: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorStringListDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -183,12 +186,12 @@ export namespace contracts {
 	}
 	export class AnimeEditorNullableStringDTO {
 	    kind: string;
-	    value?: string;
-
+	    value: string;
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableStringDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -197,12 +200,12 @@ export namespace contracts {
 	}
 	export class AnimeEditorNullableIntDTO {
 	    kind: string;
-	    value?: number;
-
+	    value: number;
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableIntDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -211,12 +214,12 @@ export namespace contracts {
 	}
 	export class AnimeEditorNullableTimeDTO {
 	    kind: string;
-	    unixMilli?: number;
-
+	    unixMilli: number;
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableTimeDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -230,11 +233,11 @@ export namespace contracts {
 	    genres: AnimeEditorStringListDTO;
 	    studios: AnimeEditorStringListDTO;
 	    cover: AnimeEditorCoverDTO;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorDetailFields(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.premieredAt = this.convertValues(source["premieredAt"], AnimeEditorNullableTimeDTO);
@@ -244,7 +247,7 @@ export namespace contracts {
 	        this.studios = this.convertValues(source["studios"], AnimeEditorStringListDTO);
 	        this.cover = this.convertValues(source["cover"], AnimeEditorCoverDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -273,11 +276,11 @@ export namespace contracts {
 	    page: AnimeEditorNullableStringDTO;
 	    folder: AnimeEditorNullableStringDTO;
 	    placements: MobileAnimeDay[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorFrequentFields(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -290,7 +293,7 @@ export namespace contracts {
 	        this.folder = this.convertValues(source["folder"], AnimeEditorNullableStringDTO);
 	        this.placements = this.convertValues(source["placements"], MobileAnimeDay);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -309,17 +312,19 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
+	
+	
 	export class AnimeEditorRecord {
 	    animeId: string;
 	    modifiedAt: number;
 	    frequent: AnimeEditorFrequentFields;
 	    details: AnimeEditorDetailFields;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorRecord(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -327,7 +332,7 @@ export namespace contracts {
 	        this.frequent = this.convertValues(source["frequent"], AnimeEditorFrequentFields);
 	        this.details = this.convertValues(source["details"], AnimeEditorDetailFields);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -351,11 +356,11 @@ export namespace contracts {
 	    message: string;
 	    details?: Record<string, string>;
 	    record?: AnimeEditorRecord;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorRecordResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outcome = source["outcome"];
@@ -363,7 +368,7 @@ export namespace contracts {
 	        this.details = source["details"];
 	        this.record = this.convertValues(source["record"], AnimeEditorRecord);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -390,11 +395,11 @@ export namespace contracts {
 	    modifiedAt?: number;
 	    conflictId?: string;
 	    record?: AnimeEditorRecord;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorSaveResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outcome = source["outcome"];
@@ -405,7 +410,7 @@ export namespace contracts {
 	        this.conflictId = source["conflictId"];
 	        this.record = this.convertValues(source["record"], AnimeEditorRecord);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -434,11 +439,11 @@ export namespace contracts {
 	    progress: number;
 	    cover?: string;
 	    originHighlighted: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeScheduleBoardEntry(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -451,7 +456,7 @@ export namespace contracts {
 	        this.cover = source["cover"];
 	        this.originHighlighted = source["originHighlighted"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -474,11 +479,11 @@ export namespace contracts {
 	    id: string;
 	    label: string;
 	    kind: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeScheduleDestination(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -491,11 +496,11 @@ export namespace contracts {
 	    boardModifiedAt: number;
 	    destinations: AnimeScheduleDestination[];
 	    entries: AnimeScheduleBoardEntry[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorScheduleBoard(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.originAnimeId = source["originAnimeId"];
@@ -503,7 +508,7 @@ export namespace contracts {
 	        this.destinations = this.convertValues(source["destinations"], AnimeScheduleDestination);
 	        this.entries = this.convertValues(source["entries"], AnimeScheduleBoardEntry);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -529,11 +534,11 @@ export namespace contracts {
 	    modifiedAt?: number;
 	    conflictId?: string;
 	    board?: AnimeEditorScheduleBoard;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorScheduleApplyResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outcome = source["outcome"];
@@ -543,7 +548,7 @@ export namespace contracts {
 	        this.conflictId = source["conflictId"];
 	        this.board = this.convertValues(source["board"], AnimeEditorScheduleBoard);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -562,17 +567,17 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
 	export class AnimeEditorScheduleBoardResult {
 	    outcome: string;
 	    message: string;
 	    details?: Record<string, string>;
 	    board?: AnimeEditorScheduleBoard;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorScheduleBoardResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.outcome = source["outcome"];
@@ -580,7 +585,7 @@ export namespace contracts {
 	        this.details = source["details"];
 	        this.board = this.convertValues(source["board"], AnimeEditorScheduleBoard);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -599,7 +604,7 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
 	export class AnimeHistoryItem {
 	    id: string;
 	    nombre: string;
@@ -608,11 +613,11 @@ export namespace contracts {
 	    estado: number;
 	    tipo?: number;
 	    fechaCreacion?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeHistoryItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -630,11 +635,11 @@ export namespace contracts {
 	    updatedCount: number;
 	    prunedCount: number;
 	    warningCount: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeLegacyPullResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.status = source["status"];
@@ -656,11 +661,11 @@ export namespace contracts {
 	    generos: string[];
 	    hasDownloadPage: boolean;
 	    hasFolder: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeListItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -676,7 +681,8 @@ export namespace contracts {
 	        this.hasFolder = source["hasFolder"];
 	    }
 	}
-
+	
+	
 	export class ChapterCommandResult {
 	    status: string;
 	    message?: string;
@@ -689,11 +695,11 @@ export namespace contracts {
 	    nrocapvisto?: number;
 	    occurredAtMs?: number;
 	    correlationId?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ChapterCommandResult(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.status = source["status"];
@@ -712,11 +718,11 @@ export namespace contracts {
 	export class ChapterDayCount {
 	    day: string;
 	    count: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ChapterDayCount(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.day = source["day"];
@@ -737,11 +743,11 @@ export namespace contracts {
 	    hasCover: boolean;
 	    lastWatched?: number;
 	    firstWatched?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ChapterScheduleItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -769,11 +775,11 @@ export namespace contracts {
 	    connection_status: string;
 	    auth_state: string;
 	    blocks_changelog_pruning: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new DeviceInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.device_id = source["device_id"];
@@ -791,11 +797,11 @@ export namespace contracts {
 	    hoster: string;
 	    priority: number;
 	    enabled: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new HosterPriorityItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hoster = source["hoster"];
@@ -812,11 +818,11 @@ export namespace contracts {
 	    nextRunAtMs: number;
 	    running: boolean;
 	    enabledWeekdays: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ScheduleConfig(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.mode = source["mode"];
@@ -838,11 +844,11 @@ export namespace contracts {
 	    lastSeenStatus: string;
 	    lastSeenAtMs: number;
 	    lastDecryptError?: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JDStatus(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.email = source["email"];
@@ -859,18 +865,18 @@ export namespace contracts {
 	    jd: JDStatus;
 	    schedule: ScheduleConfig;
 	    hosterPriority: HosterPriorityItem[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new DownloadConfig(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jd = this.convertValues(source["jd"], JDStatus);
 	        this.schedule = this.convertValues(source["schedule"], ScheduleConfig);
 	        this.hosterPriority = this.convertValues(source["hosterPriority"], HosterPriorityItem);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -893,11 +899,11 @@ export namespace contracts {
 	    anime: string;
 	    episode: number;
 	    links: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ManualLink(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.anime = source["anime"];
@@ -920,11 +926,11 @@ export namespace contracts {
 	    status: string;
 	    errorSummary?: string;
 	    manualLinks?: ManualLink[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new DownloadRunView(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.runId = source["runId"];
@@ -942,7 +948,7 @@ export namespace contracts {
 	        this.errorSummary = source["errorSummary"];
 	        this.manualLinks = this.convertValues(source["manualLinks"], ManualLink);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -961,18 +967,18 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
 	export class JDConfigInput {
 	    email: string;
 	    plaintextPassword?: string;
 	    deviceName: string;
 	    exePathOverride: string;
 	    defaultDestDir: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JDConfigInput(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.email = source["email"];
@@ -982,7 +988,8 @@ export namespace contracts {
 	        this.defaultDestDir = source["defaultDestDir"];
 	    }
 	}
-
+	
+	
 	export class MobileRepeticion {
 	    numrepeticion: number;
 	    nrocapvisto: number;
@@ -992,11 +999,11 @@ export namespace contracts {
 	    fechaUltCapVisto?: number;
 	    fechaEliminacion?: number;
 	    fechaRepeticion?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new MobileRepeticion(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.numrepeticion = source["numrepeticion"];
@@ -1032,11 +1039,11 @@ export namespace contracts {
 	    duracion?: number;
 	    repetir?: MobileRepeticion[];
 	    modified_at: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new MobileAnime(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this._id = source["_id"];
@@ -1062,7 +1069,7 @@ export namespace contracts {
 	        this.repetir = this.convertValues(source["repetir"], MobileRepeticion);
 	        this.modified_at = source["modified_at"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1081,7 +1088,9 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
+	
+	
+	
 	export class SyncingAnimeItem {
 	    animeId: string;
 	    title: string;
@@ -1092,11 +1101,11 @@ export namespace contracts {
 	    progressTotal?: number;
 	    lastChangedAtMs: number;
 	    activo: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SyncingAnimeItem(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -1114,7 +1123,7 @@ export namespace contracts {
 }
 
 export namespace logger {
-
+	
 	export class LogEntry {
 	    timestamp: string;
 	    domain: string;
@@ -1125,11 +1134,11 @@ export namespace logger {
 	    eventType?: string;
 	    durationMs?: number;
 	    metadata?: Record<string, any>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new LogEntry(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.timestamp = source["timestamp"];
@@ -1147,18 +1156,18 @@ export namespace logger {
 }
 
 export namespace main {
-
+	
 	export class AnimeEditorCoverPatchDTO {
 	    present: boolean;
 	    clear: boolean;
 	    type: string;
 	    path: string;
 	    raw: Record<string, any>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorCoverPatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.present = source["present"];
@@ -1172,11 +1181,11 @@ export namespace main {
 	    present: boolean;
 	    clear: boolean;
 	    value: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableIntPatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.present = source["present"];
@@ -1188,11 +1197,11 @@ export namespace main {
 	    present: boolean;
 	    clear: boolean;
 	    value: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableStringPatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.present = source["present"];
@@ -1204,11 +1213,11 @@ export namespace main {
 	    present: boolean;
 	    clear: boolean;
 	    unixMilli: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorNullableTimePatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.present = source["present"];
@@ -1220,11 +1229,11 @@ export namespace main {
 	    present: boolean;
 	    clear: boolean;
 	    values: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorStudiosPatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.present = source["present"];
@@ -1248,11 +1257,11 @@ export namespace main {
 	    studios: AnimeEditorStudiosPatchDTO;
 	    cover: AnimeEditorCoverPatchDTO;
 	    active?: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorPatchDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -1271,7 +1280,7 @@ export namespace main {
 	        this.cover = this.convertValues(source["cover"], AnimeEditorCoverPatchDTO);
 	        this.active = source["active"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1290,23 +1299,23 @@ export namespace main {
 		    return a;
 		}
 	}
-
+	
 	export class ApplyAnimeScheduleDraftEntryDTO {
 	    animeId: string;
 	    baseModifiedAt: number;
 	    placements: contracts.MobileAnimeDay[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ApplyAnimeScheduleDraftEntryDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
 	        this.baseModifiedAt = source["baseModifiedAt"];
 	        this.placements = this.convertValues(source["placements"], contracts.MobileAnimeDay);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1328,17 +1337,17 @@ export namespace main {
 	export class ApplyAnimeScheduleDraftCommandDTO {
 	    boardModifiedAt: number;
 	    entries: ApplyAnimeScheduleDraftEntryDTO[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ApplyAnimeScheduleDraftCommandDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.boardModifiedAt = source["boardModifiedAt"];
 	        this.entries = this.convertValues(source["entries"], ApplyAnimeScheduleDraftEntryDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1357,16 +1366,16 @@ export namespace main {
 		    return a;
 		}
 	}
-
+	
 	export class ApplyScheduleDTO {
 	    status: string;
 	    applied: number;
 	    failed: string[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ApplyScheduleDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.status = source["status"];
@@ -1379,11 +1388,11 @@ export namespace main {
 	    approved: number;
 	    rejected: number;
 	    quotaExceeded: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new ConfirmSelectionDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.status = source["status"];
@@ -1399,11 +1408,11 @@ export namespace main {
 	    orden: number;
 	    section: string;
 	    isNewcomer: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new OrderingCardDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -1418,18 +1427,18 @@ export namespace main {
 	    rail: OrderingCardDTO[];
 	    grid: OrderingCardDTO[];
 	    appliedAt?: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new OrderingBoardDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.rail = this.convertValues(source["rail"], OrderingCardDTO);
 	        this.grid = this.convertValues(source["grid"], OrderingCardDTO);
 	        this.appliedAt = source["appliedAt"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1448,23 +1457,23 @@ export namespace main {
 		    return a;
 		}
 	}
-
+	
 	export class SaveAnimeEditorCommandDTO {
 	    animeId: string;
 	    baseModifiedAt: number;
 	    patch: AnimeEditorPatchDTO;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SaveAnimeEditorCommandDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
 	        this.baseModifiedAt = source["baseModifiedAt"];
 	        this.patch = this.convertValues(source["patch"], AnimeEditorPatchDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1487,11 +1496,11 @@ export namespace main {
 	    title: string;
 	    pageUrl: string;
 	    score: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeCandidateDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.title = source["title"];
@@ -1514,11 +1523,11 @@ export namespace main {
 	    ratedAt?: number;
 	    skipGrading: boolean;
 	    consideration: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1536,7 +1545,7 @@ export namespace main {
 	        this.skipGrading = source["skipGrading"];
 	        this.consideration = source["consideration"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -1565,11 +1574,11 @@ export namespace main {
 	    appliedAt?: number;
 	    closedAt?: number;
 	    createdAt: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SeasonDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -1587,11 +1596,11 @@ export namespace main {
 	    status: string;
 	    pastDownloadTime: boolean;
 	    downloadTime: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new SendToVerHoyDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.status = source["status"];

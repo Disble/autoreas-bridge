@@ -13,6 +13,7 @@ function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditor
     getAnimeEditorScheduleBoard: vi.fn(),
     applyAnimeEditorSchedule: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
+    pickFile: vi.fn().mockResolvedValue(''),
     ...overrides,
   } as unknown as AnimeEditorRuntimeSource;
 }
@@ -44,5 +45,27 @@ describe('editor record folder picker', () => {
     await act(async () => { await result.current.onPickFolder(); });
 
     expect(result.current.draft.folder).toBe('');
+  });
+});
+
+describe('editor record cover-image picker', () => {
+  it('applies the picked image path and forces the on-disk cover source', async () => {
+    const source = createSource({ pickFile: vi.fn().mockResolvedValue('D:/Anime/Show/cover.jpg') });
+    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+
+    await act(async () => { await result.current.onPickCoverFile(); });
+
+    expect(source.pickFile).toHaveBeenCalledWith('Select cover image');
+    expect(result.current.draft.coverPath).toBe('D:/Anime/Show/cover.jpg');
+    expect(result.current.draft.coverType).toBe('image');
+  });
+
+  it('leaves the cover unchanged when the picker is cancelled', async () => {
+    const source = createSource({ pickFile: vi.fn().mockResolvedValue('') });
+    const { result } = renderHook(() => useAnimeEditorRecord({ source }));
+
+    await act(async () => { await result.current.onPickCoverFile(); });
+
+    expect(result.current.draft.coverPath).toBe('');
   });
 });

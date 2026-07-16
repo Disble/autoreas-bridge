@@ -88,6 +88,8 @@ export function OpenAnimeFolder(arg1:string):Promise<contracts.ChapterCommandRes
 
 export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
 
+export function PickFile(arg1:string):Promise<string>;
+
 export function PickFolder(arg1:string):Promise<string>;
 
 export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;

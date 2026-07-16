@@ -45,7 +45,9 @@ function parseList(value: string) {
 }
 
 function nullablePatch(authority: string | number | undefined, draft: string) {
-  return { present: String(authority ?? '') !== draft, clear: draft.trim().length === 0, value: draft };
+  const present = String(authority ?? '') !== draft;
+  const clear = present && draft.trim().length === 0;
+  return { present, clear, value: present ? draft : '' };
 }
 
 /**
@@ -143,7 +145,33 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
   if (!isValidAnimeEstado(draft.status)) {
     return 'Status is invalid.';
   }
+  if (draft.kind.trim().length === 0) {
+    return 'Type is required.';
+  }
   return undefined;
+}
+
+/**
+ * Builds the cover mutation entry, distinguishing an unchanged cover from a
+ * cleared one. When nothing changed it emits an inert `present: false` entry so
+ * the adapter leaves the cover untouched; otherwise it forwards the draft's type
+ * and path (with `clear` set when the path was emptied). Kept as a focused pure
+ * helper so `createAnimeEditorSaveCommand` stays flat and low-complexity.
+ */
+function createCoverPatch(record: AnimeEditorRecord, draft: AnimeEditorDraft) {
+  const currentPath = record.details.cover?.path ?? '';
+  const currentType = record.details.cover?.type ?? 'url';
+  const changed = currentPath !== draft.coverPath || currentType !== draft.coverType;
+  if (!changed) {
+    return { present: false, clear: false, type: '', path: '', raw: undefined };
+  }
+  return {
+    present: true,
+    clear: draft.coverPath.trim().length === 0,
+    type: draft.coverType,
+    path: draft.coverPath,
+    raw: record.details.cover?.raw,
+  };
 }
 
 /** Builds the English changed-fields-only DTO consumed by the Wails adapter. */
@@ -156,13 +184,7 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
     duration: nullablePatch(record.details.duration, draft.duration),
     kind: nullablePatch(record.frequent.kind, draft.kind),
     premieredAt: nullablePatch(record.details.premieredAt, draft.premieredAt),
-    cover: {
-      present: (record.details.cover?.path ?? '') !== draft.coverPath || (record.details.cover?.type ?? 'url') !== draft.coverType,
-      clear: draft.coverPath.trim().length === 0,
-      type: draft.coverType,
-      path: draft.coverPath,
-      raw: record.details.cover?.raw,
-    },
+    cover: createCoverPatch(record, draft),
   };
   if (record.frequent.name !== draft.name) patch['name'] = draft.name;
   if (record.frequent.status !== draft.status) patch['status'] = draft.status;

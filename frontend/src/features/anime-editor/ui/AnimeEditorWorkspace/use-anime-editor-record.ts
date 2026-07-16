@@ -59,6 +59,11 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     if (path.length === 0) return;
     setState((current) => ({ ...current, draft: { ...current.draft, folder: path } }));
   }, [source]);
+  const onPickCoverFile = useCallback(async () => {
+    const path = await source.pickFile('Select cover image');
+    if (path.length === 0) return;
+    setState((current) => ({ ...current, draft: { ...current.draft, coverType: 'image', coverPath: path } }));
+  }, [source]);
   const onSave = useCallback(async (): Promise<AnimeEditorSaveResult | undefined> => {
     if (state.selectedRecord === undefined) return undefined;
     const validation = validateAnimeEditorDraft(state.draft);
@@ -116,5 +121,5 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     void loadRecord(options.selectedAnimeId);
   }, [loadRecord, options.selectedAnimeId]);
 
-  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onSave, onDeactivate, loadRecord };
+  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, loadRecord };
 }

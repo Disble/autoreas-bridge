@@ -268,6 +268,43 @@ describe('bridge-runtime-source', () => {
     expect(applyBoardMock).toHaveBeenCalledWith({ boardModifiedAt: 123, entries: [] });
   });
 
+  it('maps a value-kind zero tipo to a concrete 0 across the wire boundary', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    // Reproduces the reported bug's payload: the backend reports tipo=0
+    // ("Anime (TV)") as an explicit value-kind zero. The mapper must surface it
+    // as frequent.kind === 0, never drop it to undefined (which rendered the
+    // Type field empty and forced an endless no_op save loop).
+    const getAnimeEditorRecordMock = vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'loaded',
+      record: {
+        animeId: 'anime-1',
+        modifiedAt: 123,
+        frequent: {
+          name: 'BanG Dream', status: 0, progress: 1, active: true, placements: [],
+          totalEpisodes: { kind: 'value', value: 0 }, kind: { kind: 'value', value: 0 },
+          page: { kind: 'value', value: 'https://example.test/x' }, folder: { kind: 'value', value: 'D:/Anime/x' },
+        },
+        details: {
+          premieredAt: { kind: 'value', unixMilli: 0 }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
+          genres: { kind: 'value', values: [] }, studios: { kind: 'missing', values: [] }, cover: { kind: 'missing' },
+        },
+      },
+    });
+
+    const recordPromise = source.getAnimeEditorRecord?.('anime-1');
+
+    window.go = { main: { App: { GetAnimeEditorRecord: getAnimeEditorRecordMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    const result = await recordPromise;
+    expect(result?.record?.frequent.kind).toBe(0);
+    expect(result?.record?.frequent.totalEpisodes).toBe(0);
+    expect(result?.record?.details.premieredAt).toBe(0);
+  });
+
   it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

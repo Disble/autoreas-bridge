@@ -170,6 +170,10 @@ export function OpenAnimePage(arg1) {
   return window['go']['main']['App']['OpenAnimePage'](arg1);
 }
 
+export function PickFile(arg1) {
+  return window['go']['main']['App']['PickFile'](arg1);
+}
+
 export function PickFolder(arg1) {
   return window['go']['main']['App']['PickFolder'](arg1);
 }

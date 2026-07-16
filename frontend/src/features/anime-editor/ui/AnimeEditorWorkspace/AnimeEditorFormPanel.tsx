@@ -1,6 +1,8 @@
-import { Button, Card, Chip, Description, Disclosure, Input, Label, ListBox, Select, Skeleton, TextField, Typography } from '@heroui/react';
+import { Button, Card, Chip, Disclosure, Label, ListBox, Select, Skeleton, Typography } from '@heroui/react';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
-import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
+import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
+import { PathPickerField } from '../../../../shared/ui/PathPickerField';
+import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
 import { getAnimeEditorEstadoColor, premieredDateInputToMs, premieredMsToDateInput } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
 
@@ -36,12 +38,9 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
         )}
         {!viewModel.isLoadingRecord && record === undefined && <Typography color="muted" type="body-sm">Pick an anime from the left to start editing.</Typography>}
         {!viewModel.isLoadingRecord && record !== undefined && <>
-          <TextField>
-            <Label>Name</Label>
-            <Input fullWidth value={viewModel.draft.name} variant="secondary" onChange={(event) => viewModel.onDraftChange('name', event.target.value)} />
-          </TextField>
+          <LabeledTextField label="Name" value={viewModel.draft.name} onChange={(value) => viewModel.onDraftChange('name', value)} />
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <Select
               placeholder="Select status"
               value={String(viewModel.draft.status)}
@@ -61,34 +60,43 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
                 </ListBox>
               </Select.Popover>
             </Select>
-            <TextField>
-              <Label>Watched chapters</Label>
-              <Input fullWidth min={0} type="number" value={viewModel.draft.progress} variant="secondary" onChange={(event) => viewModel.onDraftChange('progress', event.target.value)} />
-            </TextField>
-            <TextField>
-              <Label>Total episodes</Label>
-              <Input fullWidth min={0} placeholder="Unknown" type="number" value={viewModel.draft.totalEpisodes} variant="secondary" onChange={(event) => viewModel.onDraftChange('totalEpisodes', event.target.value)} />
-              <Description>Leave empty if the total is unknown.</Description>
-            </TextField>
+            <Select
+              placeholder="Select type"
+              value={viewModel.draft.kind}
+              variant="secondary"
+              onChange={(value) => { if (value !== null) viewModel.onDraftChange('kind', String(value)); }}
+            >
+              <Label>Type</Label>
+              <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {ANIME_EDITOR_KIND_OPTIONS.map((option) => (
+                    <ListBox.Item id={option.value} key={option.value} textValue={option.label}>{option.label}<ListBox.ItemIndicator /></ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField>
-              <Label>Download page</Label>
-              <Input fullWidth placeholder="https://..." value={viewModel.draft.page} variant="secondary" onChange={(event) => viewModel.onDraftChange('page', event.target.value)} />
-              <Description>Public URL where new episodes are published.</Description>
-            </TextField>
-            <TextField>
-              <Label>Folder</Label>
-              <div className="flex items-center gap-2">
-                <Input className="font-mono" fullWidth placeholder="D:\\Anime\\..." value={viewModel.draft.folder} variant="secondary" onChange={(event) => viewModel.onDraftChange('folder', event.target.value)} />
-                <Button className="shrink-0" variant="secondary" onPress={() => void viewModel.onPickFolder()}>Browse…</Button>
-              </div>
-              <Description>Pick a folder from your system, or type the path directly.</Description>
-            </TextField>
+            <LabeledTextField label="Watched chapters" min={0} type="number" value={viewModel.draft.progress} onChange={(value) => viewModel.onDraftChange('progress', value)} />
+            <LabeledTextField description="Leave empty if the total is unknown." label="Total episodes" min={0} placeholder="Unknown" type="number" value={viewModel.draft.totalEpisodes} onChange={(value) => viewModel.onDraftChange('totalEpisodes', value)} />
           </div>
 
-          <Button className="self-start" variant="secondary" onPress={() => void viewModel.onOpenSchedule()}>Open schedule editor</Button>
+          <div className="grid gap-4 md:grid-cols-2">
+            <LabeledTextField description="Public URL where new episodes are published." label="Download page" placeholder="https://..." value={viewModel.draft.page} onChange={(value) => viewModel.onDraftChange('page', value)} />
+            <PathPickerField
+              description="Pick a folder from your system, or type the path directly."
+              label="Folder"
+              mono
+              placeholder="D:\\Anime\\..."
+              value={viewModel.draft.folder}
+              onBrowse={() => void viewModel.onPickFolder()}
+              onChange={(value) => viewModel.onDraftChange('folder', value)}
+            />
+          </div>
+
+          <Button className="self-start py-2" variant="secondary" onPress={() => void viewModel.onOpenSchedule()}>Open schedule editor</Button>
 
           <Disclosure isExpanded={viewModel.isDetailsOpen} onExpandedChange={viewModel.onToggleDetails}>
             <Disclosure.Heading>
@@ -99,10 +107,9 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
             </Disclosure.Heading>
             <Disclosure.Content>
               <Disclosure.Body className="grid gap-4 pt-4 md:grid-cols-2">
-                <TextField><Label>Type</Label><Input fullWidth value={viewModel.draft.kind} variant="secondary" onChange={(event) => viewModel.onDraftChange('kind', event.target.value)} /></TextField>
-                <TextField><Label>Duration</Label><Input fullWidth value={viewModel.draft.duration} variant="secondary" onChange={(event) => viewModel.onDraftChange('duration', event.target.value)} /></TextField>
-                <TextField><Label>Origin</Label><Input fullWidth value={viewModel.draft.origin} variant="secondary" onChange={(event) => viewModel.onDraftChange('origin', event.target.value)} /></TextField>
-                <TextField><Label>Premiere date</Label><Input fullWidth type="date" value={premieredMsToDateInput(viewModel.draft.premieredAt)} variant="secondary" onChange={(event) => viewModel.onDraftChange('premieredAt', premieredDateInputToMs(event.target.value))} /><Description>When the anime first aired.</Description></TextField>
+                <LabeledTextField label="Duration" min={1} placeholder="Minutes per episode" type="number" value={viewModel.draft.duration} onChange={(value) => viewModel.onDraftChange('duration', value)} />
+                <LabeledTextField label="Origin" placeholder="e.g. Manga, Light novel" value={viewModel.draft.origin} onChange={(value) => viewModel.onDraftChange('origin', value)} />
+                <LabeledTextField description="When the anime first aired." label="Premiere date" type="date" value={premieredMsToDateInput(viewModel.draft.premieredAt)} onChange={(value) => viewModel.onDraftChange('premieredAt', premieredDateInputToMs(value))} />
                 <div className="grid gap-4 md:col-span-2 md:grid-cols-[10rem_1fr]">
                   <Select aria-label="Cover source" value={viewModel.draft.coverType} variant="secondary" onChange={(value) => { if (value !== null) viewModel.onDraftChange('coverType', String(value)); }}>
                     <Label>Cover source</Label>
@@ -115,14 +122,22 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
                       </ListBox>
                     </Select.Popover>
                   </Select>
-                  <TextField>
-                    <Label>{viewModel.draft.coverType === 'image' ? 'Cover file path' : 'Cover image URL'}</Label>
-                    <Input className={viewModel.draft.coverType === 'image' ? 'font-mono' : undefined} fullWidth placeholder={viewModel.draft.coverType === 'image' ? 'D:\\Anime\\...\\cover.jpg' : 'https://...'} value={viewModel.draft.coverPath} variant="secondary" onChange={(event) => viewModel.onDraftChange('coverPath', event.target.value)} />
-                    <Description>{viewModel.draft.coverType === 'image' ? 'Local image file on disk.' : 'External cover image URL.'}</Description>
-                  </TextField>
+                  {viewModel.draft.coverType === 'image' ? (
+                    <PathPickerField
+                      description="Local image file on disk."
+                      label="Cover file path"
+                      mono
+                      placeholder="D:\\Anime\\...\\cover.jpg"
+                      value={viewModel.draft.coverPath}
+                      onBrowse={() => void viewModel.onPickCoverFile()}
+                      onChange={(value) => viewModel.onDraftChange('coverPath', value)}
+                    />
+                  ) : (
+                    <LabeledTextField description="External cover image URL." label="Cover image URL" placeholder="https://..." value={viewModel.draft.coverPath} onChange={(value) => viewModel.onDraftChange('coverPath', value)} />
+                  )}
                 </div>
-                <TextField><Label>Genres</Label><Input fullWidth placeholder="Comma separated" value={viewModel.draft.genres} variant="secondary" onChange={(event) => viewModel.onDraftChange('genres', event.target.value)} /></TextField>
-                <TextField><Label>Studios</Label><Input fullWidth placeholder="Comma separated" value={viewModel.draft.studios} variant="secondary" onChange={(event) => viewModel.onDraftChange('studios', event.target.value)} /></TextField>
+                <LabeledTextField label="Genres" placeholder="Comma separated" value={viewModel.draft.genres} onChange={(value) => viewModel.onDraftChange('genres', value)} />
+                <LabeledTextField label="Studios" placeholder="Comma separated" value={viewModel.draft.studios} onChange={(value) => viewModel.onDraftChange('studios', value)} />
               </Disclosure.Body>
             </Disclosure.Content>
           </Disclosure>

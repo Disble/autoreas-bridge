@@ -19,6 +19,7 @@ import {
   GetSyncingAnimeItems,
   OpenAnimeFolder,
   OpenAnimePage,
+  PickFile,
   PickFolder,
   PullAnimesFromLegacy,
   RepeatAnime,
@@ -338,6 +339,9 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     pickFolder(title) {
       return invokeGoBinding('PickFolder', () => PickFolder(title), () => '');
+    },
+    pickFile(title) {
+      return invokeGoBinding('PickFile', () => PickFile(title), () => '');
     },
     getConnectedDevices() {
       return invokeGoBinding('GetConnectedDevices', GetConnectedDevices, () => []);

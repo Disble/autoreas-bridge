@@ -86,9 +86,46 @@ describe('anime-editor-workspace.helpers', () => {
     expect(command.patch.studios).toEqual(['Madhouse', 'CloverWorks']);
   });
 
+  it('omits empty unchanged nullable fields instead of marking them as cleared', () => {
+    const emptyRecord = {
+      ...record,
+      frequent: { ...record.frequent, totalEpisodes: undefined, kind: undefined },
+      details: { ...record.details, origin: undefined, duration: undefined, cover: undefined },
+    };
+    const draft = { ...createAnimeEditorDraft(emptyRecord), kind: '1' };
+    const command = createAnimeEditorSaveCommand(emptyRecord, draft);
+    expect(command.patch.totalEpisodes).toEqual({ present: false, clear: false, value: '' });
+    expect(command.patch.origin).toEqual({ present: false, clear: false, value: '' });
+    expect(command.patch.duration).toEqual({ present: false, clear: false, value: '' });
+    expect(command.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
+  });
+
+  it('strips the current value from unchanged non-empty nullable fields so the backend accepts the omission', () => {
+    const unchangedDraft = createAnimeEditorDraft(record);
+    const command = createAnimeEditorSaveCommand(record, unchangedDraft);
+    expect(command.patch.page).toEqual({ present: false, clear: false, value: '' });
+    expect(command.patch.folder).toEqual({ present: false, clear: false, value: '' });
+    expect(command.patch.cover).toEqual({ present: false, clear: false, type: '', path: '', raw: undefined });
+  });
+
+  it('marks a nullable field as cleared only when it had a value and the draft is empty', () => {
+    const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), totalEpisodes: '' });
+    expect(command.patch.totalEpisodes).toEqual({ present: true, clear: true, value: '' });
+  });
+
+  it('marks the cover as present and cleared when an existing cover path is emptied', () => {
+    const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverPath: '' });
+    expect(command.patch.cover).toMatchObject({ present: true, clear: true, path: '' });
+  });
+
   it('returns field feedback for invalid drafts before save', () => {
     expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), name: '  ' })).toBe('Name is required.');
     expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), progress: '-1' })).toBe('Watched chapters must be a non-negative number.');
+  });
+
+  it('requires a Type before any save (Legacy: Type is mandatory, never optional)', () => {
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), kind: '' })).toBe('Type is required.');
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), kind: '2' })).toBeUndefined();
   });
 
   it('sorts watching anime first in the left rail', () => {
