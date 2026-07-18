@@ -21,41 +21,16 @@ func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string, root 
 	}
 	var res CreateResult
 	for _, rowID := range rowIDs {
-		sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
+		sa, ok, err := s.loadCreatableSeasonAnime(ctx, rowID)
 		if err != nil {
 			return res, err
 		}
-		if sa == nil || sa.Availability != domain.AvailabilityAvailable {
+		if !ok {
 			continue
 		}
-
-		animeID, found, err := s.gateway.FindActiveByPagina(ctx, sa.MatchedSlug)
+		animeID, err := s.resolveOrCreateSeasonAnime(ctx, rowID, *sa, root, overrides)
 		if err != nil {
 			return res, err
-		}
-		if !found {
-			// A user-picked override wins; otherwise the folder defaults to the
-			// configured downloads root joined with the sanitized anime name. A
-			// LINKED existing anime (found) keeps its own folder untouched.
-			folder := overrides[rowID]
-			if folder == "" {
-				folder = deriveDownloadFolder(root, sa.RawName)
-			}
-			tipo := defaultAnimeType
-			mutation, createErr := s.gateway.CreateAnime(ctx, AnimeCreateInput{
-				Nombre:  sa.RawName,
-				Pagina:  sa.MatchedSlug,
-				Section: sinVerSection,
-				Carpeta: folder,
-				Tipo:    &tipo,
-			})
-			if createErr != nil {
-				return res, createErr
-			}
-			if err := acceptAnimeMutation(mutation); err != nil {
-				return res, err
-			}
-			animeID = mutation.AnimeID
 		}
 
 		sa.Availability = domain.AvailabilityCreated
@@ -66,6 +41,48 @@ func (s *Service) CreateSeasonAnimes(ctx context.Context, rowIDs []string, root 
 		res.Created = append(res.Created, sa.RawName)
 	}
 	return res, nil
+}
+
+// loadCreatableSeasonAnime loads a row that is eligible for anime creation.
+func (s *Service) loadCreatableSeasonAnime(ctx context.Context, rowID string) (*domain.SeasonAnime, bool, error) {
+	sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
+	if err != nil {
+		return nil, false, err
+	}
+	if sa == nil || sa.Availability != domain.AvailabilityAvailable {
+		return nil, false, nil
+	}
+	return sa, true, nil
+}
+
+// resolveOrCreateSeasonAnime resolves an existing anime or creates a new one.
+func (s *Service) resolveOrCreateSeasonAnime(ctx context.Context, rowID string, seasonAnime domain.SeasonAnime, root string, overrides map[string]string) (string, error) {
+	animeID, found, err := s.gateway.FindActiveByPagina(ctx, seasonAnime.MatchedSlug)
+	if err != nil {
+		return "", err
+	}
+	if found {
+		return animeID, nil
+	}
+	folder := overrides[rowID]
+	if folder == "" {
+		folder = deriveDownloadFolder(root, seasonAnime.RawName)
+	}
+	tipo := defaultAnimeType
+	mutation, err := s.gateway.CreateAnime(ctx, AnimeCreateInput{
+		Nombre:  seasonAnime.RawName,
+		Pagina:  seasonAnime.MatchedSlug,
+		Section: sinVerSection,
+		Carpeta: folder,
+		Tipo:    &tipo,
+	})
+	if err != nil {
+		return "", err
+	}
+	if err := acceptAnimeMutation(mutation); err != nil {
+		return "", err
+	}
+	return mutation.AnimeID, nil
 }
 
 // HandleAnimeWatched is the event-driven Ver hoy → Visto auto-transition: when a

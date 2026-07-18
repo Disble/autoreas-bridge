@@ -14,6 +14,7 @@ type domainLogger struct {
 	warn   WarningLogger
 }
 
+// NewStdLogger builds the default warning logger backed by the standard library logger.
 func NewStdLogger() WarningLogger {
 	return stdLogger{}
 }
@@ -22,6 +23,8 @@ func (stdLogger) Warnf(format string, args ...any) {
 	log.Printf("WARN: "+format, args...)
 }
 
+// newDomainLogger constructs a scoped domain logger that delegates to the shared logger
+// and passes warning messages to the warning logger.
 func newDomainLogger(domain string, shared sharedlogger.Logger, warnings WarningLogger) domainLogger {
 	return domainLogger{domain: domain, shared: shared, warn: warnings}
 }

@@ -11,14 +11,17 @@ import (
 	"autoreas-bridge/internal/anime"
 )
 
+// WriteBaseStore persists staged write operations, retained bases, and publish outbox rows.
 type WriteBaseStore struct {
 	db *sql.DB
 }
 
+// NewWriteBaseStore builds the SQLite-backed write-base store.
 func NewWriteBaseStore(db *sql.DB) *WriteBaseStore {
 	return &WriteBaseStore{db: db}
 }
 
+// Stage reserves an anime write operation when its current base token still matches.
 func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperation) error {
 	if operation.BatchSize <= 0 {
 		operation.BatchSize = 1
@@ -79,10 +82,12 @@ func (s *WriteBaseStore) Stage(ctx context.Context, operation anime.WriteOperati
 	return nil
 }
 
+// classifyStageRejection identifies the precondition that rejected staging.
 func (s *WriteBaseStore) classifyStageRejection(ctx context.Context, operation anime.WriteOperation) error {
 	return classifyStageRejectionWithQuerier(ctx, s.db, operation)
 }
 
+// classifyStageRejectionWithQuerier checks the current base and live reservation.
 func classifyStageRejectionWithQuerier(ctx context.Context, queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, operation anime.WriteOperation) error {
@@ -114,6 +119,7 @@ func classifyStageRejectionWithQuerier(ctx context.Context, queryer interface {
 	return nil
 }
 
+// StageBatch stages a replacement batch atomically when every operation still matches its base.
 func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.WriteOperation) error {
 	if len(operations) == 0 {
 		return nil
@@ -162,6 +168,7 @@ func (s *WriteBaseStore) StageBatch(ctx context.Context, operations []anime.Writ
 	return nil
 }
 
+// Finalize commits a staged write operation's desired snapshot and retained base.
 func (s *WriteBaseStore) Finalize(ctx context.Context, operationID string, committedAtMs int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -192,221 +199,7 @@ func (s *WriteBaseStore) Finalize(ctx context.Context, operationID string, commi
 	return nil
 }
 
-func (s *WriteBaseStore) FinalizeBatch(ctx context.Context, batchID string, committedAtMs int64) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin batch finalization %q: %w", batchID, err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	rows, err := tx.QueryContext(ctx, writeOperationSelect+` WHERE batch_id = ? AND status = ? ORDER BY batch_order ASC, operation_id ASC`, batchID, anime.WriteOperationStatusStaged)
-	if err != nil {
-		return fmt.Errorf("query batch operations %q: %w", batchID, err)
-	}
-	defer rows.Close()
-	operations := []anime.WriteOperation{}
-	for rows.Next() {
-		operation, err := scanWriteOperation(rows)
-		if err != nil {
-			return fmt.Errorf("scan batch operation %q: %w", batchID, err)
-		}
-		operations = append(operations, operation)
-	}
-	if len(operations) == 0 {
-		return anime.ErrWriteOperationNotFound
-	}
-	for _, operation := range operations {
-		status, err := finalizeWriteOperation(ctx, tx, operation, committedAtMs)
-		if err != nil {
-			return err
-		}
-		if status == anime.WriteOperationStatusSuperseded {
-			return anime.ErrWriteOperationSuperseded
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit batch finalization %q: %w", batchID, err)
-	}
-	return nil
-}
-
-func (s *WriteBaseStore) Abort(ctx context.Context, operationID string) error {
-	return s.transitionFromStaged(ctx, operationID, anime.WriteOperationStatusAborted)
-}
-
-func (s *WriteBaseStore) AbortBatch(ctx context.Context, batchID string) error {
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE anime_write_operations SET status = ? WHERE batch_id = ? AND status = ?
-	`, anime.WriteOperationStatusAborted, batchID, anime.WriteOperationStatusStaged)
-	if err != nil {
-		return fmt.Errorf("abort batch %q: %w", batchID, err)
-	}
-	return nil
-}
-
-func (s *WriteBaseStore) ListStaged(ctx context.Context) ([]anime.WriteOperation, error) {
-	rows, err := s.db.QueryContext(ctx, writeOperationSelect+`
-		WHERE status = ?
-		ORDER BY created_at_ms ASC, batch_id ASC, batch_order ASC, operation_id ASC
-	`, anime.WriteOperationStatusStaged)
-	if err != nil {
-		return nil, fmt.Errorf("list staged write operations: %w", err)
-	}
-	defer rows.Close()
-
-	operations := []anime.WriteOperation{}
-	for rows.Next() {
-		operation, err := scanWriteOperation(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan staged write operation: %w", err)
-		}
-		operations = append(operations, operation)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate staged write operations: %w", err)
-	}
-	return operations, nil
-}
-
-func (s *WriteBaseStore) GetBase(ctx context.Context, animeID string, resultingModifiedAt int64) (anime.WriteBase, error) {
-	var base anime.WriteBase
-	var snapshotJSON string
-	err := s.db.QueryRowContext(ctx, `
-		SELECT operation_id, anime_id, base_modified_at, intended_modified_at,
-		       base_snapshot_json, base_hash
-		FROM anime_write_operations
-		WHERE anime_id = ? AND intended_modified_at = ? AND status = ?
-		ORDER BY committed_at_ms DESC, operation_id DESC
-		LIMIT 1
-	`, animeID, resultingModifiedAt, anime.WriteOperationStatusCommitted).Scan(
-		&base.OperationID,
-		&base.AnimeID,
-		&base.BaseModifiedAt,
-		&base.ResultingModifiedAt,
-		&snapshotJSON,
-		&base.SnapshotHash,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return anime.WriteBase{}, anime.ErrWriteBaseNotFound
-	}
-	if err != nil {
-		return anime.WriteBase{}, fmt.Errorf("query write base for anime %q token %d: %w", animeID, resultingModifiedAt, err)
-	}
-	base.SnapshotJSON = []byte(snapshotJSON)
-	return base, nil
-}
-
-func (s *WriteBaseStore) Recover(ctx context.Context, operationID, effectiveHash string, committedAtMs int64) (anime.WriteRecoveryAction, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", fmt.Errorf("begin write operation recovery %q: %w", operationID, err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	operation, err := getWriteOperation(ctx, tx, operationID)
-	if err != nil {
-		return "", err
-	}
-	if operation.Status != anime.WriteOperationStatusStaged {
-		return "", fmt.Errorf("recover write operation %q: %w", operationID, anime.ErrWriteOperationNotStaged)
-	}
-
-	switch effectiveHash {
-	case operation.DesiredHash:
-		status, err := finalizeWriteOperation(ctx, tx, operation, committedAtMs)
-		if err != nil {
-			return "", err
-		}
-		if err := tx.Commit(); err != nil {
-			return "", fmt.Errorf("commit recovered write operation %q: %w", operationID, err)
-		}
-		if status == anime.WriteOperationStatusSuperseded {
-			return anime.WriteRecoveryActionDivergent, nil
-		}
-		return anime.WriteRecoveryActionFinalized, nil
-	case operation.BaseHash:
-		return anime.WriteRecoveryActionRetryAppend, nil
-	default:
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE anime_write_operations
-			SET status = ?
-			WHERE operation_id = ? AND status = ?
-		`, anime.WriteOperationStatusSuperseded, operationID, anime.WriteOperationStatusStaged); err != nil {
-			return "", fmt.Errorf("mark divergent write operation %q: %w", operationID, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return "", fmt.Errorf("commit divergent write operation %q: %w", operationID, err)
-		}
-		return anime.WriteRecoveryActionDivergent, nil
-	}
-}
-
-func (s *WriteBaseStore) MarkBatchSuperseded(ctx context.Context, batchID string) error {
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE anime_write_operations SET status = ? WHERE batch_id = ? AND status = ?
-	`, anime.WriteOperationStatusSuperseded, batchID, anime.WriteOperationStatusStaged)
-	if err != nil {
-		return fmt.Errorf("mark batch %q superseded: %w", batchID, err)
-	}
-	return nil
-}
-
-func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) ([]anime.AnimeChangedOutboxEvent, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT event_id, operation_id, anime_id, payload_json, created_at_ms
-		FROM anime_changed_outbox
-		WHERE status = 'pending'
-		ORDER BY created_at_ms ASC, event_id ASC
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("list pending anime.changed outbox: %w", err)
-	}
-	defer rows.Close()
-	events := []anime.AnimeChangedOutboxEvent{}
-	for rows.Next() {
-		var event anime.AnimeChangedOutboxEvent
-		var payload string
-		if err := rows.Scan(&event.EventID, &event.OperationID, &event.AnimeID, &payload, &event.CreatedAtMs); err != nil {
-			return nil, fmt.Errorf("scan pending anime.changed outbox: %w", err)
-		}
-		event.Payload = []byte(payload)
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate pending anime.changed outbox: %w", err)
-	}
-	return events, nil
-}
-
-func (s *WriteBaseStore) MarkAnimeChangedPublished(ctx context.Context, eventID string, publishedAtMs int64) error {
-	result, err := s.db.ExecContext(ctx, `
-		UPDATE anime_changed_outbox
-		SET status = 'published', published_at_ms = ?
-		WHERE event_id = ? AND status = 'pending'
-	`, publishedAtMs, eventID)
-	if err != nil {
-		return fmt.Errorf("mark anime.changed outbox event %q published: %w", eventID, err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("read anime.changed outbox event %q mark result: %w", eventID, err)
-	}
-	if rows == 1 {
-		return nil
-	}
-	var status string
-	err = s.db.QueryRowContext(ctx, `SELECT status FROM anime_changed_outbox WHERE event_id = ?`, eventID).Scan(&status)
-	if errors.Is(err, sql.ErrNoRows) {
-		return anime.ErrAnimeChangedOutboxEventNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("query anime.changed outbox event %q after mark: %w", eventID, err)
-	}
-	if status == "published" {
-		return nil
-	}
-	return fmt.Errorf("mark anime.changed outbox event %q from status %q", eventID, status)
-}
-
+// transitionFromStaged moves a staged operation to target status.
 func (s *WriteBaseStore) transitionFromStaged(ctx context.Context, operationID string, target anime.WriteOperationStatus) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE anime_write_operations
@@ -438,6 +231,7 @@ func (s *WriteBaseStore) transitionFromStaged(ctx context.Context, operationID s
 	return anime.ErrWriteOperationNotStaged
 }
 
+// finalizeWriteOperation persists the desired snapshot and publication outbox row.
 func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.WriteOperation, committedAtMs int64) (anime.WriteOperationStatus, error) {
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
@@ -472,32 +266,12 @@ func finalizeWriteOperation(ctx context.Context, tx *sql.Tx, operation anime.Wri
 		}
 	}
 
-	committedAt := any(committedAtMs)
-	if status == anime.WriteOperationStatusSuperseded {
-		committedAt = nil
-	}
-	result, err = tx.ExecContext(ctx, `
-		UPDATE anime_write_operations
-		SET status = ?, committed_at_ms = ?
-		WHERE operation_id = ? AND status = ?
-	`, status, committedAt, operation.OperationID, anime.WriteOperationStatusStaged)
-	if err != nil {
-		return "", fmt.Errorf("finalize write operation %q: %w", operation.OperationID, err)
-	}
-	rows, err = result.RowsAffected()
-	if err != nil {
-		return "", fmt.Errorf("read write operation %q finalization result: %w", operation.OperationID, err)
-	}
-	if rows != 1 {
-		return "", fmt.Errorf("finalize write operation %q: %w", operation.OperationID, anime.ErrWriteOperationNotStaged)
+	if err := updateWriteOperationStatus(ctx, tx, operation, status, committedAtMs); err != nil {
+		return "", err
 	}
 	if status == anime.WriteOperationStatusCommitted {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO anime_changed_outbox (
-				event_id, operation_id, anime_id, payload_json, status, created_at_ms
-			) VALUES (?, ?, ?, ?, 'pending', ?)
-		`, operation.OperationID, operation.OperationID, operation.AnimeID, string(operation.DesiredSnapshotJSON), committedAtMs); err != nil {
-			return "", fmt.Errorf("insert anime.changed outbox for write operation %q: %w", operation.OperationID, err)
+		if err := insertAnimeChangedOutbox(ctx, tx, operation, committedAtMs); err != nil {
+			return "", err
 		}
 	}
 	return status, nil
@@ -514,6 +288,7 @@ type writeOperationScanner interface {
 	Scan(dest ...any) error
 }
 
+// getWriteOperation loads one write operation by identifier.
 func getWriteOperation(ctx context.Context, queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, operationID string) (anime.WriteOperation, error) {
@@ -527,6 +302,7 @@ func getWriteOperation(ctx context.Context, queryer interface {
 	return operation, nil
 }
 
+// scanWriteOperation decodes a write operation from a scanner.
 func scanWriteOperation(scanner writeOperationScanner) (anime.WriteOperation, error) {
 	var operation anime.WriteOperation
 	var baseJSON, desiredJSON, status string
@@ -559,6 +335,7 @@ func scanWriteOperation(scanner writeOperationScanner) (anime.WriteOperation, er
 	return operation, nil
 }
 
+// validateWriteOperation checks the required write operation fields.
 func validateWriteOperation(operation anime.WriteOperation) error {
 	if strings.TrimSpace(operation.OperationID) == "" {
 		return errors.New("stage write operation: operation id is required")

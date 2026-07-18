@@ -22,6 +22,24 @@ type EnqueueRequest struct {
 	Destination string // per-anime Carpeta; "" lets the JD adapter's configured default apply.
 }
 
+// LinkSignal is a neutral, structured view of a single JD download-stage link (design.md
+// "Split port (signals) from orchestration (classification)"). No JD library types leak past this
+// boundary -- only booleans and the raw StatusIconKey string, never the free-form Status text.
+type LinkSignal struct {
+	Finished, Running, Skipped bool
+	StatusIconKey              string
+}
+
+// DestinationStatus is the aggregated, neutral JD status for every crawl/download package whose
+// SaveTo normalizes-equal to a destination folder (design.md "Correlate strictly by normalized
+// SaveTo == Carpeta"). Matched=false means nothing has crawled/enqueued for that folder yet --
+// callers MUST treat that as "downloading", never "dead".
+type DestinationStatus struct {
+	Matched                             bool
+	CrawlOnlineCount, CrawlOfflineCount int
+	Links                               []LinkSignal
+}
+
 // JDClient is the port the download orchestrator depends on (design.md §3.3). ListDevices is
 // the ONLY liveness proof: Connect() can succeed while the configured device is offline.
 type JDClient interface {
@@ -36,6 +54,14 @@ type JDClient interface {
 	// AddAndStart enqueues req.URLs on deviceName with autostart, and deliberately WITHOUT a
 	// package name (PoC #13 quirk -- see EnqueueRequest doc).
 	AddAndStart(ctx context.Context, deviceName string, req EnqueueRequest) error
-	PackagesFinished(ctx context.Context, deviceName string) (bool, error)
+	// PackageStatusByDestination returns aggregated JD signals for the package(s) whose SaveTo
+	// matches destination (SaveTo == anime.Carpeta). Matched=false when nothing has
+	// crawled/enqueued for that folder yet (treated as "downloading", see DestinationStatus doc).
+	PackageStatusByDestination(ctx context.Context, deviceName, destination string) (DestinationStatus, error)
+	// RemoveByDestination removes every crawl/download package whose SaveTo matches destination
+	// (best-effort cleanup before hoster fallback advances past a dead package -- design-orch
+	// "Dead Package Removed From JD Before Advancing"). Callers MUST treat a non-nil error as
+	// non-fatal: log and continue, never abort the run.
+	RemoveByDestination(ctx context.Context, deviceName, destination string) error
 	Disconnect(ctx context.Context) error
 }

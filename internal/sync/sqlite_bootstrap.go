@@ -32,6 +32,7 @@ type SQLiteBootstrap struct {
 	openDB        func(driverName string, dataSourceName string) (*sql.DB, error)
 }
 
+// ResolveBridgeDBPath resolves the platform-safe path for the bridge SQLite database.
 func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
 	userConfigDir := b.userConfigDir
 	if userConfigDir == nil {
@@ -62,6 +63,7 @@ func ResolveBridgeDBPath() (string, error) {
 	return SQLiteBootstrap{}.ResolveBridgeDBPath()
 }
 
+// OpenBridgeDB opens the SQLite database at path and applies bridge initialization.
 func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 	openDB := b.openDB
 	if openDB == nil {
@@ -86,6 +88,7 @@ func OpenBridgeDB(path string) (*sql.DB, error) {
 	return SQLiteBootstrap{}.OpenBridgeDB(path)
 }
 
+// BootstrapBridgeDB resolves the bridge path and opens the initialized SQLite database.
 func (b SQLiteBootstrap) BootstrapBridgeDB() (*sql.DB, error) {
 	path, err := b.ResolveBridgeDBPath()
 	if err != nil {
@@ -137,12 +140,16 @@ func initializeBridgeDB(db *sql.DB) error {
 // order; on an existing install it appends only the defaults that are missing — matched
 // case-insensitively — after the current max priority, so user-configured ordering is
 // preserved and never overwritten. It is idempotent across bootstraps.
-func ensureDefaultHosterPriority(db *sql.DB) error {
+func ensureDefaultHosterPriority(db *sql.DB) (err error) {
 	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = ?`, defaultHosterPrioritySite)
 	if err != nil {
 		return fmt.Errorf("read download_hoster_priority for site %q: %w", defaultHosterPrioritySite, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close download_hoster_priority rows: %w", closeErr)
+		}
+	}()
 
 	existing := make(map[string]bool)
 	nextPriority := 0
@@ -177,6 +184,7 @@ func ensureDefaultHosterPriority(db *sql.DB) error {
 	return nil
 }
 
+// applyBridgePragmas configures SQLite for bridge access.
 func applyBridgePragmas(db *sql.DB) error {
 	var journalMode string
 	if err := db.QueryRow("PRAGMA journal_mode = WAL;").Scan(&journalMode); err != nil {

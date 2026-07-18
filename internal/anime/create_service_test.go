@@ -80,7 +80,7 @@ func TestCreateServiceReturnsMetadataSourceFailureWithoutOwnershipOrAppend(t *te
 	if !errors.Is(err, sourceErr) {
 		t.Fatalf("CreateAnime error = %v, want metadata source error", err)
 	}
-	if result != (anime.AnimePatchResult{}) {
+	if result != (anime.PatchResult{}) {
 		t.Fatalf("result = %+v, want zero result", result)
 	}
 	if len(registry.registeredIDs()) != 0 || writer.calls != 0 {
@@ -104,7 +104,7 @@ func TestCreateServiceReturnsGatewayFailureWithoutSuccessResult(t *testing.T) {
 	if !errors.Is(err, persistErr) {
 		t.Fatalf("CreateAnime error = %v, want persistence error", err)
 	}
-	if result != (anime.AnimePatchResult{}) {
+	if result != (anime.PatchResult{}) {
 		t.Fatalf("result = %+v, want zero result", result)
 	}
 	if got := registry.registeredIDs(); len(got) != 1 || got[0] != "persist-failure" {
@@ -128,6 +128,7 @@ func (s *stubCreateMetadataProvider) Lookup(_ context.Context, sourceURL string)
 	return s.metadata, s.err
 }
 
+// configuredCreateWriteService builds the writer used by create-service tests.
 func configuredCreateWriteService(t *testing.T, id string, modifiedAt int64) (*anime.WriteService, *stubAnimeWriter) {
 	t.Helper()
 	writer := &stubAnimeWriter{}
@@ -138,6 +139,7 @@ func configuredCreateWriteService(t *testing.T, id string, modifiedAt int64) (*a
 	return write, writer
 }
 
+// decodeCreatePayload decodes a create payload into raw fields.
 func decodeCreatePayload(t *testing.T, payload []byte) map[string]json.RawMessage {
 	t.Helper()
 	var fields map[string]json.RawMessage
@@ -147,6 +149,7 @@ func decodeCreatePayload(t *testing.T, payload []byte) map[string]json.RawMessag
 	return fields
 }
 
+// assertCreateJSONField verifies one field in a create payload.
 func assertCreateJSONField(t *testing.T, fields map[string]json.RawMessage, key, want string) {
 	t.Helper()
 	got, ok := fields[key]

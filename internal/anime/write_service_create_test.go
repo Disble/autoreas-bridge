@@ -150,7 +150,7 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 			if err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantErr) {
 				t.Fatalf("CreateAnimeResult error = %v, want error containing %q", err, test.wantErr)
 			}
-			if result != (anime.AnimePatchResult{}) {
+			if result != (anime.PatchResult{}) {
 				t.Fatalf("result = %+v, want zero result", result)
 			}
 			if got := registry.registeredIDs(); len(got) != 0 {

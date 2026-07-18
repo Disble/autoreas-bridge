@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+// serveSearchFixture serves a search HTML fixture from a test HTTP server.
 func serveSearchFixture(t *testing.T, fixture string) *httptest.Server {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("testdata", fixture))

@@ -61,6 +61,7 @@ func TestBridgeBootstrapCreatesActivityLogSchema(t *testing.T) {
 	assertIndexExists(t, db, "idx_activity_log_correlation")
 }
 
+// openActivityTestDB opens a temporary bridge database for activity tests.
 func openActivityTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
@@ -71,6 +72,7 @@ func openActivityTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// assertTableExists verifies that a named SQLite table exists.
 func assertTableExists(t *testing.T, db *sql.DB, table string) {
 	t.Helper()
 	var name string
@@ -79,6 +81,7 @@ func assertTableExists(t *testing.T, db *sql.DB, table string) {
 	}
 }
 
+// assertIndexExists verifies that a named SQLite index exists.
 func assertIndexExists(t *testing.T, db *sql.DB, index string) {
 	t.Helper()
 	var name string

@@ -57,14 +57,23 @@ func (d *fakeDevice) ConnectionInfo() (*jd.DirectConnectionInfo, error) {
 }
 
 type fakeLinkGrabber struct {
-	addErr        error
-	capturedLinks []string
-	capturedOpts  []jd.AddLinksOptions
+	addErr           error
+	capturedLinks    []string
+	capturedOpts     []jd.AddLinksOptions
+	packages         []jd.CrawledPackage
+	packagesErr      error
+	removeLinkIDs    []int64
+	removePackageIDs []int64
+	removeErr        error
 }
 
 func (l *fakeLinkGrabber) Clear() error { return nil }
 func (l *fakeLinkGrabber) Packages(...jd.LinkGrabberQueryPackagesOptions) (*[]jd.CrawledPackage, error) {
-	return &[]jd.CrawledPackage{}, nil
+	if l.packagesErr != nil {
+		return nil, l.packagesErr
+	}
+	pkgs := l.packages
+	return &pkgs, nil
 }
 func (l *fakeLinkGrabber) Links(...jd.LinkGrabberQueryLinksOptions) (*[]jd.CrawledLink, error) {
 	return &[]jd.CrawledLink{}, nil
@@ -77,13 +86,21 @@ func (l *fakeLinkGrabber) Add(links []string, opts ...jd.AddLinksOptions) (*jd.D
 	}
 	return &jd.DataResponse{}, nil
 }
-func (l *fakeLinkGrabber) IsCollecting() (bool, error)        { return false, nil }
-func (l *fakeLinkGrabber) Remove(_ []int64, _ []int64) error  { return nil }
+func (l *fakeLinkGrabber) IsCollecting() (bool, error) { return false, nil }
+func (l *fakeLinkGrabber) Remove(linkIDs []int64, packageIDs []int64) error {
+	l.removeLinkIDs = linkIDs
+	l.removePackageIDs = packageIDs
+	return l.removeErr
+}
 func (l *fakeLinkGrabber) RenameLink(_ int64, _ string) error { return nil }
 
 type fakeDownloader struct {
-	packages []jd.DownloadPackage
-	err      error
+	packages         []jd.DownloadPackage
+	err              error
+	links            []jd.DownloadLink
+	removeLinkIDs    []int64
+	removePackageIDs []int64
+	removeErr        error
 }
 
 func (d *fakeDownloader) Packages(...jd.LinkGrabberQueryPackagesOptions) (*[]jd.DownloadPackage, error) {
@@ -94,9 +111,14 @@ func (d *fakeDownloader) Packages(...jd.LinkGrabberQueryPackagesOptions) (*[]jd.
 	return &pkgs, nil
 }
 func (d *fakeDownloader) Links(...jd.DownloadQueryLinksOptions) (*[]jd.DownloadLink, error) {
-	return &[]jd.DownloadLink{}, nil
+	links := d.links
+	return &links, nil
 }
-func (d *fakeDownloader) Remove(_ []int64, _ []int64) error     { return nil }
+func (d *fakeDownloader) Remove(linkIDs []int64, packageIDs []int64) error {
+	d.removeLinkIDs = linkIDs
+	d.removePackageIDs = packageIDs
+	return d.removeErr
+}
 func (d *fakeDownloader) Start() (bool, error)                  { return true, nil }
 func (d *fakeDownloader) Stop() (bool, error)                   { return true, nil }
 func (d *fakeDownloader) Pause() (bool, error)                  { return true, nil }
@@ -104,6 +126,7 @@ func (d *fakeDownloader) Speed() (*jd.DownloadSpeedInfo, error) { return &jd.Dow
 func (d *fakeDownloader) Force(_ []int64, _ []int64) error      { return nil }
 func (d *fakeDownloader) State() (*jd.DownloadState, error)     { return &jd.DownloadState{}, nil }
 
+// boolPtr returns a pointer to a boolean value.
 func boolPtr(b bool) *bool { return &b }
 
 // --- EnsureOnline / ListDevices liveness gate (4.7) ---
@@ -251,67 +274,6 @@ func TestAddAndStartReturnsErrorOnLinkGrabberFailure(t *testing.T) {
 	err := adapter.AddAndStart(context.Background(), "MyPC", EnqueueRequest{URLs: []string{"https://example.com/file.mp4"}})
 	if err == nil {
 		t.Fatal("expected an error when the link grabber Add call fails")
-	}
-}
-
-// --- PackagesFinished ---
-
-func TestPackagesFinishedReturnsTrueWhenAllPackagesFinished(t *testing.T) {
-	t.Parallel()
-
-	finished := boolPtr(true)
-	device := &fakeDevice{dl: &fakeDownloader{packages: []jd.DownloadPackage{{Finished: finished}}}}
-	fake := &fakeJdClient{
-		devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}},
-		device:  device,
-	}
-	adapter := newWithClient(fake)
-
-	done, err := adapter.PackagesFinished(context.Background(), "MyPC")
-	if err != nil {
-		t.Fatalf("PackagesFinished: %v", err)
-	}
-	if !done {
-		t.Fatal("expected PackagesFinished to report true")
-	}
-}
-
-func TestPackagesFinishedReturnsFalseWhenAnyPackageUnfinished(t *testing.T) {
-	t.Parallel()
-
-	finished := boolPtr(false)
-	device := &fakeDevice{dl: &fakeDownloader{packages: []jd.DownloadPackage{{Finished: finished}}}}
-	fake := &fakeJdClient{
-		devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}},
-		device:  device,
-	}
-	adapter := newWithClient(fake)
-
-	done, err := adapter.PackagesFinished(context.Background(), "MyPC")
-	if err != nil {
-		t.Fatalf("PackagesFinished: %v", err)
-	}
-	if done {
-		t.Fatal("expected PackagesFinished to report false when a package is unfinished")
-	}
-}
-
-func TestPackagesFinishedReturnsFalseWhenNoPackagesExist(t *testing.T) {
-	t.Parallel()
-
-	device := &fakeDevice{dl: &fakeDownloader{packages: []jd.DownloadPackage{}}}
-	fake := &fakeJdClient{
-		devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}},
-		device:  device,
-	}
-	adapter := newWithClient(fake)
-
-	done, err := adapter.PackagesFinished(context.Background(), "MyPC")
-	if err != nil {
-		t.Fatalf("PackagesFinished: %v", err)
-	}
-	if done {
-		t.Fatal("expected PackagesFinished to report false (no progress) when there are no packages yet")
 	}
 }
 

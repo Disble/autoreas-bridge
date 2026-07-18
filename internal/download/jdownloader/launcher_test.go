@@ -9,6 +9,7 @@ import (
 
 // --- ResolveExePath (Autoreas Settings downloader.dir) ---
 
+// writeSettingsFile writes launcher settings to a temporary test file.
 func writeSettingsFile(t *testing.T, dir, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, "Settings")

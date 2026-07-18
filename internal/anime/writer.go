@@ -13,6 +13,7 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// UpdateWriter serializes append-only legacy writes and their follow-up events.
 type UpdateWriter interface {
 	StartAsync(ctx context.Context)
 	Wait()
@@ -28,6 +29,7 @@ type writeRequest struct {
 	result         chan<- error
 }
 
+// UpdateWriterConfig wires the append-only update writer dependencies.
 type UpdateWriterConfig struct {
 	FilePath         string
 	Bus              events.Bus
@@ -59,6 +61,7 @@ type updateWriter struct {
 	err error
 }
 
+// NewUpdateWriter builds the append-only anime update writer.
 func NewUpdateWriter(config UpdateWriterConfig) UpdateWriter {
 	writer := &updateWriter{
 		filePath:         config.FilePath,
@@ -140,6 +143,7 @@ func (w *updateWriter) RequestAppend(ctx context.Context, animeID string, payloa
 	return w.request(ctx, animeID, payload, false)
 }
 
+// request queues a writer operation and waits for its result.
 func (w *updateWriter) request(ctx context.Context, animeID string, payload []byte, publishChanged bool) error {
 	if err := ctx.Err(); err != nil {
 		return legacy.NewDefiniteAppendError(err)
@@ -177,6 +181,7 @@ func (w *updateWriter) LegacyFilePath() string {
 	return w.filePath
 }
 
+// run processes queued writer operations serially.
 func (w *updateWriter) run(ctx context.Context) {
 	defer func() {
 		if w.unsubscribe != nil {
@@ -194,6 +199,7 @@ func (w *updateWriter) run(ctx context.Context) {
 	}
 }
 
+// processUpdate appends one queued payload and reports its outcome.
 func (w *updateWriter) processUpdate(request writeRequest) {
 	log := newDomainLogger("anime", w.sharedLogger, w.logger)
 	var err error
@@ -202,28 +208,7 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 	}
 
 	if appendErr := w.appendLine(w.filePath, request.payload); appendErr != nil {
-		if !legacy.IsDefiniteAppendError(appendErr) && !legacy.IsAmbiguousAppendError(appendErr) {
-			appendErr = legacy.NewAmbiguousAppendError(appendErr)
-		}
-		if legacy.IsDefiniteAppendError(appendErr) && w.selfEchoRegistry != nil {
-			w.selfEchoRegistry.Forget(request.payload)
-		}
-		wrapped := fmt.Errorf("append anime update for %q at %q: %w", request.animeID, w.filePath, appendErr)
-		if w.publisher != nil {
-			w.publisher.Publish(events.AnimeWriteFailedEvent{
-				AnimeID:       request.animeID,
-				Path:          w.filePath,
-				Err:           wrapped.Error(),
-				CorrelationID: request.correlationID,
-			})
-		}
-		log.Logf(sharedlogger.LevelWarn, sharedlogger.Fields{
-			EntityID:      request.animeID,
-			EventType:     "anime.write",
-			CorrelationID: request.correlationID,
-		}, "%v", wrapped)
-		w.setErr(wrapped)
-		err = wrapped
+		err = w.handleAppendFailure(log, request, appendErr)
 	} else if request.publishChanged && w.publisher != nil {
 		w.publisher.Publish(events.AnimeChangedEvent{
 			AnimeID:       request.animeID,
@@ -242,12 +227,37 @@ func (w *updateWriter) processUpdate(request writeRequest) {
 	}
 }
 
+// handleAppendFailure records and publishes an append failure.
+func (w *updateWriter) handleAppendFailure(log domainLogger, request writeRequest, appendErr error) error {
+	appendErr = normalizeAppendError(appendErr)
+	if legacy.IsDefiniteAppendError(appendErr) && w.selfEchoRegistry != nil {
+		w.selfEchoRegistry.Forget(request.payload)
+	}
+	wrapped := fmt.Errorf("append anime update for %q at %q: %w", request.animeID, w.filePath, appendErr)
+	if w.publisher != nil {
+		w.publisher.Publish(events.AnimeWriteFailedEvent{AnimeID: request.animeID, Path: w.filePath, Err: wrapped.Error(), CorrelationID: request.correlationID})
+	}
+	log.Logf(sharedlogger.LevelWarn, sharedlogger.Fields{EntityID: request.animeID, EventType: "anime.write", CorrelationID: request.correlationID}, "%v", wrapped)
+	w.setErr(wrapped)
+	return wrapped
+}
+
+// normalizeAppendError converts append failures to the public error shape.
+func normalizeAppendError(err error) error {
+	if legacy.IsDefiniteAppendError(err) || legacy.IsAmbiguousAppendError(err) {
+		return err
+	}
+	return legacy.NewAmbiguousAppendError(err)
+}
+
+// setErr stores the writer's terminal error.
 func (w *updateWriter) setErr(err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.err = err
 }
 
+// defaultAppendLine appends one newline-terminated payload to a file.
 func defaultAppendLine(path string, payload []byte) error {
 	return legacy.WithExclusiveFileMutation(path, func() error {
 		file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -275,6 +285,7 @@ type appendSyncWriter interface {
 	Sync() error
 }
 
+// appendRecord writes and synchronizes one payload record.
 func appendRecord(file appendSyncWriter, payload []byte) error {
 	normalized := bytes.TrimRight(payload, "\r\n")
 	record := append(append([]byte(nil), normalized...), '\n')

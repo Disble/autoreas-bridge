@@ -31,6 +31,7 @@ type snapshotPullPipelineResult struct {
 	warningCount int
 }
 
+// runSnapshotPullPipeline parses a file, computes deltas, and persists the baseline.
 func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineConfig) (snapshotPullPipelineResult, error) {
 	log := newDomainLogger("anime", config.sharedLogger, config.logger)
 	start := time.Now()
@@ -88,14 +89,21 @@ func runSnapshotPullPipeline(ctx context.Context, config snapshotPullPipelineCon
 	}, nil
 }
 
-func parseSnapshotFile(config snapshotPullPipelineConfig) (map[string]SnapshotRecord, []ParseWarning, error) {
+// parseSnapshotFile opens and parses the configured snapshot file.
+func parseSnapshotFile(config snapshotPullPipelineConfig) (current map[string]SnapshotRecord, warnings []ParseWarning, err error) {
 	file, err := config.openFile(config.filePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open anime data file %q: %w", config.filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			current = nil
+			warnings = nil
+			err = fmt.Errorf("close anime data file %q: %w", config.filePath, closeErr)
+		}
+	}()
 
-	current, warnings, err := config.parser.Parse(file)
+	current, warnings, err = config.parser.Parse(file)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse anime snapshots: %w", err)
 	}

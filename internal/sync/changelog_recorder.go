@@ -13,6 +13,7 @@ type pendingChangelogStore interface {
 	InsertPending(ctx context.Context, entry ChangelogEntry) error
 }
 
+// ChangelogRecorder subscribes to anime.changed events and records pending changelog rows.
 type ChangelogRecorder struct {
 	bus   events.Bus
 	store pendingChangelogStore
@@ -24,6 +25,7 @@ type ChangelogRecorder struct {
 	unsubscribe func()
 }
 
+// NewChangelogRecorder builds the event-bus recorder that persists pending changelog rows.
 func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore, loggers ...sharedlogger.Logger) *ChangelogRecorder {
 	recorder := &ChangelogRecorder{bus: bus, store: store, now: time.Now}
 	if len(loggers) > 0 {
@@ -32,6 +34,7 @@ func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore, loggers .
 	return recorder
 }
 
+// Start subscribes the recorder to anime.changed events until Stop is called.
 func (r *ChangelogRecorder) Start(ctx context.Context) {
 	r.unsubscribe = r.bus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
 		changed, ok := event.(events.AnimeChangedEvent)
@@ -77,12 +80,14 @@ func (r *ChangelogRecorder) Start(ctx context.Context) {
 	})
 }
 
+// Stop unsubscribes the recorder from the event bus.
 func (r *ChangelogRecorder) Stop() {
 	if r.unsubscribe != nil {
 		r.unsubscribe()
 	}
 }
 
+// Err returns the last persistence error observed by the recorder.
 func (r *ChangelogRecorder) Err() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

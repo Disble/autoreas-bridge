@@ -23,49 +23,7 @@ import (
 func TestPatchAnimeWaitsForDurableAppendBeforeReturning(t *testing.T) {
 	t.Parallel()
 
-	dataPath := filepath.Join(t.TempDir(), "animes.dat")
-	writeAnimeDataFileForPatchTest(t, dataPath, []string{
-		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`,
-	})
-
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`)
-
-	bus := events.NewBus()
-	appendStarted := make(chan struct{}, 1)
-	releaseAppend := make(chan struct{})
-	writerCtx, cancelWriter := context.WithCancel(context.Background())
-	defer func() {
-		cancelWriter()
-	}()
-
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{
-		FilePath:         dataPath,
-		Bus:              bus,
-		Publisher:        bus,
-		Logger:           &testWarningLogger{},
-		SelfEchoRegistry: anime.NewSelfEchoRegistry(),
-		AppendLine: func(path string, payload []byte) error {
-			appendStarted <- struct{}{}
-			<-releaseAppend
-			return appendLineForTest(path, payload)
-		},
-	})
-	writer.StartAsync(writerCtx)
-	t.Cleanup(func() {
-		cancelWriter()
-		writer.Wait()
-	})
-
-	query := anime.NewQueryService(store)
-	writeService := anime.NewWriteService(store, writer)
-	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
-
-	handler := api.NewHandler(api.Config{
-		DeviceService: durablePatchAuthService{},
-		AnimeQuery:    query,
-		AnimeWrite:    writeService,
-	})
+	dataPath, handler, appendStarted, releaseAppend := newDurablePatchEnvironment(t)
 
 	// base:0 matches the seeded snapshot's ModifiedAt (0, default for
 	// pre-OCC-migration rows) -- a fast-forward, not an old-client safe path.
@@ -113,6 +71,29 @@ func TestPatchAnimeWaitsForDurableAppendBeforeReturning(t *testing.T) {
 		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`,
 		`{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":10.5,"estado":2,"totalcap":26,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`,
 	})
+}
+
+// newDurablePatchEnvironment builds the durable writeback test environment.
+func newDurablePatchEnvironment(t *testing.T) (string, http.Handler, chan struct{}, chan struct{}) {
+	t.Helper()
+	dataPath := filepath.Join(t.TempDir(), "animes.dat")
+	seed := `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true}`
+	writeAnimeDataFileForPatchTest(t, dataPath, []string{seed})
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshot(t, store, "anime-1", seed)
+	bus := events.NewBus()
+	started, release := make(chan struct{}, 1), make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{FilePath: dataPath, Bus: bus, Publisher: bus, Logger: &testWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry(), AppendLine: func(path string, payload []byte) error {
+		started <- struct{}{}
+		<-release
+		return appendLineForTest(path, payload)
+	}})
+	writer.StartAsync(ctx)
+	t.Cleanup(func() { cancel(); writer.Wait() })
+	write := anime.NewWriteService(store, writer)
+	write.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	return dataPath, api.NewHandler(api.Config{DeviceService: durablePatchAuthService{}, AnimeQuery: anime.NewQueryService(store), AnimeWrite: write}), started, release
 }
 
 func TestSyncReconcileAppliesPendingOperationsToAnimeDataFile(t *testing.T) {
@@ -202,12 +183,17 @@ func (reconcileStubSyncService) AcknowledgeDevice(context.Context, string, int64
 
 func (reconcileStubSyncService) LastChangedAt(context.Context) (*int64, error) { return nil, nil }
 
-func appendLineForTest(path string, payload []byte) error {
+// appendLineForTest appends one payload to a test data file.
+func appendLineForTest(path string, payload []byte) (err error) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	normalized := bytes.TrimRight(payload, "\r\n")
 	if _, err := file.Write(normalized); err != nil {
@@ -220,6 +206,7 @@ func appendLineForTest(path string, payload []byte) error {
 	return nil
 }
 
+// assertAnimeDataLines compares expected lines in a test data file.
 func assertAnimeDataLines(t *testing.T, path string, want []string) {
 	t.Helper()
 
@@ -240,6 +227,7 @@ func assertAnimeDataLines(t *testing.T, path string, want []string) {
 	}
 }
 
+// splitAnimeDataLines returns non-empty anime data lines.
 func splitAnimeDataLines(contents string) []string {
 	lines := strings.Split(strings.ReplaceAll(contents, "\r\n", "\n"), "\n")
 	filtered := make([]string, 0, len(lines))
@@ -252,6 +240,7 @@ func splitAnimeDataLines(contents string) []string {
 	return filtered
 }
 
+// writeAnimeDataFileForPatchTest writes lines for a patch integration test.
 func writeAnimeDataFileForPatchTest(t *testing.T, filePath string, lines []string) {
 	t.Helper()
 	contents := []byte("")
@@ -263,6 +252,7 @@ func writeAnimeDataFileForPatchTest(t *testing.T, filePath string, lines []strin
 	}
 }
 
+// jsonLineEqual compares two JSON lines semantically.
 func jsonLineEqual(t *testing.T, got string, want string) bool {
 	t.Helper()
 

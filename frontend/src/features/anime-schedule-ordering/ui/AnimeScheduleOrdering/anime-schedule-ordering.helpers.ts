@@ -1,7 +1,7 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { ApplyAnimeScheduleDraftEntry, AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import { ANIME_SCHEDULE_ORDERING_DUPLICATE_ERROR } from './anime-schedule-ordering.constants';
-import type { AnimeScheduleDraftPlacement, AnimeScheduleOrderingInstance, AnimeScheduleOrderingState } from './anime-schedule-ordering.types';
+import type { AnimeScheduleDraftPlacement, AnimeScheduleOrderingInstance, AnimeScheduleOrderingState, AnimeScheduleOrderingTestMoveCommand } from './anime-schedule-ordering.types';
 
 function createEmptyOrder(board: AnimeEditorScheduleBoard) {
   const order: Record<string, string[]> = {};
@@ -29,6 +29,44 @@ function targetContainerFor(state: AnimeScheduleOrderingState, targetId: string)
     }
   }
   return undefined;
+}
+
+function keyForAnime(state: AnimeScheduleOrderingState, animeId: string) {
+  for (const keys of Object.values(state.order)) {
+    const key = keys.find((candidate) => state.instances[candidate]?.animeId === animeId);
+    if (key !== undefined) {
+      return key;
+    }
+  }
+  return undefined;
+}
+
+function createDestinationRank(board: AnimeEditorScheduleBoard) {
+  return new Map(board.destinations.map((destination, index) => [destination.id, index]));
+}
+
+function compareDestinationIds(destinationRank: ReadonlyMap<string, number>, leftDay: string, rightDay: string) {
+  const leftRank = destinationRank.get(leftDay) ?? Number.MAX_SAFE_INTEGER;
+  const rightRank = destinationRank.get(rightDay) ?? Number.MAX_SAFE_INTEGER;
+
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
+  }
+
+  return leftDay.localeCompare(rightDay);
+}
+
+function comparePlacements(
+  destinationRank: ReadonlyMap<string, number>,
+  left: Readonly<AnimeScheduleDraftPlacement>,
+  right: Readonly<AnimeScheduleDraftPlacement>,
+) {
+  const destinationComparison = compareDestinationIds(destinationRank, left.day, right.day);
+  if (destinationComparison !== 0) {
+    return destinationComparison;
+  }
+
+  return left.order - right.order;
 }
 
 /**
@@ -90,6 +128,9 @@ export function shouldBlockDuplicateHover(state: AnimeScheduleOrderingState, eve
     return false;
   }
 
+  if (!Object.hasOwn(state.instances, sourceId)) {
+    return true;
+  }
   const sourceInstance = state.instances[sourceId];
 
   return (state.order[targetContainerId] ?? []).some((key) => state.instances[key]?.animeId === sourceInstance.animeId && key !== sourceId);
@@ -165,6 +206,33 @@ export function removeAnimeScheduleCard(state: AnimeScheduleOrderingState, key: 
 }
 
 /**
+ * Moves one anime into a requested destination/order slot through the same draft
+ * state shape that drag projection updates, giving jsdom tests a legitimate seam.
+ */
+export function moveAnimeScheduleCard(state: AnimeScheduleOrderingState, command: Readonly<AnimeScheduleOrderingTestMoveCommand>) {
+  if (state.order[command.destinationId] === undefined) {
+    return state;
+  }
+
+  const key = keyForAnime(state, command.animeId);
+  if (key === undefined) {
+    return state;
+  }
+
+  const nextOrder: Record<string, readonly string[]> = {};
+  for (const [destinationId, keys] of Object.entries(state.order)) {
+    nextOrder[destinationId] = keys.filter((candidate) => candidate !== key);
+  }
+
+  const destinationKeys = [...(nextOrder[command.destinationId] ?? [])];
+  const index = Math.max(0, Math.min(command.order - 1, destinationKeys.length));
+  destinationKeys.splice(index, 0, key);
+  nextOrder[command.destinationId] = destinationKeys;
+
+  return applyAnimeScheduleOrder(state, nextOrder);
+}
+
+/**
  * Builds the per-anime placement map that the editor apply command serializes.
  */
 export function buildAnimeScheduleDraftPlacements(state: AnimeScheduleOrderingState) {
@@ -182,14 +250,36 @@ export function buildAnimeScheduleDraftPlacements(state: AnimeScheduleOrderingSt
   return draft;
 }
 
-function normalizePlacements(placements: readonly AnimeScheduleDraftPlacement[]) {
-  return placements
-    .toSorted((left, right) => left.day === right.day ? left.order - right.order : left.day.localeCompare(right.day))
-    .map((placement, index, values) => {
-      const previous = values[index - 1];
-      const order = previous?.day === placement.day ? previous.order + 1 : 1;
-      return { day: placement.day, order };
-    });
+function normalizePlacements(destinationRank: ReadonlyMap<string, number>, placements: readonly AnimeScheduleDraftPlacement[]) {
+  // Placement order is global to its destination. Reindexing this one anime's
+  // placements would erase an in-column move such as Visto#4 -> Visto#1.
+  return sortPlacements(destinationRank, placements);
+}
+
+function sortPlacements(destinationRank: ReadonlyMap<string, number>, placements: readonly AnimeScheduleDraftPlacement[]) {
+  return placements.toSorted((left, right) => comparePlacements(destinationRank, left, right));
+}
+
+function compareApplyEntries(
+  destinationRank: ReadonlyMap<string, number>,
+  left: Readonly<ApplyAnimeScheduleDraftEntry>,
+  right: Readonly<ApplyAnimeScheduleDraftEntry>,
+) {
+  const leftPlacement = left.placements.at(0);
+  const rightPlacement = right.placements.at(0);
+
+  if (leftPlacement !== undefined && rightPlacement !== undefined) {
+    const placementComparison = comparePlacements(destinationRank, leftPlacement, rightPlacement);
+    if (placementComparison !== 0) {
+      return placementComparison;
+    }
+  }
+
+  if (leftPlacement !== undefined || rightPlacement !== undefined) {
+    return leftPlacement === undefined ? 1 : -1;
+  }
+
+  return left.animeId.localeCompare(right.animeId);
 }
 
 /**
@@ -197,6 +287,7 @@ function normalizePlacements(placements: readonly AnimeScheduleDraftPlacement[])
  * draft so the footer can show meaningful dirty feedback.
  */
 export function countAnimeScheduleChanges(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState) {
+  const destinationRank = createDestinationRank(board);
   const original = createAnimeScheduleOrderingState(board);
   const before = buildAnimeScheduleDraftPlacements(original);
   const after = buildAnimeScheduleDraftPlacements(state);
@@ -204,8 +295,8 @@ export function countAnimeScheduleChanges(board: AnimeEditorScheduleBoard, state
   let changes = 0;
 
   for (const animeId of ids) {
-    const normalizedBefore = JSON.stringify(normalizePlacements(before[animeId] ?? []));
-    const normalizedAfter = JSON.stringify(normalizePlacements(after[animeId] ?? []));
+    const normalizedBefore = JSON.stringify(normalizePlacements(destinationRank, before[animeId] ?? []));
+    const normalizedAfter = JSON.stringify(normalizePlacements(destinationRank, after[animeId] ?? []));
     if (normalizedBefore !== normalizedAfter) {
       changes += 1;
     }
@@ -238,23 +329,24 @@ export function validateAnimeScheduleDraft(state: AnimeScheduleOrderingState) {
  * Converts the dirty draft into the changed-record-only Wails payload the backend expects.
  */
 export function createAnimeScheduleApplyEntries(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState): readonly ApplyAnimeScheduleDraftEntry[] {
+  const destinationRank = createDestinationRank(board);
   const original = buildAnimeScheduleDraftPlacements(createAnimeScheduleOrderingState(board));
   const current = buildAnimeScheduleDraftPlacements(state);
   const changed: ApplyAnimeScheduleDraftEntry[] = [];
 
   for (const entry of board.entries) {
-    const before = JSON.stringify(normalizePlacements(original[entry.animeId] ?? []));
-    const afterPlacements = normalizePlacements(current[entry.animeId] ?? []);
-    const after = JSON.stringify(afterPlacements);
+    const before = JSON.stringify(normalizePlacements(destinationRank, original[entry.animeId] ?? []));
+    const currentPlacements = current[entry.animeId] ?? [];
+    const after = JSON.stringify(normalizePlacements(destinationRank, currentPlacements));
     if (before === after) {
       continue;
     }
     changed.push({
       animeId: entry.animeId,
       baseModifiedAt: entry.modifiedAt,
-      placements: afterPlacements,
+      placements: sortPlacements(destinationRank, currentPlacements),
     });
   }
 
-  return changed;
+  return changed.toSorted((left, right) => compareApplyEntries(destinationRank, left, right));
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 )
 
@@ -302,113 +301,11 @@ func TestSyncHandlerIgnoresNonUpdatePendingOperations(t *testing.T) {
 	}
 }
 
-func TestDecodePendingOperationPatch(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		op      contracts.PendingOperation
-		want    AnimePatch
-		wantErr string
-	}{
-		{
-			name: "maps valid payload",
-			op: contracts.PendingOperation{
-				AnimeID:   "anime-1",
-				Operation: "update",
-				Payload: map[string]any{
-					"estado":           float64(2),
-					"nrocapvisto":      float64(10.5),
-					"fechaUltCapVisto": float64(1710000000123),
-					"dias":             []any{"Lunes", "Miercoles"},
-				},
-			},
-			want: AnimePatch{Estado: intPtr(2), NroCapVisto: floatPtr(10.5), FechaUltCapVisto: int64Ptr(1710000000123), Dias: []string{"Lunes", "Miercoles"}},
-		},
-		// SDD-30 ADR-30-2/30-5: decodePendingOperationPatch re-marshals
-		// Payload and runs it through decodeAnimePatch unchanged (zero
-		// handler-level OCC logic added) -- base round-trips exactly like
-		// every other field, including the legitimate zero value.
-		{
-			name: "round-trips explicit base token",
-			op: contracts.PendingOperation{
-				AnimeID:   "anime-1",
-				Operation: "update",
-				Payload: map[string]any{
-					"nrocapvisto": float64(10.5),
-					"base":        float64(1710000000123),
-				},
-			},
-			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(1710000000123)},
-		},
-		{
-			name: "round-trips explicit zero base token",
-			op: contracts.PendingOperation{
-				AnimeID:   "anime-1",
-				Operation: "update",
-				Payload: map[string]any{
-					"nrocapvisto": float64(10.5),
-					"base":        float64(0),
-				},
-			},
-			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)},
-		},
-		{
-			name: "base omitted decodes to nil",
-			op: contracts.PendingOperation{
-				AnimeID:   "anime-1",
-				Operation: "update",
-				Payload: map[string]any{
-					"nrocapvisto": float64(10.5),
-				},
-			},
-			want: AnimePatch{NroCapVisto: floatPtr(10.5), Base: nil},
-		},
-		{
-			name: "rejects missing anime id",
-			op: contracts.PendingOperation{
-				Operation: "update",
-				Payload:   map[string]any{"nrocapvisto": float64(1)},
-			},
-			wantErr: "missing anime id",
-		},
-		{
-			name: "rejects invalid payload",
-			op: contracts.PendingOperation{
-				AnimeID:   "anime-1",
-				Operation: "update",
-				Payload:   map[string]any{"nrocapvisto": -1},
-			},
-			wantErr: "invalid nrocapvisto",
-		},
-	}
-
-	for _, tt := range tests {
-		tc := tt
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := decodePendingOperationPatch(tc.op)
-			if tc.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("decode pending operation patch: %v", err)
-			}
-			if !equalAnimePatch(got, tc.want) {
-				t.Fatalf("expected patch %#v, got %#v", tc.want, got)
-			}
-		})
-	}
-}
-
 type syncHandlerStubs struct {
 	triggerCalls int
 }
 
+// authenticate returns a test authentication function with the requested result.
 func (s *syncHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
 	return func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
 		if !authorized {
@@ -418,61 +315,4 @@ func (s *syncHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
 
 		return device.PairedDevice{DeviceID: "device-1"}, true
 	}
-}
-
-func equalAnimePatch(got AnimePatch, want AnimePatch) bool {
-	if !equalIntPointers(got.Estado, want.Estado) {
-		return false
-	}
-	if !equalFloatPointers(got.NroCapVisto, want.NroCapVisto) {
-		return false
-	}
-	if !equalInt64Pointers(got.FechaUltCapVisto, want.FechaUltCapVisto) {
-		return false
-	}
-	if !equalInt64Pointers(got.Base, want.Base) {
-		return false
-	}
-	if len(got.Dias) != len(want.Dias) {
-		return false
-	}
-	for index := range got.Dias {
-		if got.Dias[index] != want.Dias[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func equalIntPointers(got *int, want *int) bool {
-	if got == nil || want == nil {
-		return got == nil && want == nil
-	}
-	return *got == *want
-}
-
-func equalFloatPointers(got *float64, want *float64) bool {
-	if got == nil || want == nil {
-		return got == nil && want == nil
-	}
-	return *got == *want
-}
-
-func intPtr(value int) *int {
-	return &value
-}
-
-func floatPtr(value float64) *float64 {
-	return &value
-}
-
-func equalInt64Pointers(got *int64, want *int64) bool {
-	if got == nil || want == nil {
-		return got == nil && want == nil
-	}
-	return *got == *want
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }

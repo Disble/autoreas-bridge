@@ -43,7 +43,7 @@ func TestOpenBridgeDBAddsChangelogSourceEventIDWithoutLosingRows(t *testing.T) {
 			anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms
 		) VALUES ('anime-1', 'update', '[]', '{}', 'pending', 100);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("seed current pre-outbox changelog: %v", err)
 	}
 	if err := legacyDB.Close(); err != nil {
@@ -54,7 +54,7 @@ func TestOpenBridgeDBAddsChangelogSourceEventIDWithoutLosingRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("migrate bridge db: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 	if !containsString(readTableColumns(t, db, "changelog"), "source_event_id") {
 		t.Fatal("expected changelog source_event_id migration")
 	}

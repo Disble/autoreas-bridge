@@ -19,6 +19,7 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
+// newFetcherWithTransport creates a fetcher with a test transport.
 func newFetcherWithTransport(rt http.RoundTripper, timeout time.Duration, maxBytes int64) *httpFetcher {
 	fetcher := NewHTTPFetcher(timeout, maxBytes)
 	fetcher.client.Transport = rt

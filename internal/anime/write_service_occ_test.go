@@ -295,7 +295,7 @@ func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T
 	if err != nil {
 		t.Fatalf("patch stale anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeConflict || result.ModifiedAt != 200 || result.ConflictID == "" {
+	if result.Outcome != anime.PatchOutcomeConflict || result.ModifiedAt != 200 || result.ConflictID == "" {
 		t.Fatalf("unexpected stale result: %#v", result)
 	}
 	if len(conflicts.inserted) != 1 {
@@ -317,7 +317,7 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 	if err != nil {
 		t.Fatalf("patch base-less anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeApplied || result.ModifiedAt != 300 {
+	if result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 300 {
 		t.Fatalf("unexpected base-less result: %#v", result)
 	}
 	if writer.calls != 1 || len(conflicts.inserted) != 0 {
@@ -340,7 +340,7 @@ func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("patch no-op anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeNoOp || result.ModifiedAt != 200 {
+	if result.Outcome != anime.PatchOutcomeNoOp || result.ModifiedAt != 200 {
 		t.Fatalf("unexpected no-op result: %#v", result)
 	}
 	if writer.calls != 0 || len(conflicts.inserted) != 0 {

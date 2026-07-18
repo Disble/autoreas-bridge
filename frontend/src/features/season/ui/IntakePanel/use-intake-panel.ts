@@ -109,6 +109,12 @@ export function useIntakePanel(
     },
     [discardName, source],
   );
+  const onOpenPage = useCallback(
+    (pageUrl: string) => {
+      source.openPage(pageUrl);
+    },
+    [source],
+  );
   const toggleSelect = useCallback((rowId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -195,5 +201,6 @@ export function useIntakePanel(
     onRecheckAvailability,
     onResolve,
     onDiscard,
+    onOpenPage,
   };
 }

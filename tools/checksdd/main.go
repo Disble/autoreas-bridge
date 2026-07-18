@@ -1,3 +1,4 @@
+// Command checksdd validates the active OpenSpec change before commit.
 package main
 
 import (
@@ -34,6 +35,7 @@ func main() {
 	fmt.Printf("SDD gate passed for %s.\n", changeName)
 }
 
+// detectActiveChange resolves the active OpenSpec change for the repository.
 func detectActiveChange(root string) (string, error) {
 	markerPath := filepath.Join(root, ".atl", "active-sdd-change")
 	if content, err := os.ReadFile(markerPath); err == nil {
@@ -70,22 +72,30 @@ func detectActiveChange(root string) (string, error) {
 	}
 }
 
+// validateChange checks all required artifacts and their completion state.
 func validateChange(root string, changeName string) error {
 	changeRoot := filepath.Join(root, "openspec", "changes", changeName)
-	required := []string{
+	for _, path := range []string{
 		filepath.Join(changeRoot, "proposal.md"),
 		filepath.Join(changeRoot, "design.md"),
 		filepath.Join(changeRoot, "tasks.md"),
 		filepath.Join(changeRoot, "verify-report.md"),
-	}
-
-	for _, path := range required {
+	} {
 		if _, err := os.Stat(path); err != nil {
 			return fmt.Errorf("missing required SDD artifact: %s", path)
 		}
 	}
+	if err := validateSpecPresence(filepath.Join(changeRoot, "specs"), changeName); err != nil {
+		return fmt.Errorf("no spec.md files found for active change %q", changeName)
+	}
+	if err := validateTasksComplete(filepath.Join(changeRoot, "tasks.md"), changeName); err != nil {
+		return err
+	}
+	return validateVerifyVerdict(filepath.Join(changeRoot, "verify-report.md"), changeName)
+}
 
-	specsRoot := filepath.Join(changeRoot, "specs")
+// validateSpecPresence confirms that the change contains at least one spec.
+func validateSpecPresence(specsRoot string, changeName string) error {
 	var specCount int
 	err := filepath.Walk(specsRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
@@ -102,33 +112,39 @@ func validateChange(root string, changeName string) error {
 	if specCount == 0 {
 		return fmt.Errorf("no spec.md files found for active change %q", changeName)
 	}
+	return nil
+}
 
-	tasksContent, err := os.ReadFile(filepath.Join(changeRoot, "tasks.md"))
+// validateTasksComplete rejects changes with unchecked implementation tasks.
+func validateTasksComplete(tasksPath string, changeName string) error {
+	tasksContent, err := os.ReadFile(tasksPath)
 	if err != nil {
 		return err
 	}
 	if incompleteTaskPattern.Match(tasksContent) {
 		return fmt.Errorf("active change %q still has incomplete tasks in tasks.md", changeName)
 	}
+	return nil
+}
 
-	verifyContent, err := os.ReadFile(filepath.Join(changeRoot, "verify-report.md"))
+// validateVerifyVerdict accepts only passing verification reports.
+func validateVerifyVerdict(verifyPath string, changeName string) error {
+	verifyContent, err := os.ReadFile(verifyPath)
 	if err != nil {
 		return err
 	}
-
 	match := verdictPattern.FindSubmatch(verifyContent)
 	if len(match) < 2 {
 		return fmt.Errorf("unable to determine verification verdict for active change %q", changeName)
 	}
-
 	verdict := strings.TrimSpace(string(match[1]))
 	if verdict != "PASS" && verdict != "PASS WITH WARNINGS" {
 		return fmt.Errorf("active change %q is not verified; current verdict: %s", changeName, verdict)
 	}
-
 	return nil
 }
 
+// fail writes a fatal SDD-gate error and exits with failure.
 func fail(context string, err error) {
 	if err == nil {
 		return

@@ -22,10 +22,13 @@ func (osArchitectureFS) ReadFile(path string) ([]byte, error)       { return os.
 func (osArchitectureFS) Stat(path string) (fs.FileInfo, error)      { return os.Stat(path) }
 func (osArchitectureFS) EvalSymlinks(path string) (string, error)   { return filepath.EvalSymlinks(path) }
 
+// walkArchitectureFiles walks all Go source files starting from root, resolving
+// logical paths relative to root and invoking visit for each discovered file body.
 func walkArchitectureFiles(root string, source architectureFS, visit func(logicalPath string, content []byte) error) error {
 	return walkArchitectureDir(root, root, source, map[string]bool{}, visit)
 }
 
+// walkArchitectureDir recursively visits entries in an architecture directory.
 func walkArchitectureDir(logicalDir, physicalDir string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error) error {
 	canonical, err := source.EvalSymlinks(physicalDir)
 	if err != nil {
@@ -43,53 +46,77 @@ func walkArchitectureDir(logicalDir, physicalDir string, source architectureFS, 
 		return err
 	}
 	for _, entry := range entries {
-		logicalPath := filepath.Join(logicalDir, entry.Name())
-		physicalPath := filepath.Join(physicalDir, entry.Name())
-		if entry.IsDir() {
-			if shouldSkipDir(logicalPath) {
-				continue
-			}
-			if err := walkArchitectureDir(logicalPath, physicalPath, source, ancestors, visit); err != nil {
-				return err
-			}
-			continue
-		}
-		if entry.Type()&fs.ModeSymlink != 0 {
-			info, statErr := source.Stat(physicalPath)
-			if statErr != nil {
-				if scannedExtensions[filepath.Ext(logicalPath)] {
-					return statErr
-				}
-				continue
-			}
-			if info.IsDir() {
-				if shouldSkipDir(logicalPath) {
-					continue
-				}
-				target, evalErr := source.EvalSymlinks(physicalPath)
-				if evalErr != nil {
-					return evalErr
-				}
-				if err := walkArchitectureDir(logicalPath, target, source, ancestors, visit); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		if !scannedExtensions[filepath.Ext(logicalPath)] {
-			continue
-		}
-		content, err := source.ReadFile(physicalPath)
-		if err != nil {
-			return err
-		}
-		if err := visit(logicalPath, content); err != nil {
+		if err := walkArchitectureEntry(logicalDir, physicalDir, source, ancestors, visit, entry); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// walkArchitectureEntry dispatches one directory entry to the proper visitor.
+func walkArchitectureEntry(logicalDir string, physicalDir string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) error {
+	logicalPath, physicalPath := architectureEntryPaths(logicalDir, physicalDir, entry)
+	if entry.IsDir() {
+		return walkArchitectureSubdir(logicalPath, physicalPath, source, ancestors, visit)
+	}
+	processed, err := walkArchitectureSymlink(logicalPath, physicalPath, source, ancestors, visit, entry)
+	if err != nil || processed {
+		return err
+	}
+	return visitArchitectureFile(logicalPath, physicalPath, source, visit)
+}
+
+// architectureEntryPaths derives logical and physical paths for an entry.
+func architectureEntryPaths(logicalDir string, physicalDir string, entry fs.DirEntry) (string, string) {
+	return filepath.Join(logicalDir, entry.Name()), filepath.Join(physicalDir, entry.Name())
+}
+
+// visitArchitectureFile reads and visits a scanned source file.
+func visitArchitectureFile(logicalPath string, physicalPath string, source architectureFS, visit func(string, []byte) error) error {
+	if !scannedExtensions[filepath.Ext(logicalPath)] {
+		return nil
+	}
+	content, err := source.ReadFile(physicalPath)
+	if err != nil {
+		return err
+	}
+	return visit(logicalPath, content)
+}
+
+// walkArchitectureSubdir visits a directory unless policy excludes it.
+func walkArchitectureSubdir(logicalPath string, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error) error {
+	if shouldSkipDir(logicalPath) {
+		return nil
+	}
+	return walkArchitectureDir(logicalPath, physicalPath, source, ancestors, visit)
+}
+
+// walkArchitectureSymlink follows an eligible directory symlink safely.
+func walkArchitectureSymlink(logicalPath string, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) (bool, error) {
+	if entry.Type()&fs.ModeSymlink == 0 {
+		return false, nil
+	}
+	info, err := source.Stat(physicalPath)
+	if err != nil {
+		if scannedExtensions[filepath.Ext(logicalPath)] {
+			return false, err
+		}
+		return true, nil
+	}
+	if !info.IsDir() {
+		return false, nil
+	}
+	if shouldSkipDir(logicalPath) {
+		return true, nil
+	}
+	target, err := source.EvalSymlinks(physicalPath)
+	if err != nil {
+		return false, err
+	}
+	return true, walkArchitectureDir(logicalPath, target, source, ancestors, visit)
+}
+
+// canonicalArchitectureDir normalizes a directory path for cycle detection.
 func canonicalArchitectureDir(path string) string {
 	clean := filepath.Clean(path)
 	if runtime.GOOS == "windows" {

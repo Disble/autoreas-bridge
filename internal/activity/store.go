@@ -7,22 +7,36 @@ import (
 )
 
 const (
+	// SourceDesktop marks activity initiated from the desktop bridge UI.
 	SourceDesktop = "desktop"
-	SourceMobile  = "mobile"
-	SourceSystem  = "system"
-	SourceLegacy  = "legacy"
+	// SourceMobile marks activity initiated by a paired mobile client.
+	SourceMobile = "mobile"
+	// SourceSystem marks activity emitted by backend workflows.
+	SourceSystem = "system"
+	// SourceLegacy marks activity observed from legacy-data synchronization.
+	SourceLegacy = "legacy"
 
-	ActionChapterAdjusted   = "chapter_adjusted"
-	ActionAnimeStateSet     = "anime_state_set"
-	ActionAnimeSoftDeleted  = "anime_soft_deleted"
-	ActionAnimeRestored     = "anime_restored"
-	ActionAnimeRepeated     = "anime_repeated"
-	ActionAnimePageOpened   = "anime_page_opened"
-	ActionAnimePageCopied   = "anime_page_copied"
+	// ActionChapterAdjusted records a progress adjustment.
+	ActionChapterAdjusted = "chapter_adjusted"
+	// ActionAnimeStateSet records a state transition.
+	ActionAnimeStateSet = "anime_state_set"
+	// ActionAnimeSoftDeleted records a soft-delete operation.
+	ActionAnimeSoftDeleted = "anime_soft_deleted"
+	// ActionAnimeRestored records a restore operation.
+	ActionAnimeRestored = "anime_restored"
+	// ActionAnimeRepeated records a repetition reset.
+	ActionAnimeRepeated = "anime_repeated"
+	// ActionAnimePageOpened records an open-page action.
+	ActionAnimePageOpened = "anime_page_opened"
+	// ActionAnimePageCopied records a copy-page action.
+	ActionAnimePageCopied = "anime_page_copied"
+	// ActionAnimeFolderOpened records an open-folder action.
 	ActionAnimeFolderOpened = "anime_folder_opened"
+	// ActionAnimeFolderCopied records a copy-folder action.
 	ActionAnimeFolderCopied = "anime_folder_copied"
 )
 
+// SQLiteProvider exposes the SQL database used by the activity store.
 type SQLiteProvider interface {
 	DB() *sql.DB
 }
@@ -31,10 +45,12 @@ type sqliteProvider struct {
 	db *sql.DB
 }
 
+// Store persists and lists activity records.
 type Store struct {
 	provider SQLiteProvider
 }
 
+// Record captures one activity-log row.
 type Record struct {
 	ID            int64
 	Source        string
@@ -47,10 +63,12 @@ type Record struct {
 	AfterJSON     []byte
 }
 
+// ListQuery controls recent-activity listing.
 type ListQuery struct {
 	Limit int
 }
 
+// NewSQLiteProvider adapts a raw sql.DB into an activity SQLiteProvider.
 func NewSQLiteProvider(db *sql.DB) SQLiteProvider {
 	return sqliteProvider{db: db}
 }
@@ -59,10 +77,12 @@ func (p sqliteProvider) DB() *sql.DB {
 	return p.db
 }
 
+// NewStore builds an activity store over the provided provider.
 func NewStore(provider SQLiteProvider) *Store {
 	return &Store{provider: provider}
 }
 
+// RecordActivity appends an activity-log record.
 func (s *Store) RecordActivity(ctx context.Context, record Record) error {
 	if record.Source == "" {
 		record.Source = SourceSystem
@@ -80,7 +100,8 @@ func (s *Store) RecordActivity(ctx context.Context, record Record) error {
 	return nil
 }
 
-func (s *Store) ListRecent(ctx context.Context, query ListQuery) ([]Record, error) {
+// ListRecent returns the newest activity rows first.
+func (s *Store) ListRecent(ctx context.Context, query ListQuery) (records []Record, err error) {
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 50
@@ -94,9 +115,14 @@ func (s *Store) ListRecent(ctx context.Context, query ListQuery) ([]Record, erro
 	if err != nil {
 		return nil, fmt.Errorf("list recent activity: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			records = nil
+			err = fmt.Errorf("close activity rows: %w", closeErr)
+		}
+	}()
 
-	records := []Record{}
+	records = []Record{}
 	for rows.Next() {
 		var record Record
 		var beforeJSON sql.NullString

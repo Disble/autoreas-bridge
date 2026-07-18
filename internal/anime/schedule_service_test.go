@@ -2,12 +2,12 @@ package anime_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestScheduleServiceRejectsWholeDraftWhenAnyBaseIsStale(t *testing.T) {
@@ -29,7 +29,7 @@ func TestScheduleServiceRejectsWholeDraftWhenAnyBaseIsStale(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply stale schedule draft: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeConflict {
+	if result.Outcome != anime.PatchOutcomeConflict {
 		t.Fatalf("expected whole-draft conflict, got %+v", result)
 	}
 	if writer.calls != 0 {
@@ -60,7 +60,7 @@ func TestScheduleServiceRejectsWholeDraftWhenUnchangedBoardMemberAdvances(t *tes
 	if err != nil {
 		t.Fatalf("unexpected schedule apply error: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeConflict {
+	if result.Outcome != anime.PatchOutcomeConflict {
 		t.Fatalf("expected whole-board OCC rejection when another board member advanced, got %+v", result)
 	}
 	if len(conflicts.inserted) != 1 {
@@ -134,7 +134,7 @@ func TestScheduleServiceApplyAcceptsValidPartialDraftIntoPopulatedWeekday(t *tes
 	if err != nil {
 		t.Fatalf("apply valid partial draft: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeApplied {
+	if result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("expected applied outcome for valid partial draft, got %+v", result)
 	}
 	if len(publisher.events()) != 1 {
@@ -163,7 +163,7 @@ func TestScheduleServiceApplyTwoAnimeDraftProducesAppliedOutcomeAndExactPublicat
 	if err != nil {
 		t.Fatalf("apply two-anime schedule draft: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeApplied {
+	if result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("expected applied outcome, got %+v", result)
 	}
 	if result.ModifiedAt <= 0 {
@@ -178,6 +178,159 @@ func TestScheduleServiceApplyTwoAnimeDraftProducesAppliedOutcomeAndExactPublicat
 	}
 	if len(afterRecords) != 2 {
 		t.Fatalf("expected refreshed board with two records, got %d", len(afterRecords))
+	}
+}
+
+func TestScheduleServiceApplyAcceptsTopInsertedSpecialQueueDraftWithUntouchedSparseSunday(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	payloads := []string{
+		`{"_id":"sayonara-lara","nombre":"Sayonara Lara","activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		`{"_id":"yani-neko","nombre":"Yani Neko","activo":true,"dias":[{"dia":"Sin ver","orden":2}]}`,
+		`{"_id":"youjo-senki-ii","nombre":"Youjo Senki II","activo":true,"dias":[{"dia":"Sin ver","orden":3}]}`,
+		`{"_id":"bang-dream","nombre":"BanG Dream! YumemoMita","activo":true,"dias":[{"dia":"Sin ver","orden":4}]}`,
+		`{"_id":"futsutsuka","nombre":"Futsutsuka...","activo":true,"dias":[{"dia":"Visto","orden":1}]}`,
+		`{"_id":"iwamoto","nombre":"Iwamoto...","activo":true,"dias":[{"dia":"Visto","orden":2}]}`,
+		`{"_id":"tai-ari","nombre":"Tai-Ari...","activo":true,"dias":[{"dia":"Visto","orden":3}]}`,
+		`{"_id":"tenmaku","nombre":"Tenmaku...","activo":true,"dias":[{"dia":"Visto","orden":4}]}`,
+		`{"_id":"domingo-legacy","nombre":"Sunday Legacy","activo":true,"dias":[{"dia":"Domingo","orden":2}]}`,
+		`{"_id":"legacy-unsupported","nombre":"Legacy Unsupported","activo":true,"dias":[{"dia":"Especial legado","orden":9}]}`,
+	}
+	for index, payload := range payloads {
+		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
+	}
+
+	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)}
+	publisher := &editorRecordingPublisher{}
+	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
+	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
+
+	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 110, Entries: []anime.ApplyAnimeScheduleDraftEntry{
+		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}}},
+		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 3}}},
+		{AnimeID: "yani-neko", BaseModifiedAt: 102, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 2}}},
+	}})
+	if err != nil {
+		t.Fatalf("apply special-queue-only schedule draft: %v", err)
+	}
+	assertSpecialQueueDraftResult(t, ctx, store, publisher, result)
+}
+
+// assertSpecialQueueDraftResult verifies the special-queue schedule result.
+func assertSpecialQueueDraftResult(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore, publisher *editorRecordingPublisher, result anime.PatchResult) {
+	t.Helper()
+	if result.Outcome != anime.PatchOutcomeApplied || len(publisher.events()) != 8 {
+		t.Fatalf("unexpected special queue result: %+v", result)
+	}
+	assertSchedulePublishedAnimeChanged(t, publisher.events()[0], "bang-dream", `{"_id":"bang-dream","nombre":"BanG Dream! YumemoMita","nrocapvisto":0,"activo":true,"dias":[{"dia":"Visto","orden":1}]}`)
+	for _, test := range []struct {
+		id, day string
+		order   float64
+	}{{"domingo-legacy", "Domingo", 2}, {"legacy-unsupported", "Especial legado", 9}, {"bang-dream", "Visto", 1}} {
+		snapshot, err := store.GetSnapshot(ctx, test.id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		days := decodeSchedulePayloadDays(t, snapshot.CanonicalJSON)
+		if len(days) != 1 || days[0].Dia != test.day || days[0].Orden != test.order {
+			t.Fatalf("unexpected %s days: %+v", test.id, days)
+		}
+	}
+}
+
+func TestScheduleServiceApplyReordersEveryCardAfterAnInColumnMove(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	payloads := []string{
+		`{"_id":"iwamoto","nombre":"Iwamoto...","activo":true,"dias":[{"dia":"Visto","orden":1}]}`,
+		`{"_id":"tai-ari","nombre":"Tai-Ari...","activo":true,"dias":[{"dia":"Visto","orden":2}]}`,
+		`{"_id":"tenmaku","nombre":"Tenmaku...","activo":true,"dias":[{"dia":"Visto","orden":3}]}`,
+		`{"_id":"futsutsuka","nombre":"Futsutsuka...","activo":true,"dias":[{"dia":"Visto","orden":4}]}`,
+	}
+	for index, payload := range payloads {
+		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
+	}
+
+	publisher := &editorRecordingPublisher{}
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)})
+	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
+	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 104, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
+		AnimeID:        "futsutsuka",
+		BaseModifiedAt: 104,
+		Placements:     []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}},
+	}}})
+	if err != nil {
+		t.Fatalf("apply in-column reorder: %v", err)
+	}
+	if result.Outcome != anime.PatchOutcomeApplied {
+		t.Fatalf("expected applied outcome, got %+v", result)
+	}
+	if got := len(publisher.events()); got != 4 {
+		t.Fatalf("expected every Visto card to be reflowed, got %d publications", got)
+	}
+
+	board, err := anime.NewScheduleQueryService(anime.NewQueryService(store)).GetEditorBoard(ctx, anime.GetAnimeEditorScheduleBoardQuery{})
+	if err != nil {
+		t.Fatalf("query reordered board: %v", err)
+	}
+	placementsByAnime := map[string][]contracts.MobileAnimeDay{}
+	for _, entry := range board.Entries {
+		placementsByAnime[entry.AnimeID] = entry.Placements
+	}
+	assertSchedulePlacement(t, placementsByAnime, "futsutsuka", "Visto", 1)
+	assertSchedulePlacement(t, placementsByAnime, "iwamoto", "Visto", 2)
+	assertSchedulePlacement(t, placementsByAnime, "tai-ari", "Visto", 3)
+	assertSchedulePlacement(t, placementsByAnime, "tenmaku", "Visto", 4)
+}
+
+func TestScheduleServiceApplyReflowsSourceQueueAfterTwoCardsMoveToVisto(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	payloads := []string{
+		`{"_id":"sayonara-lara","nombre":"Sayonara Lara","activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		`{"_id":"yani-neko","nombre":"Yani Neko","activo":true,"dias":[{"dia":"Sin ver","orden":2}]}`,
+		`{"_id":"youjo-senki-ii","nombre":"Youjo Senki II","activo":true,"dias":[{"dia":"Sin ver","orden":3}]}`,
+		`{"_id":"bang-dream","nombre":"BanG Dream! YumemoMita","activo":true,"dias":[{"dia":"Sin ver","orden":4}]}`,
+		`{"_id":"futsutsuka","nombre":"Futsutsuka...","activo":true,"dias":[{"dia":"Visto","orden":1}]}`,
+		`{"_id":"iwamoto","nombre":"Iwamoto...","activo":true,"dias":[{"dia":"Visto","orden":2}]}`,
+		`{"_id":"tai-ari","nombre":"Tai-Ari...","activo":true,"dias":[{"dia":"Visto","orden":3}]}`,
+		`{"_id":"tenmaku","nombre":"Tenmaku...","activo":true,"dias":[{"dia":"Visto","orden":4}]}`,
+	}
+	for index, payload := range payloads {
+		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
+	}
+
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)})
+	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 108, Entries: []anime.ApplyAnimeScheduleDraftEntry{
+		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}}},
+		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 2}}},
+	}})
+	if err != nil {
+		t.Fatalf("apply two-card top insertion: %v", err)
+	}
+	if result.Outcome != anime.PatchOutcomeApplied {
+		t.Fatalf("expected applied outcome, got %+v", result)
+	}
+
+	board, err := anime.NewScheduleQueryService(anime.NewQueryService(store)).GetEditorBoard(ctx, anime.GetAnimeEditorScheduleBoardQuery{})
+	if err != nil {
+		t.Fatalf("query refreshed board: %v", err)
+	}
+	placementsByAnime := map[string][]contracts.MobileAnimeDay{}
+	for _, entry := range board.Entries {
+		placementsByAnime[entry.AnimeID] = entry.Placements
+	}
+	if got := placementsByAnime["yani-neko"]; len(got) != 1 || got[0].Dia != "Sin ver" || got[0].Orden != 1 {
+		t.Fatalf("expected Yani Neko at Sin ver#1, got %+v", got)
+	}
+	if got := placementsByAnime["youjo-senki-ii"]; len(got) != 1 || got[0].Dia != "Sin ver" || got[0].Orden != 2 {
+		t.Fatalf("expected Youjo Senki II at Sin ver#2, got %+v", got)
+	}
+	if got := placementsByAnime["sayonara-lara"]; len(got) != 1 || got[0].Dia != "Visto" || got[0].Orden != 1 {
+		t.Fatalf("expected Sayonara Lara at Visto#1, got %+v", got)
+	}
+	if got := placementsByAnime["bang-dream"]; len(got) != 1 || got[0].Dia != "Visto" || got[0].Orden != 2 {
+		t.Fatalf("expected BanG Dream! at Visto#2, got %+v", got)
 	}
 }
 
@@ -209,25 +362,26 @@ func TestScheduleServiceRejectsInvalidScheduleDraftsBeforeWrite(t *testing.T) {
 	}
 }
 
-type failingSecondWriteAnimeWriter struct {
-	calls int
-	path  string
-}
+func TestScheduleServiceRejectsExplicitNonContiguousSundayPayload(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	payload := `{"_id":"domingo-explicit","nombre":"Sunday Explicit","activo":true,"dias":[{"dia":"Domingo","orden":1}]}`
+	seedAnimeSnapshotWithModifiedAt(t, store, "domingo-explicit", payload, 101)
+	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payload)}
+	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 
-func (w *failingSecondWriteAnimeWriter) RequestWrite(context.Context, string, []byte) error {
-	w.calls++
-	if w.calls == 2 {
-		return errors.New("second append failed")
+	_, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 101, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
+		AnimeID:        "domingo-explicit",
+		BaseModifiedAt: 101,
+		Placements:     []contracts.MobileAnimeDay{{Dia: "Domingo", Orden: 3}},
+	}}})
+	if err == nil {
+		t.Fatal("expected explicit non-contiguous Sunday payload to be rejected")
 	}
-	return nil
-}
-
-func (w *failingSecondWriteAnimeWriter) LegacyFilePath() string { return w.path }
-
-func (w *failingSecondWriteAnimeWriter) ReplaceFile(context.Context, string, [][]byte) error {
-	w.calls++
-	if w.calls == 1 {
-		return errors.New("second append failed")
+	if err.Error() != "non-contiguous positions for Domingo" {
+		t.Fatalf("expected exact Sunday validation error, got %q", err.Error())
 	}
-	return nil
+	if writer.calls != 0 {
+		t.Fatalf("expected zero writes for rejected Sunday payload, got %d", writer.calls)
+	}
 }

@@ -6,72 +6,71 @@ import (
 	"testing"
 )
 
+var legacyJSONBypassCases = []struct {
+	name       string
+	content    string
+	diagnostic string
+}{
+	{
+		name: "unmarshal function alias",
+		content: "package season\n" +
+			"import codec \"encoding/json\"\n" +
+			"type wireRecord struct {\n" +
+			"  Page string `json:\"pagina\"`\n" +
+			"  Progress float64 `json:\"nrocapvisto\"`\n" +
+			"}\n" +
+			"func decode(payload []byte) {\n" +
+			"  var value wireRecord\n" +
+			"  unmarshal := codec.Unmarshal\n" +
+			"  _ = unmarshal(payload, &value)\n" +
+			"}\n",
+		diagnostic: "parses Legacy JSON outside the Legacy adapter",
+	},
+	{
+		name: "detached decoder",
+		content: "package season\n" +
+			"import (\"encoding/json\"; \"io\")\n" +
+			"type wireRecord struct {\n" +
+			"  Active bool `json:\"activo\"`\n" +
+			"  FirstCycle bool `json:\"primeravez\"`\n" +
+			"}\n" +
+			"func decode(reader io.Reader) {\n" +
+			"  decoder := json.NewDecoder(reader)\n" +
+			"  var value wireRecord\n" +
+			"  _ = decoder.Decode(&value)\n" +
+			"}\n",
+		diagnostic: "parses Legacy JSON outside the Legacy adapter",
+	},
+	{
+		name: "detached encoder",
+		content: "package season\n" +
+			"import (\"encoding/json\"; \"io\")\n" +
+			"type wireRecord struct {\n" +
+			"  Page string `json:\"pagina\"`\n" +
+			"  Days []string `json:\"dias\"`\n" +
+			"}\n" +
+			"func encode(writer io.Writer, value wireRecord) {\n" +
+			"  encoder := json.NewEncoder(writer)\n" +
+			"  _ = encoder.Encode(value)\n" +
+			"}\n",
+		diagnostic: "serializes Legacy JSON outside the Legacy adapter",
+	},
+	{
+		name: "marshal function alias",
+		content: "package season\n" +
+			"import codec \"encoding/json\"\n" +
+			"type wireRecord struct {\n" +
+			"  Status int `json:\"estado\"`\n" +
+			"  Total *int `json:\"totalcap\"`\n" +
+			"}\n" +
+			"func encode(value wireRecord) { marshal := codec.Marshal; _, _ = marshal(value) }\n",
+		diagnostic: "serializes Legacy JSON outside the Legacy adapter",
+	},
+}
+
 func TestRunRejectsLegacyJSONDecoderAndEncoderBypasses(t *testing.T) {
 	t.Parallel()
-
-	tests := []struct {
-		name       string
-		content    string
-		diagnostic string
-	}{
-		{
-			name: "unmarshal function alias",
-			content: "package season\n" +
-				"import codec \"encoding/json\"\n" +
-				"type wireRecord struct {\n" +
-				"  Page string `json:\"pagina\"`\n" +
-				"  Progress float64 `json:\"nrocapvisto\"`\n" +
-				"}\n" +
-				"func decode(payload []byte) {\n" +
-				"  var value wireRecord\n" +
-				"  unmarshal := codec.Unmarshal\n" +
-				"  _ = unmarshal(payload, &value)\n" +
-				"}\n",
-			diagnostic: "parses Legacy JSON outside the Legacy adapter",
-		},
-		{
-			name: "detached decoder",
-			content: "package season\n" +
-				"import (\"encoding/json\"; \"io\")\n" +
-				"type wireRecord struct {\n" +
-				"  Active bool `json:\"activo\"`\n" +
-				"  FirstCycle bool `json:\"primeravez\"`\n" +
-				"}\n" +
-				"func decode(reader io.Reader) {\n" +
-				"  decoder := json.NewDecoder(reader)\n" +
-				"  var value wireRecord\n" +
-				"  _ = decoder.Decode(&value)\n" +
-				"}\n",
-			diagnostic: "parses Legacy JSON outside the Legacy adapter",
-		},
-		{
-			name: "detached encoder",
-			content: "package season\n" +
-				"import (\"encoding/json\"; \"io\")\n" +
-				"type wireRecord struct {\n" +
-				"  Page string `json:\"pagina\"`\n" +
-				"  Days []string `json:\"dias\"`\n" +
-				"}\n" +
-				"func encode(writer io.Writer, value wireRecord) {\n" +
-				"  encoder := json.NewEncoder(writer)\n" +
-				"  _ = encoder.Encode(value)\n" +
-				"}\n",
-			diagnostic: "serializes Legacy JSON outside the Legacy adapter",
-		},
-		{
-			name: "marshal function alias",
-			content: "package season\n" +
-				"import codec \"encoding/json\"\n" +
-				"type wireRecord struct {\n" +
-				"  Status int `json:\"estado\"`\n" +
-				"  Total *int `json:\"totalcap\"`\n" +
-				"}\n" +
-				"func encode(value wireRecord) { marshal := codec.Marshal; _, _ = marshal(value) }\n",
-			diagnostic: "serializes Legacy JSON outside the Legacy adapter",
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range legacyJSONBypassCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

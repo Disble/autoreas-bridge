@@ -13,7 +13,7 @@ func TestLegacyMapperRepeatPreservesNullableAndUnknownFields(t *testing.T) {
 
 	const payload = `{"_id":"anime-repeat","nombre":"Repeat","nrocapvisto":12,"estado":1,"activo":false,"primeravez":true,"fechaCreacion":{"$$date":1609459200000},"fechaEstreno":{"$$date":1612137600000},"fechaUltCapVisto":{"$$date":1612224000000},"fechaEliminacion":{"$$date":1612310400000},"repetir":[{"numrepeticion":0,"futureHistory":"keep"}],"totalcap":null,"duracion":null,"portada":{"type":"url","path":""},"future":{"nested":true}}`
 
-	var wire LegacyAnimeRaw
+	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err != nil {
 		t.Fatalf("unmarshal Legacy wire: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestLegacyMapperRestoreChangesOnlyActivation(t *testing.T) {
 
 	const payload = `{"_id":"anime-restore","nombre":"Restore","nrocapvisto":7.5,"estado":2,"activo":false,"fechaEliminacion":{"$$date":1612310400000},"repetir":[{"numrepeticion":0,"futureHistory":"keep"}],"totalcap":null,"future":"keep"}`
 
-	var wire LegacyAnimeRaw
+	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err != nil {
 		t.Fatalf("unmarshal Legacy wire: %v", err)
 	}
@@ -105,6 +105,7 @@ func TestLegacyMapperRestoreChangesOnlyActivation(t *testing.T) {
 	assertRawJSONField(t, got, "future", `"keep"`)
 }
 
+// assertRawJSONField verifies one raw JSON field using legacy JSON equality.
 func assertRawJSONField(t *testing.T, object map[string]json.RawMessage, key string, want string) {
 	t.Helper()
 

@@ -33,6 +33,7 @@ func seedSelectionSeason(t *testing.T, repo *fakeRepo, svc *Service, slots int) 
 	return s.ID
 }
 
+// newSelectionService creates the service and gateway used by selection tests.
 func newSelectionService(repo *fakeRepo) (*Service, *fakeGateway) {
 	svc := newTestService(repo)
 	gw := &fakeGateway{}

@@ -106,46 +106,7 @@ func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
 	started := make(chan context.Context, 1)
 	coordinator := &stubAppCoordinator{started: started}
 	app := newAppTestApp(t)
-	app.bootstrapBridgeDB = func() (*sql.DB, error) { return wantDB, nil }
-	app.resolveAnimeDataPath = func() (string, error) {
-		return filepath.Join("C:\\Users\\User\\AppData\\Roaming\\Autoreas\\data", "animes.dat"), nil
-	}
-	app.newStartupCoordinator = func(config anime.StartupCoordinatorConfig) anime.StartupCoordinator {
-		if config.FilePath == "" {
-			t.Fatal("expected startup coordinator config to include anime data path")
-		}
-		return coordinator
-	}
-	app.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
-		if config.FilePath == "" {
-			t.Fatal("expected runtime watcher config to include anime data path")
-		}
-		return &stubAppRuntimeWatcher{}
-	}
-	app.newUpdateWriter = func(config anime.UpdateWriterConfig) anime.UpdateWriter {
-		if config.FilePath == "" {
-			t.Fatal("expected update writer config to include anime data path")
-		}
-		if config.Bus == nil {
-			t.Fatal("expected update writer config to include event bus")
-		}
-		return &stubAppUpdateWriter{}
-	}
-	app.newChangelogStore = func(db *sql.DB) changelogPendingStore {
-		if db == nil {
-			t.Fatal("expected changelog store to receive sqlite db")
-		}
-		return &stubAppChangelogStore{}
-	}
-	app.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore, _ ...sharedlogger.Logger) changelogRecorder {
-		if bus == nil {
-			t.Fatal("expected changelog recorder to receive event bus")
-		}
-		if store == nil {
-			t.Fatal("expected changelog recorder to receive changelog store")
-		}
-		return &stubAppChangelogRecorder{}
-	}
+	configureStartupRuntimeDependencies(t, app, wantDB, coordinator)
 
 	ctx := context.Background()
 	app.startup(ctx)

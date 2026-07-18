@@ -41,7 +41,7 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 			Placements: []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 1}},
 		},
 	})
-	if err != nil || result.Outcome != anime.AnimePatchOutcomeApplied {
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("save full editor matrix: result=%+v err=%v", result, err)
 	}
 	fields := decodeJSONFields(t, writer.payload)
@@ -106,7 +106,7 @@ func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject
 		PremieredAt: anime.EditorNullableTimePatch{Present: true, Clear: true},
 		Cover:       anime.EditorCoverPatch{Present: true, Clear: true},
 	}})
-	if err != nil || result.Outcome != anime.AnimePatchOutcomeApplied {
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("clear editor metadata: result=%+v err=%v", result, err)
 	}
 	fields := decodeJSONFields(t, writer.payload)
@@ -127,7 +127,7 @@ func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	name := "Frieren Beyond"
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}})
-	if err != nil || result.Outcome != anime.AnimePatchOutcomeApplied {
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("accepted editor save: result=%+v err=%v", result, err)
 	}
 	if writer.calls != 1 || len(publisher.events()) != 1 {
@@ -166,12 +166,15 @@ func (p *editorRecordingPublisher) Publish(event events.Event) {
 	p.recorded = append(p.recorded, event)
 }
 
+// events returns the publisher's recorded events.
 func (p *editorRecordingPublisher) events() []events.Event {
 	return append([]events.Event{}, p.recorded...)
 }
 
+// float64Pointer returns a pointer to a float test value.
 func float64Pointer(value float64) *float64 { return &value }
 
+// assertJSONFieldsEqual compares selected JSON fields in a test payload.
 func assertJSONFieldsEqual(t *testing.T, fields map[string]json.RawMessage, expected map[string]string) {
 	t.Helper()
 	for key, value := range expected {
@@ -214,7 +217,7 @@ func TestEditorServiceSavePreservesUnknownFieldsAndStructuredMetadata(t *testing
 	if err != nil {
 		t.Fatalf("save editor anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeApplied || result.ModifiedAt != 1710000000123 {
+	if result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 1710000000123 {
 		t.Fatalf("unexpected save result: %+v", result)
 	}
 	fields := decodeJSONFields(t, writer.payload)
@@ -255,7 +258,7 @@ func TestEditorServiceSaveReturnsConflictWithoutWriteOnStaleBase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save stale editor anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeConflict || result.ModifiedAt != 1000 {
+	if result.Outcome != anime.PatchOutcomeConflict || result.ModifiedAt != 1000 {
 		t.Fatalf("unexpected stale result: %+v", result)
 	}
 	if writer.calls != 0 {
@@ -357,7 +360,7 @@ func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testin
 	if err != nil {
 		t.Fatalf("deactivate anime: %v", err)
 	}
-	if result.Outcome != anime.AnimePatchOutcomeApplied {
+	if result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("unexpected deactivate result: %+v", result)
 	}
 	fields := decodeJSONFields(t, writer.payload)

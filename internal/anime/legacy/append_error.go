@@ -34,14 +34,17 @@ func NewAmbiguousAppendError(err error) error {
 	return newAppendError(appendFailureAmbiguous, err)
 }
 
+// IsDefiniteAppendError reports whether no bytes could have been appended yet.
 func IsDefiniteAppendError(err error) bool {
 	return appendErrorHasKind(err, appendFailureDefinite)
 }
 
+// IsAmbiguousAppendError reports whether the append may have partially succeeded.
 func IsAmbiguousAppendError(err error) bool {
 	return appendErrorHasKind(err, appendFailureAmbiguous)
 }
 
+// newAppendError creates an append error with the supplied failure classification.
 func newAppendError(kind appendFailureKind, err error) error {
 	if err == nil {
 		return nil
@@ -49,6 +52,7 @@ func newAppendError(kind appendFailureKind, err error) error {
 	return &appendError{kind: kind, err: err}
 }
 
+// appendErrorHasKind reports whether an error carries the supplied append classification.
 func appendErrorHasKind(err error, kind appendFailureKind) bool {
 	var classified *appendError
 	return errors.As(err, &classified) && classified.kind == kind

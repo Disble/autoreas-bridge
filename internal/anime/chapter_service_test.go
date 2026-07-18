@@ -43,38 +43,25 @@ func TestChapterServiceAdjustWatchedChaptersWritesProgressAndRecordsActivity(t *
 		t.Fatalf("adjust watched chapters: %v", err)
 	}
 
+	assertChapterAdjustmentResult(t, result, writer, activity)
+}
+
+// assertChapterAdjustmentResult verifies the chapter adjustment outcome.
+func assertChapterAdjustmentResult(t *testing.T, result anime.ChapterCommandResult, writer *stubAnimeWriter, activity *stubChapterActivityRecorder) {
+	t.Helper()
 	if result.NroCapVisto != 3 {
 		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
 	}
-
 	value := decodeAnimeDomain(t, writer.payload)
-	if value.Progress != 3 {
-		t.Fatalf("expected writer payload progress 3, got %v", value.Progress)
+	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 || value.PremieredAt == nil || value.PremieredAt.UnixMilli() != 1710000000123 {
+		t.Fatalf("expected writer to persist progress and timestamps, got %#v", value)
 	}
-	lastWatched := value.LastWatchedAt
-	if lastWatched == nil || lastWatched.UnixMilli() != 1710000000123 {
-		t.Fatalf("expected fechaUltCapVisto to be stamped, got %v", lastWatched)
-	}
-	firstWatched := value.PremieredAt
-	if firstWatched == nil || firstWatched.UnixMilli() != 1710000000123 {
-		t.Fatalf("expected fechaEstreno to be stamped on first watch, got %v", firstWatched)
-	}
-
 	if len(activity.records) != 1 {
 		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
 	}
 	record := activity.records[0]
-	if record.ActionType != anime.ActivityActionChapterAdjusted {
-		t.Fatalf("expected chapter adjusted activity, got %q", record.ActionType)
-	}
-	if record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" {
-		t.Fatalf("expected anime identity to be recorded, got %#v", record)
-	}
-	if record.Source != anime.ActivitySourceDesktop {
-		t.Fatalf("expected desktop source, got %q", record.Source)
-	}
-	if record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
-		t.Fatalf("expected before/after progress 2.5 -> 3, got %#v -> %#v", record.Before, record.After)
+	if record.ActionType != anime.ActivityActionChapterAdjusted || record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" || record.Source != anime.ActivitySourceDesktop || record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
+		t.Fatalf("unexpected adjustment record: %#v", record)
 	}
 }
 

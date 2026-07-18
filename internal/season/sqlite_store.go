@@ -135,7 +135,7 @@ func (s *SQLiteStore) CreateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 }
 
 // ListSeasonAnimes returns a season's intake rows in creation order.
-func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]domain.SeasonAnime, error) {
+func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) (out []domain.SeasonAnime, err error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, season_id, raw_name, match_status, matched_slug,
 		       match_candidates_json, availability, available_chapters, anime_id,
@@ -144,9 +144,13 @@ func (s *SQLiteStore) ListSeasonAnimes(ctx context.Context, seasonID string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("list season animes for %q: %w", seasonID, err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			out = nil
+			err = fmt.Errorf("close season anime rows: %w", closeErr)
+		}
+	}()
 
-	var out []domain.SeasonAnime
 	for rows.Next() {
 		sa, err := scanSeasonAnime(rows)
 		if err != nil {
@@ -196,6 +200,7 @@ func (s *SQLiteStore) UpdateSeasonAnime(ctx context.Context, sa domain.SeasonAni
 	return nil
 }
 
+// scanSeasonAnime decodes one season anime row.
 func scanSeasonAnime(row rowScanner) (*domain.SeasonAnime, error) {
 	var (
 		sa            domain.SeasonAnime
@@ -274,6 +279,7 @@ func boolToInt(b bool) int {
 	return 0
 }
 
+// marshalCandidates encodes match candidates as JSON.
 func marshalCandidates(c []domain.MatchCandidate) string {
 	if len(c) == 0 {
 		return ""
@@ -285,6 +291,7 @@ func marshalCandidates(c []domain.MatchCandidate) string {
 	return string(b)
 }
 
+// unmarshalCandidates decodes match candidates from JSON.
 func unmarshalCandidates(raw string) []domain.MatchCandidate {
 	if raw == "" {
 		return nil
@@ -301,6 +308,7 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+// scanSeason decodes one season row.
 func scanSeason(row rowScanner) (*domain.Season, error) {
 	var (
 		s             domain.Season

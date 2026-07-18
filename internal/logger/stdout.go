@@ -8,11 +8,13 @@ import (
 	"sync"
 )
 
+// StdoutLogger writes bridge logs as human-readable lines to an io.Writer.
 type StdoutLogger struct {
 	mu     sync.Mutex
 	writer io.Writer
 }
 
+// NewStdoutLogger builds a stdout logger and defaults nil writers to os.Stdout.
 func NewStdoutLogger(writer io.Writer) *StdoutLogger {
 	if writer == nil {
 		writer = os.Stdout
@@ -20,26 +22,32 @@ func NewStdoutLogger(writer io.Writer) *StdoutLogger {
 	return &StdoutLogger{writer: writer}
 }
 
+// Debugf writes a debug-level log entry.
 func (l *StdoutLogger) Debugf(domain, format string, args ...any) {
 	l.WriteEntry(newEntry(domain, LevelDebug, Fields{}, format, args...))
 }
 
+// Infof writes an info-level log entry.
 func (l *StdoutLogger) Infof(domain, format string, args ...any) {
 	l.WriteEntry(newEntry(domain, LevelInfo, Fields{}, format, args...))
 }
 
+// Warnf writes a warning-level log entry.
 func (l *StdoutLogger) Warnf(domain, format string, args ...any) {
 	l.WriteEntry(newEntry(domain, LevelWarn, Fields{}, format, args...))
 }
 
+// Errorf writes an error-level log entry.
 func (l *StdoutLogger) Errorf(domain, format string, args ...any) {
 	l.WriteEntry(newEntry(domain, LevelError, Fields{}, format, args...))
 }
 
+// Logf writes a structured log entry with an explicit level.
 func (l *StdoutLogger) Logf(domain, level string, fields Fields, format string, args ...any) {
 	l.WriteEntry(newEntry(domain, level, fields, format, args...))
 }
 
+// WriteEntry renders and writes a fully-formed log entry.
 func (l *StdoutLogger) WriteEntry(entry LogEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -64,7 +72,7 @@ func formatStdoutLine(e LogEntry) string {
 		b.WriteString(e.EntityID)
 	}
 	if e.DurationMs != 0 {
-		b.WriteString(fmt.Sprintf(" durationMs=%d", e.DurationMs))
+		_, _ = fmt.Fprintf(&b, " durationMs=%d", e.DurationMs)
 	}
 	if e.CorrelationID != "" {
 		b.WriteString(" correlationId=")

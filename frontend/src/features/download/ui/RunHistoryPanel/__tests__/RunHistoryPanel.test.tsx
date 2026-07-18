@@ -17,6 +17,7 @@ const rows = [
     trigger: 'manual',
     episodesDownloaded: 3,
     episodesFailed: 0,
+    isSelected: true,
   },
   {
     runId: 'run-2',
@@ -25,6 +26,7 @@ const rows = [
     trigger: 'scheduled',
     episodesDownloaded: 0,
     episodesFailed: 0,
+    isSelected: false,
   },
 ];
 
@@ -66,8 +68,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders a loading skeleton while the status is "loading"', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'loading', rows: [] },
+      viewModel: { status: 'loading', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -77,8 +80,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders an empty state when there are no runs', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'empty', rows: [] },
+      viewModel: { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -88,8 +92,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders an error message when the status is "error"', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'error', rows: [], errorMessage: 'network down' },
+      viewModel: { status: 'error', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, errorMessage: 'network down' },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -99,8 +104,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders every run as a selectable master-list row', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -112,8 +118,9 @@ describe('RunHistoryPanel', () => {
   it('calls selectRun when a master row is clicked', () => {
     const selectRun = vi.fn();
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun,
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -125,8 +132,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders manual links in the detail pane for a selected jd_offline run', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, selectedRun: jdOfflineRun },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: jdOfflineRun },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -140,8 +148,9 @@ describe('RunHistoryPanel', () => {
 
   it('renders the "Up to date" counter in the detail pane for a selected run', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, selectedRun: okRun },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: okRun },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -153,12 +162,52 @@ describe('RunHistoryPanel', () => {
 
   it('renders an empty detail-pane prompt when no run is selected', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
+      loadMore: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
 
     expect(screen.getByText(/select a run/i)).toBeInTheDocument();
+  });
+
+  it('renders a load more control when older runs remain hidden', () => {
+    const loadMore = vi.fn();
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: {
+        status: 'ready',
+        rows: Array.from({ length: 25 }, (_, index) => ({
+          runId: `run-${index + 1}`,
+          startedLabel: `row-${index + 1}`,
+          statusLabel: 'ok',
+          trigger: 'manual',
+          episodesDownloaded: 0,
+          episodesFailed: 0,
+          isSelected: index === 0,
+        })),
+        visibleRows: Array.from({ length: 20 }, (_, index) => ({
+          runId: `run-${index + 1}`,
+          startedLabel: `row-${index + 1}`,
+          statusLabel: 'ok',
+          trigger: 'manual',
+          episodesDownloaded: 0,
+          episodesFailed: 0,
+          isSelected: index === 0,
+        })),
+        canLoadMore: true,
+        remainingCount: 5,
+        selectedRun: okRun,
+      },
+      selectRun: vi.fn(),
+      loadMore,
+    });
+
+    render(<RunHistoryPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /load 5 more runs/i }));
+
+    expect(screen.getAllByRole('button', { name: /row-/i })).toHaveLength(20);
+    expect(loadMore).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,7 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
+// newTestStore opens a temporary settings store for tests.
 func newTestStore(t *testing.T) *settings.SQLiteStore {
 	t.Helper()
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))

@@ -34,7 +34,7 @@ func NewHTTPFetcher(timeout time.Duration, maxBytes int64) *httpFetcher {
 	}
 }
 
-func (f *httpFetcher) Fetch(ctx context.Context, url string) ([]byte, string, error) {
+func (f *httpFetcher) Fetch(ctx context.Context, url string) (data []byte, contentType string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, "", err
@@ -44,7 +44,13 @@ func (f *httpFetcher) Fetch(ctx context.Context, url string) ([]byte, string, er
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			data = nil
+			contentType = ""
+			err = fmt.Errorf("close cover response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("cover fetch: unexpected status %d", resp.StatusCode)
@@ -54,7 +60,7 @@ func (f *httpFetcher) Fetch(ctx context.Context, url string) ([]byte, string, er
 	if limit <= 0 {
 		limit = defaultMaxBytes
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	data, err = io.ReadAll(io.LimitReader(resp.Body, limit))
 	if err != nil {
 		return nil, "", err
 	}

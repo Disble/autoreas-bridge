@@ -7,7 +7,8 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 )
 
-func (r LegacyAnimeRaw) strings(key string) []string {
+// strings projects a legacy JSON array field into string values.
+func (r AnimeRaw) strings(key string) []string {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
 		return []string{}
@@ -26,7 +27,8 @@ func (r LegacyAnimeRaw) strings(key string) []string {
 	return result
 }
 
-func (r LegacyAnimeRaw) coverPath() *string {
+// coverPath projects the path from the legacy cover object.
+func (r AnimeRaw) coverPath() *string {
 	value, ok := nonNullField(r.extraFields, "portada")
 	if !ok {
 		return nil
@@ -40,7 +42,8 @@ func (r LegacyAnimeRaw) coverPath() *string {
 	return cover.Path
 }
 
-func (r LegacyAnimeRaw) repetitions() []domain.Repetition {
+// repetitions projects legacy repetition history into domain values.
+func (r AnimeRaw) repetitions() []domain.Repetition {
 	value, ok := nonNullField(r.extraFields, "repetir")
 	if !ok {
 		return []domain.Repetition{}
@@ -69,6 +72,7 @@ func (r LegacyAnimeRaw) repetitions() []domain.Repetition {
 	return result
 }
 
+// legacyFieldNumber reads a numeric field from a legacy JSON object.
 func legacyFieldNumber(fields map[string]json.RawMessage, key string) float64 {
 	value, ok := nonNullField(fields, key)
 	if !ok {
@@ -79,10 +83,12 @@ func legacyFieldNumber(fields map[string]json.RawMessage, key string) float64 {
 	return result
 }
 
+// legacyFieldInt reads an integer field from a legacy JSON object.
 func legacyFieldInt(fields map[string]json.RawMessage, key string) int {
 	return int(legacyFieldNumber(fields, key))
 }
 
+// legacyFieldDate reads a wrapped timestamp field from a legacy JSON object.
 func legacyFieldDate(fields map[string]json.RawMessage, key string) *time.Time {
 	value, ok := nonNullField(fields, key)
 	if !ok {
@@ -128,7 +134,8 @@ func Reactivate(payload []byte) ([]byte, error) {
 	return mergeLifecycle(raw, value)
 }
 
-func mergeLifecycle(raw LegacyAnimeRaw, value domain.Anime) ([]byte, error) {
+// mergeLifecycle applies domain lifecycle changes while preserving legacy fields.
+func mergeLifecycle(raw AnimeRaw, value domain.Anime) ([]byte, error) {
 	merged, err := NewMapper().Merge(raw, value)
 	if err != nil {
 		return nil, err

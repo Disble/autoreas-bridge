@@ -66,27 +66,30 @@ func TestUpdateWriterAppendsOneLineAndWatcherIgnoresSelfEcho(t *testing.T) {
 		t.Fatalf("expected watcher to ignore self-echo, got %d duplicate events", got)
 	}
 
-	contents, err := os.ReadFile(dataPath)
-	if err != nil {
-		t.Fatalf("read anime data file: %v", err)
-	}
-
-	lines := splitNonEmptyLines(string(contents))
-	if len(lines) != 2 {
-		t.Fatalf("expected append-only file with 2 lines, got %d", len(lines))
-	}
-	if lines[0] != `{"_id":"seed","nombre":"Seed","nrocapvisto":1}` {
-		t.Fatalf("expected original first line to stay intact, got %s", lines[0])
-	}
-	if lines[1] != string(payload) {
-		t.Fatalf("expected appended line %s, got %s", string(payload), lines[1])
-	}
+	assertAppendedAnimeData(t, dataPath, payload)
 
 	cancel()
 	writer.Wait()
 	watcher.Wait()
 }
 
+// assertAppendedAnimeData verifies the appended anime data file.
+func assertAppendedAnimeData(t *testing.T, dataPath string, payload []byte) {
+	t.Helper()
+	contents, err := os.ReadFile(dataPath)
+	if err != nil {
+		t.Fatalf("read anime data file: %v", err)
+	}
+	lines := splitNonEmptyLines(string(contents))
+	if len(lines) != 2 {
+		t.Fatalf("expected append-only file with 2 lines, got %d", len(lines))
+	}
+	if lines[0] != `{"_id":"seed","nombre":"Seed","nrocapvisto":1}` || lines[1] != string(payload) {
+		t.Fatalf("unexpected append-only lines: %v", lines)
+	}
+}
+
+// splitNonEmptyLines returns non-empty lines from file content.
 func splitNonEmptyLines(input string) []string {
 	lines := make([]string, 0)
 	current := ""

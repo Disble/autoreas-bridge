@@ -40,6 +40,7 @@ function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 0, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
+    openPage: vi.fn(),
     ...overrides,
   };
 }
@@ -163,6 +164,15 @@ describe('useIntakePanel', () => {
     });
     expect(source.resolveMatch).toHaveBeenCalledWith('sa-1', 'https://jkanime.net/dr-stone/');
     expect(source.discardName).toHaveBeenCalledWith('sa-2');
+  });
+
+  it('onOpenPage delegates the matched slug to the source', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useIntakePanel(source));
+    await act(async () => {
+      result.current.onOpenPage('https://jkanime.net/dr-stone/');
+    });
+    expect(source.openPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
   });
 
   it('exposes matched rows waiting for availability and rechecks them on demand', async () => {

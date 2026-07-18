@@ -1,0 +1,6 @@
+version: v2.12.2
+name: dlinter-gcl
+destination: ./.tools/bin
+plugins:
+  - module: github.com/Disble/dlinter-go
+    version: v0.3.1

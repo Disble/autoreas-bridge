@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useAnimeScheduleOrdering } from '../use-anime-schedule-ordering';
+import type { AnimeScheduleOrderingTestDriverRef } from '../anime-schedule-ordering.types';
 
 const board = {
   originAnimeId: 'anime-1',
@@ -54,5 +55,16 @@ describe('useAnimeScheduleOrdering', () => {
     const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
     expect(result.current.weekdayColumns.map((column) => column.id)).toEqual(['Lunes']);
     expect(result.current.specialColumns.map((column) => column.id)).toEqual(['Sin ver']);
+  });
+
+  it('exposes a test driver that moves cards through the real draft state path', () => {
+    const testDriverRef: AnimeScheduleOrderingTestDriverRef = {};
+
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn(), testDriverRef }));
+
+    act(() => testDriverRef.current?.moveAnime({ animeId: 'anime-1', destinationId: 'Sin ver', order: 1 }));
+
+    expect(result.current.changeCount).toBe(1);
+    expect(result.current.specialColumns[0]?.cards.map((card) => card.animeId)).toEqual(['anime-1']);
   });
 });

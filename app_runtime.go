@@ -95,7 +95,7 @@ func (a *App) GetConnectedDevices() []contracts.DeviceInfo {
 	}
 	service := device.NewService(a.deviceStore)
 	if a.bridgeDB != nil {
-		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))})
+		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
 	}
 	devices, err := service.ListDevices(a.appContext())
 	if err != nil {
@@ -110,7 +110,7 @@ func (a *App) UnpairDevice(deviceID string) string {
 	}
 	service := device.NewService(a.deviceStore)
 	if a.bridgeDB != nil {
-		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))})
+		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
 	}
 	if err := service.RevokeDevice(a.appContext(), deviceID); err != nil {
 		return err.Error()
@@ -342,6 +342,7 @@ func (a *App) GetChapterDayCounts() []contracts.ChapterDayCount {
 	return toChapterDayCountContracts(counts)
 }
 
+// appContext returns the application context or a background fallback.
 func (a *App) appContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()
@@ -349,6 +350,7 @@ func (a *App) appContext() context.Context {
 	return a.ctx
 }
 
+// toChapterScheduleContracts maps chapter schedule items to API contracts.
 func toChapterScheduleContracts(items []anime.ChapterScheduleItem) []contracts.ChapterScheduleItem {
 	result := make([]contracts.ChapterScheduleItem, 0, len(items))
 	for _, item := range items {
@@ -371,6 +373,7 @@ func toChapterScheduleContracts(items []anime.ChapterScheduleItem) []contracts.C
 	return result
 }
 
+// toChapterDayCountContracts maps chapter day counts to API contracts.
 func toChapterDayCountContracts(items []anime.ChapterDayCount) []contracts.ChapterDayCount {
 	result := make([]contracts.ChapterDayCount, 0, len(items))
 	for _, item := range items {
@@ -379,6 +382,7 @@ func toChapterDayCountContracts(items []anime.ChapterDayCount) []contracts.Chapt
 	return result
 }
 
+// toChapterCommandContract maps a chapter command result to its API contract.
 func toChapterCommandContract(result anime.ChapterCommandResult) contracts.ChapterCommandResult {
 	return contracts.ChapterCommandResult{
 		Status:        "ok",

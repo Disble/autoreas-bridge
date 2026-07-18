@@ -179,6 +179,7 @@ func TestSQLiteStoreListsAndDeletesPairedDevices(t *testing.T) {
 	}
 }
 
+// openTestBridgeDB opens a temporary bridge database for device tests.
 func openTestBridgeDB(t *testing.T) *sql.DB {
 	t.Helper()
 

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/events"
@@ -65,7 +64,7 @@ type ServiceDeps struct {
 	JD        jdownloader.JDClient
 	Counter   filesystem.EpisodeCounter
 	Flattener filesystem.Flattener
-	Store     DownloadStore
+	Store     Store
 	Notifier  notification.Notifier
 	Bus       events.Bus
 	Logger    logger.Logger
@@ -77,10 +76,10 @@ type ServiceDeps struct {
 	// persisted JDConfig.
 	JDDeviceName string
 
-	// PollSleep is the injected sleep seam pollCompletion uses between filesystem re-checks
-	// (mirrors schedule.Clock/Timer's "nothing in this package ever sleeps on a real clock"
-	// discipline). Defaults to a real time.Sleep in production (NewService); unit tests inject a
-	// fast/no-op func so a slow_or_timeout path never actually blocks for
+	// PollSleep is the injected sleep seam awaitHosterOutcome uses between filesystem/JD-status
+	// re-checks (mirrors schedule.Clock/Timer's "nothing in this package ever sleeps on a real
+	// clock" discipline). Defaults to a real time.Sleep in production (NewService); unit tests
+	// inject a fast/no-op func so a slow_or_timeout path never actually blocks for
 	// config.FilesystemCompletionPollTimeout (30 minutes).
 	PollSleep func(d time.Duration)
 
@@ -92,8 +91,8 @@ type ServiceDeps struct {
 }
 
 // RunResult is the summary RunOnce returns to its caller (the scheduler's RunFunc closure, or a
-// manual-trigger Wails binding) -- callers needing the FULL persisted detail read it back via
-// DownloadStore.ListRuns / the future ListDownloadRuns binding.
+// manual-trigger Wails binding) -- callers needing the full persisted detail read it back via
+// Store.ListRuns / the future ListDownloadRuns binding.
 type RunResult struct {
 	RunID  string
 	Status string
@@ -162,7 +161,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	runID := s.deps.NewRunID()
 	startedAt := s.deps.Clock()
 
-	run := DownloadRun{
+	run := Run{
 		RunID:       runID,
 		StartedAtMs: startedAt.UnixMilli(),
 		Trigger:     trigger,
@@ -195,7 +194,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	runID := s.deps.NewRunID()
 	startedAt := s.deps.Clock()
 
-	run := DownloadRun{
+	run := Run{
 		RunID:       runID,
 		StartedAtMs: startedAt.UnixMilli(),
 		Trigger:     trigger,
@@ -219,75 +218,12 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	return result, nil
 }
 
-func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *DownloadRun, anime contracts.MobileAnime) RunResult {
-	jdOnline := s.ensureJDOnline(ctx)
-	run.JDAvailable = jdOnline
-	s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: jdOnline, CorrelationID: runID})
-	s.recordProgress(ctx, run)
-
-	applyDelta := func(delta animeProgressDelta) {
-		if delta.skipped {
-			run.SkippedCount++
-		}
-		if delta.checked {
-			run.AnimesChecked++
-		}
-		if delta.upToDate {
-			run.UpToDateCount++
-		}
-		run.EpisodesFound += delta.episodesFound
-		run.EpisodesDownloaded += delta.episodesDownloaded
-		run.EpisodesFailed += delta.episodesFailed
-		run.ManualLinks = append(run.ManualLinks, delta.manualLinks...)
-		s.recordProgress(ctx, run)
-	}
-
-	outcome := s.processAnime(ctx, runID, anime, jdOnline, applyDelta)
-
-	switch {
-	case !jdOnline && len(run.ManualLinks) > 0:
-		run.Status = RunStatusJDOffline
-		s.notify(ctx, notification.LevelWarning, runID,
-			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
-	case outcome.failed && run.EpisodesDownloaded > 0:
-		run.Status = RunStatusPartial
-		s.notify(ctx, notification.LevelWarning, runID,
-			"Download run completed with errors", "Some episodes failed to download -- see run details.")
-	case outcome.failed:
-		run.Status = RunStatusError
-		s.notify(ctx, notification.LevelError, runID,
-			"Download run failed", "The selected anime failed to download -- see run details.")
-	default:
-		run.Status = RunStatusOK
-		if run.EpisodesDownloaded > 0 {
-			s.notify(ctx, notification.LevelSuccess, runID,
-				"Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
-		}
-	}
-
-	s.finalize(ctx, run)
-	return RunResult{RunID: runID, Status: run.Status}
-}
-
-func (s *Service) finishRunLog(runID string, run *DownloadRun) {
-	s.logf(logger.LevelInfo, runID, "", "download.run_finished", map[string]any{
-		"status":              run.Status,
-		"animes_checked":      run.AnimesChecked,
-		"episodes_found":      run.EpisodesFound,
-		"episodes_downloaded": run.EpisodesDownloaded,
-		"episodes_failed":     run.EpisodesFailed,
-		"skipped_count":       run.SkippedCount,
-		"up_to_date_count":    run.UpToDateCount,
-	}, "download run %s finished with status %s", runID, run.Status)
-	s.publish(events.DownloadRunFinishedEvent{RunID: runID, Status: run.Status, CorrelationID: runID})
-}
-
 // execute runs the actual pipeline body and mutates run in place before FinalizeRun persists it.
 // Splitting this out of RunOnce keeps the "always persist a terminal row" guarantee in one place
 // (a defer would be more idiomatic, but explicit finalize calls at each early-return keep the
 // terminal status selection readable per branch -- design §5's four sequence diagrams each have
 // a distinct terminal status).
-func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *DownloadRun) RunResult {
+func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *Run) RunResult {
 	animes, err := s.listActiveAnimesToday(ctx)
 	if err != nil {
 		run.Status = RunStatusError
@@ -305,123 +241,92 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 	return s.executeAnimes(ctx, runID, run, animes)
 }
 
-func (s *Service) executeAnimes(ctx context.Context, runID string, run *DownloadRun, animes []contracts.MobileAnime) RunResult {
+// executeAnimes runs the selected anime fan-out and finalizes its aggregate result.
+func (s *Service) executeAnimes(ctx context.Context, runID string, run *Run, animes []contracts.MobileAnime) RunResult {
 	jdOnline := s.ensureJDOnline(ctx)
 	run.JDAvailable = jdOnline
 	s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: jdOnline, CorrelationID: runID})
 	s.recordProgress(ctx, run)
 
-	var (
-		anyFailed    bool
-		anySucceeded bool
-	)
-
-	outcomes := make(chan animeRunOutcome, len(animes))
-	var wg sync.WaitGroup
-	for _, anime := range animes {
-		anime := anime
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			outcomes <- s.processAnime(ctx, runID, anime, jdOnline)
-		}()
-	}
-	wg.Wait()
-	close(outcomes)
-
-	for outcome := range outcomes {
-
-		if outcome.skipped {
-			run.SkippedCount++
-			s.recordProgress(ctx, run)
-			continue
-		}
-
-		run.AnimesChecked++
-		if outcome.upToDate {
-			run.UpToDateCount++
-		}
-		run.EpisodesFound += outcome.episodesFound
-		run.EpisodesDownloaded += outcome.episodesDownloaded
-		run.EpisodesFailed += outcome.episodesFailed
-		run.ManualLinks = append(run.ManualLinks, outcome.manualLinks...)
-		s.recordProgress(ctx, run)
-
-		if outcome.failed {
-			anyFailed = true
-		}
-		if outcome.episodesDownloaded > 0 || (!outcome.failed && outcome.episodesFound == 0) {
-			anySucceeded = true
-		}
+	var progressMu sync.Mutex
+	applyDelta := func(delta animeProgressDelta) {
+		progressMu.Lock()
+		defer progressMu.Unlock()
+		applyProgressDelta(run, delta)
+		snapshot := cloneRun(*run)
+		s.recordProgress(ctx, &snapshot)
 	}
 
-	switch {
-	case !jdOnline && len(run.ManualLinks) > 0:
-		run.Status = RunStatusJDOffline
-		s.notify(ctx, notification.LevelWarning, runID,
-			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
-	case anyFailed && anySucceeded:
-		run.Status = RunStatusPartial
-		s.notify(ctx, notification.LevelWarning, runID,
-			"Download run completed with errors", "Some animes failed to download -- see run details.")
-	case anyFailed && !anySucceeded:
-		run.Status = RunStatusError
-		s.notify(ctx, notification.LevelError, runID,
-			"Download run failed", "All animes failed to download -- see run details.")
-	default:
-		run.Status = RunStatusOK
-		if run.EpisodesDownloaded > 0 {
-			s.notify(ctx, notification.LevelSuccess, runID,
-				"Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
-		}
-	}
+	anyFailed, anySucceeded := s.processAnimes(ctx, runID, animes, jdOnline, applyDelta)
+	s.setRunCompletionStatus(ctx, runID, run, jdOnline, anyFailed, anySucceeded)
 
 	s.finalize(ctx, run)
 	return RunResult{RunID: runID, Status: run.Status}
 }
 
-// listActiveAnimesToday reads every MobileAnime via the READ-ONLY AnimeQueryService and filters
-// to active rows whose Dias contains today's Spanish weekday name (design §2.2/§5; ADR-5 -- this
-// function never imports or calls AnimeWriteService).
-func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.MobileAnime, error) {
-	if s.deps.Animes == nil {
-		return nil, nil
+// processAnimes concurrently processes selected animes and summarizes their outcomes.
+func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, jdOnline bool, applyDelta func(animeProgressDelta)) (bool, bool) {
+	outcomes := make(chan animeRunOutcome, len(animes))
+	var wg sync.WaitGroup
+	for _, anime := range animes {
+		anime := anime
+		wg.Add(1)
+		go func() { defer wg.Done(); outcomes <- s.processAnime(ctx, runID, anime, jdOnline, applyDelta) }()
 	}
-
-	all, err := s.deps.Animes.ListMobileAnimes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list mobile animes: %w", err)
-	}
-
-	target := config.SpanishWeekdayName(s.deps.Clock())
-	if s.deps.SeasonMode(ctx) {
-		target = seasonModeDiaName
-	}
-
-	active := make([]contracts.MobileAnime, 0, len(all))
-	for _, anime := range all {
-		if anime.Activo != 1 {
-			continue
-		}
-		for _, d := range anime.Dias {
-			if d.Dia == target {
-				active = append(active, anime)
-				break
-			}
-		}
-	}
-	return active, nil
+	wg.Wait()
+	close(outcomes)
+	return summarizeAnimeOutcomes(outcomes)
 }
 
-// ensureJDOnline gates the run on JD liveness via ListDevices (the ONLY valid liveness proof --
-// EnsureOnline wraps Connect+ListDevices+optional auto-launch, design §3.3 PoC #12 quirk). A nil
-// JD dependency degrades to "offline" rather than panicking.
-func (s *Service) ensureJDOnline(ctx context.Context) bool {
-	if s.deps.JD == nil {
-		return false
+// summarizeAnimeOutcomes reports whether any anime failed or succeeded.
+func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool) {
+	anyFailed, anySucceeded := false, false
+	for outcome := range outcomes {
+		anyFailed = anyFailed || outcome.failed
+		anySucceeded = anySucceeded || outcome.episodesDownloaded > 0 || (!outcome.failed && outcome.episodesFound == 0)
 	}
-	if err := s.deps.JD.EnsureOnline(ctx, s.deps.JDDeviceName, true); err != nil {
-		return false
+	return anyFailed, anySucceeded
+}
+
+// setRunCompletionStatus assigns the terminal status and related notification.
+func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, jdOnline, anyFailed, anySucceeded bool) {
+	switch {
+	case !jdOnline && len(run.ManualLinks) > 0:
+		run.Status = RunStatusJDOffline
+		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
+	case anyFailed && anySucceeded:
+		run.Status = RunStatusPartial
+		s.notify(ctx, notification.LevelWarning, runID, "Download run completed with errors", "Some animes failed to download -- see run details.")
+	case anyFailed:
+		run.Status = RunStatusError
+		s.notify(ctx, notification.LevelError, runID, "Download run failed", "All animes failed to download -- see run details.")
+	default:
+		run.Status = RunStatusOK
+		if run.EpisodesDownloaded > 0 {
+			s.notify(ctx, notification.LevelSuccess, runID, "Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
+		}
 	}
-	return true
+}
+
+// applyProgressDelta adds one anime's progress delta to the aggregate run.
+func applyProgressDelta(run *Run, delta animeProgressDelta) {
+	if delta.skipped {
+		run.SkippedCount++
+	}
+	if delta.checked {
+		run.AnimesChecked++
+	}
+	if delta.upToDate {
+		run.UpToDateCount++
+	}
+	run.EpisodesFound += delta.episodesFound
+	run.EpisodesDownloaded += delta.episodesDownloaded
+	run.EpisodesFailed += delta.episodesFailed
+	run.ManualLinks = append(run.ManualLinks, delta.manualLinks...)
+}
+
+// cloneRun copies a run and its mutable manual-link slice.
+func cloneRun(run Run) Run {
+	run.ManualLinks = append([]ManualLink(nil), run.ManualLinks...)
+	return run
 }

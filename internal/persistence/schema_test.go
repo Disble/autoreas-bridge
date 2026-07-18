@@ -8,6 +8,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// openTestDB opens an in-memory SQLite database for a test.
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")

@@ -1,6 +1,14 @@
 package sync
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
+
+type hosterPriorityRow struct {
+	hoster   string
+	priority int
+}
 
 func TestBootstrapBridgeDBCreatesDeviceTables(t *testing.T) {
 	t.Parallel()
@@ -78,7 +86,7 @@ func TestBootstrapBridgeDBIsIdempotentForDownloadTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first bootstrap bridge db: %v", err)
 	}
-	defer first.Close()
+	defer closeTestDB(t, first)
 	if !tableExists(t, first, "download_hoster_priority") {
 		t.Fatal("expected download_hoster_priority table after first bootstrap")
 	}
@@ -87,7 +95,7 @@ func TestBootstrapBridgeDBIsIdempotentForDownloadTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second bootstrap bridge db: %v", err)
 	}
-	defer second.Close()
+	defer closeTestDB(t, second)
 	if !tableExists(t, second, "download_runs") {
 		t.Fatal("expected download_runs table to still exist after second bootstrap")
 	}
@@ -97,29 +105,9 @@ func TestBootstrapBridgeDBSeedsDefaultHosterPriorityWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = 'jkanime' ORDER BY priority ASC`)
-	if err != nil {
-		t.Fatalf("query seeded hoster priority: %v", err)
-	}
-	defer rows.Close()
+	got := readHosterPriorityRowsForSite(t, db, "jkanime")
 
-	type seedRow struct {
-		hoster   string
-		priority int
-	}
-	var got []seedRow
-	for rows.Next() {
-		var row seedRow
-		if err := rows.Scan(&row.hoster, &row.priority); err != nil {
-			t.Fatalf("scan seeded hoster priority row: %v", err)
-		}
-		got = append(got, row)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate seeded hoster priority rows: %v", err)
-	}
-
-	want := []seedRow{
+	want := []hosterPriorityRow{
 		{hoster: "Mediafire", priority: 0},
 		{hoster: "Mega", priority: 1},
 		{hoster: "Vidhide", priority: 2},
@@ -160,31 +148,11 @@ func TestEnsureDefaultHosterPriorityBackfillsMissingHostersPreservingUserOrder(t
 		t.Fatalf("ensure default hoster priority: %v", err)
 	}
 
-	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = ? ORDER BY priority ASC`, defaultHosterPrioritySite)
-	if err != nil {
-		t.Fatalf("query hoster priority: %v", err)
-	}
-	defer rows.Close()
-
-	type seedRow struct {
-		hoster   string
-		priority int
-	}
-	var got []seedRow
-	for rows.Next() {
-		var row seedRow
-		if err := rows.Scan(&row.hoster, &row.priority); err != nil {
-			t.Fatalf("scan row: %v", err)
-		}
-		got = append(got, row)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate rows: %v", err)
-	}
+	got := readHosterPriorityRowsForSite(t, db, defaultHosterPrioritySite)
 
 	// User's original ordering is preserved; missing defaults are appended after
 	// the current max priority in seed order.
-	want := []seedRow{
+	want := []hosterPriorityRow{
 		{hoster: "Mega", priority: 0},
 		{hoster: "Mediafire", priority: 1},
 		{hoster: "Vidhide", priority: 2},
@@ -211,6 +179,28 @@ func TestEnsureDefaultHosterPriorityBackfillsMissingHostersPreservingUserOrder(t
 	if count != len(want) {
 		t.Fatalf("expected ensure to be idempotent (%d rows), got %d", len(want), count)
 	}
+}
+
+// readHosterPriorityRowsForSite reads hoster priority rows for one site.
+func readHosterPriorityRowsForSite(t *testing.T, db *sql.DB, site string) []hosterPriorityRow {
+	t.Helper()
+	rows, err := db.Query(`SELECT hoster, priority FROM download_hoster_priority WHERE site = ? ORDER BY priority ASC`, site)
+	if err != nil {
+		t.Fatalf("query hoster priority: %v", err)
+	}
+	defer closeTestRows(t, rows)
+	var got []hosterPriorityRow
+	for rows.Next() {
+		var row hosterPriorityRow
+		if err := rows.Scan(&row.hoster, &row.priority); err != nil {
+			t.Fatalf("scan row: %v", err)
+		}
+		got = append(got, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate rows: %v", err)
+	}
+	return got
 }
 
 func TestEnsureDownloadJDConfigSchemaIsIdempotentColumnIntrospection(t *testing.T) {

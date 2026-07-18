@@ -1,9 +1,3 @@
-// Package download is the internal/download bounded context (design.md). This file
-// contains the PURE trigger-decision logic (design.md §3, "decision.go"): the
-// non-negotiable "online latest episode number > on-disk video file count" semantic
-// (download-orchestration spec "Online-vs-Disk Trigger Semantic"). It has NO I/O and NO
-// dependency on NroCapVisto or any cached/persisted count -- the filesystem is the only
-// source of truth for download state (design ADR-DISK).
 package download
 
 // NeedsDownload reports whether a download is needed for an anime, per the validated PoC

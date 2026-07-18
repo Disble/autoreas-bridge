@@ -6,56 +6,53 @@ import (
 	"testing"
 )
 
-func TestRunRejectsFilesHiddenByBroadLegacyPathExemptions(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		path    string
-		content string
-	}{
-		{
-			name: "arbitrary file in Legacy package",
-			path: "internal/anime/legacy/parallel_reader.go",
-			content: `package legacy
+var broadLegacyPathExemptionCases = []struct {
+	name    string
+	path    string
+	content string
+}{
+	{
+		name: "arbitrary file in Legacy package",
+		path: "internal/anime/legacy/parallel_reader.go",
+		content: `package legacy
 import "os"
 func parallelRead() { _, _ = os.ReadFile("animes.dat") }
 `,
-		},
-		{
-			name: "parallel domain raw file",
-			path: "internal/anime/domain/anime_raw_parallel.go",
-			content: "package domain\n" +
-				"import \"encoding/json\"\n" +
-				"type raw struct {\n" +
-				"  Page string `json:\"pagina\"`\n" +
-				"  Progress float64 `json:\"nrocapvisto\"`\n" +
-				"}\n" +
-				"func encode(value raw) { _, _ = json.Marshal(value) }\n",
-		},
-		{
-			name: "existing parallel domain DTO path",
-			path: "internal/anime/domain/anime_raw.go",
-			content: "package domain\n" +
-				"import \"encoding/json\"\n" +
-				"type LegacyAnimeRaw struct {\n" +
-				"  Pagina string `json:\"pagina\"`\n" +
-				"  Activo bool `json:\"activo\"`\n" +
-				"}\n" +
-				"func (value LegacyAnimeRaw) MarshalJSON() ([]byte, error) { return json.Marshal(value) }\n",
-		},
-		{
-			name: "snapshot raw DTO support leak",
-			path: "internal/anime/snapshot.go",
-			content: `package anime
+	},
+	{
+		name: "parallel domain raw file",
+		path: "internal/anime/domain/anime_raw_parallel.go",
+		content: "package domain\n" +
+			"import \"encoding/json\"\n" +
+			"type raw struct {\n" +
+			"  Page string `json:\"pagina\"`\n" +
+			"  Progress float64 `json:\"nrocapvisto\"`\n" +
+			"}\n" +
+			"func encode(value raw) { _, _ = json.Marshal(value) }\n",
+	},
+	{
+		name: "existing parallel domain DTO path",
+		path: "internal/anime/domain/anime_raw.go",
+		content: "package domain\n" +
+			"import \"encoding/json\"\n" +
+			"type LegacyAnimeRaw struct {\n" +
+			"  Pagina string `json:\"pagina\"`\n" +
+			"  Activo bool `json:\"activo\"`\n" +
+			"}\n" +
+			"func (value LegacyAnimeRaw) MarshalJSON() ([]byte, error) { return json.Marshal(value) }\n",
+	},
+	{
+		name: "snapshot raw DTO support leak",
+		path: "internal/anime/snapshot.go",
+		content: `package anime
 import boundary "autoreas-bridge/internal/anime/legacy"
 func normalize(raw boundary.LegacyAnimeRaw) { _ = raw.Pagina }
 `,
-		},
-		{
-			name: "application imports parallel domain DTO",
-			path: "internal/season/domain_raw.go",
-			content: `package season
+	},
+	{
+		name: "application imports parallel domain DTO",
+		path: "internal/season/domain_raw.go",
+		content: `package season
 import (
   "encoding/json"
   "autoreas-bridge/internal/anime/domain"
@@ -65,10 +62,12 @@ func decode(payload []byte) {
   _ = json.Unmarshal(payload, &raw)
 }
 `,
-		},
-	}
+	},
+}
 
-	for _, tt := range tests {
+func TestRunRejectsFilesHiddenByBroadLegacyPathExemptions(t *testing.T) {
+	t.Parallel()
+	for _, tt := range broadLegacyPathExemptionCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

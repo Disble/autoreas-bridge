@@ -7,6 +7,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// RestoreAnime reactivates one anime and records activity when the write applies.
 func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeCommand) (ChapterCommandResult, error) {
 	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
 	if err != nil {
@@ -56,6 +57,7 @@ func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 	return chapterCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
 }
 
+// RepeatAnime marks one anime as repeated and records activity when the write applies.
 func (s *ChapterService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand) (ChapterCommandResult, error) {
 	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
 	if err != nil {

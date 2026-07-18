@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// PatchAnimeConfig wires the dependencies required by the PATCH /api/animes handler.
 type PatchAnimeConfig struct {
 	Authenticate AuthenticateFunc
 	QueryAnime   QueryAnimeFunc
@@ -17,52 +18,96 @@ type PatchAnimeConfig struct {
 	IsNotFound   func(error) bool
 }
 
+// NewPatchAnimeHandler builds the PATCH /api/animes/:id transport adapter.
 func NewPatchAnimeHandler(config PatchAnimeConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Authenticate != nil {
-			if _, ok := config.Authenticate(w, r); !ok {
-				return
-			}
-		}
-
-		animeID := strings.TrimPrefix(r.URL.Path, "/api/animes/")
-		if animeID == "" || animeID == r.URL.Path {
-			http.NotFound(w, r)
-			return
-		}
-
-		patch, err := decodeAnimePatch(r)
-		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		effectiveAnime, err := config.QueryAnime(r.Context(), animeID)
-		if err != nil {
-			if isAnimeNotFound(err, config.IsNotFound) {
-				writeJSONError(w, http.StatusNotFound, "anime not found")
-				return
-			}
-
-			writeJSONError(w, http.StatusInternalServerError, "query anime failed")
-			return
-		}
-
-		patch = domain.ApplyCompletionStateMachine(patch, effectiveAnime.TotalCap)
-		if err := config.PatchAnime(r.Context(), animeID, patch); err != nil {
-			if isAnimeNotFound(err, config.IsNotFound) {
-				writeJSONError(w, http.StatusNotFound, "anime not found")
-				return
-			}
-
-			writeJSONError(w, http.StatusInternalServerError, "patch anime failed")
-			return
-		}
-
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		handlePatchAnime(w, r, config)
 	})
 }
 
+// handlePatchAnime coordinates authentication, decoding, and anime patching.
+func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeConfig) {
+	if !authenticatePatchRequest(w, r, config.Authenticate) {
+		return
+	}
+	animeID, ok := patchAnimeID(w, r)
+	if !ok {
+		return
+	}
+	patch, ok := requestAnimePatch(w, r)
+	if !ok {
+		return
+	}
+	effectiveAnime, ok := queryPatchAnime(w, r, animeID, config)
+	if !ok {
+		return
+	}
+	patch = domain.ApplyCompletionStateMachine(patch, effectiveAnime.TotalCap)
+	if !applyAnimeRequestPatch(w, r, animeID, patch, config) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// authenticatePatchRequest authenticates a patch request when configured.
+func authenticatePatchRequest(w http.ResponseWriter, r *http.Request, authenticate AuthenticateFunc) bool {
+	if authenticate == nil {
+		return true
+	}
+	_, ok := authenticate(w, r)
+	return ok
+}
+
+// patchAnimeID extracts and validates the anime identifier from the request path.
+func patchAnimeID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/animes/")
+	if id == "" || id == r.URL.Path {
+		http.NotFound(w, r)
+		return "", false
+	}
+	return id, true
+}
+
+// requestAnimePatch decodes the request body and writes malformed-body errors.
+func requestAnimePatch(w http.ResponseWriter, r *http.Request) (AnimePatch, bool) {
+	patch, err := decodeAnimePatch(r)
+	if err == nil {
+		return patch, true
+	}
+	writeJSONError(w, http.StatusBadRequest, err.Error())
+	return AnimePatch{}, false
+}
+
+// queryPatchAnime loads the current anime needed for patch processing.
+func queryPatchAnime(w http.ResponseWriter, r *http.Request, id string, config PatchAnimeConfig) (*EffectiveAnime, bool) {
+	anime, err := config.QueryAnime(r.Context(), id)
+	if err == nil {
+		return anime, true
+	}
+	writePatchAnimeError(w, err, config.IsNotFound, "query anime failed")
+	return nil, false
+}
+
+// applyAnimeRequestPatch applies the decoded patch and maps its errors to HTTP.
+func applyAnimeRequestPatch(w http.ResponseWriter, r *http.Request, id string, patch AnimePatch, config PatchAnimeConfig) bool {
+	err := config.PatchAnime(r.Context(), id, patch)
+	if err == nil {
+		return true
+	}
+	writePatchAnimeError(w, err, config.IsNotFound, "patch anime failed")
+	return false
+}
+
+// writePatchAnimeError maps patch failures to their HTTP response.
+func writePatchAnimeError(w http.ResponseWriter, err error, isNotFound func(error) bool, fallback string) {
+	if isAnimeNotFound(err, isNotFound) {
+		writeJSONError(w, http.StatusNotFound, "anime not found")
+		return
+	}
+	writeJSONError(w, http.StatusInternalServerError, fallback)
+}
+
+// decodeAnimePatch parses the supported anime patch fields from a request.
 func decodeAnimePatch(r *http.Request) (AnimePatch, error) {
 	var payload map[string]json.RawMessage
 	decoder := json.NewDecoder(r.Body)
@@ -71,54 +116,107 @@ func decodeAnimePatch(r *http.Request) (AnimePatch, error) {
 		return AnimePatch{}, errors.New("invalid request body")
 	}
 
-	var patch AnimePatch
-	if rawEstado, ok := payload["estado"]; ok {
-		var estado int
-		if err := json.Unmarshal(rawEstado, &estado); err != nil || estado < 0 || estado > 3 {
-			return AnimePatch{}, errors.New("invalid estado")
-		}
-		patch.Estado = &estado
-	}
-
-	if rawNroCapVisto, ok := payload["nrocapvisto"]; ok {
-		var nroCapVisto float64
-		if err := json.Unmarshal(rawNroCapVisto, &nroCapVisto); err != nil || nroCapVisto < 0 {
-			return AnimePatch{}, errors.New("invalid nrocapvisto")
-		}
-		patch.NroCapVisto = &nroCapVisto
-	}
-
-	if rawFechaUltCapVisto, ok := payload["fechaUltCapVisto"]; ok {
-		var fechaUltCapVisto int64
-		if err := json.Unmarshal(rawFechaUltCapVisto, &fechaUltCapVisto); err != nil || fechaUltCapVisto < 0 {
-			return AnimePatch{}, errors.New("invalid fechaUltCapVisto")
-		}
-		patch.FechaUltCapVisto = &fechaUltCapVisto
-	}
-
-	if rawDias, ok := payload["dias"]; ok {
-		var dias []string
-		if err := json.Unmarshal(rawDias, &dias); err != nil {
-			return AnimePatch{}, errors.New("invalid dias")
-		}
-		patch.Dias = dias
+	patch, err := decodeAnimePatchFields(payload)
+	if err != nil {
+		return AnimePatch{}, err
 	}
 
 	// SDD-30 ADR-30-2/30-5: base is the mobile client's last-known modified_at
 	// OCC token. Absent from the wire entirely -> Base stays nil (old client,
 	// safe-path semantics in WriteService.PatchAnime). Present -> decoded as-is,
 	// including 0, which is a legitimate (pre-migration) token value.
-	if rawBase, ok := payload["base"]; ok {
-		var base int64
-		if err := json.Unmarshal(rawBase, &base); err != nil {
-			return AnimePatch{}, errors.New("invalid base")
-		}
-		patch.Base = &base
-	}
+	return decodeAnimePatchBase(payload, patch)
+}
 
+// decodeAnimePatchFields decodes each supported patch field from raw JSON.
+func decodeAnimePatchFields(payload map[string]json.RawMessage) (AnimePatch, error) {
+	var patch AnimePatch
+	if err := decodePatchEstado(payload, &patch); err != nil {
+		return AnimePatch{}, err
+	}
+	if err := decodePatchProgress(payload, &patch); err != nil {
+		return AnimePatch{}, err
+	}
+	if err := decodePatchLastWatched(payload, &patch); err != nil {
+		return AnimePatch{}, err
+	}
+	if err := decodePatchDays(payload, &patch); err != nil {
+		return AnimePatch{}, err
+	}
 	return patch, nil
 }
 
+// decodePatchEstado decodes and validates the estado patch field.
+func decodePatchEstado(payload map[string]json.RawMessage, patch *AnimePatch) error {
+	raw, ok := payload["estado"]
+	if !ok {
+		return nil
+	}
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil || value < 0 || value > 3 {
+		return errors.New("invalid estado")
+	}
+	patch.Estado = &value
+	return nil
+}
+
+// decodePatchProgress decodes and validates the watched-chapter patch field.
+func decodePatchProgress(payload map[string]json.RawMessage, patch *AnimePatch) error {
+	raw, ok := payload["nrocapvisto"]
+	if !ok {
+		return nil
+	}
+	var value float64
+	if err := json.Unmarshal(raw, &value); err != nil || value < 0 {
+		return errors.New("invalid nrocapvisto")
+	}
+	patch.NroCapVisto = &value
+	return nil
+}
+
+// decodePatchLastWatched decodes and validates the last-watched timestamp.
+func decodePatchLastWatched(payload map[string]json.RawMessage, patch *AnimePatch) error {
+	raw, ok := payload["fechaUltCapVisto"]
+	if !ok {
+		return nil
+	}
+	var value int64
+	if err := json.Unmarshal(raw, &value); err != nil || value < 0 {
+		return errors.New("invalid fechaUltCapVisto")
+	}
+	patch.FechaUltCapVisto = &value
+	return nil
+}
+
+// decodePatchDays decodes the scheduled days patch field.
+func decodePatchDays(payload map[string]json.RawMessage, patch *AnimePatch) error {
+	raw, ok := payload["dias"]
+	if !ok {
+		return nil
+	}
+	var value []string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return errors.New("invalid dias")
+	}
+	patch.Dias = value
+	return nil
+}
+
+// decodeAnimePatchBase decodes the optional optimistic-concurrency token.
+func decodeAnimePatchBase(payload map[string]json.RawMessage, patch AnimePatch) (AnimePatch, error) {
+	raw, ok := payload["base"]
+	if !ok {
+		return patch, nil
+	}
+	var value int64
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return AnimePatch{}, errors.New("invalid base")
+	}
+	patch.Base = &value
+	return patch, nil
+}
+
+// isAnimeNotFound checks both the configured and standard not-found errors.
 func isAnimeNotFound(err error, predicate func(error) bool) bool {
 	if predicate != nil && predicate(err) {
 		return true

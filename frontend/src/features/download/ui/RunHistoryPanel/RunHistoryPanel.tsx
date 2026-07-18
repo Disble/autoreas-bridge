@@ -10,7 +10,7 @@ import type { RunHistoryPanelProps, RunHistoryRowViewModel } from './run-history
  * `useRunHistoryPanel` hook; this component is presentation-only.
  */
 export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
-  const { viewModel, selectRun } = useRunHistoryPanel();
+  const { viewModel, selectRun, loadMore } = useRunHistoryPanel();
 
   if (viewModel.status === 'loading') {
     return (
@@ -41,10 +41,15 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
   return (
     <section aria-label="Download run history" className={`grid gap-4 sm:grid-cols-2 ${className ?? ''}`}>
       <ul aria-label="Run history list" className="flex flex-col gap-2">
-        {viewModel.rows.map((row: RunHistoryRowViewModel) => (
+        {viewModel.visibleRows.map((row: RunHistoryRowViewModel) => (
           <li key={row.runId}>
             <Button
-              className="flex w-full items-center justify-between gap-3 rounded-lg border border-divider/60 bg-content1/60 px-3 py-2 text-left text-sm"
+              aria-pressed={row.isSelected}
+              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm ${
+                row.isSelected
+                  ? 'border-accent bg-accent/10 text-foreground'
+                  : 'border-divider/60 bg-content1/60'
+              }`}
               variant="outline"
               onPress={() => selectRun(row.runId)}
             >
@@ -58,6 +63,13 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
             </Button>
           </li>
         ))}
+        {viewModel.canLoadMore && (
+          <li>
+            <Button fullWidth variant="secondary" onPress={loadMore}>
+              Load {viewModel.remainingCount} more runs
+            </Button>
+          </li>
+        )}
       </ul>
 
       <div className="rounded-lg border border-divider/60 bg-content1/40 p-4">

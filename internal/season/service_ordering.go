@@ -39,43 +39,22 @@ func (s *Service) ApplySchedule(ctx context.Context) (ApplyResult, error) {
 	if s.gateway == nil {
 		return ApplyResult{}, ErrAvailabilityDepsUnavailable
 	}
-	active, err := s.repo.ActiveSeason(ctx)
+	active, draft, err := s.loadScheduleDraft(ctx)
 	if err != nil {
 		return ApplyResult{}, err
-	}
-	if active == nil {
-		return ApplyResult{}, ErrNoActiveSeason
-	}
-	draft, err := parseOrderingDraft(active.OrderingDraft)
-	if err != nil {
-		return ApplyResult{}, err
-	}
-	if hasDuplicateWeekdayPlacements(draft) {
-		return ApplyResult{}, ErrInvalidOrderingDraft
 	}
 	if len(draft) == 0 {
 		return ApplyResult{}, nil
 	}
-
-	ids := make([]string, 0, len(draft))
-	for id := range draft {
-		ids = append(ids, id)
-	}
-	current, err := s.gateway.CurrentPlacements(ctx, ids)
+	current, err := s.gateway.CurrentPlacements(ctx, draftAnimeIDs(draft))
 	if err != nil {
 		return ApplyResult{}, err
 	}
 
 	var res ApplyResult
 	for _, intent := range domain.PlanSchedule(current, draft) {
-		result, err := s.gateway.SetAnimeSchedule(ctx, intent.AnimeID, intent.Dias)
-		if err != nil {
-			res.Failed = append(res.Failed, intent.AnimeID)
-			return res, fmt.Errorf("set schedule for anime %s: %w", intent.AnimeID, err)
-		}
-		if err := acceptAnimeMutation(result); err != nil {
-			res.Failed = append(res.Failed, intent.AnimeID)
-			return res, fmt.Errorf("set schedule for anime %s: %w", intent.AnimeID, err)
+		if err := s.applyScheduleIntent(ctx, intent.AnimeID, intent.Dias, &res); err != nil {
+			return res, err
 		}
 		res.Applied++
 	}
@@ -89,6 +68,47 @@ func (s *Service) ApplySchedule(ctx context.Context) (ApplyResult, error) {
 	return res, nil
 }
 
+// loadScheduleDraft loads the persisted season and ordering draft.
+func (s *Service) loadScheduleDraft(ctx context.Context) (*domain.Season, map[string][]domain.Placement, error) {
+	active, err := s.repo.ActiveSeason(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if active == nil {
+		return nil, nil, ErrNoActiveSeason
+	}
+	draft, err := parseOrderingDraft(active.OrderingDraft)
+	if err != nil {
+		return nil, nil, err
+	}
+	if hasDuplicateWeekdayPlacements(draft) {
+		return nil, nil, ErrInvalidOrderingDraft
+	}
+	return active, draft, nil
+}
+
+// draftAnimeIDs returns the anime identifiers present in a draft.
+func draftAnimeIDs(draft map[string][]domain.Placement) []string {
+	ids := make([]string, 0, len(draft))
+	for id := range draft {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// applyScheduleIntent persists one anime's requested schedule placements.
+func (s *Service) applyScheduleIntent(ctx context.Context, animeID string, placements []domain.Placement, res *ApplyResult) error {
+	result, err := s.gateway.SetAnimeSchedule(ctx, animeID, placements)
+	if err == nil {
+		err = acceptAnimeMutation(result)
+	}
+	if err == nil {
+		return nil
+	}
+	res.Failed = append(res.Failed, animeID)
+	return fmt.Errorf("set schedule for anime %s: %w", animeID, err)
+}
+
 // ReopenOrdering clears the applied milestone so the ordering board is editable
 // again (corrections are cheap — re-apply is diff-based and idempotent).
 func (s *Service) ReopenOrdering(ctx context.Context) error {
@@ -98,6 +118,7 @@ func (s *Service) ReopenOrdering(ctx context.Context) error {
 	})
 }
 
+// parseOrderingDraft decodes an ordering draft payload.
 func parseOrderingDraft(raw string) (map[string][]domain.Placement, error) {
 	if strings.TrimSpace(raw) == "" {
 		return map[string][]domain.Placement{}, nil
@@ -109,6 +130,7 @@ func parseOrderingDraft(raw string) (map[string][]domain.Placement, error) {
 	return draft, nil
 }
 
+// hasDuplicateWeekdayPlacements reports duplicate positions within weekdays.
 func hasDuplicateWeekdayPlacements(draft map[string][]domain.Placement) bool {
 	for _, placements := range draft {
 		seen := make(map[string]struct{}, len(placements))

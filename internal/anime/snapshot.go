@@ -10,6 +10,8 @@ import (
 	"autoreas-bridge/internal/events"
 )
 
+// SnapshotRecord stores one canonical effective anime snapshot plus its bridge
+// metadata.
 type SnapshotRecord struct {
 	AnimeID       string
 	CanonicalJSON []byte
@@ -36,16 +38,19 @@ func stampModifiedAt(prev int64, now func() time.Time) int64 {
 	return next
 }
 
+// ParseWarning reports one non-fatal parser warning tied to a source line.
 type ParseWarning struct {
 	Line   int
 	Reason string
 }
 
+// HashSnapshot returns the stable content hash for one canonical snapshot.
 func HashSnapshot(canonicalJSON []byte) string {
 	sum := sha256.Sum256(canonicalJSON)
 	return hex.EncodeToString(sum[:])
 }
 
+// cloneSnapshotRecords copies snapshot records and their payload bytes.
 func cloneSnapshotRecords(input map[string]SnapshotRecord) map[string]SnapshotRecord {
 	if input == nil {
 		return nil
@@ -82,29 +87,7 @@ func cloneSnapshotRecords(input map[string]SnapshotRecord) map[string]SnapshotRe
 // passes it in. A nil ownedIDs map is the rollback lever -- every id is
 // treated as unowned, reproducing the pre-SDD-48 behavior exactly.
 func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]SnapshotRecord, ownedIDs map[string]struct{}) ([]events.AnimeChangedEvent, []string) {
-	currentIDs := sortedSnapshotIDs(current)
-	updates := make([]events.AnimeChangedEvent, 0, len(currentIDs))
-	for _, id := range currentIDs {
-		record := current[id]
-		persisted, exists := baseline[id]
-		if exists && persisted.Hash == record.Hash {
-			record.ModifiedAt = persisted.ModifiedAt
-			current[id] = record
-			continue
-		}
-
-		prevModifiedAt := int64(0)
-		if exists {
-			prevModifiedAt = persisted.ModifiedAt
-		}
-		record.ModifiedAt = stampModifiedAt(prevModifiedAt, time.Now)
-		current[id] = record
-
-		updates = append(updates, events.AnimeChangedEvent{
-			AnimeID: id,
-			Payload: append([]byte(nil), record.CanonicalJSON...),
-		})
-	}
+	updates := updateSnapshotRecords(current, baseline)
 
 	// pruneIDs stays in DiffSnapshots' return signature for genuine, intentional
 	// removals -- but a baseline id absent from current (the $$deleted tombstone
@@ -112,10 +95,40 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 	// ADR-30-3b). Soft-delete only: retain the row in current with Activo=0 +
 	// FechaEliminacion stamped onto its last-known canonical payload, and bump
 	// its modified_at like any other observed change.
+	softDeletes, pruneIDs := reconcileMissingSnapshots(current, baseline, ownedIDs)
+	eventsOut := make([]events.AnimeChangedEvent, 0, len(updates)+len(softDeletes))
+	eventsOut = append(eventsOut, updates...)
+	eventsOut = append(eventsOut, softDeletes...)
+	return eventsOut, pruneIDs
+}
+
+// updateSnapshotRecords computes changes against the persisted baseline.
+func updateSnapshotRecords(current, baseline map[string]SnapshotRecord) []events.AnimeChangedEvent {
+	updates := make([]events.AnimeChangedEvent, 0, len(current))
+	for _, id := range sortedSnapshotIDs(current) {
+		record := current[id]
+		persisted, exists := baseline[id]
+		if exists && persisted.Hash == record.Hash {
+			record.ModifiedAt = persisted.ModifiedAt
+			current[id] = record
+			continue
+		}
+		if exists {
+			record.ModifiedAt = stampModifiedAt(persisted.ModifiedAt, time.Now)
+		} else {
+			record.ModifiedAt = stampModifiedAt(0, time.Now)
+		}
+		current[id] = record
+		updates = append(updates, events.AnimeChangedEvent{AnimeID: id, Payload: append([]byte(nil), record.CanonicalJSON...)})
+	}
+	return updates
+}
+
+// reconcileMissingSnapshots handles baseline records absent from current data.
+func reconcileMissingSnapshots(current, baseline map[string]SnapshotRecord, ownedIDs map[string]struct{}) ([]events.AnimeChangedEvent, []string) {
 	pruneIDs := make([]string, 0)
-	softDeleteIDs := sortedSnapshotIDs(baseline)
 	softDeletes := make([]events.AnimeChangedEvent, 0)
-	for _, id := range softDeleteIDs {
+	for _, id := range sortedSnapshotIDs(baseline) {
 		if _, exists := current[id]; exists {
 			continue
 		}
@@ -154,14 +167,10 @@ func DiffSnapshots(current map[string]SnapshotRecord, baseline map[string]Snapsh
 		})
 	}
 	sort.Strings(pruneIDs)
-
-	eventsOut := make([]events.AnimeChangedEvent, 0, len(updates)+len(softDeletes))
-	eventsOut = append(eventsOut, updates...)
-	eventsOut = append(eventsOut, softDeletes...)
-
-	return eventsOut, pruneIDs
+	return softDeletes, pruneIDs
 }
 
+// isSoftDeletedSnapshot reports whether a snapshot represents a soft deletion.
 func isSoftDeletedSnapshot(record SnapshotRecord) bool {
 	softDeleted, err := legacy.IsSoftDeleted(record.CanonicalJSON)
 	return err == nil && softDeleted
@@ -176,6 +185,7 @@ func softDeleteCanonicalJSON(canonicalJSON []byte, at time.Time) ([]byte, error)
 	return legacy.Deactivate(canonicalJSON, at)
 }
 
+// sortedSnapshotIDs returns snapshot IDs in stable order.
 func sortedSnapshotIDs(records map[string]SnapshotRecord) []string {
 	ids := make([]string, 0, len(records))
 	for id := range records {

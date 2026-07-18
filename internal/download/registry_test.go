@@ -200,6 +200,7 @@ func TestHosterResolverOrderOnEmptyConfigFallsBackToAlphabeticalNeverPanics(t *t
 	assertHosterOrder(t, got, want)
 }
 
+// assertHosterOrder verifies hosters appear in the expected priority order.
 func assertHosterOrder(t *testing.T, got []HosterPriorityEntry, wantHosters []string) {
 	t.Helper()
 	if len(got) != len(wantHosters) {

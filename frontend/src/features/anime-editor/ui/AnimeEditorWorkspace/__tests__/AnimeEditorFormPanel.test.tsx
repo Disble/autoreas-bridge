@@ -81,4 +81,39 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
     expect(onRequestDeactivate).toHaveBeenCalledTimes(1);
     expect(onDeactivate).not.toHaveBeenCalled();
   });
+
+  it('keeps the custom status chip options while changing status through the local select', () => {
+    const onDraftChange = vi.fn();
+    const viewModel = createViewModel({ onDraftChange, draft: { ...createViewModel().draft, status: 0 } });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: /Viendo Status/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'Finalizado' }));
+
+    expect(onDraftChange).toHaveBeenCalledWith('status', '1');
+    expect(screen.getAllByText('Viendo').length).toBeGreaterThan(0);
+  });
+
+  it('changes the plain type select through the shared labeled-select semantics', () => {
+    const onDraftChange = vi.fn();
+    const viewModel = createViewModel({ onDraftChange, draft: { ...createViewModel().draft, kind: '' } });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: /Type/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'OVA' }));
+
+    expect(onDraftChange).toHaveBeenCalledWith('kind', '3');
+  });
+
+  it('changes the plain cover source select through the shared labeled-select semantics', () => {
+    const onDraftChange = vi.fn();
+    const viewModel = createViewModel({ onDraftChange });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'More details' }));
+    fireEvent.click(screen.getByLabelText('Cover source'));
+    fireEvent.click(screen.getByRole('option', { name: 'Image' }));
+
+    expect(onDraftChange).toHaveBeenCalledWith('coverType', 'image');
+  });
 });

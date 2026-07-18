@@ -7,23 +7,36 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// GetAnimeEditorScheduleBoardQuery selects the context for the editor schedule board.
 type GetAnimeEditorScheduleBoardQuery struct {
 	OriginAnimeID string
 }
 
+// ScheduleQueryService builds read models for schedule-oriented UI surfaces.
 type ScheduleQueryService struct {
 	query *QueryService
 }
 
+// NewScheduleQueryService builds a schedule query service over the anime query service.
 func NewScheduleQueryService(query *QueryService) *ScheduleQueryService {
 	return &ScheduleQueryService{query: query}
 }
 
+// GetEditorBoard returns the normalized editor schedule board for one origin anime.
 func (s *ScheduleQueryService) GetEditorBoard(ctx context.Context, query GetAnimeEditorScheduleBoardQuery) (contracts.AnimeEditorScheduleBoard, error) {
 	records, err := s.query.ListReadRecords(ctx)
 	if err != nil {
 		return contracts.AnimeEditorScheduleBoard{}, err
 	}
+	normalizedPlacements := map[string][]contracts.MobileAnimeDay{}
+	for _, record := range records {
+		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
+		if item.Activo != 1 {
+			continue
+		}
+		normalizedPlacements[item.ID] = cloneMobileDays(item.Dias)
+	}
+	normalizedPlacements = normalizeSchedulePlacementsMap(normalizedPlacements)
 	entries := make([]contracts.AnimeScheduleBoardEntry, 0, len(records))
 	var boardModifiedAt int64
 	for _, record := range records {
@@ -36,7 +49,7 @@ func (s *ScheduleQueryService) GetEditorBoard(ctx context.Context, query GetAnim
 			Name:              item.Nombre,
 			Active:            true,
 			ModifiedAt:        item.ModifiedAt,
-			Placements:        cloneMobileDays(item.Dias),
+			Placements:        cloneMobileDays(normalizedPlacements[item.ID]),
 			Status:            item.Estado,
 			Progress:          item.NroCapVisto,
 			Cover:             item.Portada,

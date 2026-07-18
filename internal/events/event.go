@@ -1,13 +1,20 @@
 package events
 
 const (
-	EventNameAnimeChanged         = "anime.changed"
+	// EventNameAnimeChanged identifies anime change events.
+	EventNameAnimeChanged = "anime.changed"
+	// EventNameAnimeUpdateRequested identifies requested anime write events.
 	EventNameAnimeUpdateRequested = "anime.update_requested"
-	EventNameAnimeWriteFailed     = "anime.write.failed"
-	EventNameSyncRequested        = "sync.requested"
+	// EventNameAnimeWriteFailed identifies anime write failure events.
+	EventNameAnimeWriteFailed = "anime.write.failed"
+	// EventNameSyncRequested identifies sync-request events.
+	EventNameSyncRequested = "sync.requested"
 
+	// AnimeChangeTypeCreate marks a newly created anime snapshot.
 	AnimeChangeTypeCreate = "create"
+	// AnimeChangeTypeUpdate marks an updated anime snapshot.
 	AnimeChangeTypeUpdate = "update"
+	// AnimeChangeTypeDelete marks a deleted anime snapshot.
 	AnimeChangeTypeDelete = "delete"
 )
 
@@ -16,20 +23,30 @@ const (
 // notification.Notifier calls the download orchestrator also makes for the same notable moments
 // (design §14.1 -- a backend event is not a user notification).
 const (
-	EventNameDownloadRunStarted        = "download.run_started"
-	EventNameDownloadRunProgress       = "download.run_progress"
-	EventNameDownloadRunFinished       = "download.run_finished"
-	EventNameDownloadEpisodeAvailable  = "download.episode_available"
+	// EventNameDownloadRunStarted identifies download run start events.
+	EventNameDownloadRunStarted = "download.run_started"
+	// EventNameDownloadRunProgress identifies download progress refresh events.
+	EventNameDownloadRunProgress = "download.run_progress"
+	// EventNameDownloadRunFinished identifies terminal download run events.
+	EventNameDownloadRunFinished = "download.run_finished"
+	// EventNameDownloadEpisodeAvailable identifies newly available episode events.
+	EventNameDownloadEpisodeAvailable = "download.episode_available"
+	// EventNameDownloadEpisodeDownloaded identifies completed episode download events.
 	EventNameDownloadEpisodeDownloaded = "download.episode_downloaded"
-	EventNameDownloadFailed            = "download.failed"
-	EventNameDownloadSkipped           = "download.skipped"
-	EventNameDownloadJDStatus          = "download.jd_status"
+	// EventNameDownloadFailed identifies per-episode or per-anime failure events.
+	EventNameDownloadFailed = "download.failed"
+	// EventNameDownloadSkipped identifies skip events.
+	EventNameDownloadSkipped = "download.skipped"
+	// EventNameDownloadJDStatus identifies JDownloader status events.
+	EventNameDownloadJDStatus = "download.jd_status"
 )
 
+// Event is the base contract for all bridge bus events.
 type Event interface {
 	Name() string
 }
 
+// AnimeChangedEvent reports an effective anime snapshot mutation.
 type AnimeChangedEvent struct {
 	EventID       string
 	AnimeID       string
@@ -39,20 +56,24 @@ type AnimeChangedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for AnimeChangedEvent.
 func (e AnimeChangedEvent) Name() string {
 	return EventNameAnimeChanged
 }
 
+// AnimeUpdateRequestedEvent requests a write-back into the legacy anime store.
 type AnimeUpdateRequestedEvent struct {
 	AnimeID       string
 	Payload       []byte
 	CorrelationID string
 }
 
+// Name returns the bus event name for AnimeUpdateRequestedEvent.
 func (e AnimeUpdateRequestedEvent) Name() string {
 	return EventNameAnimeUpdateRequested
 }
 
+// AnimeWriteFailedEvent reports a failed anime write attempt.
 type AnimeWriteFailedEvent struct {
 	AnimeID       string
 	Path          string
@@ -60,19 +81,23 @@ type AnimeWriteFailedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for AnimeWriteFailedEvent.
 func (e AnimeWriteFailedEvent) Name() string {
 	return EventNameAnimeWriteFailed
 }
 
+// EventName returns the stable event name string for AnimeWriteFailedEvent.
 func (e AnimeWriteFailedEvent) EventName() string {
 	return EventNameAnimeWriteFailed
 }
 
+// SyncRequestedEvent requests a sync cycle.
 type SyncRequestedEvent struct {
 	Requester     string
 	CorrelationID string
 }
 
+// Name returns the bus event name for SyncRequestedEvent.
 func (e SyncRequestedEvent) Name() string {
 	return EventNameSyncRequested
 }
@@ -85,6 +110,7 @@ type DownloadRunStartedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadRunStartedEvent.
 func (e DownloadRunStartedEvent) Name() string {
 	return EventNameDownloadRunStarted
 }
@@ -96,6 +122,7 @@ type DownloadRunProgressEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadRunProgressEvent.
 func (e DownloadRunProgressEvent) Name() string {
 	return EventNameDownloadRunProgress
 }
@@ -108,6 +135,7 @@ type DownloadRunFinishedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadRunFinishedEvent.
 func (e DownloadRunFinishedEvent) Name() string {
 	return EventNameDownloadRunFinished
 }
@@ -121,6 +149,7 @@ type DownloadEpisodeAvailableEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadEpisodeAvailableEvent.
 func (e DownloadEpisodeAvailableEvent) Name() string {
 	return EventNameDownloadEpisodeAvailable
 }
@@ -134,6 +163,7 @@ type DownloadEpisodeDownloadedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadEpisodeDownloadedEvent.
 func (e DownloadEpisodeDownloadedEvent) Name() string {
 	return EventNameDownloadEpisodeDownloaded
 }
@@ -149,6 +179,7 @@ type DownloadFailedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadFailedEvent.
 func (e DownloadFailedEvent) Name() string {
 	return EventNameDownloadFailed
 }
@@ -164,6 +195,7 @@ type DownloadSkippedEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadSkippedEvent.
 func (e DownloadSkippedEvent) Name() string {
 	return EventNameDownloadSkipped
 }
@@ -176,6 +208,7 @@ type DownloadJDStatusEvent struct {
 	CorrelationID string
 }
 
+// Name returns the bus event name for DownloadJDStatusEvent.
 func (e DownloadJDStatusEvent) Name() string {
 	return EventNameDownloadJDStatus
 }

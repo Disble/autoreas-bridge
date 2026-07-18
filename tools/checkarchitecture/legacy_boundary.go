@@ -1,3 +1,4 @@
+// Package main validates source boundaries in the bridge architecture.
 package main
 
 import (
@@ -53,6 +54,7 @@ var fileIOFunctions = map[string]bool{
 	"WriteFile": true,
 }
 
+// checkLegacyBoundary reports legacy-boundary violations found in a Go source file.
 func checkLegacyBoundary(filePath string, content []byte) ([]string, error) {
 	if shouldSkipLegacyCheck(filePath, content) {
 		return nil, nil
@@ -68,41 +70,62 @@ func checkLegacyBoundary(filePath string, content []byte) ([]string, error) {
 	legacyAliases := imports[legacyImportPath]
 	legacyStructs := legacyJSONStructs(parsed)
 	violations := make(map[string]struct{})
+	addViolation := newLegacyViolationAdder(filePath, files, violations)
+	scanLegacyDTOUsage(parsed, filePath, legacyAliases, addViolation)
+	for _, violation := range analyzeLegacyDataflow(filePath, files, parsed, imports, legacyStructs) {
+		violations[violation] = struct{}{}
+	}
+	return legacyViolationList(violations), nil
+}
 
-	addViolation := func(node ast.Node, reason string) {
+// newLegacyViolationAdder creates a callback that records source-located violations.
+func newLegacyViolationAdder(filePath string, files *token.FileSet, violations map[string]struct{}) func(ast.Node, string) {
+	return func(node ast.Node, reason string) {
 		line := files.Position(node.Pos()).Line
 		violations[fmt.Sprintf("%s:%d %s", filePath, line, reason)] = struct{}{}
 	}
+}
 
+// scanLegacyDTOUsage records direct uses of the legacy DTO outside approved files.
+func scanLegacyDTOUsage(parsed *ast.File, filePath string, legacyAliases map[string]bool, addViolation func(ast.Node, string)) {
+	if isLegacyDTOAllowed(filePath) {
+		return
+	}
 	ast.Inspect(parsed, func(node ast.Node) bool {
 		switch value := node.(type) {
 		case *ast.TypeSpec:
-			if !isLegacyDTOAllowed(filePath) && value.Name.Name == "LegacyAnimeRaw" {
+			if value.Name.Name == "LegacyAnimeRaw" {
 				addViolation(value, "declares LegacyAnimeRaw outside the Legacy adapter")
 			}
 		case *ast.SelectorExpr:
-			qualifier, qualified := value.X.(*ast.Ident)
-			if !isLegacyDTOAllowed(filePath) && qualified && legacyAliases[qualifier.Name] && value.Sel.Name == "LegacyAnimeRaw" {
+			if referencesQualifiedLegacyRaw(value, legacyAliases) {
 				addViolation(value, "uses legacy.LegacyAnimeRaw outside the Legacy adapter")
 			}
 		case *ast.Ident:
-			if !isLegacyDTOAllowed(filePath) && legacyAliases["."] && value.Name == "LegacyAnimeRaw" {
+			if legacyAliases["."] && value.Name == "LegacyAnimeRaw" {
 				addViolation(value, "uses legacy.LegacyAnimeRaw outside the Legacy adapter")
 			}
 		}
 		return true
 	})
-	for _, violation := range analyzeLegacyDataflow(filePath, files, parsed, imports, legacyStructs) {
-		violations[violation] = struct{}{}
-	}
+}
 
+// referencesQualifiedLegacyRaw reports whether a selector names the qualified legacy DTO.
+func referencesQualifiedLegacyRaw(selector *ast.SelectorExpr, legacyAliases map[string]bool) bool {
+	qualifier, ok := selector.X.(*ast.Ident)
+	return ok && legacyAliases[qualifier.Name] && selector.Sel.Name == "LegacyAnimeRaw"
+}
+
+// legacyViolationList converts the violation set into a list of diagnostic strings.
+func legacyViolationList(violations map[string]struct{}) []string {
 	result := make([]string, 0, len(violations))
 	for violation := range violations {
 		result = append(result, violation)
 	}
-	return result, nil
+	return result
 }
 
+// shouldSkipLegacyCheck reports whether a file is outside the legacy check scope.
 func shouldSkipLegacyCheck(filePath string, content []byte) bool {
 	normalized := "/" + strings.TrimPrefix(filepathSlash(filePath), "./")
 	return strings.HasSuffix(normalized, "_test.go") ||
@@ -110,18 +133,22 @@ func shouldSkipLegacyCheck(filePath string, content []byte) bool {
 		hasCanonicalGeneratedHeader(content)
 }
 
+// isLegacyDTOAllowed reports whether a file may use the legacy DTO directly.
 func isLegacyDTOAllowed(filePath string) bool {
 	return legacyDTOImplementationFiles[normalizedArchitecturePath(filePath)]
 }
 
+// isLegacyFileIOAllowed reports whether a file may access animes.dat directly.
 func isLegacyFileIOAllowed(filePath string) bool {
 	return legacyFileIOImplementationFiles[normalizedArchitecturePath(filePath)]
 }
 
+// isLegacySerializationAllowed reports whether a file may serialize legacy JSON.
 func isLegacySerializationAllowed(filePath string) bool {
 	return legacyDTOImplementationFiles[normalizedArchitecturePath(filePath)]
 }
 
+// hasCanonicalGeneratedHeader reports whether content begins with a generated-code header.
 func hasCanonicalGeneratedHeader(content []byte) bool {
 	for _, line := range strings.Split(strings.ReplaceAll(string(content), "\r\n", "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -135,10 +162,12 @@ func hasCanonicalGeneratedHeader(content []byte) bool {
 	return false
 }
 
+// normalizedArchitecturePath converts a file path to the architecture check format.
 func normalizedArchitecturePath(filePath string) string {
 	return strings.TrimPrefix(filepathSlash(filePath), "./")
 }
 
+// filepathSlash replaces Windows path separators with forward slashes.
 func filepathSlash(value string) string {
 	return strings.ReplaceAll(value, "\\", "/")
 }

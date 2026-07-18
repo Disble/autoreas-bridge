@@ -13,12 +13,14 @@ import (
 
 const defaultSendTimeout = 100 * time.Millisecond
 
+// Client is one websocket connection managed by the realtime hub.
 type Client interface {
 	ID() string
 	Send(ctx context.Context, payload []byte) error
 	Close() error
 }
 
+// Hub registers clients and broadcasts realtime bridge events.
 type Hub interface {
 	Register(ctx context.Context, client Client) error
 	Unregister(clientID string)
@@ -27,6 +29,7 @@ type Hub interface {
 	BroadcastSeasonChanged(ctx context.Context, seasonID, status string)
 }
 
+// MemoryHubConfig configures the in-memory websocket fan-out hub.
 type MemoryHubConfig struct {
 	BroadcastBuffer int
 	ClientBuffer    int
@@ -34,6 +37,7 @@ type MemoryHubConfig struct {
 	Logger          sharedlogger.Logger
 }
 
+// MemoryHub is an in-memory Hub implementation.
 type MemoryHub struct {
 	mu              sync.RWMutex
 	clients         map[string]*clientState
@@ -55,6 +59,7 @@ type clientState struct {
 	done   chan struct{}
 }
 
+// NewMemoryHub builds and starts an in-memory websocket hub.
 func NewMemoryHub(parent context.Context, config MemoryHubConfig) *MemoryHub {
 	if parent == nil {
 		parent = context.Background()
@@ -85,6 +90,7 @@ func NewMemoryHub(parent context.Context, config MemoryHubConfig) *MemoryHub {
 	return hub
 }
 
+// Register adds or replaces a client connection in the hub.
 func (h *MemoryHub) Register(ctx context.Context, client Client) error {
 	if client == nil {
 		return errors.New("realtime: nil client")
@@ -126,6 +132,7 @@ func (h *MemoryHub) Register(ctx context.Context, client Client) error {
 	}))
 }
 
+// Unregister removes a client connection from the hub.
 func (h *MemoryHub) Unregister(clientID string) {
 	h.mu.Lock()
 	state := h.clients[clientID]
@@ -147,6 +154,7 @@ func (h *MemoryHub) Unregister(clientID string) {
 	}
 }
 
+// BroadcastAnimeChanged fan-outs an anime change event to connected clients.
 func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeChangedEvent) {
 	h.mu.RLock()
 	clientCount := len(h.clients)
@@ -168,6 +176,7 @@ func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeC
 	}
 }
 
+// BroadcastPreferencesChanged fan-outs preference changes to connected clients.
 func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bool) {
 	h.mu.RLock()
 	clientCount := len(h.clients)
@@ -190,6 +199,7 @@ func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bo
 	}
 }
 
+// BroadcastSeasonChanged fan-outs active-season updates to connected clients.
 func (h *MemoryHub) BroadcastSeasonChanged(_ context.Context, seasonID, status string) {
 	h.mu.RLock()
 	clientCount := len(h.clients)
@@ -213,6 +223,7 @@ func (h *MemoryHub) BroadcastSeasonChanged(_ context.Context, seasonID, status s
 	}
 }
 
+// buildAnimeEventMessage converts an anime event into its realtime payload.
 func buildAnimeEventMessage(event events.AnimeChangedEvent) []byte {
 	switch event.ChangeType {
 	case events.AnimeChangeTypeCreate:
@@ -228,12 +239,14 @@ func buildAnimeEventMessage(event events.AnimeChangedEvent) []byte {
 	}
 }
 
+// ClientCount returns the current number of registered clients.
 func (h *MemoryHub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
 }
 
+// Close shuts down the hub and all registered clients.
 func (h *MemoryHub) Close() error {
 	h.closeOnce.Do(func() {
 		h.cancel()
@@ -254,6 +267,7 @@ func (h *MemoryHub) Close() error {
 	return nil
 }
 
+// run distributes queued broadcasts to registered clients.
 func (h *MemoryHub) run() {
 	defer close(h.broadcastClosed)
 	for {
@@ -275,6 +289,7 @@ func (h *MemoryHub) run() {
 	}
 }
 
+// runClient delivers queued messages and closes one client connection.
 func (h *MemoryHub) runClient(state *clientState) {
 	defer close(state.done)
 	for {
@@ -290,6 +305,7 @@ func (h *MemoryHub) runClient(state *clientState) {
 	}
 }
 
+// enqueueClientMessage queues a copy of a payload without blocking the hub.
 func (h *MemoryHub) enqueueClientMessage(state *clientState, payload []byte) error {
 	select {
 	case <-state.ctx.Done():
@@ -301,11 +317,13 @@ func (h *MemoryHub) enqueueClientMessage(state *clientState, payload []byte) err
 	}
 }
 
+// unregisterState cancels a client and waits for its delivery loop to finish.
 func (h *MemoryHub) unregisterState(state *clientState) {
 	state.cancel()
 	<-state.done
 }
 
+// mustJSON marshals a value and panics when the internal payload is invalid.
 func mustJSON(value any) []byte {
 	payload, err := json.Marshal(value)
 	if err != nil {

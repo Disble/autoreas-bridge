@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
+// newOrderingService creates the service and gateway used by ordering tests.
 func newOrderingService(repo *fakeRepo) (*Service, *fakeGateway) {
 	svc := newTestService(repo)
 	gw := &fakeGateway{}
@@ -41,6 +42,7 @@ func (g *scriptedOrderingGateway) SetAnimeSchedule(_ context.Context, animeID st
 	return result, nil
 }
 
+// draftJSON encodes an ordering draft for a test request.
 func draftJSON(t *testing.T, draft map[string][]domain.Placement) string {
 	t.Helper()
 	b, err := json.Marshal(draft)
@@ -145,26 +147,32 @@ func TestApplyScheduleStopsAtFirstNonSuccess(t *testing.T) {
 			}))
 
 			res, err := svc.ApplySchedule(ctx)
-			if err == nil {
-				t.Fatalf("expected %s to fail closed, got res=%+v", tt.name, res)
-			}
-			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
-				t.Fatalf("expected error %v, got %v", tt.wantErr, err)
-			}
-			if res.Applied != 1 || len(res.Failed) != 1 || res.Failed[0] != "anime-b" {
-				t.Fatalf("expected accepted anime-a and failed anime-b, got %+v", res)
-			}
-			if len(gateway.scheduleCalls) != 2 || gateway.scheduleCalls[0] != "anime-a" || gateway.scheduleCalls[1] != "anime-b" {
-				t.Fatalf("must stop before anime-c after %s, calls=%v", tt.name, gateway.scheduleCalls)
-			}
-			if _, called := gateway.scheduled["anime-c"]; called {
-				t.Fatalf("anime-c must have zero side effects after %s", tt.name)
-			}
-			active, _ := svc.ActiveSeason(ctx)
-			if active.AppliedAt != nil {
-				t.Fatalf("%s must not stamp the applied milestone", tt.name)
-			}
+			assertApplyScheduleFailureCase(t, tt.name, tt.wantErr, err, res, gateway, svc, ctx)
 		})
+	}
+}
+
+// assertApplyScheduleFailureCase verifies one rejected ordering application.
+func assertApplyScheduleFailureCase(t *testing.T, name string, wantErr error, err error, res ApplyResult, gateway *scriptedOrderingGateway, svc *Service, ctx context.Context) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected %s to fail closed, got res=%+v", name, res)
+	}
+	if wantErr != nil && !errors.Is(err, wantErr) {
+		t.Fatalf("expected error %v, got %v", wantErr, err)
+	}
+	if res.Applied != 1 || len(res.Failed) != 1 || res.Failed[0] != "anime-b" {
+		t.Fatalf("expected accepted anime-a and failed anime-b, got %+v", res)
+	}
+	if len(gateway.scheduleCalls) != 2 || gateway.scheduleCalls[0] != "anime-a" || gateway.scheduleCalls[1] != "anime-b" {
+		t.Fatalf("must stop before anime-c after %s, calls=%v", name, gateway.scheduleCalls)
+	}
+	if _, called := gateway.scheduled["anime-c"]; called {
+		t.Fatalf("anime-c must have zero side effects after %s", name)
+	}
+	active, _ := svc.ActiveSeason(ctx)
+	if active.AppliedAt != nil {
+		t.Fatalf("%s must not stamp the applied milestone", name)
 	}
 }
 

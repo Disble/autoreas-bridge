@@ -10,6 +10,7 @@ declare global {
     runtime?: {
       EventsOn?: (...args: unknown[]) => () => void;
       EventsOnMultiple?: (...args: unknown[]) => () => void;
+      BrowserOpenURL?: (url: string) => void;
     };
   }
 }

@@ -24,7 +24,7 @@ func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) 
 	if err != nil {
 		t.Fatalf("reopen bridge db: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	columns := readTableColumns(t, db, "anime_write_operations")
 	for _, required := range []string{
@@ -80,6 +80,7 @@ func TestWriteOperationMigrationCreatesUniqueLiveReservationIndex(t *testing.T) 
 	}
 }
 
+// readIndexNames returns SQLite index names for a table.
 func readIndexNames(t *testing.T, db *sql.DB, tableName string) []string {
 	t.Helper()
 
@@ -87,7 +88,7 @@ func readIndexNames(t *testing.T, db *sql.DB, tableName string) []string {
 	if err != nil {
 		t.Fatalf("pragma index_list(%s): %v", tableName, err)
 	}
-	defer rows.Close()
+	defer closeTestRows(t, rows)
 
 	indexes := []string{}
 	for rows.Next() {
@@ -123,14 +124,14 @@ func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
 			next_run_at_ms  INTEGER
 		);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("create legacy download_schedule_config schema: %v", err)
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO download_schedule_config (id, mode, daily_time_hhmm, enabled)
 		VALUES (1, 'in_process', '09:00', 1);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy download_schedule_config row: %v", err)
 	}
 	if err := legacyDB.Close(); err != nil {
@@ -141,7 +142,7 @@ func TestOpenBridgeDBMigratesLegacyDownloadScheduleConfigSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open bridge db with migration: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	columns := readTableColumns(t, db, "download_schedule_config")
 	if !containsString(columns, "enabled_weekdays") {
@@ -187,14 +188,14 @@ func TestOpenBridgeDBMigratesLegacyDownloadRunsSchema(t *testing.T) {
 			manual_links_json   TEXT
 		);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("create legacy download_runs schema: %v", err)
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO download_runs (run_id, started_at_ms, trigger, animes_checked, status)
 		VALUES ('run-legacy', 100, 'manual', 3, 'ok');
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy download_runs row: %v", err)
 	}
 	if err := legacyDB.Close(); err != nil {
@@ -205,7 +206,7 @@ func TestOpenBridgeDBMigratesLegacyDownloadRunsSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open bridge db with migration: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	columns := readTableColumns(t, db, "download_runs")
 	if !containsString(columns, "up_to_date_count") {
@@ -239,14 +240,14 @@ func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
 			snapshot_hash TEXT NOT NULL
 		);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("create legacy anime_snapshots schema: %v", err)
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash)
 		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece"}', 'deadbeef');
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy anime_snapshots row: %v", err)
 	}
 	if err := legacyDB.Close(); err != nil {
@@ -257,7 +258,7 @@ func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open bridge db with migration: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	columns := readTableColumns(t, db, "anime_snapshots")
 	if !containsString(columns, "modified_at") {
@@ -285,7 +286,7 @@ func TestEnsureAnimeSnapshotsSchemaRejectsUnsupportedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite db: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	if _, err := db.Exec(`CREATE TABLE anime_snapshots (anime_id TEXT PRIMARY KEY, unexpected_column TEXT)`); err != nil {
 		t.Fatalf("create unsupported anime_snapshots schema: %v", err)
@@ -311,50 +312,42 @@ func TestOpenBridgeDBMigratesLegacyChangelogSchema(t *testing.T) {
 			status TEXT NOT NULL
 		);
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("create legacy changelog schema: %v", err)
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO changelog (anime_id, payload_json, status)
 		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664}', 'pending');
 	`); err != nil {
-		legacyDB.Close()
+		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy changelog row: %v", err)
 	}
 	if err := legacyDB.Close(); err != nil {
 		t.Fatalf("close legacy sqlite db: %v", err)
 	}
 
+	assertMigratedLegacyChangelog(t, dbPath)
+}
+
+// assertMigratedLegacyChangelog verifies the rebuilt legacy changelog.
+func assertMigratedLegacyChangelog(t *testing.T, dbPath string) {
+	t.Helper()
 	db, err := OpenBridgeDB(dbPath)
 	if err != nil {
 		t.Fatalf("open bridge db with migration: %v", err)
 	}
-	defer db.Close()
-
-	columns := readTableColumns(t, db, "changelog")
+	defer closeTestDB(t, db)
 	for _, required := range []string{"change_type", "changed_fields_json", "snapshot_json", "changed_at_ms"} {
-		if !containsString(columns, required) {
-			t.Fatalf("expected migrated changelog schema to contain column %q, got %#v", required, columns)
+		if !containsString(readTableColumns(t, db, "changelog"), required) {
+			t.Fatalf("missing migrated column %q", required)
 		}
 	}
-
-	var animeID, changeType, changedFieldsJSON, snapshotJSON, status string
-	var changedAtMs int64
-	if err := db.QueryRow(`SELECT anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms FROM changelog LIMIT 1`).Scan(
-		&animeID, &changeType, &changedFieldsJSON, &snapshotJSON, &status, &changedAtMs,
-	); err != nil {
+	var animeID, changeType, fields, snapshot, status string
+	var changedAt int64
+	if err := db.QueryRow(`SELECT anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms FROM changelog LIMIT 1`).Scan(&animeID, &changeType, &fields, &snapshot, &status, &changedAt); err != nil {
 		t.Fatalf("query migrated changelog row: %v", err)
 	}
-	if animeID != "anime-1" {
-		t.Fatalf("expected anime_id anime-1, got %q", animeID)
-	}
-	if changeType == "" || snapshotJSON == "" || changedFieldsJSON == "" || changedAtMs <= 0 {
-		t.Fatalf("expected migrated row to populate derived fields, got changeType=%q changedFields=%q snapshot=%q changedAtMs=%d", changeType, changedFieldsJSON, snapshotJSON, changedAtMs)
-	}
-	if status != "pending" {
-		t.Fatalf("expected status pending, got %q", status)
-	}
-	if changedAtMs > time.Now().UnixMilli() {
-		t.Fatalf("expected changed_at_ms to be realistic, got %d", changedAtMs)
+	if animeID != "anime-1" || changeType == "" || fields == "" || snapshot == "" || status != "pending" || changedAt <= 0 || changedAt > time.Now().UnixMilli() {
+		t.Fatalf("unexpected migrated changelog row")
 	}
 }

@@ -26,21 +26,21 @@ type CanonicalCreateInput struct {
 
 // NewCanonicalCreate converts validated application state into the exact
 // Legacy wire shape, including honest null metadata and the cover sentinel.
-func NewCanonicalCreate(input CanonicalCreateInput) (LegacyAnimeRaw, error) {
+func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 	if strings.TrimSpace(input.ID) == "" {
-		return LegacyAnimeRaw{}, fmt.Errorf("canonical anime create: missing id")
+		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing id")
 	}
 	if strings.TrimSpace(input.Title) == "" {
-		return LegacyAnimeRaw{}, fmt.Errorf("canonical anime create: missing title")
+		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing title")
 	}
 	if strings.TrimSpace(input.SourceURL) == "" {
-		return LegacyAnimeRaw{}, fmt.Errorf("canonical anime create: missing source page")
+		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing source page")
 	}
 	if strings.TrimSpace(input.Section) == "" || input.Order <= 0 {
-		return LegacyAnimeRaw{}, fmt.Errorf("canonical anime create: invalid schedule entry")
+		return AnimeRaw{}, fmt.Errorf("canonical anime create: invalid schedule entry")
 	}
 	if input.CreatedAt.IsZero() {
-		return LegacyAnimeRaw{}, fmt.Errorf("canonical anime create: missing creation time")
+		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing creation time")
 	}
 
 	cover := struct {
@@ -73,11 +73,11 @@ func NewCanonicalCreate(input CanonicalCreateInput) (LegacyAnimeRaw, error) {
 
 	payload, err := json.Marshal(fields)
 	if err != nil {
-		return LegacyAnimeRaw{}, fmt.Errorf("marshal canonical anime create: %w", err)
+		return AnimeRaw{}, fmt.Errorf("marshal canonical anime create: %w", err)
 	}
-	var raw LegacyAnimeRaw
+	var raw AnimeRaw
 	if err := json.Unmarshal(payload, &raw); err != nil {
-		return LegacyAnimeRaw{}, fmt.Errorf("build canonical anime create: %w", err)
+		return AnimeRaw{}, fmt.Errorf("build canonical anime create: %w", err)
 	}
 	return raw, nil
 }

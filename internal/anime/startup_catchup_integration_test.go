@@ -52,40 +52,29 @@ func TestStartupCoordinatorCatchUpIntegrationWithSQLiteBaseline(t *testing.T) {
 	coordinator.StartAsync(context.Background())
 	coordinator.Wait()
 
+	assertSQLiteBaselineCatchUp(t, coordinator, publisher, store, logger)
+}
+
+// assertSQLiteBaselineCatchUp verifies integration catch-up persistence.
+func assertSQLiteBaselineCatchUp(t *testing.T, coordinator anime.StartupCoordinator, publisher *integrationPublisher, store *bridgeSync.AnimeSnapshotStore, logger *integrationLogger) {
+	t.Helper()
 	if err := coordinator.Err(); err != nil {
-		t.Fatalf("coordinator catch-up failed: %v", err)
+		t.Fatal(err)
 	}
-
-	published := publisher.Events()
-	if len(published) != 3 {
-		t.Fatalf("expected 3 retroactive events, got %d", len(published))
+	events := publisher.Events()
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
 	}
-
-	assertChangedPayload(t, published[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
-	assertChangedPayload(t, published[1], "new", `{"_id":"new","nombre":"Brand New","nrocapvisto":3}`)
-	assertSoftDeletedPayload(t, published[2], "gone", "Removed")
-
+	assertChangedPayload(t, events[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
+	assertChangedPayload(t, events[1], "new", `{"_id":"new","nombre":"Brand New","nrocapvisto":3}`)
+	assertSoftDeletedPayload(t, events[2], "gone", "Removed")
 	baseline, err := store.ListSnapshots(context.Background())
 	if err != nil {
-		t.Fatalf("list snapshots after catch-up: %v", err)
+		t.Fatal(err)
 	}
-
-	// SDD-30 ADR-30-3b: a baseline record absent from the latest parse is
-	// soft-deleted (Activo=0 + FechaEliminacion), never physically pruned.
-	if len(baseline) != 3 {
-		t.Fatalf("expected 3 snapshots in sqlite after soft-delete (no physical prune), got %d", len(baseline))
-	}
-
 	gone, exists := baseline["gone"]
-	if !exists {
-		t.Fatal("expected gone snapshot to be retained (soft-deleted) in sqlite, not pruned")
-	}
-	if !bytesContainsAll(gone.CanonicalJSON, `"activo":false`, `"fechaEliminacion"`) {
-		t.Fatalf("expected gone snapshot to carry activo=false + fechaEliminacion, got %s", string(gone.CanonicalJSON))
-	}
-
-	if len(logger.Messages()) != 0 {
-		t.Fatalf("expected no warnings for clean fixture, got %v", logger.Messages())
+	if len(baseline) != 3 || !exists || !bytesContainsAll(gone.CanonicalJSON, `"activo":false`, `"fechaEliminacion"`) || len(logger.Messages()) != 0 {
+		t.Fatalf("unexpected catch-up state: %#v", baseline)
 	}
 }
 
@@ -103,78 +92,55 @@ func TestStartupCoordinatorCatchUpSoftDeletesRealFixtureTombstone(t *testing.T) 
 	const tombstonedNombre = "Layton Mystery Tanteisha: Katri no Nazotoki File"
 
 	sourcePath := filepath.Join("..", "..", "resources", "autoreas-data", "animes.dat")
-	data, err := os.ReadFile(sourcePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("real Autoreas fixture not present at %s; resources/autoreas-data/*.dat is gitignored private data", sourcePath)
-		}
-		t.Fatalf("read real fixture: %v", err)
-	}
+	data := readOptionalRealFixture(t, sourcePath)
 	if !strings.Contains(string(data), `"_id":"`+tombstonedID+`"`) {
 		t.Fatalf("fixture no longer contains expected anchor id %q -- update test fixture references", tombstonedID)
 	}
 
 	tempPath := filepath.Join(t.TempDir(), "animes.dat")
 	tombstoneLine := `{"_id":"` + tombstonedID + `","$$deleted":true}` + "\n"
-	if err := os.WriteFile(tempPath, append(data, []byte(tombstoneLine)...), 0o600); err != nil {
-		t.Fatalf("write fixture copy with appended tombstone: %v", err)
-	}
-
-	// The original fixture under resources/ must remain untouched.
-	unchanged, err := os.ReadFile(sourcePath)
-	if err != nil {
-		t.Fatalf("re-read original fixture: %v", err)
-	}
-	if string(unchanged) != string(data) {
-		t.Fatal("source fixture under resources/autoreas-data/animes.dat was mutated -- must only ever copy to a temp dir")
-	}
+	writeFixtureCopyWithTombstone(t, sourcePath, tempPath, data, tombstoneLine)
 
 	db := openIntegrationBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedTombstonedBaseline(t, store, data, tombstonedID)
+	runTombstoneCatchUp(t, tempPath, store)
+	assertSoftDeletedFixtureSnapshot(t, store, tombstonedID, tombstonedNombre)
+	queryService := anime.NewQueryService(store)
+	assertSoftDeletedMobileAnime(t, queryService, tombstonedID)
+	assertSoftDeletedAnimeItemVisible(t, queryService, tombstonedID)
+}
 
-	// Seed the baseline with the to-be-tombstoned record exactly as the
-	// fixture defines it, mirroring a prior successful catch-up/watch cycle
-	// that already persisted this row before the tombstone line was added.
-	for _, line := range strings.Split(string(data), "\n") {
-		if !strings.Contains(line, `"_id":"`+tombstonedID+`"`) {
-			continue
-		}
-		canonical := anime.HashSnapshot([]byte(line))
-		seedBaseline(t, store, map[string]anime.SnapshotRecord{
-			tombstonedID: {AnimeID: tombstonedID, CanonicalJSON: []byte(line), Hash: canonical},
-		})
-		break
-	}
-
-	publisher := &integrationPublisher{}
-	logger := &integrationLogger{}
+// runTombstoneCatchUp executes the tombstone integration scenario.
+func runTombstoneCatchUp(t *testing.T, tempPath string, store *bridgeSync.AnimeSnapshotStore) {
+	t.Helper()
 	coordinator := anime.NewStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:  tempPath,
 		Parser:    anime.NewSnapshotParser(),
 		Store:     store,
-		Publisher: publisher,
-		Logger:    logger,
+		Publisher: &integrationPublisher{},
+		Logger:    &integrationLogger{},
 	})
-
 	coordinator.StartAsync(context.Background())
 	coordinator.Wait()
-
 	if err := coordinator.Err(); err != nil {
 		t.Fatalf("coordinator catch-up failed: %v", err)
 	}
+}
 
+// assertSoftDeletedFixtureSnapshot verifies the persisted tombstone snapshot.
+func assertSoftDeletedFixtureSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, tombstonedID string, tombstonedNombre string) {
+	t.Helper()
 	record, err := store.GetSnapshot(context.Background(), tombstonedID)
 	if err != nil {
 		t.Fatalf("get soft-deleted snapshot: %v", err)
 	}
-
 	payload := string(record.CanonicalJSON)
 	for _, want := range []string{`"activo":false`, `"fechaEliminacion"`, `"nombre":"` + tombstonedNombre + `"`} {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("expected soft-deleted real-fixture payload to contain %q, got %s", want, payload)
 		}
 	}
-
 	all, err := store.ListSnapshots(context.Background())
 	if err != nil {
 		t.Fatalf("list snapshots: %v", err)
@@ -182,11 +148,11 @@ func TestStartupCoordinatorCatchUpSoftDeletesRealFixtureTombstone(t *testing.T) 
 	if _, exists := all[tombstonedID]; !exists {
 		t.Fatal("expected tombstoned anime to remain present in sqlite (soft-deleted, not pruned)")
 	}
+}
 
-	// Mobile mapping must surface the soft-delete as Activo=0 (SDD-30
-	// ADR-30-3b), and the record's id must not silently vanish from the
-	// mobile list endpoint either -- it is retained, just marked inactive.
-	queryService := anime.NewQueryService(store)
+// assertSoftDeletedMobileAnime verifies the soft-deleted mobile projection.
+func assertSoftDeletedMobileAnime(t *testing.T, queryService *anime.QueryService, tombstonedID string) {
+	t.Helper()
 	mobileAnime, err := queryService.GetMobileAnime(context.Background(), tombstonedID)
 	if err != nil {
 		t.Fatalf("get mobile anime for soft-deleted record: %v", err)
@@ -197,26 +163,73 @@ func TestStartupCoordinatorCatchUpSoftDeletesRealFixtureTombstone(t *testing.T) 
 	if mobileAnime.FechaEliminacion == nil {
 		t.Fatal("expected soft-deleted record to report a non-nil FechaEliminacion in mobile mapping")
 	}
+}
 
+// readOptionalRealFixture reads a real fixture when it is available.
+func readOptionalRealFixture(t *testing.T, sourcePath string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(sourcePath)
+	if err == nil {
+		return data
+	}
+	if os.IsNotExist(err) {
+		t.Skipf("real Autoreas fixture not present at %s; resources/autoreas-data/*.dat is gitignored private data", sourcePath)
+	}
+	t.Fatalf("read real fixture: %v", err)
+	return nil
+}
+
+// writeFixtureCopyWithTombstone writes a fixture copy with a tombstone line.
+func writeFixtureCopyWithTombstone(t *testing.T, sourcePath string, tempPath string, data []byte, tombstoneLine string) {
+	t.Helper()
+	if err := os.WriteFile(tempPath, append(data, []byte(tombstoneLine)...), 0o600); err != nil {
+		t.Fatalf("write fixture copy with appended tombstone: %v", err)
+	}
+	unchanged, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("re-read original fixture: %v", err)
+	}
+	if string(unchanged) != string(data) {
+		t.Fatal("source fixture under resources/autoreas-data/animes.dat was mutated -- must only ever copy to a temp dir")
+	}
+}
+
+// seedTombstonedBaseline seeds the baseline used by tombstone tests.
+func seedTombstonedBaseline(t *testing.T, store *bridgeSync.AnimeSnapshotStore, data []byte, tombstonedID string) {
+	t.Helper()
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.Contains(line, `"_id":"`+tombstonedID+`"`) {
+			continue
+		}
+		canonical := anime.HashSnapshot([]byte(line))
+		seedBaseline(t, store, map[string]anime.SnapshotRecord{
+			tombstonedID: {AnimeID: tombstonedID, CanonicalJSON: []byte(line), Hash: canonical},
+		})
+		return
+	}
+	t.Fatalf("expected fixture baseline line for %q", tombstonedID)
+}
+
+// assertSoftDeletedAnimeItemVisible verifies tombstones remain queryable.
+func assertSoftDeletedAnimeItemVisible(t *testing.T, queryService *anime.QueryService, tombstonedID string) {
+	t.Helper()
 	items, err := queryService.ListAnimeItems(context.Background())
 	if err != nil {
 		t.Fatalf("list anime items: %v", err)
 	}
-	found := false
 	for _, item := range items {
 		if item.ID != tombstonedID {
 			continue
 		}
-		found = true
 		if item.Activo != 0 {
 			t.Fatalf("expected soft-deleted record to report Activo=0 in anime list items, got %d", item.Activo)
 		}
+		return
 	}
-	if !found {
-		t.Fatal("expected soft-deleted record to still be present (as inactive) in ListAnimeItems, not silently dropped")
-	}
+	t.Fatal("expected soft-deleted record to still be present (as inactive) in ListAnimeItems, not silently dropped")
 }
 
+// openIntegrationBridgeDB opens the SQLite database for integration tests.
 func openIntegrationBridgeDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -229,6 +242,7 @@ func openIntegrationBridgeDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// seedBaseline stores the initial integration snapshot baseline.
 func seedBaseline(t *testing.T, store *bridgeSync.AnimeSnapshotStore, current map[string]anime.SnapshotRecord) {
 	t.Helper()
 	if err := store.ReplaceBaseline(context.Background(), current, nil); err != nil {
@@ -274,6 +288,7 @@ func (l *integrationLogger) Messages() []string {
 	return out
 }
 
+// assertChangedPayload verifies one changed-payload event.
 func assertChangedPayload(t *testing.T, event events.Event, wantID, wantPayload string) {
 	t.Helper()
 	changed, ok := event.(events.AnimeChangedEvent)
@@ -309,6 +324,7 @@ func assertSoftDeletedPayload(t *testing.T, event events.Event, wantID, wantNomb
 	}
 }
 
+// bytesContainsAll reports whether a payload contains every requested string.
 func bytesContainsAll(payload []byte, substrings ...string) bool {
 	text := string(payload)
 	for _, substring := range substrings {

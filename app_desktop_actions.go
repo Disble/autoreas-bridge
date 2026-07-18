@@ -46,6 +46,7 @@ func (a *App) CopyAnimeFolder(animeID string) contracts.ChapterCommandResult {
 	})
 }
 
+// runAnimeDesktopAction executes a desktop action and records its activity.
 func (a *App) runAnimeDesktopAction(
 	animeID string,
 	actionType string,
@@ -86,6 +87,7 @@ func (a *App) runAnimeDesktopAction(
 	}
 }
 
+// recordDesktopAnimeAction persists a desktop action for the current anime.
 func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, actionType string, occurredAtMs int64) error {
 	if a.bridgeDB == nil {
 		return nil
@@ -108,10 +110,12 @@ func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, actionType
 	})
 }
 
+// pageValue returns the stored anime page URL.
 func pageValue(item contracts.MobileAnime) *string {
 	return item.Pagina
 }
 
+// folderValue returns the stored anime folder path.
 func folderValue(item contracts.MobileAnime) *string {
 	return item.Carpeta
 }

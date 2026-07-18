@@ -46,6 +46,7 @@ func TestLifecycleMutationsRejectMalformedLegacyPayload(t *testing.T) {
 	}
 }
 
+// assertLifecycleState verifies active and deletion metadata in a decoded payload.
 func assertLifecycleState(t *testing.T, payload []byte, active domain.TriState, deletedAt *time.Time) {
 	t.Helper()
 	value, _, err := legacy.DecodeDomain(payload)
@@ -66,6 +67,7 @@ func assertLifecycleState(t *testing.T, payload []byte, active domain.TriState, 
 	}
 }
 
+// assertUnknownObjectPreserved verifies that an unknown JSON object survives mapping.
 func assertUnknownObjectPreserved(t *testing.T, payload []byte) {
 	t.Helper()
 	var fields map[string]json.RawMessage

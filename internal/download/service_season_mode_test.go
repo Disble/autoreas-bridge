@@ -56,24 +56,36 @@ func TestRunOnceSeasonModeOnSelectsVerHoyAnimeExcludesWeekday(t *testing.T) {
 		t.Fatalf("expected 'Ver hoy' anime to be selected in season mode, got status %q", result.Status)
 	}
 
+	assertSeasonModeProcessedIDs(t, &mu, skippedIDs)
+}
+
+// assertWeekdayModeProcessedIDs verifies weekday mode excludes season-mode anime.
+func assertWeekdayModeProcessedIDs(t *testing.T, mu *sync.Mutex, skippedIDs []string) {
+	t.Helper()
 	mu.Lock()
 	ids := append([]string(nil), skippedIDs...)
 	mu.Unlock()
-
-	var verHoyProcessed, weekdayProcessed bool
+	seen := map[string]bool{}
 	for _, id := range ids {
-		switch id {
-		case "anime-ver-hoy":
-			verHoyProcessed = true
-		case "anime-weekday":
-			weekdayProcessed = true
-		}
+		seen[id] = true
 	}
-	if !verHoyProcessed {
-		t.Error("expected 'Ver hoy' anime to enter the processing pipeline in season mode")
+	if !seen["anime-weekday"] || seen["anime-ver-hoy"] {
+		t.Fatalf("unexpected weekday-mode processed ids: %#v", ids)
 	}
-	if weekdayProcessed {
-		t.Error("expected weekday anime to be excluded (not processed) when season mode is on")
+}
+
+// assertSeasonModeProcessedIDs verifies season mode selects only season-mode anime.
+func assertSeasonModeProcessedIDs(t *testing.T, mu *sync.Mutex, skippedIDs []string) {
+	t.Helper()
+	mu.Lock()
+	ids := append([]string(nil), skippedIDs...)
+	mu.Unlock()
+	seen := map[string]bool{}
+	for _, id := range ids {
+		seen[id] = true
+	}
+	if !seen["anime-ver-hoy"] || seen["anime-weekday"] {
+		t.Fatalf("unexpected season-mode processed ids: %#v", ids)
 	}
 }
 
@@ -120,71 +132,35 @@ func TestRunOnceSeasonModeOffSelectsWeekdayExcludesVerHoy(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			deps := baseDeps(t)
-			dia := todayDiaName(deps.Clock())
-
-			deps.SeasonMode = tc.seasonMode
-			deps.Sites = NewStaticRegistry() // empty
-			deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-				{
-					ID:      "anime-ver-hoy",
-					Nombre:  "Ver Hoy Anime",
-					Activo:  1,
-					Dias:    []contracts.MobileAnimeDay{{Dia: seasonModeDiaName, Orden: 0}},
-					Pagina:  ptrStr("https://jkanime.net/ver-hoy/"),
-					Carpeta: ptrStr(t.TempDir()),
-				},
-				{
-					ID:      "anime-weekday",
-					Nombre:  "Weekday Anime",
-					Activo:  1,
-					Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-					Pagina:  ptrStr("https://jkanime.net/weekday/"),
-					Carpeta: ptrStr(t.TempDir()),
-				},
-			}}
-
-			var mu sync.Mutex
-			var skippedIDs []string
-			deps.Bus.Subscribe(events.EventNameDownloadSkipped, func(e events.Event) {
-				ev := e.(events.DownloadSkippedEvent)
-				mu.Lock()
-				skippedIDs = append(skippedIDs, ev.AnimeID)
-				mu.Unlock()
-			})
-
-			result, err := NewService(deps).RunOnce(context.Background(), "manual")
-			if err != nil {
-				t.Fatalf("expected nil error, got %v", err)
-			}
-			if result.Status == RunStatusNoAnimesToday {
-				t.Fatalf("expected weekday anime to be selected when season mode is off, got status %q",
-					result.Status)
-			}
-
-			mu.Lock()
-			ids := append([]string(nil), skippedIDs...)
-			mu.Unlock()
-
-			var weekdayProcessed, verHoyProcessed bool
-			for _, id := range ids {
-				switch id {
-				case "anime-weekday":
-					weekdayProcessed = true
-				case "anime-ver-hoy":
-					verHoyProcessed = true
-				}
-			}
-			if !weekdayProcessed {
-				t.Error("expected weekday anime to enter the pipeline when season mode is off")
-			}
-			if verHoyProcessed {
-				t.Error("expected 'Ver hoy' anime to be excluded when season mode is off")
-			}
+			assertSeasonModeOffSelection(t, tc.seasonMode)
 		})
 	}
+}
+
+// assertSeasonModeOffSelection verifies explicit and default weekday selection.
+func assertSeasonModeOffSelection(t *testing.T, seasonMode func(context.Context) bool) {
+	t.Helper()
+	t.Parallel()
+	deps := baseDeps(t)
+	dia := todayDiaName(deps.Clock())
+	deps.SeasonMode = seasonMode
+	deps.Sites = NewStaticRegistry()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
+		{ID: "anime-ver-hoy", Nombre: "Ver Hoy Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: seasonModeDiaName, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/ver-hoy/"), Carpeta: ptrStr(t.TempDir())},
+		{ID: "anime-weekday", Nombre: "Weekday Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/weekday/"), Carpeta: ptrStr(t.TempDir())},
+	}}
+	var mu sync.Mutex
+	var skippedIDs []string
+	deps.Bus.Subscribe(events.EventNameDownloadSkipped, func(e events.Event) {
+		mu.Lock()
+		skippedIDs = append(skippedIDs, e.(events.DownloadSkippedEvent).AnimeID)
+		mu.Unlock()
+	})
+	result, err := NewService(deps).RunOnce(context.Background(), "manual")
+	if err != nil || result.Status == RunStatusNoAnimesToday {
+		t.Fatalf("expected weekday anime to be selected when season mode is off, result=%#v err=%v", result, err)
+	}
+	assertWeekdayModeProcessedIDs(t, &mu, skippedIDs)
 }
 
 // TestRunOnceSeasonModeOnNoVerHoyAnimesYieldsNoAnimesToday covers spec scenario "Season mode on

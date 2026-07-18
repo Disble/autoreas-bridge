@@ -283,7 +283,7 @@ func TestTriggerAnimeDownloadRunsSelectedAnimeOnly(t *testing.T) {
 
 	page := "https://jkanime.net/frieren"
 	folder := "D:/Anime/Frieren"
-	store := &fakeAppDownloadStore{finalized: make(chan download.DownloadRun, 1)}
+	store := &fakeAppDownloadStore{finalized: make(chan download.Run, 1)}
 	service := download.NewService(download.ServiceDeps{
 		Store:    store,
 		Clock:    func() time.Time { return time.UnixMilli(1_750_000_000_000) },
@@ -338,7 +338,7 @@ func TestListDownloadRunsDelegatesToStore(t *testing.T) {
 
 	finishedAt := int64(1750000001000)
 	store := &fakeAppDownloadStore{
-		runs: []download.DownloadRun{{RunID: "run-1", StartedAtMs: 1750000000000, FinishedAtMs: &finishedAt, Status: "ok", AnimesChecked: 3}},
+		runs: []download.Run{{RunID: "run-1", StartedAtMs: 1750000000000, FinishedAtMs: &finishedAt, Status: "ok", AnimesChecked: 3}},
 	}
 	app := &App{ctx: context.Background(), downloadStore: store}
 
@@ -359,7 +359,7 @@ func TestNewJDownloaderClientSuppliesNonNilLogger(t *testing.T) {
 
 	client := newJDownloaderClient("user@example.com", "secret")
 	value := reflect.ValueOf(client)
-	if value.Kind() != reflect.Ptr || value.IsNil() {
+	if value.Kind() != reflect.Pointer || value.IsNil() {
 		t.Fatalf("expected concrete pointer client, got %T", client)
 	}
 

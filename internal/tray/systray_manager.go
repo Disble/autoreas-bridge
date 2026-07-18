@@ -16,16 +16,19 @@ var (
 	quit        func()                        = func() {}
 )
 
+// SystrayManager implements Manager with the native system tray.
 type SystrayManager struct {
 	mu       sync.Mutex
 	stopOnce sync.Once
 	started  bool
 }
 
+// NewSystrayManager creates a native system-tray manager.
 func NewSystrayManager() *SystrayManager {
 	return &SystrayManager{}
 }
 
+// Start initializes the native system tray.
 func (m *SystrayManager) Start(config Config) error {
 	m.mu.Lock()
 	m.started = true
@@ -48,6 +51,7 @@ func (m *SystrayManager) Start(config Config) error {
 	return nil
 }
 
+// Stop requests termination of the native system tray.
 func (m *SystrayManager) Stop() error {
 	m.mu.Lock()
 	started := m.started
@@ -63,6 +67,7 @@ func (m *SystrayManager) Stop() error {
 	return nil
 }
 
+// listenMenuItem invokes a callback for each native menu-item click.
 func listenMenuItem(item menuItem, callback func()) {
 	if item == nil || callback == nil {
 		return

@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"path/filepath"
 	"testing"
 
-	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -202,7 +199,7 @@ func TestGetConnectedDevicesIncludesSyncState(t *testing.T) {
 	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token", PairedAtMs: 100}); err != nil {
 		t.Fatalf("insert paired device: %v", err)
 	}
-	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 	if err := changelog.AcknowledgeDevice(ctx, "device-1", 42, 200); err != nil {
 		t.Fatalf("ack device: %v", err)
 	}
@@ -227,7 +224,7 @@ func TestUnpairDeviceRevokesAuthAndSyncState(t *testing.T) {
 	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token", PairedAtMs: 100}); err != nil {
 		t.Fatalf("insert paired device: %v", err)
 	}
-	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	changelog := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 	if err := changelog.AcknowledgeDevice(ctx, "device-1", 42, 200); err != nil {
 		t.Fatalf("ack device: %v", err)
 	}
@@ -380,173 +377,4 @@ func TestGetAnimeDetailViewDelegatesToAnimeQuery(t *testing.T) {
 	if got.ModifiedAt != 777 {
 		t.Fatalf("expected modified_at 777, got %d", got.ModifiedAt)
 	}
-}
-
-func TestGetChapterScheduleDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{
-		schedule: []anime.ChapterScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
-	}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.GetChapterSchedule("Viernes")
-
-	if len(got) != 1 || got[0].AnimeID != "anime-1" {
-		t.Fatalf("expected delegated chapter schedule, got %#v", got)
-	}
-	if got[0].AnimeName != "Frieren" || got[0].DayOrder != 1 {
-		t.Fatalf("expected chapter schedule contract fields, got %#v", got[0])
-	}
-	if service.lastDay != "Viernes" {
-		t.Fatalf("expected day Viernes to be delegated, got %q", service.lastDay)
-	}
-}
-
-func TestAdjustWatchedChaptersDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.AdjustWatchedChapters("anime-1", 0.5, 1000)
-
-	if got.Status != "ok" {
-		t.Fatalf("expected ok result, got %#v", got)
-	}
-	if service.lastAdjust.AnimeID != "anime-1" || service.lastAdjust.Delta != 0.5 {
-		t.Fatalf("expected adjust command to be delegated, got %#v", service.lastAdjust)
-	}
-	if service.lastAdjust.Base == nil || *service.lastAdjust.Base != 1000 {
-		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastAdjust.Base)
-	}
-}
-
-func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.SetAnimeState("anime-1", 3, 1000)
-
-	if got.Status != "ok" || got.Estado != 3 {
-		t.Fatalf("expected ok state result, got %#v", got)
-	}
-	if service.lastState.AnimeID != "anime-1" || service.lastState.Estado != 3 {
-		t.Fatalf("expected state command to be delegated, got %#v", service.lastState)
-	}
-	if service.lastState.Base == nil || *service.lastState.Base != 1000 {
-		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastState.Base)
-	}
-}
-
-func TestSoftDeleteAnimeDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.SoftDeleteAnime("anime-1", 1000)
-
-	if got.Status != "ok" {
-		t.Fatalf("expected ok soft-delete result, got %#v", got)
-	}
-	if service.lastSoftDelete.AnimeID != "anime-1" {
-		t.Fatalf("expected soft-delete command to be delegated, got %#v", service.lastSoftDelete)
-	}
-	if service.lastSoftDelete.Base == nil || *service.lastSoftDelete.Base != 1000 {
-		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastSoftDelete.Base)
-	}
-}
-
-func TestRestoreAnimeDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.RestoreAnime("anime-1", 1000)
-
-	if got.Status != "ok" {
-		t.Fatalf("expected ok restore result, got %#v", got)
-	}
-	if service.lastRestore.AnimeID != "anime-1" {
-		t.Fatalf("expected restore command to be delegated, got %#v", service.lastRestore)
-	}
-	if service.lastRestore.Base == nil || *service.lastRestore.Base != 1000 {
-		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastRestore.Base)
-	}
-}
-
-func TestRepeatAnimeDelegatesToChapterService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
-
-	got := app.RepeatAnime("anime-1", 1000)
-
-	if got.Status != "ok" {
-		t.Fatalf("expected ok repeat result, got %#v", got)
-	}
-	if service.lastRepeat.AnimeID != "anime-1" {
-		t.Fatalf("expected repeat command to be delegated, got %#v", service.lastRepeat)
-	}
-	if service.lastRepeat.Base == nil || *service.lastRepeat.Base != 1000 {
-		t.Fatalf("expected base 1000 to be delegated, got %#v", service.lastRepeat.Base)
-	}
-}
-
-func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
-	ctx := context.Background()
-	db := openRuntimeBridgeDB(t)
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
-
-	writer := &stubAppUpdateWriter{}
-	app := newAppTestApp(t)
-	app.ctx = ctx
-	app.bridgeDB = db
-	app.animeQuery = anime.NewQueryService(store)
-	app.animeUpdateWriter = writer
-	app.wireChapterService(bridgeSync.NewConflictStore(db))
-
-	result := app.AdjustWatchedChapters("anime-1", 1, 1000)
-	if result.Status != "ok" {
-		t.Fatalf("expected ok chapter adjustment, got %#v", result)
-	}
-
-	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
-	if err != nil {
-		t.Fatalf("list activity rows: %v", err)
-	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 persisted activity row, got %#v", records)
-	}
-	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionChapterAdjusted {
-		t.Fatalf("unexpected persisted activity row: %#v", records[0])
-	}
-}
-
-func openInMemorySQLite(t *testing.T) (*sql.DB, error) {
-	t.Helper()
-
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		return nil, err
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	return db, nil
-}
-
-func openRuntimeBridgeDB(t *testing.T) *sql.DB {
-	t.Helper()
-
-	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
-	if err != nil {
-		t.Fatalf("open bridge db: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	return db
 }

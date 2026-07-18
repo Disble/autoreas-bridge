@@ -6,9 +6,13 @@ import (
 )
 
 const (
+	// LevelDebug is the debug log level.
 	LevelDebug = "debug"
-	LevelInfo  = "info"
-	LevelWarn  = "warn"
+	// LevelInfo is the info log level.
+	LevelInfo = "info"
+	// LevelWarn is the warning log level.
+	LevelWarn = "warn"
+	// LevelError is the error log level.
 	LevelError = "error"
 )
 
@@ -47,6 +51,7 @@ type entrySink interface {
 	WriteEntry(entry LogEntry)
 }
 
+// newEntry builds a canonical structured log entry.
 func newEntry(domain, level string, fields Fields, format string, args ...any) LogEntry {
 	return LogEntry{
 		Timestamp:     time.Now().UTC().Format(time.RFC3339),

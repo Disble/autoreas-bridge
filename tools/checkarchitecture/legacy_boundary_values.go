@@ -15,18 +15,22 @@ type flowValue struct {
 	encoder    bool
 }
 
+// stringFlowValue creates a flow value for a tracked string.
 func stringFlowValue(value string) flowValue {
 	return flowValue{strings: map[string]struct{}{value: {}}}
 }
 
+// functionFlowValue creates a flow value for an unbound function.
 func functionFlowValue(kind string) flowValue {
 	return flowValue{functions: map[flowFunction]struct{}{{kind: kind}: {}}}
 }
 
+// boundFunctionFlowValue creates a flow value for a bound function.
 func boundFunctionFlowValue(kind, bound string) flowValue {
 	return flowValue{functions: map[flowFunction]struct{}{{kind: kind, bound: bound}: {}}}
 }
 
+// merge combines the tracked facts from two flow values.
 func (value flowValue) merge(other flowValue) flowValue {
 	result := value.clone()
 	if result.strings == nil && len(other.strings) > 0 {
@@ -54,6 +58,7 @@ func (value flowValue) merge(other flowValue) flowValue {
 	return result
 }
 
+// clone copies all tracked facts in a flow value.
 func (value flowValue) clone() flowValue {
 	result := flowValue{
 		legacyRaw: value.legacyRaw, legacyJSON: value.legacyJSON,
@@ -85,10 +90,12 @@ type flowScope struct {
 	values map[string]flowValue
 }
 
+// newFlowScope creates a lexical flow-analysis scope.
 func newFlowScope(parent *flowScope) *flowScope {
 	return &flowScope{parent: parent, values: make(map[string]flowValue)}
 }
 
+// lookup resolves a tracked name through the scope chain.
 func (scope *flowScope) lookup(name string) flowValue {
 	for current := scope; current != nil; current = current.parent {
 		if value, ok := current.values[name]; ok {
@@ -98,12 +105,14 @@ func (scope *flowScope) lookup(name string) flowValue {
 	return flowValue{}
 }
 
+// define records a name in the current flow scope.
 func (scope *flowScope) define(name string, value flowValue) {
 	if name != "_" {
 		scope.values[name] = value
 	}
 }
 
+// assign updates the nearest existing name or defines it locally.
 func (scope *flowScope) assign(name string, value flowValue) {
 	if name == "_" {
 		return
@@ -117,6 +126,7 @@ func (scope *flowScope) assign(name string, value flowValue) {
 	scope.values[name] = value
 }
 
+// cloneChain copies this scope and all of its parent scopes.
 func (scope *flowScope) cloneChain() *flowScope {
 	if scope == nil {
 		return nil
@@ -128,6 +138,7 @@ func (scope *flowScope) cloneChain() *flowScope {
 	return cloned
 }
 
+// mergeExisting combines branch facts into existing scope bindings.
 func (scope *flowScope) mergeExisting(branches ...*flowScope) {
 	for current := scope; current != nil; current = current.parent {
 		for name, original := range current.values {

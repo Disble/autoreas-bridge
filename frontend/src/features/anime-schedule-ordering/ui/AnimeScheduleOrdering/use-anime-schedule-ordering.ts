@@ -8,6 +8,7 @@ import {
   createAnimeScheduleOrderingState,
   duplicateAnimeScheduleCard,
   getInstancesInDestination,
+  moveAnimeScheduleCard,
   removeAnimeScheduleCard,
   shouldBlockDuplicateHover,
   validateAnimeScheduleDraft,
@@ -68,6 +69,20 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   useEffect(() => {
     setState(createAnimeScheduleOrderingState(props.board));
   }, [props.board]);
+  useEffect(() => {
+    const testDriverRef = props.testDriverRef;
+    if (testDriverRef === undefined) {
+      return undefined;
+    }
+    testDriverRef.current = {
+      moveAnime(command) {
+        setState((current) => moveAnimeScheduleCard(current, command));
+      },
+    };
+    return () => {
+      testDriverRef.current = undefined;
+    };
+  }, [props.testDriverRef]);
   useEffect(() => {
     Array.from(document.querySelectorAll<HTMLElement>('[data-origin-anime]'))
       .find((element) => element.dataset.originAnime === props.board.originAnimeId)

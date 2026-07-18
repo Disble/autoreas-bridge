@@ -59,7 +59,7 @@ func TestWebSocketWithBearerReceivesSyncRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)
 	}
-	defer conn.Close()
+	defer closeWebsocket(t, conn)
 
 	var msg realtime.ControlMessage
 	if err := conn.ReadJSON(&msg); err != nil {
@@ -92,7 +92,7 @@ func TestWebSocketBroadcastsAnimeChangedToConnectedClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)
 	}
-	defer conn.Close()
+	defer closeWebsocket(t, conn)
 
 	readControlMessage(t, conn)
 	hub.BroadcastAnimeChanged(context.Background(), events.AnimeChangedEvent{
@@ -149,7 +149,6 @@ func TestWebSocketReconnectDoesNotLeakClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial second websocket: %v", err)
 	}
-	defer secondConn.Close()
 	readControlMessage(t, secondConn)
 	waitForClientCount(t, hub, 1)
 	if err := secondConn.Close(); err != nil {
@@ -158,6 +157,7 @@ func TestWebSocketReconnectDoesNotLeakClients(t *testing.T) {
 	waitForClientCount(t, hub, 0)
 }
 
+// newWebsocketTestServer creates a websocket test server and its cleanup function.
 func newWebsocketTestServer(t *testing.T, config Config) (*realtime.MemoryHub, string, func()) {
 	t.Helper()
 
@@ -171,10 +171,21 @@ func newWebsocketTestServer(t *testing.T, config Config) (*realtime.MemoryHub, s
 
 	return hub, wsURL, func() {
 		server.Close()
-		_ = hub.Close()
+		if err := hub.Close(); err != nil {
+			t.Errorf("close realtime hub: %v", err)
+		}
 	}
 }
 
+// closeWebsocket closes a websocket and reports failures through the test.
+func closeWebsocket(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	if err := conn.Close(); err != nil {
+		t.Errorf("close websocket: %v", err)
+	}
+}
+
+// readControlMessage reads the initial control message from a websocket.
 func readControlMessage(t *testing.T, conn *websocket.Conn) realtime.ControlMessage {
 	t.Helper()
 
@@ -186,6 +197,7 @@ func readControlMessage(t *testing.T, conn *websocket.Conn) realtime.ControlMess
 	return msg
 }
 
+// waitForClientCount waits for the realtime hub to reach the expected count.
 func waitForClientCount(t *testing.T, hub *realtime.MemoryHub, want int) {
 	t.Helper()
 
@@ -212,40 +224,7 @@ func TestWebSocketBroadcastPayloadIsValidJSON(t *testing.T) {
 func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	t.Parallel()
 
-	dataPath := filepath.Join(t.TempDir(), "animes.dat")
-	writeAnimeDataFileForWebSocketTest(t, dataPath, []string{
-		`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`,
-	})
-
-	dbPath := filepath.Join(t.TempDir(), "bridge.db")
-	db, err := bridgeSync.OpenBridgeDB(dbPath)
-	if err != nil {
-		t.Fatalf("open bridge db: %v", err)
-	}
-	defer db.Close()
-
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedWebSocketAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
-
-	bus := events.NewBus()
-	writerCtx, cancelWriter := context.WithCancel(context.Background())
-	defer cancelWriter()
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{
-		FilePath:         dataPath,
-		Bus:              bus,
-		Publisher:        bus,
-		Logger:           websocketWarningLogger{},
-		SelfEchoRegistry: anime.NewSelfEchoRegistry(),
-	})
-	writer.StartAsync(writerCtx)
-	defer func() {
-		cancelWriter()
-		writer.Wait()
-	}()
-
-	query := anime.NewQueryService(store)
-	writeService := anime.NewWriteService(store, writer)
-	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	dataPath, query, writeService := newWebSocketWriteEnvironment(t)
 
 	hub, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", AuthToken: "good-token"}},
@@ -263,7 +242,7 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)
 	}
-	defer conn.Close()
+	defer closeWebsocket(t, conn)
 
 	readControlMessage(t, conn)
 
@@ -297,10 +276,38 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	t.Fatalf("expected websocket reconcile message to append updated anime line, got %v", readAnimeDataLinesForWebSocketTest(t, dataPath))
 }
 
+// newWebSocketWriteEnvironment creates file, database, and service test state.
+func newWebSocketWriteEnvironment(t *testing.T) (string, *anime.QueryService, *anime.WriteService) {
+	t.Helper()
+	dataPath := filepath.Join(t.TempDir(), "animes.dat")
+	seed := `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`
+	writeAnimeDataFileForWebSocketTest(t, dataPath, []string{seed})
+	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
+	if err != nil {
+		t.Fatalf("open bridge db: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close bridge db: %v", err)
+		}
+	})
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
+	bus := events.NewBus()
+	ctx, cancel := context.WithCancel(context.Background())
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{FilePath: dataPath, Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
+	writer.StartAsync(ctx)
+	t.Cleanup(func() { cancel(); writer.Wait() })
+	write := anime.NewWriteService(store, writer)
+	write.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	return dataPath, anime.NewQueryService(store), write
+}
+
 type websocketWarningLogger struct{}
 
 func (websocketWarningLogger) Warnf(string, ...any) {}
 
+// writeAnimeDataFileForWebSocketTest writes JSON lines to a websocket test file.
 func writeAnimeDataFileForWebSocketTest(t *testing.T, filePath string, lines []string) {
 	t.Helper()
 	contents := []byte("")
@@ -312,6 +319,7 @@ func writeAnimeDataFileForWebSocketTest(t *testing.T, filePath string, lines []s
 	}
 }
 
+// readAnimeDataLinesForWebSocketTest reads non-empty lines from a websocket test file.
 func readAnimeDataLinesForWebSocketTest(t *testing.T, filePath string) []string {
 	t.Helper()
 	contents, err := os.ReadFile(filePath)
@@ -329,6 +337,7 @@ func readAnimeDataLinesForWebSocketTest(t *testing.T, filePath string) []string 
 	return filtered
 }
 
+// assertJSONLineEqualForWebSocketTest compares two JSON lines structurally.
 func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) {
 	t.Helper()
 	var gotValue any
@@ -344,6 +353,7 @@ func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) 
 	}
 }
 
+// deepEqualJSON compares JSON-compatible values by their encoded representation.
 func deepEqualJSON(got any, want any) bool {
 	left, err := json.Marshal(got)
 	if err != nil {
@@ -356,6 +366,7 @@ func deepEqualJSON(got any, want any) bool {
 	return string(left) == string(right)
 }
 
+// seedWebSocketAnimeSnapshot stores the baseline used by websocket write tests.
 func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
 	t.Helper()
 	records := map[string]anime.SnapshotRecord{

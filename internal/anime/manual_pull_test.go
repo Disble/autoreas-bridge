@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"autoreas-bridge/internal/api/contracts"
 )
 
 func TestLegacyPullServiceReturnsZeroUpdatesAfterWatcherAlreadyAdvancedBaseline(t *testing.T) {
@@ -58,24 +60,7 @@ func TestLegacyPullServiceReturnsZeroUpdatesAfterWatcherAlreadyAdvancedBaseline(
 
 	got := service.Pull(context.Background())
 
-	if got.Status != "ok" {
-		t.Fatalf("expected ok status, got %#v", got)
-	}
-	if got.UpdatedCount != 0 {
-		t.Fatalf("expected manual pull to report 0 updates after watcher advanced baseline, got %#v", got)
-	}
-	if got.Message != "Bridge is already up to date with legacy." {
-		t.Fatalf("expected up-to-date message after watcher advanced baseline, got %q", got.Message)
-	}
-	if got.WarningCount != 0 {
-		t.Fatalf("expected clean parse with 0 warnings, got %#v", got)
-	}
-	if len(logger.messages()) != 0 {
-		t.Fatalf("expected no parse/log warnings, got %v", logger.messages())
-	}
-	if got := len(publisher.events()); got != 1 {
-		t.Fatalf("expected watcher to publish the only change before manual pull, got %d events", got)
-	}
+	assertManualPullAlreadyCurrent(t, got, logger, publisher)
 
 	baselineAfterManualPull, err := store.ListSnapshots(context.Background())
 	if err != nil {
@@ -84,6 +69,20 @@ func TestLegacyPullServiceReturnsZeroUpdatesAfterWatcherAlreadyAdvancedBaseline(
 	assertSnapshotMatchesPayload(t, baselineAfterManualPull["anime-1"], updatedPayload)
 	if store.replaceCalls() != 2 {
 		t.Fatalf("expected watcher and manual pull to each replace the baseline once, got %d replaces", store.replaceCalls())
+	}
+}
+
+// assertManualPullAlreadyCurrent verifies the no-op manual pull result.
+func assertManualPullAlreadyCurrent(t *testing.T, got contracts.AnimeLegacyPullResult, logger *recordingWarningLogger, publisher *recordingPublisher) {
+	t.Helper()
+	if got.Status != "ok" || got.UpdatedCount != 0 || got.Message != "Bridge is already up to date with legacy." || got.WarningCount != 0 {
+		t.Fatalf("expected clean up-to-date pull result, got %#v", got)
+	}
+	if len(logger.messages()) != 0 {
+		t.Fatalf("expected no parse/log warnings, got %v", logger.messages())
+	}
+	if count := len(publisher.events()); count != 1 {
+		t.Fatalf("expected watcher to publish the only change before manual pull, got %d events", count)
 	}
 }
 
@@ -274,6 +273,7 @@ func (s *persistentSnapshotStore) ReplaceBaseline(_ context.Context, current map
 	return nil
 }
 
+// replaceCalls returns the number of baseline replacements.
 func (s *persistentSnapshotStore) replaceCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

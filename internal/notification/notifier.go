@@ -21,10 +21,14 @@ import (
 type Level string
 
 const (
-	LevelInfo    Level = "info"
+	// LevelInfo marks an informational notification.
+	LevelInfo Level = "info"
+	// LevelSuccess marks a successful notification.
 	LevelSuccess Level = "success"
+	// LevelWarning marks a warning notification.
 	LevelWarning Level = "warning"
-	LevelError   Level = "error"
+	// LevelError marks an error notification.
+	LevelError Level = "error"
 )
 
 // Notification is a domain-agnostic value describing a user-notable moment.

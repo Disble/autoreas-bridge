@@ -1,20 +1,5 @@
 //go:build windows
 
-// This file is the REAL Windows desktop-toast implementation (design.md
-// §14.2/§14.4, ADR-NOTIF-3). It uses git.sr.ht/~jackmordaunt/go-toast/v2, a
-// vetted, pure-Go Windows toast library that pushes notifications via the
-// native WinRT COM API (wintoast.pushCOM).
-//
-// IMPORTANT: this adapter deliberately calls the low-level wintoast.Push
-// directly with ZERO options, instead of the library's higher-level
-// toast.Notification.Push() convenience method. toast.Notification.Push()
-// internally calls wintoast.Push(appID, xml, wintoast.PowershellFallback),
-// which WOULD shell out to PowerShell if the COM call fails. Calling
-// wintoast.Push with no options guarantees this adapter NEVER invokes
-// PowerShell or any external shell process under any circumstance, matching
-// the notifications spec's "Desktop notification on Windows" scenario
-// verbatim -- the same discipline used for the DPAPI crypto seam
-// (internal/download/crypto).
 package notification
 
 import (

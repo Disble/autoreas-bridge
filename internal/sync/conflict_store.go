@@ -9,10 +9,12 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// ConflictStore persists pending and resolved sync-conflict records.
 type ConflictStore struct {
 	db *sql.DB
 }
 
+// NewConflictStore builds the SQLite-backed sync conflict store.
 func NewConflictStore(db *sql.DB) *ConflictStore {
 	return &ConflictStore{db: db}
 }
@@ -36,7 +38,8 @@ func (s *ConflictStore) InsertConflict(ctx context.Context, record contracts.Con
 	return nil
 }
 
-func (s *ConflictStore) ListConflicts(ctx context.Context) ([]contracts.ConflictInfo, error) {
+// ListConflicts returns pending conflicts ordered by detection time.
+func (s *ConflictStore) ListConflicts(ctx context.Context) (conflicts []contracts.ConflictInfo, err error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT conflict_id, anime_id, detected_at_ms, status, local_snapshot_json, remote_snapshot_json
 		FROM conflicts
@@ -46,9 +49,14 @@ func (s *ConflictStore) ListConflicts(ctx context.Context) ([]contracts.Conflict
 	if err != nil {
 		return nil, fmt.Errorf("list conflicts: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			conflicts = nil
+			err = fmt.Errorf("close conflict rows: %w", closeErr)
+		}
+	}()
 
-	conflicts := []contracts.ConflictInfo{}
+	conflicts = []contracts.ConflictInfo{}
 	for rows.Next() {
 		var item contracts.ConflictInfo
 		if err := rows.Scan(&item.ConflictID, &item.AnimeID, &item.DetectedAtMs, &item.Status, &item.LocalSnapshotJSON, &item.RemoteSnapshotJSON); err != nil {
@@ -62,6 +70,7 @@ func (s *ConflictStore) ListConflicts(ctx context.Context) ([]contracts.Conflict
 	return conflicts, nil
 }
 
+// ResolveConflict marks one pending conflict as manually resolved.
 func (s *ConflictStore) ResolveConflict(ctx context.Context, id string, at time.Time) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE conflicts

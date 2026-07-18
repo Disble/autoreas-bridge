@@ -1,17 +1,6 @@
-import closeIcon from '@iconify-icons/solar/close-circle-broken';
-import folderIcon from '@iconify-icons/solar/folder-with-files-broken';
-import linkIcon from '@iconify-icons/solar/link-round-broken';
-import { Icon } from '@iconify/react';
-import { Alert, Button, Card, Chip, Label, TextArea, TextField, Tooltip } from '@heroui/react';
-import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
+import { Alert, Button, Card, Label, TextArea, TextField } from '@heroui/react';
+import { IntakeRow } from './IntakeRow';
 import { INTAKE_EMPTY_MESSAGE, INTAKE_PASTE_PLACEHOLDER } from './intake-panel.constants';
-import {
-  formatCandidateOption,
-  getAvailabilityIndicator,
-  getMatchStatusColor,
-  getMatchStatusLabel,
-  isCreatableRow,
-} from './intake-panel.helpers';
 import { useIntakePanel } from './use-intake-panel';
 
 /**
@@ -45,6 +34,7 @@ export function IntakePanel() {
     onRecheckAvailability,
     onResolve,
     onDiscard,
+    onOpenPage,
   } = useIntakePanel();
 
   return (
@@ -91,117 +81,21 @@ export function IntakePanel() {
           ) : (
             <ul className="flex flex-col gap-2">
               {editableRows.length === 0 && <li className="text-sm text-muted">{INTAKE_EMPTY_MESSAGE}</li>}
-              {editableRows.map((row) => {
-                const indicator = getAvailabilityIndicator(row);
-                const creatable = isCreatableRow(row);
-                return (
-                  <li key={row.id}>
-                    <div className="flex flex-wrap items-center gap-3 border-b border-divider py-2">
-                      <LabeledCheckbox
-                        isDisabled={!creatable || readOnly}
-                        isSelected={selected.has(row.id)}
-                        onChange={() => toggleSelect(row.id)}
-                      >
-                        <span className="font-medium text-foreground">{row.rawName}</span>
-                      </LabeledCheckbox>
-                      <Chip color={getMatchStatusColor(row.matchStatus)} size="sm" variant="soft">
-                        {getMatchStatusLabel(row.matchStatus)}
-                      </Chip>
-                      {creatable && (
-                        <span className="text-xs text-success">
-                          {row.availableChapters} chapter{row.availableChapters === 1 ? '' : 's'} available
-                        </span>
-                      )}
-                      <div className="ml-auto flex items-center gap-2">
-                        {row.matchedSlug !== '' && (
-                          <Tooltip>
-                            <a
-                              aria-label={`Open the page for ${row.rawName}`}
-                              className="inline-flex size-8 items-center justify-center rounded-md text-muted hover:text-accent"
-                              href={row.matchedSlug}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              <Icon className="size-4" icon={linkIcon} />
-                            </a>
-                            <Tooltip.Content showArrow>
-                              <Tooltip.Arrow />
-                              Open page
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                        {creatable && !readOnly && (
-                          <Tooltip>
-                            <span title={folderPreviews[row.id] ?? 'Default download folder'}>
-                              <Button
-                                isIconOnly
-                                aria-label={`Set download folder for ${row.rawName}`}
-                                className={folderOverrides[row.id] === undefined ? 'hover:text-success' : 'text-success'}
-                                size="sm"
-                                variant="tertiary"
-                                onPress={() => onPickFolder(row.id)}
-                              >
-                                <Icon className="size-4" icon={folderIcon} />
-                              </Button>
-                            </span>
-                            <Tooltip.Content showArrow>
-                              <Tooltip.Arrow />
-                              {folderPreviews[row.id] ?? 'Default download folder'}
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                        {!readOnly && (
-                          <Tooltip>
-                            <Button
-                              isIconOnly
-                              aria-label={`Discard ${row.rawName}`}
-                              className="hover:text-danger"
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => onDiscard(row.id)}
-                            >
-                              <Icon className="size-4" icon={closeIcon} />
-                            </Button>
-                            <Tooltip.Content showArrow>
-                              <Tooltip.Arrow />
-                              Discard
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                        {indicator !== null && (
-                          <Tooltip>
-                            <span
-                              aria-label={indicator.label}
-                              className={`size-2.5 shrink-0 rounded-full ${indicator.color === 'success' ? 'bg-success' : 'bg-danger'}`}
-                            />
-                            <Tooltip.Content showArrow>
-                              <Tooltip.Arrow />
-                              {indicator.label}
-                            </Tooltip.Content>
-                          </Tooltip>
-                        )}
-                      </div>
-                      {creatable && folderOverrides[row.id] !== undefined && (
-                        <span className="w-full break-all text-xs text-success">Folder: {folderOverrides[row.id]}</span>
-                      )}
-                      {!readOnly && row.candidates.length > 0 && row.matchStatus !== 'matched' && (
-                        <div className="flex w-full flex-wrap gap-2">
-                          {row.candidates.map((candidate) => (
-                            <Button
-                              key={candidate.pageUrl}
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => onResolve(row.id, candidate.pageUrl)}
-                            >
-                              {formatCandidateOption(candidate)}
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {editableRows.map((row) => (
+                <IntakeRow
+                  key={row.id}
+                  folderOverride={folderOverrides[row.id]}
+                  folderPreview={folderPreviews[row.id]}
+                  isSelected={selected.has(row.id)}
+                  readOnly={readOnly}
+                  row={row}
+                  onDiscard={() => onDiscard(row.id)}
+                  onOpenPage={onOpenPage}
+                  onPickFolder={() => onPickFolder(row.id)}
+                  onResolve={(pageUrl) => onResolve(row.id, pageUrl)}
+                  onToggleSelect={() => toggleSelect(row.id)}
+                />
+              ))}
             </ul>
           )}
 

@@ -3,7 +3,7 @@ import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/Anime
 import type { AnimeEditorDialogsProps } from './anime-editor-workspace.types';
 
 /** Renders the shared dirty guard and near-full-screen schedule modal. */
-export function AnimeEditorDialogs({ viewModel }: Readonly<AnimeEditorDialogsProps>) {
+export function AnimeEditorDialogs({ viewModel, scheduleTestDriverRef }: Readonly<AnimeEditorDialogsProps>) {
   return <>
     <Modal isOpen={viewModel.isGuardOpen} onOpenChange={(isOpen) => { if (!isOpen) viewModel.onStayWithCurrentEditor(); }}><Modal.Backdrop variant="blur"><Modal.Container><Modal.Dialog className="sm:max-w-md">
       <Modal.Header><Modal.Heading>Unsaved changes</Modal.Heading></Modal.Header><Modal.Body><Typography type="body-sm">Save and continue, discard and continue, or stay on the current editor state.</Typography></Modal.Body>
@@ -14,7 +14,7 @@ export function AnimeEditorDialogs({ viewModel }: Readonly<AnimeEditorDialogsPro
       <Modal.Footer><Button isDisabled={viewModel.isSaving} variant="tertiary" onPress={viewModel.onCancelDeactivate}>Cancel</Button><Button className="text-danger hover:text-danger" isPending={viewModel.isSaving} variant="secondary" onPress={() => void viewModel.onConfirmDeactivate()}>Deactivate</Button></Modal.Footer>
     </Modal.Dialog></Modal.Container></Modal.Backdrop></Modal>
     <Modal isOpen={viewModel.isScheduleModalOpen} onOpenChange={(isOpen) => { if (!isOpen) viewModel.onCloseSchedule(); }}><Modal.Backdrop variant="blur"><Modal.Container><Modal.Dialog className="h-dvh w-full max-w-none"><Modal.Body className="h-full p-4">
-      {viewModel.scheduleBoard !== undefined && <AnimeScheduleOrdering board={viewModel.scheduleBoard} feedback={viewModel.scheduleFeedback} isApplying={viewModel.isApplyingSchedule} onApply={viewModel.onApplySchedule} onClose={viewModel.onCloseSchedule} />}
+      {viewModel.scheduleBoard !== undefined && <AnimeScheduleOrdering board={viewModel.scheduleBoard} feedback={viewModel.scheduleFeedback} isApplying={viewModel.isApplyingSchedule} onApply={viewModel.onApplySchedule} onClose={viewModel.onCloseSchedule} testDriverRef={scheduleTestDriverRef} />}
     </Modal.Body></Modal.Dialog></Modal.Container></Modal.Backdrop></Modal>
   </>;
 }

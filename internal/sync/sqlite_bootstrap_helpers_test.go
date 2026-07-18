@@ -12,6 +12,7 @@ import (
 	"autoreas-bridge/internal/persistence"
 )
 
+// newTestBootstrap creates a bootstrap configured for an isolated test directory.
 func newTestBootstrap(t *testing.T) SQLiteBootstrap {
 	t.Helper()
 
@@ -23,6 +24,7 @@ func newTestBootstrap(t *testing.T) SQLiteBootstrap {
 	}
 }
 
+// assertDirectoryExists verifies that path names a directory.
 func assertDirectoryExists(t *testing.T, path string) {
 	t.Helper()
 
@@ -35,6 +37,7 @@ func assertDirectoryExists(t *testing.T, path string) {
 	}
 }
 
+// assertFileExists verifies that path names a regular file.
 func assertFileExists(t *testing.T, path string) {
 	t.Helper()
 
@@ -47,6 +50,7 @@ func assertFileExists(t *testing.T, path string) {
 	}
 }
 
+// queryPragmaString reads a SQLite pragma string for a test assertion.
 func queryPragmaString(t *testing.T, db *sql.DB, pragma string) string {
 	t.Helper()
 
@@ -57,6 +61,7 @@ func queryPragmaString(t *testing.T, db *sql.DB, pragma string) string {
 	return got
 }
 
+// queryPragmaInt reads a SQLite pragma integer for a test assertion.
 func queryPragmaInt(t *testing.T, db *sql.DB, pragma string) int {
 	t.Helper()
 
@@ -67,6 +72,7 @@ func queryPragmaInt(t *testing.T, db *sql.DB, pragma string) int {
 	return got
 }
 
+// tableExists reports whether SQLite contains the named table.
 func tableExists(t *testing.T, db *sql.DB, tableName string) bool {
 	t.Helper()
 
@@ -81,6 +87,7 @@ func tableExists(t *testing.T, db *sql.DB, tableName string) bool {
 	return got == tableName
 }
 
+// readTableColumns returns the column names reported for a SQLite table.
 func readTableColumns(t *testing.T, db *sql.DB, tableName string) []string {
 	t.Helper()
 
@@ -88,7 +95,7 @@ func readTableColumns(t *testing.T, db *sql.DB, tableName string) []string {
 	if err != nil {
 		t.Fatalf("pragma table_info(%s): %v", tableName, err)
 	}
-	defer rows.Close()
+	defer closeTestRows(t, rows)
 
 	columns := []string{}
 	for rows.Next() {
@@ -109,6 +116,23 @@ func readTableColumns(t *testing.T, db *sql.DB, tableName string) []string {
 	return columns
 }
 
+// closeTestDB closes a test database and reports any close error.
+func closeTestDB(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if err := db.Close(); err != nil {
+		t.Errorf("close test database: %v", err)
+	}
+}
+
+// closeTestRows closes test query rows and reports any close error.
+func closeTestRows(t *testing.T, rows *sql.Rows) {
+	t.Helper()
+	if err := rows.Close(); err != nil {
+		t.Errorf("close test rows: %v", err)
+	}
+}
+
+// containsString reports whether target occurs in values.
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

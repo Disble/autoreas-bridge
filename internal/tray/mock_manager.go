@@ -1,5 +1,6 @@
 package tray
 
+// MockTrayManager is an in-memory tray Manager test double.
 type MockTrayManager struct {
 	StartCalls  int
 	StopCalls   int
@@ -10,6 +11,7 @@ type MockTrayManager struct {
 	Stopped     bool
 }
 
+// Start records a tray start request.
 func (m *MockTrayManager) Start(config Config) error {
 	m.StartCalls++
 	m.Started = true
@@ -17,6 +19,7 @@ func (m *MockTrayManager) Start(config Config) error {
 	return m.StartErr
 }
 
+// Stop records a tray stop request.
 func (m *MockTrayManager) Stop() error {
 	m.StopCalls++
 	m.Stopped = true

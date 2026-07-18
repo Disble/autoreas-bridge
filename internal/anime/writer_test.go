@@ -121,27 +121,24 @@ func TestUpdateWriterPublishesConfirmationAfterAppend(t *testing.T) {
 		t.Fatal("expected writer to register payload for self-echo filtering")
 	}
 
-	// Writer should propagate CorrelationID from incoming event to outgoing event
-	published := publisher.events()
-	changedEvt, ok := published[0].(events.AnimeChangedEvent)
-	if !ok {
-		t.Fatalf("expected AnimeChangedEvent, got %T", published[0])
-	}
-	// Writer should log with structured fields
-	entries := shared.entries()
-	foundWriteInfo := false
-	for _, entry := range entries {
-		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && entry.EntityID == "anime-1" && entry.EventType == "anime.write" {
-			foundWriteInfo = true
-		}
-	}
-	if !foundWriteInfo {
-		t.Fatalf("expected anime.write info log with EntityID, got %#v", entries)
-	}
-	_ = changedEvt
+	assertWriterConfirmationObservability(t, publisher, shared)
 
 	cancel()
 	writer.Wait()
+}
+
+// assertWriterConfirmationObservability verifies writer confirmation telemetry.
+func assertWriterConfirmationObservability(t *testing.T, publisher *recordingPublisher, shared *recordingSharedLogger) {
+	t.Helper()
+	if _, ok := publisher.events()[0].(events.AnimeChangedEvent); !ok {
+		t.Fatalf("expected AnimeChangedEvent, got %T", publisher.events()[0])
+	}
+	for _, entry := range shared.entries() {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && entry.EntityID == "anime-1" && entry.EventType == "anime.write" {
+			return
+		}
+	}
+	t.Fatalf("expected anime.write info log with EntityID, got %#v", shared.entries())
 }
 
 func TestUpdateWriterSerializesConcurrentEvents(t *testing.T) {
@@ -267,45 +264,25 @@ func TestUpdateWriterRequestWriteReturnsAppendErrorAndPublishesFailureEvent(t *t
 		t.Fatalf("expected request write error %v, got %v", wantErr, err)
 	}
 
-	eventsList := publisher.events()
-	if len(eventsList) != 1 {
-		t.Fatalf("expected 1 failure event, got %d", len(eventsList))
-	}
-
-	failed, ok := eventsList[0].(events.AnimeWriteFailedEvent)
-	if !ok {
-		t.Fatalf("expected AnimeWriteFailedEvent, got %T", eventsList[0])
-	}
-
-	if failed.AnimeID != "anime-1" {
-		t.Fatalf("expected anime id %q, got %q", "anime-1", failed.AnimeID)
-	}
-
-	if failed.Path != "data/animes.dat" {
-		t.Fatalf("expected path %q, got %q", "data/animes.dat", failed.Path)
-	}
-
-	if failed.Err == "" {
-		t.Fatal("expected failure event to include error message")
-	}
-
-	if len(logger.messages()) == 0 {
-		t.Fatal("expected append failure to be logged")
-	}
-
-	entries := shared.entries()
-	if len(entries) == 0 || entries[0].Domain != "anime" || entries[0].Level != sharedlogger.LevelWarn {
-		t.Fatalf("expected anime warn structured log, got %#v", entries)
-	}
-
-	failEntry := entries[0]
-	if failEntry.EntityID != "anime-1" {
-		t.Fatalf("expected EntityID 'anime-1', got %q", failEntry.EntityID)
-	}
-	if failEntry.EventType != "anime.write" {
-		t.Fatalf("expected EventType 'anime.write', got %q", failEntry.EventType)
-	}
+	assertWriteFailureReported(t, publisher, logger, shared)
 
 	cancel()
 	writer.Wait()
+}
+
+// assertWriteFailureReported verifies writer failure reporting.
+func assertWriteFailureReported(t *testing.T, publisher *recordingPublisher, logger *recordingWarningLogger, shared *recordingSharedLogger) {
+	t.Helper()
+	published := publisher.events()
+	if len(published) != 1 {
+		t.Fatalf("expected 1 failure event, got %d", len(published))
+	}
+	failed, ok := published[0].(events.AnimeWriteFailedEvent)
+	if !ok || failed.AnimeID != "anime-1" || failed.Path != "data/animes.dat" || failed.Err == "" {
+		t.Fatalf("unexpected failure event: %#v", published[0])
+	}
+	entries := shared.entries()
+	if len(logger.messages()) == 0 || len(entries) == 0 || entries[0].Domain != "anime" || entries[0].Level != sharedlogger.LevelWarn || entries[0].EntityID != "anime-1" || entries[0].EventType != "anime.write" {
+		t.Fatalf("unexpected failure logs: %#v", entries)
+	}
 }

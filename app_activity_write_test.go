@@ -174,21 +174,7 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 			progress := 2.0
 
 			got, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress})
-			if test.wantErr != nil {
-				if !errors.Is(err, test.wantErr) {
-					t.Fatalf("PatchAnime error = %v, want %v", err, test.wantErr)
-				}
-				if got != (contracts.AnimePatchResult{}) {
-					t.Fatalf("failure result = %#v, want zero value", got)
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("PatchAnime: %v", err)
-				}
-				if got != test.result {
-					t.Fatalf("result = %#v, want %#v", got, test.result)
-				}
-			}
+			assertActivityPatchOutcome(t, got, err, test.result, test.wantErr)
 
 			records, listErr := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
 			if listErr != nil {
@@ -198,5 +184,25 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 				t.Fatalf("outcome %q recorded activity: %#v", test.result.Outcome, records)
 			}
 		})
+	}
+}
+
+// assertActivityPatchOutcome verifies a patch result and its expected error.
+func assertActivityPatchOutcome(t *testing.T, got contracts.AnimePatchResult, err error, want contracts.AnimePatchResult, wantErr error) {
+	t.Helper()
+	if wantErr != nil {
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("PatchAnime error = %v, want %v", err, wantErr)
+		}
+		if got != (contracts.AnimePatchResult{}) {
+			t.Fatalf("failure result = %#v, want zero value", got)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("PatchAnime: %v", err)
+	}
+	if got != want {
+		t.Fatalf("result = %#v, want %#v", got, want)
 	}
 }

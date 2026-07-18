@@ -1,13 +1,6 @@
 package sync
 
-import (
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"time"
-
-	"autoreas-bridge/internal/persistence"
-)
+import "encoding/json"
 
 const (
 	animeSnapshotsDDL = `
@@ -141,130 +134,7 @@ const (
 		)`
 )
 
-// schemaTables returns the TableSchema descriptors for all sync-owned bridge tables.
-// The composition root in initializeBridgeDB assembles this set with download.SchemaTables()
-// to form the complete bridge schema without either context importing the other's definitions.
-func schemaTables() []persistence.TableSchema {
-	return []persistence.TableSchema{
-		{
-			Name:      "pairing_tokens",
-			CreateDDL: pairingTokensDDL,
-		},
-		{
-			Name:      "devices",
-			CreateDDL: devicesDDL,
-		},
-		{
-			Name:      "conflicts",
-			CreateDDL: conflictsDDL,
-		},
-		{
-			// anime_snapshots uses Migrate instead of plain ColumnAdds: it must reject
-			// unknown column shapes (not silently add to them), per the SDD-30 introspection
-			// precedent (ADR-30-1/§7). Legacy 3-col tables (anime_id, snapshot_json,
-			// snapshot_hash) get modified_at added via safe additive ALTER; pre-existing rows
-			// read back modified_at=0, a valid OCC base.
-			Name:      "anime_snapshots",
-			CreateDDL: animeSnapshotsDDL,
-			Migrate: func(db *sql.DB, cols []string) error {
-				for _, c := range cols {
-					if c == "modified_at" {
-						return nil // already migrated — noop
-					}
-				}
-				if isLegacyAnimeSnapshotsSchema(cols) {
-					if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN modified_at INTEGER NOT NULL DEFAULT 0`); err != nil {
-						return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
-					}
-					return nil
-				}
-				return fmt.Errorf("unsupported anime_snapshots schema columns: %v", cols)
-			},
-		},
-		{
-			// changelog uses Migrate for the legacy payload-only → multi-column rebuild path
-			// (rename+copy+drop transaction, which additive ALTER cannot express).
-			Name:      "changelog",
-			CreateDDL: changelogDDL,
-			Indexes:   []string{changelogSourceEventIndexDDL},
-			Migrate: func(db *sql.DB, cols []string) error {
-				if isCurrentChangelogSchema(cols) {
-					if !containsSchemaColumn(cols, "source_event_id") {
-						if _, err := db.Exec(`ALTER TABLE changelog ADD COLUMN source_event_id TEXT`); err != nil {
-							return fmt.Errorf("add changelog source event identity: %w", err)
-						}
-					}
-					return nil
-				}
-				if isLegacyPayloadOnlyChangelogSchema(cols) {
-					return migrateLegacyChangelogSchema(db)
-				}
-				return fmt.Errorf("unsupported changelog schema columns: %v", cols)
-			},
-		},
-		{
-			// app_settings: idempotent create-only; no ColumnAdds, no Migrate.
-			// A missing row is the canonical default-false value for all boolean settings.
-			Name:      "app_settings",
-			CreateDDL: appSettingsDDL,
-		},
-		{
-			// device_sync_state: recovered at merge time — the sdd-34 registry
-			// refactor dropped this table's creation (a latent regression: only
-			// changelog_store writes to it, and no test bootstraps it fresh);
-			// main's pre-registry bootstrap still created it. Create-only.
-			Name:      "device_sync_state",
-			CreateDDL: deviceSyncStateDDL,
-		},
-		{
-			// bridge_owned_animes (SDD-48): idempotent create-only, no
-			// ColumnAdds, no Migrate. A missing row means "not known to be
-			// Bridge-native" — the reconcile treats absence as unowned.
-			Name:      "bridge_owned_animes",
-			CreateDDL: bridgeOwnedAnimesDDL,
-		},
-		{
-			// anime_write_operations retains staged and committed pre-write
-			// evidence for recovery and SDD-50. SDD-49 intentionally defines no
-			// pruning path for these rows.
-			Name:      "anime_write_operations",
-			CreateDDL: animeWriteOperationsDDL,
-			Indexes: []string{
-				animeWriteOperationsAnimeTokenIndexDDL,
-				animeWriteOperationsRecoveryIndexDDL,
-				animeWriteOperationsLiveReservationIndexDDL,
-			},
-			Migrate: func(db *sql.DB, cols []string) error {
-				if !containsSchemaColumn(cols, "batch_id") {
-					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''`); err != nil {
-						return fmt.Errorf("add anime_write_operations batch_id: %w", err)
-					}
-				}
-				if !containsSchemaColumn(cols, "batch_order") {
-					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_order INTEGER NOT NULL DEFAULT 0`); err != nil {
-						return fmt.Errorf("add anime_write_operations batch_order: %w", err)
-					}
-				}
-				if !containsSchemaColumn(cols, "batch_size") {
-					if _, err := db.Exec(`ALTER TABLE anime_write_operations ADD COLUMN batch_size INTEGER NOT NULL DEFAULT 1`); err != nil {
-						return fmt.Errorf("add anime_write_operations batch_size: %w", err)
-					}
-				}
-				return nil
-			},
-		},
-		{
-			Name:      "anime_changed_outbox",
-			CreateDDL: animeChangedOutboxDDL,
-			Indexes:   []string{animeChangedOutboxPendingIndexDDL},
-		},
-		{
-			Name:      "anime_batch_replacements",
-			CreateDDL: animeBatchReplacementsDDL,
-		},
-	}
-}
-
+// containsSchemaColumn reports whether columns contains want.
 func containsSchemaColumn(columns []string, want string) bool {
 	for _, column := range columns {
 		if column == want {
@@ -274,6 +144,7 @@ func containsSchemaColumn(columns []string, want string) bool {
 	return false
 }
 
+// isLegacyAnimeSnapshotsSchema recognizes the original snapshot columns.
 func isLegacyAnimeSnapshotsSchema(columns []string) bool {
 	if len(columns) != 3 {
 		return false
@@ -293,6 +164,7 @@ func isLegacyAnimeSnapshotsSchema(columns []string) bool {
 	return true
 }
 
+// isCurrentChangelogSchema reports whether columns satisfy the current changelog shape.
 func isCurrentChangelogSchema(columns []string) bool {
 	required := map[string]bool{
 		"id":                  false,
@@ -316,6 +188,7 @@ func isCurrentChangelogSchema(columns []string) bool {
 	return true
 }
 
+// isLegacyPayloadOnlyChangelogSchema recognizes the original payload-only changelog shape.
 func isLegacyPayloadOnlyChangelogSchema(columns []string) bool {
 	if len(columns) != 4 {
 		return false
@@ -335,74 +208,7 @@ func isLegacyPayloadOnlyChangelogSchema(columns []string) bool {
 	return true
 }
 
-func migrateLegacyChangelogSchema(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	if _, err = tx.Exec(`ALTER TABLE changelog RENAME TO changelog_legacy`); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(changelogDDL); err != nil {
-		return err
-	}
-
-	rows, err := tx.Query(`SELECT id, anime_id, payload_json, status FROM changelog_legacy ORDER BY id ASC`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	nowMs := time.Now().UnixMilli()
-	for rows.Next() {
-		var id int64
-		var animeID string
-		var payload sql.NullString
-		var status string
-		if err = rows.Scan(&id, &animeID, &payload, &status); err != nil {
-			return err
-		}
-		snapshotJSON := ""
-		changedFieldsJSON := "[]"
-		changeType := "update"
-		if payload.Valid && payload.String != "" {
-			snapshotJSON = payload.String
-			changedFieldsJSON = deriveChangedFieldsJSONFromLegacyPayload(payload.String)
-		}
-		changedAtMs := nowMs + id
-		if _, err = tx.Exec(`
-			INSERT INTO changelog (id, anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, id, animeID, changeType, changedFieldsJSON, snapshotJSON, status, changedAtMs); err != nil {
-			return err
-		}
-	}
-	if err = rows.Err(); err != nil {
-		return err
-	}
-
-	if _, err = tx.Exec(`DROP TABLE changelog_legacy`); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(`DELETE FROM sqlite_sequence WHERE name = 'changelog'`); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(`INSERT INTO sqlite_sequence(name, seq) SELECT 'changelog', COALESCE(MAX(id), 0) FROM changelog`); err != nil {
-		return err
-	}
-
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-	return nil
-}
-
+// deriveChangedFieldsJSONFromLegacyPayload extracts changed field names from legacy JSON.
 func deriveChangedFieldsJSONFromLegacyPayload(payload string) string {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(payload), &raw); err != nil {

@@ -52,6 +52,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onRecheckAvailability: vi.fn(),
     onResolve: vi.fn(),
     onDiscard: vi.fn(),
+    onOpenPage: vi.fn(),
     ...overrides,
   };
   mockedUseIntakePanel.mockReturnValue(value);
@@ -138,6 +139,17 @@ describe('IntakePanel', () => {
     });
     render(<IntakePanel />);
     expect(screen.getByTitle('D:/Anime/Dr. Stone')).toBeInTheDocument();
+  });
+
+  it('opens the matched page in the system browser from the link button', () => {
+    const onOpenPage = vi.fn();
+    mockHook({
+      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableChapters: 1 })],
+      onOpenPage,
+    });
+    render(<IntakePanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open the page for Dr. Stone' }));
+    expect(onOpenPage).toHaveBeenCalledWith('https://jkanime.net/dr-stone/');
   });
 
   it('discards an editable row', () => {

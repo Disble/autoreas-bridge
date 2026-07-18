@@ -1,13 +1,10 @@
 package legacy_test
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"os"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -103,39 +100,64 @@ func TestBatchReplacementRecoveryHandlesStagedTempAndRestorationCheckpoints(t *t
 		{name: "temp durable with canonical present", phase: legacy.BatchReplacementPhaseTempDurable},
 		{name: "backup moved with unusable temp restores then retries", phase: legacy.BatchReplacementPhaseBackupMoved, corruptTemp: true},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			db := openGatewayDB(t)
-			path, operations := seedBatchFixture(t, db)
-			interrupted := errors.New("injected checkpoint interruption")
-			first := newGateway(t, gatewayConfig{
-				db: db, path: path, clock: 200, operationID: "batch-checkpoint",
-				replaceCheckpoint: func(phase legacy.BatchReplacementPhase) error {
-					if phase != tt.phase {
-						return nil
-					}
-					if tt.corruptTemp {
-						journal, err := bridgeSync.NewWriteBaseStore(db).GetBatchReplacement(ctx, "batch-checkpoint")
-						if err != nil {
-							return err
-						}
-						if err := os.WriteFile(journal.TempPath, []byte("corrupt"), 0o600); err != nil {
-							return err
-						}
-					}
-					return interrupted
-				},
-			})
-			if _, err := first.ApplyBatch(ctx, operations); !errors.Is(err, interrupted) {
-				t.Fatalf("expected checkpoint interruption, got %v", err)
-			}
-			if err := newGateway(t, gatewayConfig{db: db, path: path, clock: 201}).Recover(ctx); err != nil {
-				t.Fatalf("recover checkpoint: %v", err)
-			}
-			assertBatchDesired(t, path)
-			assertBatchCommittedTogether(t, db, 2)
-		})
+		t.Run(tt.name, func(t *testing.T) { runBatchReplacementRecoveryCheckpointCase(t, tt.phase, tt.corruptTemp) })
 	}
+}
+
+// runBatchReplacementRecoveryCheckpointCase exercises recovery from one checkpoint.
+func runBatchReplacementRecoveryCheckpointCase(t *testing.T, phase legacy.BatchReplacementPhase, corruptTemp bool) {
+	t.Helper()
+
+	ctx := context.Background()
+	db := openGatewayDB(t)
+	path, operations := seedBatchFixture(t, db)
+	interrupted := errors.New("injected checkpoint interruption")
+	first := newGateway(t, gatewayConfig{
+		db: db, path: path, clock: 200, operationID: "batch-checkpoint",
+		replaceCheckpoint: func(current legacy.BatchReplacementPhase) error {
+			return interruptBatchReplacementCheckpoint(ctx, db, current, phase, corruptTemp, interrupted)
+		},
+	})
+	if _, err := first.ApplyBatch(ctx, operations); !errors.Is(err, interrupted) {
+		t.Fatalf("expected checkpoint interruption, got %v", err)
+	}
+	if err := newGateway(t, gatewayConfig{db: db, path: path, clock: 201}).Recover(ctx); err != nil {
+		t.Fatalf("recover checkpoint: %v", err)
+	}
+	assertBatchDesired(t, path)
+	assertBatchCommittedTogether(t, db, 2)
+}
+
+// interruptBatchReplacementCheckpoint injects a checkpoint interruption.
+func interruptBatchReplacementCheckpoint(
+	ctx context.Context,
+	db *sql.DB,
+	current legacy.BatchReplacementPhase,
+	target legacy.BatchReplacementPhase,
+	corruptTemp bool,
+	interrupted error,
+) error {
+	if current != target {
+		return nil
+	}
+	if err := corruptBatchReplacementTempIfRequested(ctx, db, corruptTemp); err != nil {
+		return err
+	}
+
+	return interrupted
+}
+
+// corruptBatchReplacementTempIfRequested corrupts the temp file when requested.
+func corruptBatchReplacementTempIfRequested(ctx context.Context, db *sql.DB, corruptTemp bool) error {
+	if !corruptTemp {
+		return nil
+	}
+	journal, err := bridgeSync.NewWriteBaseStore(db).GetBatchReplacement(ctx, "batch-checkpoint")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(journal.TempPath, []byte("corrupt"), 0o600)
 }
 
 func TestBatchReplacementRevalidatesGenerationBeforePromotion(t *testing.T) {
@@ -205,13 +227,14 @@ func TestBatchReplacementWatcherPublishesOnlyFinalizedOutboxEvents(t *testing.T)
 	db := openGatewayDB(t)
 	path, operations := seedBatchFixture(t, db)
 	registry := anime.NewSelfEchoRegistry()
-	publisher := &countingEventPublisher{}
+	publisher := newCountingEventPublisher()
 	watcher := anime.NewRuntimeWatcher(anime.RuntimeWatcherConfig{
 		FilePath: path, Parser: anime.NewSnapshotParser(), Store: bridgeSync.NewAnimeSnapshotStore(db),
 		Publisher: publisher, SelfEchoRegistry: registry, DebounceWindow: 10 * time.Millisecond,
 	})
 	watcher.StartAsync(ctx)
-	time.Sleep(50 * time.Millisecond)
+	appendAndWaitForWatcher(t, publisher, path, gatewayAnimeJSON("watcher-ready", 1))
+	publisher.reset()
 
 	promoted := make(chan struct{})
 	release := make(chan struct{})
@@ -229,7 +252,7 @@ func TestBatchReplacementWatcherPublishesOnlyFinalizedOutboxEvents(t *testing.T)
 	result := make(chan error, 1)
 	go func() { _, err := gateway.ApplyBatch(ctx, operations); result <- err }()
 	<-promoted
-	time.Sleep(100 * time.Millisecond)
+	publisher.assertNoNewEvents(t, 150*time.Millisecond)
 	if got := publisher.count.Load(); got != 0 {
 		t.Fatalf("watcher published %d replacement events before finalize", got)
 	}
@@ -237,10 +260,41 @@ func TestBatchReplacementWatcherPublishesOnlyFinalizedOutboxEvents(t *testing.T)
 	if err := <-result; err != nil {
 		t.Fatalf("apply watched batch: %v", err)
 	}
-	time.Sleep(100 * time.Millisecond)
+	publisher.waitForCount(t, 2, time.Second)
 	if got := publisher.count.Load(); got != 2 {
 		t.Fatalf("expected exactly two finalized outbox publications, got %d", got)
 	}
+	cancel()
+	watcher.Wait()
+}
+
+func TestBatchReplacementWatcherDoesNotProcessWhileReplacementInFlight(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := openGatewayDB(t)
+	path, _ := seedBatchFixture(t, db)
+	registry := anime.NewSelfEchoRegistry()
+	publisher := newCountingEventPublisher()
+	watcher := anime.NewRuntimeWatcher(anime.RuntimeWatcherConfig{
+		FilePath: path, Parser: anime.NewSnapshotParser(), Store: bridgeSync.NewAnimeSnapshotStore(db),
+		Publisher: publisher, SelfEchoRegistry: registry, DebounceWindow: 10 * time.Millisecond,
+	})
+	watcher.StartAsync(ctx)
+	appendAndWaitForWatcher(t, publisher, path, gatewayAnimeJSON("watcher-ready", 1))
+	publisher.reset()
+
+	registry.BeginReplacement()
+	if err := appendGatewayLine(path, gatewayAnimeJSON("anime-external", 7)); err != nil {
+		t.Fatalf("append while replacement in flight: %v", err)
+	}
+	publisher.assertNoNewEvents(t, 200*time.Millisecond)
+	registry.EndReplacement()
+
+	if err := appendGatewayLine(path, gatewayAnimeJSON("anime-external-2", 8)); err != nil {
+		t.Fatalf("append after replacement released: %v", err)
+	}
+	publisher.waitForCount(t, 1, time.Second)
+
 	cancel()
 	watcher.Wait()
 }
@@ -280,79 +334,6 @@ func TestBatchReplacementMixedEffectiveStateIsDivergentAsAGroup(t *testing.T) {
 	if superseded != 2 || committed != 0 {
 		t.Fatalf("mixed batch recovered partially: superseded=%d committed=%d", superseded, committed)
 	}
-}
-
-func seedBatchFixture(t *testing.T, db *sql.DB) (string, []legacy.BatchOperation) {
-	t.Helper()
-	baseA := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-a", 1))
-	baseB := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-b", 1))
-	desiredA := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-a", 2))
-	desiredB := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-b", 2))
-	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-	if err := snapshots.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
-		"anime-a": {AnimeID: "anime-a", CanonicalJSON: baseA, Hash: anime.HashSnapshot(baseA), ModifiedAt: 100},
-		"anime-b": {AnimeID: "anime-b", CanonicalJSON: baseB, Hash: anime.HashSnapshot(baseB), ModifiedAt: 100},
-	}, nil); err != nil {
-		t.Fatalf("seed batch snapshots: %v", err)
-	}
-	path := writeGatewayData(t, baseA)
-	if err := appendGatewayLine(path, baseB); err != nil {
-		t.Fatalf("append second batch base: %v", err)
-	}
-	return path, []legacy.BatchOperation{
-		{AnimeID: "anime-a", Base: legacy.Snapshot{AnimeID: "anime-a", CanonicalJSON: baseA, Hash: anime.HashSnapshot(baseA), ModifiedAt: 100}, Desired: desiredA},
-		{AnimeID: "anime-b", Base: legacy.Snapshot{AnimeID: "anime-b", CanonicalJSON: baseB, Hash: anime.HashSnapshot(baseB), ModifiedAt: 100}, Desired: desiredB},
-	}
-}
-
-func assertBatchDesired(t *testing.T, path string) {
-	t.Helper()
-	for _, id := range []string{"anime-a", "anime-b"} {
-		payload := effectivePayload(t, path, id)
-		if payload == nil || !jsonContainsProgress(t, payload, 2) {
-			t.Fatalf("expected desired effective state for %s, got %s", id, payload)
-		}
-	}
-}
-
-func assertBatchCommittedTogether(t *testing.T, db *sql.DB, want int) {
-	t.Helper()
-	var committed int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM anime_write_operations WHERE status = 'committed'`).Scan(&committed); err != nil {
-		t.Fatalf("count committed operations: %v", err)
-	}
-	if committed != want {
-		t.Fatalf("expected %d committed batch rows, got %d", want, committed)
-	}
-}
-
-func effectivePayload(t *testing.T, path, animeID string) []byte {
-	t.Helper()
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open effective file: %v", err)
-	}
-	defer file.Close()
-	var effective []byte
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := append([]byte(nil), scanner.Bytes()...)
-		var envelope struct {
-			ID string `json:"_id"`
-		}
-		if json.Unmarshal(line, &envelope) == nil && envelope.ID == animeID {
-			effective = line
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		t.Fatalf("scan effective file: %v", err)
-	}
-	return effective
-}
-
-type failBatchFinalizeOnceStore struct {
-	legacy.WriteBaseStore
-	once sync.Once
 }
 
 func TestBatchReplacementReleasesEchoStateAndWatcherResumesOnAmbiguousError(t *testing.T) {
@@ -416,30 +397,4 @@ func TestBatchReplacementReleasesEchoStateOnDefiniteError(t *testing.T) {
 	if registry.ReplacementInFlight() {
 		t.Fatal("ReplacementInFlight must be false after definite replacement error, was true")
 	}
-}
-
-type failStageBatchReplaceOnceStore struct {
-	legacy.WriteBaseStore
-	failErr error
-}
-
-func (s *failStageBatchReplaceOnceStore) StageBatchReplacement(_ context.Context, _ legacy.BatchReplacementJournal) error {
-	return s.failErr
-}
-
-type countingEventPublisher struct{ count atomic.Int32 }
-
-func (p *countingEventPublisher) Publish(event events.Event) {
-	if _, ok := event.(events.AnimeChangedEvent); ok {
-		p.count.Add(1)
-	}
-}
-
-func (s *failBatchFinalizeOnceStore) FinalizeBatch(ctx context.Context, batchID string, committedAtMs int64) error {
-	failed := false
-	s.once.Do(func() { failed = true })
-	if failed {
-		return errors.New("injected batch finalize failure")
-	}
-	return s.WriteBaseStore.FinalizeBatch(ctx, batchID, committedAtMs)
 }

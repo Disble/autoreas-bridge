@@ -1,5 +1,6 @@
 import { Button, Card, Chip, Disclosure, Label, ListBox, Select, Skeleton, Typography } from '@heroui/react';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
+import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
 import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
@@ -60,22 +61,16 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
                 </ListBox>
               </Select.Popover>
             </Select>
-            <Select
+            <LabeledSelect
+              ariaLabel="Type"
+              fallbackValue={viewModel.draft.kind}
+              label="Type"
+              options={ANIME_EDITOR_KIND_OPTIONS}
               placeholder="Select type"
-              value={viewModel.draft.kind}
               variant="secondary"
-              onChange={(value) => { if (value !== null) viewModel.onDraftChange('kind', String(value)); }}
-            >
-              <Label>Type</Label>
-              <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  {ANIME_EDITOR_KIND_OPTIONS.map((option) => (
-                    <ListBox.Item id={option.value} key={option.value} textValue={option.label}>{option.label}<ListBox.ItemIndicator /></ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
+              value={viewModel.draft.kind}
+              onChange={(value) => viewModel.onDraftChange('kind', value)}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -111,17 +106,16 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
                 <LabeledTextField label="Origin" placeholder="e.g. Manga, Light novel" value={viewModel.draft.origin} onChange={(value) => viewModel.onDraftChange('origin', value)} />
                 <LabeledTextField description="When the anime first aired." label="Premiere date" type="date" value={premieredMsToDateInput(viewModel.draft.premieredAt)} onChange={(value) => viewModel.onDraftChange('premieredAt', premieredDateInputToMs(value))} />
                 <div className="grid gap-4 md:col-span-2 md:grid-cols-[10rem_1fr]">
-                  <Select aria-label="Cover source" value={viewModel.draft.coverType} variant="secondary" onChange={(value) => { if (value !== null) viewModel.onDraftChange('coverType', String(value)); }}>
-                    <Label>Cover source</Label>
-                    <Select.Trigger><Select.Value /><Select.Indicator /></Select.Trigger>
-                    <Select.Popover>
-                      <ListBox>
-                        {ANIME_EDITOR_COVER_TYPE_OPTIONS.map((option) => (
-                          <ListBox.Item id={option.value} key={option.value} textValue={option.label}>{option.label}<ListBox.ItemIndicator /></ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
+                  <LabeledSelect
+                    ariaLabel="Cover source"
+                    fallbackValue={viewModel.draft.coverType}
+                    label="Cover source"
+                    options={ANIME_EDITOR_COVER_TYPE_OPTIONS}
+                    placeholder="Select cover source"
+                    variant="secondary"
+                    value={viewModel.draft.coverType}
+                    onChange={(value) => viewModel.onDraftChange('coverType', value)}
+                  />
                   {viewModel.draft.coverType === 'image' ? (
                     <PathPickerField
                       description="Local image file on disk."

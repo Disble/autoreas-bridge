@@ -1,9 +1,10 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
-import { toRunHistoryPanelViewModel } from './run-history-panel.helpers';
+import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
+import { getNextVisibleRunCount, reconcileVisibleRunCount, toRunHistoryPanelViewModel } from './run-history-panel.helpers';
 
 /**
  * useRunHistoryPanel loads the download run history and exposes a
@@ -13,8 +14,10 @@ import { toRunHistoryPanelViewModel } from './run-history-panel.helpers';
  */
 export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRuntimeSource) {
   // 1. Refs
+  const previousRunCountRef = useRef(0);
 
   // 2. State
+  const [visibleCount, setVisibleCount] = useState(RUN_HISTORY_PAGE_SIZE);
 
   // 3. Context/3rd Party Hooks
   const runs = useDownloadRuntimeStore((state) => state.runHistory);
@@ -33,6 +36,10 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     storeSelectRun(runId);
   }, [storeSelectRun]);
 
+  const loadMore = useCallback(() => {
+    setVisibleCount((currentVisibleCount) => getNextVisibleRunCount(currentVisibleCount, runs.length));
+  }, [runs.length]);
+
   // 7. Effects
   useEffect(() => {
     connectDownloadRuntimeStore(source);
@@ -42,7 +49,14 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     void refreshRunHistory(source);
   }, [refreshRunHistory, source]);
 
-  const baseViewModel = toRunHistoryPanelViewModel(runs, selectedRunId);
+  useEffect(() => {
+    setVisibleCount((currentVisibleCount) =>
+      reconcileVisibleRunCount(currentVisibleCount, previousRunCountRef.current, runs, selectedRunId),
+    );
+    previousRunCountRef.current = runs.length;
+  }, [runs, selectedRunId]);
+
+  const baseViewModel = toRunHistoryPanelViewModel(runs, selectedRunId, visibleCount);
   let viewModel = baseViewModel;
 
   if (errorMessage !== undefined) {
@@ -53,6 +67,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
 
   return {
     viewModel,
+    loadMore,
     selectRun,
   };
 }

@@ -41,6 +41,7 @@ func (g *fakeAppGateway) SetSelection(_ context.Context, animeID string, estado 
 	return season.AnimeMutationResult{AnimeID: animeID, Outcome: season.AnimeMutationApplied}, nil
 }
 
+// seedSelectionApp creates a season selection fixture for tests.
 func seedSelectionApp(t *testing.T, hub *stubAppRealtimeHub, slots int) (*App, *fakeAppGateway) {
 	t.Helper()
 	repo := newFakeSeasonRepo()

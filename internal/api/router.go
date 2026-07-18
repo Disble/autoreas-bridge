@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/device"
 )
 
+// Handler serves the bridge HTTP API surface.
 type Handler struct {
 	deviceService          device.AuthService
 	patchAnime             http.Handler
@@ -24,101 +25,125 @@ type Handler struct {
 	onPairingTokenConsumed func()
 }
 
+// NewHandler builds the API router for the configured bridge services.
 func NewHandler(config Config) http.Handler {
 	h := &Handler{deviceService: config.DeviceService, config: config, onPairingTokenConsumed: config.OnPairingTokenConsumed}
-	h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
+	h.patchAnime = apiHandlers.NewPatchAnimeHandler(buildPatchAnimeConfig(h, config))
+	h.syncReconcile = apiHandlers.NewSyncHandler(buildSyncHandlerConfig(h, config))
+	h.seasonRatings = buildSeasonRatingHandler(h, config)
+	h.activeSeason = buildActiveSeasonHandler(h, config)
+	h.mux = buildHandlerMux(h, config)
+	return h
+}
+
+// buildPatchAnimeConfig assembles dependencies for the anime patch handler.
+func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConfig {
+	patchConfig := apiHandlers.PatchAnimeConfig{
 		Authenticate: h.authenticate,
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
 			return config.AnimeQuery.GetEffectiveAnime(ctx, id)
 		},
 		IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
-	})
-	if config.AnimeWrite != nil {
-		h.patchAnime = apiHandlers.NewPatchAnimeHandler(apiHandlers.PatchAnimeConfig{
-			Authenticate: h.authenticate,
-			QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
-				return config.AnimeQuery.GetEffectiveAnime(ctx, id)
-			},
-			PatchAnime: apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite),
-			IsNotFound: func(err error) bool { return errors.Is(err, ErrAnimeNotFound) },
-		})
 	}
+	if config.AnimeWrite != nil {
+		patchConfig.PatchAnime = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
+	}
+	return patchConfig
+}
+
+// buildSyncHandlerConfig assembles dependencies for the sync handler.
+func buildSyncHandlerConfig(h *Handler, config Config) apiHandlers.SyncHandlerConfig {
 	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
 	if config.AnimeWrite != nil {
 		syncConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 	}
+	if config.SyncTrigger == nil {
+		return syncConfig
+	}
+	syncConfig.TriggerReconcile = func(ctx context.Context) error { return config.SyncTrigger.TriggerReconcile(ctx) }
+	syncConfig.ListChangesAfterID = func(ctx context.Context, lastID int64) ([]apiHandlers.AnimeChange, int64, error) {
+		return config.SyncTrigger.ListChangesAfterID(ctx, lastID)
+	}
+	syncConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
+		return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
+	}
+	return syncConfig
+}
+
+// buildSeasonRatingHandler creates the season-rating handler when configured.
+func buildSeasonRatingHandler(h *Handler, config Config) http.Handler {
+	if config.RecordSeasonRating == nil {
+		return nil
+	}
+	return apiHandlers.NewSeasonRatingHandler(apiHandlers.SeasonRatingConfig{Authenticate: h.authenticate, RecordRating: config.RecordSeasonRating})
+}
+
+// buildActiveSeasonHandler creates the active-season handler when configured.
+func buildActiveSeasonHandler(h *Handler, config Config) http.Handler {
+	if config.ActiveSeasonSnapshot == nil {
+		return nil
+	}
+	return apiHandlers.NewActiveSeasonHandler(apiHandlers.ActiveSeasonConfig{Authenticate: h.authenticate, Snapshot: config.ActiveSeasonSnapshot})
+}
+
+// buildHandlerMux registers the bridge API routes on a new multiplexer.
+func buildHandlerMux(h *Handler, config Config) *http.ServeMux {
+	mux := http.NewServeMux()
+	for _, route := range []struct {
+		path    string
+		handler func(http.ResponseWriter, *http.Request)
+	}{
+		{path: "/api/devices/pair", handler: h.handlePairDevice},
+		{path: "/api/devices", handler: h.handleDevices},
+		{path: "/api/devices/", handler: h.handleDeviceByID},
+		{path: "/api/animes", handler: h.handleAnimes},
+		{path: "/api/animes/", handler: h.handleAnimeByID},
+		{path: "/api/status", handler: h.handleStatus},
+		{path: "/api/conflicts", handler: h.handleConflicts},
+		{path: "/api/conflicts/", handler: h.handleConflictByID},
+		{path: "/api/sync/reconcile", handler: h.handleSyncReconcile},
+		{path: "/api/seasons/active", handler: h.handleActiveSeason},
+		{path: "/api/seasons/active/ratings", handler: h.handleSeasonRatings},
+	} {
+		mux.HandleFunc(route.path, route.handler)
+	}
+	registerWebSocketRoute(mux, h, config)
+	return mux
+}
+
+// registerWebSocketRoute adds the realtime route when a hub is configured.
+func registerWebSocketRoute(mux *http.ServeMux, h *Handler, config Config) {
+	if config.RealtimeHub == nil {
+		return
+	}
+	mux.Handle("/ws", apiHandlers.NewWebSocketHandler(buildWebSocketHandlerConfig(h, config)))
+}
+
+// buildWebSocketHandlerConfig assembles dependencies for the websocket handler.
+func buildWebSocketHandlerConfig(h *Handler, config Config) apiHandlers.WebSocketHandlerConfig {
+	wsConfig := apiHandlers.WebSocketHandlerConfig{
+		Authenticate:       h.authenticateWebSocket,
+		RecordSeasonRating: config.RecordSeasonRating,
+		Hub:                config.RealtimeHub,
+		Logger:             config.Logger,
+	}
+	if config.AnimeWrite != nil {
+		wsConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
+	}
 	if config.SyncTrigger != nil {
-		syncConfig.TriggerReconcile = func(ctx context.Context) error {
-			return config.SyncTrigger.TriggerReconcile(ctx)
-		}
-		syncConfig.ListChangesAfterID = func(ctx context.Context, lastID int64) ([]apiHandlers.AnimeChange, int64, error) {
-			return config.SyncTrigger.ListChangesAfterID(ctx, lastID)
-		}
-		syncConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
+		wsConfig.TriggerReconcile = func(ctx context.Context) error { return config.SyncTrigger.TriggerReconcile(ctx) }
+		wsConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
 			return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
 		}
 	}
-	h.syncReconcile = apiHandlers.NewSyncHandler(syncConfig)
-	if config.RecordSeasonRating != nil {
-		h.seasonRatings = apiHandlers.NewSeasonRatingHandler(apiHandlers.SeasonRatingConfig{
-			Authenticate: h.authenticate,
-			RecordRating: config.RecordSeasonRating,
-		})
-	}
-	if config.ActiveSeasonSnapshot != nil {
-		h.activeSeason = apiHandlers.NewActiveSeasonHandler(apiHandlers.ActiveSeasonConfig{
-			Authenticate: h.authenticate,
-			Snapshot:     config.ActiveSeasonSnapshot,
-		})
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/devices/pair", h.handlePairDevice)
-	mux.HandleFunc("/api/devices", h.handleDevices)
-	mux.HandleFunc("/api/devices/", h.handleDeviceByID)
-	mux.HandleFunc("/api/animes", h.handleAnimes)
-	mux.HandleFunc("/api/animes/", h.handleAnimeByID)
-	mux.HandleFunc("/api/status", h.handleStatus)
-	mux.HandleFunc("/api/conflicts", h.handleConflicts)
-	mux.HandleFunc("/api/conflicts/", h.handleConflictByID)
-	mux.HandleFunc("/api/sync/reconcile", h.handleSyncReconcile)
-	mux.HandleFunc("/api/seasons/active", h.handleActiveSeason)
-	mux.HandleFunc("/api/seasons/active/ratings", h.handleSeasonRatings)
-	if config.RealtimeHub != nil {
-		wsConfig := apiHandlers.WebSocketHandlerConfig{
-			Authenticate: h.authenticateWebSocket,
-			Hub:          config.RealtimeHub,
-			Logger:       config.Logger,
-		}
-		if config.AnimeWrite != nil {
-			wsConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
-		}
-		if config.SyncTrigger != nil {
-			wsConfig.TriggerReconcile = func(ctx context.Context) error {
-				return config.SyncTrigger.TriggerReconcile(ctx)
-			}
-			wsConfig.AcknowledgeDevice = func(ctx context.Context, deviceID string, lastChangelogID int64) error {
-				return config.SyncTrigger.AcknowledgeDevice(ctx, deviceID, lastChangelogID)
-			}
-		}
-		wsConfig.RecordSeasonRating = config.RecordSeasonRating
-		mux.Handle("/ws", apiHandlers.NewWebSocketHandler(apiHandlers.WebSocketHandlerConfig{
-			Authenticate:       wsConfig.Authenticate,
-			ApplyPendingPatch:  wsConfig.ApplyPendingPatch,
-			TriggerReconcile:   wsConfig.TriggerReconcile,
-			AcknowledgeDevice:  wsConfig.AcknowledgeDevice,
-			RecordSeasonRating: wsConfig.RecordSeasonRating,
-			Hub:                wsConfig.Hub,
-			Logger:             wsConfig.Logger,
-		}))
-	}
-	h.mux = mux
-	return h
+	return wsConfig
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+// handlePairDevice handles requests that pair a new device with the bridge.
 func (h *Handler) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
@@ -162,6 +187,7 @@ func (h *Handler) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleAnimes serves the anime collection and its changes endpoint.
 func (h *Handler) handleAnimes(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		writeMethodNotAllowed(w)
@@ -193,6 +219,7 @@ func (h *Handler) handleAnimes(w http.ResponseWriter, r *http.Request) {
 	writeMethodNotAllowed(w)
 }
 
+// handleAnimeByID serves requests addressed to a specific anime.
 func (h *Handler) handleAnimeByID(w http.ResponseWriter, r *http.Request) {
 	animeID := strings.TrimPrefix(r.URL.Path, "/api/animes/")
 	if animeID == "" || animeID == r.URL.Path {
@@ -236,6 +263,7 @@ func (h *Handler) handleAnimeByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleSyncReconcile dispatches sync reconciliation requests.
 func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
@@ -245,6 +273,7 @@ func (h *Handler) handleSyncReconcile(w http.ResponseWriter, r *http.Request) {
 	h.syncReconcile.ServeHTTP(w, r)
 }
 
+// handleSeasonRatings dispatches active-season rating requests.
 func (h *Handler) handleSeasonRatings(w http.ResponseWriter, r *http.Request) {
 	if h.seasonRatings == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "season rating unavailable")
@@ -253,6 +282,7 @@ func (h *Handler) handleSeasonRatings(w http.ResponseWriter, r *http.Request) {
 	h.seasonRatings.ServeHTTP(w, r)
 }
 
+// handleActiveSeason dispatches active-season snapshot requests.
 func (h *Handler) handleActiveSeason(w http.ResponseWriter, r *http.Request) {
 	if h.activeSeason == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "active season unavailable")
@@ -261,6 +291,7 @@ func (h *Handler) handleActiveSeason(w http.ResponseWriter, r *http.Request) {
 	h.activeSeason.ServeHTTP(w, r)
 }
 
+// handleAnimeChanges serves changelog entries after the requested identifier.
 func (h *Handler) handleAnimeChanges(w http.ResponseWriter, r *http.Request) {
 	if h.config.SyncTrigger == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "sync service unavailable")
@@ -279,46 +310,25 @@ func (h *Handler) handleAnimeChanges(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"changes": changes, "last_changelog_id": lastID})
 }
 
+// handleStatus serves the authenticated bridge status response.
 func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
+	var get func(context.Context) (any, error)
+	if h.config.Status != nil {
+		get = func(ctx context.Context) (any, error) { return h.config.Status.GetStatus(ctx) }
 	}
-	if _, ok := h.authenticate(w, r); !ok {
-		return
-	}
-	if h.config.Status == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "status service unavailable")
-		return
-	}
-	status, err := h.config.Status.GetStatus(r.Context())
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "get status failed")
-		return
-	}
-	writeJSON(w, http.StatusOK, status)
+	h.serveAuthenticatedGET(w, r, "status service unavailable", "get status failed", get)
 }
 
+// handleDevices serves the authenticated device collection response.
 func (h *Handler) handleDevices(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeMethodNotAllowed(w)
-		return
+	var get func(context.Context) (any, error)
+	if h.config.DeviceAdmin != nil {
+		get = func(ctx context.Context) (any, error) { return h.config.DeviceAdmin.ListDevices(ctx) }
 	}
-	if _, ok := h.authenticate(w, r); !ok {
-		return
-	}
-	if h.config.DeviceAdmin == nil {
-		writeJSONError(w, http.StatusServiceUnavailable, "device admin unavailable")
-		return
-	}
-	devices, err := h.config.DeviceAdmin.ListDevices(r.Context())
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "list devices failed")
-		return
-	}
-	writeJSON(w, http.StatusOK, devices)
+	h.serveAuthenticatedGET(w, r, "device admin unavailable", "list devices failed", get)
 }
 
+// handleDeviceByID revokes the device identified by the request path.
 func (h *Handler) handleDeviceByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		writeMethodNotAllowed(w)
@@ -343,6 +353,7 @@ func (h *Handler) handleDeviceByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// handleConflicts serves the authenticated conflict collection response.
 func (h *Handler) handleConflicts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeMethodNotAllowed(w)
@@ -363,6 +374,7 @@ func (h *Handler) handleConflicts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"conflicts": conflicts})
 }
 
+// handleConflictByID resolves the conflict identified by the request path.
 func (h *Handler) handleConflictByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowed(w)
@@ -386,68 +398,4 @@ func (h *Handler) handleConflictByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
-	token, ok := extractBearerToken(r)
-	if !ok {
-		writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
-		return device.PairedDevice{}, false
-	}
-
-	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
-	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
-		return device.PairedDevice{}, false
-	}
-
-	return paired, true
-}
-
-func (h *Handler) authenticateWebSocket(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
-	token, ok := extractBearerToken(r)
-	if !ok {
-		token = strings.TrimSpace(r.URL.Query().Get("token"))
-		if token == "" {
-			writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
-			return device.PairedDevice{}, false
-		}
-	}
-
-	paired, err := h.deviceService.AuthenticateToken(r.Context(), token)
-	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
-		return device.PairedDevice{}, false
-	}
-
-	return paired, true
-}
-
-func extractBearerToken(r *http.Request) (string, bool) {
-	value := strings.TrimSpace(r.Header.Get("Authorization"))
-	const prefix = "Bearer "
-	if !strings.HasPrefix(value, prefix) {
-		return "", false
-	}
-
-	token := strings.TrimSpace(strings.TrimPrefix(value, prefix))
-	if token == "" {
-		return "", false
-	}
-
-	return token, true
-}
-
-func writeMethodNotAllowed(w http.ResponseWriter) {
-	writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
-}
-
-func writeJSONError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
-}
-
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
 }

@@ -125,6 +125,7 @@ func TestChapterServiceListChapterDayCountsOmitsZeroCountDays(t *testing.T) {
 	}
 }
 
+// dayCountsByDay indexes chapter counts by day for assertions.
 func dayCountsByDay(counts []anime.ChapterDayCount) map[string]int {
 	byDay := make(map[string]int, len(counts))
 	for _, c := range counts {

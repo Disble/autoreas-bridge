@@ -64,6 +64,7 @@ func MobileAnimeFromSnapshotForSync(payload []byte) (contracts.MobileAnime, erro
 	return mobileAnimeFromDomain(value, 0), nil
 }
 
+// mobileDays maps domain-level anime day entries into the mobile-contract slice.
 func mobileDays(values []domain.AnimeDay) []contracts.MobileAnimeDay {
 	result := make([]contracts.MobileAnimeDay, 0, len(values))
 	for _, value := range values {
@@ -72,6 +73,7 @@ func mobileDays(values []domain.AnimeDay) []contracts.MobileAnimeDay {
 	return result
 }
 
+// triStateToInt converts a domain-level tri-state boolean into an integer suitable for the mobile contract.
 func triStateToInt(value domain.TriState) int {
 	if value == domain.TriStateTrue {
 		return 1
@@ -79,6 +81,7 @@ func triStateToInt(value domain.TriState) int {
 	return 0
 }
 
+// intValueOrDefault dereferences the pointer or returns fallback when nil.
 func intValueOrDefault(value *int, fallback int) int {
 	if value == nil {
 		return fallback
@@ -86,6 +89,7 @@ func intValueOrDefault(value *int, fallback int) int {
 	return *value
 }
 
+// timeToMillis converts a nullable time value into a nullable Unix-millisecond pointer.
 func timeToMillis(value *time.Time) *int64 {
 	if value == nil {
 		return nil
@@ -94,6 +98,7 @@ func timeToMillis(value *time.Time) *int64 {
 	return &result
 }
 
+// mobileRepetitions maps domain-level repetition entries into the mobile-contract slice.
 func mobileRepetitions(values []domain.Repetition) []contracts.MobileRepeticion {
 	result := make([]contracts.MobileRepeticion, 0, len(values))
 	for _, value := range values {
@@ -107,6 +112,7 @@ func mobileRepetitions(values []domain.Repetition) []contracts.MobileRepeticion 
 	return result
 }
 
+// nonZeroTime returns a pointer to the time value, or nil when it is the zero instant.
 func nonZeroTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
@@ -114,6 +120,7 @@ func nonZeroTime(value time.Time) *time.Time {
 	return &value
 }
 
+// cloneString returns a copy of the string pointer, or nil when given nil.
 func cloneString(value *string) *string {
 	if value == nil {
 		return nil
@@ -129,6 +136,7 @@ func cloneStrings(values []string) []string {
 	return append(make([]string, 0, len(values)), values...)
 }
 
+// cloneInt returns a copy of the int pointer, or nil when given nil.
 func cloneInt(value *int) *int {
 	if value == nil {
 		return nil
@@ -137,6 +145,7 @@ func cloneInt(value *int) *int {
 	return &cloned
 }
 
+// floatToInt truncates a nullable float64 into a nullable int pointer.
 func floatToInt(value *float64) *int {
 	if value == nil {
 		return nil
@@ -145,6 +154,7 @@ func floatToInt(value *float64) *int {
 	return &converted
 }
 
+// joinedStrings joins non-empty values into an optional string.
 func joinedStrings(values []string) *string {
 	if len(values) == 0 {
 		return nil

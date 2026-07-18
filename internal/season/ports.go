@@ -9,14 +9,19 @@ import (
 	"autoreas-bridge/internal/season/match"
 )
 
+// AnimeMutationOutcome classifies the result of an anime-side mutation.
 type AnimeMutationOutcome string
 
 const (
-	AnimeMutationApplied  AnimeMutationOutcome = "applied"
-	AnimeMutationNoOp     AnimeMutationOutcome = "no_op"
+	// AnimeMutationApplied means the mutation changed persisted state.
+	AnimeMutationApplied AnimeMutationOutcome = "applied"
+	// AnimeMutationNoOp means the mutation was accepted but produced no data change.
+	AnimeMutationNoOp AnimeMutationOutcome = "no_op"
+	// AnimeMutationConflict means the mutation lost an optimistic-concurrency check.
 	AnimeMutationConflict AnimeMutationOutcome = "conflict"
 )
 
+// AnimeMutationResult returns the outcome metadata of an anime-side mutation.
 type AnimeMutationResult struct {
 	AnimeID    string
 	Outcome    AnimeMutationOutcome
@@ -24,8 +29,10 @@ type AnimeMutationResult struct {
 	ConflictID string
 }
 
+// ErrAnimeMutationConflict reports an optimistic-concurrency conflict.
 var ErrAnimeMutationConflict = errors.New("anime mutation conflict")
 
+// acceptAnimeMutation converts a mutation result into its accepted error state.
 func acceptAnimeMutation(result AnimeMutationResult) error {
 	switch result.Outcome {
 	case AnimeMutationApplied, AnimeMutationNoOp:

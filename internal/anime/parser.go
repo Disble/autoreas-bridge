@@ -12,6 +12,7 @@ import (
 
 const parserBufferSize = 128 * 1024
 
+// SnapshotParser reads an append-only legacy file into effective snapshot records.
 type SnapshotParser interface {
 	Parse(r io.Reader) (map[string]SnapshotRecord, []ParseWarning, error)
 }
@@ -23,6 +24,7 @@ type tombstoneEnvelope struct {
 	Deleted bool   `json:"$$deleted"`
 }
 
+// NewSnapshotParser builds the streaming snapshot parser used by runtime pipelines.
 func NewSnapshotParser() SnapshotParser {
 	return streamingSnapshotParser{}
 }
@@ -37,22 +39,7 @@ func (streamingSnapshotParser) Parse(r io.Reader) (map[string]SnapshotRecord, []
 		if err != nil && err != io.EOF {
 			return nil, nil, fmt.Errorf("read snapshot line %d: %w", lineNumber, err)
 		}
-
-		if lineNumber == 1 {
-			line = bytes.TrimPrefix(line, []byte{0xEF, 0xBB, 0xBF})
-		}
-
-		line = bytes.TrimSpace(line)
-		if len(line) > 0 {
-			record, warning, ok := parseSnapshotLine(line)
-			if !ok {
-				warnings = append(warnings, ParseWarning{Line: lineNumber, Reason: warning})
-			} else if record.Hash == "" && record.CanonicalJSON == nil {
-				delete(records, record.AnimeID)
-			} else {
-				records[record.AnimeID] = record
-			}
-		}
+		warnings = processSnapshotLine(records, warnings, line, lineNumber)
 
 		if err == io.EOF {
 			break
@@ -62,6 +49,28 @@ func (streamingSnapshotParser) Parse(r io.Reader) (map[string]SnapshotRecord, []
 	return records, warnings, nil
 }
 
+// processSnapshotLine parses one snapshot line and records any warning.
+func processSnapshotLine(records map[string]SnapshotRecord, warnings []ParseWarning, line []byte, lineNumber int) []ParseWarning {
+	if lineNumber == 1 {
+		line = bytes.TrimPrefix(line, []byte{0xEF, 0xBB, 0xBF})
+	}
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return warnings
+	}
+	record, warning, ok := parseSnapshotLine(line)
+	if !ok {
+		return append(warnings, ParseWarning{Line: lineNumber, Reason: warning})
+	}
+	if record.Hash == "" && record.CanonicalJSON == nil {
+		delete(records, record.AnimeID)
+		return warnings
+	}
+	records[record.AnimeID] = record
+	return warnings
+}
+
+// parseSnapshotLine decodes one snapshot line and returns its identifier.
 func parseSnapshotLine(line []byte) (SnapshotRecord, string, bool) {
 	var envelope tombstoneEnvelope
 	if err := json.Unmarshal(line, &envelope); err != nil {

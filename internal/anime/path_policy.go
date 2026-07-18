@@ -9,6 +9,7 @@ import (
 
 var localDrivePathPattern = regexp.MustCompile(`^[A-Za-z]:[\\/]`)
 
+// ValidatePageURL rejects unsafe page URLs before they cross the desktop boundary.
 func ValidatePageURL(value string) error {
 	trimmed := strings.TrimSpace(value)
 	parsed, err := url.ParseRequestURI(trimmed)
@@ -21,6 +22,7 @@ func ValidatePageURL(value string) error {
 	return nil
 }
 
+// ValidateLocalFolder rejects unsafe local folder paths before desktop actions use them.
 func ValidateLocalFolder(value string) error {
 	trimmed := strings.TrimSpace(value)
 	if strings.HasPrefix(trimmed, `\\`) || strings.HasPrefix(trimmed, `//`) || strings.HasPrefix(trimmed, `\\?\`) || strings.HasPrefix(trimmed, `\\.\`) {

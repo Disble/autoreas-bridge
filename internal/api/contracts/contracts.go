@@ -1,11 +1,6 @@
 package contracts
 
-import (
-	"context"
-	"errors"
-	"time"
-)
-
+// MobileAnimeDay describes an ordered legacy schedule placement.
 type MobileAnimeDay struct {
 	Dia   string `json:"dia"`
 	Orden int    `json:"orden"`
@@ -27,6 +22,7 @@ type MobileRepeticion struct {
 	FechaRepeticion  *int64  `json:"fechaRepeticion,omitempty"`
 }
 
+// MobileAnime is the full mobile-facing anime projection.
 type MobileAnime struct {
 	ID               string           `json:"_id"`
 	Nombre           string           `json:"nombre"`
@@ -62,6 +58,7 @@ type MobileAnime struct {
 	ModifiedAt int64 `json:"modified_at"`
 }
 
+// AnimeChange records one bridge change available for synchronization.
 type AnimeChange struct {
 	ID            int64        `json:"-"`
 	RecordID      string       `json:"record_id"`
@@ -71,6 +68,7 @@ type AnimeChange struct {
 	Timestamp     int64        `json:"timestamp"`
 }
 
+// SyncingAnimeItem summarizes an anime with pending synchronization work.
 type SyncingAnimeItem struct {
 	AnimeID         string   `json:"animeId"`
 	Title           string   `json:"title"`
@@ -83,6 +81,7 @@ type SyncingAnimeItem struct {
 	Activo          int      `json:"activo"`
 }
 
+// AnimeListItem is the slim anime-list read model.
 type AnimeListItem struct {
 	ID          string   `json:"id"`
 	Nombre      string   `json:"nombre"`
@@ -125,12 +124,14 @@ type AnimeHistoryItem struct {
 	FechaCreacion *int64 `json:"fechaCreacion,omitempty"`
 }
 
+// AnimeDetailProgress contains watched, total, and remaining episode counts.
 type AnimeDetailProgress struct {
 	Watched   float64  `json:"watched"`
 	Total     *int     `json:"total,omitempty"`
 	Remaining *float64 `json:"remaining,omitempty"`
 }
 
+// AnimeDetailDates contains the anime lifecycle timestamps.
 type AnimeDetailDates struct {
 	Created     *int64 `json:"created,omitempty"`
 	FirstWatch  *int64 `json:"firstWatch,omitempty"`
@@ -138,6 +139,7 @@ type AnimeDetailDates struct {
 	Deleted     *int64 `json:"deleted,omitempty"`
 }
 
+// AnimeDetailContent contains descriptive metadata for an anime.
 type AnimeDetailContent struct {
 	Tipo     *int     `json:"tipo,omitempty"`
 	Duracion *int     `json:"duracion,omitempty"`
@@ -147,11 +149,13 @@ type AnimeDetailContent struct {
 	Cover    *string  `json:"cover,omitempty"`
 }
 
+// AnimeDetailDownload contains optional download source metadata.
 type AnimeDetailDownload struct {
 	Page   *string `json:"page,omitempty"`
 	Folder *string `json:"folder,omitempty"`
 }
 
+// AnimeDetail is the detailed anime read model.
 type AnimeDetail struct {
 	ID         string              `json:"id"`
 	Nombre     string              `json:"nombre"`
@@ -166,6 +170,7 @@ type AnimeDetail struct {
 	ModifiedAt int64               `json:"modified_at"`
 }
 
+// ChapterScheduleItem is an anime scheduled for a chapter workflow.
 type ChapterScheduleItem struct {
 	AnimeID     string  `json:"animeId"`
 	AnimeName   string  `json:"animeName"`
@@ -216,6 +221,7 @@ type ChapterDayCount struct {
 	Count int    `json:"count"`
 }
 
+// ChapterCommandResult reports the result of a chapter command.
 type ChapterCommandResult struct {
 	Status        string  `json:"status"`
 	Message       string  `json:"message,omitempty"`
@@ -230,6 +236,7 @@ type ChapterCommandResult struct {
 	CorrelationID string  `json:"correlationId,omitempty"`
 }
 
+// AnimeLegacyPullResult summarizes a pull from the legacy source.
 type AnimeLegacyPullResult struct {
 	Status       string `json:"status"`
 	Message      string `json:"message"`
@@ -259,12 +266,14 @@ type ActiveSeasonCandidate struct {
 	GradeSource string `json:"grade_source,omitempty"`
 }
 
+// ReconcileRequest contains a device cursor and its pending operations.
 type ReconcileRequest struct {
 	DeviceID          string             `json:"device_id"`
 	LastChangelogID   int64              `json:"last_changelog_id"`
 	PendingOperations []PendingOperation `json:"pending_operations"`
 }
 
+// PendingOperation is one device operation waiting for reconciliation.
 type PendingOperation struct {
 	AnimeID   string         `json:"anime_id"`
 	Operation string         `json:"operation"`
@@ -272,12 +281,14 @@ type PendingOperation struct {
 	CreatedAt int64          `json:"created_at"`
 }
 
+// AppliedOperation reports whether a pending operation was applied.
 type AppliedOperation struct {
 	AnimeID   string `json:"anime_id"`
 	Operation string `json:"operation"`
 	Applied   bool   `json:"applied"`
 }
 
+// ReconcileResponse returns reconciliation outcomes and bridge changes.
 type ReconcileResponse struct {
 	Status            string             `json:"status"`
 	LastChangelogID   int64              `json:"last_changelog_id"`
@@ -286,6 +297,7 @@ type ReconcileResponse struct {
 	Conflicts         []any              `json:"conflicts"`
 }
 
+// DeviceInfo is the synchronization status of a paired device.
 type DeviceInfo struct {
 	DeviceID               string `json:"device_id"`
 	DeviceName             string `json:"device_name"`
@@ -298,6 +310,7 @@ type DeviceInfo struct {
 	BlocksChangelogPruning bool   `json:"blocks_changelog_pruning"`
 }
 
+// ConflictInfo is a persisted synchronization conflict read model.
 type ConflictInfo struct {
 	ConflictID         string `json:"conflict_id"`
 	AnimeID            string `json:"anime_id"`
@@ -321,6 +334,7 @@ type ConflictRecord struct {
 	DetectedAtMs       int64
 }
 
+// StatusInfo reports the current bridge status.
 type StatusInfo struct {
 	Status          string `json:"status"`
 	LastChangelogID int64  `json:"last_changelog_id"`
@@ -331,193 +345,4 @@ type StatusInfo struct {
 	// read. Always present: false is the canonical default (matches the
 	// preferences store missing-row sentinel), so there is no "absent" state.
 	SeasonMode bool `json:"season_mode"`
-}
-
-var ErrAnimeNotFound = errors.New("anime not found")
-
-type AnimePatch struct {
-	Estado                *int     `json:"estado,omitempty"`
-	NroCapVisto           *float64 `json:"nrocapvisto,omitempty"`
-	Activo                *bool    `json:"activo,omitempty"`
-	FechaUltCapVisto      *int64   `json:"fechaUltCapVisto,omitempty"`
-	FechaEstreno          *int64   `json:"fechaEstreno,omitempty"`
-	FechaEliminacion      *int64   `json:"fechaEliminacion,omitempty"`
-	RepeatAt              *int64   `json:"repeatAt,omitempty"`
-	ClearFechaEliminacion bool     `json:"clearFechaEliminacion,omitempty"`
-	PreserveLastWatched   bool     `json:"-"`
-	Dias                  []string `json:"dias,omitempty"`
-	// DiasOrdered replaces the dias[] array with explicit {dia, orden} entries
-	// (the SDD-46 weekday scheduler). Internal-only (not on the mobile wire); when
-	// set it takes precedence over Dias. Reuses MobileAnimeDay for {dia, orden}.
-	DiasOrdered []MobileAnimeDay `json:"-"`
-	// Base is the mobile client's last-known modified_at OCC token (SDD-30,
-	// ADR-30-2/30-5). nil distinguishes "old client sent nothing" from an
-	// explicit base value (including 0) -- see WriteService.PatchAnime's gate.
-	Base *int64 `json:"base,omitempty"`
-}
-
-type AnimePatchOutcome string
-
-const (
-	AnimePatchOutcomeApplied  AnimePatchOutcome = "applied"
-	AnimePatchOutcomeNoOp     AnimePatchOutcome = "no_op"
-	AnimePatchOutcomeConflict AnimePatchOutcome = "conflict"
-	AnimePatchOutcomeError    AnimePatchOutcome = "error"
-)
-
-// AnimePatchResult is the authoritative semantic result of an anime mutation.
-// Transport status remains separate so Wails and internal adapters cannot lose
-// the current OCC token or recorded conflict identity.
-type AnimePatchResult struct {
-	Status     string            `json:"status,omitempty"`
-	Message    string            `json:"message,omitempty"`
-	AnimeID    string            `json:"animeId"`
-	Outcome    AnimePatchOutcome `json:"outcome"`
-	ModifiedAt int64             `json:"modifiedAt"`
-	ConflictID string            `json:"conflictId,omitempty"`
-}
-
-// AnimeCreate is the input for creating a brand-new anime (SDD-43). A new anime
-// lands with estado 0 (Viendo), nrocapvisto 0, activo true, primeravez true, and
-// a single dias entry in Section at Orden. ID is optional — generated when empty.
-type AnimeCreate struct {
-	ID           string `json:"id,omitempty"`
-	Nombre       string `json:"nombre"`
-	Pagina       string `json:"pagina"`
-	Section      string `json:"section"`
-	Orden        int    `json:"orden"`
-	Carpeta      string `json:"carpeta,omitempty"`
-	Tipo         *int   `json:"tipo,omitempty"`
-	FechaEstreno *int64 `json:"fechaEstreno,omitempty"`
-}
-
-type EffectiveAnime struct {
-	ID           string
-	TotalCap     *float64
-	Activo       *bool
-	SnapshotJSON []byte
-}
-
-type AnimeQueryService interface {
-	GetEffectiveAnime(ctx context.Context, id string) (*EffectiveAnime, error)
-	ListMobileAnimes(ctx context.Context) ([]MobileAnime, error)
-	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
-	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
-	ListAnimeHistory(ctx context.Context) ([]AnimeHistoryItem, error)
-	GetAnimeDetail(ctx context.Context, id string) (*AnimeDetail, error)
-}
-
-type AnimeWriteService interface {
-	PatchAnime(ctx context.Context, id string, patch AnimePatch) (AnimePatchResult, error)
-}
-
-type SyncTriggerService interface {
-	TriggerReconcile(ctx context.Context) error
-	ListChangesSince(ctx context.Context, sinceMs int64) ([]AnimeChange, int64, error)
-	ListChangesAfterID(ctx context.Context, lastID int64) ([]AnimeChange, int64, error)
-	AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error
-	LastChangedAt(ctx context.Context) (*int64, error)
-}
-
-type StatusService interface {
-	GetStatus(ctx context.Context) (StatusInfo, error)
-}
-
-type DeviceAdminService interface {
-	ListDevices(ctx context.Context) ([]DeviceInfo, error)
-	RevokeDevice(ctx context.Context, id string) error
-}
-
-type ConflictService interface {
-	ListConflicts(ctx context.Context) ([]ConflictInfo, error)
-	ResolveConflict(ctx context.Context, id string, at time.Time) error
-}
-
-// HosterPriorityItem mirrors a single download_hoster_priority row at the App/Wails boundary
-// (SDD-28 design.md §3.6/§4, PR4b Phase 6). It is the contracts-layer twin of
-// download.HosterPriorityEntry -- defined separately here so internal/api/contracts never
-// imports internal/download (composition root only wires the two together in app.go).
-type HosterPriorityItem struct {
-	Hoster   string `json:"hoster"`
-	Priority int    `json:"priority"`
-	Enabled  bool   `json:"enabled"`
-}
-
-// DownloadConfig is the read-model the frontend uses to render the download settings screen
-// (SDD-28 design.md §4.3/§7, PR4b Phase 6): JD config (password never in cleartext), schedule
-// config, and the per-site hoster priority ordering.
-type DownloadConfig struct {
-	JD             JDStatus             `json:"jd"`
-	Schedule       ScheduleConfig       `json:"schedule"`
-	HosterPriority []HosterPriorityItem `json:"hosterPriority"`
-}
-
-// JDStatus is the UI-facing view of MyJDownloader connectivity/config (SDD-28 design.md §4.3,
-// PoC #12 quirk: ListDevices, not Connect, is the only liveness proof). The password is NEVER
-// exposed in cleartext -- HasPassword is the only signal the UI ever sees.
-type JDStatus struct {
-	Email           string `json:"email"`
-	HasPassword     bool   `json:"hasPassword"`
-	DeviceName      string `json:"deviceName"`
-	ExePathOverride string `json:"exePathOverride"`
-	DefaultDestDir  string `json:"defaultDestDir"`
-	LastSeenStatus  string `json:"lastSeenStatus"`
-	LastSeenAtMs    int64  `json:"lastSeenAtMs"`
-	LastDecryptErr  string `json:"lastDecryptError,omitempty"`
-}
-
-// JDConfigInput is the write-model SetJDConfig accepts from the UI. PlaintextPassword is a
-// pointer so the UI can edit email/device without re-entering the password (nil leaves the
-// existing encrypted blob untouched, design §4.3 "edit email/device without re-entering
-// password").
-type JDConfigInput struct {
-	Email             string  `json:"email"`
-	PlaintextPassword *string `json:"plaintextPassword,omitempty"`
-	DeviceName        string  `json:"deviceName"`
-	ExePathOverride   string  `json:"exePathOverride"`
-	DefaultDestDir    string  `json:"defaultDestDir"`
-}
-
-// ScheduleConfig is the UI-facing twin of download.ScheduleConfig (SDD-28 design.md §3.5/§3.6).
-// EnabledWeekdays is a 7-bit mask (bit0=Sunday..bit6=Saturday; all-days=127) restricting which
-// weekdays the scheduler may fire on (SDD download-schedule-weekdays design "Weekday encoding").
-type ScheduleConfig struct {
-	Mode            string `json:"mode"`
-	DailyTimeHHMM   string `json:"dailyTimeHHMM"`
-	Enabled         bool   `json:"enabled"`
-	LastRunAtMs     int64  `json:"lastRunAtMs"`
-	LastRunStatus   string `json:"lastRunStatus"`
-	NextRunAtMs     int64  `json:"nextRunAtMs"`
-	Running         bool   `json:"running"`
-	EnabledWeekdays int    `json:"enabledWeekdays"`
-}
-
-// ManualLink mirrors download.ManualLink at the App/Wails boundary (jd_offline degradation,
-// design.md §8 "Manual-links persistence for JD-offline").
-type ManualLink struct {
-	Anime   string   `json:"anime"`
-	Episode int      `json:"episode"`
-	Links   []string `json:"links"`
-}
-
-// DownloadRunView is the UI-facing twin of download.DownloadRun (SDD-28 design.md §4/§8 run
-// lifecycle and status taxonomy). FinishedAtMs is a pointer so the UI can distinguish a still-
-// running row (nil) from a terminal one.
-type DownloadRunView struct {
-	RunID              string `json:"runId"`
-	StartedAtMs        int64  `json:"startedAtMs"`
-	FinishedAtMs       *int64 `json:"finishedAtMs,omitempty"`
-	Trigger            string `json:"trigger"`
-	AnimesChecked      int    `json:"animesChecked"`
-	EpisodesFound      int    `json:"episodesFound"`
-	EpisodesDownloaded int    `json:"episodesDownloaded"`
-	EpisodesFailed     int    `json:"episodesFailed"`
-	SkippedCount       int    `json:"skippedCount"`
-	// UpToDateCount is the subset of AnimesChecked that needed no download (nothing newer
-	// online than on-disk, or the season already complete on disk) -- distinct from a skip.
-	UpToDateCount int          `json:"upToDateCount"`
-	JDAvailable   bool         `json:"jdAvailable"`
-	Status        string       `json:"status"`
-	ErrorSummary  string       `json:"errorSummary,omitempty"`
-	ManualLinks   []ManualLink `json:"manualLinks,omitempty"`
 }

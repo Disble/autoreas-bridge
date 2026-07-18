@@ -57,6 +57,7 @@ func RequestLoggingMiddleware(next http.Handler, log logger.Logger) http.Handler
 	})
 }
 
+// levelForStatus maps an HTTP status code to its request log level.
 func levelForStatus(code int) string {
 	switch {
 	case code >= 500:

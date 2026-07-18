@@ -1,4 +1,5 @@
 import type { DownloadRunView } from '../../../../shared/contracts/download.types';
+import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
 import type { RunHistoryPanelViewModel, RunHistoryRowViewModel } from './run-history-panel.types';
 
 /**
@@ -10,13 +11,17 @@ import type { RunHistoryPanelViewModel, RunHistoryRowViewModel } from './run-his
 export function toRunHistoryPanelViewModel(
   runs: readonly DownloadRunView[],
   selectedRunId: string | undefined,
+  visibleCount: number,
 ): RunHistoryPanelViewModel {
   if (runs.length === 0) {
-    return { status: 'empty', rows: [] };
+    return { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 };
   }
+
+  const effectiveSelectedRunId = resolveSelectedRunId(runs, selectedRunId);
 
   const rows: readonly RunHistoryRowViewModel[] = runs.map((run) => ({
     runId: run.runId,
+    isSelected: run.runId === effectiveSelectedRunId,
     startedLabel: new Date(run.startedAtMs).toLocaleString(),
     statusLabel: run.status,
     trigger: run.trigger,
@@ -24,11 +29,69 @@ export function toRunHistoryPanelViewModel(
     episodesFailed: run.episodesFailed,
   }));
 
-  const selectedRun = runs.find((run) => run.runId === selectedRunId);
+  const selectedRun = runs.find((run) => run.runId === effectiveSelectedRunId);
+  const safeVisibleCount = Math.max(getInitialVisibleRunCount(runs.length), visibleCount);
+  const visibleRows = rows.slice(0, Math.min(safeVisibleCount, rows.length));
 
   return {
     status: 'ready',
     rows,
+    visibleRows,
+    canLoadMore: visibleRows.length < rows.length,
+    remainingCount: rows.length - visibleRows.length,
     selectedRun,
   };
+}
+
+/** Resolves which run should be selected, defaulting to the newest available item. */
+function resolveSelectedRunId(
+  runs: readonly DownloadRunView[],
+  selectedRunId: string | undefined,
+): string | undefined {
+  if (selectedRunId !== undefined && runs.some((run) => run.runId === selectedRunId)) {
+    return selectedRunId;
+  }
+
+  return runs[0]?.runId;
+}
+
+/** Returns the bounded initial list size for the current history snapshot. */
+function getInitialVisibleRunCount(totalRuns: number): number {
+  return Math.min(totalRuns, RUN_HISTORY_PAGE_SIZE);
+}
+
+/** Returns the next window size after the user asks to reveal older history. */
+export function getNextVisibleRunCount(currentVisibleCount: number, totalRuns: number): number {
+  return Math.min(totalRuns, currentVisibleCount + RUN_HISTORY_PAGE_SIZE);
+}
+
+/**
+ * Keeps the visible window stable across refreshes while ensuring the current
+ * selection remains rendered and a fully revealed list stays fully revealed.
+ */
+export function reconcileVisibleRunCount(
+  currentVisibleCount: number,
+  previousTotalRuns: number,
+  nextRuns: readonly DownloadRunView[],
+  selectedRunId: string | undefined,
+): number {
+  if (nextRuns.length === 0) {
+    return RUN_HISTORY_PAGE_SIZE;
+  }
+
+  let nextVisibleCount = Math.max(getInitialVisibleRunCount(nextRuns.length), Math.min(currentVisibleCount, nextRuns.length));
+
+  if (previousTotalRuns > 0 && currentVisibleCount >= previousTotalRuns) {
+    nextVisibleCount = nextRuns.length;
+  }
+
+  if (selectedRunId !== undefined) {
+    const selectedIndex = nextRuns.findIndex((run) => run.runId === selectedRunId);
+
+    if (selectedIndex >= 0) {
+      nextVisibleCount = Math.max(nextVisibleCount, selectedIndex + 1);
+    }
+  }
+
+  return Math.min(nextVisibleCount, nextRuns.length);
 }

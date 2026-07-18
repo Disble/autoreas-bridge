@@ -134,6 +134,12 @@ export function createSeasonSource(): SeasonSource {
     recheckAvailability() {
       return invokeGoBinding('RecheckSeasonAvailability', RecheckSeasonAvailability, () => SEASON_RUNTIME_UNAVAILABLE);
     },
+    openPage(url: string) {
+      if (url === '' || typeof window.runtime?.BrowserOpenURL !== 'function') {
+        return; // no matched slug, or running outside the Wails runtime
+      }
+      window.runtime.BrowserOpenURL(url);
+    },
   };
 
   return SEASON_SOURCE_STATE.sharedSource;

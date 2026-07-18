@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 )
 
+// ResolveAnimeDataPath returns the default legacy anime data path under the
+// current user's config directory.
 func ResolveAnimeDataPath() (string, error) {
 	baseDir, err := os.UserConfigDir()
 	if err != nil {

@@ -170,29 +170,15 @@ func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 		t.Fatalf("expected 2 anime sync items, got %d", len(got))
 	}
 
-	first := got[0]
-	if first.AnimeID != "anime-1" {
-		t.Fatalf("expected first anime to be anime-1, got %#v", first)
-	}
-	if first.Title != "Dungeon Meshi" {
-		t.Fatalf("expected title to come from latest snapshot, got %#v", first)
-	}
-	if first.PendingChanges != 2 {
-		t.Fatalf("expected pending count 2, got %#v", first)
-	}
-	if first.ProgressCurrent == nil || *first.ProgressCurrent != 18 {
-		t.Fatalf("expected progress current 18, got %#v", first.ProgressCurrent)
-	}
-	if first.ProgressTotal == nil || *first.ProgressTotal != 24 {
-		t.Fatalf("expected progress total 24, got %#v", first.ProgressTotal)
-	}
+	assertPendingAnimeSyncItems(t, got)
+}
 
-	second := got[1]
-	if second.AnimeID != "anime-2" {
-		t.Fatalf("expected second anime to be anime-2, got %#v", second)
-	}
-	if second.Title != "anime-2" {
-		t.Fatalf("expected sparse snapshot to fall back to anime id, got %#v", second)
+// assertPendingAnimeSyncItems verifies the ordered pending sync summaries.
+func assertPendingAnimeSyncItems(t *testing.T, got []contracts.SyncingAnimeItem) {
+	t.Helper()
+	first, second := got[0], got[1]
+	if first.AnimeID != "anime-1" || first.Title != "Dungeon Meshi" || first.PendingChanges != 2 || first.ProgressCurrent == nil || *first.ProgressCurrent != 18 || first.ProgressTotal == nil || *first.ProgressTotal != 24 || second.AnimeID != "anime-2" || second.Title != "anime-2" {
+		t.Fatalf("unexpected pending sync items: %#v", got)
 	}
 }
 
@@ -272,6 +258,7 @@ func (l *recordingSyncLogger) Logf(domain, level string, fields sharedlogger.Fie
 	})
 }
 
+// entries returns a copy of the recorded sync log entries.
 func (l *recordingSyncLogger) entries() []sharedlogger.LogEntry {
 	out := make([]sharedlogger.LogEntry, len(l.entriesList))
 	copy(out, l.entriesList)

@@ -185,4 +185,27 @@ describe('useAnimeEditorWorkspace', () => {
     expect(result.current.scheduleFeedback).toBe('board changed');
     expect(result.current.isApplyingSchedule).toBe(false);
   });
+
+  it('clears schedule feedback after a successful apply so the warning alert stays hidden', async () => {
+    const { result, source } = await loadHook();
+    await act(() => result.current.onOpenSchedule());
+    vi.mocked(source.applyAnimeEditorSchedule)
+      .mockResolvedValueOnce({
+        outcome: 'conflict', message: 'board changed', modifiedAt: 200,
+        board: { originAnimeId: 'anime-1', boardModifiedAt: 200, destinations: [], entries: [] },
+      })
+      .mockResolvedValueOnce({
+        outcome: 'applied', message: 'apply_schedule applied', modifiedAt: 201,
+        board: { originAnimeId: 'anime-1', boardModifiedAt: 201, destinations: [], entries: [] },
+      });
+
+    await act(() => result.current.onApplySchedule([]));
+    expect(result.current.scheduleFeedback).toBe('board changed');
+
+    await act(() => result.current.onApplySchedule([]));
+
+    expect(result.current.scheduleBoard?.boardModifiedAt).toBe(201);
+    expect(result.current.scheduleFeedback).toBeUndefined();
+    expect(result.current.isApplyingSchedule).toBe(false);
+  });
 });

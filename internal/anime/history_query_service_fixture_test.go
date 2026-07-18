@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
 )
 
 // TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering
@@ -28,30 +29,8 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 		t.Fatalf("read real fixture: %v", err)
 	}
 
-	parser := anime.NewSnapshotParser()
-	records, warnings, err := parser.Parse(bytes.NewReader(data))
-	if err != nil {
-		t.Fatalf("parse real fixture: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no parse warnings for real fixture, got %v", warnings)
-	}
-
-	wantCount := 0
-	wantTipoCount := 0
-	wantFechaCreacionCount := 0
-	for _, record := range records {
-		value := decodeAnimeDomain(t, record.CanonicalJSON)
-		if value.LastWatchedAt != nil {
-			wantCount++
-			if value.ContentType != nil {
-				wantTipoCount++
-			}
-			if value.CreatedAt != nil {
-				wantFechaCreacionCount++
-			}
-		}
-	}
+	records := parseFixtureHistoryRecords(t, data)
+	wantCount, wantTipoCount, wantFechaCreacionCount := summarizeFixtureHistory(t, records)
 	if wantCount == 0 {
 		t.Fatal("expected at least one fixture record with fechaUltCapVisto present -- fixture or membership logic changed")
 	}
@@ -77,16 +56,7 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 		t.Fatalf("expected %d history entries derived from the fixture, got %d", wantCount, len(got))
 	}
 
-	gotTipoCount := 0
-	gotFechaCreacionCount := 0
-	for _, item := range got {
-		if item.Tipo != nil {
-			gotTipoCount++
-		}
-		if item.FechaCreacion != nil {
-			gotFechaCreacionCount++
-		}
-	}
+	gotTipoCount, gotFechaCreacionCount := summarizeProjectedHistory(got)
 	if gotTipoCount != wantTipoCount {
 		t.Fatalf("expected %d history entries carrying tipo, got %d", wantTipoCount, gotTipoCount)
 	}
@@ -94,9 +64,66 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 		t.Fatalf("expected %d history entries carrying fechaCreacion, got %d", wantFechaCreacionCount, gotFechaCreacionCount)
 	}
 
-	for i := 1; i < len(got); i++ {
-		if got[i-1].FechaUltCapVisto < got[i].FechaUltCapVisto {
-			t.Fatalf("expected non-increasing fechaUltCapVisto ordering at index %d: %d < %d", i, got[i-1].FechaUltCapVisto, got[i].FechaUltCapVisto)
+	assertHistoryOrder(t, got)
+}
+
+// parseFixtureHistoryRecords parses snapshot records from the real fixture.
+func parseFixtureHistoryRecords(t *testing.T, data []byte) map[string]anime.SnapshotRecord {
+	t.Helper()
+	parser := anime.NewSnapshotParser()
+	records, warnings, err := parser.Parse(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("parse real fixture: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no parse warnings for real fixture, got %v", warnings)
+	}
+	return records
+}
+
+// summarizeFixtureHistory counts history categories in fixture records.
+func summarizeFixtureHistory(t *testing.T, records map[string]anime.SnapshotRecord) (int, int, int) {
+	t.Helper()
+	wantCount := 0
+	wantTipoCount := 0
+	wantFechaCreacionCount := 0
+	for _, record := range records {
+		value := decodeAnimeDomain(t, record.CanonicalJSON)
+		if value.LastWatchedAt == nil {
+			continue
+		}
+		wantCount++
+		if value.ContentType != nil {
+			wantTipoCount++
+		}
+		if value.CreatedAt != nil {
+			wantFechaCreacionCount++
+		}
+	}
+	return wantCount, wantTipoCount, wantFechaCreacionCount
+}
+
+// summarizeProjectedHistory counts categories in projected history items.
+func summarizeProjectedHistory(items []contracts.AnimeHistoryItem) (int, int) {
+	gotTipoCount := 0
+	gotFechaCreacionCount := 0
+	for _, item := range items {
+		if item.Tipo != nil {
+			gotTipoCount++
+		}
+		if item.FechaCreacion != nil {
+			gotFechaCreacionCount++
+		}
+	}
+	return gotTipoCount, gotFechaCreacionCount
+}
+
+// assertHistoryOrder verifies the ordering of projected history items.
+func assertHistoryOrder(t *testing.T, items []contracts.AnimeHistoryItem) {
+	t.Helper()
+	for i := 1; i < len(items); i++ {
+		if items[i-1].FechaUltCapVisto < items[i].FechaUltCapVisto {
+			t.Fatalf("expected non-increasing fechaUltCapVisto ordering at index %d: %d < %d", i, items[i-1].FechaUltCapVisto, items[i].FechaUltCapVisto)
 		}
 	}
 }

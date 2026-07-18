@@ -53,41 +53,69 @@ func EnsureTableSchema(db *sql.DB, t TableSchema) error {
 	if err != nil {
 		return fmt.Errorf("inspect %s schema: %w", t.Name, err)
 	}
-	switch {
-	case len(cols) == 0:
-		if _, err := db.Exec(t.CreateDDL); err != nil {
-			return fmt.Errorf("create %s table: %w", t.Name, err)
+	if err := applyTableSchema(db, t, cols); err != nil {
+		return err
+	}
+	return ensureIndexes(db, t)
+}
+
+// applyTableSchema applies the table creation or migration step for a schema descriptor.
+func applyTableSchema(db *sql.DB, t TableSchema, cols []string) error {
+	if len(cols) == 0 {
+		_, err := db.Exec(t.CreateDDL)
+		return wrapSchemaError("create "+t.Name+" table", err)
+	}
+	if t.Migrate != nil {
+		return wrapSchemaError("migrate "+t.Name, t.Migrate(db, cols))
+	}
+	return addMissingColumns(db, t, cols)
+}
+
+// addMissingColumns applies declared column migrations that are absent from the table.
+func addMissingColumns(db *sql.DB, t TableSchema, cols []string) error {
+	for _, migration := range t.ColumnAdds {
+		if containsColumn(cols, migration.Column) {
+			continue
 		}
-	case t.Migrate != nil:
-		if err := t.Migrate(db, cols); err != nil {
-			return fmt.Errorf("migrate %s: %w", t.Name, err)
-		}
-	default:
-		for _, cm := range t.ColumnAdds {
-			if !containsColumn(cols, cm.Column) {
-				if _, err := db.Exec(cm.AlterDDL); err != nil {
-					return fmt.Errorf("add column %s.%s: %w", t.Name, cm.Column, err)
-				}
-			}
+		if _, err := db.Exec(migration.AlterDDL); err != nil {
+			return fmt.Errorf("add column %s.%s: %w", t.Name, migration.Column, err)
 		}
 	}
-	for _, idx := range t.Indexes {
-		if _, err := db.Exec(idx); err != nil {
+	return nil
+}
+
+// ensureIndexes executes each declared index statement for the table.
+func ensureIndexes(db *sql.DB, t TableSchema) error {
+	for _, index := range t.Indexes {
+		if _, err := db.Exec(index); err != nil {
 			return fmt.Errorf("ensure index on %s: %w", t.Name, err)
 		}
 	}
 	return nil
 }
 
+// wrapSchemaError adds the schema operation context to a non-nil error.
+func wrapSchemaError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", operation, err)
+}
+
 // tableColumns returns the column names of tableName via PRAGMA table_info.
 // Returns an empty non-nil slice (without error) when the table does not exist.
-func tableColumns(db *sql.DB, tableName string) ([]string, error) {
+func tableColumns(db *sql.DB, tableName string) (columns []string, err error) {
 	rows, err := db.Query(`PRAGMA table_info(` + tableName + `)`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	columns := []string{}
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			columns = nil
+			err = closeErr
+		}
+	}()
+	columns = []string{}
 	for rows.Next() {
 		var cid int
 		var name, colType string

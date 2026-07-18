@@ -29,6 +29,7 @@ type legacyFlowAnalyzer struct {
 	violations    map[string]struct{}
 }
 
+// analyzeLegacyDataflow reports legacy-boundary violations discovered through AST flow analysis.
 func analyzeLegacyDataflow(filePath string, files *token.FileSet, parsed *ast.File, imports map[string]map[string]bool, legacyStructs map[string]bool) []string {
 	analyzer := &legacyFlowAnalyzer{
 		filePath: filePath, files: files, imports: imports,
@@ -54,6 +55,7 @@ func analyzeLegacyDataflow(filePath string, files *token.FileSet, parsed *ast.Fi
 	return result
 }
 
+// analyzeBlock visits each statement in a block using the current flow scope.
 func (analyzer *legacyFlowAnalyzer) analyzeBlock(scope *flowScope, block *ast.BlockStmt) {
 	if block == nil {
 		return
@@ -63,6 +65,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeBlock(scope *flowScope, block *ast.Bl
 	}
 }
 
+// analyzeStatement evaluates a statement and updates the flow scope as needed.
 func (analyzer *legacyFlowAnalyzer) analyzeStatement(scope *flowScope, statement ast.Stmt) {
 	switch value := statement.(type) {
 	case *ast.AssignStmt:
@@ -101,6 +104,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeStatement(scope *flowScope, statement
 	}
 }
 
+// analyzeDeclaration records flow values introduced by const and var declarations.
 func (analyzer *legacyFlowAnalyzer) analyzeDeclaration(scope *flowScope, declaration *ast.GenDecl) {
 	if declaration.Tok != token.CONST && declaration.Tok != token.VAR {
 		return
@@ -120,6 +124,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeDeclaration(scope *flowScope, declara
 	}
 }
 
+// analyzeAssignment evaluates assignment values and updates their bindings.
 func (analyzer *legacyFlowAnalyzer) analyzeAssignment(scope *flowScope, assignment *ast.AssignStmt) {
 	values := make([]flowValue, len(assignment.Lhs))
 	if len(assignment.Rhs) == len(assignment.Lhs) {
@@ -143,6 +148,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeAssignment(scope *flowScope, assignme
 	}
 }
 
+// analyzeIf evaluates both branches of an if statement and merges their bindings.
 func (analyzer *legacyFlowAnalyzer) analyzeIf(scope *flowScope, statement *ast.IfStmt) {
 	base := newFlowScope(scope)
 	if statement.Init != nil {
@@ -158,6 +164,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeIf(scope *flowScope, statement *ast.I
 	base.mergeExisting(thenScope, elseScope)
 }
 
+// analyzeFor evaluates a for loop and merges the loop body's bindings.
 func (analyzer *legacyFlowAnalyzer) analyzeFor(scope *flowScope, statement *ast.ForStmt) {
 	loopScope := newFlowScope(scope)
 	if statement.Init != nil {
@@ -172,6 +179,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeFor(scope *flowScope, statement *ast.
 	loopScope.mergeExisting(loopScope, bodyScope)
 }
 
+// analyzeRange evaluates a range loop and merges its body's bindings.
 func (analyzer *legacyFlowAnalyzer) analyzeRange(scope *flowScope, statement *ast.RangeStmt) {
 	analyzer.evaluate(scope, statement.X)
 	bodyScope := newFlowScope(scope.cloneChain())
@@ -184,6 +192,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeRange(scope *flowScope, statement *as
 	scope.mergeExisting(scope, bodyScope)
 }
 
+// analyzeSwitch evaluates a switch statement and its clauses.
 func (analyzer *legacyFlowAnalyzer) analyzeSwitch(scope *flowScope, statement *ast.SwitchStmt) {
 	switchScope := newFlowScope(scope)
 	if statement.Init != nil {
@@ -193,6 +202,7 @@ func (analyzer *legacyFlowAnalyzer) analyzeSwitch(scope *flowScope, statement *a
 	analyzer.analyzeClauseBody(switchScope, statement.Body.List)
 }
 
+// analyzeTypeSwitch evaluates a type switch statement and its clauses.
 func (analyzer *legacyFlowAnalyzer) analyzeTypeSwitch(scope *flowScope, statement *ast.TypeSwitchStmt) {
 	switchScope := newFlowScope(scope)
 	if statement.Init != nil {
@@ -202,19 +212,12 @@ func (analyzer *legacyFlowAnalyzer) analyzeTypeSwitch(scope *flowScope, statemen
 	analyzer.analyzeClauseBody(switchScope, statement.Body.List)
 }
 
+// analyzeClauseBody evaluates case clauses and communication clauses.
 func (analyzer *legacyFlowAnalyzer) analyzeClauseBody(scope *flowScope, clauses []ast.Stmt) {
 	for _, clause := range clauses {
 		caseClause, ok := clause.(*ast.CaseClause)
 		if !ok {
-			if communication, ok := clause.(*ast.CommClause); ok {
-				branch := newFlowScope(scope.cloneChain())
-				if communication.Comm != nil {
-					analyzer.analyzeStatement(branch, communication.Comm)
-				}
-				for _, statement := range communication.Body {
-					analyzer.analyzeStatement(branch, statement)
-				}
-			}
+			analyzer.analyzeCommunicationClause(scope, clause)
 			continue
 		}
 		analyzer.evaluateExpressions(scope, caseClause.List)
@@ -225,6 +228,22 @@ func (analyzer *legacyFlowAnalyzer) analyzeClauseBody(scope *flowScope, clauses 
 	}
 }
 
+// analyzeCommunicationClause evaluates a select communication clause.
+func (analyzer *legacyFlowAnalyzer) analyzeCommunicationClause(scope *flowScope, clause ast.Stmt) {
+	communication, ok := clause.(*ast.CommClause)
+	if !ok {
+		return
+	}
+	branch := newFlowScope(scope.cloneChain())
+	if communication.Comm != nil {
+		analyzer.analyzeStatement(branch, communication.Comm)
+	}
+	for _, statement := range communication.Body {
+		analyzer.analyzeStatement(branch, statement)
+	}
+}
+
+// defineFields binds the flow values of fields in a function signature.
 func (analyzer *legacyFlowAnalyzer) defineFields(scope *flowScope, fields *ast.FieldList) {
 	if fields == nil {
 		return
@@ -237,6 +256,7 @@ func (analyzer *legacyFlowAnalyzer) defineFields(scope *flowScope, fields *ast.F
 	}
 }
 
+// typeValue derives the flow value represented by a type expression.
 func (analyzer *legacyFlowAnalyzer) typeValue(expression ast.Expr) flowValue {
 	result := flowValue{}
 	if expressionUsesNamedType(expression, analyzer.legacyStructs) {
@@ -255,6 +275,7 @@ func (analyzer *legacyFlowAnalyzer) typeValue(expression ast.Expr) flowValue {
 	return result
 }
 
+// evaluateExpressions resolves a sequence of AST expressions.
 func (analyzer *legacyFlowAnalyzer) evaluateExpressions(scope *flowScope, expressions []ast.Expr) []flowValue {
 	result := make([]flowValue, len(expressions))
 	for index, expression := range expressions {
@@ -263,11 +284,13 @@ func (analyzer *legacyFlowAnalyzer) evaluateExpressions(scope *flowScope, expres
 	return result
 }
 
+// add records a source-located flow-analysis violation.
 func (analyzer *legacyFlowAnalyzer) add(node ast.Node, reason string) {
 	line := analyzer.files.Position(node.Pos()).Line
 	analyzer.violations[fmt.Sprintf("%s:%d %s", analyzer.filePath, line, reason)] = struct{}{}
 }
 
+// firstFlowArgument returns the first flow argument when one exists.
 func firstFlowArgument(arguments []flowValue) flowValue {
 	if len(arguments) == 0 {
 		return flowValue{}
@@ -275,6 +298,7 @@ func firstFlowArgument(arguments []flowValue) flowValue {
 	return arguments[0]
 }
 
+// joinFlowStrings combines candidate path strings using filepath.Join.
 func joinFlowStrings(arguments []flowValue) flowValue {
 	if len(arguments) == 0 {
 		return flowValue{}
@@ -292,6 +316,7 @@ func joinFlowStrings(arguments []flowValue) flowValue {
 	return result
 }
 
+// isAnimeDataPath reports whether a path identifies animes.dat.
 func isAnimeDataPath(candidate string) bool {
 	return strings.EqualFold(filepath.Base(candidate), "animes.dat")
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// writeFile creates a test file and its parent directories.
 func writeFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

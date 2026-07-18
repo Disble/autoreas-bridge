@@ -10,13 +10,16 @@ import (
 	"strings"
 )
 
-// MatchStatus is the outcome of resolving one intake name against candidates.
-type MatchStatus string
+// Status is the outcome of resolving one intake name against candidates.
+type Status string
 
 const (
-	StatusMatched   MatchStatus = "matched"
-	StatusAmbiguous MatchStatus = "ambiguous"
-	StatusNotFound  MatchStatus = "not_found"
+	// StatusMatched means one candidate won decisively.
+	StatusMatched Status = "matched"
+	// StatusAmbiguous means multiple candidates remain plausible.
+	StatusAmbiguous Status = "ambiguous"
+	// StatusNotFound means no candidate met the display floor.
+	StatusNotFound Status = "not_found"
 )
 
 // Candidate is one search result to match against.
@@ -34,7 +37,7 @@ type ScoredCandidate struct {
 // Resolution is the result of Resolve: a status, the matched page URL (only when
 // matched), and the ranked candidates above the display floor.
 type Resolution struct {
-	Status      MatchStatus
+	Status      Status
 	MatchedSlug string
 	Candidates  []ScoredCandidate
 }
@@ -141,6 +144,7 @@ func Score(a, b string) float64 {
 	return 2 * float64(inter) / float64(len(ta)+len(tb))
 }
 
+// trigrams returns the distinct three-character windows in s.
 func trigrams(s string) map[string]struct{} {
 	set := map[string]struct{}{}
 	if len(s) == 0 {

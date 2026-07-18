@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestSyncSQLiteProviderReusesBootstrappedHandle(t *testing.T) {
+func TestSQLiteProviderReusesBootstrappedHandle(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	provider := NewSyncSQLiteProvider(db)
+	provider := NewSQLiteProvider(db)
 	store := NewChangelogStore(provider)
 
 	if provider.DB() != db {

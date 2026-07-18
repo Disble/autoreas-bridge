@@ -2,7 +2,6 @@ package anime
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 
 	"autoreas-bridge/internal/anime/domain"
@@ -15,6 +14,7 @@ type snapshotLookup interface {
 	ListSnapshots(ctx context.Context) (map[string]SnapshotRecord, error)
 }
 
+// QueryService projects canonical anime snapshots into transport read models.
 type QueryService struct {
 	store snapshotLookup
 }
@@ -26,16 +26,18 @@ type ReadRecord struct {
 	Value    domain.Anime
 }
 
-// AnimeCreator is the application-facing canonical Create port. It returns the
+// Creator is the application-facing canonical Create port. It returns the
 // authoritative write token rather than projecting the result to an id alone.
-type AnimeCreator interface {
-	CreateAnime(context.Context, contracts.AnimeCreate) (AnimePatchResult, error)
+type Creator interface {
+	CreateAnime(context.Context, contracts.AnimeCreate) (PatchResult, error)
 }
 
+// NewQueryService builds a read-model query service over the shared snapshot store.
 func NewQueryService(store snapshotLookup) *QueryService {
 	return &QueryService{store: store}
 }
 
+// GetEffectiveAnime returns the snapshot payload and effective active state for one anime.
 func (s *QueryService) GetEffectiveAnime(ctx context.Context, id string) (*contracts.EffectiveAnime, error) {
 	record, err := s.GetReadRecord(ctx, id)
 	if err != nil {
@@ -81,6 +83,7 @@ func (s *QueryService) ListReadRecords(ctx context.Context) ([]ReadRecord, error
 	return result, err
 }
 
+// ListMobileAnimes returns the mobile anime list projection for every effective snapshot.
 func (s *QueryService) ListMobileAnimes(ctx context.Context) ([]contracts.MobileAnime, error) {
 	records, err := s.ListReadRecords(ctx)
 	if err != nil {
@@ -93,6 +96,7 @@ func (s *QueryService) ListMobileAnimes(ctx context.Context) ([]contracts.Mobile
 	return result, nil
 }
 
+// ListAnimeItems returns the compact desktop list projection for every effective snapshot.
 func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeListItem, error) {
 	records, err := s.ListReadRecords(ctx)
 	if err != nil {
@@ -126,6 +130,7 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 // TestQueryServiceListAnimeItemsReturnsActiveAndInactive) -- History is an
 // activity log, so an eliminated-but-watched anime stays listed with its
 // estado, matching Legacy's "Historial" screen.
+// ListAnimeHistory returns the history read model sorted by last-watched descending.
 func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeHistoryItem, error) {
 	records, err := s.ListReadRecords(ctx)
 	if err != nil {
@@ -173,6 +178,7 @@ func legacyStringValue(value *string) string {
 	return *value
 }
 
+// extractDayNames returns the names from mobile anime day placements.
 func extractDayNames(days []contracts.MobileAnimeDay) []string {
 	if len(days) == 0 {
 		return []string{}
@@ -184,6 +190,7 @@ func extractDayNames(days []contracts.MobileAnimeDay) []string {
 	return result
 }
 
+// GetMobileAnime returns one mobile anime projection by id.
 func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contracts.MobileAnime, error) {
 	record, err := s.GetReadRecord(ctx, id)
 	if err != nil {
@@ -193,6 +200,7 @@ func (s *QueryService) GetMobileAnime(ctx context.Context, id string) (*contract
 	return &item, nil
 }
 
+// GetAnimeDetail returns the richer anime detail projection by id.
 func (s *QueryService) GetAnimeDetail(ctx context.Context, id string) (*contracts.AnimeDetail, error) {
 	item, err := s.GetMobileAnime(ctx, id)
 	if err != nil {
@@ -202,6 +210,7 @@ func (s *QueryService) GetAnimeDetail(ctx context.Context, id string) (*contract
 	return animeDetailFromMobile(*item), nil
 }
 
+// GetAnimeEditorRecord returns the editor-focused projection for one anime.
 func (s *QueryService) GetAnimeEditorRecord(ctx context.Context, id string) (*contracts.AnimeEditorRecord, error) {
 	record, err := s.GetReadRecord(ctx, id)
 	if err != nil {
@@ -235,6 +244,7 @@ func (s *QueryService) GetAnimeEditorRecord(ctx context.Context, id string) (*co
 	return result, nil
 }
 
+// animeDetailFromMobile converts the mobile read model to an anime detail.
 func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
 	return &contracts.AnimeDetail{
 		ID:         item.ID,
@@ -270,6 +280,7 @@ func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
 	}
 }
 
+// remainingChapters calculates the number of unwatched chapters when known.
 func remainingChapters(watched float64, total *int) *float64 {
 	if total == nil {
 		return nil
@@ -278,6 +289,7 @@ func remainingChapters(watched float64, total *int) *float64 {
 	return &value
 }
 
+// legacyGateway builds the gateway used for legacy snapshot queries.
 func (s *QueryService) legacyGateway() *legacy.Gateway {
 	return legacy.NewGateway(legacy.GatewayConfig{
 		LoadSnapshot: func(ctx context.Context, id string) (legacy.Snapshot, error) {
@@ -295,120 +307,12 @@ func (s *QueryService) legacyGateway() *legacy.Gateway {
 	})
 }
 
+// fromLegacySnapshot converts a legacy snapshot to the anime snapshot record.
 func fromLegacySnapshot(record legacy.Snapshot) SnapshotRecord {
 	return SnapshotRecord{
 		AnimeID: record.AnimeID, CanonicalJSON: append([]byte(nil), record.CanonicalJSON...),
 		Hash: record.Hash, ModifiedAt: record.ModifiedAt,
 	}
-}
-
-func decodeSnapshotFields(payload []byte) map[string]json.RawMessage {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
-		return map[string]json.RawMessage{}
-	}
-	return fields
-}
-
-func cloneMobileDays(days []contracts.MobileAnimeDay) []contracts.MobileAnimeDay {
-	return append([]contracts.MobileAnimeDay{}, days...)
-}
-
-func editorStringListFromFields(fields map[string]json.RawMessage, key string) contracts.AnimeEditorStringListDTO {
-	value, exists := fields[key]
-	if !exists {
-		return contracts.AnimeEditorStringListDTO{Kind: contracts.AnimeEditorValueKindMissing, Values: []string{}}
-	}
-	if string(value) == "null" {
-		return contracts.AnimeEditorStringListDTO{Kind: contracts.AnimeEditorValueKindNull, Values: []string{}}
-	}
-	var values []string
-	if err := json.Unmarshal(value, &values); err == nil {
-		return contracts.AnimeEditorStringListDTO{Kind: contracts.AnimeEditorValueKindValue, Values: append([]string{}, values...)}
-	}
-	return contracts.AnimeEditorStringListDTO{Kind: contracts.AnimeEditorValueKindMissing, Values: []string{}}
-}
-
-func editorNullableStringFromFields(fields map[string]json.RawMessage, key string) contracts.AnimeEditorNullableStringDTO {
-	value, exists := fields[key]
-	if !exists {
-		return contracts.AnimeEditorNullableStringDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	if string(value) == "null" {
-		return contracts.AnimeEditorNullableStringDTO{Kind: contracts.AnimeEditorValueKindNull}
-	}
-	var decoded string
-	if json.Unmarshal(value, &decoded) != nil {
-		return contracts.AnimeEditorNullableStringDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	return contracts.AnimeEditorNullableStringDTO{Kind: contracts.AnimeEditorValueKindValue, Value: decoded}
-}
-
-func editorNullableIntFromFields(fields map[string]json.RawMessage, key string) contracts.AnimeEditorNullableIntDTO {
-	value, exists := fields[key]
-	if !exists {
-		return contracts.AnimeEditorNullableIntDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	if string(value) == "null" {
-		return contracts.AnimeEditorNullableIntDTO{Kind: contracts.AnimeEditorValueKindNull}
-	}
-	var decoded int
-	if json.Unmarshal(value, &decoded) != nil {
-		return contracts.AnimeEditorNullableIntDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	return contracts.AnimeEditorNullableIntDTO{Kind: contracts.AnimeEditorValueKindValue, Value: decoded}
-}
-
-func editorNullableTimeFromFields(fields map[string]json.RawMessage, key string) contracts.AnimeEditorNullableTimeDTO {
-	value, exists := fields[key]
-	if !exists {
-		return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	if string(value) == "null" {
-		return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindNull}
-	}
-	var wrapper struct {
-		UnixMilli int64 `json:"$$date"`
-	}
-	if json.Unmarshal(value, &wrapper) != nil {
-		return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindValue, UnixMilli: wrapper.UnixMilli}
-}
-
-func editorCoverFromFields(fields map[string]json.RawMessage) contracts.AnimeEditorCoverDTO {
-	value, exists := fields["portada"]
-	if !exists {
-		return contracts.AnimeEditorCoverDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	if string(value) == "null" {
-		return contracts.AnimeEditorCoverDTO{Kind: contracts.AnimeEditorValueKindNull}
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(value, &raw); err != nil {
-		return contracts.AnimeEditorCoverDTO{Kind: contracts.AnimeEditorValueKindMissing}
-	}
-	result := contracts.AnimeEditorCoverDTO{Kind: contracts.AnimeEditorValueKindValue, Raw: map[string]any{}}
-	if path, ok := raw["path"]; ok {
-		_ = json.Unmarshal(path, &result.Path)
-	}
-	if coverType, ok := raw["type"]; ok {
-		_ = json.Unmarshal(coverType, &result.Type)
-	}
-	for key, rawValue := range raw {
-		if key == "type" || key == "path" {
-			continue
-		}
-		var decoded any
-		if err := json.Unmarshal(rawValue, &decoded); err != nil {
-			continue
-		}
-		result.Raw[key] = decoded
-	}
-	if len(result.Raw) == 0 {
-		result.Raw = nil
-	}
-	return result
 }
 
 var _ contracts.AnimeQueryService = (*QueryService)(nil)

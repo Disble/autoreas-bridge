@@ -6,16 +6,13 @@ import (
 	"testing"
 )
 
-func TestRunRejectsLexicalAnimeDataFileIOBypasses(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		content string
-	}{
-		{
-			name: "function alias",
-			content: `package season
+var lexicalAnimeDataBypassCases = []struct {
+	name    string
+	content string
+}{
+	{
+		name: "function alias",
+		content: `package season
 import (
   "os"
   "path/filepath"
@@ -25,27 +22,27 @@ func read() {
   _, _ = readFile(filepath.Join("data", "animes.dat"))
 }
 `,
-		},
-		{
-			name: "constant folded filename",
-			content: `package season
+	},
+	{
+		name: "constant folded filename",
+		content: `package season
 import "os"
 func read() { _, _ = os.ReadFile("animes" + ".dat") }
 `,
-		},
-		{
-			name: "directory filesystem receiver",
-			content: `package season
+	},
+	{
+		name: "directory filesystem receiver",
+		content: `package season
 import "os"
 func read() {
   animeFS := os.DirFS("data")
   _, _ = animeFS.Open("animes.dat")
 }
 `,
-		},
-		{
-			name: "read before path reassignment",
-			content: `package season
+	},
+	{
+		name: "read before path reassignment",
+		content: `package season
 import "os"
 func read() {
   source := "animes.dat"
@@ -53,10 +50,10 @@ func read() {
   source = "settings.json"
 }
 `,
-		},
-		{
-			name: "aliased append open",
-			content: `package season
+	},
+	{
+		name: "aliased append open",
+		content: `package season
 import "os"
 func appendAnime() {
   animePath := "data/animes.dat"
@@ -64,10 +61,10 @@ func appendAnime() {
   _, _ = openFile(animePath, os.O_APPEND|os.O_WRONLY, 0600)
 }
 `,
-		},
-		{
-			name: "assigned joined write path",
-			content: `package season
+	},
+	{
+		name: "assigned joined write path",
+		content: `package season
 import (
   "os"
   pathutil "path/filepath"
@@ -78,10 +75,12 @@ func write() {
   _ = os.WriteFile(target, nil, 0600)
 }
 `,
-		},
-	}
+	},
+}
 
-	for _, tt := range tests {
+func TestRunRejectsLexicalAnimeDataFileIOBypasses(t *testing.T) {
+	t.Parallel()
+	for _, tt := range lexicalAnimeDataBypassCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

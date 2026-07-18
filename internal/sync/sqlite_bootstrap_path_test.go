@@ -56,7 +56,7 @@ func TestOpenBridgeDBOpensFileBackedSQLiteDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open bridge db: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping bridge db: %v", err)
@@ -88,7 +88,7 @@ func TestBootstrapBridgeDBCreatesAnimeSnapshotsTableIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first bootstrap bridge db: %v", err)
 	}
-	defer first.Close()
+	defer closeTestDB(t, first)
 	if !tableExists(t, first, "anime_snapshots") {
 		t.Fatal("expected anime_snapshots table to exist after first bootstrap")
 	}
@@ -97,7 +97,7 @@ func TestBootstrapBridgeDBCreatesAnimeSnapshotsTableIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second bootstrap bridge db: %v", err)
 	}
-	defer second.Close()
+	defer closeTestDB(t, second)
 	if !tableExists(t, second, "anime_snapshots") {
 		t.Fatal("expected anime_snapshots table to still exist after second bootstrap")
 	}

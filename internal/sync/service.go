@@ -12,6 +12,7 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// TriggerService exposes sync reconciliation and changelog read models to delivery layers.
 type TriggerService struct {
 	bus   events.Bus
 	store changelogLookup
@@ -28,6 +29,7 @@ type changelogLookup interface {
 	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
 }
 
+// NewTriggerService builds the sync trigger service.
 func NewTriggerService(bus events.Bus, store changelogLookup, loggers ...sharedlogger.Logger) *TriggerService {
 	service := &TriggerService{bus: bus, store: store}
 	if len(loggers) > 0 {
@@ -36,6 +38,7 @@ func NewTriggerService(bus events.Bus, store changelogLookup, loggers ...sharedl
 	return service
 }
 
+// TriggerReconcile publishes a sync-requested event for the rest of the bridge.
 func (s *TriggerService) TriggerReconcile(context.Context) error {
 	start := time.Now()
 	if s.log != nil {
@@ -48,6 +51,7 @@ func (s *TriggerService) TriggerReconcile(context.Context) error {
 	return nil
 }
 
+// maxDurationMs converts a duration to a positive millisecond value.
 func maxDurationMs(duration time.Duration) int64 {
 	if duration.Milliseconds() <= 0 {
 		return 1
@@ -55,30 +59,26 @@ func maxDurationMs(duration time.Duration) int64 {
 	return duration.Milliseconds()
 }
 
+// ListChangesSince returns sync changes newer than the given timestamp.
 func (s *TriggerService) ListChangesSince(ctx context.Context, sinceMs int64) ([]contracts.AnimeChange, int64, error) {
-	if s.store == nil {
-		return []contracts.AnimeChange{}, 0, nil
-	}
-	entries, err := s.store.ListSinceTimestamp(ctx, sinceMs)
-	if err != nil {
-		return nil, 0, err
-	}
-	lastID, err := s.store.LastID(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
-	changes, _, err := toAnimeChanges(entries)
-	if err != nil {
-		return nil, 0, err
-	}
-	return changes, lastID, nil
+	return s.listChanges(ctx, func(ctx context.Context) ([]ChangelogEntry, error) {
+		return s.store.ListSinceTimestamp(ctx, sinceMs)
+	})
 }
 
+// ListChangesAfterID returns sync changes whose changelog id is greater than lastID.
 func (s *TriggerService) ListChangesAfterID(ctx context.Context, lastID int64) ([]contracts.AnimeChange, int64, error) {
+	return s.listChanges(ctx, func(ctx context.Context) ([]ChangelogEntry, error) {
+		return s.store.ListAfterID(ctx, lastID)
+	})
+}
+
+// listChanges loads changelog entries and converts them to API changes.
+func (s *TriggerService) listChanges(ctx context.Context, list func(context.Context) ([]ChangelogEntry, error)) ([]contracts.AnimeChange, int64, error) {
 	if s.store == nil {
 		return []contracts.AnimeChange{}, 0, nil
 	}
-	entries, err := s.store.ListAfterID(ctx, lastID)
+	entries, err := list(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -93,6 +93,7 @@ func (s *TriggerService) ListChangesAfterID(ctx context.Context, lastID int64) (
 	return changes, newLastID, nil
 }
 
+// AcknowledgeDevice records that a device has processed changelog rows through lastChangelogID.
 func (s *TriggerService) AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error {
 	if s.store == nil {
 		return nil
@@ -104,6 +105,7 @@ func (s *TriggerService) AcknowledgeDevice(ctx context.Context, deviceID string,
 	return err
 }
 
+// LastChangedAt returns the newest persisted changelog timestamp.
 func (s *TriggerService) LastChangedAt(ctx context.Context) (*int64, error) {
 	if s.store == nil {
 		return nil, nil
@@ -111,6 +113,7 @@ func (s *TriggerService) LastChangedAt(ctx context.Context) (*int64, error) {
 	return s.store.LastChangedAt(ctx)
 }
 
+// ListPendingAnimeSyncs returns the pending anime summary shown in the syncing panel.
 func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts.SyncingAnimeItem, error) {
 	if s.store == nil {
 		return []contracts.SyncingAnimeItem{}, nil
@@ -128,36 +131,10 @@ func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts
 
 	items := make([]contracts.SyncingAnimeItem, 0, len(groups))
 	for animeID, group := range groups {
-		latest := latestChangelogEntry(group)
-		item := contracts.SyncingAnimeItem{
-			AnimeID:         animeID,
-			Title:           animeID,
-			ChangeType:      latest.ChangeType,
-			PendingChanges:  len(group),
-			ChangedFields:   append([]string(nil), latest.ChangedFields...),
-			LastChangedAtMs: latest.ChangedAtMs,
+		item, include := pendingSyncItem(animeID, group)
+		if include {
+			items = append(items, item)
 		}
-
-		if len(latest.SnapshotJSON) > 0 {
-			snapshot, snapshotErr := animeSnapshotToContract(latest.SnapshotJSON)
-			if snapshotErr == nil && snapshot != nil {
-				if snapshot.Activo == 0 {
-					continue
-				}
-				item.Activo = snapshot.Activo
-				if snapshot.Nombre != "" {
-					item.Title = snapshot.Nombre
-				}
-				progressCurrent := snapshot.NroCapVisto
-				item.ProgressCurrent = &progressCurrent
-				if snapshot.TotalCap != nil {
-					progressTotal := *snapshot.TotalCap
-					item.ProgressTotal = &progressTotal
-				}
-			}
-		}
-
-		items = append(items, item)
 	}
 
 	sort.Slice(items, func(i, j int) bool {
@@ -167,6 +144,39 @@ func (s *TriggerService) ListPendingAnimeSyncs(ctx context.Context) ([]contracts
 	return items, nil
 }
 
+// pendingSyncItem builds the pending sync summary for one anime.
+func pendingSyncItem(animeID string, group []ChangelogEntry) (contracts.SyncingAnimeItem, bool) {
+	latest := latestChangelogEntry(group)
+	item := contracts.SyncingAnimeItem{AnimeID: animeID, Title: animeID, ChangeType: latest.ChangeType, PendingChanges: len(group), ChangedFields: append([]string(nil), latest.ChangedFields...), LastChangedAtMs: latest.ChangedAtMs}
+	return applyPendingSnapshot(item, latest.SnapshotJSON)
+}
+
+// applyPendingSnapshot enriches a sync item from its latest snapshot payload.
+func applyPendingSnapshot(item contracts.SyncingAnimeItem, payload []byte) (contracts.SyncingAnimeItem, bool) {
+	if len(payload) == 0 {
+		return item, true
+	}
+	snapshot, err := animeSnapshotToContract(payload)
+	if err != nil || snapshot == nil {
+		return item, true
+	}
+	if snapshot.Activo == 0 {
+		return contracts.SyncingAnimeItem{}, false
+	}
+	item.Activo = snapshot.Activo
+	if snapshot.Nombre != "" {
+		item.Title = snapshot.Nombre
+	}
+	progressCurrent := snapshot.NroCapVisto
+	item.ProgressCurrent = &progressCurrent
+	if snapshot.TotalCap != nil {
+		progressTotal := *snapshot.TotalCap
+		item.ProgressTotal = &progressTotal
+	}
+	return item, true
+}
+
+// latestChangelogEntry returns the newest entry by change timestamp.
 func latestChangelogEntry(entries []ChangelogEntry) ChangelogEntry {
 	if len(entries) == 0 {
 		return ChangelogEntry{}
@@ -180,6 +190,7 @@ func latestChangelogEntry(entries []ChangelogEntry) ChangelogEntry {
 	return latest
 }
 
+// toAnimeChanges converts stored changelog entries into API changes.
 func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, error) {
 	changes := make([]contracts.AnimeChange, 0, len(entries))
 	var lastID int64
@@ -204,6 +215,7 @@ func toAnimeChanges(entries []ChangelogEntry) ([]contracts.AnimeChange, int64, e
 	return changes, lastID, nil
 }
 
+// animeSnapshotToContract decodes a snapshot using current and legacy formats.
 func animeSnapshotToContract(payload []byte) (*contracts.MobileAnime, error) {
 	var snapshot contracts.MobileAnime
 	if err := json.Unmarshal(payload, &snapshot); err == nil && snapshot.ID != "" {

@@ -45,7 +45,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
         )}
 
         <ScrollShadow className="min-h-0 flex-1" hideScrollBar>
-          <div aria-label="Weekday schedule row" className="grid gap-3 lg:grid-cols-7">
+          <div aria-label="Weekday schedule row" className="grid gap-3 lg:grid-cols-7 md:grid-cols-3">
             {weekdayColumns.map((column) => (
               <Card key={column.id}>
                 <Card.Header>
@@ -53,7 +53,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
                   <Chip size="sm" variant="soft">{column.cards.length}</Chip>
                 </Card.Header>
                 <Card.Content>
-                  <AnimeScheduleOrderingColumn className="min-h-24 rounded-lg border border-border/70 p-2" containerId={column.id}>
+                  <AnimeScheduleOrderingColumn className="min-h-24 rounded-lg border border-border/70 p-2 bg-zinc-800" containerId={column.id}>
                     {column.cards.length === 0 ? (
                       <Typography color="muted" type="body-sm">{ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}</Typography>
                     ) : (
@@ -81,7 +81,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
               <Card key={column.id}>
                 <Card.Header><Card.Title>{column.label}</Card.Title><Chip size="sm" variant="soft">{column.cards.length}</Chip></Card.Header>
                 <Card.Content>
-                  <AnimeScheduleOrderingColumn className="min-h-24 rounded-lg border border-border p-2" containerId={column.id}>
+                  <AnimeScheduleOrderingColumn className="min-h-24 rounded-lg border border-border p-2 bg-zinc-800" containerId={column.id}>
                     {column.cards.length === 0 ? <Typography color="muted" type="body-sm">{ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}</Typography> : (
                       <ul className="flex flex-col gap-2">
                         {column.cards.map((instance, index) => <AnimeScheduleOrderingCard key={instance.key} canRemove={canRemove(instance.animeId)} containerId={column.id} index={index} instance={instance} onDuplicate={() => onDuplicate(instance.animeId)} onRemove={() => onRemove(instance.key)} />)}

@@ -12,6 +12,7 @@ type changelogStatusReader interface {
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
 
+// StatusService reads the bridge status snapshot exposed to the UI and API.
 type StatusService struct {
 	changes    changelogStatusReader
 	address    func() string
@@ -25,6 +26,7 @@ func NewStatusService(changes changelogStatusReader, address func() string, seas
 	return &StatusService{changes: changes, address: address, seasonMode: seasonMode}
 }
 
+// GetStatus returns the current bridge status snapshot.
 func (s *StatusService) GetStatus(ctx context.Context) (contracts.StatusInfo, error) {
 	status := contracts.StatusInfo{Status: "ok"}
 	if s.changes != nil {

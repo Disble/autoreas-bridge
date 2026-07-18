@@ -16,6 +16,7 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
+// decodeAnimeDomain decodes a test payload into the domain anime model.
 func decodeAnimeDomain(t *testing.T, payload []byte) domain.Anime {
 	t.Helper()
 	value, _, err := legacy.Decode(payload)
@@ -25,6 +26,7 @@ func decodeAnimeDomain(t *testing.T, payload []byte) domain.Anime {
 	return value
 }
 
+// decodeJSONFields decodes a test payload into raw JSON fields.
 func decodeJSONFields(t *testing.T, payload []byte) map[string]json.RawMessage {
 	t.Helper()
 	var fields map[string]json.RawMessage
@@ -34,6 +36,7 @@ func decodeJSONFields(t *testing.T, payload []byte) map[string]json.RawMessage {
 	return fields
 }
 
+// jsonValueEqual compares two JSON values for test assertions.
 func jsonValueEqual(t *testing.T, got, want []byte) bool {
 	t.Helper()
 
@@ -68,6 +71,7 @@ func (s *stubNotifier) Notify(_ context.Context, n notification.Notification) er
 	return s.err
 }
 
+// openAnimeServiceTestStore opens the SQLite store used by anime tests.
 func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
 	t.Helper()
 
@@ -83,6 +87,7 @@ func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
 	return bridgeSync.NewAnimeSnapshotStore(db)
 }
 
+// seedAnimeSnapshot inserts a snapshot fixture into the test store.
 func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
 	t.Helper()
 
@@ -98,6 +103,7 @@ func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, anime
 	}
 }
 
+// seedAnimeSnapshotWithModifiedAt inserts a snapshot fixture with an OCC token.
 func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string, modifiedAt int64) {
 	t.Helper()
 
@@ -114,8 +120,11 @@ func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapsh
 	}
 }
 
+// floatPtr returns a pointer to a float test value.
 func floatPtr(value float64) *float64 { return &value }
-func int64Ptr(value int64) *int64     { return &value }
+
+// int64Ptr returns a pointer to an int64 test value.
+func int64Ptr(value int64) *int64 { return &value }
 
 type stubAnimeWriter struct {
 	animeID string
@@ -136,7 +145,7 @@ func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payloa
 	return s.err
 }
 
-func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, payload []byte) error {
+func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, payload []byte) (err error) {
 	if s.onWrite != nil {
 		s.onWrite()
 	}
@@ -148,7 +157,11 @@ func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, paylo
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() {
+			if closeErr := file.Close(); err == nil && closeErr != nil {
+				err = closeErr
+			}
+		}()
 		if _, err := file.Write(append(append([]byte(nil), payload...), '\n')); err != nil {
 			return err
 		}
@@ -158,6 +171,7 @@ func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, paylo
 
 func (s *stubAnimeWriter) LegacyFilePath() string { return s.path }
 
+// writeLegacyDataFile writes payload fixtures to a temporary legacy file.
 func writeLegacyDataFile(t *testing.T, payloads ...string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "animes.dat")
@@ -182,6 +196,7 @@ func (w *capturingAnimeWriter) RequestWrite(_ context.Context, _ string, payload
 	return w.err
 }
 
+// updateAnimeSnapshot updates one snapshot fixture in the test store.
 func updateAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload []byte) {
 	t.Helper()
 
@@ -199,10 +214,11 @@ func updateAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, ani
 	}
 }
 
+// assertNoPendingAnimeChanged verifies that no anime change remains pending.
 func assertNoPendingAnimeChanged(t *testing.T, store *bridgeSync.AnimeSnapshotStore) {
 	t.Helper()
 	outbox, ok := store.WriteBaseStore().(interface {
-		ListPendingAnimeChanged(context.Context) ([]anime.AnimeChangedOutboxEvent, error)
+		ListPendingAnimeChanged(context.Context) ([]anime.ChangedOutboxEvent, error)
 	})
 	if !ok {
 		t.Fatal("test store does not expose the anime.changed outbox")

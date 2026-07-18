@@ -1,9 +1,11 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeScheduleOrderingTestDriverRef } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** Route input for the ID-driven Anime Editor workspace. */
 export interface AnimeEditorWorkspaceProps {
   readonly initialAnimeId?: string;
+  readonly scheduleTestDriverRef?: AnimeScheduleOrderingTestDriverRef;
 }
 
 /** Filter lenses supported by the left editor rail. */
@@ -114,6 +116,7 @@ export interface AnimeEditorFormPanelProps {
 /** Props for guard and schedule modal rendering. */
 export interface AnimeEditorDialogsProps {
   readonly viewModel: AnimeEditorWorkspaceViewModel;
+  readonly scheduleTestDriverRef?: AnimeScheduleOrderingTestDriverRef;
 }
 
 /** Collaborators consumed by guarded editor transition orchestration. */

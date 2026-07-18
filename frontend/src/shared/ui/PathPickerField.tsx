@@ -8,24 +8,37 @@ import type { PathPickerFieldProps } from './PathPickerField.types';
  * folders, cover images, and any future path picker without duplicating the
  * input-plus-button layout at each call site.
  */
-export function PathPickerField(props: Readonly<PathPickerFieldProps>) {
+export function PathPickerField({
+  label,
+  value,
+  onChange,
+  onBrowse,
+  placeholder,
+  description,
+  browseLabel,
+  mono,
+  isDisabled,
+  ...rest
+}: Readonly<PathPickerFieldProps>) {
   return (
     <TextField>
-      <Label>{props.label}</Label>
+      <Label>{label}</Label>
       <div className="flex items-center gap-2">
         <Input
-          className={props.mono === true ? 'font-mono' : undefined}
+          {...rest}
+          className={mono === true ? 'font-mono' : undefined}
+          disabled={isDisabled}
           fullWidth
-          placeholder={props.placeholder}
-          value={props.value}
+          placeholder={placeholder}
+          value={value}
           variant="secondary"
-          onChange={(event) => props.onChange(event.target.value)}
+          onChange={(event) => onChange(event.target.value)}
         />
-        <Button className="shrink-0" isDisabled={props.isDisabled} variant="secondary" onPress={props.onBrowse}>
-          {props.browseLabel ?? 'Browse…'}
+        <Button className="shrink-0" isDisabled={isDisabled} variant="secondary" onPress={onBrowse}>
+          {browseLabel ?? 'Browse…'}
         </Button>
       </div>
-      {props.description !== undefined && <Description>{props.description}</Description>}
+      {description !== undefined && <Description>{description}</Description>}
     </TextField>
   );
 }

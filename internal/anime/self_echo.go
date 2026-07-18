@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// SelfEchoRegistry tracks payload hashes emitted by the writer so the watcher
+// can suppress its own filesystem echoes.
 type SelfEchoRegistry interface {
 	Remember(payload []byte)
 	Forget(payload []byte)
@@ -41,6 +43,7 @@ func (r *md5SelfEchoRegistry) ReplacementInFlight() bool {
 	return r.replacements > 0
 }
 
+// NewSelfEchoRegistry builds the default hash-based self-echo registry.
 func NewSelfEchoRegistry() SelfEchoRegistry {
 	return &md5SelfEchoRegistry{counts: make(map[string]int)}
 }
@@ -97,6 +100,7 @@ func (r *md5SelfEchoRegistry) ConsumeIfPresent(payload []byte) bool {
 	return true
 }
 
+// md5Payload returns the hexadecimal digest used to identify a payload.
 func md5Payload(payload []byte) string {
 	sum := md5.Sum(payload)
 	return hex.EncodeToString(sum[:])

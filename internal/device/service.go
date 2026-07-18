@@ -11,25 +11,32 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-var (
-	ErrInvalidPairingRequest = errors.New("invalid pairing request")
-	ErrInvalidPairingToken   = errors.New("invalid pairing token")
-	ErrUnauthorized          = errors.New("unauthorized")
-)
+// ErrInvalidPairingRequest reports malformed device-pairing input.
+var ErrInvalidPairingRequest = errors.New("invalid pairing request")
 
+// ErrInvalidPairingToken reports a missing, expired, or already-consumed pairing token.
+var ErrInvalidPairingToken = errors.New("invalid pairing token")
+
+// ErrUnauthorized reports an invalid or missing device authentication token.
+var ErrUnauthorized = errors.New("unauthorized")
+
+// PairingTokenTTL defines how long an unused pairing token remains valid.
 const PairingTokenTTL = 10 * time.Minute
 
+// PairDeviceRequest contains the client payload required to pair a device.
 type PairDeviceRequest struct {
 	PairingToken string
 	DeviceName   string
 }
 
+// PairedDevice is the authenticated device view returned to API callers.
 type PairedDevice struct {
 	DeviceID  string
 	Name      string
 	AuthToken string
 }
 
+// StoredDevice is the persisted device record kept in storage.
 type StoredDevice struct {
 	DeviceID   string
 	Name       string
@@ -37,6 +44,7 @@ type StoredDevice struct {
 	PairedAtMs int64
 }
 
+// SyncState tracks per-device synchronization progress and pruning status.
 type SyncState struct {
 	DeviceID               string
 	LastAckChangelogID     int64
@@ -45,12 +53,14 @@ type SyncState struct {
 	BlocksChangelogPruning bool
 }
 
+// SyncStateStore persists per-device synchronization state.
 type SyncStateStore interface {
 	ListDeviceSyncStates(ctx context.Context) ([]SyncState, error)
 	MarkDeviceActive(ctx context.Context, deviceID string, atMs int64) error
 	MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error
 }
 
+// Store persists pairing tokens and paired-device records.
 type Store interface {
 	SavePairingToken(ctx context.Context, token string, createdAtMs int64) error
 	ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error
@@ -62,16 +72,19 @@ type Store interface {
 	DeletePairedDevice(ctx context.Context, deviceID string) error
 }
 
+// AuthService pairs devices and authenticates device tokens.
 type AuthService interface {
 	PairDevice(ctx context.Context, req PairDeviceRequest) (PairedDevice, error)
 	AuthenticateToken(ctx context.Context, token string) (PairedDevice, error)
 }
 
+// AdminService lists and revokes paired devices for admin surfaces.
 type AdminService interface {
 	ListDevices(ctx context.Context) ([]contracts.DeviceInfo, error)
 	RevokeDevice(ctx context.Context, id string) error
 }
 
+// Service implements device pairing, authentication, and admin operations.
 type Service struct {
 	store          Store
 	syncStateStore SyncStateStore
@@ -80,6 +93,7 @@ type Service struct {
 	newID          func() string
 }
 
+// NewService builds a device service over the provided persistence store.
 func NewService(store Store) *Service {
 	return &Service{
 		store: store,
@@ -97,6 +111,7 @@ func NewService(store Store) *Service {
 	}
 }
 
+// SetSyncStateStore configures the optional synchronization-state backing store.
 func (s *Service) SetSyncStateStore(store SyncStateStore) {
 	if s == nil {
 		return
@@ -104,6 +119,7 @@ func (s *Service) SetSyncStateStore(store SyncStateStore) {
 	s.syncStateStore = store
 }
 
+// PairDevice consumes a valid pairing token and provisions one authenticated device.
 func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (PairedDevice, error) {
 	if s == nil || s.store == nil {
 		return PairedDevice{}, ErrUnauthorized
@@ -115,38 +131,19 @@ func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (Paired
 		return PairedDevice{}, ErrInvalidPairingRequest
 	}
 
-	now := s.now
-	if now == nil {
-		now = time.Now
-	}
-	pairedAtMs := now().UnixMilli()
+	pairedAtMs := s.pairingTime().UnixMilli()
 
 	if err := s.store.ConsumePairingToken(ctx, req.PairingToken, pairedAtMs, pairedAtMs-PairingTokenTTL.Milliseconds()); err != nil {
 		return PairedDevice{}, err
 	}
 
-	newToken := s.newToken
-	if newToken == nil {
-		newToken = func() (string, error) { return randomHexToken(16) }
-	}
-	authToken, err := newToken()
+	authToken, err := s.generateAuthToken()
 	if err != nil {
 		return PairedDevice{}, err
 	}
 
-	newID := s.newID
-	if newID == nil {
-		newID = func() string {
-			token, err := randomHexToken(8)
-			if err != nil {
-				return ""
-			}
-			return "device-" + token
-		}
-	}
-
 	stored := StoredDevice{
-		DeviceID:   newID(),
+		DeviceID:   s.generateDeviceID(),
 		Name:       req.DeviceName,
 		AuthToken:  authToken,
 		PairedAtMs: pairedAtMs,
@@ -171,6 +168,35 @@ func (s *Service) PairDevice(ctx context.Context, req PairDeviceRequest) (Paired
 	}, nil
 }
 
+// pairingTime returns the service clock time used for pairing operations.
+func (s *Service) pairingTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// generateAuthToken creates an authentication token using the configured generator.
+func (s *Service) generateAuthToken() (string, error) {
+	if s.newToken != nil {
+		return s.newToken()
+	}
+	return randomHexToken(16)
+}
+
+// generateDeviceID creates a device identifier using the configured generator.
+func (s *Service) generateDeviceID() string {
+	if s.newID != nil {
+		return s.newID()
+	}
+	token, err := randomHexToken(8)
+	if err != nil {
+		return ""
+	}
+	return "device-" + token
+}
+
+// AuthenticateToken resolves one bearer token into the paired-device identity it owns.
 func (s *Service) AuthenticateToken(ctx context.Context, token string) (PairedDevice, error) {
 	if s == nil || s.store == nil {
 		return PairedDevice{}, ErrUnauthorized
@@ -193,6 +219,7 @@ func (s *Service) AuthenticateToken(ctx context.Context, token string) (PairedDe
 	}, nil
 }
 
+// ListDevices returns paired-device admin read models enriched with sync state.
 func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, error) {
 	devices, err := s.store.ListPairedDevices(ctx)
 	if err != nil {
@@ -234,6 +261,7 @@ func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, erro
 	return result, nil
 }
 
+// RevokeDevice removes one paired device and marks its sync state as revoked.
 func (s *Service) RevokeDevice(ctx context.Context, id string) error {
 	if err := s.store.DeletePairedDevice(ctx, id); err != nil {
 		return err
@@ -248,6 +276,7 @@ func (s *Service) RevokeDevice(ctx context.Context, id string) error {
 	return nil
 }
 
+// randomHexToken returns cryptographically random hexadecimal bytes.
 func randomHexToken(size int) (string, error) {
 	buf := make([]byte, size)
 	if _, err := rand.Read(buf); err != nil {

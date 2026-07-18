@@ -8,6 +8,7 @@ import (
 
 var fileMutationCoordinators sync.Map
 
+// withExclusiveFileMutation serializes mutations targeting the same cleaned path.
 func withExclusiveFileMutation(path string, mutate func() error) error {
 	key := strings.ToLower(filepath.Clean(path))
 	value, _ := fileMutationCoordinators.LoadOrStore(key, &sync.Mutex{})

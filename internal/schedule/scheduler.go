@@ -4,7 +4,7 @@
 // "Scheduler" port consumer side of design.md §3.5 -- the production wiring of the real
 // download.Service.RunOnce as the callback, and the app.go lifecycle hooks, are Phase 6 work
 // (PR4b); this package depends ONLY on the minimal store seam it needs (ConfigStore), never on
-// the full download.DownloadStore interface, so it stays independently testable.
+// the full download.Store interface, so it stays independently testable.
 //
 // Concurrency model: a single `running` atomic.Bool guards against overlapping runs
 // (design.md §6 "Concurrent-Run Guard"). A scheduled tick that finds the guard held logs and
@@ -20,9 +20,6 @@ package schedule
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,73 +53,6 @@ const (
 	defaultMaxRunDuration = 2 * time.Hour
 )
 
-// Timer is the minimal seam Scheduler needs from a timer (design.md §6 "a time.Timer with
-// Reset"). Production code is backed by realClock/realTimer (time.NewTimer); tests inject a
-// fully fake implementation so NOTHING in this package ever sleeps on a real clock.
-type Timer interface {
-	C() <-chan time.Time
-	Stop() bool
-	Reset(d time.Duration)
-}
-
-// Clock is the injected time seam (design.md §3.9 "every dependency is an interface"). Now
-// must be safe to call from the scheduler goroutine concurrently with test-driven mutation.
-type Clock interface {
-	Now() time.Time
-	NewTimer(d time.Duration) Timer
-}
-
-// ConfigStore is the minimal slice of download.DownloadStore the scheduler needs -- reading
-// the persisted schedule and recording run outcomes (design.md §3.6 GetScheduleConfig /
-// MarkScheduleRun). It intentionally does NOT depend on the full DownloadStore interface so
-// this package has no SQLite/store-package import and stays unit-testable with a tiny fake.
-type ConfigStore interface {
-	GetScheduleConfig(ctx context.Context) (download.ScheduleConfig, error)
-	MarkScheduleRun(ctx context.Context, lastAtMs int64, status string, nextAtMs int64) error
-}
-
-// RunFunc is the injected run-callback seam (design.md §3.9). Phase 6 wires the real
-// download.Service.RunOnce(ctx, trigger) here; trigger is "scheduled" or "manual". The
-// scheduler does NOT depend on download.Service directly -- only on this func signature.
-// The returned status is persisted for scheduled runs so the Schedule panel's Last run state
-// reflects the actual terminal download outcome.
-type RunFunc func(ctx context.Context, trigger string) (string, error)
-
-// Status is the next/last-run/last-status snapshot surfaced to the Wails bindings (Phase 6)
-// and UI (design-scheduler spec "Next-Run/Last-Run/Last-Status Surfaced").
-type Status struct {
-	Enabled       bool
-	NextRunAtMs   int64
-	LastRunAtMs   int64
-	LastRunStatus string
-	Running       bool
-}
-
-// Deps are the constructor seams for Scheduler. Every field is an interface or func so the
-// whole scheduler is testable without real time or a real download (PR4a brief).
-type Deps struct {
-	Store ConfigStore
-	Clock Clock
-	Run   RunFunc
-	Log   logger.Logger
-
-	// IdleInterval overrides defaultIdleInterval (re-check cadence while disabled).
-	IdleInterval time.Duration
-	// ShutdownDrainWait overrides defaultShutdownDrainWait.
-	ShutdownDrainWait time.Duration
-	// MaxRunDuration overrides defaultMaxRunDuration.
-	MaxRunDuration time.Duration
-}
-
-// Scheduler is the design.md §3.5 port.
-type Scheduler interface {
-	Start(ctx context.Context)
-	Stop()
-	NotifyConfigChanged()
-	TriggerNow(ctx context.Context, trigger string) error
-	Status(ctx context.Context) Status
-}
-
 type scheduler struct {
 	store ConfigStore
 	clock Clock
@@ -144,31 +74,6 @@ type scheduler struct {
 	loopCancel  context.CancelFunc
 	runCancel   context.CancelFunc
 	runDoneChan chan struct{}
-}
-
-// NewScheduler builds a Scheduler from the given Deps, defaulting unset durations.
-func NewScheduler(deps Deps) Scheduler {
-	s := &scheduler{
-		store:             deps.Store,
-		clock:             deps.Clock,
-		run:               deps.Run,
-		log:               deps.Log,
-		idleInterval:      deps.IdleInterval,
-		shutdownDrainWait: deps.ShutdownDrainWait,
-		maxRunDuration:    deps.MaxRunDuration,
-		loopDone:          make(chan struct{}),
-		wake:              make(chan struct{}, 1),
-	}
-	if s.idleInterval <= 0 {
-		s.idleInterval = defaultIdleInterval
-	}
-	if s.shutdownDrainWait <= 0 {
-		s.shutdownDrainWait = defaultShutdownDrainWait
-	}
-	if s.maxRunDuration <= 0 {
-		s.maxRunDuration = defaultMaxRunDuration
-	}
-	return s
 }
 
 // NotifyConfigChanged wakes the scheduler loop so a just-saved schedule is re-read immediately
@@ -264,6 +169,7 @@ func (s *scheduler) Status(ctx context.Context) Status {
 	}
 }
 
+// isRunning reports whether the scheduler loop is active.
 func (s *scheduler) isRunning() bool {
 	return s.running.Load()
 }
@@ -329,53 +235,71 @@ func (s *scheduler) releaseGuard(doneChan chan struct{}) {
 	s.running.Store(false)
 }
 
+// loop runs the scheduler until its context is canceled.
 func (s *scheduler) loop(ctx context.Context) {
 	for {
-		if ctx.Err() != nil {
+		if shouldStopLoop(ctx) {
 			return
 		}
 
-		cfg, err := s.store.GetScheduleConfig(ctx)
-		if err != nil {
-			s.logf("schedule: failed to read schedule config, retrying after idle interval: %v", err)
-			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
-				return
-			}
+		cfg, ok := s.loadEnabledScheduleConfig(ctx)
+		if !ok {
 			continue
 		}
 
-		if !cfg.Enabled {
-			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
-				return
-			}
-			continue
-		}
-
-		next, err := nextDailyBoundaryAfter(s.clock.Now(), cfg.DailyTimeHHMM, cfg.EnabledWeekdays, s.clock.Now().Location())
-		if err != nil {
-			// ErrNoEnabledWeekday (empty weekday set) is treated the SAME as a disabled
-			// schedule or a parse error -- idle re-check, never fire (design.md "Empty Weekday
-			// Set Disables Scheduling").
-			s.logf("schedule: cannot compute next boundary for daily_time_hhmm %q, retrying after idle interval: %v", cfg.DailyTimeHHMM, err)
-			if s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) == sleepCancelled {
-				return
-			}
+		next, ok := s.nextScheduledBoundary(ctx, cfg)
+		if !ok {
 			continue
 		}
 
 		sleep := s.sleepUntil(ctx, next)
-		if sleep == sleepCancelled {
+		if sleep == sleepCancelled || shouldStopLoop(ctx) {
 			return
 		}
 		if sleep == sleepWoken {
 			continue
 		}
-		if ctx.Err() != nil {
-			return
-		}
 
 		s.fireScheduledTick(ctx)
 	}
+}
+
+// shouldStopLoop reports whether the scheduler context has been canceled.
+func shouldStopLoop(ctx context.Context) bool {
+	return ctx.Err() != nil
+}
+
+// loadEnabledScheduleConfig loads the current enabled schedule configuration.
+func (s *scheduler) loadEnabledScheduleConfig(ctx context.Context) (download.ScheduleConfig, bool) {
+	cfg, err := s.store.GetScheduleConfig(ctx)
+	if err != nil {
+		s.logf("schedule: failed to read schedule config, retrying after idle interval: %v", err)
+		s.waitForIdleRetry(ctx)
+		return download.ScheduleConfig{}, false
+	}
+	if !cfg.Enabled {
+		s.waitForIdleRetry(ctx)
+		return download.ScheduleConfig{}, false
+	}
+	return cfg, true
+}
+
+// nextScheduledBoundary calculates the next scheduled run boundary.
+func (s *scheduler) nextScheduledBoundary(ctx context.Context, cfg download.ScheduleConfig) (time.Time, bool) {
+	next, err := nextDailyBoundaryAfter(s.clock.Now(), cfg.DailyTimeHHMM, cfg.EnabledWeekdays, s.clock.Now().Location())
+	if err == nil {
+		return next, true
+	}
+	// ErrNoEnabledWeekday (empty weekday set) is treated the SAME as a disabled
+	// schedule or a parse error -- idle re-check, never fire (design.md "Empty Weekday
+	// Set Disables Scheduling").
+	s.logf("schedule: cannot compute next boundary for daily_time_hhmm %q, retrying after idle interval: %v", cfg.DailyTimeHHMM, err)
+	return time.Time{}, s.waitForIdleRetry(ctx)
+}
+
+// waitForIdleRetry waits before retrying an unavailable schedule configuration.
+func (s *scheduler) waitForIdleRetry(ctx context.Context) bool {
+	return s.sleepUntil(ctx, s.clock.Now().Add(s.idleInterval)) != sleepCancelled
 }
 
 // fireScheduledTick attempts to start a scheduled run. If the guard is already held it logs
@@ -396,6 +320,7 @@ func (s *scheduler) fireScheduledTick(ctx context.Context) {
 	s.markScheduledRun(ctx, startedAt, status, err)
 }
 
+// markScheduledRun records the result of a scheduled run.
 func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, status string, runErr error) {
 	if status == "" {
 		if runErr != nil {
@@ -417,36 +342,7 @@ func (s *scheduler) markScheduledRun(ctx context.Context, startedAt time.Time, s
 	}
 }
 
-type sleepResult int
-
-const (
-	sleepCancelled sleepResult = iota
-	sleepElapsed
-	sleepWoken
-)
-
-// sleepUntil waits (via the injected Clock/Timer seam) until `at`, returning whether the timer
-// elapsed, the context was cancelled, or a config-change wakeup requested an immediate re-read.
-// It NEVER calls time.Sleep directly -- this is the seam that makes the whole loop unit-testable
-// with a fake clock (PR4a brief).
-func (s *scheduler) sleepUntil(ctx context.Context, at time.Time) sleepResult {
-	d := at.Sub(s.clock.Now())
-	if d < 0 {
-		d = 0
-	}
-	timer := s.clock.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return sleepCancelled
-	case <-s.wake:
-		return sleepWoken
-	case <-timer.C():
-		return sleepElapsed
-	}
-}
-
+// logf writes a scheduler-scoped formatted log message.
 func (s *scheduler) logf(format string, args ...any) {
 	if s.log == nil {
 		return
@@ -455,63 +351,3 @@ func (s *scheduler) logf(format string, args ...any) {
 }
 
 var _ Scheduler = (*scheduler)(nil)
-
-// maxWeekdayAdvancementIterations bounds the day-by-day search for an enabled weekday at 7 --
-// a byte mask has exactly 7 distinct weekday bits, so 7 iterations is always enough to either
-// land on an enabled day or conclusively determine the mask has none set (design.md "Bounded
-// Next-Run Advancement").
-const maxWeekdayAdvancementIterations = 7
-
-// nextDailyBoundaryAfter computes the next instant at which the wall-clock time hhmm (format
-// "HH:MM", 24h) occurs strictly after `now`, interpreted in `loc`, AND lands on a weekday
-// enabled in `mask` (design.md §6 "compute the next daily_time_hhmm boundary"; SDD
-// download-schedule-weekdays design "nextDailyBoundaryAfter gains the mask and iterates <=7
-// days"). If hhmm has already passed today (or equals `now` exactly), it rolls to tomorrow --
-// a boundary that is exactly "now" is, by definition, the next due tick, not the current
-// instant, so it must roll forward to remain a future boundary. mask is a 7-bit weekday set
-// (bit i = time.Weekday(i), bit0=Sunday..bit6=Saturday); once the same-day-or-rolled candidate
-// is computed, the function advances day-by-day (capped at maxWeekdayAdvancementIterations)
-// until it lands on a bit set in mask. An empty mask (or no match within the cap, which for a
-// 7-bit mask is equivalent to empty) returns ErrNoEnabledWeekday.
-func nextDailyBoundaryAfter(now time.Time, hhmm string, mask byte, loc *time.Location) (time.Time, error) {
-	hour, minute, err := parseHHMM(hhmm)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	local := now.In(loc)
-	candidate := time.Date(local.Year(), local.Month(), local.Day(), hour, minute, 0, 0, loc)
-
-	if !candidate.After(local) {
-		candidate = candidate.AddDate(0, 0, 1)
-	}
-
-	for i := 0; i < maxWeekdayAdvancementIterations; i++ {
-		if mask&(1<<uint(candidate.Weekday())) != 0 {
-			return candidate, nil
-		}
-		candidate = candidate.AddDate(0, 0, 1)
-	}
-
-	return time.Time{}, ErrNoEnabledWeekday
-}
-
-// parseHHMM parses a strict 24h "HH:MM" string (design §3.6 ScheduleConfig.DailyTimeHHMM).
-func parseHHMM(hhmm string) (hour, minute int, err error) {
-	parts := strings.Split(hhmm, ":")
-	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("schedule: invalid daily_time_hhmm %q: want \"HH:MM\"", hhmm)
-	}
-
-	hour, err = strconv.Atoi(parts[0])
-	if err != nil || hour < 0 || hour > 23 {
-		return 0, 0, fmt.Errorf("schedule: invalid hour in daily_time_hhmm %q", hhmm)
-	}
-
-	minute, err = strconv.Atoi(parts[1])
-	if err != nil || minute < 0 || minute > 59 {
-		return 0, 0, fmt.Errorf("schedule: invalid minute in daily_time_hhmm %q", hhmm)
-	}
-
-	return hour, minute, nil
-}

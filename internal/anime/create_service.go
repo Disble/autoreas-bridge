@@ -25,7 +25,7 @@ type MetadataProvider interface {
 }
 
 type canonicalCreateWriter interface {
-	CreateCanonicalAnime(context.Context, contracts.AnimeCreate, CreateMetadata) (AnimePatchResult, error)
+	CreateCanonicalAnime(context.Context, contracts.AnimeCreate, CreateMetadata) (PatchResult, error)
 }
 
 // CreateService validates and enriches a create before handing canonical state
@@ -35,16 +35,18 @@ type CreateService struct {
 	metadata MetadataProvider
 }
 
+// NewCreateService builds a create service over the provided writer and metadata seam.
 func NewCreateService(writer canonicalCreateWriter, metadata MetadataProvider) *CreateService {
 	return &CreateService{writer: writer, metadata: metadata}
 }
 
-func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeCreate) (AnimePatchResult, error) {
+// CreateAnime validates and enriches one anime create request before persistence.
+func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeCreate) (PatchResult, error) {
 	if s == nil || s.writer == nil {
-		return AnimePatchResult{}, fmt.Errorf("canonical anime create writer is required")
+		return PatchResult{}, fmt.Errorf("canonical anime create writer is required")
 	}
 	if err := validateCreateRequest(create); err != nil {
-		return AnimePatchResult{}, err
+		return PatchResult{}, err
 	}
 
 	var metadata CreateMetadata
@@ -52,13 +54,15 @@ func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeC
 		var err error
 		metadata, err = s.metadata.Lookup(ctx, create.Pagina)
 		if err != nil {
-			return AnimePatchResult{}, fmt.Errorf("lookup anime metadata for %q: %w", create.Pagina, err)
+			return PatchResult{}, fmt.Errorf("lookup anime metadata for %q: %w", create.Pagina, err)
 		}
 	}
 
 	return s.writer.CreateCanonicalAnime(ctx, create, metadata)
 }
 
+// validateCreateRequest checks that an anime creation payload has a non-empty trimmed title
+// and a valid optional id.
 func validateCreateRequest(create contracts.AnimeCreate) error {
 	if create.ID != "" && strings.TrimSpace(create.ID) != create.ID {
 		return fmt.Errorf("invalid anime create id")
@@ -75,4 +79,4 @@ func validateCreateRequest(create contracts.AnimeCreate) error {
 	return nil
 }
 
-var _ AnimeCreator = (*CreateService)(nil)
+var _ Creator = (*CreateService)(nil)

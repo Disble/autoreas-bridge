@@ -47,10 +47,10 @@ type ManualLink struct {
 	Links   []string `json:"links"`
 }
 
-// DownloadRun is a single download_runs row (design.md §4/§8 run lifecycle and status
-// taxonomy). Status is the concrete provisional string "running" until FinalizeRun sets a
-// terminal value (one of ok|partial|error|jd_offline|no_animes_today|interrupted).
-type DownloadRun struct {
+// Run is a single download_runs row (design.md §4/§8 run lifecycle and status taxonomy). Status
+// is the concrete provisional string "running" until FinalizeRun sets a terminal value (one of
+// ok|partial|error|jd_offline|no_animes_today|interrupted).
+type Run struct {
 	RunID              string
 	StartedAtMs        int64
 	FinishedAtMs       *int64 // nil while non-terminal (design §8 "running" row contract)
@@ -71,10 +71,10 @@ type DownloadRun struct {
 	ManualLinks   []ManualLink
 }
 
-// DownloadStore is the persistence port for all four download_* tables (design.md §3.6).
-// sqlite_store.go is the production adapter; tests in this package and service tests (a later
-// phase) use an in-memory fake satisfying this same interface.
-type DownloadStore interface {
+// Store is the persistence port for all four download_* tables (design.md §3.6). sqlite_store.go
+// is the production adapter; tests in this package and service tests (a later phase) use an
+// in-memory fake satisfying this same interface.
+type Store interface {
 	// Hoster priority (download_hoster_priority).
 	ListHosterPriority(ctx context.Context, site string) ([]HosterPriorityEntry, error)
 	SetHosterPriority(ctx context.Context, site string, entries []HosterPriorityEntry) error
@@ -104,14 +104,14 @@ type DownloadStore interface {
 	// Runs (download_runs).
 	// OpenRun writes the row at run start with the CONCRETE provisional status "running" and
 	// finished_at_ms = NULL (design §8).
-	OpenRun(ctx context.Context, run DownloadRun) error
+	OpenRun(ctx context.Context, run Run) error
 	// FinalizeRun writes the terminal row AND prunes download_runs to the most-recent
 	// RUN_RETENTION_LIMIT (200) rows in the SAME transaction (design §4.5/§8, ADR-RETENTION).
 	// UpdateRunProgress refreshes counters for the still-running row so UI details can show live
 	// progress before FinalizeRun writes the terminal status.
-	UpdateRunProgress(ctx context.Context, run DownloadRun) error
-	FinalizeRun(ctx context.Context, run DownloadRun) error
-	ListRuns(ctx context.Context, limit int) ([]DownloadRun, error)
+	UpdateRunProgress(ctx context.Context, run Run) error
+	FinalizeRun(ctx context.Context, run Run) error
+	ListRuns(ctx context.Context, limit int) ([]Run, error)
 	// ReconcileInterruptedRuns finalizes every non-terminal row (finished_at_ms IS NULL) as
 	// status="interrupted" at the given timestamp, BEFORE the scheduler starts (design §8
 	// crash-zombie reconciliation). Returns the count of rows reconciled.

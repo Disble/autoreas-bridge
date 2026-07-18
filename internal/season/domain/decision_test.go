@@ -53,6 +53,7 @@ func TestDecisionExcelParity(t *testing.T) {
 	}
 }
 
+// createdRow creates a season anime row for decision tests.
 func createdRow(id, animeID string, grade int, c Consideration) SeasonAnime {
 	sa := NewSeasonAnime(id, "season-1", id, time.UnixMilli(0))
 	sa.MatchStatus = MatchMatched

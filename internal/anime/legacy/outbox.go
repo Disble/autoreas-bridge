@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// AnimeChangedOutboxEvent is one durable pending anime.changed publication.
 type AnimeChangedOutboxEvent struct {
 	EventID     string
 	OperationID string
@@ -13,6 +14,7 @@ type AnimeChangedOutboxEvent struct {
 	CreatedAtMs int64
 }
 
+// AnimeChangedOutboxStore persists pending anime.changed publications.
 type AnimeChangedOutboxStore interface {
 	ListPendingAnimeChanged(context.Context) ([]AnimeChangedOutboxEvent, error)
 	MarkAnimeChangedPublished(context.Context, string, int64) error

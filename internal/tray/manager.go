@@ -1,5 +1,6 @@
 package tray
 
+// Config configures system-tray startup.
 type Config struct {
 	Icon    []byte
 	Tooltip string
@@ -7,9 +8,11 @@ type Config struct {
 	OnExit  func()
 }
 
-type TrayManager interface {
+// Manager controls the system tray lifecycle.
+type Manager interface {
 	Start(Config) error
 	Stop() error
 }
 
+// DefaultTooltip is the default text displayed by the system tray.
 const DefaultTooltip = "Autoreas Bridge"

@@ -1,9 +1,3 @@
-// Package download (this file) holds the orchestration Service's side-effect seams extracted from
-// service.go: run-row persistence (finalize/recordProgress/markScheduledRun) and the event-bus,
-// user-notification, and structured-logging fan-outs (publish/notify/logf). Each degrades silently
-// on a nil dependency so a run never fails on an observability side-effect. This is a pure
-// structural split (same package, unchanged behavior) that keeps service.go within the repo's
-// effective-line budget (docs/file-size-policy.md).
 package download
 
 import (
@@ -15,7 +9,8 @@ import (
 	"autoreas-bridge/internal/notification"
 )
 
-func (s *Service) finalize(ctx context.Context, run *DownloadRun) {
+// finalize stamps and persists a completed download run.
+func (s *Service) finalize(ctx context.Context, run *Run) {
 	finishedAt := s.deps.Clock().UnixMilli()
 	run.FinishedAtMs = &finishedAt
 	if s.deps.Store == nil {
@@ -27,7 +22,8 @@ func (s *Service) finalize(ctx context.Context, run *DownloadRun) {
 	}
 }
 
-func (s *Service) recordProgress(ctx context.Context, run *DownloadRun) {
+// recordProgress persists current run counters and publishes a progress event.
+func (s *Service) recordProgress(ctx context.Context, run *Run) {
 	if s.deps.Store == nil {
 		return
 	}
@@ -39,7 +35,8 @@ func (s *Service) recordProgress(ctx context.Context, run *DownloadRun) {
 	s.publish(events.DownloadRunProgressEvent{RunID: run.RunID, CorrelationID: run.RunID})
 }
 
-func (s *Service) markScheduledRun(ctx context.Context, trigger string, startedAt time.Time, run *DownloadRun) {
+// markScheduledRun records scheduler metadata after a scheduled run finishes.
+func (s *Service) markScheduledRun(ctx context.Context, trigger string, startedAt time.Time, run *Run) {
 	if trigger != "scheduled" || s.deps.Store == nil {
 		return
 	}
@@ -66,6 +63,7 @@ func (s *Service) publish(event events.Event) {
 	s.deps.Bus.Publish(event)
 }
 
+// notify sends a user-facing notification without failing the download run.
 func (s *Service) notify(ctx context.Context, level notification.Level, runID, title, body string) {
 	if s.deps.Notifier == nil {
 		return
@@ -86,6 +84,7 @@ func (s *Service) notify(ctx context.Context, level notification.Level, runID, t
 	}
 }
 
+// logf writes a structured download log entry when logging is configured.
 func (s *Service) logf(level, runID, animeID, eventType string, metadata map[string]any, format string, args ...any) {
 	if s.deps.Logger == nil {
 		return

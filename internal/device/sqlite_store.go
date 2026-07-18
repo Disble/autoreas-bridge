@@ -7,14 +7,17 @@ import (
 	"fmt"
 )
 
+// SQLiteStore persists device pairing state in SQLite.
 type SQLiteStore struct {
 	db *sql.DB
 }
 
+// NewSQLiteStore builds a SQLite-backed device store.
 func NewSQLiteStore(db *sql.DB) *SQLiteStore {
 	return &SQLiteStore{db: db}
 }
 
+// SavePairingToken stores a newly issued pairing token.
 func (s *SQLiteStore) SavePairingToken(ctx context.Context, token string, createdAtMs int64) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO pairing_tokens(token, created_at_ms, consumed_at_ms)
@@ -26,6 +29,7 @@ func (s *SQLiteStore) SavePairingToken(ctx context.Context, token string, create
 	return nil
 }
 
+// FindActivePairingToken returns the newest unconsumed token issued after the cutoff.
 func (s *SQLiteStore) FindActivePairingToken(ctx context.Context, createdAfterOrAtMs int64) (string, error) {
 	var token string
 	err := s.db.QueryRowContext(ctx, `
@@ -45,6 +49,7 @@ func (s *SQLiteStore) FindActivePairingToken(ctx context.Context, createdAfterOr
 	return token, nil
 }
 
+// PruneExpiredPairingTokens removes unconsumed tokens older than the cutoff.
 func (s *SQLiteStore) PruneExpiredPairingTokens(ctx context.Context, expiresBeforeMs int64) (int64, error) {
 	result, err := s.db.ExecContext(ctx, `
 		DELETE FROM pairing_tokens
@@ -61,6 +66,7 @@ func (s *SQLiteStore) PruneExpiredPairingTokens(ctx context.Context, expiresBefo
 	return deleted, nil
 }
 
+// ConsumePairingToken marks a valid token as consumed.
 func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE pairing_tokens
@@ -84,6 +90,7 @@ func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, con
 	return nil
 }
 
+// InsertPairedDevice stores a newly paired device record.
 func (s *SQLiteStore) InsertPairedDevice(ctx context.Context, device StoredDevice) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO devices(device_id, name, auth_token, paired_at_ms)
@@ -95,6 +102,7 @@ func (s *SQLiteStore) InsertPairedDevice(ctx context.Context, device StoredDevic
 	return nil
 }
 
+// FindByAuthToken loads the device associated with an auth token.
 func (s *SQLiteStore) FindByAuthToken(ctx context.Context, token string) (StoredDevice, error) {
 	var device StoredDevice
 	err := s.db.QueryRowContext(ctx, `
@@ -112,7 +120,8 @@ func (s *SQLiteStore) FindByAuthToken(ctx context.Context, token string) (Stored
 	return device, nil
 }
 
-func (s *SQLiteStore) ListPairedDevices(ctx context.Context) ([]StoredDevice, error) {
+// ListPairedDevices returns all paired devices in pairing order.
+func (s *SQLiteStore) ListPairedDevices(ctx context.Context) (devices []StoredDevice, err error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT device_id, name, auth_token, paired_at_ms
 		FROM devices
@@ -121,9 +130,14 @@ func (s *SQLiteStore) ListPairedDevices(ctx context.Context) ([]StoredDevice, er
 	if err != nil {
 		return nil, fmt.Errorf("list paired devices: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			devices = nil
+			err = fmt.Errorf("close paired device rows: %w", closeErr)
+		}
+	}()
 
-	devices := []StoredDevice{}
+	devices = []StoredDevice{}
 	for rows.Next() {
 		var item StoredDevice
 		if err := rows.Scan(&item.DeviceID, &item.Name, &item.AuthToken, &item.PairedAtMs); err != nil {
@@ -137,6 +151,7 @@ func (s *SQLiteStore) ListPairedDevices(ctx context.Context) ([]StoredDevice, er
 	return devices, nil
 }
 
+// DeletePairedDevice removes a paired device by identifier.
 func (s *SQLiteStore) DeletePairedDevice(ctx context.Context, deviceID string) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM devices WHERE device_id = ?`, deviceID); err != nil {
 		return fmt.Errorf("delete paired device %q: %w", deviceID, err)

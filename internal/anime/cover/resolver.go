@@ -44,6 +44,7 @@ func (r *Resolver) Resolve(ctx context.Context, animeID, portadaPath string) Res
 	}
 }
 
+// resolveLocal resolves a cover from a local file path.
 func (r *Resolver) resolveLocal(path string) Result {
 	if r.files == nil {
 		return placeholderResult
@@ -58,6 +59,7 @@ func (r *Resolver) resolveLocal(path string) Result {
 	return r.toDataURLResult(data, "")
 }
 
+// resolveURL resolves a cover by fetching its source URL.
 func (r *Resolver) resolveURL(ctx context.Context, sourceURL string) Result {
 	if r.cache != nil {
 		if cached, ok := r.cache.Get(sourceURL); ok {
@@ -83,6 +85,7 @@ func (r *Resolver) resolveURL(ctx context.Context, sourceURL string) Result {
 	return result
 }
 
+// toDataURLResult converts cover bytes into a data URL result.
 func (r *Resolver) toDataURLResult(data []byte, contentType string) Result {
 	maxBytes := r.maxBytes
 	if maxBytes <= 0 {

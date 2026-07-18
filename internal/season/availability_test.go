@@ -72,34 +72,6 @@ func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 	}
 }
 
-func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, chapters int) {
-	t.Helper()
-	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
-	sa.MatchStatus = domain.MatchMatched
-	sa.MatchedSlug = slug
-	sa.Availability = domain.AvailabilityCreated
-	sa.AnimeID = animeID
-	sa.AvailableChapters = chapters
-	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-}
-
-func findRow(t *testing.T, svc *Service, seasonID, id string) domain.SeasonAnime {
-	t.Helper()
-	rows, err := svc.ListSeasonAnimes(context.Background(), seasonID)
-	if err != nil {
-		t.Fatalf("ListSeasonAnimes: %v", err)
-	}
-	for _, r := range rows {
-		if r.ID == id {
-			return r
-		}
-	}
-	t.Fatalf("row %q not found", id)
-	return domain.SeasonAnime{}
-}
-
 // A created row still parked in "Sin ver" MUST have its AvailableChapters
 // refreshed live; Availability, MatchStatus, AnimeID stay untouched and the
 // row is never reported in res.Available (ADR-3, ADR-4).
@@ -141,59 +113,33 @@ func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
 	}
 }
 
-// A created row parked in "Ver hoy" must never be probed.
-func TestRecheckAvailabilitySkipsVerHoyCreatedRow(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/verhoy/": 9}}
-	gateway := &fakeGateway{placements: map[string][]domain.Placement{
-		"anime-verhoy": {{Dia: verHoySection, Orden: 1}},
-	}}
-	svc.SetAvailabilityDeps(probe, gateway)
-
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-verhoy", "Anime VerHoy", "https://jkanime.net/verhoy/", "anime-verhoy", 3)
-
-	res, err := svc.RecheckAvailability(ctx, season.ID)
-	if err != nil {
-		t.Fatalf("RecheckAvailability: %v", err)
-	}
-
-	row := findRow(t, svc, season.ID, "sa-verhoy")
-	if row.AvailableChapters != 3 {
-		t.Fatalf("AvailableChapters must stay frozen at 3, got %d", row.AvailableChapters)
-	}
-	if res.Checked != 0 {
-		t.Fatalf("res.Checked = %d, want 0 (Ver hoy row must not be probed)", res.Checked)
-	}
-}
-
-// A created row parked in "Visto" must never be probed.
-func TestRecheckAvailabilitySkipsVistoCreatedRow(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/visto/": 9}}
-	gateway := &fakeGateway{placements: map[string][]domain.Placement{
-		"anime-visto": {{Dia: vistoSection, Orden: 1}},
-	}}
-	svc.SetAvailabilityDeps(probe, gateway)
-
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-visto", "Anime Visto", "https://jkanime.net/visto/", "anime-visto", 4)
-
-	res, err := svc.RecheckAvailability(ctx, season.ID)
-	if err != nil {
-		t.Fatalf("RecheckAvailability: %v", err)
-	}
-
-	row := findRow(t, svc, season.ID, "sa-visto")
-	if row.AvailableChapters != 4 {
-		t.Fatalf("AvailableChapters must stay frozen at 4, got %d", row.AvailableChapters)
-	}
-	if res.Checked != 0 {
-		t.Fatalf("res.Checked = %d, want 0 (Visto row must not be probed)", res.Checked)
+func TestRecheckAvailabilitySkipsCreatedRowsInSpecialQueues(t *testing.T) {
+	for _, test := range []struct {
+		name, section string
+		available     int
+	}{
+		{"Ver hoy", verHoySection, 3}, {"Visto", vistoSection, 4},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := newTestService(repo)
+			animeID := "anime-" + test.name
+			svc.SetAvailabilityDeps(&fakeProbe{chapters: map[string]int{"https://jkanime.net/" + test.name: 9}}, &fakeGateway{placements: map[string][]domain.Placement{animeID: {{Dia: test.section, Orden: 1}}}})
+			ctx := context.Background()
+			season, _ := svc.CreateSeason(ctx, "Julio 2026")
+			rowID := "sa-" + test.name
+			seedCreated(t, svc, repo, season.ID, rowID, "Anime "+test.name, "https://jkanime.net/"+test.name, animeID, test.available)
+			res, err := svc.RecheckAvailability(ctx, season.ID)
+			if err != nil {
+				t.Fatalf("RecheckAvailability: %v", err)
+			}
+			if row := findRow(t, svc, season.ID, rowID); row.AvailableChapters != test.available {
+				t.Fatalf("AvailableChapters = %d, want %d", row.AvailableChapters, test.available)
+			}
+			if res.Checked != 0 {
+				t.Fatalf("res.Checked = %d, want 0", res.Checked)
+			}
+		})
 	}
 }
 
@@ -428,47 +374,5 @@ func TestCreateSeasonAnimesRequiresGateway(t *testing.T) {
 	svc := newTestService(newFakeRepo())
 	if _, err := svc.CreateSeasonAnimes(context.Background(), []string{"sa-a"}, "", nil); err == nil {
 		t.Fatal("CreateSeasonAnimes without a gateway must error")
-	}
-}
-
-func TestHandleAnimeWatchedMovesVerHoyToVisto(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	gateway := &fakeGateway{}
-	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-
-	sa := domain.NewSeasonAnime("sa-1", season.ID, "Anime A", svc.now())
-	sa.Availability = domain.AvailabilityCreated
-	sa.AnimeID = "anime-a"
-	_ = repo.CreateSeasonAnime(ctx, sa)
-
-	if err := svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 1); err != nil {
-		t.Fatalf("HandleAnimeWatched: %v", err)
-	}
-	if gateway.moved["anime-a"] != "Visto" {
-		t.Fatalf("expected move to Visto, got %q", gateway.moved["anime-a"])
-	}
-}
-
-func TestHandleAnimeWatchedIgnoresNonVerHoyAndUnwatched(t *testing.T) {
-	repo := newFakeRepo()
-	svc := newTestService(repo)
-	gateway := &fakeGateway{}
-	svc.SetAvailabilityDeps(&fakeProbe{}, gateway)
-	ctx := context.Background()
-	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	sa := domain.NewSeasonAnime("sa-1", season.ID, "Anime A", svc.now())
-	sa.Availability = domain.AvailabilityCreated
-	sa.AnimeID = "anime-a"
-	_ = repo.CreateSeasonAnime(ctx, sa)
-
-	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Sin ver", 3)
-	_ = svc.HandleAnimeWatched(ctx, "anime-a", "Ver hoy", 0)
-	_ = svc.HandleAnimeWatched(ctx, "other", "Ver hoy", 5)
-
-	if len(gateway.moved) != 0 {
-		t.Fatalf("expected no moves, got %+v", gateway.moved)
 	}
 }

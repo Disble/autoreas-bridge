@@ -17,6 +17,7 @@ type activeSeasonStubs struct {
 	snapshotCall int
 }
 
+// authenticate returns the configured active-season authentication result.
 func (s *activeSeasonStubs) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
 	if !s.authOK {
 		writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
@@ -25,11 +26,13 @@ func (s *activeSeasonStubs) authenticate(w http.ResponseWriter, r *http.Request)
 	return device.PairedDevice{DeviceID: "dev-1"}, true
 }
 
+// provide returns the configured active-season snapshot and records the call.
 func (s *activeSeasonStubs) provide(_ context.Context) (*ActiveSeasonSnapshot, error) {
 	s.snapshotCall++
 	return s.snapshot, s.snapshotErr
 }
 
+// newActiveSeasonHandler creates an active-season handler backed by test stubs.
 func newActiveSeasonHandler(s *activeSeasonStubs) http.Handler {
 	return NewActiveSeasonHandler(ActiveSeasonConfig{
 		Authenticate: s.authenticate,
@@ -37,6 +40,7 @@ func newActiveSeasonHandler(s *activeSeasonStubs) http.Handler {
 	})
 }
 
+// getActiveSeason sends an active-season request to a test handler.
 func getActiveSeason(t *testing.T, h http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/seasons/active", nil)

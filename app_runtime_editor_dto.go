@@ -97,6 +97,7 @@ func (d *AnimeEditorPatchDTO) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// editorContainsString reports whether a field name is already recorded.
 func editorContainsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
@@ -106,6 +107,7 @@ func editorContainsString(values []string, target string) bool {
 	return false
 }
 
+// toDomain converts an editor save command DTO to its domain command.
 func (d SaveAnimeEditorCommandDTO) toDomain() (anime.SaveAnimeEditorCommand, error) {
 	patch, err := d.Patch.toDomain()
 	if err != nil {
@@ -114,6 +116,7 @@ func (d SaveAnimeEditorCommandDTO) toDomain() (anime.SaveAnimeEditorCommand, err
 	return anime.SaveAnimeEditorCommand{AnimeID: d.AnimeID, BaseModifiedAt: d.BaseModifiedAt, Patch: patch}, nil
 }
 
+// toDomain converts an editor patch DTO to its domain patch.
 func (d AnimeEditorPatchDTO) toDomain() (anime.EditorPatch, error) {
 	if d.decodeError != nil {
 		return anime.EditorPatch{}, fmt.Errorf("decode editor patch: %w", d.decodeError)
@@ -149,14 +152,17 @@ func (d AnimeEditorPatchDTO) toDomain() (anime.EditorPatch, error) {
 	}, nil
 }
 
+// toDomain converts a nullable string patch DTO to its domain value.
 func (d AnimeEditorNullableStringPatchDTO) toDomain() anime.EditorNullableStringPatch {
 	return anime.EditorNullableStringPatch{Present: d.Present, Clear: d.Clear, Value: d.Value}
 }
 
+// toDomain converts a nullable integer patch DTO to its domain value.
 func (d AnimeEditorNullableIntPatchDTO) toDomain() anime.EditorNullableIntPatch {
 	return anime.EditorNullableIntPatch{Present: d.Present, Clear: d.Clear, Value: d.Value}
 }
 
+// toDomain converts a nullable time patch DTO to its domain value.
 func (d AnimeEditorNullableTimePatchDTO) toDomain() anime.EditorNullableTimePatch {
 	return anime.EditorNullableTimePatch{Present: d.Present, Clear: d.Clear, UnixMilli: d.UnixMilli}
 }
@@ -172,6 +178,7 @@ type ApplyAnimeScheduleDraftEntryDTO struct {
 	Placements     []contracts.MobileAnimeDay `json:"placements"`
 }
 
+// toDomain converts a schedule draft DTO to its domain command.
 func (d ApplyAnimeScheduleDraftCommandDTO) toDomain() anime.ApplyAnimeScheduleDraftCommand {
 	entries := make([]anime.ApplyAnimeScheduleDraftEntry, 0, len(d.Entries))
 	for _, entry := range d.Entries {

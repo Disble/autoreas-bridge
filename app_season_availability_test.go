@@ -145,19 +145,19 @@ func TestAnimeWatchedStateUsesEnglishLegacyProjectionWithoutStoreAccess(t *testi
 type fakeSeasonAnimeCreator struct {
 	calls      int
 	lastCreate contracts.AnimeCreate
-	result     anime.AnimePatchResult
+	result     anime.PatchResult
 	err        error
 }
 
-func (f *fakeSeasonAnimeCreator) CreateAnime(_ context.Context, create contracts.AnimeCreate) (anime.AnimePatchResult, error) {
+func (f *fakeSeasonAnimeCreator) CreateAnime(_ context.Context, create contracts.AnimeCreate) (anime.PatchResult, error) {
 	f.calls++
 	f.lastCreate = create
 	return f.result, f.err
 }
 
 func TestSeasonAnimeGatewayCreatePreservesAuthoritativeResult(t *testing.T) {
-	creator := &fakeSeasonAnimeCreator{result: anime.AnimePatchResult{
-		AnimeID: "created-anime", Outcome: anime.AnimePatchOutcomeApplied, ModifiedAt: 1710000000123,
+	creator := &fakeSeasonAnimeCreator{result: anime.PatchResult{
+		AnimeID: "created-anime", Outcome: anime.PatchOutcomeApplied, ModifiedAt: 1710000000123,
 	}}
 	gateway := seasonAnimeGateway{creator: creator, records: fakeReadRecordLister{}}
 

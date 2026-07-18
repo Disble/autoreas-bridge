@@ -85,6 +85,7 @@ type startupRecoveryOrder struct {
 	steps       []string
 }
 
+// record appends a startup step and its current persistence state.
 func (o *startupRecoveryOrder) record(prefix string) {
 	status := ""
 	_ = o.db.QueryRow(`SELECT status FROM anime_write_operations WHERE operation_id = ?`, o.operationID).Scan(&status)
@@ -98,6 +99,7 @@ func (o *startupRecoveryOrder) record(prefix string) {
 	o.mu.Unlock()
 }
 
+// values returns a snapshot of the recorded startup steps.
 func (o *startupRecoveryOrder) values() []string {
 	o.mu.Lock()
 	defer o.mu.Unlock()

@@ -169,6 +169,7 @@ func (l *recordingAPILogger) Logf(domain, level string, fields sharedlogger.Fiel
 	})
 }
 
+// entries returns a copy of the logger entries captured by the test double.
 func (l *recordingAPILogger) entries() []sharedlogger.LogEntry {
 	out := make([]sharedlogger.LogEntry, len(l.entriesList))
 	copy(out, l.entriesList)

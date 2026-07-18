@@ -120,6 +120,7 @@ func (s *stubOwnershipRegistry) RegisterOwned(_ context.Context, animeID string)
 	return nil
 }
 
+// registeredIDs returns IDs registered by the test double.
 func (s *stubOwnershipRegistry) registeredIDs() []string {
 	return append([]string(nil), s.registered...)
 }

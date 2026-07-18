@@ -11,6 +11,11 @@ const statusOptions = [
   { value: '1', label: 'Finalizado' },
 ];
 
+const genreOptions = [
+  { value: 'action', label: 'Action' },
+  { value: 'drama', label: 'Drama' },
+];
+
 afterEach(() => {
   cleanup();
 });
@@ -67,6 +72,51 @@ describe('LabeledSelect', () => {
     fireEvent.click(screen.getByRole('button', { name: /filter by status/i }));
 
     expect(screen.getByRole('option', { name: 'Finalizado' })).toBeInTheDocument();
+  });
+
+  it('forwards single-select props to HeroUI while keeping the fallback change contract', () => {
+    const onChange = vi.fn();
+
+    render(
+      <LabeledSelect
+        ariaLabel="Filter by status"
+        data-testid="status-filter"
+        fallbackValue="all"
+        isDisabled
+        label="Status"
+        options={statusOptions}
+        placeholder="Status"
+        value="all"
+        onChange={onChange}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /filter by status/i });
+
+    expect(trigger).toBeDisabled();
+    expect(screen.getByTestId('status-filter')).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('renders multiple selection mode with the expected listbox semantics and forwarded props', () => {
+    render(
+      <LabeledSelect
+        ariaLabel="Filter by genres"
+        className="w-full"
+        data-testid="genre-filter"
+        label="Genres"
+        options={genreOptions}
+        placeholder="Genres"
+        selectionMode="multiple"
+        value={['action']}
+        onChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /filter by genres/i }));
+
+    expect(screen.getByRole('listbox')).toHaveAttribute('aria-multiselectable', 'true');
+    expect(screen.getByTestId('genre-filter')).toBeInTheDocument();
   });
 
   it('keeps props contracts in a colocated types file with a readonly boundary', () => {

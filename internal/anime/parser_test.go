@@ -144,7 +144,11 @@ func TestSnapshotParserParsesRealFixtureWithoutFatalWarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open fixture copy: %v", err)
 	}
-	defer file.Close()
+	t.Cleanup(func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("close fixture copy: %v", closeErr)
+		}
+	})
 
 	parser := NewSnapshotParser()
 	got, warnings, err := parser.Parse(file)
@@ -188,6 +192,7 @@ func TestDiffSnapshotsSkipsUnchangedEffectiveRecords(t *testing.T) {
 	}
 }
 
+// assertSnapshotMatchesPayload compares a snapshot with its expected payload.
 func assertSnapshotMatchesPayload(t *testing.T, got SnapshotRecord, wantPayload string) {
 	t.Helper()
 

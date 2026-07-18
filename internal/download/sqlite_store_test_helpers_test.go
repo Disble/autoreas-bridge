@@ -8,6 +8,7 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
+// openTestBridgeDB opens an isolated bridge database for download store tests.
 func openTestBridgeDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
@@ -19,6 +20,7 @@ func openTestBridgeDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// containsBytes reports whether needle occurs in haystack.
 func containsBytes(haystack, needle []byte) bool {
 	if len(needle) == 0 || len(haystack) < len(needle) {
 		return false
@@ -38,10 +40,12 @@ func containsBytes(haystack, needle []byte) bool {
 	return false
 }
 
+// runIDForIndex returns the deterministic run ID used by a fixture row.
 func runIDForIndex(i int) string {
 	return "run-" + itoa(i)
 }
 
+// itoa formats an integer for test fixture identifiers.
 func itoa(i int) string {
 	if i == 0 {
 		return "0"

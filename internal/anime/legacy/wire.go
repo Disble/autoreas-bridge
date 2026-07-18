@@ -10,9 +10,9 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 )
 
-// LegacyAnimeRaw is the lossless Legacy wire envelope. Spanish identifiers are
+// AnimeRaw is the lossless legacy wire envelope. Spanish identifiers are
 // intentionally confined to this adapter; unknown fields remain opaque JSON.
-type LegacyAnimeRaw struct {
+type AnimeRaw struct {
 	ID          string  `json:"_id"`
 	Nombre      string  `json:"nombre"`
 	NroCapVisto float64 `json:"nrocapvisto"`
@@ -20,7 +20,8 @@ type LegacyAnimeRaw struct {
 	extraFields map[string]json.RawMessage
 }
 
-func (r *LegacyAnimeRaw) SetStringField(key string, value *string) {
+// SetStringField stores a nullable string field in the raw legacy payload.
+func (r *AnimeRaw) SetStringField(key string, value *string) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
 		return
@@ -28,7 +29,8 @@ func (r *LegacyAnimeRaw) SetStringField(key string, value *string) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-func (r *LegacyAnimeRaw) SetIntField(key string, value *int) {
+// SetIntField stores a nullable integer field in the raw legacy payload.
+func (r *AnimeRaw) SetIntField(key string, value *int) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
 		return
@@ -36,7 +38,8 @@ func (r *LegacyAnimeRaw) SetIntField(key string, value *int) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-func (r *LegacyAnimeRaw) SetFloatField(key string, value *float64) {
+// SetFloatField stores a nullable numeric field in the raw legacy payload.
+func (r *AnimeRaw) SetFloatField(key string, value *float64) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
 		return
@@ -44,11 +47,13 @@ func (r *LegacyAnimeRaw) SetFloatField(key string, value *float64) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-func (r *LegacyAnimeRaw) SetBoolField(key string, value bool) {
+// SetBoolField stores a boolean field in the raw legacy payload.
+func (r *AnimeRaw) SetBoolField(key string, value bool) {
 	r.extraFields[key] = mustJSON(value)
 }
 
-func (r *LegacyAnimeRaw) SetDateField(key string, value *time.Time) {
+// SetDateField stores a nullable legacy $$date wrapper field.
+func (r *AnimeRaw) SetDateField(key string, value *time.Time) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
 		return
@@ -56,17 +61,20 @@ func (r *LegacyAnimeRaw) SetDateField(key string, value *time.Time) {
 	r.extraFields[key] = mustJSON(legacyDateWrapper{Date: value.UTC().UnixMilli()})
 }
 
-func (r *LegacyAnimeRaw) SetDays(days []LegacyAnimeDay) {
+// SetDays stores modern dias[] placement data and removes legacy dia/orden fields.
+func (r *AnimeRaw) SetDays(days []AnimeDay) {
 	r.extraFields["dias"] = mustJSON(days)
 	delete(r.extraFields, "dia")
 	delete(r.extraFields, "orden")
 }
 
-func (r *LegacyAnimeRaw) SetStringArrayField(key string, values []string) {
+// SetStringArrayField stores a string slice field in the raw legacy payload.
+func (r *AnimeRaw) SetStringArrayField(key string, values []string) {
 	r.extraFields[key] = mustJSON(values)
 }
 
-func (r *LegacyAnimeRaw) SetPortada(path string) {
+// SetPortada updates the legacy portada.path field while preserving unknown portada keys.
+func (r *AnimeRaw) SetPortada(path string) {
 	raw := map[string]json.RawMessage{}
 	if current, ok := nonNullField(r.extraFields, "portada"); ok {
 		_ = json.Unmarshal(current, &raw)
@@ -81,7 +89,8 @@ func (r *LegacyAnimeRaw) SetPortada(path string) {
 	r.extraFields["portada"] = mustJSON(raw)
 }
 
-func (r *LegacyAnimeRaw) SetStudios(clear bool, values []string) {
+// SetStudios updates estudios while preserving the legacy clear-versus-null semantics.
+func (r *AnimeRaw) SetStudios(clear bool, values []string) {
 	if !clear {
 		r.SetStringArrayField("estudios", append([]string{}, values...))
 		return
@@ -97,7 +106,8 @@ func (r *LegacyAnimeRaw) SetStudios(clear bool, values []string) {
 	r.SetStringArrayField("estudios", []string{})
 }
 
-func (r *LegacyAnimeRaw) SetCover(clear bool, coverType, path string, extra map[string]json.RawMessage) {
+// SetCover updates portada while preserving caller-provided extra metadata keys.
+func (r *AnimeRaw) SetCover(clear bool, coverType, path string, extra map[string]json.RawMessage) {
 	if clear {
 		if current, exists := r.extraFields["portada"]; !exists || bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
 			if exists {
@@ -120,11 +130,13 @@ func (r *LegacyAnimeRaw) SetCover(clear bool, coverType, path string, extra map[
 	r.extraFields["portada"] = mustJSON(raw)
 }
 
-func (r *LegacyAnimeRaw) DeleteField(key string) {
+// DeleteField removes one raw field from the legacy payload.
+func (r *AnimeRaw) DeleteField(key string) {
 	delete(r.extraFields, key)
 }
 
-type LegacyAnimeDay struct {
+// AnimeDay is the raw legacy schedule placement entry.
+type AnimeDay struct {
 	Dia   string  `json:"dia"`
 	Orden float64 `json:"orden"`
 }
@@ -133,7 +145,8 @@ type legacyDateWrapper struct {
 	Date int64 `json:"$$date"`
 }
 
-func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON decodes a lossless raw legacy payload while validating key fields.
+func (r *AnimeRaw) UnmarshalJSON(data []byte) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return fmt.Errorf("unmarshal legacy anime payload: %w", err)
@@ -156,7 +169,8 @@ func (r *LegacyAnimeRaw) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
+// MarshalJSON re-encodes the lossless raw legacy payload with deterministic key order.
+func (r AnimeRaw) MarshalJSON() ([]byte, error) {
 	fields := cloneFields(r.extraFields)
 	fields["_id"] = mustJSON(r.ID)
 	fields["nombre"] = mustJSON(r.Nombre)
@@ -164,6 +178,7 @@ func (r LegacyAnimeRaw) MarshalJSON() ([]byte, error) {
 	return marshalFields(fields)
 }
 
+// unmarshalKnown decodes a known field when it is present.
 func unmarshalKnown(fields map[string]json.RawMessage, key string, target any) error {
 	value, ok := fields[key]
 	if !ok {
@@ -175,150 +190,7 @@ func unmarshalKnown(fields map[string]json.RawMessage, key string, target any) e
 	return nil
 }
 
-func validateKnownFields(fields map[string]json.RawMessage) error {
-	for _, key := range []string{"estado", "totalcap", "duracion", "tipo", "orden"} {
-		if err := validateNullableNumber(fields, key); err != nil {
-			return err
-		}
-	}
-	for _, key := range []string{"activo", "primeravez"} {
-		if err := validateNullableBool(fields, key); err != nil {
-			return err
-		}
-	}
-	for _, key := range []string{"pagina", "carpeta", "origen", "dia"} {
-		if err := validateNullableString(fields, key); err != nil {
-			return err
-		}
-	}
-	for _, key := range []string{"fechaEstreno", "fechaUltCapVisto", "fechaCreacion", "fechaEliminacion"} {
-		if err := validateNullableDate(fields, key); err != nil {
-			return err
-		}
-	}
-	for _, key := range []string{"estudios", "generos"} {
-		if err := validateNullableArray(fields, key); err != nil {
-			return err
-		}
-	}
-	if err := validateDays(fields); err != nil {
-		return err
-	}
-	if err := validateRepetitions(fields); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateNullableNumber(fields map[string]json.RawMessage, key string) error {
-	value, ok := nonNullField(fields, key)
-	if !ok {
-		return nil
-	}
-	var decoded float64
-	if err := json.Unmarshal(value, &decoded); err != nil {
-		return fmt.Errorf("unmarshal %s: %w", key, err)
-	}
-	return nil
-}
-
-func validateNullableBool(fields map[string]json.RawMessage, key string) error {
-	value, ok := nonNullField(fields, key)
-	if !ok {
-		return nil
-	}
-	var decoded bool
-	if err := json.Unmarshal(value, &decoded); err != nil {
-		return fmt.Errorf("unmarshal %s: %w", key, err)
-	}
-	return nil
-}
-
-func validateNullableString(fields map[string]json.RawMessage, key string) error {
-	value, ok := nonNullField(fields, key)
-	if !ok {
-		return nil
-	}
-	var decoded string
-	if err := json.Unmarshal(value, &decoded); err != nil {
-		return fmt.Errorf("unmarshal %s: %w", key, err)
-	}
-	return nil
-}
-
-func validateNullableDate(fields map[string]json.RawMessage, key string) error {
-	value, ok := nonNullField(fields, key)
-	if !ok {
-		return nil
-	}
-
-	var wrapper map[string]json.RawMessage
-	if err := json.Unmarshal(value, &wrapper); err != nil {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: %w", key, err)
-	}
-	dateValue, ok := wrapper["$$date"]
-	if !ok || len(wrapper) != 1 {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: expected object with only $$date", key)
-	}
-	var date int64
-	if err := json.Unmarshal(dateValue, &date); err != nil {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: %w", key, err)
-	}
-	return nil
-}
-
-func validateNullableArray(fields map[string]json.RawMessage, key string) error {
-	value, ok := nonNullField(fields, key)
-	if !ok {
-		return nil
-	}
-	var empty string
-	if err := json.Unmarshal(value, &empty); err == nil && empty == "" {
-		return nil
-	}
-	var decoded []json.RawMessage
-	if err := json.Unmarshal(value, &decoded); err != nil {
-		return fmt.Errorf("unmarshal %s: %w", key, err)
-	}
-	return nil
-}
-
-func validateDays(fields map[string]json.RawMessage) error {
-	value, ok := nonNullField(fields, "dias")
-	if !ok {
-		return nil
-	}
-	var days []LegacyAnimeDay
-	if err := json.Unmarshal(value, &days); err != nil {
-		return fmt.Errorf("unmarshal dias: %w", err)
-	}
-	return nil
-}
-
-func validateRepetitions(fields map[string]json.RawMessage) error {
-	value, ok := nonNullField(fields, "repetir")
-	if !ok {
-		return nil
-	}
-	var repetitions []map[string]json.RawMessage
-	if err := json.Unmarshal(value, &repetitions); err != nil {
-		return fmt.Errorf("unmarshal repetir: %w", err)
-	}
-	for index, repetition := range repetitions {
-		for _, key := range []string{"numrepeticion", "nrocapvisto", "estado"} {
-			if err := validateNullableNumber(repetition, key); err != nil {
-				return fmt.Errorf("unmarshal repetir[%d]: %w", index, err)
-			}
-		}
-		for _, key := range []string{"fechaCreacion", "fechaEstreno", "fechaUltCapVisto", "fechaEliminacion", "fechaRepeticion"} {
-			if err := validateNullableDate(repetition, key); err != nil {
-				return fmt.Errorf("unmarshal repetir[%d]: %w", index, err)
-			}
-		}
-	}
-	return nil
-}
-
+// nonNullField returns a present field that is not JSON null.
 func nonNullField(fields map[string]json.RawMessage, key string) (json.RawMessage, bool) {
 	value, ok := fields[key]
 	if !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
@@ -327,7 +199,8 @@ func nonNullField(fields map[string]json.RawMessage, key string) (json.RawMessag
 	return value, true
 }
 
-func (r LegacyAnimeRaw) number(key string) *float64 {
+// number decodes an optional numeric legacy field.
+func (r AnimeRaw) number(key string) *float64 {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
 		return nil
@@ -339,7 +212,8 @@ func (r LegacyAnimeRaw) number(key string) *float64 {
 	return &decoded
 }
 
-func (r LegacyAnimeRaw) integer(key string) *int {
+// integer decodes an optional integer legacy field.
+func (r AnimeRaw) integer(key string) *int {
 	value := r.number(key)
 	if value == nil {
 		return nil
@@ -348,7 +222,8 @@ func (r LegacyAnimeRaw) integer(key string) *int {
 	return &decoded
 }
 
-func (r LegacyAnimeRaw) stringValue(key string) *string {
+// stringValue decodes an optional string legacy field.
+func (r AnimeRaw) stringValue(key string) *string {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
 		return nil
@@ -360,7 +235,8 @@ func (r LegacyAnimeRaw) stringValue(key string) *string {
 	return &decoded
 }
 
-func (r LegacyAnimeRaw) date(key string) *time.Time {
+// date decodes an optional legacy date field.
+func (r AnimeRaw) date(key string) *time.Time {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
 		return nil
@@ -373,7 +249,8 @@ func (r LegacyAnimeRaw) date(key string) *time.Time {
 	return &decoded
 }
 
-func (r LegacyAnimeRaw) triState(key string) domain.TriState {
+// triState decodes a legacy boolean field into a tri-state value.
+func (r AnimeRaw) triState(key string) domain.TriState {
 	value, exists := r.extraFields[key]
 	if !exists {
 		return domain.TriStateAbsent
@@ -385,10 +262,11 @@ func (r LegacyAnimeRaw) triState(key string) domain.TriState {
 	return domain.TriStateTrue
 }
 
-func (r LegacyAnimeRaw) days() []LegacyAnimeDay {
+// days decodes legacy schedule fields into anime days.
+func (r AnimeRaw) days() []AnimeDay {
 	value, ok := nonNullField(r.extraFields, "dias")
 	if ok {
-		var days []LegacyAnimeDay
+		var days []AnimeDay
 		if json.Unmarshal(value, &days) == nil && len(days) > 0 {
 			return days
 		}
@@ -398,9 +276,10 @@ func (r LegacyAnimeRaw) days() []LegacyAnimeDay {
 	if day == nil || order == nil {
 		return nil
 	}
-	return []LegacyAnimeDay{{Dia: *day, Orden: *order}}
+	return []AnimeDay{{Dia: *day, Orden: *order}}
 }
 
+// cloneFields copies raw JSON field values into a new map.
 func cloneFields(input map[string]json.RawMessage) map[string]json.RawMessage {
 	fields := make(map[string]json.RawMessage, len(input))
 	for key, value := range input {
@@ -409,6 +288,7 @@ func cloneFields(input map[string]json.RawMessage) map[string]json.RawMessage {
 	return fields
 }
 
+// mustJSON marshals a value and panics when marshaling fails.
 func mustJSON(value any) json.RawMessage {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -417,6 +297,7 @@ func mustJSON(value any) json.RawMessage {
 	return encoded
 }
 
+// marshalFields encodes raw JSON fields in deterministic key order.
 func marshalFields(fields map[string]json.RawMessage) ([]byte, error) {
 	keys := make([]string, 0, len(fields))
 	for key := range fields {

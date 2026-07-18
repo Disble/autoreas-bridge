@@ -1,6 +1,3 @@
-// Package schedule tests for the in-process scheduler (design.md §3.5/§6). All tests use an
-// INJECTED fake clock (no real sleeping) and an injected run-callback seam, per design.md §3.9
-// "every dependency is an interface" discipline and the PR4a brief's explicit ban on real time.
 package schedule
 
 import (
@@ -21,6 +18,7 @@ type fakeTimer struct {
 	stop bool
 }
 
+// newFakeTimer creates a controllable timer for scheduler tests.
 func newFakeTimer(d time.Duration) *fakeTimer {
 	return &fakeTimer{ch: make(chan time.Time, 1), dur: d}
 }
@@ -42,6 +40,7 @@ func (t *fakeTimer) Reset(d time.Duration) {
 	t.stop = false
 }
 
+// fire delivers a timer event at the requested time.
 func (t *fakeTimer) fire(at time.Time) {
 	t.ch <- at
 }
@@ -54,6 +53,7 @@ type fakeClock struct {
 	timers []*fakeTimer
 }
 
+// newFakeClock creates a controllable clock for scheduler tests.
 func newFakeClock(start time.Time) *fakeClock {
 	return &fakeClock{now: start}
 }
@@ -64,6 +64,7 @@ func (c *fakeClock) Now() time.Time {
 	return c.now
 }
 
+// set moves the fake clock to t.
 func (c *fakeClock) set(t time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -88,6 +89,7 @@ func (c *fakeClock) lastTimer() *fakeTimer {
 	return c.timers[len(c.timers)-1]
 }
 
+// timerCount returns the number of timers created by the fake clock.
 func (c *fakeClock) timerCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -134,6 +136,7 @@ func waitForTimer(t *testing.T, clock *fakeClock) {
 	t.Fatal("timed out waiting for scheduler to create a timer")
 }
 
+// waitForTimerCount waits until the fake clock creates the expected timers.
 func waitForTimerCount(t *testing.T, clock *fakeClock, want int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

@@ -43,6 +43,7 @@ type syncE2EHTTPEndpointEnv struct {
 	changelogStore *bridgeSync.ChangelogStore
 }
 
+// newSyncE2ERealtimeEnv creates the file-backed realtime sync test environment.
 func newSyncE2ERealtimeEnv(t *testing.T, debounceWindow time.Duration) *syncE2ERealtimeEnv {
 	t.Helper()
 
@@ -55,28 +56,9 @@ func newSyncE2ERealtimeEnv(t *testing.T, debounceWindow time.Duration) *syncE2ER
 	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", syncE2ESeedAnimeJSON)
 	deviceService := seedSyncE2EDeviceService(t, ctx, db)
 
-	bus := events.NewBus()
-	selfEcho := anime.NewSelfEchoRegistry()
-	watcher := anime.NewRuntimeWatcher(anime.RuntimeWatcherConfig{
-		FilePath:         dataPath,
-		Parser:           anime.NewSnapshotParser(),
-		Store:            snapshotStore,
-		Publisher:        bus,
-		SelfEchoRegistry: selfEcho,
-		DebounceWindow:   debounceWindow,
-		RetryDelay:       25 * time.Millisecond,
-	})
-	watcher.StartAsync(ctx)
+	bus, watcher, writer := startSyncE2EFileServices(ctx, dataPath, snapshotStore, debounceWindow)
 
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{
-		FilePath:         dataPath,
-		Bus:              bus,
-		Publisher:        bus,
-		SelfEchoRegistry: selfEcho,
-	})
-	writer.StartAsync(ctx)
-
-	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 	recorder := bridgeSync.NewChangelogRecorder(bus, changelogStore)
 	recorder.Start(ctx)
 
@@ -103,7 +85,7 @@ func newSyncE2ERealtimeEnv(t *testing.T, debounceWindow time.Duration) *syncE2ER
 	})
 	server := httptest.NewServer(handler)
 
-	env := &syncE2ERealtimeEnv{
+	return registerSyncE2ERealtimeCleanup(t, &syncE2ERealtimeEnv{
 		ctx:            ctx,
 		cancel:         cancel,
 		dataPath:       dataPath,
@@ -115,20 +97,37 @@ func newSyncE2ERealtimeEnv(t *testing.T, debounceWindow time.Duration) *syncE2ER
 		writer:         writer,
 		recorder:       recorder,
 		hub:            hub,
-	}
-
-	t.Cleanup(func() {
-		server.Close()
-		cancel()
-		recorder.Stop()
-		writer.Wait()
-		watcher.Wait()
-		hub.Close()
 	})
+}
 
+// startSyncE2EFileServices starts the watcher and writer used by sync tests.
+func startSyncE2EFileServices(ctx context.Context, dataPath string, store *bridgeSync.AnimeSnapshotStore, debounceWindow time.Duration) (*events.MemoryBus, anime.RuntimeWatcher, anime.UpdateWriter) {
+	bus := events.NewBus()
+	selfEcho := anime.NewSelfEchoRegistry()
+	watcher := anime.NewRuntimeWatcher(anime.RuntimeWatcherConfig{FilePath: dataPath, Parser: anime.NewSnapshotParser(), Store: store, Publisher: bus, SelfEchoRegistry: selfEcho, DebounceWindow: debounceWindow, RetryDelay: 25 * time.Millisecond})
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{FilePath: dataPath, Bus: bus, Publisher: bus, SelfEchoRegistry: selfEcho})
+	watcher.StartAsync(ctx)
+	writer.StartAsync(ctx)
+	return bus, watcher, writer
+}
+
+// registerSyncE2ERealtimeCleanup attaches shutdown cleanup to the test environment.
+func registerSyncE2ERealtimeCleanup(t *testing.T, env *syncE2ERealtimeEnv) *syncE2ERealtimeEnv {
+	t.Helper()
+	t.Cleanup(func() {
+		env.server.Close()
+		env.cancel()
+		env.recorder.Stop()
+		env.writer.Wait()
+		env.watcher.Wait()
+		if err := env.hub.Close(); err != nil {
+			t.Errorf("close realtime hub: %v", err)
+		}
+	})
 	return env
 }
 
+// newSyncE2EHTTPEndpointEnv creates the HTTP-only sync test environment.
 func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	t.Helper()
 
@@ -137,7 +136,7 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(db)
 	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", syncE2ESeedAnimeJSON)
 	deviceService := seedSyncE2EDeviceService(t, ctx, db)
-	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 
 	handler := NewHandler(Config{
 		DeviceService: deviceService,
@@ -153,6 +152,7 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	}
 }
 
+// openSyncE2EDB opens a temporary bridge database for an end-to-end test.
 func openSyncE2EDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -168,6 +168,7 @@ func openSyncE2EDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// seedSyncE2EDeviceService creates a device service with a paired test device.
 func seedSyncE2EDeviceService(t *testing.T, ctx context.Context, db *sql.DB) *device.Service {
 	t.Helper()
 
@@ -184,6 +185,7 @@ func seedSyncE2EDeviceService(t *testing.T, ctx context.Context, db *sql.DB) *de
 	return device.NewService(deviceStore)
 }
 
+// dialWebSocket connects to the realtime endpoint and reads its control message.
 func (env *syncE2ERealtimeEnv) dialWebSocket(t *testing.T) (*websocket.Conn, realtime.ControlMessage) {
 	t.Helper()
 
@@ -207,6 +209,7 @@ func (env *syncE2ERealtimeEnv) dialWebSocket(t *testing.T) (*websocket.Conn, rea
 	return conn, control
 }
 
+// writeSyncE2EAnimeDataFile writes JSON lines to the temporary anime data file.
 func writeSyncE2EAnimeDataFile(t *testing.T, filePath string, lines []string) {
 	t.Helper()
 	contents := []byte("")
@@ -218,6 +221,7 @@ func writeSyncE2EAnimeDataFile(t *testing.T, filePath string, lines []string) {
 	}
 }
 
+// readSyncE2EAnimeDataLines reads non-empty JSON lines from the anime data file.
 func readSyncE2EAnimeDataLines(t *testing.T, filePath string) []string {
 	t.Helper()
 	contents, err := os.ReadFile(filePath)
@@ -235,6 +239,7 @@ func readSyncE2EAnimeDataLines(t *testing.T, filePath string) []string {
 	return lines
 }
 
+// assertSyncE2EJSONLine compares two JSON lines independent of field order.
 func assertSyncE2EJSONLine(t *testing.T, got string, want string) {
 	t.Helper()
 	var gotValue any
@@ -252,6 +257,7 @@ func assertSyncE2EJSONLine(t *testing.T, got string, want string) {
 	}
 }
 
+// seedSyncE2ESnapshot stores a baseline anime snapshot for an end-to-end test.
 func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
 	t.Helper()
 	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
@@ -265,6 +271,7 @@ func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, ani
 	}
 }
 
+// eventuallyWithinSyncE2E waits until a test predicate succeeds or times out.
 func eventuallyWithinSyncE2E(t *testing.T, timeout time.Duration, predicate func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

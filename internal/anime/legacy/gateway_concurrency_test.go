@@ -3,6 +3,7 @@ package legacy_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"sync"
@@ -88,47 +89,7 @@ func TestGatewayCompetingExplicitWritesReserveBeforeAppend(t *testing.T) {
 		}
 		return legacy.Snapshot{AnimeID: record.AnimeID, CanonicalJSON: record.CanonicalJSON, Hash: record.Hash, ModifiedAt: record.ModifiedAt}, err
 	}
-	aAppendStarted := make(chan struct{})
-	aDone := make(chan struct{})
-	store := bridgeSync.NewWriteBaseStore(db)
-	gatewayA := newGateway(t, gatewayConfig{
-		db: db, path: dataPath, clock: 200, operationID: "operation-a", load: load,
-		append: func(_ context.Context, path string, payload []byte) error {
-			if err := appendGatewayLine(path, payload); err != nil {
-				return err
-			}
-			close(aAppendStarted)
-			return nil
-		},
-	})
-	gatewayB := newGateway(t, gatewayConfig{
-		db: db, path: dataPath, clock: 201, operationID: "operation-b", load: load,
-		operations: &delayFirstStageStore{WriteBaseStore: store, wait: aAppendStarted},
-		append: func(_ context.Context, path string, payload []byte) error {
-			<-aDone
-			return appendGatewayLine(path, payload)
-		},
-	})
-	type response struct {
-		result legacy.AnimePatchResult
-		err    error
-	}
-	aResponse := make(chan response, 1)
-	bResponse := make(chan response, 1)
-	go func() {
-		result, err := gatewayA.Update(ctx, legacy.UpdateCommand{AnimeID: "anime-1", Base: &base, Mutate: func(value *domain.Anime) { value.SetProgress(3) }})
-		aResponse <- response{result: result, err: err}
-		close(aDone)
-	}()
-	go func() {
-		result, err := gatewayB.Update(ctx, legacy.UpdateCommand{AnimeID: "anime-1", Base: &base, Mutate: func(value *domain.Anime) { value.SetProgress(4) }})
-		bResponse <- response{result: result, err: err}
-	}()
-	<-loaded
-	<-loaded
-	close(releaseLoads)
-	a := <-aResponse
-	b := <-bResponse
+	a, b := runCompetingGatewayWrites(t, ctx, db, dataPath, base, load, loaded, releaseLoads)
 	if a.err != nil || a.result.Outcome != legacy.AnimePatchOutcomeApplied {
 		t.Fatalf("reservation winner failed: %#v, %v", a.result, a.err)
 	}
@@ -147,6 +108,47 @@ func TestGatewayCompetingExplicitWritesReserveBeforeAppend(t *testing.T) {
 	if !jsonContainsProgress(t, current.CanonicalJSON, 3) || !jsonContainsProgress(t, lines[len(lines)-1], 3) {
 		t.Fatalf("file/SQLite split brain: snapshot=%s effective=%s", current.CanonicalJSON, lines[len(lines)-1])
 	}
+}
+
+type gatewayResponse struct {
+	result legacy.AnimePatchResult
+	err    error
+}
+
+// runCompetingGatewayWrites executes two gateway writes against coordinated loads.
+func runCompetingGatewayWrites(t *testing.T, ctx context.Context, db *sql.DB, dataPath string, base int64, load func(context.Context, string) (legacy.Snapshot, error), loaded, releaseLoads chan struct{}) (gatewayResponse, gatewayResponse) {
+	t.Helper()
+	started, done := make(chan struct{}), make(chan struct{})
+	first := newGateway(t, gatewayConfig{db: db, path: dataPath, clock: 200, operationID: "operation-a", load: load, append: func(_ context.Context, path string, payload []byte) error {
+		if err := appendGatewayLine(path, payload); err != nil {
+			return err
+		}
+		close(started)
+		return nil
+	}})
+	second := newGateway(t, gatewayConfig{db: db, path: dataPath, clock: 201, operationID: "operation-b", load: load, operations: &delayFirstStageStore{WriteBaseStore: bridgeSync.NewWriteBaseStore(db), wait: started}, append: func(_ context.Context, path string, payload []byte) error {
+		<-done
+		return appendGatewayLine(path, payload)
+	}})
+	firstResponse, secondResponse := make(chan gatewayResponse, 1), make(chan gatewayResponse, 1)
+	go func() {
+		result, err := first.Update(ctx, updateGatewayProgressCommand(base, 3))
+		firstResponse <- gatewayResponse{result, err}
+		close(done)
+	}()
+	go func() {
+		result, err := second.Update(ctx, updateGatewayProgressCommand(base, 4))
+		secondResponse <- gatewayResponse{result, err}
+	}()
+	<-loaded
+	<-loaded
+	close(releaseLoads)
+	return <-firstResponse, <-secondResponse
+}
+
+// updateGatewayProgressCommand creates a progress update command for the fixture anime.
+func updateGatewayProgressCommand(base int64, progress float64) legacy.UpdateCommand {
+	return legacy.UpdateCommand{AnimeID: "anime-1", Base: &base, Mutate: func(value *domain.Anime) { value.SetProgress(progress) }}
 }
 
 type delayFirstStageStore struct {

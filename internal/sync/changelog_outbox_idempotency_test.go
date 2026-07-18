@@ -11,7 +11,7 @@ func TestChangelogRecorderDeduplicatesStableAnimeChangedEventID(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	bus := events.NewBus()
 	recorder := NewChangelogRecorder(bus, store)
 	ctx := context.Background()

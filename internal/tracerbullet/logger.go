@@ -1,9 +1,11 @@
+// Package tracerbullet provides the minimal event-bus demonstration flow.
 package tracerbullet
 
 import "fmt"
 
 type stdoutSink struct{}
 
+// NewStdoutSink creates a trace sink that writes messages to standard output.
 func NewStdoutSink() TraceSink {
 	return stdoutSink{}
 }

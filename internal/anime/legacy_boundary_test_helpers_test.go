@@ -7,6 +7,7 @@ import (
 	"autoreas-bridge/internal/anime/legacy"
 )
 
+// decodeAnimeDomainInternal decodes legacy payload data for boundary tests.
 func decodeAnimeDomainInternal(t *testing.T, payload []byte) domain.Anime {
 	t.Helper()
 	value, _, err := legacy.Decode(payload)

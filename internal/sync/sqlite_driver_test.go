@@ -12,7 +12,7 @@ func TestModerncSQLiteDriverOpensInMemoryDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite database: %v", err)
 	}
-	defer db.Close()
+	defer closeTestDB(t, db)
 
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping sqlite database: %v", err)

@@ -186,6 +186,7 @@ type recordingClient struct {
 	closed   chan struct{}
 }
 
+// newRecordingClient creates a client that records delivered payloads.
 func newRecordingClient(id string) *recordingClient {
 	return &recordingClient{
 		id:       id,
@@ -261,12 +262,14 @@ func (l *recordingRealtimeLogger) Logf(domain, level string, fields sharedlogger
 	})
 }
 
+// entries returns a copy of the recorded realtime log entries.
 func (l *recordingRealtimeLogger) entries() []sharedlogger.LogEntry {
 	out := make([]sharedlogger.LogEntry, len(l.entriesList))
 	copy(out, l.entriesList)
 	return out
 }
 
+// newBlockingClient creates a client whose sends wait for cancellation.
 func newBlockingClient(id string) *blockingClient {
 	return &blockingClient{id: id}
 }
@@ -284,6 +287,7 @@ func (*blockingClient) Close() error {
 	return nil
 }
 
+// consumeControlMessage verifies the connection-gap control payload.
 func consumeControlMessage(t *testing.T, payload []byte) {
 	t.Helper()
 
@@ -297,6 +301,7 @@ func consumeControlMessage(t *testing.T, payload []byte) {
 	}
 }
 
+// assertAnimeChangedPayload verifies an anime-change realtime payload.
 func assertAnimeChangedPayload(t *testing.T, payload []byte, wantAnimeID string) {
 	t.Helper()
 
@@ -314,6 +319,7 @@ func assertAnimeChangedPayload(t *testing.T, payload []byte, wantAnimeID string)
 	}
 }
 
+// assertPreferencesChangedPayload verifies a preferences-change payload.
 func assertPreferencesChangedPayload(t *testing.T, payload []byte, wantSeasonMode bool) {
 	t.Helper()
 
@@ -330,6 +336,7 @@ func assertPreferencesChangedPayload(t *testing.T, payload []byte, wantSeasonMod
 	}
 }
 
+// assertAnimeIDPayload verifies a create or delete anime payload.
 func assertAnimeIDPayload(t *testing.T, payload []byte, wantType string, wantAnimeID string) {
 	t.Helper()
 

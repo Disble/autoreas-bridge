@@ -2,7 +2,10 @@ pre-commit:
   parallel: true
   jobs:
     - name: frontend-fallow
-      run: bun --cwd="frontend" run fallow audit --quiet
+      run: bun --cwd="frontend" run fallow audit --quiet --brief
+
+    - name: frontend-fallow-dupes
+      run: bun --cwd="frontend" run fallow dupes --quiet --baseline ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
 
     - name: frontend-filesize-warning
       run: bun --cwd="frontend" run filesize:warning
@@ -26,7 +29,7 @@ pre-commit:
       run: go run ./tools/checkarchitecture
 
     - name: golangci-lint
-      run: golangci-lint run
+      run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
 
     - name: go-vet
       run: go vet ./...

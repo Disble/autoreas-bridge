@@ -21,6 +21,7 @@ type seasonRatingStubs struct {
 	gotRatedAt  int64
 }
 
+// authenticate returns the configured season-rating authentication result.
 func (s *seasonRatingStubs) authenticate(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
 	if !s.authOK {
 		writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
@@ -29,12 +30,14 @@ func (s *seasonRatingStubs) authenticate(w http.ResponseWriter, r *http.Request)
 	return device.PairedDevice{DeviceID: "dev-1"}, true
 }
 
+// record captures a season rating request and returns its configured result.
 func (s *seasonRatingStubs) record(_ context.Context, animeID string, grade int, ratedAtMs int64) (SeasonRatingResult, error) {
 	s.recordCalls++
 	s.gotAnimeID, s.gotGrade, s.gotRatedAt = animeID, grade, ratedAtMs
 	return s.result, s.recordErr
 }
 
+// newRatingHandler creates a season-rating handler backed by the test stubs.
 func newRatingHandler(s *seasonRatingStubs) http.Handler {
 	return NewSeasonRatingHandler(SeasonRatingConfig{
 		Authenticate: s.authenticate,
@@ -42,6 +45,7 @@ func newRatingHandler(s *seasonRatingStubs) http.Handler {
 	})
 }
 
+// postRating sends a season-rating request to a test handler.
 func postRating(t *testing.T, h http.Handler, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/seasons/active/ratings", strings.NewReader(body))

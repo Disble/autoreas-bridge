@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// WebSocketHandlerConfig wires the dependencies required by the realtime socket adapter.
 type WebSocketHandlerConfig struct {
 	Authenticate       AuthenticateFunc
 	ApplyPendingPatch  PatchAnimeFunc
@@ -27,50 +28,66 @@ type WebSocketHandlerConfig struct {
 
 var websocketClientSequence uint64
 
+// NewWebSocketHandler builds the WebSocket transport adapter used by mobile clients.
 func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.Authenticate == nil || config.Hub == nil {
-			http.Error(w, "websocket unavailable", http.StatusServiceUnavailable)
-			return
-		}
+		handleWebSocketConnection(w, r, config, upgrader)
+	})
+}
 
-		device, ok := config.Authenticate(w, r)
-		if !ok {
-			return
-		}
+// handleWebSocketConnection authenticates, upgrades, and serves one websocket client.
+func handleWebSocketConnection(w http.ResponseWriter, r *http.Request, config WebSocketHandlerConfig, upgrader websocket.Upgrader) {
+	if config.Authenticate == nil || config.Hub == nil {
+		http.Error(w, "websocket unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	device, ok := config.Authenticate(w, r)
+	if !ok {
+		return
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	client, ok := registerWebSocketClient(r.Context(), device.DeviceID, conn, config)
+	if !ok {
+		return
+	}
+	defer config.Hub.Unregister(client.ID())
+	serveWebSocketMessages(r.Context(), device.DeviceID, conn, config)
+}
 
-		conn, err := upgrader.Upgrade(w, r, nil)
+// registerWebSocketClient registers a websocket client with the realtime hub.
+func registerWebSocketClient(ctx context.Context, deviceID string, conn *websocket.Conn, config WebSocketHandlerConfig) (*webSocketClient, bool) {
+	client := newWebSocketClient(deviceID, conn)
+	if err := config.Hub.Register(ctx, client); err != nil {
+		if config.Logger != nil {
+			config.Logger.Errorf("websocket", "failed to register websocket client for %s: %v", deviceID, err)
+		}
+		_ = conn.Close()
+		return nil, false
+	}
+	if config.Logger != nil {
+		config.Logger.Infof("websocket", "registered websocket client for %s", deviceID)
+	}
+	return client, true
+}
+
+// serveWebSocketMessages reads and dispatches messages until the connection closes.
+func serveWebSocketMessages(ctx context.Context, deviceID string, conn *websocket.Conn, config WebSocketHandlerConfig) {
+	for {
+		_, payload, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
-
-		client := newWebSocketClient(device.DeviceID, conn)
-		if err := config.Hub.Register(r.Context(), client); err != nil {
-			if config.Logger != nil {
-				config.Logger.Errorf("websocket", "failed to register websocket client for %s: %v", device.DeviceID, err)
-			}
-			_ = conn.Close()
-			return
+		if err := handleIncomingWebSocketMessage(ctx, deviceID, payload, config); err != nil && config.Logger != nil {
+			config.Logger.Warnf("websocket incoming message failed for %s: %v", deviceID, err)
 		}
-		if config.Logger != nil {
-			config.Logger.Infof("websocket", "registered websocket client for %s", device.DeviceID)
-		}
-		defer config.Hub.Unregister(client.ID())
-
-		for {
-			_, payload, err := conn.ReadMessage()
-			if err != nil {
-				return
-			}
-			if err := handleIncomingWebSocketMessage(r.Context(), device.DeviceID, payload, config); err != nil && config.Logger != nil {
-				config.Logger.Warnf("websocket incoming message failed for %s: %v", device.DeviceID, err)
-			}
-		}
-	})
+	}
 }
 
 type incomingWebSocketMessage struct {
@@ -82,6 +99,7 @@ type incomingWebSocketMessage struct {
 	RatedAt int64  `json:"rated_at"`
 }
 
+// handleIncomingWebSocketMessage decodes and processes one client message.
 func handleIncomingWebSocketMessage(ctx context.Context, deviceID string, payload []byte, config WebSocketHandlerConfig) error {
 	var message incomingWebSocketMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
@@ -116,6 +134,7 @@ func handleIncomingWebSocketMessage(ctx context.Context, deviceID string, payloa
 	return nil
 }
 
+// isIncomingReconcileMessage identifies messages that request reconciliation.
 func isIncomingReconcileMessage(message incomingWebSocketMessage) bool {
 	if len(message.PendingOperations) == 0 {
 		return message.Type == "reconcile"
@@ -132,6 +151,7 @@ type webSocketClient struct {
 	mu   sync.Mutex
 }
 
+// newWebSocketClient creates a uniquely identified websocket hub client.
 func newWebSocketClient(deviceID string, conn *websocket.Conn) *webSocketClient {
 	sequence := atomic.AddUint64(&websocketClientSequence, 1)
 	return &webSocketClient{

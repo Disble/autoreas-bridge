@@ -71,6 +71,7 @@ type fakeCache struct {
 	putCalls []string
 }
 
+// newFakeCache creates an empty in-memory cache for resolver tests.
 func newFakeCache() *fakeCache {
 	return &fakeCache{entries: map[string][]byte{}}
 }

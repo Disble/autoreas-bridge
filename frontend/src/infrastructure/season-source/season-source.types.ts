@@ -108,4 +108,5 @@ export interface SeasonSource {
   readonly applySchedule: () => Promise<ApplyScheduleResult>;
   readonly reopenOrdering: () => Promise<string>;
   readonly recheckAvailability: () => Promise<string>;
+  readonly openPage: (url: string) => void;
 }

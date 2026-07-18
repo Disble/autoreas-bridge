@@ -20,7 +20,7 @@ export function AnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>)
         <AnimeEditorListPanel viewModel={viewModel} />
         <AnimeEditorFormPanel viewModel={viewModel} />
       </div>
-      <AnimeEditorDialogs viewModel={viewModel} />
+      <AnimeEditorDialogs scheduleTestDriverRef={props.scheduleTestDriverRef} viewModel={viewModel} />
     </section>
   );
 }

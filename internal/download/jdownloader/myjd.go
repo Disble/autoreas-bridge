@@ -32,14 +32,17 @@ type myJDAdapter struct {
 // Option configures a myJDAdapter at construction time.
 type Option func(*myJDAdapter)
 
+// withLaunchTimeout configures the launcher startup timeout.
 func withLaunchTimeout(d time.Duration) Option {
 	return func(a *myJDAdapter) { a.launchTimeout = d }
 }
 
+// withLaunchPoll configures the launcher readiness polling interval.
 func withLaunchPoll(d time.Duration) Option {
 	return func(a *myJDAdapter) { a.launchPoll = d }
 }
 
+// withLauncher configures the launcher implementation.
 func withLauncher(fn func() error) Option {
 	return func(a *myJDAdapter) { a.launcher = fn }
 }
@@ -127,6 +130,7 @@ func (a *myJDAdapter) EnsureOnline(ctx context.Context, deviceName string, launc
 	return fmt.Errorf("%w: %s (auto-launch poll timed out after %s)", ErrDeviceOffline, deviceName, a.launchTimeout)
 }
 
+// deviceOnline reports whether the named MyJDownloader device is reachable.
 func (a *myJDAdapter) deviceOnline(deviceName string) bool {
 	devices, err := a.client.ListDevices()
 	if err != nil {
@@ -159,31 +163,6 @@ func (a *myJDAdapter) AddAndStart(ctx context.Context, deviceName string, req En
 		return fmt.Errorf("jdownloader: add links: %w", err)
 	}
 	return nil
-}
-
-// PackagesFinished reports whether every known download package on deviceName has finished.
-// An empty package list reports false (no completion signal yet, not "done").
-func (a *myJDAdapter) PackagesFinished(ctx context.Context, deviceName string) (bool, error) {
-	device, err := a.client.Device(deviceName)
-	if err != nil {
-		return false, fmt.Errorf("jdownloader: get device %s: %w", deviceName, err)
-	}
-
-	packages, err := device.Downloader().Packages()
-	if err != nil {
-		return false, fmt.Errorf("jdownloader: query packages: %w", err)
-	}
-
-	if len(*packages) == 0 {
-		return false, nil
-	}
-
-	for _, pkg := range *packages {
-		if pkg.Finished == nil || !*pkg.Finished {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 func (a *myJDAdapter) Disconnect(ctx context.Context) error {

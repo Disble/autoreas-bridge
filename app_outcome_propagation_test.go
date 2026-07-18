@@ -9,18 +9,18 @@ import (
 
 func TestToChapterCommandContractPreservesMutationAuthority(t *testing.T) {
 	got := toChapterCommandContract(anime.ChapterCommandResult{
-		AnimeID: "anime-1", Outcome: anime.AnimePatchOutcomeConflict,
+		AnimeID: "anime-1", Outcome: anime.PatchOutcomeConflict,
 		ModifiedAt: 2000, ConflictID: "conflict-17",
 	})
 
-	if got.Status != "ok" || got.AnimeID != "anime-1" || got.Outcome != string(anime.AnimePatchOutcomeConflict) || got.ModifiedAt != 2000 || got.ConflictID != "conflict-17" {
+	if got.Status != "ok" || got.AnimeID != "anime-1" || got.Outcome != string(anime.PatchOutcomeConflict) || got.ModifiedAt != 2000 || got.ConflictID != "conflict-17" {
 		t.Fatalf("Wails result dropped mutation authority: %#v", got)
 	}
 }
 
 func TestToChapterCommandContractPreservesZeroMutationTokenOnJSONWire(t *testing.T) {
 	got := toChapterCommandContract(anime.ChapterCommandResult{
-		AnimeID: "anime-zero", Outcome: anime.AnimePatchOutcomeConflict,
+		AnimeID: "anime-zero", Outcome: anime.PatchOutcomeConflict,
 		ModifiedAt: 0, ConflictID: "conflict-zero",
 	})
 
@@ -38,7 +38,7 @@ func TestToChapterCommandContractPreservesZeroMutationTokenOnJSONWire(t *testing
 	if err := json.Unmarshal(payload, &wire); err != nil {
 		t.Fatalf("decode Wails result: %v", err)
 	}
-	if wire.Status != "ok" || wire.AnimeID != "anime-zero" || wire.Outcome != string(anime.AnimePatchOutcomeConflict) || wire.ConflictID != "conflict-zero" {
+	if wire.Status != "ok" || wire.AnimeID != "anime-zero" || wire.Outcome != string(anime.PatchOutcomeConflict) || wire.ConflictID != "conflict-zero" {
 		t.Fatalf("Wails JSON changed mutation authority fields: %s", payload)
 	}
 	if wire.ModifiedAt == nil || *wire.ModifiedAt != 0 {

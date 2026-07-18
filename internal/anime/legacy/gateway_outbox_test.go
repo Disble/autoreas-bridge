@@ -23,41 +23,69 @@ func TestGatewayDefiniteAppendFailureCleansUpWithIndependentBoundedContext(t *te
 		{name: "cleanup succeeds", wantRemaining: 0},
 		{name: "cleanup failure is surfaced", abortErr: errors.New("injected abort failure"), wantRemaining: 1},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			db := openGatewayDB(t)
-			snapshots := bridgeSync.NewAnimeSnapshotStore(db)
-			seedGatewaySnapshot(t, snapshots, "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
-			dataPath := writeGatewayData(t, gatewayAnimeJSON("anime-1", 2))
-			store := bridgeSync.NewWriteBaseStore(db)
-			tracking := &abortTrackingStore{WriteBaseStore: store, abortErr: tt.abortErr}
-			requestCtx, cancelRequest := context.WithCancel(context.Background())
-			base := int64(100)
-			gateway := newGateway(t, gatewayConfig{
-				db: db, path: dataPath, clock: 200, operations: tracking,
-				append: func(context.Context, string, []byte) error {
-					cancelRequest()
-					return legacy.NewDefiniteAppendError(requestCtx.Err())
-				},
-			})
+		t.Run(tt.name, func(t *testing.T) { runGatewayDefiniteAppendFailureScenario(t, tt.abortErr, tt.wantRemaining) })
+	}
+}
 
-			_, err := gateway.Update(requestCtx, legacy.UpdateCommand{
-				AnimeID: "anime-1", Base: &base,
-				Mutate: func(value *domain.Anime) { value.SetProgress(3) },
-			})
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("expected canceled append error, got %v", err)
-			}
-			if tt.abortErr != nil && !errors.Is(err, tt.abortErr) {
-				t.Fatalf("expected abort failure to be joined, got %v", err)
-			}
-			if !tracking.sawActiveContext || !tracking.sawDeadline {
-				t.Fatalf("abort did not receive independent bounded context: %#v", tracking)
-			}
-			staged, listErr := store.ListStaged(context.Background())
-			if listErr != nil || len(staged) != tt.wantRemaining {
-				t.Fatalf("unexpected staged operations after cleanup: %#v, %v", staged, listErr)
-			}
-		})
+// runGatewayDefiniteAppendFailureScenario exercises append failure cleanup behavior.
+func runGatewayDefiniteAppendFailureScenario(t *testing.T, abortErr error, wantRemaining int) {
+	t.Helper()
+
+	db := openGatewayDB(t)
+	store := bridgeSync.NewWriteBaseStore(db)
+	tracking := &abortTrackingStore{WriteBaseStore: store, abortErr: abortErr}
+	seedGatewaySnapshot(t, bridgeSync.NewAnimeSnapshotStore(db), "anime-1", gatewayAnimeJSON("anime-1", 2), 100)
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	base := int64(100)
+	gateway := newGateway(t, gatewayConfig{
+		db:         db,
+		path:       writeGatewayData(t, gatewayAnimeJSON("anime-1", 2)),
+		clock:      200,
+		operations: tracking,
+		append: func(context.Context, string, []byte) error {
+			cancelRequest()
+			return legacy.NewDefiniteAppendError(requestCtx.Err())
+		},
+	})
+
+	_, err := gateway.Update(requestCtx, legacy.UpdateCommand{
+		AnimeID: "anime-1",
+		Base:    &base,
+		Mutate:  func(value *domain.Anime) { value.SetProgress(3) },
+	})
+	assertGatewayDefiniteAppendFailure(t, err, abortErr)
+	assertGatewayAbortContext(t, tracking)
+	assertGatewayRemainingStagedOperations(t, store, wantRemaining)
+}
+
+// assertGatewayDefiniteAppendFailure verifies the propagated append and abort errors.
+func assertGatewayDefiniteAppendFailure(t *testing.T, err error, abortErr error) {
+	t.Helper()
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled append error, got %v", err)
+	}
+	if abortErr != nil && !errors.Is(err, abortErr) {
+		t.Fatalf("expected abort failure to be joined, got %v", err)
+	}
+}
+
+// assertGatewayAbortContext verifies that abort receives a bounded active context.
+func assertGatewayAbortContext(t *testing.T, tracking *abortTrackingStore) {
+	t.Helper()
+
+	if !tracking.sawActiveContext || !tracking.sawDeadline {
+		t.Fatalf("abort did not receive independent bounded context: %#v", tracking)
+	}
+}
+
+// assertGatewayRemainingStagedOperations verifies staged-operation cleanup.
+func assertGatewayRemainingStagedOperations(t *testing.T, store *bridgeSync.WriteBaseStore, wantRemaining int) {
+	t.Helper()
+
+	staged, err := store.ListStaged(context.Background())
+	if err != nil || len(staged) != wantRemaining {
+		t.Fatalf("unexpected staged operations after cleanup: %#v, %v", staged, err)
 	}
 }
 
@@ -68,7 +96,7 @@ func TestGatewayRecoveryTreatsMissingSyntheticCreateBaseAsRetryable(t *testing.T
 	if err := os.WriteFile(dataPath, nil, 0o600); err != nil {
 		t.Fatalf("create empty Legacy file: %v", err)
 	}
-	var raw legacy.LegacyAnimeRaw
+	var raw legacy.AnimeRaw
 	if err := json.Unmarshal(gatewayAnimeJSON("anime-create", 0), &raw); err != nil {
 		t.Fatalf("decode create fixture: %v", err)
 	}
@@ -236,6 +264,7 @@ func (s *markAfterPublishOutbox) MarkAnimeChangedPublished(ctx context.Context, 
 	return s.err
 }
 
+// canonicalGatewayPayload canonicalizes a gateway fixture payload.
 func canonicalGatewayPayload(t *testing.T, payload []byte) []byte {
 	t.Helper()
 	_, canonical, err := legacy.Decode(payload)
@@ -245,6 +274,7 @@ func canonicalGatewayPayload(t *testing.T, payload []byte) []byte {
 	return canonical
 }
 
+// stageGatewayOperation stores a staged operation for gateway tests.
 func stageGatewayOperation(t *testing.T, store *bridgeSync.WriteBaseStore, operationID, animeID string, baseToken, intended int64, base, desired []byte, createdAt int64) {
 	t.Helper()
 	err := store.Stage(context.Background(), anime.WriteOperation{

@@ -116,6 +116,7 @@ func isVideoFile(name string) bool {
 
 var trailingEpisodeNumberPattern = regexp.MustCompile(`(?:^|[^0-9])([0-9]{1,4})(?:[^0-9]*)$`)
 
+// episodeNumberFromName extracts the trailing episode number from a file name.
 func episodeNumberFromName(name string) int {
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	matches := trailingEpisodeNumberPattern.FindStringSubmatch(base)

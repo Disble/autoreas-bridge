@@ -130,6 +130,7 @@ func TestOpenAnimeFolderRejectsUnsafeStoredPathsAtLaunchSink(t *testing.T) {
 	}
 }
 
+// mustJSONText marshals a test string and fails the test on error.
 func mustJSONText(t *testing.T, value string) string {
 	t.Helper()
 	encoded, err := json.Marshal(value)
@@ -139,6 +140,7 @@ func mustJSONText(t *testing.T, value string) string {
 	return string(encoded)
 }
 
+// assertDesktopActionActivity verifies the activity row for a desktop action.
 func assertDesktopActionActivity(t *testing.T, db *sql.DB, actionType string) {
 	t.Helper()
 

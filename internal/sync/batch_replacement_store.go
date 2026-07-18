@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/anime"
 )
 
+// StageBatchReplacement persists the file-replacement recovery journal for a batch write.
 func (s *WriteBaseStore) StageBatchReplacement(ctx context.Context, journal anime.BatchReplacementJournal) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO anime_batch_replacements (
@@ -31,6 +32,7 @@ func (s *WriteBaseStore) StageBatchReplacement(ctx context.Context, journal anim
 	return nil
 }
 
+// UpdateBatchReplacementPhase advances the recovery journal phase for a batch replacement.
 func (s *WriteBaseStore) UpdateBatchReplacementPhase(ctx context.Context, batchID string, phase anime.BatchReplacementPhase, updatedAtMs int64) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE anime_batch_replacements SET phase = ?, updated_at_ms = ? WHERE batch_id = ?
@@ -45,6 +47,7 @@ func (s *WriteBaseStore) UpdateBatchReplacementPhase(ctx context.Context, batchI
 	return nil
 }
 
+// GetBatchReplacement loads the recovery journal for a staged batch replacement.
 func (s *WriteBaseStore) GetBatchReplacement(ctx context.Context, batchID string) (anime.BatchReplacementJournal, error) {
 	var journal anime.BatchReplacementJournal
 	var phase string

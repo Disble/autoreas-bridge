@@ -268,6 +268,54 @@ describe('bridge-runtime-source', () => {
     expect(applyBoardMock).toHaveBeenCalledWith({ boardModifiedAt: 123, entries: [] });
   });
 
+  it('passes every reindexed schedule entry to the Wails binding', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const applyBoardMock = vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'apply_schedule applied',
+      modifiedAt: 310,
+      board: { originAnimeId: 'bang-dream', boardModifiedAt: 310, destinations: [], entries: [] },
+    });
+
+    const applyPromise = source.applyAnimeEditorSchedule?.({
+      boardModifiedAt: 300,
+      entries: [
+        { animeId: 'youjo-senki-ii', baseModifiedAt: 103, placements: [{ day: 'Sin ver', order: 1 }] },
+        { animeId: 'bang-dream', baseModifiedAt: 104, placements: [{ day: 'Visto', order: 1 }] },
+        { animeId: 'yani-neko', baseModifiedAt: 102, placements: [{ day: 'Visto', order: 2 }] },
+        { animeId: 'sayonara-lara', baseModifiedAt: 101, placements: [{ day: 'Visto', order: 3 }] },
+        { animeId: 'futsutsuka', baseModifiedAt: 105, placements: [{ day: 'Visto', order: 4 }] },
+        { animeId: 'iwamoto', baseModifiedAt: 106, placements: [{ day: 'Visto', order: 5 }] },
+        { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ day: 'Visto', order: 6 }] },
+        { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ day: 'Visto', order: 7 }] },
+      ],
+    });
+
+    window.go = { main: { App: { ApplyAnimeEditorSchedule: applyBoardMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(applyPromise).resolves.toEqual(expect.objectContaining({
+      outcome: 'applied',
+      modifiedAt: 310,
+      board: expect.objectContaining({ boardModifiedAt: 310 }),
+    }));
+    expect(applyBoardMock).toHaveBeenCalledWith({
+      boardModifiedAt: 300,
+      entries: [
+        { animeId: 'youjo-senki-ii', baseModifiedAt: 103, placements: [{ dia: 'Sin ver', orden: 1 }] },
+        { animeId: 'bang-dream', baseModifiedAt: 104, placements: [{ dia: 'Visto', orden: 1 }] },
+        { animeId: 'yani-neko', baseModifiedAt: 102, placements: [{ dia: 'Visto', orden: 2 }] },
+        { animeId: 'sayonara-lara', baseModifiedAt: 101, placements: [{ dia: 'Visto', orden: 3 }] },
+        { animeId: 'futsutsuka', baseModifiedAt: 105, placements: [{ dia: 'Visto', orden: 4 }] },
+        { animeId: 'iwamoto', baseModifiedAt: 106, placements: [{ dia: 'Visto', orden: 5 }] },
+        { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ dia: 'Visto', orden: 6 }] },
+        { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ dia: 'Visto', orden: 7 }] },
+      ],
+    });
+  });
+
   it('maps a value-kind zero tipo to a concrete 0 across the wire boundary', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

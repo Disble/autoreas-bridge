@@ -47,7 +47,7 @@ func newSearcherWithBaseURL(client *http.Client, baseURL string) *Searcher {
 // Search fetches the `/buscar/{query}/` page and returns the parsed results in
 // document order. An empty result set (no matches) is returned as an empty
 // slice, not an error.
-func (s *Searcher) Search(ctx context.Context, query string) ([]SearchResult, error) {
+func (s *Searcher) Search(ctx context.Context, query string) (results []SearchResult, err error) {
 	searchURL := fmt.Sprintf("%s/buscar/%s/", s.baseURL, url.PathEscape(query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
 	if err != nil {
@@ -59,7 +59,12 @@ func (s *Searcher) Search(ctx context.Context, query string) ([]SearchResult, er
 	if err != nil {
 		return nil, fmt.Errorf("jkanime search %q: %w", query, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			results = nil
+			err = fmt.Errorf("close jkanime search body: %w", closeErr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("jkanime search %q: status %d", query, resp.StatusCode)
 	}
@@ -70,7 +75,7 @@ func (s *Searcher) Search(ctx context.Context, query string) ([]SearchResult, er
 	}
 
 	matches := searchResultPattern.FindAllStringSubmatch(string(body), -1)
-	results := make([]SearchResult, 0, len(matches))
+	results = make([]SearchResult, 0, len(matches))
 	for _, m := range matches {
 		title := strings.TrimSpace(m[2])
 		pageURL := strings.TrimSpace(m[1])

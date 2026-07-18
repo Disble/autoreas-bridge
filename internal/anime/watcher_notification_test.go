@@ -218,6 +218,7 @@ func (f *fakeWatcherNotifier) Notify(_ context.Context, n notification.Notificat
 	return f.err
 }
 
+// received returns notifications captured by the fake notifier.
 func (f *fakeWatcherNotifier) received() []notification.Notification {
 	f.mu.Lock()
 	defer f.mu.Unlock()

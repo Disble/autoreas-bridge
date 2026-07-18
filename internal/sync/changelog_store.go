@@ -7,14 +7,17 @@ import (
 	"fmt"
 )
 
+// ChangelogStore persists anime changelog rows and device acknowledgement state.
 type ChangelogStore struct {
 	sqliteStore
 }
 
-func NewChangelogStore(provider SyncSQLiteProvider) *ChangelogStore {
+// NewChangelogStore builds the SQLite-backed changelog store.
+func NewChangelogStore(provider SQLiteProvider) *ChangelogStore {
 	return &ChangelogStore{sqliteStore: newSQLiteStore(provider)}
 }
 
+// InsertPending stores a changelog row that still needs to reach paired devices.
 func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry) error {
 	entry = normalizePendingChangelogEntry(entry)
 
@@ -32,6 +35,7 @@ func (s *ChangelogStore) InsertPending(ctx context.Context, entry ChangelogEntry
 	return nil
 }
 
+// ListSinceTimestamp returns changelog rows newer than the given timestamp.
 func (s *ChangelogStore) ListSinceTimestamp(ctx context.Context, sinceMs int64) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
@@ -42,10 +46,10 @@ func (s *ChangelogStore) ListSinceTimestamp(ctx context.Context, sinceMs int64) 
 	if err != nil {
 		return nil, fmt.Errorf("list changelog since timestamp %d: %w", sinceMs, err)
 	}
-	defer rows.Close()
-	return scanChangelogEntries(rows)
+	return scanAndCloseChangelogEntries(rows)
 }
 
+// ListAfterID returns changelog rows whose ids are greater than lastID.
 func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
@@ -56,10 +60,10 @@ func (s *ChangelogStore) ListAfterID(ctx context.Context, lastID int64) ([]Chang
 	if err != nil {
 		return nil, fmt.Errorf("list changelog after id %d: %w", lastID, err)
 	}
-	defer rows.Close()
-	return scanChangelogEntries(rows)
+	return scanAndCloseChangelogEntries(rows)
 }
 
+// ListPending returns all changelog rows that still await device delivery.
 func (s *ChangelogStore) ListPending(ctx context.Context) ([]ChangelogEntry, error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT id, anime_id, change_type, changed_fields_json, snapshot_json, source_event_id, status, changed_at_ms
@@ -70,10 +74,10 @@ func (s *ChangelogStore) ListPending(ctx context.Context) ([]ChangelogEntry, err
 	if err != nil {
 		return nil, fmt.Errorf("list pending changelog rows: %w", err)
 	}
-	defer rows.Close()
-	return scanChangelogEntries(rows)
+	return scanAndCloseChangelogEntries(rows)
 }
 
+// LastID returns the latest changelog id, or zero when no rows exist.
 func (s *ChangelogStore) LastID(ctx context.Context) (int64, error) {
 	var lastID sql.NullInt64
 	if err := s.provider.DB().QueryRowContext(ctx, `SELECT MAX(id) FROM changelog`).Scan(&lastID); err != nil {
@@ -85,6 +89,7 @@ func (s *ChangelogStore) LastID(ctx context.Context) (int64, error) {
 	return lastID.Int64, nil
 }
 
+// LastChangedAt returns the newest changelog timestamp, or nil when no rows exist.
 func (s *ChangelogStore) LastChangedAt(ctx context.Context) (*int64, error) {
 	var lastChanged sql.NullInt64
 	if err := s.provider.DB().QueryRowContext(ctx, `SELECT MAX(changed_at_ms) FROM changelog`).Scan(&lastChanged); err != nil {
@@ -97,6 +102,7 @@ func (s *ChangelogStore) LastChangedAt(ctx context.Context) (*int64, error) {
 	return &value, nil
 }
 
+// AcknowledgeDevice records the latest changelog seen by a paired device.
 func (s *ChangelogStore) AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error {
 	if deviceID == "" {
 		return fmt.Errorf("acknowledge device: device id is required")
@@ -117,6 +123,7 @@ func (s *ChangelogStore) AcknowledgeDevice(ctx context.Context, deviceID string,
 	return nil
 }
 
+// SetDeviceSyncStatus updates the persisted sync-health state for one device.
 func (s *ChangelogStore) SetDeviceSyncStatus(ctx context.Context, deviceID string, status string) error {
 	if deviceID == "" {
 		return fmt.Errorf("set device sync status: device id is required")
@@ -134,6 +141,7 @@ func (s *ChangelogStore) SetDeviceSyncStatus(ctx context.Context, deviceID strin
 	return nil
 }
 
+// MarkDeviceRevoked marks a device as revoked and records the revocation timestamp.
 func (s *ChangelogStore) MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error {
 	if deviceID == "" {
 		return fmt.Errorf("mark device revoked: device id is required")
@@ -150,6 +158,7 @@ func (s *ChangelogStore) MarkDeviceRevoked(ctx context.Context, deviceID string,
 	return nil
 }
 
+// PruneAcknowledgedChangelog deletes changelog rows acknowledged by every active device.
 func (s *ChangelogStore) PruneAcknowledgedChangelog(ctx context.Context) (int64, error) {
 	var minAck sql.NullInt64
 	if err := s.provider.DB().QueryRowContext(ctx, `
@@ -173,7 +182,8 @@ func (s *ChangelogStore) PruneAcknowledgedChangelog(ctx context.Context) (int64,
 	return rows, nil
 }
 
-func (s *ChangelogStore) ListDeviceSyncStates(ctx context.Context) ([]DeviceSyncState, error) {
+// ListDeviceSyncStates returns every persisted device sync-health row.
+func (s *ChangelogStore) ListDeviceSyncStates(ctx context.Context) (states []DeviceSyncState, err error) {
 	rows, err := s.provider.DB().QueryContext(ctx, `
 		SELECT device_id, last_ack_changelog_id, last_seen_at_ms, sync_status
 		FROM device_sync_state
@@ -182,9 +192,14 @@ func (s *ChangelogStore) ListDeviceSyncStates(ctx context.Context) ([]DeviceSync
 	if err != nil {
 		return nil, fmt.Errorf("list device sync states: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			states = nil
+			err = fmt.Errorf("close device sync state rows: %w", closeErr)
+		}
+	}()
 
-	states := []DeviceSyncState{}
+	states = []DeviceSyncState{}
 	for rows.Next() {
 		var state DeviceSyncState
 		if err := rows.Scan(&state.DeviceID, &state.LastAckChangelogID, &state.LastSeenAtMs, &state.SyncStatus); err != nil {
@@ -199,7 +214,8 @@ func (s *ChangelogStore) ListDeviceSyncStates(ctx context.Context) ([]DeviceSync
 	return states, nil
 }
 
-func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) ([]DeviceSyncState, error) {
+// EvaluateDeviceStaleness classifies every device using the given stale thresholds.
+func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) (states []DeviceSyncState, err error) {
 	staleCutoff := nowMs - staleAfterMs
 	warningCutoff := staleCutoff + warnBeforeStaleMs
 
@@ -232,9 +248,14 @@ func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs int6
 	if err != nil {
 		return nil, fmt.Errorf("list changed device sync health states: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			states = nil
+			err = fmt.Errorf("close changed device sync state rows: %w", closeErr)
+		}
+	}()
 
-	states := []DeviceSyncState{}
+	states = []DeviceSyncState{}
 	for rows.Next() {
 		var state DeviceSyncState
 		if err := rows.Scan(&state.DeviceID, &state.LastAckChangelogID, &state.LastSeenAtMs, &state.SyncStatus); err != nil {
@@ -249,6 +270,7 @@ func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs int6
 	return states, nil
 }
 
+// scanChangelogEntries reads changelog entries from rows.
 func scanChangelogEntries(rows *sql.Rows) ([]ChangelogEntry, error) {
 	entries := []ChangelogEntry{}
 	for rows.Next() {
@@ -274,4 +296,16 @@ func scanChangelogEntries(rows *sql.Rows) ([]ChangelogEntry, error) {
 		return nil, fmt.Errorf("iterate changelog entries: %w", err)
 	}
 	return entries, nil
+}
+
+// scanAndCloseChangelogEntries reads and closes changelog rows.
+func scanAndCloseChangelogEntries(rows *sql.Rows) ([]ChangelogEntry, error) {
+	entries, err := scanChangelogEntries(rows)
+	if closeErr := rows.Close(); closeErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("close changelog rows: %w", closeErr)
+	}
+	return entries, err
 }

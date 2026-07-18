@@ -11,24 +11,31 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// SnapshotStore persists the effective anime snapshot baseline used by startup
+// catch-up and runtime watching.
 type SnapshotStore interface {
 	ListSnapshots(ctx context.Context) (map[string]SnapshotRecord, error)
 	ReplaceBaseline(ctx context.Context, current map[string]SnapshotRecord, pruneIDs []string) error
 }
 
+// EventPublisher emits domain events produced by snapshot reconciliation.
 type EventPublisher interface {
 	Publish(event events.Event)
 }
 
+// WarningLogger records non-fatal boundary warnings.
 type WarningLogger interface {
 	Warnf(format string, args ...any)
 }
 
+// Ticker abstracts polling timers for startup catch-up tests.
 type Ticker interface {
 	C() <-chan time.Time
 	Stop()
 }
 
+// StartupCoordinator waits for animes.dat to exist, runs catch-up once, and
+// exposes the terminal outcome.
 type StartupCoordinator interface {
 	StartAsync(ctx context.Context)
 	Wait()
@@ -36,6 +43,7 @@ type StartupCoordinator interface {
 	ContextErr() error
 }
 
+// StartupCoordinatorConfig wires the startup catch-up dependencies.
 type StartupCoordinatorConfig struct {
 	FilePath      string
 	Parser        SnapshotParser
@@ -74,6 +82,7 @@ type startupCoordinator struct {
 	contextErr error
 }
 
+// NewStartupCoordinator builds the startup catch-up coordinator.
 func NewStartupCoordinator(config StartupCoordinatorConfig) StartupCoordinator {
 	coordinator := &startupCoordinator{
 		filePath:      config.FilePath,
@@ -133,41 +142,58 @@ func (c *startupCoordinator) ContextErr() error {
 	return c.contextErr
 }
 
+// run waits for the source file and performs startup catch-up.
 func (c *startupCoordinator) run(ctx context.Context) {
 	ticker := c.tickerFactory(c.pollInterval)
 	defer ticker.Stop()
 
 	for {
-		if ctx.Err() != nil {
-			c.setContextErr(ctx.Err())
+		if c.runAttempt(ctx, ticker) {
 			return
-		}
-
-		if c.fileExists(c.filePath) {
-			if err := c.catchUp(ctx); err != nil {
-				if ctx.Err() != nil {
-					c.setContextErr(ctx.Err())
-					return
-				}
-				c.setErr(err)
-			}
-			return
-		}
-
-		if c.logger != nil {
-			c.logger.Warnf("Esperando datos: %s", c.filePath)
-		}
-		newDomainLogger("system", c.sharedLogger, c.logger).Warnf("Esperando datos: %s", c.filePath)
-
-		select {
-		case <-ctx.Done():
-			c.setContextErr(ctx.Err())
-			return
-		case <-ticker.C():
 		}
 	}
 }
 
+// runAttempt performs one startup availability check.
+func (c *startupCoordinator) runAttempt(ctx context.Context, ticker Ticker) bool {
+	if ctx.Err() != nil {
+		c.setContextErr(ctx.Err())
+		return true
+	}
+	if c.fileExists(c.filePath) {
+		return c.runCatchUp(ctx)
+	}
+	c.logWaitingForData()
+	select {
+	case <-ctx.Done():
+		c.setContextErr(ctx.Err())
+		return true
+	case <-ticker.C():
+		return false
+	}
+}
+
+// runCatchUp executes the startup snapshot pull once.
+func (c *startupCoordinator) runCatchUp(ctx context.Context) bool {
+	if err := c.catchUp(ctx); err != nil {
+		if ctx.Err() != nil {
+			c.setContextErr(ctx.Err())
+		} else {
+			c.setErr(err)
+		}
+	}
+	return true
+}
+
+// logWaitingForData records that the source file is not available yet.
+func (c *startupCoordinator) logWaitingForData() {
+	if c.logger != nil {
+		c.logger.Warnf("Esperando datos: %s", c.filePath)
+	}
+	newDomainLogger("system", c.sharedLogger, c.logger).Warnf("Esperando datos: %s", c.filePath)
+}
+
+// catchUp runs the snapshot pull pipeline for startup data.
 func (c *startupCoordinator) catchUp(ctx context.Context) error {
 	_, err := runSnapshotPullPipeline(ctx, snapshotPullPipelineConfig{
 		filePath:     c.filePath,
@@ -184,12 +210,14 @@ func (c *startupCoordinator) catchUp(ctx context.Context) error {
 	return err
 }
 
+// setErr stores the startup coordinator's terminal error.
 func (c *startupCoordinator) setErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.err = err
 }
 
+// setContextErr stores cancellation reported by the startup context.
 func (c *startupCoordinator) setContextErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -200,11 +228,13 @@ type realTicker struct{ *time.Ticker }
 
 func (t realTicker) C() <-chan time.Time { return t.Ticker.C }
 
+// defaultFileExists reports whether a path exists.
 func defaultFileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
+// defaultOpenFile opens a snapshot file for reading.
 func defaultOpenFile(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }

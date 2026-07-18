@@ -171,6 +171,7 @@ func TestAnimeEditorOutcomeContractsCarryAuthorityAndDetails(t *testing.T) {
 	}
 }
 
+// containsJSONKey reports whether a JSON object contains the requested key.
 func containsJSONKey(payload []byte, key string) bool {
 	var fields map[string]json.RawMessage
 	_ = json.Unmarshal(payload, &fields)

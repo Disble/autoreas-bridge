@@ -202,72 +202,6 @@ func (s *Service) AddIntakeName(ctx context.Context, seasonID, name string) (boo
 	return n > 0, err
 }
 
-// ReconcileIntake sets the season's UNCREATED intake to exactly the given
-// plain-text names (the raw editor's source of truth): names not present are
-// added as pending, editable rows no longer present are discarded, and a
-// removed-then-readded name revives its discarded row (no duplicate). CREATED
-// rows are never touched — a created anime has a real record that can only be
-// removed by an explicit "remove from season", never by a stray text edit.
-func (s *Service) ReconcileIntake(ctx context.Context, seasonID, rawText string) error {
-	desired := map[string]string{} // key → display name
-	for _, name := range parseIntakeNames(rawText) {
-		desired[strings.ToLower(name)] = name
-	}
-
-	rows, err := s.repo.ListSeasonAnimes(ctx, seasonID)
-	if err != nil {
-		return err
-	}
-
-	createdKeys := map[string]struct{}{}
-	editable := map[string]domain.SeasonAnime{}
-	discarded := map[string]domain.SeasonAnime{}
-	for _, row := range rows {
-		key := strings.ToLower(strings.TrimSpace(row.RawName))
-		switch {
-		case row.Availability == domain.AvailabilityCreated:
-			createdKeys[key] = struct{}{}
-		case row.MatchStatus == domain.MatchDiscarded:
-			discarded[key] = row
-		default:
-			editable[key] = row
-		}
-	}
-
-	// Discard editable rows no longer in the desired list.
-	for key, row := range editable {
-		if _, want := desired[key]; !want {
-			row.MatchStatus = domain.MatchDiscarded
-			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Add or revive every desired name that is not already editable or created.
-	for key, name := range desired {
-		if _, isCreated := createdKeys[key]; isCreated {
-			continue
-		}
-		if _, isEditable := editable[key]; isEditable {
-			continue
-		}
-		if row, wasDiscarded := discarded[key]; wasDiscarded {
-			row.MatchStatus = domain.MatchPending
-			row.MatchedSlug = ""
-			row.Candidates = nil
-			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := s.repo.CreateSeasonAnime(ctx, domain.NewSeasonAnime(s.newID(), seasonID, name, s.now())); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // RunMatching searches and resolves every pending row, persisting the outcome
 // (matched slug, ambiguous candidates, or not_found). Rows already resolved or
 // discarded are left untouched.
@@ -296,86 +230,6 @@ func (s *Service) RunMatching(ctx context.Context, seasonID string) error {
 		}
 	}
 	return nil
-}
-
-// RecheckAvailability probes chapter availability for every matched, uncreated
-// row and records it (Availability + AvailableChapters) — it NEVER creates an
-// anime. It ALSO refreshes AvailableChapters for already-created rows still
-// parked in the "Sin ver" Estrenos section (resolved via the batched
-// AnimeGateway.CurrentPlacements), leaving Availability/MatchStatus/AnimeID
-// untouched so a created row never re-enters the creation-eligible state.
-// Creating is a separate, explicit, consent-gated action (creation and
-// soft-delete are the only irreversible steps of the workflow). A probe error
-// leaves a row unchanged; the run never fails as a whole. res.Checked counts
-// every row probed either path. Reports the names that NEWLY became available
-// for creation (a row already available, or an already-created row, is never
-// reported).
-func (s *Service) RecheckAvailability(ctx context.Context, seasonID string) (RecheckResult, error) {
-	if s.probe == nil {
-		return RecheckResult{}, ErrAvailabilityDepsUnavailable
-	}
-	rows, err := s.repo.ListSeasonAnimes(ctx, seasonID)
-	if err != nil {
-		return RecheckResult{}, err
-	}
-
-	var createdAnimeIDs []string
-	for _, row := range rows {
-		if row.Availability == domain.AvailabilityCreated && row.MatchStatus == domain.MatchMatched && row.AnimeID != "" {
-			createdAnimeIDs = append(createdAnimeIDs, row.AnimeID)
-		}
-	}
-	var placements map[string][]domain.Placement
-	if len(createdAnimeIDs) > 0 {
-		// On error, treat every created row as ineligible this run rather than
-		// failing the whole call — mirrors the per-row probe-error tolerance below.
-		placements, _ = s.gateway.CurrentPlacements(ctx, createdAnimeIDs)
-	}
-
-	var res RecheckResult
-	for _, row := range rows {
-		switch {
-		case row.MatchStatus == domain.MatchMatched && row.Availability != domain.AvailabilityCreated:
-			res.Checked++
-
-			chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
-			if probeErr != nil {
-				// Leave the row unchanged; a scrape error must not fail the whole run.
-				continue
-			}
-
-			wasAvailable := row.Availability == domain.AvailabilityAvailable
-			if chapters >= 1 {
-				row.Availability = domain.AvailabilityAvailable
-				row.AvailableChapters = chapters
-				if !wasAvailable {
-					res.Available = append(res.Available, row.RawName)
-				}
-			} else {
-				row.Availability = domain.AvailabilityWaiting
-				row.AvailableChapters = 0
-			}
-			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-				return res, err
-			}
-
-		case row.Availability == domain.AvailabilityCreated && row.MatchStatus == domain.MatchMatched && row.AnimeID != "":
-			placed := placements[row.AnimeID]
-			if len(placed) == 0 || placed[0].Dia != sinVerSection {
-				continue
-			}
-			res.Checked++
-			chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
-			if probeErr != nil {
-				continue
-			}
-			row.AvailableChapters = chapters
-			if err := s.repo.UpdateSeasonAnime(ctx, row); err != nil {
-				return res, err
-			}
-		}
-	}
-	return res, nil
 }
 
 // RecordPremiereGrade records a first-episode grade for the anime linked to a row
@@ -435,6 +289,7 @@ func (s *Service) SetConsideration(ctx context.Context, rowID string, c domain.C
 	})
 }
 
+// validConsideration reports whether a consideration value is supported.
 func validConsideration(c domain.Consideration) bool {
 	switch c {
 	case domain.ConsiderationNone, domain.ConsiderationInsufficientQuota,
@@ -461,6 +316,7 @@ func (s *Service) DiscardName(ctx context.Context, rowID string) error {
 	})
 }
 
+// mutateSeasonAnime loads, mutates, and persists one season anime row.
 func (s *Service) mutateSeasonAnime(ctx context.Context, rowID string, fn func(*domain.SeasonAnime)) error {
 	sa, err := s.repo.SeasonAnimeByID(ctx, rowID)
 	if err != nil {
@@ -493,7 +349,8 @@ func parseIntakeNames(rawText string) []string {
 	return out
 }
 
-func toMatchStatus(s match.MatchStatus) domain.MatchStatus {
+// toMatchStatus converts a matcher status to its domain representation.
+func toMatchStatus(s match.Status) domain.MatchStatus {
 	switch s {
 	case match.StatusMatched:
 		return domain.MatchMatched
@@ -504,6 +361,7 @@ func toMatchStatus(s match.MatchStatus) domain.MatchStatus {
 	}
 }
 
+// toDomainCandidates converts matcher candidates to domain candidates.
 func toDomainCandidates(cs []match.ScoredCandidate) []domain.MatchCandidate {
 	if len(cs) == 0 {
 		return nil

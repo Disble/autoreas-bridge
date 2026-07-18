@@ -6,10 +6,15 @@ import "time"
 type MatchStatus string
 
 const (
-	MatchPending   MatchStatus = "pending"
-	MatchMatched   MatchStatus = "matched"
+	// MatchPending means the intake row still needs matching.
+	MatchPending MatchStatus = "pending"
+	// MatchMatched means the intake row resolved to one page URL.
+	MatchMatched MatchStatus = "matched"
+	// MatchAmbiguous means the intake row still has multiple candidates.
 	MatchAmbiguous MatchStatus = "ambiguous"
-	MatchNotFound  MatchStatus = "not_found"
+	// MatchNotFound means no suitable candidate was found.
+	MatchNotFound MatchStatus = "not_found"
+	// MatchDiscarded means the row was intentionally removed from flow.
 	MatchDiscarded MatchStatus = "discarded"
 )
 
@@ -17,17 +22,22 @@ const (
 type Availability string
 
 const (
-	AvailabilityWaiting   Availability = "waiting"
+	// AvailabilityWaiting means no online chapters were detected yet.
+	AvailabilityWaiting Availability = "waiting"
+	// AvailabilityAvailable means at least one chapter is available to create from.
 	AvailabilityAvailable Availability = "available"
-	AvailabilityCreated   Availability = "created"
+	// AvailabilityCreated means the season row is already linked to an anime.
+	AvailabilityCreated Availability = "created"
 )
 
 // GradeSource records how a grade was captured (SDD-44).
 type GradeSource string
 
 const (
+	// GradeSourceMobileSync marks a grade pushed from the mobile client.
 	GradeSourceMobileSync GradeSource = "mobile_sync"
-	GradeSourceManual     GradeSource = "manual"
+	// GradeSourceManual marks a grade entered manually on the bridge.
+	GradeSourceManual GradeSource = "manual"
 )
 
 // MatchCandidate is one ranked search option retained for an ambiguous row so

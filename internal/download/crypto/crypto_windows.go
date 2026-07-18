@@ -47,6 +47,7 @@ func Unprotect(ciphertext []byte) ([]byte, error) {
 	return dataBlobToBytes(out), nil
 }
 
+// bytesToDataBlob converts bytes into a Windows data blob.
 func bytesToDataBlob(b []byte) windows.DataBlob {
 	var blob windows.DataBlob
 	if len(b) > 0 {
@@ -56,6 +57,7 @@ func bytesToDataBlob(b []byte) windows.DataBlob {
 	return blob
 }
 
+// dataBlobToBytes copies bytes from a Windows data blob.
 func dataBlobToBytes(blob windows.DataBlob) []byte {
 	if blob.Data == nil || blob.Size == 0 {
 		return []byte{}
@@ -66,6 +68,7 @@ func dataBlobToBytes(blob windows.DataBlob) []byte {
 	return out
 }
 
+// freeDataBlob releases memory owned by a Windows data blob.
 func freeDataBlob(blob windows.DataBlob) {
 	if blob.Data == nil {
 		return

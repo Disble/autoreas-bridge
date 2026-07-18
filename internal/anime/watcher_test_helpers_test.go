@@ -20,6 +20,7 @@ type stubFileWatcher struct {
 	closed  bool
 }
 
+// newStubFileWatcher creates a controllable filesystem watcher double.
 func newStubFileWatcher() *stubFileWatcher {
 	return &stubFileWatcher{
 		added:  make(chan string, 1),
@@ -48,10 +49,12 @@ func (s *stubFileWatcher) Close() error {
 	return nil
 }
 
+// emit sends an event through the watcher double.
 func (s *stubFileWatcher) emit(event fsnotify.Event) {
 	s.events <- event
 }
 
+// waitUntilAdded waits for the watcher to register its directory.
 func (s *stubFileWatcher) waitUntilAdded(t *testing.T) string {
 	t.Helper()
 	select {
@@ -67,6 +70,7 @@ type stubDebounceTimer struct {
 	ch chan time.Time
 }
 
+// newStubDebounceTimer creates a controllable debounce timer double.
 func newStubDebounceTimer() *stubDebounceTimer {
 	return &stubDebounceTimer{ch: make(chan time.Time, 8)}
 }
@@ -74,7 +78,9 @@ func newStubDebounceTimer() *stubDebounceTimer {
 func (s *stubDebounceTimer) C() <-chan time.Time { return s.ch }
 func (s *stubDebounceTimer) Reset(time.Duration) {}
 func (s *stubDebounceTimer) Stop() bool          { return true }
-func (s *stubDebounceTimer) fire()               { s.ch <- time.Now() }
+
+// fire triggers the timer double.
+func (s *stubDebounceTimer) fire() { s.ch <- time.Now() }
 
 // stubBridgeNativeRegistry is the shared SDD-48 test double for
 // BridgeNativeRegistry, reused across watcher/pipeline/service tests in this
@@ -116,18 +122,21 @@ func (s *stubBridgeNativeRegistry) RegisterOwned(_ context.Context, animeID stri
 	return nil
 }
 
+// listCallCount returns ownership-list calls made to the registry double.
 func (s *stubBridgeNativeRegistry) listCallCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.listCalls
 }
 
+// registeredIDs returns ownership registrations made to the registry double.
 func (s *stubBridgeNativeRegistry) registeredIDs() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.registerCalls...)
 }
 
+// snapshotRecordFromPayload builds a snapshot record from fixture JSON.
 func snapshotRecordFromPayload(t *testing.T, payload string) SnapshotRecord {
 	t.Helper()
 
@@ -139,14 +148,17 @@ func snapshotRecordFromPayload(t *testing.T, payload string) SnapshotRecord {
 	return SnapshotRecord{AnimeID: value.ID, CanonicalJSON: canonical, Hash: HashSnapshot(canonical)}
 }
 
+// newStaticReader returns a reader over static test contents.
 func newStaticReader(contents string) io.Reader {
 	return bytes.NewBufferString(contents)
 }
 
+// eventually waits briefly for a test condition to become true.
 func eventually(t *testing.T, condition func() bool) {
 	eventuallyWithin(t, 200*time.Millisecond, condition)
 }
 
+// eventuallyWithin waits up to a timeout for a test condition.
 func eventuallyWithin(t *testing.T, timeout time.Duration, condition func() bool) {
 	t.Helper()
 

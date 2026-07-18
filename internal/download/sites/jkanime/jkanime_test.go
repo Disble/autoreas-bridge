@@ -89,7 +89,9 @@ func TestExtractAnimeIDAndCSRFTokenSucceedsWhenBothPresent(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, animePageWithTokensFixture)
+		if _, err := fmt.Fprint(w, animePageWithTokensFixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -107,35 +109,20 @@ func TestExtractAnimeIDAndCSRFTokenSucceedsWhenBothPresent(t *testing.T) {
 	}
 }
 
-func TestExtractAnimeIDAndCSRFTokenFailsWhenAnimeIDMissing(t *testing.T) {
+func TestExtractAnimeIDAndCSRFTokenRejectsIncompletePages(t *testing.T) {
 	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, animePageMissingAnimeIDFixture)
-	}))
-	defer srv.Close()
-
-	adapter := New(srv.Client())
-
-	_, _, err := adapter.fetchAnimeInfo(context.Background(), srv.URL+"/")
-	if err == nil {
-		t.Fatal("expected an explicit error when anime ID is missing")
-	}
-}
-
-func TestExtractAnimeIDAndCSRFTokenFailsWhenCSRFMissing(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, animePageMissingCSRFFixture)
-	}))
-	defer srv.Close()
-
-	adapter := New(srv.Client())
-
-	_, _, err := adapter.fetchAnimeInfo(context.Background(), srv.URL+"/")
-	if err == nil {
-		t.Fatal("expected an explicit error when csrf token is missing")
+	for _, test := range []struct{ name, fixture string }{
+		{"missing anime ID", animePageMissingAnimeIDFixture},
+		{"missing csrf token", animePageMissingCSRFFixture},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			srv := newFixtureServer(t, test.fixture)
+			defer srv.Close()
+			_, _, err := New(srv.Client()).fetchAnimeInfo(context.Background(), srv.URL+"/")
+			if err == nil {
+				t.Fatal("expected an explicit extraction error")
+			}
+		})
 	}
 }
 
@@ -148,7 +135,9 @@ func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 		if !strings.Contains(r.URL.Path, "/ajax/episodes/") {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		fmt.Fprint(w, ajaxEpisodesWithDataFixture)
+		if _, err := fmt.Fprint(w, ajaxEpisodesWithDataFixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -170,7 +159,9 @@ func TestFetchEpisodesTreatsZeroTotalAsNoEpisodesNotAnError(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, ajaxEpisodesZeroTotalFixture)
+		if _, err := fmt.Fprint(w, ajaxEpisodesZeroTotalFixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -189,51 +180,26 @@ func TestFetchEpisodesTreatsZeroTotalAsNoEpisodesNotAnError(t *testing.T) {
 }
 
 // ListEpisodes integration: highest episode number, not entry count (numbering gap [1,2,4]).
-func TestListEpisodesReturnsHighestEpisodeNumberNotEntryCount(t *testing.T) {
+func TestListEpisodesReturnsLatestEpisodeFromAJAXResponse(t *testing.T) {
 	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.Contains(r.URL.Path, "/ajax/episodes/"):
-			fmt.Fprint(w, ajaxEpisodesWithDataFixture)
-		default:
-			fmt.Fprint(w, animePageWithTokensFixture)
-		}
-	}))
-	defer srv.Close()
-
-	adapter := newWithBaseURL(srv.Client(), srv.URL)
-
-	listing, err := adapter.ListEpisodes(context.Background(), srv.URL+"/")
-	if err != nil {
-		t.Fatalf("ListEpisodes: %v", err)
-	}
-	if listing.LatestEpisode != 4 {
-		t.Fatalf("expected highest episode number 4 (gap at 3), got %d", listing.LatestEpisode)
-	}
-}
-
-func TestListEpisodesReturnsNoEpisodesAvailableWhenAjaxTotalIsZero(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.Contains(r.URL.Path, "/ajax/episodes/"):
-			fmt.Fprint(w, ajaxEpisodesZeroTotalFixture)
-		default:
-			fmt.Fprint(w, animePageWithTokensFixture)
-		}
-	}))
-	defer srv.Close()
-
-	adapter := newWithBaseURL(srv.Client(), srv.URL)
-
-	listing, err := adapter.ListEpisodes(context.Background(), srv.URL+"/")
-	if err != nil {
-		t.Fatalf("zero episodes must not be an error: %v", err)
-	}
-	if listing.LatestEpisode != 0 {
-		t.Fatalf("expected LatestEpisode=0 when no episodes available, got %d", listing.LatestEpisode)
+	for _, test := range []struct {
+		name, ajax string
+		want       int
+	}{
+		{"highest episode number over entry count", ajaxEpisodesWithDataFixture, 4},
+		{"zero total", ajaxEpisodesZeroTotalFixture, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			srv := newEpisodeListingServer(t, test.ajax)
+			defer srv.Close()
+			listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
+			if err != nil {
+				t.Fatalf("ListEpisodes: %v", err)
+			}
+			if listing.LatestEpisode != test.want {
+				t.Fatalf("LatestEpisode = %d, want %d", listing.LatestEpisode, test.want)
+			}
+		})
 	}
 }
 
@@ -257,7 +223,9 @@ func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, episodePageWithServersFixture)
+		if _, err := fmt.Fprint(w, episodePageWithServersFixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -278,42 +246,48 @@ func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T
 	}
 }
 
-func TestExtractLinksReturnsLoudErrorWhenServersArrayMissing(t *testing.T) {
+func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {
 	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, episodePageMissingServersFixture)
-	}))
-	defer srv.Close()
-
-	adapter := New(srv.Client())
-
-	links, err := adapter.ExtractLinks(context.Background(), srv.URL+"/1/")
-	if err == nil {
-		t.Fatal("expected a loud error when servers array cannot be parsed (template drift)")
-	}
-	if len(links) != 0 {
-		t.Fatalf("expected zero links alongside the error, got %d", len(links))
+	for _, test := range []struct{ name, fixture string }{
+		{"missing servers array", episodePageMissingServersFixture},
+		{"empty servers array", episodePageEmptyServersFixture},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			srv := newFixtureServer(t, test.fixture)
+			defer srv.Close()
+			links, err := New(srv.Client()).ExtractLinks(context.Background(), srv.URL+"/1/")
+			if err == nil {
+				t.Fatal("expected a loud server-list error")
+			}
+			if len(links) != 0 {
+				t.Fatalf("expected zero links alongside the error, got %d", len(links))
+			}
+		})
 	}
 }
 
-func TestExtractLinksReturnsLoudErrorWhenServersArrayIsEmpty(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, episodePageEmptyServersFixture)
+// newFixtureServer serves the supplied fixture from a test HTTP server.
+func newFixtureServer(t *testing.T, fixture string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := fmt.Fprint(w, fixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
 	}))
-	defer srv.Close()
+}
 
-	adapter := New(srv.Client())
-
-	links, err := adapter.ExtractLinks(context.Background(), srv.URL+"/1/")
-	if err == nil {
-		t.Fatal("expected a loud error when zero links are extracted -- never a silent empty success")
-	}
-	if len(links) != 0 {
-		t.Fatalf("expected zero links alongside the error, got %d", len(links))
-	}
+// newEpisodeListingServer serves page and AJAX episode fixtures for tests.
+func newEpisodeListingServer(t *testing.T, ajaxFixture string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fixture := animePageWithTokensFixture
+		if strings.Contains(r.URL.Path, "/ajax/episodes/") {
+			fixture = ajaxFixture
+		}
+		if _, err := fmt.Fprint(w, fixture); err != nil {
+			t.Errorf("write fixture response: %v", err)
+		}
+	}))
 }
 
 // --- registry plumbing ---

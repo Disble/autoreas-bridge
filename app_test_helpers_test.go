@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"io"
 	"path/filepath"
@@ -20,11 +18,11 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 	"autoreas-bridge/internal/realtime"
-	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
 )
 
+// newAppTestApp creates an application with test runtime dependencies.
 func newAppTestApp(t *testing.T) *App {
 	t.Helper()
 
@@ -53,11 +51,12 @@ func newAppTestApp(t *testing.T) *App {
 		},
 		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
 		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
-		newDownloadStore: func(*sql.DB) download.DownloadStore { return &fakeAppDownloadStore{} },
+		newDownloadStore: func(*sql.DB) download.Store { return &fakeAppDownloadStore{} },
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 	}
 }
 
+// containsString reports whether a string slice contains the requested value.
 func containsString(items []string, want string) bool {
 	for _, item := range items {
 		if item == want {
@@ -95,11 +94,12 @@ type trayLifecycleTestApp struct {
 	lastHiddenContext     context.Context
 }
 
+// newTrayLifecycleTestApp creates an application with observable tray hooks.
 func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayLifecycleTestApp {
 	t.Helper()
 
 	base := newAppTestApp(t)
-	base.newTrayManager = func() tray.TrayManager { return manager }
+	base.newTrayManager = func() tray.Manager { return manager }
 
 	app := &trayLifecycleTestApp{App: base}
 	base.hideWindow = func(ctx context.Context) {
@@ -384,222 +384,4 @@ type stubAppParser struct{}
 
 func (stubAppParser) Parse(io.Reader) (map[string]anime.SnapshotRecord, []anime.ParseWarning, error) {
 	return nil, nil, nil
-}
-
-// stubAppBridgeNativeRegistry is the app-level test double for
-// anime.BridgeNativeRegistry (SDD-48), mirroring stubAppStore's shape.
-type stubAppBridgeNativeRegistry struct {
-	owned     map[string]struct{}
-	registers []string
-}
-
-func (s *stubAppBridgeNativeRegistry) ListOwnedIDs(context.Context) (map[string]struct{}, error) {
-	return s.owned, nil
-}
-
-func (s *stubAppBridgeNativeRegistry) RegisterOwned(_ context.Context, animeID string) error {
-	s.registers = append(s.registers, animeID)
-	return nil
-}
-
-type stubAppStore struct{}
-
-func (stubAppStore) ListSnapshots(context.Context) (map[string]anime.SnapshotRecord, error) {
-	return nil, nil
-}
-
-func (stubAppStore) ReplaceBaseline(context.Context, map[string]anime.SnapshotRecord, []string) error {
-	return nil
-}
-
-func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID string, payload string, modifiedAt int64) {
-	t.Helper()
-	hashBytes := md5.Sum([]byte(payload))
-	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
-		animeID: {
-			AnimeID:       animeID,
-			CanonicalJSON: []byte(payload),
-			Hash:          hex.EncodeToString(hashBytes[:]),
-			ModifiedAt:    modifiedAt,
-		},
-	}, nil); err != nil {
-		t.Fatalf("seed runtime anime snapshot: %v", err)
-	}
-}
-
-type fakeAppDownloadStore struct {
-	jdConfig       download.JDConfig
-	scheduleConfig download.ScheduleConfig
-	hosterPriority []download.HosterPriorityEntry
-	runs           []download.DownloadRun
-	openedRuns     []download.DownloadRun
-	finalizedRuns  []download.DownloadRun
-	finalized      chan download.DownloadRun
-
-	setHosterPriorityEntries []download.HosterPriorityEntry
-	setJDConfigCfg           download.JDConfig
-	setJDConfigPassword      *string
-	setScheduleConfigCfg     download.ScheduleConfig
-}
-
-func (f *fakeAppDownloadStore) ListHosterPriority(context.Context, string) ([]download.HosterPriorityEntry, error) {
-	return f.hosterPriority, nil
-}
-
-func (f *fakeAppDownloadStore) SetHosterPriority(_ context.Context, _ string, entries []download.HosterPriorityEntry) error {
-	f.setHosterPriorityEntries = entries
-	return nil
-}
-
-func (f *fakeAppDownloadStore) SeedHosterPriorityIfEmpty(context.Context, string, []download.HosterPriorityEntry) error {
-	return nil
-}
-
-func (f *fakeAppDownloadStore) GetJDConfig(context.Context) (download.JDConfig, error) {
-	return f.jdConfig, nil
-}
-
-func (f *fakeAppDownloadStore) SetJDConfig(_ context.Context, cfg download.JDConfig, password *string) error {
-	f.setJDConfigCfg = cfg
-	f.setJDConfigPassword = password
-	return nil
-}
-
-func (f *fakeAppDownloadStore) SetJDStatus(context.Context, string, int64) error { return nil }
-
-func (f *fakeAppDownloadStore) DecryptedPassword(context.Context) (string, bool, error) {
-	return "", false, nil
-}
-
-func (f *fakeAppDownloadStore) GetScheduleConfig(context.Context) (download.ScheduleConfig, error) {
-	return f.scheduleConfig, nil
-}
-
-func (f *fakeAppDownloadStore) SetScheduleConfig(_ context.Context, cfg download.ScheduleConfig) error {
-	f.setScheduleConfigCfg = cfg
-	return nil
-}
-
-func (f *fakeAppDownloadStore) MarkScheduleRun(context.Context, int64, string, int64) error {
-	return nil
-}
-
-func (f *fakeAppDownloadStore) OpenRun(_ context.Context, run download.DownloadRun) error {
-	f.openedRuns = append(f.openedRuns, run)
-	return nil
-}
-
-func (f *fakeAppDownloadStore) UpdateRunProgress(context.Context, download.DownloadRun) error {
-	return nil
-}
-
-func (f *fakeAppDownloadStore) FinalizeRun(_ context.Context, run download.DownloadRun) error {
-	f.finalizedRuns = append(f.finalizedRuns, run)
-	if f.finalized != nil {
-		f.finalized <- run
-	}
-	return nil
-}
-
-func (f *fakeAppDownloadStore) ListRuns(context.Context, int) ([]download.DownloadRun, error) {
-	return f.runs, nil
-}
-
-func (f *fakeAppDownloadStore) ReconcileInterruptedRuns(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-var _ download.DownloadStore = (*fakeAppDownloadStore)(nil)
-
-type fakeAppScheduler struct {
-	triggerNowCalls          int
-	notifyConfigChangedCalls int
-	triggerNowErr            error
-	status                   schedule.Status
-}
-
-func (f *fakeAppScheduler) Start(context.Context) {}
-
-func (f *fakeAppScheduler) Stop() {}
-
-func (f *fakeAppScheduler) NotifyConfigChanged() { f.notifyConfigChangedCalls++ }
-
-func (f *fakeAppScheduler) TriggerNow(context.Context, string) error {
-	f.triggerNowCalls++
-	return f.triggerNowErr
-}
-
-func (f *fakeAppScheduler) Status(context.Context) schedule.Status {
-	return f.status
-}
-
-var _ schedule.Scheduler = (*fakeAppScheduler)(nil)
-
-type stubPendingLookup struct {
-	pending []bridgeSync.ChangelogEntry
-}
-
-func (s stubPendingLookup) ListSinceTimestamp(context.Context, int64) ([]bridgeSync.ChangelogEntry, error) {
-	return nil, nil
-}
-
-func (s stubPendingLookup) ListAfterID(context.Context, int64) ([]bridgeSync.ChangelogEntry, error) {
-	return nil, nil
-}
-
-func (s stubPendingLookup) ListPending(context.Context) ([]bridgeSync.ChangelogEntry, error) {
-	return append([]bridgeSync.ChangelogEntry(nil), s.pending...), nil
-}
-
-func (s stubPendingLookup) LastID(context.Context) (int64, error) {
-	return 0, nil
-}
-
-func (s stubPendingLookup) LastChangedAt(context.Context) (*int64, error) {
-	return nil, nil
-}
-
-func (s stubPendingLookup) AcknowledgeDevice(context.Context, string, int64, int64) error {
-	return nil
-}
-
-func (s stubPendingLookup) PruneAcknowledgedChangelog(context.Context) (int64, error) {
-	return 0, nil
-}
-
-type spyDeviceStore struct {
-	stubAppDeviceStore
-	savedToken  string
-	saveErr     error
-	activeToken string
-	pruneCalls  int
-}
-
-func (s *spyDeviceStore) SavePairingToken(_ context.Context, token string, _ int64) error {
-	s.savedToken = token
-	return s.saveErr
-}
-
-func (s *spyDeviceStore) FindActivePairingToken(context.Context, int64) (string, error) {
-	if s.activeToken == "" {
-		return "", device.ErrInvalidPairingToken
-	}
-	return s.activeToken, nil
-}
-
-func (s *spyDeviceStore) PruneExpiredPairingTokens(context.Context, int64) (int64, error) {
-	s.pruneCalls++
-	return 0, nil
-}
-
-func isHex32(s string) bool {
-	if len(s) != 32 {
-		return false
-	}
-	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			return false
-		}
-	}
-	return true
 }

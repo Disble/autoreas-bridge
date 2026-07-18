@@ -39,14 +39,19 @@ func (s *BridgeOwnedAnimeStore) RegisterOwned(ctx context.Context, animeID strin
 // ListOwnedIDs returns the full set of Bridge-native anime ids as a
 // map[string]struct{} for O(1) membership checks in DiffSnapshots
 // (ADR-48-2). An empty table yields an empty (non-nil) map, never an error.
-func (s *BridgeOwnedAnimeStore) ListOwnedIDs(ctx context.Context) (map[string]struct{}, error) {
+func (s *BridgeOwnedAnimeStore) ListOwnedIDs(ctx context.Context) (result map[string]struct{}, err error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT anime_id FROM bridge_owned_animes`)
 	if err != nil {
 		return nil, fmt.Errorf("query bridge owned animes: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			result = nil
+			err = fmt.Errorf("close bridge-owned anime rows: %w", closeErr)
+		}
+	}()
 
-	result := make(map[string]struct{})
+	result = make(map[string]struct{})
 	for rows.Next() {
 		var animeID string
 		if err := rows.Scan(&animeID); err != nil {

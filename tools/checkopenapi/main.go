@@ -60,6 +60,7 @@ func main() {
 	fmt.Println("OpenAPI gate passed.")
 }
 
+// extractPaths reads registered route paths from a router source file.
 func extractPaths(routerFile string) ([]string, error) {
 	content, err := os.ReadFile(routerFile)
 	if err != nil {
@@ -77,6 +78,7 @@ func extractPaths(routerFile string) ([]string, error) {
 	return paths, nil
 }
 
+// normalizePaths filters and canonicalizes extracted route paths.
 func normalizePaths(raw []string) []string {
 	skip := map[string]bool{
 		"/api/animes": true,
@@ -107,6 +109,7 @@ func normalizePaths(raw []string) []string {
 	return result
 }
 
+// parseYAMLPaths reads and validates the documented paths from an OpenAPI YAML file.
 func parseYAMLPaths(yamlFile string) (map[string]bool, error) {
 	content, err := os.ReadFile(yamlFile)
 	if err != nil {
@@ -130,6 +133,7 @@ func parseYAMLPaths(yamlFile string) (map[string]bool, error) {
 	return paths, nil
 }
 
+// fail reports a non-nil error and terminates the check.
 func fail(context string, err error) {
 	if err == nil {
 		return

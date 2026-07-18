@@ -12,10 +12,12 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// AnimeSnapshotStore persists the baseline effective anime snapshot set in SQLite.
 type AnimeSnapshotStore struct {
 	db *sql.DB
 }
 
+// NewAnimeSnapshotStore builds a snapshot store over the shared bridge database.
 func NewAnimeSnapshotStore(db *sql.DB) *AnimeSnapshotStore {
 	return &AnimeSnapshotStore{db: db}
 }
@@ -26,14 +28,20 @@ func (s *AnimeSnapshotStore) WriteBaseStore() anime.WriteBaseStore {
 	return NewWriteBaseStore(s.db)
 }
 
-func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (map[string]anime.SnapshotRecord, error) {
+// ListSnapshots returns every persisted effective snapshot keyed by anime ID.
+func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (result map[string]anime.SnapshotRecord, err error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT anime_id, snapshot_json, snapshot_hash, modified_at FROM anime_snapshots`)
 	if err != nil {
 		return nil, fmt.Errorf("query anime snapshots: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			result = nil
+			err = fmt.Errorf("close anime snapshot rows: %w", closeErr)
+		}
+	}()
 
-	result := make(map[string]anime.SnapshotRecord)
+	result = make(map[string]anime.SnapshotRecord)
 	for rows.Next() {
 		var record anime.SnapshotRecord
 		var snapshotJSON string
@@ -51,6 +59,7 @@ func (s *AnimeSnapshotStore) ListSnapshots(ctx context.Context) (map[string]anim
 	return result, nil
 }
 
+// ReplaceBaseline upserts the current snapshot set and prunes removed anime IDs.
 func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[string]anime.SnapshotRecord, pruneIDs []string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -99,6 +108,7 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 	return nil
 }
 
+// GetSnapshot returns one persisted effective snapshot by anime ID.
 func (s *AnimeSnapshotStore) GetSnapshot(ctx context.Context, animeID string) (anime.SnapshotRecord, error) {
 	var record anime.SnapshotRecord
 	var snapshotJSON string
@@ -114,6 +124,7 @@ func (s *AnimeSnapshotStore) GetSnapshot(ctx context.Context, animeID string) (a
 	return record, nil
 }
 
+// animeSnapshotIDs returns snapshot identifiers in stable order.
 func animeSnapshotIDs(records map[string]anime.SnapshotRecord) []string {
 	ids := make([]string, 0, len(records))
 	for id := range records {

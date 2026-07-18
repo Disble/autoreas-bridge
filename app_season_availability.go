@@ -81,6 +81,7 @@ func (s *seasonScheduleStore) MarkScheduleRun(_ context.Context, lastAtMs int64,
 	return nil
 }
 
+// readRecordLister returns the anime query service's record-listing capability.
 func (a *App) readRecordLister() (animeReadRecordLister, bool) {
 	query, ok := a.animeQuery.(animeReadRecordLister)
 	return query, ok
@@ -107,6 +108,7 @@ func (a *App) animeSectionsByID(ctx context.Context) map[string]string {
 	return out
 }
 
+// animeWatchedState extracts the section and progress from an anime payload.
 func animeWatchedState(payload []byte) (string, float64, bool) {
 	value, _, err := legacy.Decode(payload)
 	if err != nil {
@@ -225,8 +227,8 @@ func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 			return SendToVerHoyDTO{Status: err.Error()}
 		}
 		switch result.Outcome {
-		case anime.AnimePatchOutcomeApplied, anime.AnimePatchOutcomeNoOp:
-		case anime.AnimePatchOutcomeConflict:
+		case anime.PatchOutcomeApplied, anime.PatchOutcomeNoOp:
+		case anime.PatchOutcomeConflict:
 			return SendToVerHoyDTO{Status: fmt.Sprintf("anime mutation conflict: anime=%s modifiedAt=%d conflictId=%s", result.AnimeID, result.ModifiedAt, result.ConflictID)}
 		default:
 			return SendToVerHoyDTO{Status: fmt.Sprintf("unexpected anime mutation outcome %q", result.Outcome)}
@@ -273,6 +275,7 @@ func (a *App) seasonDownloadWindowPassed() (string, bool) {
 	return cfg.DailyTimeHHMM, now.After(window)
 }
 
+// currentTime returns the configured clock time for the application.
 func (a *App) currentTime() time.Time {
 	if a != nil && a.nowTime != nil {
 		return a.nowTime()
@@ -280,6 +283,7 @@ func (a *App) currentTime() time.Time {
 	return time.Now()
 }
 
+// notifySeasonPastDownloadWindow informs the user that manual downloads are needed.
 func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhmm string) {
 	if a.notifier == nil {
 		return
@@ -297,6 +301,7 @@ func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhm
 	})
 }
 
+// notifySeasonAvailable informs the user about newly available season anime.
 func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 	if a.notifier == nil {
 		return
@@ -310,6 +315,7 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 	})
 }
 
+// triggerDownloadsForSeason starts the download scheduler for a season batch.
 func (a *App) triggerDownloadsForSeason(ctx context.Context) {
 	if a.downloadScheduler == nil {
 		return

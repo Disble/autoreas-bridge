@@ -1,13 +1,18 @@
 package contracts
 
+// AnimeEditorValueKind classifies editor field presence in DTO unions.
 type AnimeEditorValueKind string
 
 const (
+	// AnimeEditorValueKindMissing means the client omitted the field.
 	AnimeEditorValueKindMissing AnimeEditorValueKind = "missing"
-	AnimeEditorValueKindNull    AnimeEditorValueKind = "null"
-	AnimeEditorValueKindValue   AnimeEditorValueKind = "value"
+	// AnimeEditorValueKindNull means the client explicitly cleared the field.
+	AnimeEditorValueKindNull AnimeEditorValueKind = "null"
+	// AnimeEditorValueKindValue means the client supplied a concrete value.
+	AnimeEditorValueKindValue AnimeEditorValueKind = "value"
 )
 
+// AnimeEditorNullableStringDTO carries a discriminated optional string value.
 type AnimeEditorNullableStringDTO struct {
 	Kind AnimeEditorValueKind `json:"kind"`
 	// Value must serialize even when empty — the Kind discriminator distinguishes
@@ -15,6 +20,7 @@ type AnimeEditorNullableStringDTO struct {
 	Value string `json:"value"`
 }
 
+// AnimeEditorNullableIntDTO carries a discriminated optional integer value.
 type AnimeEditorNullableIntDTO struct {
 	Kind AnimeEditorValueKind `json:"kind"`
 	// Value must serialize even when 0 — the Kind discriminator already encodes
@@ -23,6 +29,7 @@ type AnimeEditorNullableIntDTO struct {
 	Value int `json:"value"`
 }
 
+// AnimeEditorNullableTimeDTO carries a discriminated optional timestamp value.
 type AnimeEditorNullableTimeDTO struct {
 	Kind AnimeEditorValueKind `json:"kind"`
 	// UnixMilli must serialize even when 0 for the same discriminated-union
@@ -30,11 +37,13 @@ type AnimeEditorNullableTimeDTO struct {
 	UnixMilli int64 `json:"unixMilli"`
 }
 
+// AnimeEditorStringListDTO carries a discriminated optional string slice.
 type AnimeEditorStringListDTO struct {
 	Kind   AnimeEditorValueKind `json:"kind"`
 	Values []string             `json:"values"`
 }
 
+// AnimeEditorCoverDTO carries a discriminated optional cover payload.
 type AnimeEditorCoverDTO struct {
 	Kind AnimeEditorValueKind `json:"kind"`
 	Type string               `json:"type,omitempty"`
@@ -42,6 +51,7 @@ type AnimeEditorCoverDTO struct {
 	Raw  map[string]any       `json:"raw,omitempty"`
 }
 
+// AnimeEditorFrequentFields groups the editor's most-used fields.
 type AnimeEditorFrequentFields struct {
 	Name          string                       `json:"name"`
 	Status        int                          `json:"status"`
@@ -54,6 +64,7 @@ type AnimeEditorFrequentFields struct {
 	Placements    []MobileAnimeDay             `json:"placements"`
 }
 
+// AnimeEditorDetailFields groups the editor's detail fields.
 type AnimeEditorDetailFields struct {
 	PremieredAt AnimeEditorNullableTimeDTO   `json:"premieredAt"`
 	Duration    AnimeEditorNullableIntDTO    `json:"duration"`
@@ -63,6 +74,7 @@ type AnimeEditorDetailFields struct {
 	Cover       AnimeEditorCoverDTO          `json:"cover"`
 }
 
+// AnimeEditorRecord is the full editor read model for one anime.
 type AnimeEditorRecord struct {
 	AnimeID    string                    `json:"animeId"`
 	ModifiedAt int64                     `json:"modifiedAt"`
@@ -70,12 +82,14 @@ type AnimeEditorRecord struct {
 	Details    AnimeEditorDetailFields   `json:"details"`
 }
 
+// AnimeScheduleDestination is one board column or queue destination.
 type AnimeScheduleDestination struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Kind  string `json:"kind"`
 }
 
+// AnimeScheduleBoardEntry is one draggable board card entry.
 type AnimeScheduleBoardEntry struct {
 	AnimeID           string           `json:"animeId"`
 	Name              string           `json:"name"`
@@ -88,6 +102,7 @@ type AnimeScheduleBoardEntry struct {
 	OriginHighlighted bool             `json:"originHighlighted"`
 }
 
+// AnimeEditorScheduleBoard is the editor schedule board snapshot.
 type AnimeEditorScheduleBoard struct {
 	OriginAnimeID   string                     `json:"originAnimeId"`
 	BoardModifiedAt int64                      `json:"boardModifiedAt"`
@@ -95,6 +110,7 @@ type AnimeEditorScheduleBoard struct {
 	Entries         []AnimeScheduleBoardEntry  `json:"entries"`
 }
 
+// AnimeEditorRecordResult wraps a record fetch outcome.
 type AnimeEditorRecordResult struct {
 	Outcome AnimePatchOutcome  `json:"outcome"`
 	Message string             `json:"message"`
@@ -102,6 +118,7 @@ type AnimeEditorRecordResult struct {
 	Record  *AnimeEditorRecord `json:"record,omitempty"`
 }
 
+// AnimeEditorSaveResult wraps an editor save outcome.
 type AnimeEditorSaveResult struct {
 	Outcome    AnimePatchOutcome  `json:"outcome"`
 	Message    string             `json:"message"`
@@ -112,6 +129,7 @@ type AnimeEditorSaveResult struct {
 	Record     *AnimeEditorRecord `json:"record,omitempty"`
 }
 
+// AnimeEditorScheduleBoardResult wraps a board read outcome.
 type AnimeEditorScheduleBoardResult struct {
 	Outcome AnimePatchOutcome         `json:"outcome"`
 	Message string                    `json:"message"`
@@ -119,6 +137,7 @@ type AnimeEditorScheduleBoardResult struct {
 	Board   *AnimeEditorScheduleBoard `json:"board,omitempty"`
 }
 
+// AnimeEditorScheduleApplyResult wraps a board-apply outcome.
 type AnimeEditorScheduleApplyResult struct {
 	Outcome    AnimePatchOutcome         `json:"outcome"`
 	Message    string                    `json:"message"`

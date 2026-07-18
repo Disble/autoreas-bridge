@@ -39,6 +39,7 @@ function createSource(board: OrderingBoard, overrides: Partial<SeasonSource> = {
     applySchedule: vi.fn().mockResolvedValue({ status: 'ok', applied: 1, failed: [] }),
     reopenOrdering: vi.fn().mockResolvedValue('ok'),
     recheckAvailability: vi.fn().mockResolvedValue('ok'),
+    openPage: vi.fn(),
     ...overrides,
   };
 }

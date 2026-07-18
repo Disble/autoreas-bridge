@@ -8,47 +8,51 @@ import type { LabeledSelectProps } from './LabeledSelect.types';
  */
 export function LabeledSelect(props: Readonly<LabeledSelectProps>) {
   if (props.selectionMode === 'multiple') {
+    const { ariaLabel, className, label, options, placeholder, variant, value, onChange, ...rest } = props;
     return (
       <Select
-        aria-label={props.ariaLabel}
-        className={props.className}
-        placeholder={props.placeholder}
+        {...rest}
+        aria-label={ariaLabel}
+        className={className}
+        placeholder={placeholder}
         selectionMode="multiple"
-        variant={props.variant}
-        value={props.value}
-        onChange={(value) => props.onChange(coerceLabeledSelectValues(value))}
+        variant={variant}
+        value={value}
+        onChange={(selectValue) => onChange(coerceLabeledSelectValues(selectValue))}
       >
-        <Label>{props.label}</Label>
+        <Label>{label}</Label>
         <Select.Trigger>
           <Select.Value />
           <Select.Indicator />
         </Select.Trigger>
         <Select.Popover>
           <ListBox selectionMode="multiple">
-            <LabeledSelectOptions options={props.options} />
+            <LabeledSelectOptions options={options} />
           </ListBox>
         </Select.Popover>
       </Select>
     );
   }
 
+  const { ariaLabel, className, label, options, placeholder, variant, value, onChange, fallbackValue, ...rest } = props;
   return (
     <Select
-      aria-label={props.ariaLabel}
-      className={props.className}
-      placeholder={props.placeholder}
-      value={props.value}
-      variant={props.variant}
-      onChange={(value) => props.onChange(coerceLabeledSelectValue(value, props.fallbackValue))}
+      {...rest}
+      aria-label={ariaLabel}
+      className={className}
+      placeholder={placeholder}
+      value={value}
+      variant={variant}
+      onChange={(selectValue) => onChange(coerceLabeledSelectValue(selectValue, fallbackValue))}
     >
-      <Label>{props.label}</Label>
+      <Label>{label}</Label>
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
         <ListBox>
-          <LabeledSelectOptions options={props.options} />
+          <LabeledSelectOptions options={options} />
         </ListBox>
       </Select.Popover>
     </Select>

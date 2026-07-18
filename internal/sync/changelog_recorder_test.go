@@ -147,6 +147,7 @@ func (s *stubChangelogStore) InsertPending(_ context.Context, event ChangelogEnt
 	return s.err
 }
 
+// eventuallySync waits for an asynchronous sync condition to become true.
 func eventuallySync(t *testing.T, condition func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(300 * time.Millisecond)

@@ -13,8 +13,11 @@ import "context"
 type Kind int
 
 const (
+	// KindAbsent marks a missing or explicit null cover source.
 	KindAbsent Kind = iota
+	// KindURL marks a remote URL cover source.
 	KindURL
+	// KindLocalPath marks a local filesystem cover source.
 	KindLocalPath
 )
 

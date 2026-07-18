@@ -13,7 +13,7 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 	entry := ChangelogEntry{
 		AnimeID:       "anime-1",
@@ -27,50 +27,36 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 		t.Fatalf("insert pending changelog: %v", err)
 	}
 
-	rows, err := db.QueryContext(ctx, `SELECT anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms FROM changelog`)
+	assertSinglePendingChangelogRow(t, db, ctx, entry)
+}
+
+// assertSinglePendingChangelogRow verifies the persisted pending changelog row.
+func assertSinglePendingChangelogRow(t *testing.T, db *sql.DB, ctx context.Context, entry ChangelogEntry) {
+	t.Helper()
+	var count int
+	var animeID string
+	var changeType string
+	var changedFields string
+	var snapshot string
+	var status string
+	var changedAtMs int64
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*), anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms FROM changelog`).Scan(
+		&count,
+		&animeID,
+		&changeType,
+		&changedFields,
+		&snapshot,
+		&status,
+		&changedAtMs,
+	)
 	if err != nil {
-		t.Fatalf("query changelog rows: %v", err)
+		t.Fatalf("query changelog row: %v", err)
 	}
-	defer rows.Close()
-
-	count := 0
-	for rows.Next() {
-		count++
-		var animeID string
-		var changeType string
-		var changedFields string
-		var snapshot string
-		var status string
-		var changedAtMs int64
-		if err := rows.Scan(&animeID, &changeType, &changedFields, &snapshot, &status, &changedAtMs); err != nil {
-			t.Fatalf("scan changelog row: %v", err)
-		}
-		if animeID != entry.AnimeID {
-			t.Fatalf("expected anime id %q, got %q", entry.AnimeID, animeID)
-		}
-		if changeType != entry.ChangeType {
-			t.Fatalf("expected change type %q, got %q", entry.ChangeType, changeType)
-		}
-		if changedFields != `["nrocapvisto"]` {
-			t.Fatalf("expected changed fields json, got %s", changedFields)
-		}
-		if snapshot != string(entry.SnapshotJSON) {
-			t.Fatalf("expected snapshot %s, got %s", string(entry.SnapshotJSON), snapshot)
-		}
-		if status != "pending" {
-			t.Fatalf("expected status pending, got %q", status)
-		}
-		if changedAtMs != entry.ChangedAtMs {
-			t.Fatalf("expected changed_at_ms %d, got %d", entry.ChangedAtMs, changedAtMs)
-		}
-	}
-
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate changelog rows: %v", err)
-	}
-
 	if count != 1 {
 		t.Fatalf("expected 1 changelog row, got %d", count)
+	}
+	if animeID != entry.AnimeID || changeType != entry.ChangeType || changedFields != `["nrocapvisto"]` || snapshot != string(entry.SnapshotJSON) || status != "pending" || changedAtMs != entry.ChangedAtMs {
+		t.Fatalf("unexpected changelog row: animeID=%q changeType=%q changedFields=%q snapshot=%q status=%q changedAtMs=%d", animeID, changeType, changedFields, snapshot, status, changedAtMs)
 	}
 }
 
@@ -88,7 +74,7 @@ func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	const inserts = 100
@@ -130,7 +116,7 @@ func TestSQLiteChangelogStoreListsChangesSinceTimestamp(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	entries := []ChangelogEntry{
@@ -176,7 +162,7 @@ func TestSQLiteChangelogStoreListsChangesAfterID(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	first := ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100}
@@ -212,7 +198,7 @@ func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
@@ -255,7 +241,7 @@ func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testin
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
@@ -298,7 +284,7 @@ func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
@@ -334,7 +320,7 @@ func TestSQLiteChangelogStoreEvaluatesDeviceStaleness(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	store := NewChangelogStore(NewSyncSQLiteProvider(db))
+	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 	nowMs := int64(1_000_000_000)
 	staleAfterMs := int64(60 * 24 * 60 * 60 * 1000)
@@ -377,6 +363,7 @@ func TestSQLiteChangelogStoreEvaluatesDeviceStaleness(t *testing.T) {
 	}
 }
 
+// countChangelogRows returns the number of persisted changelog rows.
 func countChangelogRows(t *testing.T, db *sql.DB) int {
 	t.Helper()
 

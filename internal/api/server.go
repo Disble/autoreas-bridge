@@ -15,20 +15,43 @@ import (
 	"autoreas-bridge/internal/realtime"
 )
 
+// AnimePatch aliases the API patch contract consumed by transport adapters.
 type AnimePatch = contracts.AnimePatch
+
+// AnimeCreate aliases the API create contract consumed by transport adapters.
 type AnimeCreate = contracts.AnimeCreate
+
+// EffectiveAnime aliases the effective anime read model exposed by query services.
 type EffectiveAnime = contracts.EffectiveAnime
+
+// AnimeQueryService aliases the query-side API contract.
 type AnimeQueryService = contracts.AnimeQueryService
+
+// AnimeWriteService aliases the write-side API contract.
 type AnimeWriteService = contracts.AnimeWriteService
+
+// SyncTriggerService aliases the sync-trigger API contract.
 type SyncTriggerService = contracts.SyncTriggerService
+
+// StatusService aliases the status-query API contract.
 type StatusService = contracts.StatusService
+
+// DeviceAdminService aliases the device-admin API contract.
 type DeviceAdminService = contracts.DeviceAdminService
+
+// ConflictService aliases the conflict-management API contract.
 type ConflictService = contracts.ConflictService
+
+// RecordSeasonRatingFunc aliases the season-rating command handler signature.
 type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
+
+// ActiveSeasonSnapshotFunc aliases the active-season snapshot query signature.
 type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
 
+// ErrAnimeNotFound reports that the requested anime does not exist.
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
+// Config wires the services and runtime dependencies used by the HTTP API.
 type Config struct {
 	Addr                   string
 	DeviceService          device.AuthService
@@ -45,6 +68,7 @@ type Config struct {
 	OnPairingTokenConsumed func()
 }
 
+// Server exposes the lifecycle of the bridge HTTP server.
 type Server interface {
 	Start() error
 	Shutdown(ctx context.Context) error
@@ -52,6 +76,7 @@ type Server interface {
 	EffectiveAddress() string
 }
 
+// HTTPServer hosts the bridge HTTP API over a net/http server.
 type HTTPServer struct {
 	addr                 string
 	handler              http.Handler
@@ -62,6 +87,7 @@ type HTTPServer struct {
 	logger               sharedlogger.Logger
 }
 
+// NewServer builds a bridge HTTP server from the provided transport config.
 func NewServer(config Config) Server {
 	addr := config.Addr
 	if addr == "" {
@@ -69,7 +95,7 @@ func NewServer(config Config) Server {
 	}
 
 	handler := NewHandler(config)
-	var wrappedHandler http.Handler = handler
+	wrappedHandler := http.Handler(handler)
 	if config.Logger != nil {
 		wrappedHandler = RequestLoggingMiddleware(handler, config.Logger)
 	}
@@ -81,6 +107,7 @@ func NewServer(config Config) Server {
 	}
 }
 
+// Start begins serving the configured HTTP API listener.
 func (s *HTTPServer) Start() error {
 	s.serveMu.Lock()
 	defer s.serveMu.Unlock()
@@ -110,6 +137,7 @@ func (s *HTTPServer) Start() error {
 	return nil
 }
 
+// Shutdown stops the HTTP server and closes the active listener.
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.serveMu.Lock()
 	defer s.serveMu.Unlock()
@@ -123,6 +151,7 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// Addr returns the listening address, using the bound listener when started.
 func (s *HTTPServer) Addr() string {
 	if s.listener != nil {
 		return s.listener.Addr().String()
@@ -130,6 +159,7 @@ func (s *HTTPServer) Addr() string {
 	return s.addr
 }
 
+// EffectiveAddress returns the LAN-reachable address advertised to devices.
 func (s *HTTPServer) EffectiveAddress() string {
 	addr := s.Addr()
 	host, port, err := net.SplitHostPort(addr)
@@ -190,7 +220,9 @@ func preferredOutboundIP(dial func(network, address string) (net.Conn, error)) s
 	if err != nil {
 		return ""
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close() // A UDP route probe has no buffered output; close errors cannot affect the resolved address.
+	}()
 
 	udpAddr, ok := conn.LocalAddr().(*net.UDPAddr)
 	if !ok || udpAddr.IP == nil {
@@ -223,24 +255,36 @@ func resolveHostFromInterfaces() (string, error) {
 			continue
 		}
 
-		for _, addr := range addrs {
-			var ip net.IP
-			switch value := addr.(type) {
-			case *net.IPNet:
-				ip = value.IP
-			case *net.IPAddr:
-				ip = value.IP
-			}
-
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-
-			if ipv4 := ip.To4(); ipv4 != nil {
-				return ipv4.String(), nil
-			}
+		if ipv4 := firstUsableIPv4(addrs); ipv4 != "" {
+			return ipv4, nil
 		}
 	}
 
 	return "", errors.New("no active non-loopback ipv4 address")
+}
+
+// firstUsableIPv4 returns the first non-loopback IPv4 address in the list.
+func firstUsableIPv4(addrs []net.Addr) string {
+	for _, addr := range addrs {
+		ip := ipFromAddr(addr)
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+		if ipv4 := ip.To4(); ipv4 != nil {
+			return ipv4.String()
+		}
+	}
+	return ""
+}
+
+// ipFromAddr extracts an IP value from the supported network address types.
+func ipFromAddr(addr net.Addr) net.IP {
+	switch value := addr.(type) {
+	case *net.IPNet:
+		return value.IP
+	case *net.IPAddr:
+		return value.IP
+	default:
+		return nil
+	}
 }

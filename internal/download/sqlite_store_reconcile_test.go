@@ -17,7 +17,7 @@ func TestSQLiteStoreReconcileInterruptedRunsFinalizesNonTerminalRowsAsInterrupte
 	}
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	if err := store.OpenRun(ctx, DownloadRun{RunID: "crashed-run", StartedAtMs: 100, Trigger: "scheduled"}); err != nil {
+	if err := store.OpenRun(ctx, Run{RunID: "crashed-run", StartedAtMs: 100, Trigger: "scheduled"}); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	_ = db.Close()
@@ -48,11 +48,11 @@ func TestSQLiteStoreReconcileInterruptedRunsIsNoOpWhenNothingIsInterrupted(t *te
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	if err := store.OpenRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
+	if err := store.OpenRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	finishedAt := int64(200)
-	if err := store.FinalizeRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "manual", Status: "ok"}); err != nil {
+	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "manual", Status: "ok"}); err != nil {
 		t.Fatalf("FinalizeRun: %v", err)
 	}
 	reconciled, err := store.ReconcileInterruptedRuns(ctx, 999)

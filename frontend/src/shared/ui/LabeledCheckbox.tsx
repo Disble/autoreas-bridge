@@ -9,9 +9,9 @@ import type { LabeledCheckboxProps } from './LabeledCheckbox.types';
  * When disabled it stays VISIBLE (a dimmed but present box) so a not-yet-eligible
  * row still shows its checkbox. Use this for any selectable list item.
  */
-export function LabeledCheckbox({ isSelected, onChange, children, className, isDisabled }: Readonly<LabeledCheckboxProps>) {
+export function LabeledCheckbox({ isSelected, onChange, children, className, isDisabled, ...rest }: Readonly<LabeledCheckboxProps>) {
   return (
-    <Checkbox className={className} isDisabled={isDisabled} isSelected={isSelected} onChange={onChange}>
+    <Checkbox {...rest} className={className} isDisabled={isDisabled} isSelected={isSelected} onChange={onChange}>
       <Checkbox.Content>
         <Checkbox.Control
           style={{ borderWidth: '1.5px', borderColor: 'var(--muted)', opacity: isDisabled ? 0.55 : 1 }}

@@ -89,6 +89,7 @@ func TestSystrayManagerStopIsIdempotent(t *testing.T) {
 	}
 }
 
+// stubSystrayPrimitives replaces native tray operations with test doubles.
 func stubSystrayPrimitives() func() {
 	originalRun := runWithExternalLoop
 	originalSetIcon := setIcon
@@ -116,6 +117,7 @@ type fakeMenuItem struct {
 	once    sync.Once
 }
 
+// newFakeMenuItem creates a buffered fake tray menu item.
 func newFakeMenuItem() *fakeMenuItem {
 	return &fakeMenuItem{clicked: make(chan struct{}, 1)}
 }
@@ -124,11 +126,13 @@ func (i *fakeMenuItem) Clicked() <-chan struct{} {
 	return i.clicked
 }
 
+// click signals one click on the fake menu item.
 func (i *fakeMenuItem) click() {
 	i.once.Do(func() {})
 	i.clicked <- struct{}{}
 }
 
+// assertSignal verifies that a callback signal arrives before the timeout.
 func assertSignal(t *testing.T, ch <-chan struct{}, label string) {
 	t.Helper()
 

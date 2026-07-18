@@ -50,35 +50,44 @@ func (flattener) Flatten(ctx context.Context, folder string) (int, error) {
 		if ctx.Err() != nil {
 			return moved, errors.Join(append(moveErrs, ctx.Err())...)
 		}
-		if !entry.IsDir() {
-			continue
-		}
-
-		subDir := filepath.Join(folder, entry.Name())
-		subEntries, err := os.ReadDir(subDir)
-		if err != nil {
-			moveErrs = append(moveErrs, fmt.Errorf("flatten: read subdir %s: %w", subDir, err))
-			continue
-		}
-
-		subMoved, subErrs := flattenOneSubdir(subDir, folder, subEntries)
+		subMoved, subErrs := flattenDirectoryEntry(folder, entry)
 		moved += subMoved
 		moveErrs = append(moveErrs, subErrs...)
-
-		if subMoved > 0 {
-			remaining, err := os.ReadDir(subDir)
-			if err == nil && len(remaining) == 0 {
-				if rmErr := os.Remove(subDir); rmErr != nil {
-					moveErrs = append(moveErrs, fmt.Errorf("flatten: remove emptied subdir %s: %w", subDir, rmErr))
-				}
-			}
-		}
 	}
 
 	if len(moveErrs) == 0 {
 		return moved, nil
 	}
 	return moved, errors.Join(moveErrs...)
+}
+
+// flattenDirectoryEntry moves files from one child directory into the folder root.
+func flattenDirectoryEntry(folder string, entry os.DirEntry) (int, []error) {
+	if !entry.IsDir() {
+		return 0, nil
+	}
+	subDir := filepath.Join(folder, entry.Name())
+	subEntries, err := os.ReadDir(subDir)
+	if err != nil {
+		return 0, []error{fmt.Errorf("flatten: read subdir %s: %w", subDir, err)}
+	}
+	moved, errs := flattenOneSubdir(subDir, folder, subEntries)
+	return moved, append(errs, removeEmptyFlattenedDirectory(subDir, moved)...)
+}
+
+// removeEmptyFlattenedDirectory removes a child directory emptied by flattening.
+func removeEmptyFlattenedDirectory(subDir string, moved int) []error {
+	if moved == 0 {
+		return nil
+	}
+	remaining, err := os.ReadDir(subDir)
+	if err != nil || len(remaining) != 0 {
+		return nil
+	}
+	if err := os.Remove(subDir); err != nil {
+		return []error{fmt.Errorf("flatten: remove emptied subdir %s: %w", subDir, err)}
+	}
+	return nil
 }
 
 // flattenOneSubdir moves every non-directory entry from subDir into destRoot, returning the

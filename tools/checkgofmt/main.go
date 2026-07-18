@@ -1,3 +1,4 @@
+// Command checkgofmt fails when tracked Go files are not gofmt-formatted.
 package main
 
 import (
@@ -42,6 +43,7 @@ func main() {
 	fmt.Println("Go formatting check passed.")
 }
 
+// collectGoFiles walks the repository and returns Go source paths.
 func collectGoFiles(root string) ([]string, error) {
 	files := make([]string, 0)
 
@@ -74,6 +76,7 @@ func collectGoFiles(root string) ([]string, error) {
 	return files, err
 }
 
+// fail writes a fatal formatting-check error and exits with failure.
 func fail(context string, err error) {
 	if err == nil {
 		return

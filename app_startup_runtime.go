@@ -52,6 +52,7 @@ func (a syncDeviceStateAdapter) MarkDeviceActive(ctx context.Context, deviceID s
 	return a.store.AcknowledgeDevice(ctx, deviceID, 0, atMs)
 }
 
+// canUseBridgeDB reports whether the configured bridge database is reachable.
 func (a *App) canUseBridgeDB(ctx context.Context) (ok bool) {
 	if a.bridgeDB == nil {
 		return false
@@ -64,6 +65,7 @@ func (a *App) canUseBridgeDB(ctx context.Context) (ok bool) {
 	return a.bridgeDB.PingContext(ctx) == nil
 }
 
+// notifyDeviceSyncHealth reports device staleness and prunes acknowledged changes.
 func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 	EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) ([]bridgeSync.DeviceSyncState, error)
 	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
@@ -103,6 +105,7 @@ func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 	}
 }
 
+// configureTray starts the tray manager and hides the main window.
 func (a *App) configureTray(ctx context.Context) bool {
 	a.trayManager = a.newTrayManager()
 	if a.trayManager == nil {
@@ -121,6 +124,7 @@ func (a *App) configureTray(ctx context.Context) bool {
 	return true
 }
 
+// prepareAnimeRuntime initializes the anime writer and its startup context.
 func (a *App) prepareAnimeRuntime(ctx context.Context, animeDataPath string) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
@@ -138,6 +142,7 @@ func (a *App) prepareAnimeRuntime(ctx context.Context, animeDataPath string) {
 	a.animeUpdateWriter.StartAsync(catchUpContext)
 }
 
+// startAnimeObservers starts anime startup recovery, pull, and watch services.
 func (a *App) startAnimeObservers(animeDataPath string) {
 	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
 		FilePath:     animeDataPath,
@@ -173,6 +178,7 @@ func (a *App) startAnimeObservers(animeDataPath string) {
 	a.animeRuntimeWatcher.StartAsync(a.catchUpContext)
 }
 
+// buildHTTPServer creates the configured bridge HTTP server.
 func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
 	return a.newHTTPServer(api.Config{
 		DeviceService:          deviceService,
@@ -190,6 +196,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 	})
 }
 
+// onPairingTokenConsumed returns the callback emitted after device pairing.
 func (a *App) onPairingTokenConsumed() func() {
 	return func() {
 		if a.ctx == nil || a.emitFn == nil {
@@ -208,6 +215,7 @@ func (a *App) onPairingTokenConsumed() func() {
 	}
 }
 
+// startDownloadOrchestration wires and starts download scheduling services.
 func (a *App) startDownloadOrchestration(ctx context.Context) {
 	if a.bridgeDB == nil {
 		return
@@ -257,6 +265,7 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 	a.downloadScheduler.Start(ctx)
 }
 
+// ensureDownloadStore initializes the download store when database access exists.
 func (a *App) ensureDownloadStore() {
 	if a.downloadStore != nil || a.bridgeDB == nil {
 		return
@@ -264,6 +273,7 @@ func (a *App) ensureDownloadStore() {
 	a.downloadStore = a.newDownloadStore(a.bridgeDB)
 }
 
+// downloadJDDeviceName reads the configured JDownloader device name.
 func (a *App) downloadJDDeviceName(ctx context.Context) string {
 	if a.downloadStore == nil {
 		return ""
@@ -275,6 +285,7 @@ func (a *App) downloadJDDeviceName(ctx context.Context) string {
 	return cfg.DeviceName
 }
 
+// registerDownloadRuntimeEventBridge forwards download events to the frontend.
 func (a *App) registerDownloadRuntimeEventBridge(ctx context.Context) {
 	if a.eventBus == nil || a.emitFn == nil {
 		return

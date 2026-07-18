@@ -1,4 +1,4 @@
-import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, ApplyAnimeScheduleDraftEntry, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
+import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isWatchingAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
@@ -207,11 +207,6 @@ export function createAnimeEditorListItems(animes: readonly Anime[], filter: Ani
       return watchingDifference === 0 ? left.nombre.localeCompare(right.nombre) : watchingDifference;
     })
     .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.nombre, subtitle: `${anime.nrocapvisto} watched`, selected: anime.id === selectedAnimeId }));
-}
-
-/** Converts a changed-entry collection into stable apply feedback. */
-export function createAnimeScheduleApplySummary(entries: readonly ApplyAnimeScheduleDraftEntry[]) {
-  return entries.length === 1 ? '1 anime schedule changed.' : `${entries.length} anime schedules changed.`;
 }
 
 /** Keeps transport feedback string-safe while preserving backend messages verbatim. */

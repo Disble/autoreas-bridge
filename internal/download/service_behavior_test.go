@@ -33,6 +33,7 @@ func (r *spySiteRegistry) Register(source sites.EpisodeSource) {
 	r.source = source
 }
 
+// calls returns the number of site-resolution attempts.
 func (r *spySiteRegistry) calls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -73,6 +74,7 @@ func (s *spyEpisodeSource) ExtractLinks(ctx context.Context, episodePageURL stri
 	return s.extractLinks, nil
 }
 
+// counts returns listing and link-extraction call counts.
 func (s *spyEpisodeSource) counts() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -187,7 +189,7 @@ func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
-	var _ contracts.AnimeQueryService = deps.Animes
+	_ = contracts.AnimeQueryService(deps.Animes)
 	if _, isWriter := deps.Animes.(contracts.AnimeWriteService); isWriter {
 		t.Fatal("ServiceDeps.Animes must not also satisfy AnimeWriteService -- download is read-only")
 	}

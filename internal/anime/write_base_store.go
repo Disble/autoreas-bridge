@@ -2,6 +2,8 @@ package anime
 
 import "autoreas-bridge/internal/anime/legacy"
 
+// Write-base store errors are re-exported from the legacy adapter for package
+// callers that work through the anime boundary.
 var (
 	ErrWriteOperationNotFound          = legacy.ErrWriteOperationNotFound
 	ErrWriteOperationNotStaged         = legacy.ErrWriteOperationNotStaged
@@ -12,8 +14,10 @@ var (
 	ErrAnimeChangedOutboxEventNotFound = legacy.ErrAnimeChangedOutboxEventNotFound
 )
 
+// WriteOperationStatus tracks the lifecycle state of one staged write.
 type WriteOperationStatus = legacy.WriteOperationStatus
 
+// Write operation statuses are re-exported from the legacy adapter.
 const (
 	WriteOperationStatusStaged     = legacy.WriteOperationStatusStaged
 	WriteOperationStatusCommitted  = legacy.WriteOperationStatusCommitted
@@ -21,8 +25,10 @@ const (
 	WriteOperationStatusSuperseded = legacy.WriteOperationStatusSuperseded
 )
 
+// WriteRecoveryAction describes how recovery resolved a staged write.
 type WriteRecoveryAction = legacy.WriteRecoveryAction
 
+// Write recovery actions are re-exported from the legacy adapter.
 const (
 	WriteRecoveryActionFinalized   = legacy.WriteRecoveryActionFinalized
 	WriteRecoveryActionRetryAppend = legacy.WriteRecoveryActionRetryAppend
@@ -43,8 +49,10 @@ type WriteBase = legacy.WriteBase
 // merges or chooses fields.
 type WriteBaseStore = legacy.WriteBaseStore
 
+// BatchReplacementPhase tracks the lifecycle of a full-file replacement.
 type BatchReplacementPhase = legacy.BatchReplacementPhase
 
+// Batch replacement phases are re-exported from the legacy adapter.
 const (
 	BatchReplacementPhaseStaged      = legacy.BatchReplacementPhaseStaged
 	BatchReplacementPhaseTempDurable = legacy.BatchReplacementPhaseTempDurable
@@ -53,8 +61,11 @@ const (
 	BatchReplacementPhaseFinalized   = legacy.BatchReplacementPhaseFinalized
 )
 
+// BatchReplacementJournal stores the durable checkpoints for one replacement batch.
 type BatchReplacementJournal = legacy.BatchReplacementJournal
 
-type AnimeChangedOutboxEvent = legacy.AnimeChangedOutboxEvent
+// ChangedOutboxEvent stores one deferred anime.changed publication.
+type ChangedOutboxEvent = legacy.AnimeChangedOutboxEvent
 
-type AnimeChangedOutboxStore = legacy.AnimeChangedOutboxStore
+// ChangedOutboxStore persists deferred anime.changed publications.
+type ChangedOutboxStore = legacy.AnimeChangedOutboxStore

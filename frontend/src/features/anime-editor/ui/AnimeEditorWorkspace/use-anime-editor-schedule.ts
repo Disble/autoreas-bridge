@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
-import { createAnimeScheduleApplySummary, resolveAnimeEditorFeedbackMessage, toEditorErrorMessage } from './anime-editor-workspace.helpers';
+import { resolveAnimeEditorFeedbackMessage, toEditorErrorMessage } from './anime-editor-workspace.helpers';
 import type { UseAnimeEditorScheduleOptions } from './anime-editor-workspace.types';
 
 /** Owns schedule-modal loading, whole-draft apply, refreshed authority, and feedback. */
@@ -36,11 +36,12 @@ export function useAnimeEditorSchedule(options: Readonly<UseAnimeEditorScheduleO
   const onCloseSchedule = useCallback(() => setIsScheduleModalOpen(false), []);
   const onApplySchedule = useCallback(async (entries: readonly ApplyAnimeScheduleDraftEntry[]) => {
     setIsApplyingSchedule(true);
+    setScheduleFeedback(undefined);
     try {
       const result = await source.applyAnimeEditorSchedule({ boardModifiedAt: scheduleBoard?.boardModifiedAt ?? 0, entries });
       if (result.board !== undefined) setScheduleBoard(result.board);
       if (result.outcome === 'applied' || result.outcome === 'no_op') {
-        setScheduleFeedback(result.outcome === 'applied' ? createAnimeScheduleApplySummary(entries) : result.message);
+        setScheduleFeedback(undefined);
       } else {
         setScheduleFeedback(resolveAnimeEditorFeedbackMessage(result, 'No schedule changes were applied.'));
       }

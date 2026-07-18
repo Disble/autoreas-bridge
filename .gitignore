@@ -9,3 +9,4 @@ cmd/poc/.env
 *.exe
 .atl/skill-registry.md
 .atl/.skill-registry.cache.json
+.tools/

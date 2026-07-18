@@ -51,6 +51,7 @@ func (f *fakeForwardLogger) Logf(domain, level string, fields sharedlogger.Field
 	f.logCalls = append(f.logCalls, fakeForwardLogfCall{domain: domain, level: level, fields: fields, msg: format})
 }
 
+// totalCalls returns the number of structured log writes recorded by the fake.
 func (f *fakeForwardLogger) totalCalls() int {
 	return len(f.logCalls)
 }
@@ -93,63 +94,27 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 	}
 }
 
-func TestLogForwardAdapterMapsWarningLevelToWarnLog(t *testing.T) {
+func TestLogForwardAdapterMapsNotificationLevels(t *testing.T) {
 	t.Parallel()
-
-	logger := &fakeForwardLogger{}
-	adapter := NewLogForwardAdapter(logger)
-
-	n := Notification{Title: "t", Body: "b", Level: LevelWarning, Source: "sync"}
-
-	if err := adapter.Deliver(context.Background(), n); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	if got := logger.totalCalls(); got != 1 {
-		t.Fatalf("expected exactly 1 log write, got %d", got)
-	}
-	if call := logger.logCalls[0]; call.level != sharedlogger.LevelWarn {
-		t.Fatalf("expected level %q, got %q", sharedlogger.LevelWarn, call.level)
-	}
-}
-
-func TestLogForwardAdapterMapsSuccessLevelToInfoLog(t *testing.T) {
-	t.Parallel()
-
-	logger := &fakeForwardLogger{}
-	adapter := NewLogForwardAdapter(logger)
-
-	n := Notification{Title: "t", Body: "b", Level: LevelSuccess, Source: "device"}
-
-	if err := adapter.Deliver(context.Background(), n); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	if got := logger.totalCalls(); got != 1 {
-		t.Fatalf("expected exactly 1 log write, got %d", got)
-	}
-	if call := logger.logCalls[0]; call.level != sharedlogger.LevelInfo {
-		t.Fatalf("expected level %q, got %q", sharedlogger.LevelInfo, call.level)
-	}
-}
-
-func TestLogForwardAdapterMapsInfoLevelToInfoLog(t *testing.T) {
-	t.Parallel()
-
-	logger := &fakeForwardLogger{}
-	adapter := NewLogForwardAdapter(logger)
-
-	n := Notification{Title: "t", Body: "b", Level: LevelInfo, Source: "download"}
-
-	if err := adapter.Deliver(context.Background(), n); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	if got := logger.totalCalls(); got != 1 {
-		t.Fatalf("expected exactly 1 log write, got %d", got)
-	}
-	if call := logger.logCalls[0]; call.level != sharedlogger.LevelInfo {
-		t.Fatalf("expected level %q, got %q", sharedlogger.LevelInfo, call.level)
+	for _, test := range []struct {
+		level  Level
+		source string
+		want   string
+	}{
+		{LevelWarning, "sync", sharedlogger.LevelWarn}, {LevelSuccess, "device", sharedlogger.LevelInfo}, {LevelInfo, "download", sharedlogger.LevelInfo},
+	} {
+		t.Run(test.source, func(t *testing.T) {
+			logger := &fakeForwardLogger{}
+			if err := NewLogForwardAdapter(logger).Deliver(context.Background(), Notification{Title: "t", Body: "b", Level: test.level, Source: test.source}); err != nil {
+				t.Fatalf("Deliver: %v", err)
+			}
+			if got := logger.totalCalls(); got != 1 {
+				t.Fatalf("expected exactly 1 log write, got %d", got)
+			}
+			if call := logger.logCalls[0]; call.level != test.want {
+				t.Fatalf("expected level %q, got %q", test.want, call.level)
+			}
+		})
 	}
 }
 

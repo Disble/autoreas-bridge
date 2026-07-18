@@ -52,6 +52,10 @@ Tests are an integral part of this project.
 - **Frontend:** Run `bun run test` in the `frontend/` directory (requires colocated `__tests__/` for all helpers/hooks).
 - **Backend:** Run `go test ./...` in the project root.
 
+### Go linting
+
+Run `powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile base` for the enforced Go lint profile. The tracked entrypoint provisions `golangci-lint v2.12.2`. Run it with `-Profile advanced` to build the tracked dlinter plugin and scan the same repository-owned Go packages.
+
 ### Building for Production
 
 To build a redistributable, production-ready executable package:

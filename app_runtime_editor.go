@@ -7,6 +7,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
+// editorDetails returns operation metadata for editor responses.
 func editorDetails(operation string) map[string]string {
 	return map[string]string{"operation": operation}
 }
@@ -48,7 +49,8 @@ func (a *App) DeactivateAnime(animeID string, baseModifiedAt int64) contracts.An
 	return a.editorSaveResult("deactivate", result)
 }
 
-func (a *App) editorSaveResult(operation string, result anime.AnimePatchResult) contracts.AnimeEditorSaveResult {
+// editorSaveResult builds an editor response and refreshes its record.
+func (a *App) editorSaveResult(operation string, result anime.PatchResult) contracts.AnimeEditorSaveResult {
 	response := contracts.AnimeEditorSaveResult{
 		Outcome: result.Outcome, Message: editorOutcomeMessage(operation, result.Outcome), Details: editorDetails(operation),
 		AnimeID: result.AnimeID, ModifiedAt: result.ModifiedAt, ConflictID: result.ConflictID,
@@ -66,6 +68,7 @@ func (a *App) editorSaveResult(operation string, result anime.AnimePatchResult) 
 	return response
 }
 
+// editorSaveError builds an editor error response.
 func editorSaveError(operation, message string) contracts.AnimeEditorSaveResult {
 	return contracts.AnimeEditorSaveResult{Outcome: contracts.AnimePatchOutcomeError, Message: message, Details: editorDetails(operation)}
 }
@@ -95,6 +98,7 @@ func (a *App) ApplyAnimeEditorSchedule(command ApplyAnimeScheduleDraftCommandDTO
 	}
 }
 
+// refreshEditorBoard reads the current editor schedule board.
 func (a *App) refreshEditorBoard(originAnimeID string) *contracts.AnimeEditorScheduleBoard {
 	if a.animeEditorScheduleQuery == nil {
 		return nil
@@ -106,10 +110,12 @@ func (a *App) refreshEditorBoard(originAnimeID string) *contracts.AnimeEditorSch
 	return &board
 }
 
+// scheduleApplyError builds an editor schedule error response.
 func scheduleApplyError(message string, board *contracts.AnimeEditorScheduleBoard) contracts.AnimeEditorScheduleApplyResult {
 	return contracts.AnimeEditorScheduleApplyResult{Outcome: contracts.AnimePatchOutcomeError, Message: message, Details: editorDetails("apply_schedule"), Board: board}
 }
 
+// editorOutcomeMessage returns the user-facing message for an editor outcome.
 func editorOutcomeMessage(operation string, outcome contracts.AnimePatchOutcome) string {
 	switch outcome {
 	case contracts.AnimePatchOutcomeApplied:

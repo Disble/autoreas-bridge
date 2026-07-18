@@ -218,7 +218,8 @@ func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) 
 	return resp.Data, resp.Total, nil
 }
 
-func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (string, error) {
+// fetchGET retrieves a page with a browser-like GET request.
+func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (body string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("create GET request: %w", err)
@@ -229,20 +230,26 @@ func (a *Adapter) fetchGET(ctx context.Context, pageURL string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("GET %s: %w", pageURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			body = ""
+			err = fmt.Errorf("close GET response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GET %s: HTTP %d", pageURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read body: %w", err)
 	}
-	return string(body), nil
+	return string(responseBody), nil
 }
 
-func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Values) (string, error) {
+// fetchPOST submits form data with a browser-like POST request.
+func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Values) (body string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, postURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("create POST request: %w", err)
@@ -255,20 +262,26 @@ func (a *Adapter) fetchPOST(ctx context.Context, postURL string, formData url.Va
 	if err != nil {
 		return "", fmt.Errorf("POST %s: %w", postURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
+			body = ""
+			err = fmt.Errorf("close POST response body: %w", closeErr)
+		}
+	}()
 
-	body, err := io.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("POST %s: HTTP %d - %s", postURL, resp.StatusCode, truncate(string(body), 200))
+		return "", fmt.Errorf("POST %s: HTTP %d - %s", postURL, resp.StatusCode, truncate(string(responseBody), 200))
 	}
 
-	return string(body), nil
+	return string(responseBody), nil
 }
 
+// applyBrowserHeaders adds the headers expected by the target site.
 func applyBrowserHeaders(req *http.Request) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -276,6 +289,7 @@ func applyBrowserHeaders(req *http.Request) {
 	req.Header.Set("Referer", defaultBaseURL+"/")
 }
 
+// ensureTrailingSlash appends a trailing slash to a URL when needed.
 func ensureTrailingSlash(pageURL string) string {
 	if strings.HasSuffix(pageURL, "/") {
 		return pageURL
@@ -283,6 +297,7 @@ func ensureTrailingSlash(pageURL string) string {
 	return pageURL + "/"
 }
 
+// truncate limits a string to at most n bytes.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

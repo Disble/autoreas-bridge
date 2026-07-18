@@ -2,19 +2,14 @@ package download
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
-	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/download/sites"
-	"autoreas-bridge/internal/events"
-	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 )
 
@@ -117,9 +112,17 @@ func (f *svcFakeJDClient) AddAndStart(ctx context.Context, deviceName string, re
 	f.addAndStartCall = append(f.addAndStartCall, req)
 	return nil
 }
-func (f *svcFakeJDClient) PackagesFinished(ctx context.Context, deviceName string) (bool, error) {
-	return true, nil
+
+// PackageStatusByDestination defaults to a "downloading" verdict (Matched=false, no counts, no
+// links) so tests that never configure JD status keep the pre-existing "wait for disk" behavior.
+func (f *svcFakeJDClient) PackageStatusByDestination(ctx context.Context, deviceName, destination string) (jdownloader.DestinationStatus, error) {
+	return jdownloader.DestinationStatus{}, nil
 }
+
+func (f *svcFakeJDClient) RemoveByDestination(ctx context.Context, deviceName, destination string) error {
+	return nil
+}
+
 func (f *svcFakeJDClient) Disconnect(ctx context.Context) error { return nil }
 
 var _ jdownloader.JDClient = (*svcFakeJDClient)(nil)
@@ -208,6 +211,7 @@ func (f *svcFakeNotifier) Notify(ctx context.Context, n notification.Notificatio
 	return f.err
 }
 
+// notifications returns a copy of notifications sent to the fake notifier.
 func (f *svcFakeNotifier) notifications() []notification.Notification {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -223,15 +227,16 @@ type svcFakeDownloadStore struct {
 	hosters     map[string][]HosterPriorityEntry
 	jdConfig    JDConfig
 	scheduleCfg ScheduleConfig
-	runs        map[string]DownloadRun
-	progress    []DownloadRun
+	runs        map[string]Run
+	progress    []Run
 	openRunErr  error
 }
 
+// newsvcFakeDownloadStore creates an empty in-memory download store fake.
 func newsvcFakeDownloadStore() *svcFakeDownloadStore {
 	return &svcFakeDownloadStore{
 		hosters: map[string][]HosterPriorityEntry{},
-		runs:    map[string]DownloadRun{},
+		runs:    map[string]Run{},
 	}
 }
 
@@ -307,7 +312,7 @@ func (s *svcFakeDownloadStore) MarkScheduleRun(ctx context.Context, lastAtMs int
 	return nil
 }
 
-func (s *svcFakeDownloadStore) OpenRun(ctx context.Context, run DownloadRun) error {
+func (s *svcFakeDownloadStore) OpenRun(ctx context.Context, run Run) error {
 	if s.openRunErr != nil {
 		return s.openRunErr
 	}
@@ -317,14 +322,14 @@ func (s *svcFakeDownloadStore) OpenRun(ctx context.Context, run DownloadRun) err
 	return nil
 }
 
-func (s *svcFakeDownloadStore) FinalizeRun(ctx context.Context, run DownloadRun) error {
+func (s *svcFakeDownloadStore) FinalizeRun(ctx context.Context, run Run) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runs[run.RunID] = run
 	return nil
 }
 
-func (s *svcFakeDownloadStore) UpdateRunProgress(ctx context.Context, run DownloadRun) error {
+func (s *svcFakeDownloadStore) UpdateRunProgress(ctx context.Context, run Run) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runs[run.RunID] = run
@@ -332,10 +337,10 @@ func (s *svcFakeDownloadStore) UpdateRunProgress(ctx context.Context, run Downlo
 	return nil
 }
 
-func (s *svcFakeDownloadStore) ListRuns(ctx context.Context, limit int) ([]DownloadRun, error) {
+func (s *svcFakeDownloadStore) ListRuns(ctx context.Context, limit int) ([]Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]DownloadRun, 0, len(s.runs))
+	out := make([]Run, 0, len(s.runs))
 	for _, r := range s.runs {
 		out = append(out, r)
 	}
@@ -346,22 +351,24 @@ func (s *svcFakeDownloadStore) ReconcileInterruptedRuns(ctx context.Context, atM
 	return 0, nil
 }
 
-func (s *svcFakeDownloadStore) getRun(runID string) (DownloadRun, bool) {
+// getRun returns a stored run by ID.
+func (s *svcFakeDownloadStore) getRun(runID string) (Run, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r, ok := s.runs[runID]
 	return r, ok
 }
 
-func (s *svcFakeDownloadStore) progressSnapshots() []DownloadRun {
+// progressSnapshots returns a copy of recorded progress snapshots.
+func (s *svcFakeDownloadStore) progressSnapshots() []Run {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]DownloadRun, len(s.progress))
+	out := make([]Run, len(s.progress))
 	copy(out, s.progress)
 	return out
 }
 
-var _ DownloadStore = (*svcFakeDownloadStore)(nil)
+var _ Store = (*svcFakeDownloadStore)(nil)
 
 type svcFakeHosterResolver struct {
 	order []HosterPriorityEntry
@@ -376,86 +383,3 @@ func (f *svcFakeHosterResolver) OrderWithDiscovered(site string, discovered []st
 }
 
 var _ HosterResolver = (*svcFakeHosterResolver)(nil)
-
-func ptrStr(s string) *string { return &s }
-func ptrInt(i int) *int       { return &i }
-
-func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
-	deps.Counter = counter
-	flattenCalls := map[string]int{}
-	var flattenMu sync.Mutex
-	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) {
-		flattenMu.Lock()
-		defer flattenMu.Unlock()
-		flattenCalls[folder]++
-		if flattenCalls[folder] > 1 {
-			counter.Flatten(folder)
-		}
-	}}
-}
-
-func todayDiaName(now time.Time) string {
-	names := map[time.Weekday]string{
-		time.Monday:    "Lunes",
-		time.Tuesday:   "Martes",
-		time.Wednesday: "Miércoles",
-		time.Thursday:  "Jueves",
-		time.Friday:    "Viernes",
-		time.Saturday:  "Sábado",
-		time.Sunday:    "Domingo",
-	}
-	return names[now.Weekday()]
-}
-
-func baseDeps(t *testing.T) ServiceDeps {
-	t.Helper()
-	fixedNow := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
-	counter := &svcFakeCounter{atRoot: map[string]int{}, recursive: map[string]int{}}
-	return ServiceDeps{
-		Animes:    &svcFakeAnimeQuery{},
-		Sites:     NewStaticRegistry(),
-		Hosters:   &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}},
-		JD:        &svcFakeJDClient{},
-		Counter:   counter,
-		Flattener: &svcFakeFlattener{onFlatten: counter.Flatten},
-		Store:     newsvcFakeDownloadStore(),
-		Notifier:  &svcFakeNotifier{},
-		Bus:       events.NewBus(),
-		Logger:    sharedlogger.NewFanoutLogger(),
-		Clock:     func() time.Time { return fixedNow },
-		NewRunID:  func() string { return "run-fixed" },
-		PollSleep: func(time.Duration) {},
-	}
-}
-
-type fallbackAwareJDClient struct {
-	*svcFakeJDClient
-	failHoster       string
-	mu               sync.Mutex
-	attemptedHosters []string
-}
-
-func (f *fallbackAwareJDClient) AddAndStart(ctx context.Context, deviceName string, req jdownloader.EnqueueRequest) error {
-	hoster := inferHosterFromURLs(req.URLs)
-
-	f.mu.Lock()
-	f.attemptedHosters = append(f.attemptedHosters, hoster)
-	f.mu.Unlock()
-
-	if hoster == f.failHoster {
-		return errors.New("hoster down")
-	}
-	return f.svcFakeJDClient.AddAndStart(ctx, deviceName, req)
-}
-
-func inferHosterFromURLs(urls []string) string {
-	for _, u := range urls {
-		switch {
-		case strings.Contains(u, "mediafire"):
-			return "Mediafire"
-		case strings.Contains(u, "mega"):
-			return "Mega"
-		}
-	}
-	return ""
-}

@@ -24,6 +24,7 @@ func (f *fakeAdapter) Deliver(ctx context.Context, n Notification) error {
 	return f.err
 }
 
+// sampleNotification returns a representative notification for dispatcher tests.
 func sampleNotification() Notification {
 	return Notification{
 		Title:         "Download complete",

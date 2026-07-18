@@ -3,12 +3,10 @@ package anime_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"reflect"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -74,35 +72,15 @@ func TestQueryServiceListMobileAnimesNormalizesLegacyPayload(t *testing.T) {
 		t.Fatalf("expected 1 anime, got %d", len(got))
 	}
 
-	animeItem := got[0]
-	if animeItem.ID != "anime-1" {
-		t.Fatalf("expected anime id %q, got %q", "anime-1", animeItem.ID)
-	}
-	if animeItem.Activo != 1 {
-		t.Fatalf("expected activo 1, got %d", animeItem.Activo)
-	}
-	if animeItem.PrimeraVez != 0 {
-		t.Fatalf("expected primeravez 0, got %d", animeItem.PrimeraVez)
-	}
-	if animeItem.Portada == nil || *animeItem.Portada != "C:/images/rurouni.jpg" {
-		t.Fatalf("expected portada path, got %#v", animeItem.Portada)
-	}
-	if animeItem.Estudios == nil || *animeItem.Estudios != "Gallop, Studio Deen" {
-		t.Fatalf("expected estudios joined string, got %#v", animeItem.Estudios)
-	}
-	if animeItem.FechaUltCapVisto == nil || *animeItem.FechaUltCapVisto != 1710000000123 {
-		t.Fatalf("expected fechaUltCapVisto 1710000000123, got %#v", animeItem.FechaUltCapVisto)
-	}
-	if animeItem.FechaCreacion == nil || *animeItem.FechaCreacion != 1500000000000 {
-		t.Fatalf("expected fechaCreacion 1500000000000, got %#v", animeItem.FechaCreacion)
-	}
-	wantDias := []contracts.MobileAnimeDay{{Dia: "Miércoles", Orden: 1}}
-	if !reflect.DeepEqual(animeItem.Dias, wantDias) {
-		t.Fatalf("expected dias %#v, got %#v", wantDias, animeItem.Dias)
-	}
-	wantGeneros := []string{"Acción", "Aventura"}
-	if !reflect.DeepEqual(animeItem.Generos, wantGeneros) {
-		t.Fatalf("expected generos %#v, got %#v", wantGeneros, animeItem.Generos)
+	assertNormalizedMobileAnime(t, got[0])
+}
+
+// assertNormalizedMobileAnime verifies the normalized mobile anime projection.
+func assertNormalizedMobileAnime(t *testing.T, item contracts.MobileAnime) {
+	t.Helper()
+	valid := item.ID == "anime-1" && item.Activo == 1 && item.PrimeraVez == 0 && item.Portada != nil && *item.Portada == "C:/images/rurouni.jpg" && item.Estudios != nil && *item.Estudios == "Gallop, Studio Deen" && item.FechaUltCapVisto != nil && *item.FechaUltCapVisto == 1710000000123 && item.FechaCreacion != nil && *item.FechaCreacion == 1500000000000 && reflect.DeepEqual(item.Dias, []contracts.MobileAnimeDay{{Dia: "Miércoles", Orden: 1}}) && reflect.DeepEqual(item.Generos, []string{"Acción", "Aventura"})
+	if !valid {
+		t.Fatalf("unexpected normalized anime: %#v", item)
 	}
 }
 
@@ -170,22 +148,43 @@ func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get anime detail: %v", err)
 	}
+	assertAnimeDetailIdentity(t, *got)
+	assertAnimeDetailProgress(t, got.Progress)
+	wantDays := []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 2}, {Dia: "Sábado", Orden: 1}}
+	if !reflect.DeepEqual(got.Schedule, wantDays) {
+		t.Fatalf("expected schedule %#v, got %#v", wantDays, got.Schedule)
+	}
+	assertAnimeDetailMetadata(t, *got)
+	if got.ModifiedAt != 1711111111000 {
+		t.Fatalf("expected modified_at 1711111111000, got %d", got.ModifiedAt)
+	}
+}
+
+// assertAnimeDetailIdentity verifies identity fields in an anime detail.
+func assertAnimeDetailIdentity(t *testing.T, got contracts.AnimeDetail) {
+	t.Helper()
 	if got.ID != "anime-detail" || got.Nombre != "Frieren" {
 		t.Fatalf("unexpected identity fields: %#v", got)
 	}
 	if got.Estado != 0 || got.Activo != 1 || got.PrimeraVez != 0 {
 		t.Fatalf("unexpected state flags: %#v", got)
 	}
-	if got.Progress.Watched != 10.5 || got.Progress.Total == nil || *got.Progress.Total != 28 {
-		t.Fatalf("unexpected progress: %#v", got.Progress)
+}
+
+// assertAnimeDetailProgress verifies progress fields in an anime detail.
+func assertAnimeDetailProgress(t *testing.T, progress contracts.AnimeDetailProgress) {
+	t.Helper()
+	if progress.Watched != 10.5 || progress.Total == nil || *progress.Total != 28 {
+		t.Fatalf("unexpected progress: %#v", progress)
 	}
-	if got.Progress.Remaining == nil || *got.Progress.Remaining != 17.5 {
-		t.Fatalf("expected remaining 17.5, got %#v", got.Progress.Remaining)
+	if progress.Remaining == nil || *progress.Remaining != 17.5 {
+		t.Fatalf("expected remaining 17.5, got %#v", progress.Remaining)
 	}
-	wantDays := []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 2}, {Dia: "Sábado", Orden: 1}}
-	if !reflect.DeepEqual(got.Schedule, wantDays) {
-		t.Fatalf("expected schedule %#v, got %#v", wantDays, got.Schedule)
-	}
+}
+
+// assertAnimeDetailMetadata verifies metadata fields in an anime detail.
+func assertAnimeDetailMetadata(t *testing.T, got contracts.AnimeDetail) {
+	t.Helper()
 	if got.Dates.LastWatched == nil || *got.Dates.LastWatched != 1710000000123 {
 		t.Fatalf("unexpected dates: %#v", got.Dates)
 	}
@@ -197,9 +196,6 @@ func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
 	}
 	if got.Download.Page == nil || *got.Download.Page != "https://anime.example/frieren" {
 		t.Fatalf("unexpected download metadata: %#v", got.Download)
-	}
-	if got.ModifiedAt != 1711111111000 {
-		t.Fatalf("expected modified_at 1711111111000, got %d", got.ModifiedAt)
 	}
 }
 
@@ -379,119 +375,19 @@ func TestQueryServiceListAnimeItemsDerivesDownloadGapBooleans(t *testing.T) {
 		byID[item.ID] = item
 	}
 
-	present, ok := byID["anime-present"]
-	if !ok {
-		t.Fatal("expected anime-present in results")
-	}
-	if !present.HasDownloadPage {
-		t.Fatal("expected HasDownloadPage true when pagina is a non-empty string")
-	}
-	if !present.HasFolder {
-		t.Fatal("expected HasFolder true when carpeta is a non-empty string")
-	}
-
-	absent, ok := byID["anime-absent"]
-	if !ok {
-		t.Fatal("expected anime-absent in results")
-	}
-	if absent.HasDownloadPage {
-		t.Fatal("expected HasDownloadPage false when pagina is absent from the raw payload")
-	}
-	if absent.HasFolder {
-		t.Fatal("expected HasFolder false when carpeta is absent from the raw payload")
-	}
-
-	empty, ok := byID["anime-empty"]
-	if !ok {
-		t.Fatal("expected anime-empty in results")
-	}
-	if empty.HasDownloadPage {
-		t.Fatal("expected HasDownloadPage false when pagina is an empty string")
-	}
-	if empty.HasFolder {
-		t.Fatal("expected HasFolder false when carpeta is an empty string")
-	}
-
-	nullItem, ok := byID["anime-null"]
-	if !ok {
-		t.Fatal("expected anime-null in results")
-	}
-	if nullItem.HasDownloadPage {
-		t.Fatal("expected HasDownloadPage false when pagina is explicit null")
-	}
-	if nullItem.HasFolder {
-		t.Fatal("expected HasFolder false when carpeta is explicit null")
-	}
+	assertDownloadGapFlags(t, byID)
 }
 
-func TestQueryServiceListAnimeHistoryOrdersByRecencyAndExcludesAnimesWithoutWatchActivity(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-older", `{"_id":"anime-older","nombre":"Older Watch","nrocapvisto":5,"estado":1,"fechaUltCapVisto":{"$$date":1700000001000}}`)
-	seedAnimeSnapshot(t, store, "anime-newer", `{"_id":"anime-newer","nombre":"Newer Watch","nrocapvisto":10,"estado":2,"tipo":1,"fechaCreacion":{"$$date":1500000000000},"fechaUltCapVisto":{"$$date":1700000002000}}`)
-	seedAnimeSnapshot(t, store, "anime-never-watched", `{"_id":"anime-never-watched","nombre":"Never Watched","nrocapvisto":0}`)
-
-	service := anime.NewQueryService(store)
-	got, err := service.ListAnimeHistory(ctx)
-	if err != nil {
-		t.Fatalf("list anime history: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 history entries (never-watched excluded), got %d: %#v", len(got), got)
-	}
-
-	newer := got[0]
-	if newer.ID != "anime-newer" || newer.Nombre != "Newer Watch" || newer.NroCapVisto != 10 || newer.Estado != 2 || newer.FechaUltCapVisto != 1700000002000 {
-		t.Fatalf("expected newer entry first with full projection, got %#v", newer)
-	}
-	if newer.Tipo == nil || *newer.Tipo != 1 {
-		t.Fatalf("expected newer entry tipo 1 when present in source, got %#v", newer.Tipo)
-	}
-	if newer.FechaCreacion == nil || *newer.FechaCreacion != 1500000000000 {
-		t.Fatalf("expected newer entry fechaCreacion 1500000000000 when present in source, got %#v", newer.FechaCreacion)
-	}
-
-	older := got[1]
-	if older.ID != "anime-older" || older.Nombre != "Older Watch" || older.NroCapVisto != 5 || older.Estado != 1 || older.FechaUltCapVisto != 1700000001000 {
-		t.Fatalf("expected older entry second with full projection, got %#v", older)
-	}
-	if older.Tipo != nil {
-		t.Fatalf("expected older entry tipo nil when absent from source, got %#v", older.Tipo)
-	}
-	if older.FechaCreacion != nil {
-		t.Fatalf("expected older entry fechaCreacion nil when absent from source, got %#v", older.FechaCreacion)
-	}
-}
-
-// TestQueryServiceListAnimeHistoryKeepsInactiveAnimesVisible documents the
-// verified soft-delete precedent (design.md Decision 1): ListAnimeItems does
-// not filter on Activo/Estado at all (TestQueryServiceListAnimeItemsReturnsActiveAndInactive
-// asserts both appear), so ListAnimeHistory mirrors that -- an
-// inactive/soft-deleted anime with watch activity stays in the History
-// activity log, matching Legacy's "Historial" screen which lists
-// "Eliminar"-state animes too.
-func TestQueryServiceListAnimeHistoryKeepsInactiveAnimesVisible(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-deleted", `{"_id":"anime-deleted","nombre":"Soft Deleted","nrocapvisto":3,"estado":1,"activo":false,"fechaEliminacion":{"$$date":1700000003000},"fechaUltCapVisto":{"$$date":1700000000500}}`)
-
-	service := anime.NewQueryService(store)
-	got, err := service.ListAnimeHistory(ctx)
-	if err != nil {
-		t.Fatalf("list anime history: %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("expected soft-deleted anime with watch activity to stay visible, got %d: %#v", len(got), got)
-	}
-	if got[0].ID != "anime-deleted" || got[0].Estado != 1 {
-		t.Fatalf("expected soft-deleted anime projection preserved, got %#v", got[0])
-	}
-}
-
-func TestQueryServiceGetEffectiveAnimeReturnsNotFoundForZombie(t *testing.T) {
-	service := anime.NewQueryService(openAnimeServiceTestStore(t))
-	_, err := service.GetEffectiveAnime(context.Background(), "zombie-1")
-	if !errors.Is(err, api.ErrAnimeNotFound) {
-		t.Fatalf("expected ErrAnimeNotFound, got %v", err)
+// assertDownloadGapFlags verifies derived download-gap flags.
+func assertDownloadGapFlags(t *testing.T, byID map[string]contracts.AnimeListItem) {
+	t.Helper()
+	for _, test := range []struct {
+		id           string
+		page, folder bool
+	}{{"anime-present", true, true}, {"anime-absent", false, false}, {"anime-empty", false, false}, {"anime-null", false, false}} {
+		item, ok := byID[test.id]
+		if !ok || item.HasDownloadPage != test.page || item.HasFolder != test.folder {
+			t.Fatalf("unexpected download gap flags for %q: %#v", test.id, item)
+		}
 	}
 }

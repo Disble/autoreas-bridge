@@ -43,7 +43,7 @@ type animeReadRecordLister interface {
 // season.AnimeGateway at the composition root.
 type seasonAnimeGateway struct {
 	writer  *anime.WriteService
-	creator anime.AnimeCreator
+	creator anime.Creator
 	records animeReadRecordLister
 }
 
@@ -98,7 +98,8 @@ func (g seasonAnimeGateway) SetAnimeSchedule(ctx context.Context, animeID string
 	return toSeasonAnimeMutation(result), err
 }
 
-func toSeasonAnimeMutation(result anime.AnimePatchResult) season.AnimeMutationResult {
+// toSeasonAnimeMutation maps an anime patch result to a season mutation result.
+func toSeasonAnimeMutation(result anime.PatchResult) season.AnimeMutationResult {
 	return season.AnimeMutationResult{
 		AnimeID: result.AnimeID, Outcome: season.AnimeMutationOutcome(result.Outcome),
 		ModifiedAt: result.ModifiedAt, ConflictID: result.ConflictID,
@@ -145,6 +146,7 @@ func (g seasonAnimeGateway) FindActiveByPagina(ctx context.Context, pageURL stri
 	return "", false, nil
 }
 
+// nextOrden returns the next available order within a season section.
 func (g seasonAnimeGateway) nextOrden(ctx context.Context, section string) (int, error) {
 	records, err := g.records.ListReadRecords(ctx)
 	if err != nil {

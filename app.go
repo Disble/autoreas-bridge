@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -21,12 +20,9 @@ import (
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
-	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
-
-	"github.com/google/uuid"
 )
 
 // App struct
@@ -63,7 +59,7 @@ type App struct {
 	newNotifier               func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub            func(ctx context.Context) realtime.Hub
 	newHTTPServer             func(config api.Config) api.Server
-	newTrayManager            func() tray.TrayManager
+	newTrayManager            func() tray.Manager
 	newTracerBulletRunner     func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink       func() tracerbullet.TraceSink
 	emitFn                    func(ctx context.Context, eventName string, optionalData ...interface{})
@@ -80,7 +76,7 @@ type App struct {
 	syncChangelogRecorder     changelogRecorder
 	realtimeHub               realtime.Hub
 	httpServer                api.Server
-	trayManager               tray.TrayManager
+	trayManager               tray.Manager
 	tracerBulletRunner        tracerBulletRunner
 	catchUpContext            context.Context
 	catchUpCancel             context.CancelFunc
@@ -94,10 +90,10 @@ type App struct {
 	animeEditorScheduleWrite  *anime.ScheduleService
 	coverResolver             coverResolver
 	notifier                  notification.Notifier
-	newDownloadStore          func(db *sql.DB) download.DownloadStore
+	newDownloadStore          func(db *sql.DB) download.Store
 	newDownloadService        func(deps download.ServiceDeps) *download.Service
 	newDownloadScheduler      func(deps schedule.Deps) schedule.Scheduler
-	downloadStore             download.DownloadStore
+	downloadStore             download.Store
 	downloadService           *download.Service
 	downloadScheduler         schedule.Scheduler
 	soloDownloadMu            sync.Mutex
@@ -105,7 +101,7 @@ type App struct {
 	seasonService             *season.Service
 	settingsStore             appSettingsStore
 	animeWrite                *anime.WriteService
-	animeCreate               anime.AnimeCreator
+	animeCreate               anime.Creator
 	seasonScheduler           schedule.Scheduler
 	openURL                   func(ctx context.Context, url string)
 	openFolder                func(path string) error
@@ -169,7 +165,7 @@ type coverResolver interface {
 func NewApp() *App {
 	app := &App{}
 	app.ensureRuntimeDependencies()
-	app.newTrayManager = func() tray.TrayManager {
+	app.newTrayManager = func() tray.Manager {
 		return tray.NewSystrayManager()
 	}
 	return app
@@ -187,8 +183,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
-	if a.startupErr != nil {
+	if !a.initializeBridgeDatabase(ctx) {
 		return
 	}
 	// SDD-48 ADR-48-5: construct the ownership registry and run the
@@ -196,103 +191,41 @@ func (a *App) startup(ctx context.Context) {
 	// and BEFORE startAnimeObservers launches the async catch-up
 	// coordinator/watcher -- so the restored ids' registration is durably
 	// committed before either reconcile path ever loads ownedIDs.
-	a.bridgeNativeRegistry = a.newBridgeNativeRegistry(a.bridgeDB)
-	if err := a.restoreBridgeNativeAnimes(ctx); err != nil {
-		a.startupErr = err
+	if !a.restoreBridgeNativeAnimeState(ctx) {
 		return
 	}
 	a.ensureDownloadStore()
-
 	animeDataPath, err := a.resolveAnimeDataPath()
 	if err != nil {
 		a.startupErr = err
 		return
 	}
+	a.configureRuntimeServices(ctx, animeDataPath)
+	if a.startupErr != nil {
+		return
+	}
+	a.startDownloadOrchestration(ctx)
+	a.startSeasonAvailability(ctx)
+}
 
-	a.prepareAnimeRuntime(ctx, animeDataPath)
-	a.syncChangelogRecorder = a.newChangelogRecorder(a.eventBus, a.newChangelogStore(a.bridgeDB), a.sharedLogger)
-	a.syncChangelogRecorder.Start(a.catchUpContext)
-	deviceStore := a.newDeviceStore(a.bridgeDB)
-	a.deviceStore = deviceStore
-	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString, newJkanimeNameSearcher())
-	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
-	deviceService := a.newDeviceService(deviceStore)
-	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(a.bridgeDB))
-	if service, ok := deviceService.(interface{ SetSyncStateStore(device.SyncStateStore) }); ok {
-		service.SetSyncStateStore(syncDeviceStateAdapter{store: changelogStore})
+// initializeBridgeDatabase initializes the bridge database during startup.
+func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
+	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
+	return a.startupErr == nil
+}
+
+// restoreBridgeNativeAnimeState restores bridge-owned anime state from storage.
+func (a *App) restoreBridgeNativeAnimeState(ctx context.Context) bool {
+	a.bridgeNativeRegistry = a.newBridgeNativeRegistry(a.bridgeDB)
+	if err := a.restoreBridgeNativeAnimes(ctx); err != nil {
+		a.startupErr = err
+		return false
 	}
-	if a.canUseBridgeDB(ctx) {
-		a.notifyDeviceSyncHealth(ctx, changelogStore)
-	}
-	a.realtimeHub = a.newRealtimeHub(ctx)
-	if a.realtimeHub != nil {
-		a.eventBus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
-			changed, ok := event.(events.AnimeChangedEvent)
-			if !ok {
-				return
-			}
-			a.realtimeHub.BroadcastAnimeChanged(ctx, changed)
-		})
-	}
-	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
-	a.animeQuery = anime.NewQueryService(snapshotStore)
-	a.animeEditorQuery = anime.NewQueryService(snapshotStore)
-	// cover.NewDefaultResolver never fails construction (a cache-root
-	// resolution error degrades to a no-op cache internally), so this wiring
-	// is nil-safe by design -- see internal/anime/cover/production.go.
-	a.coverResolver = cover.NewDefaultResolver(0)
-	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
-	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
-	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeUpdateWriter)
-	a.animeEditorScheduleQuery = anime.NewScheduleQueryService(a.animeEditorQuery)
-	a.animeEditorScheduleWrite = anime.NewScheduleService(a.animeEditorQuery, a.animeUpdateWriter)
-	// SDD-30 ADR-30-4: wire the conflict writer + notifier the same way
-	// download.ServiceDeps wires its Notifier (app.go:477) -- a.notifier is
-	// already constructed by this point (app.go:351).
-	//
-	// OCCObserveOnly is set TRUE for the staged rollout (docs/sync-occ-mobile-contract.md):
-	// until Autoreas Mobile starts echoing the `base` version token, an existing
-	// record edited by an old client arrives with base=nil and would otherwise be
-	// recorded as a (non-applied) conflict -- a regression for current clients.
-	// Observe-only keeps last-write-wins working and logs would-be conflicts; flip
-	// to false to enable full enforcement once mobile ships the `base` echo.
-	a.animeWrite.SetDeps(anime.WriteServiceDeps{
-		Conflicts:      conflictService,
-		Notifier:       a.notifier,
-		Logger:         a.sharedLogger,
-		OCCObserveOnly: true,
-		// SDD-48 ADR-48-3: register every new season/bridge-created anime as
-		// Bridge-native so it survives the next reconcile-absence soft-delete.
-		Ownership: a.bridgeNativeRegistry,
-	})
-	a.animeEditorWrite.SetDeps(anime.WriteServiceDeps{
-		Conflicts:      conflictService,
-		Notifier:       a.notifier,
-		Logger:         a.sharedLogger,
-		OCCObserveOnly: true,
-	})
-	a.animeEditorScheduleWrite.SetDeps(anime.WriteServiceDeps{
-		Conflicts:      conflictService,
-		Notifier:       a.notifier,
-		Logger:         a.sharedLogger,
-		OCCObserveOnly: true,
-	})
-	a.animeCreate = anime.NewCreateService(a.animeWrite, nil)
-	if a.bridgeDB != nil && a.animeWrite.RecoveryConfigured() {
-		if err := a.animeWrite.RecoverWrites(ctx); err != nil {
-			a.startupErr = fmt.Errorf("recover staged anime writes: %w", err)
-			return
-		}
-	}
-	a.startAnimeObservers(animeDataPath)
-	a.wireChapterServiceWithWriter(a.animeWrite)
-	mobileAnimeWrite := activityAnimeWriteService{
-		query:    a.animeQuery,
-		writer:   a.animeWrite,
-		recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))},
-		source:   anime.ActivitySourceMobile,
-		now:      func() int64 { return time.Now().UnixMilli() },
-	}
+	return true
+}
+
+// startHTTPServer constructs and starts the bridge HTTP server.
+func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, changelogStore *bridgeSync.ChangelogStore) {
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
 			return ""
@@ -304,13 +237,10 @@ func (a *App) startup(ctx context.Context) {
 	a.httpServer = a.buildHTTPServer(deviceService, mobileAnimeWrite, conflictService, statusService, syncTrigger)
 	if err := a.httpServer.Start(); err != nil {
 		a.startupErr = err
-		return
 	}
-
-	a.startDownloadOrchestration(ctx)
-	a.startSeasonAvailability(ctx)
 }
 
+// wireChapterServiceWithWriter connects the chapter service to its writer.
 func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {
 	if a.animeQuery == nil || writer == nil {
 		return
@@ -327,6 +257,7 @@ func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {
 	a.chapterService = anime.NewChapterService(deps)
 }
 
+// wireChapterService constructs the chapter service and its write dependencies.
 func (a *App) wireChapterService(conflictWriter anime.ConflictWriter) {
 	if a.bridgeDB == nil || a.animeUpdateWriter == nil {
 		return
@@ -369,6 +300,7 @@ func (a activityRecorderAdapter) RecordActivity(ctx context.Context, record anim
 	})
 }
 
+// shutdown stops runtime services and closes bridge resources.
 func (a *App) shutdown(ctx context.Context) {
 	if a.catchUpCancel != nil {
 		a.catchUpCancel()
@@ -403,6 +335,7 @@ func (a *App) shutdown(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// openMainWindow restores and displays the main application window.
 func (a *App) openMainWindow() {
 	if a.ctx == nil {
 		return
@@ -411,6 +344,7 @@ func (a *App) openMainWindow() {
 	a.showWindow(a.ctx)
 }
 
+// requestQuit asks the application runtime to exit.
 func (a *App) requestQuit() {
 	if a.ctx == nil {
 		return

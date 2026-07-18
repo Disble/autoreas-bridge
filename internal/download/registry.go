@@ -1,9 +1,3 @@
-// Package download is the internal/download bounded context (design.md). This file
-// contains the PR1 registry seams: SiteRegistry (resolves the EpisodeSource adapter for an
-// anime page URL, dlexa source.StaticRegistry shape) and HosterResolver (deterministic
-// hoster ordering, dlexa engine.Resolver shape, design §4.4 / ADR-HOSTER). Neither depends
-// on the SQLite store yet (Phase 4); HosterResolver is parameterized over a lookup function
-// so the real store can be wired in later without changing this seam.
 package download
 
 import (
@@ -96,7 +90,7 @@ type HosterResolver interface {
 
 // HosterPriorityLookup returns the configured hoster-priority rows for a site. It is
 // satisfied today by an in-memory/fake source in tests; Phase 4 wires the real
-// DownloadStore.ListHosterPriority here.
+// Store.ListHosterPriority here.
 type HosterPriorityLookup func(site string) []HosterPriorityEntry
 
 type hosterResolver struct {

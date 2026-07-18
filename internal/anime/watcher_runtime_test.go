@@ -88,52 +88,30 @@ func TestRuntimeWatcherCoalescesBurstEventsIntoSingleProcessingCycle(t *testing.
 	backend.emit(fsnotify.Event{Name: filepath.Join("data", "animes.dat"), Op: fsnotify.Create})
 	timer.fire()
 
-	eventually(t, func() bool { return parser.calls() == 1 })
-	if got := parser.calls(); got != 1 {
-		t.Fatalf("expected one parse cycle after burst, got %d", got)
-	}
-	if got := store.replaceCalls(); got != 1 {
-		t.Fatalf("expected one baseline replace after burst, got %d", got)
-	}
-	if got := len(publisher.events()); got != 1 {
-		t.Fatalf("expected one published delta after burst, got %d", got)
-	}
-
-	assertPublishedAnimeChanged(t, publisher.events()[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
-
-	published := publisher.events()
-	changedEvt, ok := published[0].(events.AnimeChangedEvent)
-	if !ok {
-		t.Fatalf("expected AnimeChangedEvent, got %T", published[0])
-	}
-	if changedEvt.CorrelationID == "" {
-		t.Fatal("expected published event to carry a CorrelationID from watcher cycle")
-	}
-
-	entries := shared.entries()
-	foundPublishedInfo := false
-	var watcherEntry sharedlogger.LogEntry
-	for _, entry := range entries {
-		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo {
-			foundPublishedInfo = true
-			watcherEntry = entry
-		}
-	}
-	if !foundPublishedInfo {
-		t.Fatalf("expected anime info log for published deltas, got %#v", entries)
-	}
-	if watcherEntry.EventType != "anime.watcher" {
-		t.Fatalf("expected watcher log EventType 'anime.watcher', got %q", watcherEntry.EventType)
-	}
-	if watcherEntry.DurationMs < 0 {
-		t.Fatalf("expected watcher log DurationMs >= 0, got %d", watcherEntry.DurationMs)
-	}
-	if watcherEntry.CorrelationID == "" {
-		t.Fatal("expected watcher log to have a CorrelationID")
-	}
+	assertBurstProcessing(t, parser, store, publisher, shared)
 
 	cancel()
 	watcher.Wait()
+}
+
+// assertBurstProcessing verifies that a burst produces one processing cycle.
+func assertBurstProcessing(t *testing.T, parser *stubSnapshotParser, store *stubSnapshotStore, publisher *recordingPublisher, shared *recordingSharedLogger) {
+	t.Helper()
+	eventually(t, func() bool { return parser.calls() == 1 })
+	if parser.calls() != 1 || store.replaceCalls() != 1 || len(publisher.events()) != 1 {
+		t.Fatalf("expected one coalesced processing cycle")
+	}
+	assertPublishedAnimeChanged(t, publisher.events()[0], "keep", `{"_id":"keep","nombre":"Updated","nrocapvisto":2}`)
+	changed, ok := publisher.events()[0].(events.AnimeChangedEvent)
+	if !ok || changed.CorrelationID == "" {
+		t.Fatalf("expected correlated AnimeChangedEvent, got %#v", publisher.events()[0])
+	}
+	for _, entry := range shared.entries() {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelInfo && entry.EventType == "anime.watcher" && entry.DurationMs >= 0 && entry.CorrelationID != "" {
+			return
+		}
+	}
+	t.Fatalf("expected correlated anime watcher info log, got %#v", shared.entries())
 }
 
 func TestRuntimeWatcherRecreatesBackendAfterWatcherError(t *testing.T) {
@@ -187,17 +165,19 @@ func TestRuntimeWatcherRecreatesBackendAfterWatcherError(t *testing.T) {
 		t.Fatalf("expected watcher to recover without terminal error, got %v", err)
 	}
 
-	entries := shared.entries()
-	foundRetryWarn := false
-	for _, entry := range entries {
-		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelWarn {
-			foundRetryWarn = true
-		}
-	}
-	if !foundRetryWarn {
-		t.Fatalf("expected anime warning log for backend failure, got %#v", entries)
-	}
+	assertWatcherRecoveryLog(t, shared)
 
 	cancel()
 	watcher.Wait()
+}
+
+// assertWatcherRecoveryLog verifies the watcher's recovery log.
+func assertWatcherRecoveryLog(t *testing.T, shared *recordingSharedLogger) {
+	t.Helper()
+	for _, entry := range shared.entries() {
+		if entry.Domain == "anime" && entry.Level == sharedlogger.LevelWarn {
+			return
+		}
+	}
+	t.Fatalf("expected anime warning log for backend failure, got %#v", shared.entries())
 }

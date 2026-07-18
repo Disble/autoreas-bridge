@@ -56,6 +56,7 @@ func main() {
 	}
 }
 
+// run checks Go file sizes against the repository baseline.
 func run(root string, manifestPath string, stdout io.Writer, stderr io.Writer) error {
 	manifest, err := loadBaseline(root, manifestPath)
 	if err != nil {
@@ -80,6 +81,7 @@ func run(root string, manifestPath string, stdout io.Writer, stderr io.Writer) e
 	return errors.New("go file size check failed")
 }
 
+// loadBaseline reads and validates the file-size baseline manifest.
 func loadBaseline(root string, manifestPath string) (baselineManifest, error) {
 	content, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -100,37 +102,48 @@ func loadBaseline(root string, manifestPath string) (baselineManifest, error) {
 
 	seenPaths := make(map[string]struct{}, len(manifest.Files))
 	for _, file := range manifest.Files {
-		normalizedPath := normalizePath(file.Path)
-		if normalizedPath == "" {
-			return baselineManifest{}, fmt.Errorf("baseline entries require a path")
-		}
-		if containsGlob(normalizedPath) {
-			return baselineManifest{}, fmt.Errorf("baseline path %q must be exact repo-relative paths", file.Path)
-		}
-		if _, exists := seenPaths[normalizedPath]; exists {
-			return baselineManifest{}, fmt.Errorf("duplicate baseline path %q", normalizedPath)
-		}
-		seenPaths[normalizedPath] = struct{}{}
-
-		if file.MaxEffectiveLines <= manifest.DefaultMaxEffectiveLines {
-			return baselineManifest{}, fmt.Errorf("baseline path %q must be above default_max_effective_lines", normalizedPath)
-		}
-
-		fullPath := filepath.Join(root, filepath.FromSlash(normalizedPath))
-		content, err := os.ReadFile(fullPath)
-		if err != nil {
-			return baselineManifest{}, fmt.Errorf("baseline path %q must point to an existing file: %w", normalizedPath, err)
-		}
-
-		effectiveLines := countEffectiveLines(content)
-		if effectiveLines <= manifest.DefaultMaxEffectiveLines {
-			return baselineManifest{}, fmt.Errorf("baseline path %q is not oversized under deterministic counting (counted %d, limit %d)", normalizedPath, effectiveLines, manifest.DefaultMaxEffectiveLines)
+		if err := validateBaselineEntry(root, manifest, file, seenPaths); err != nil {
+			return baselineManifest{}, err
 		}
 	}
 
 	return manifest, nil
 }
 
+// validateBaselineEntry validates one configured baseline entry.
+func validateBaselineEntry(root string, manifest baselineManifest, file baselineEntry, seenPaths map[string]struct{}) error {
+	normalizedPath := normalizePath(file.Path)
+	if normalizedPath == "" {
+		return fmt.Errorf("baseline entries require a path")
+	}
+	if containsGlob(normalizedPath) {
+		return fmt.Errorf("baseline path %q must be exact repo-relative paths", file.Path)
+	}
+	if _, exists := seenPaths[normalizedPath]; exists {
+		return fmt.Errorf("duplicate baseline path %q", normalizedPath)
+	}
+	seenPaths[normalizedPath] = struct{}{}
+	if file.MaxEffectiveLines <= manifest.DefaultMaxEffectiveLines {
+		return fmt.Errorf("baseline path %q must be above default_max_effective_lines", normalizedPath)
+	}
+	return ensureBaselineEntryIsOversized(root, normalizedPath, manifest.DefaultMaxEffectiveLines)
+}
+
+// ensureBaselineEntryIsOversized confirms a baseline file exceeds the default limit.
+func ensureBaselineEntryIsOversized(root string, normalizedPath string, defaultLimit int) error {
+	fullPath := filepath.Join(root, filepath.FromSlash(normalizedPath))
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return fmt.Errorf("baseline path %q must point to an existing file: %w", normalizedPath, err)
+	}
+	effectiveLines := countEffectiveLines(content)
+	if effectiveLines <= defaultLimit {
+		return fmt.Errorf("baseline path %q is not oversized under deterministic counting (counted %d, limit %d)", normalizedPath, effectiveLines, defaultLimit)
+	}
+	return nil
+}
+
+// checkFiles calculates warnings and violations for collected Go files.
 func checkFiles(root string, manifest baselineManifest) ([]warningEntry, []violation, error) {
 	counts, err := scanGoFiles(root, manifest)
 	if err != nil {
@@ -191,6 +204,7 @@ func checkFiles(root string, manifest baselineManifest) ([]warningEntry, []viola
 	return warnings, violations, nil
 }
 
+// scanGoFiles counts effective lines in all applicable Go files.
 func scanGoFiles(root string, manifest baselineManifest) (map[string]int, error) {
 	files, err := collectGoFiles(root, manifest)
 	if err != nil {
@@ -210,6 +224,7 @@ func scanGoFiles(root string, manifest baselineManifest) (map[string]int, error)
 	return counts, nil
 }
 
+// collectGoFiles walks the repository and returns applicable Go paths.
 func collectGoFiles(root string, manifest baselineManifest) ([]string, error) {
 	files := make([]string, 0)
 
@@ -225,22 +240,11 @@ func collectGoFiles(root string, manifest baselineManifest) ([]string, error) {
 		normalizedPath := normalizePath(relPath)
 
 		if entry.IsDir() {
-			if normalizedPath == ".git" || normalizedPath == "node_modules" || normalizedPath == "vendor" {
-				return filepath.SkipDir
-			}
-			if matchesAny(normalizedPath, manifest.ExcludePaths) {
-				return filepath.SkipDir
-			}
+			return walkDirectoryDecision(normalizedPath, manifest)
+		}
+		if !shouldCollectGoFile(currentPath, normalizedPath, manifest) {
 			return nil
 		}
-
-		if filepath.Ext(currentPath) != ".go" {
-			return nil
-		}
-		if matchesAny(normalizedPath, manifest.ExcludePaths) || matchesAny(normalizedPath, manifest.ExcludeFilePatterns) {
-			return nil
-		}
-
 		files = append(files, normalizedPath)
 		return nil
 	})
@@ -253,6 +257,29 @@ func collectGoFiles(root string, manifest baselineManifest) ([]string, error) {
 	return files, nil
 }
 
+// walkDirectoryDecision decides whether a directory should be traversed.
+func walkDirectoryDecision(normalizedPath string, manifest baselineManifest) error {
+	if normalizedPath == ".git" || normalizedPath == "node_modules" || normalizedPath == "vendor" {
+		return filepath.SkipDir
+	}
+	if matchesAny(normalizedPath, manifest.ExcludePaths) {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+// shouldCollectGoFile reports whether a path belongs in the size check.
+func shouldCollectGoFile(currentPath string, normalizedPath string, manifest baselineManifest) bool {
+	if filepath.Ext(currentPath) != ".go" {
+		return false
+	}
+	if matchesAny(normalizedPath, manifest.ExcludePaths) {
+		return false
+	}
+	return !matchesAny(normalizedPath, manifest.ExcludeFilePatterns)
+}
+
+// countEffectiveLines counts source lines containing meaningful Go tokens.
 func countEffectiveLines(content []byte) int {
 	fileSet := token.NewFileSet()
 	file := fileSet.AddFile("source.go", fileSet.Base(), len(content))
@@ -276,14 +303,17 @@ func countEffectiveLines(content []byte) int {
 	return len(countedLines)
 }
 
+// normalizePath converts a repository path to slash-separated form.
 func normalizePath(value string) string {
 	return strings.Trim(strings.ReplaceAll(value, "\\", "/"), "/")
 }
 
+// containsGlob reports whether a path contains glob metacharacters.
 func containsGlob(value string) bool {
 	return strings.ContainsAny(value, "*?[")
 }
 
+// matchesAny reports whether a path matches one of the supplied patterns.
 func matchesAny(filePath string, patterns []string) bool {
 	for _, pattern := range patterns {
 		if matchGlob(normalizePath(pattern), filePath) {
@@ -293,6 +323,7 @@ func matchesAny(filePath string, patterns []string) bool {
 	return false
 }
 
+// matchGlob matches a path against one glob pattern.
 func matchGlob(pattern string, filePath string) bool {
 	if pattern == "" {
 		return false
@@ -306,6 +337,7 @@ func matchGlob(pattern string, filePath string) bool {
 	return matcher.MatchString(filePath)
 }
 
+// globToRegexp converts a supported glob pattern to a regular expression.
 func globToRegexp(pattern string) string {
 	builder := strings.Builder{}
 	builder.WriteString("^")
@@ -334,6 +366,7 @@ func globToRegexp(pattern string) string {
 	return builder.String()
 }
 
+// formatViolations formats hard file-size failures for output.
 func formatViolations(violations []violation) string {
 	builder := strings.Builder{}
 	builder.WriteString("Go file size check failed:\n")
@@ -341,12 +374,12 @@ func formatViolations(violations []violation) string {
 		builder.WriteString("- ")
 		builder.WriteString(violation.Path)
 		builder.WriteString(": ")
-		builder.WriteString(fmt.Sprintf("%d effective lines ", violation.EffectiveLines))
+		_, _ = fmt.Fprintf(&builder, "%d effective lines ", violation.EffectiveLines)
 		switch violation.Reason {
 		case "baseline growth":
-			builder.WriteString(fmt.Sprintf("(baseline growth; ceiling %d)", violation.MaxEffectiveLines))
+			_, _ = fmt.Fprintf(&builder, "(baseline growth; ceiling %d)", violation.MaxEffectiveLines)
 		default:
-			builder.WriteString(fmt.Sprintf("(new file over 500; limit %d)", violation.MaxEffectiveLines))
+			_, _ = fmt.Fprintf(&builder, "(new file over 500; limit %d)", violation.MaxEffectiveLines)
 		}
 		builder.WriteString("\n")
 	}
@@ -354,6 +387,7 @@ func formatViolations(violations []violation) string {
 	return builder.String()
 }
 
+// formatWarnings formats advisory file-size warnings for output.
 func formatWarnings(warnings []warningEntry) string {
 	builder := strings.Builder{}
 	builder.WriteString("Go file size warnings:\n")
@@ -361,18 +395,20 @@ func formatWarnings(warnings []warningEntry) string {
 		builder.WriteString("- ")
 		builder.WriteString(warning.Path)
 		builder.WriteString(": ")
-		builder.WriteString(fmt.Sprintf("%d effective lines (warning threshold %d; hard limit %d)", warning.EffectiveLines, warning.WarningThreshold, warning.HardLimit))
+		_, _ = fmt.Fprintf(&builder, "%d effective lines (warning threshold %d; hard limit %d)", warning.EffectiveLines, warning.WarningThreshold, warning.HardLimit)
 		builder.WriteString("\n")
 	}
 	builder.WriteString("Warnings do not fail the gate. Shrink the file before it crosses the hard limit.")
 	return builder.String()
 }
 
+// writeError writes a contextual error and returns the original error.
 func writeError(writer io.Writer, context string, err error) error {
 	_, _ = fmt.Fprintf(writer, "%s: %v\n", context, err)
 	return err
 }
 
+// fail writes a fatal command error and exits with failure.
 func fail(context string, err error) {
 	if err == nil {
 		return

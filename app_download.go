@@ -19,7 +19,7 @@ import (
 // email+device pair the current inner client was built from, so a config change forces a
 // rebuild on the next call rather than silently reusing stale credentials.
 type reconfigurableJDClient struct {
-	store download.DownloadStore
+	store download.Store
 
 	mu           sync.Mutex
 	inner        jdownloader.JDClient
@@ -31,10 +31,11 @@ type reconfigurableJDClient struct {
 // adapter from the store's current JDConfig/DecryptedPassword whenever the configured
 // email/device pair changes (composition-root-only wiring, SDD-28 design.md §4.3/§7, PR4b
 // Phase 6). A nil store degrades every call to ErrJDConfigUnavailable rather than panicking.
-func newReconfigurableJDClient(store download.DownloadStore) jdownloader.JDClient {
+func newReconfigurableJDClient(store download.Store) jdownloader.JDClient {
 	return &reconfigurableJDClient{store: store}
 }
 
+// client returns the cached JDownloader client or rebuilds it from current credentials.
 func (c *reconfigurableJDClient) client(ctx context.Context) (jdownloader.JDClient, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -65,6 +66,7 @@ func (c *reconfigurableJDClient) client(ctx context.Context) (jdownloader.JDClie
 	return c.inner, nil
 }
 
+// newJDownloaderClient constructs the underlying JDownloader API client.
 func newJDownloaderClient(email string, password string) jd.JdClient {
 	return jd.NewClient(email, password, zap.NewNop().Sugar())
 }
@@ -101,12 +103,20 @@ func (c *reconfigurableJDClient) AddAndStart(ctx context.Context, deviceName str
 	return inner.AddAndStart(ctx, deviceName, req)
 }
 
-func (c *reconfigurableJDClient) PackagesFinished(ctx context.Context, deviceName string) (bool, error) {
+func (c *reconfigurableJDClient) PackageStatusByDestination(ctx context.Context, deviceName, destination string) (jdownloader.DestinationStatus, error) {
 	inner, err := c.client(ctx)
 	if err != nil {
-		return false, err
+		return jdownloader.DestinationStatus{}, err
 	}
-	return inner.PackagesFinished(ctx, deviceName)
+	return inner.PackageStatusByDestination(ctx, deviceName, destination)
+}
+
+func (c *reconfigurableJDClient) RemoveByDestination(ctx context.Context, deviceName, destination string) error {
+	inner, err := c.client(ctx)
+	if err != nil {
+		return err
+	}
+	return inner.RemoveByDestination(ctx, deviceName, destination)
 }
 
 func (c *reconfigurableJDClient) Disconnect(ctx context.Context) error {
@@ -133,6 +143,7 @@ func (errJDConfigUnavailableErr) Error() string { return "download: JD config st
 // downloadScheduler is nil, mirroring the existing GetPairingToken/GetSyncingAnimeItems
 // nil-degradation convention in app.go.
 
+// emptyDownloadConfig returns the safe empty download configuration.
 func emptyDownloadConfig() contracts.DownloadConfig {
 	return contracts.DownloadConfig{HosterPriority: []contracts.HosterPriorityItem{}}
 }
@@ -357,61 +368,5 @@ func (a *App) toContractsScheduleConfig(cfg download.ScheduleConfig) contracts.S
 		NextRunAtMs:     cfg.NextRunAtMs,
 		Running:         running,
 		EnabledWeekdays: int(cfg.EnabledWeekdays),
-	}
-}
-
-func toContractsJDStatus(cfg download.JDConfig) contracts.JDStatus {
-	return contracts.JDStatus{
-		Email:           cfg.Email,
-		HasPassword:     cfg.HasPassword,
-		DeviceName:      cfg.DeviceName,
-		ExePathOverride: cfg.ExePathOverride,
-		DefaultDestDir:  cfg.DefaultDestDir,
-		LastSeenStatus:  cfg.LastSeenStatus,
-		LastSeenAtMs:    cfg.LastSeenAtMs,
-		LastDecryptErr:  cfg.LastDecryptError,
-	}
-}
-
-func toContractsHosterPriority(entries []download.HosterPriorityEntry) []contracts.HosterPriorityItem {
-	out := make([]contracts.HosterPriorityItem, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, contracts.HosterPriorityItem{
-			Hoster:   e.Hoster,
-			Priority: e.Priority,
-			Enabled:  e.Enabled,
-		})
-	}
-	return out
-}
-
-func toContractsManualLinks(links []download.ManualLink) []contracts.ManualLink {
-	out := make([]contracts.ManualLink, 0, len(links))
-	for _, l := range links {
-		out = append(out, contracts.ManualLink{
-			Anime:   l.Anime,
-			Episode: l.Episode,
-			Links:   l.Links,
-		})
-	}
-	return out
-}
-
-func toContractsDownloadRunView(run download.DownloadRun) contracts.DownloadRunView {
-	return contracts.DownloadRunView{
-		RunID:              run.RunID,
-		StartedAtMs:        run.StartedAtMs,
-		FinishedAtMs:       run.FinishedAtMs,
-		Trigger:            run.Trigger,
-		AnimesChecked:      run.AnimesChecked,
-		EpisodesFound:      run.EpisodesFound,
-		EpisodesDownloaded: run.EpisodesDownloaded,
-		EpisodesFailed:     run.EpisodesFailed,
-		SkippedCount:       run.SkippedCount,
-		UpToDateCount:      run.UpToDateCount,
-		JDAvailable:        run.JDAvailable,
-		Status:             run.Status,
-		ErrorSummary:       run.ErrorSummary,
-		ManualLinks:        toContractsManualLinks(run.ManualLinks),
 	}
 }

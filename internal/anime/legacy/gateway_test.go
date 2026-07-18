@@ -221,6 +221,7 @@ type gatewayConfig struct {
 	replacementEcho   legacy.ReplacementEchoRegistry
 }
 
+// newGateway constructs a gateway with test defaults and dependencies.
 func newGateway(t *testing.T, config gatewayConfig) *legacy.Gateway {
 	t.Helper()
 	db := config.db
@@ -293,15 +294,18 @@ func (s *failFinalizeOnceStore) Finalize(ctx context.Context, operationID string
 	return s.WriteBaseStore.Finalize(ctx, operationID, committedAtMs)
 }
 
+// gatewayAnimeJSON creates a minimal legacy anime payload for gateway tests.
 func gatewayAnimeJSON(id string, progress float64) []byte {
 	return []byte(`{"_id":"` + id + `","nombre":"Test","nrocapvisto":` + jsonNumber(progress) + `,"estado":2,"activo":true}`)
 }
 
+// jsonNumber encodes a numeric fixture value as JSON.
 func jsonNumber(value float64) string {
 	encoded, _ := json.Marshal(value)
 	return string(encoded)
 }
 
+// openGatewayDB opens a temporary bridge database for gateway tests.
 func openGatewayDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
@@ -312,6 +316,7 @@ func openGatewayDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// seedGatewaySnapshot stores one authoritative gateway snapshot.
 func seedGatewaySnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, id string, payload []byte, modifiedAt int64) {
 	t.Helper()
 	err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
@@ -322,6 +327,7 @@ func seedGatewaySnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, id 
 	}
 }
 
+// writeGatewayData writes one payload to a temporary legacy data file.
 func writeGatewayData(t *testing.T, payload []byte) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "animes.dat")
@@ -331,16 +337,22 @@ func writeGatewayData(t *testing.T, payload []byte) string {
 	return path
 }
 
-func appendGatewayLine(path string, payload []byte) error {
+// appendGatewayLine appends one normalized payload line to a legacy data file.
+func appendGatewayLine(path string, payload []byte) (err error) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 	_, err = file.Write(append(bytes.TrimRight(payload, "\r\n"), '\n'))
 	return err
 }
 
+// countGatewayLines counts records in a legacy data file.
 func countGatewayLines(t *testing.T, path string) int {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -350,6 +362,7 @@ func countGatewayLines(t *testing.T, path string) int {
 	return len(bytes.Split(bytes.TrimSpace(data), []byte("\n")))
 }
 
+// jsonContainsProgress reports whether a payload contains the requested progress.
 func jsonContainsProgress(t *testing.T, payload []byte, want float64) bool {
 	t.Helper()
 	var value map[string]any

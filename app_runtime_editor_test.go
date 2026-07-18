@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -180,6 +184,55 @@ func TestApplyAnimeEditorScheduleReturnsValidationErrorWithRefreshedBoard(t *tes
 	}
 }
 
+func TestApplyAnimeEditorScheduleRejectsMalformedSundayPayloadWithoutWrite(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Domingo","orden":1}]}`, 100)
+	query := anime.NewQueryService(store)
+	app := &App{
+		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
+		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
+	}
+
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{
+		AnimeID:        "anime-1",
+		BaseModifiedAt: 100,
+		Placements:     []contracts.MobileAnimeDay{{Dia: "Domingo", Orden: 3}},
+	}}})
+	if got.Outcome != contracts.AnimePatchOutcomeError || got.Board == nil || got.Message != "apply anime editor schedule: non-contiguous positions for Domingo" || got.Details["operation"] != "apply_schedule" {
+		t.Fatalf("expected exact malformed Sunday validation outcome, got %#v", got)
+	}
+	if got.Board.BoardModifiedAt != 100 || len(got.Board.Entries) != 1 || len(got.Board.Entries[0].Placements) != 1 || got.Board.Entries[0].Placements[0].Dia != "Domingo" || got.Board.Entries[0].Placements[0].Orden != 1 {
+		t.Fatalf("expected unchanged authoritative Sunday board after rejection, got %#v", got.Board)
+	}
+	after, err := query.GetReadRecord(context.Background(), "anime-1")
+	if err != nil {
+		t.Fatalf("read unchanged snapshot after malformed Sunday apply: %v", err)
+	}
+	placements := decodeRuntimeScheduleDays(t, after.Snapshot.CanonicalJSON)
+	if len(placements) != 1 || placements[0].Dia != "Domingo" || placements[0].Orden != 1 {
+		t.Fatalf("expected zero write for malformed Sunday payload, got %+v", placements)
+	}
+}
+
+// decodeRuntimeScheduleDays decodes day placements from a schedule payload.
+func decodeRuntimeScheduleDays(t *testing.T, payload []byte) []struct {
+	Dia   string  `json:"dia"`
+	Orden float64 `json:"orden"`
+} {
+	t.Helper()
+	var decoded struct {
+		Dias []struct {
+			Dia   string  `json:"dia"`
+			Orden float64 `json:"orden"`
+		} `json:"dias"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("decode runtime schedule payload days: %v", err)
+	}
+	return decoded.Dias
+}
+
 func TestEditorReadBindingsReturnInfrastructureErrorsWithoutZeroValueAuthority(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
@@ -197,4 +250,108 @@ func TestEditorReadBindingsReturnInfrastructureErrorsWithoutZeroValueAuthority(t
 	if boardResult.Outcome != contracts.AnimePatchOutcomeError || boardResult.Board != nil || boardResult.Message == "" {
 		t.Fatalf("unexpected board infrastructure result: %#v", boardResult)
 	}
+}
+
+type runtimeSchedulePublisher struct{ recorded []events.Event }
+
+func (p *runtimeSchedulePublisher) Publish(event events.Event) {
+	p.recorded = append(p.recorded, event)
+}
+
+// animeIDs returns the sorted anime IDs from published change events.
+func (p *runtimeSchedulePublisher) animeIDs() []string {
+	ids := make([]string, 0, len(p.recorded))
+	for _, event := range p.recorded {
+		changed, ok := event.(events.AnimeChangedEvent)
+		if !ok {
+			continue
+		}
+		ids = append(ids, changed.AnimeID)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// writeRuntimeScheduleFixtureCopy writes schedule payloads to a test file.
+func writeRuntimeScheduleFixtureCopy(t *testing.T, filePath string, payloads []string) {
+	t.Helper()
+	contents := make([]byte, 0)
+	for _, payload := range payloads {
+		contents = append(contents, []byte(payload)...)
+		contents = append(contents, '\n')
+	}
+	if err := os.WriteFile(filePath, contents, 0o600); err != nil {
+		t.Fatalf("write runtime schedule fixture copy: %v", err)
+	}
+}
+
+// runtimeScheduleLinesByAnimeID indexes schedule payloads by anime ID.
+func runtimeScheduleLinesByAnimeID(t *testing.T, payloads []string) map[string]string {
+	t.Helper()
+	result := make(map[string]string, len(payloads))
+	for _, payload := range payloads {
+		result[runtimeAnimeIDFromSchedulePayload(t, payload)] = payload
+	}
+	return result
+}
+
+// readRuntimeScheduleLinesByAnimeID reads and indexes schedule lines by anime ID.
+func readRuntimeScheduleLinesByAnimeID(t *testing.T, filePath string) map[string]string {
+	t.Helper()
+	contents, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read runtime schedule fixture copy: %v", err)
+	}
+	trimmed := strings.TrimSuffix(string(contents), "\n")
+	if trimmed == "" {
+		return map[string]string{}
+	}
+	return runtimeScheduleLinesByAnimeID(t, strings.Split(trimmed, "\n"))
+}
+
+// runtimeAnimeIDFromSchedulePayload extracts an anime ID from a schedule payload.
+func runtimeAnimeIDFromSchedulePayload(t *testing.T, payload string) string {
+	t.Helper()
+	var decoded struct {
+		ID string `json:"_id"`
+	}
+	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+		t.Fatalf("decode runtime anime id from payload: %v", err)
+	}
+	return decoded.ID
+}
+
+// runtimeBoardPlacementsByAnimeID indexes board placements by anime ID.
+func runtimeBoardPlacementsByAnimeID(board *contracts.AnimeEditorScheduleBoard) map[string][]contracts.MobileAnimeDay {
+	result := make(map[string][]contracts.MobileAnimeDay, len(board.Entries))
+	for _, entry := range board.Entries {
+		result[entry.AnimeID] = append([]contracts.MobileAnimeDay(nil), entry.Placements...)
+	}
+	return result
+}
+
+// runtimeDaysEqual reports whether two placement slices are equal.
+func runtimeDaysEqual(got, want []contracts.MobileAnimeDay) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// runtimeStringSlicesEqual reports whether two string slices are equal.
+func runtimeStringSlicesEqual(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for index := range got {
+		if got[index] != want[index] {
+			return false
+		}
+	}
+	return true
 }

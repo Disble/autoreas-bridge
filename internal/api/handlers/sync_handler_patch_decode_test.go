@@ -1,0 +1,105 @@
+package handlers
+
+import (
+	"strings"
+	"testing"
+
+	"autoreas-bridge/internal/api/contracts"
+)
+
+func TestDecodePendingOperationPatch(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range pendingOperationPatchCases {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := decodePendingOperationPatch(tc.op)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("decode pending operation patch: %v", err)
+			}
+			if !equalAnimePatch(got, tc.want) {
+				t.Fatalf("expected patch %#v, got %#v", tc.want, got)
+			}
+		})
+	}
+}
+
+var pendingOperationPatchCases = []struct {
+	name    string
+	op      contracts.PendingOperation
+	want    AnimePatch
+	wantErr string
+}{
+	{"maps valid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"estado": float64(2), "nrocapvisto": float64(10.5), "fechaUltCapVisto": float64(1710000000123), "dias": []any{"Lunes", "Miercoles"}}}, AnimePatch{Estado: intPtr(2), NroCapVisto: floatPtr(10.5), FechaUltCapVisto: int64Ptr(1710000000123), Dias: []string{"Lunes", "Miercoles"}}, ""},
+	{"round-trips explicit base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5), "base": float64(1710000000123)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(1710000000123)}, ""},
+	{"round-trips explicit zero base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5), "base": float64(0)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)}, ""},
+	{"base omitted decodes to nil", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5)}}, AnimePatch{NroCapVisto: floatPtr(10.5)}, ""},
+	{"rejects missing anime id", contracts.PendingOperation{Operation: "update", Payload: map[string]any{"nrocapvisto": float64(1)}}, AnimePatch{}, "missing anime id"},
+	{"rejects invalid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": -1}}, AnimePatch{}, "invalid nrocapvisto"},
+}
+
+// equalAnimePatch compares all fields of two decoded anime patches.
+func equalAnimePatch(got AnimePatch, want AnimePatch) bool {
+	if !equalIntPointers(got.Estado, want.Estado) {
+		return false
+	}
+	if !equalFloatPointers(got.NroCapVisto, want.NroCapVisto) {
+		return false
+	}
+	if !equalInt64Pointers(got.FechaUltCapVisto, want.FechaUltCapVisto) {
+		return false
+	}
+	if !equalInt64Pointers(got.Base, want.Base) {
+		return false
+	}
+	if len(got.Dias) != len(want.Dias) {
+		return false
+	}
+	for index := range got.Dias {
+		if got.Dias[index] != want.Dias[index] {
+			return false
+		}
+	}
+	return true
+}
+
+// equalIntPointers compares optional integer values.
+func equalIntPointers(got *int, want *int) bool {
+	if got == nil || want == nil {
+		return got == nil && want == nil
+	}
+	return *got == *want
+}
+
+// equalFloatPointers compares optional floating-point values.
+func equalFloatPointers(got *float64, want *float64) bool {
+	if got == nil || want == nil {
+		return got == nil && want == nil
+	}
+	return *got == *want
+}
+
+// equalInt64Pointers compares optional int64 values.
+func equalInt64Pointers(got *int64, want *int64) bool {
+	if got == nil || want == nil {
+		return got == nil && want == nil
+	}
+	return *got == *want
+}
+
+// intPtr returns a pointer to an integer test value.
+func intPtr(value int) *int { return &value }
+
+// floatPtr returns a pointer to a floating-point test value.
+func floatPtr(value float64) *float64 { return &value }
+
+// int64Ptr returns a pointer to an int64 test value.
+func int64Ptr(value int64) *int64 { return &value }

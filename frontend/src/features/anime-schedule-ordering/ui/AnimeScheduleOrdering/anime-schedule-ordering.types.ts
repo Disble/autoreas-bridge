@@ -2,6 +2,23 @@ import type { DragOverEvent } from '@dnd-kit/react';
 import type { ReactNode } from 'react';
 import type { ApplyAnimeScheduleDraftEntry, AnimeEditorScheduleBoard, AnimeSchedulePlacement } from '../../../../shared/contracts/anime.types';
 
+/** Test-only move command for driving the real draft reducer under jsdom. */
+export interface AnimeScheduleOrderingTestMoveCommand {
+  readonly animeId: string;
+  readonly destinationId: string;
+  readonly order: number;
+}
+
+/** Test-only driver for exercising the real ordering state without pointer drag. */
+export interface AnimeScheduleOrderingTestDriver {
+  readonly moveAnime: (command: AnimeScheduleOrderingTestMoveCommand) => void;
+}
+
+/** Mutable holder used by integration tests to access the schedule test driver. */
+export interface AnimeScheduleOrderingTestDriverRef {
+  current?: AnimeScheduleOrderingTestDriver;
+}
+
 /** Component contract for the shared anime schedule ordering board. */
 export interface AnimeScheduleOrderingProps {
   readonly board: AnimeEditorScheduleBoard;
@@ -9,6 +26,7 @@ export interface AnimeScheduleOrderingProps {
   readonly isApplying?: boolean;
   readonly onApply: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<void>;
   readonly onClose?: () => void;
+  readonly testDriverRef?: AnimeScheduleOrderingTestDriverRef;
 }
 
 /** One draggable card instance inside the shared schedule draft. */

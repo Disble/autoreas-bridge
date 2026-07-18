@@ -337,10 +337,12 @@ type animeHandlerStubs struct {
 	patchCalls     int
 }
 
+// newAnimeHandlerStubs creates the anime handler test dependencies.
 func newAnimeHandlerStubs() *animeHandlerStubs {
 	return &animeHandlerStubs{}
 }
 
+// authenticate returns a test authentication function with the requested result.
 func (s *animeHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
 	return func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
 		if !authorized {
@@ -352,6 +354,7 @@ func (s *animeHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
 	}
 }
 
+// queryAnime returns the configured anime and records the query call.
 func (s *animeHandlerStubs) queryAnime(context.Context, string) (*EffectiveAnime, error) {
 	s.queryCalls++
 	if s.queryErr != nil {
@@ -360,6 +363,7 @@ func (s *animeHandlerStubs) queryAnime(context.Context, string) (*EffectiveAnime
 	return s.effectiveAnime, nil
 }
 
+// patchAnime records a patch request and returns its configured error.
 func (s *animeHandlerStubs) patchAnime(_ context.Context, id string, patch AnimePatch) error {
 	s.patchCalls++
 	s.patchedID = id

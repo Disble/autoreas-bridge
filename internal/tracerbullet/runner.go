@@ -9,16 +9,19 @@ import (
 
 const tracerAnimeID = "tracer-bullet-anime"
 
+// TraceSink records tracer-bullet messages.
 type TraceSink interface {
 	Record(message string)
 }
 
+// Runner publishes the tracer-bullet event sequence.
 type Runner struct {
 	bus  events.Bus
 	sink TraceSink
 	log  sharedlogger.Logger
 }
 
+// NewRunner creates a tracer-bullet runner.
 func NewRunner(bus events.Bus, sink TraceSink, loggers ...sharedlogger.Logger) *Runner {
 	runner := &Runner{
 		bus:  bus,
@@ -31,6 +34,7 @@ func NewRunner(bus events.Bus, sink TraceSink, loggers ...sharedlogger.Logger) *
 
 }
 
+// Start subscribes the runner and publishes its demonstration event.
 func (r *Runner) Start() {
 	r.StartSubscriptions()
 	r.record("system: tracer bullet ready")
@@ -38,6 +42,7 @@ func (r *Runner) Start() {
 	r.bus.Publish(events.AnimeChangedEvent{AnimeID: tracerAnimeID})
 }
 
+// StartSubscriptions installs the tracer-bullet event handlers.
 func (r *Runner) StartSubscriptions() {
 	r.bus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
 		changed, ok := event.(events.AnimeChangedEvent)
@@ -59,6 +64,7 @@ func (r *Runner) StartSubscriptions() {
 	})
 }
 
+// record sends a tracer-bullet message to the configured sink and logger.
 func (r *Runner) record(message string) {
 	if r.sink != nil {
 		r.sink.Record(message)

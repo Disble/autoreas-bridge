@@ -13,6 +13,7 @@ export type RunHistoryRowViewModel = Pick<
   DownloadRunView,
   'runId' | 'trigger' | 'episodesDownloaded' | 'episodesFailed'
 > & {
+  readonly isSelected: boolean;
   readonly startedLabel: string;
   readonly statusLabel: string;
 };
@@ -21,6 +22,9 @@ export type RunHistoryRowViewModel = Pick<
 export interface RunHistoryPanelViewModel {
   readonly status: RunHistoryPanelStatus;
   readonly rows: readonly RunHistoryRowViewModel[];
+  readonly visibleRows: readonly RunHistoryRowViewModel[];
+  readonly canLoadMore: boolean;
+  readonly remainingCount: number;
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
 }

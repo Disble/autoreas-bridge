@@ -47,62 +47,61 @@ const ddl = "CREATE TABLE activity_log (id INTEGER PRIMARY KEY)"
 	}
 }
 
-func TestRunRejectsLegacyGatewayBoundaryViolations(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		path     string
-		content  string
-		expected string
-	}{
-		{
-			name: "qualified Legacy DTO alias",
-			path: "internal/season/legacy_projection.go",
-			content: `package season
+var legacyGatewayBoundaryViolationCases = []struct {
+	name     string
+	path     string
+	content  string
+	expected string
+}{
+	{
+		name: "qualified Legacy DTO alias",
+		path: "internal/season/legacy_projection.go",
+		content: `package season
 import wire "autoreas-bridge/internal/anime/legacy"
 func project(raw wire.LegacyAnimeRaw) string { return raw.Pagina }
 `,
-			expected: "internal/season/legacy_projection.go:3 uses legacy.LegacyAnimeRaw outside the Legacy adapter",
-		},
-		{
-			name: "inferred Spanish Legacy wire field",
-			path: "internal/season/legacy_decoder.go",
-			content: `package season
+		expected: "internal/season/legacy_projection.go:3 uses legacy.LegacyAnimeRaw outside the Legacy adapter",
+	},
+	{
+		name: "inferred Spanish Legacy wire field",
+		path: "internal/season/legacy_decoder.go",
+		content: `package season
 import wire "autoreas-bridge/internal/anime/legacy"
 func page(payload []byte) string {
   raw, _, _, _ := wire.Decode(payload)
   return raw.Pagina
 }
 `,
-			expected: "internal/season/legacy_decoder.go:5 uses Spanish Legacy wire field Pagina outside the Legacy adapter",
-		},
-		{
-			name: "aliased animes.dat file read",
-			path: "internal/season/parallel_reader.go",
-			content: `package season
+		expected: "internal/season/legacy_decoder.go:5 uses Spanish Legacy wire field Pagina outside the Legacy adapter",
+	},
+	{
+		name: "aliased animes.dat file read",
+		path: "internal/season/parallel_reader.go",
+		content: `package season
 import filesystem "os"
 const animeDataPath = "data/animes.dat"
 func read() { _, _ = filesystem.ReadFile(animeDataPath) }
 `,
-			expected: "internal/season/parallel_reader.go:4 performs animes.dat file I/O outside the Legacy gateway",
-		},
-		{
-			name: "parallel Legacy JSON serializer",
-			path: "internal/season/legacy_encoder.go",
-			content: "package season\n" +
-				"import codec \"encoding/json\"\n" +
-				"type legacyEnvelope struct {\n" +
-				"  Page string `json:\"pagina\"`\n" +
-				"  Progress float64 `json:\"nrocapvisto\"`\n" +
-				"  Active bool `json:\"activo\"`\n" +
-				"}\n" +
-				"func encode(value legacyEnvelope) { _, _ = codec.Marshal(value) }\n",
-			expected: "internal/season/legacy_encoder.go:8 serializes Legacy JSON outside the Legacy adapter",
-		},
-	}
+		expected: "internal/season/parallel_reader.go:4 performs animes.dat file I/O outside the Legacy gateway",
+	},
+	{
+		name: "parallel Legacy JSON serializer",
+		path: "internal/season/legacy_encoder.go",
+		content: "package season\n" +
+			"import codec \"encoding/json\"\n" +
+			"type legacyEnvelope struct {\n" +
+			"  Page string `json:\"pagina\"`\n" +
+			"  Progress float64 `json:\"nrocapvisto\"`\n" +
+			"  Active bool `json:\"activo\"`\n" +
+			"}\n" +
+			"func encode(value legacyEnvelope) { _, _ = codec.Marshal(value) }\n",
+		expected: "internal/season/legacy_encoder.go:8 serializes Legacy JSON outside the Legacy adapter",
+	},
+}
 
-	for _, tt := range tests {
+func TestRunRejectsLegacyGatewayBoundaryViolations(t *testing.T) {
+	t.Parallel()
+	for _, tt := range legacyGatewayBoundaryViolationCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -150,6 +149,7 @@ func parallelRead() { _, _ = os.ReadFile("animes.dat") }
 	}
 }
 
+// writeFile creates a source fixture beneath a temporary root.
 func writeFile(t *testing.T, root string, name string, content string) {
 	t.Helper()
 

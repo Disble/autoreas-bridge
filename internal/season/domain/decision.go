@@ -30,7 +30,9 @@ const (
 type Verdict string
 
 const (
+	// VerdictApproved means the anime is approved for the season selection.
 	VerdictApproved Verdict = "approved"
+	// VerdictRejected means the anime is rejected for the season selection.
 	VerdictRejected Verdict = "rejected"
 )
 

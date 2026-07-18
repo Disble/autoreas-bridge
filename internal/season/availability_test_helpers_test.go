@@ -102,6 +102,7 @@ func (g *fakeGateway) SetAnimeSchedule(_ context.Context, animeID string, dias [
 	return AnimeMutationResult{AnimeID: animeID, Outcome: AnimeMutationApplied}, nil
 }
 
+// seedMatched adds a matched availability row to the test repository.
 func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug string) {
 	t.Helper()
 	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
@@ -110,6 +111,36 @@ func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name,
 	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+}
+
+// seedCreated adds a created availability row to the test repository.
+func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, chapters int) {
+	t.Helper()
+	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
+	sa.MatchStatus = domain.MatchMatched
+	sa.MatchedSlug = slug
+	sa.Availability = domain.AvailabilityCreated
+	sa.AnimeID = animeID
+	sa.AvailableChapters = chapters
+	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+}
+
+// findRow returns one season anime row from the test service.
+func findRow(t *testing.T, svc *Service, seasonID, id string) domain.SeasonAnime {
+	t.Helper()
+	rows, err := svc.ListSeasonAnimes(context.Background(), seasonID)
+	if err != nil {
+		t.Fatalf("ListSeasonAnimes: %v", err)
+	}
+	for _, row := range rows {
+		if row.ID == id {
+			return row
+		}
+	}
+	t.Fatalf("row %q not found", id)
+	return domain.SeasonAnime{}
 }
 
 // gatewayPlacementsErr is a fakeGateway whose CurrentPlacements always errors,

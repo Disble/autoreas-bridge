@@ -1,0 +1,138 @@
+package main
+
+import (
+	"context"
+	"path/filepath"
+	"sort"
+	"testing"
+
+	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
+	bridgeSync "autoreas-bridge/internal/sync"
+)
+
+func TestApplyAnimeEditorScheduleMovesBanGDreamSayonaraLaraAndYaniNekoToVistoAndRefreshesTheBoard(t *testing.T) {
+	db := openRuntimeBridgeDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	payloads := runtimeScheduleFixturePayloads()
+	seedRuntimeSchedulePayloads(t, store, payloads)
+	initialLegacyLines := runtimeScheduleLinesByAnimeID(t, payloads)
+
+	dataPath := filepath.Join(t.TempDir(), "animes.dat")
+	writeRuntimeScheduleFixtureCopy(t, dataPath, payloads)
+	query := anime.NewQueryService(store)
+	publisher := &runtimeSchedulePublisher{}
+	service := anime.NewScheduleService(query, &stubAppUpdateWriter{})
+	service.SetDeps(anime.WriteServiceDeps{FilePath: dataPath, Publisher: publisher})
+	app := &App{
+		ctx:                      context.Background(),
+		animeEditorScheduleWrite: service,
+		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
+	}
+
+	result := app.ApplyAnimeEditorSchedule(runtimeMovedCardsScheduleCommand())
+	assertRuntimeScheduleApplyResult(t, result)
+	assertRuntimeSchedulePublishedAnimeIDs(t, publisher.animeIDs())
+	assertRuntimeScheduleBoardPlacements(t, runtimeBoardPlacementsByAnimeID(result.Board))
+	assertRuntimeScheduleDiskWrites(t, initialLegacyLines, readRuntimeScheduleLinesByAnimeID(t, dataPath))
+}
+
+// runtimeScheduleFixturePayloads returns legacy schedule payloads for tests.
+func runtimeScheduleFixturePayloads() []string {
+	return []string{
+		`{"_id":"sayonara-lara","nombre":"Sayonara Lara","activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		`{"_id":"yani-neko","nombre":"Yani Neko","activo":true,"dias":[{"dia":"Sin ver","orden":2}]}`,
+		`{"_id":"youjo-senki-ii","nombre":"Youjo Senki II","activo":true,"dias":[{"dia":"Sin ver","orden":3}]}`,
+		`{"_id":"bang-dream","nombre":"BanG Dream! YumemoMita","activo":true,"dias":[{"dia":"Sin ver","orden":4}]}`,
+		`{"_id":"futsutsuka","nombre":"Futsutsuka...","activo":true,"dias":[{"dia":"Visto","orden":1}]}`,
+		`{"_id":"iwamoto","nombre":"Iwamoto...","activo":true,"dias":[{"dia":"Visto","orden":2}]}`,
+		`{"_id":"tai-ari","nombre":"Tai-Ari...","activo":true,"dias":[{"dia":"Visto","orden":3}]}`,
+		`{"_id":"tenmaku","nombre":"Tenmaku...","activo":true,"dias":[{"dia":"Visto","orden":4}]}`,
+		`{"_id":"domingo-legacy","nombre":"Sunday Legacy","activo":true,"dias":[{"dia":"Domingo","orden":2}]}`,
+		`{"_id":"legacy-unsupported","nombre":"Legacy Unsupported","activo":true,"dias":[{"dia":"Especial legado","orden":9}]}`,
+		`{"_id":"equal-order-b","nombre":"Equal Order B","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
+		`{"_id":"equal-order-a","nombre":"Equal Order A","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
+	}
+}
+
+// seedRuntimeSchedulePayloads stores the runtime schedule test payloads.
+func seedRuntimeSchedulePayloads(t *testing.T, store *bridgeSync.AnimeSnapshotStore, payloads []string) {
+	t.Helper()
+	for index, payload := range payloads {
+		seedRuntimeAnimeSnapshot(t, store, runtimeAnimeIDFromSchedulePayload(t, payload), payload, int64(101+index))
+	}
+}
+
+// runtimeMovedCardsScheduleCommand returns the schedule move command under test.
+func runtimeMovedCardsScheduleCommand() ApplyAnimeScheduleDraftCommandDTO {
+	return ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 112, Entries: []ApplyAnimeScheduleDraftEntryDTO{
+		{AnimeID: "youjo-senki-ii", BaseModifiedAt: 103, Placements: []contracts.MobileAnimeDay{{Dia: "Sin ver", Orden: 1}}},
+		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}}},
+		{AnimeID: "yani-neko", BaseModifiedAt: 102, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 2}}},
+		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 3}}},
+		{AnimeID: "futsutsuka", BaseModifiedAt: 105, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 4}}},
+		{AnimeID: "iwamoto", BaseModifiedAt: 106, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 5}}},
+		{AnimeID: "tai-ari", BaseModifiedAt: 107, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 6}}},
+		{AnimeID: "tenmaku", BaseModifiedAt: 108, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 7}}},
+	}}
+}
+
+// assertRuntimeScheduleApplyResult verifies the applied schedule response.
+func assertRuntimeScheduleApplyResult(t *testing.T, result contracts.AnimeEditorScheduleApplyResult) {
+	t.Helper()
+	if result.Outcome != contracts.AnimePatchOutcomeApplied || result.Board == nil {
+		t.Fatalf("expected applied schedule result with refreshed board, got %#v", result)
+	}
+	if result.Message != "apply_schedule applied" || len(result.Details) != 1 || result.Details["operation"] != "apply_schedule" {
+		t.Fatalf("expected apply to succeed without extra feedback, got %#v", result)
+	}
+}
+
+// assertRuntimeSchedulePublishedAnimeIDs verifies published schedule anime IDs.
+func assertRuntimeSchedulePublishedAnimeIDs(t *testing.T, got []string) {
+	t.Helper()
+	want := []string{"bang-dream", "futsutsuka", "iwamoto", "sayonara-lara", "tai-ari", "tenmaku", "yani-neko", "youjo-senki-ii"}
+	if len(got) != len(want) {
+		t.Fatalf("expected three moved cards plus five reflowed cards, got %v", got)
+	}
+	if !runtimeStringSlicesEqual(got, want) {
+		t.Fatalf("expected the moved cards and their reflowed destinations to publish, got %v", got)
+	}
+}
+
+// assertRuntimeScheduleBoardPlacements verifies refreshed board placements.
+func assertRuntimeScheduleBoardPlacements(t *testing.T, placementsByAnime map[string][]contracts.MobileAnimeDay) {
+	t.Helper()
+	for animeID, want := range map[string][]contracts.MobileAnimeDay{
+		"youjo-senki-ii": {{Dia: "Sin ver", Orden: 1}},
+		"bang-dream":     {{Dia: "Visto", Orden: 1}},
+		"sayonara-lara":  {{Dia: "Visto", Orden: 3}},
+		"yani-neko":      {{Dia: "Visto", Orden: 2}},
+		"domingo-legacy": {{Dia: "Domingo", Orden: 1}},
+	} {
+		if got := placementsByAnime[animeID]; !runtimeDaysEqual(got, want) {
+			t.Fatalf("expected %s placements %+v, got %+v", animeID, want, got)
+		}
+	}
+}
+
+// assertRuntimeScheduleDiskWrites verifies changed and untouched legacy lines.
+func assertRuntimeScheduleDiskWrites(t *testing.T, initialLegacyLines map[string]string, persistedLegacyLines map[string]string) {
+	t.Helper()
+	changedAnimeIDs := make([]string, 0)
+	for animeID, initialLine := range initialLegacyLines {
+		if persistedLegacyLines[animeID] != initialLine {
+			changedAnimeIDs = append(changedAnimeIDs, animeID)
+		}
+	}
+	sort.Strings(changedAnimeIDs)
+	wantChanged := []string{"bang-dream", "futsutsuka", "iwamoto", "sayonara-lara", "tai-ari", "tenmaku", "yani-neko", "youjo-senki-ii"}
+	if !runtimeStringSlicesEqual(changedAnimeIDs, wantChanged) {
+		t.Fatalf("expected the three moves and the required destination reflow records to change on disk, got %v", changedAnimeIDs)
+	}
+	for _, untouched := range []string{"equal-order-a", "equal-order-b"} {
+		if persistedLegacyLines[untouched] != initialLegacyLines[untouched] {
+			t.Fatalf("expected %s legacy line to stay byte-identical, got %q", untouched, persistedLegacyLines[untouched])
+		}
+	}
+}

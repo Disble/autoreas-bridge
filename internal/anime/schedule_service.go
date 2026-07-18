@@ -1,7 +1,6 @@
 package anime
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sort"
@@ -12,21 +11,24 @@ import (
 	"autoreas-bridge/internal/events"
 )
 
+// ApplyAnimeScheduleDraftEntry captures one moved card in a schedule draft.
 type ApplyAnimeScheduleDraftEntry struct {
 	AnimeID        string
 	BaseModifiedAt int64
 	Placements     []contracts.MobileAnimeDay
 }
 
+// ApplyAnimeScheduleDraftCommand carries the editor's partial board mutation request.
 type ApplyAnimeScheduleDraftCommand struct {
 	BoardModifiedAt int64
 	Entries         []ApplyAnimeScheduleDraftEntry
 }
 
+// ScheduleService applies schedule-board mutations through the anime write seams.
 type ScheduleService struct {
 	query      *QueryService
 	store      snapshotLookup
-	writer     AnimeWriter
+	writer     Writer
 	writeBases WriteBaseStore
 	now        func() time.Time
 	deps       WriteServiceDeps
@@ -40,7 +42,8 @@ type replacementEchoProvider interface {
 	ReplacementEchoRegistry() legacy.ReplacementEchoRegistry
 }
 
-func NewScheduleService(query *QueryService, writer AnimeWriter) *ScheduleService {
+// NewScheduleService builds a schedule mutation service over query and writer seams.
+func NewScheduleService(query *QueryService, writer Writer) *ScheduleService {
 	service := &ScheduleService{query: query, store: query.store, writer: writer, now: time.Now}
 	if provider, ok := query.store.(writeBaseStoreProvider); ok {
 		service.writeBases = provider.WriteBaseStore()
@@ -48,8 +51,10 @@ func NewScheduleService(query *QueryService, writer AnimeWriter) *ScheduleServic
 	return service
 }
 
+// SetNow overrides the clock used by ScheduleService.
 func (s *ScheduleService) SetNow(now func() time.Time) { s.now = now }
 
+// SetDeps overrides optional write-side dependencies used by ScheduleService.
 func (s *ScheduleService) SetDeps(deps WriteServiceDeps) {
 	if deps.WriteBases != nil {
 		s.writeBases = deps.WriteBases
@@ -57,115 +62,98 @@ func (s *ScheduleService) SetDeps(deps WriteServiceDeps) {
 	s.deps = deps
 }
 
-func (s *ScheduleService) Apply(ctx context.Context, command ApplyAnimeScheduleDraftCommand) (AnimePatchResult, error) {
+// Apply persists an editor schedule draft atomically.
+//
+// The UI sends only cards the user moved. This service expands that partial draft
+// into the affected queues, then persists the resulting top-to-bottom order as
+// contiguous one-based legacy `orden` values. Moving a card to position 1 therefore
+// shifts every card below it, while unrelated legacy destinations remain unchanged.
+func (s *ScheduleService) Apply(ctx context.Context, command ApplyAnimeScheduleDraftCommand) (PatchResult, error) {
 	records, err := s.query.ListReadRecords(ctx)
 	if err != nil {
-		return AnimePatchResult{}, err
+		return PatchResult{}, err
 	}
 	if err := validateScheduleDraft(records, command); err != nil {
-		return AnimePatchResult{}, err
+		return PatchResult{}, err
 	}
-	if currentBoardModifiedAt(records) != command.BoardModifiedAt {
+	boardModifiedAt := currentBoardModifiedAt(records)
+	if boardModifiedAt != command.BoardModifiedAt {
 		return s.recordBoardConflict(ctx, records, command)
 	}
-	operations := make([]legacy.BatchOperation, 0, len(command.Entries))
-	for _, entry := range command.Entries {
-		record, err := s.query.GetReadRecord(ctx, entry.AnimeID)
-		if err != nil {
-			return AnimePatchResult{}, err
-		}
-		if record.Snapshot.ModifiedAt != entry.BaseModifiedAt {
-			return s.conflict(ctx, record.Snapshot, entry)
-		}
-		raw, _, _, err := legacy.DecodeForUpdate(record.Snapshot.CanonicalJSON)
-		if err != nil {
-			return AnimePatchResult{}, err
-		}
-		days := make([]legacy.LegacyAnimeDay, 0, len(entry.Placements))
-		for _, placement := range entry.Placements {
-			days = append(days, legacy.LegacyAnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
-		}
-		raw.SetDays(days)
-		desired, err := raw.MarshalJSON()
-		if err != nil {
-			return AnimePatchResult{}, err
-		}
-		if bytes.Equal(desired, record.Snapshot.CanonicalJSON) {
-			continue
-		}
-		operations = append(operations, legacy.BatchOperation{AnimeID: entry.AnimeID, Base: toLegacySnapshot(record.Snapshot), Desired: desired})
+	recordsByID := activeScheduleRecordsByID(records)
+	if conflictEntry, ok := staleScheduleEntry(recordsByID, command.Entries); ok {
+		return s.conflict(ctx, recordsByID[conflictEntry.AnimeID].Snapshot, conflictEntry)
+	}
+	if len(command.Entries) == 0 {
+		return noOpScheduleResult(boardModifiedAt), nil
+	}
+	operations, err := buildScheduleOperations(recordsByID, normalizedSchedulePlacements(records, command))
+	if err != nil {
+		return PatchResult{}, err
 	}
 	if len(operations) == 0 {
-		return AnimePatchResult{Outcome: AnimePatchOutcomeNoOp, ModifiedAt: currentBoardModifiedAt(records)}, nil
+		return noOpScheduleResult(boardModifiedAt), nil
 	}
 	sort.Slice(operations, func(i, j int) bool { return operations[i].AnimeID < operations[j].AnimeID })
 	result, err := s.gateway().ApplyBatch(ctx, operations)
 	return fromLegacyPatchResult(result), err
 }
 
-var allowedScheduleDestinations = map[string]struct{}{
-	"Lunes": {}, "Martes": {}, "Miércoles": {}, "Jueves": {}, "Viernes": {}, "Sábado": {}, "Domingo": {},
-	"Sin ver": {}, "Ver hoy": {}, "Visto": {},
+// noOpScheduleResult creates a result for an unchanged schedule board.
+func noOpScheduleResult(boardModifiedAt int64) PatchResult {
+	return PatchResult{Outcome: PatchOutcomeNoOp, ModifiedAt: boardModifiedAt}
 }
 
-func validateScheduleDraft(records []ReadRecord, command ApplyAnimeScheduleDraftCommand) error {
-	seenAnimeIDs := map[string]struct{}{}
-	byDestination := map[string][]int{}
-	activeIDs := map[string]struct{}{}
-	activePlacements := map[string][]contracts.MobileAnimeDay{}
+// staleScheduleEntry finds the first draft entry whose base is outdated.
+func staleScheduleEntry(recordsByID map[string]ReadRecord, entries []ApplyAnimeScheduleDraftEntry) (ApplyAnimeScheduleDraftEntry, bool) {
+	for _, entry := range entries {
+		if recordsByID[entry.AnimeID].Snapshot.ModifiedAt != entry.BaseModifiedAt {
+			return entry, true
+		}
+	}
+	return ApplyAnimeScheduleDraftEntry{}, false
+}
+
+// activeScheduleRecordsByID indexes active schedule records by anime ID.
+func activeScheduleRecordsByID(records []ReadRecord) map[string]ReadRecord {
+	result := make(map[string]ReadRecord, len(records))
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo == 1 {
-			activeIDs[item.ID] = struct{}{}
-			activePlacements[item.ID] = item.Dias
-		}
-	}
-	for _, entry := range command.Entries {
-		if _, ok := activeIDs[entry.AnimeID]; !ok {
-			return fmt.Errorf("schedule draft anime %s is not active", entry.AnimeID)
-		}
-		if _, ok := seenAnimeIDs[entry.AnimeID]; ok {
-			return fmt.Errorf("duplicate anime entry %s", entry.AnimeID)
-		}
-		seenAnimeIDs[entry.AnimeID] = struct{}{}
-		seen := map[string]struct{}{}
-		for _, placement := range entry.Placements {
-			if _, ok := allowedScheduleDestinations[placement.Dia]; !ok {
-				return fmt.Errorf("invalid schedule destination %s", placement.Dia)
-			}
-			if placement.Orden <= 0 {
-				return fmt.Errorf("invalid schedule order %d for anime %s", placement.Orden, entry.AnimeID)
-			}
-			key := fmt.Sprintf("%s#%d", placement.Dia, placement.Orden)
-			if _, ok := seen[key]; ok {
-				return fmt.Errorf("duplicate placement %s for anime %s", key, entry.AnimeID)
-			}
-			seen[key] = struct{}{}
-			byDestination[placement.Dia] = append(byDestination[placement.Dia], placement.Orden)
-		}
-	}
-	for animeID, placements := range activePlacements {
-		if _, submitted := seenAnimeIDs[animeID]; submitted {
+		if item.Activo != 1 {
 			continue
 		}
-		for _, placement := range placements {
-			if _, ok := allowedScheduleDestinations[placement.Dia]; !ok {
-				continue
-			}
-			byDestination[placement.Dia] = append(byDestination[placement.Dia], placement.Orden)
-		}
+		result[item.ID] = record
 	}
-	for destination, positions := range byDestination {
-		sort.Ints(positions)
-		for index, position := range positions {
-			if position != index+1 {
-				return fmt.Errorf("non-contiguous positions for %s", destination)
-			}
-		}
-	}
-	return nil
+	return result
 }
 
+// scheduleEntryIDs returns the anime IDs represented in a schedule draft.
+func scheduleEntryIDs(entries []ApplyAnimeScheduleDraftEntry) map[string]struct{} {
+	ids := map[string]struct{}{}
+	for _, entry := range entries {
+		ids[entry.AnimeID] = struct{}{}
+	}
+	return ids
+}
+
+// submittedScheduleDestinations returns destinations present in a schedule draft.
+func submittedScheduleDestinations(entries []ApplyAnimeScheduleDraftEntry) map[string]struct{} {
+	destinations := map[string]struct{}{}
+	for _, entry := range entries {
+		for _, placement := range entry.Placements {
+			destinations[placement.Dia] = struct{}{}
+		}
+	}
+	return destinations
+}
+
+// isChangedScheduleAnime reports whether an anime ID is in the changed set.
+func isChangedScheduleAnime(changed map[string]struct{}, animeID string) bool {
+	_, exists := changed[animeID]
+	return exists
+}
+
+// currentBoardModifiedAt returns the latest modification time on the active board.
 func currentBoardModifiedAt(records []ReadRecord) int64 {
 	var boardModifiedAt int64
 	for _, record := range records {
@@ -177,40 +165,42 @@ func currentBoardModifiedAt(records []ReadRecord) int64 {
 	return boardModifiedAt
 }
 
-func (s *ScheduleService) conflict(ctx context.Context, current SnapshotRecord, entry ApplyAnimeScheduleDraftEntry) (AnimePatchResult, error) {
+// conflict applies a schedule update against the current snapshot.
+func (s *ScheduleService) conflict(ctx context.Context, current SnapshotRecord, entry ApplyAnimeScheduleDraftEntry) (PatchResult, error) {
 	result, err := s.gateway().UpdateRaw(ctx, legacy.UpdateRawCommand{
 		AnimeID: current.AnimeID,
 		Base:    &entry.BaseModifiedAt,
 		Mutate:  legacy.NewSchedulePlacementsMutation(entry.Placements),
 	})
 	if err != nil {
-		return AnimePatchResult{}, err
+		return PatchResult{}, err
 	}
 	return fromLegacyPatchResult(result), nil
 }
 
-func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []ReadRecord, command ApplyAnimeScheduleDraftCommand) (AnimePatchResult, error) {
+// recordBoardConflict records a conflict for a stale schedule board.
+func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []ReadRecord, command ApplyAnimeScheduleDraftCommand) (PatchResult, error) {
 	board := currentBoardModifiedAt(records)
 	if len(command.Entries) == 0 || s.deps.Conflicts == nil {
-		return AnimePatchResult{Outcome: AnimePatchOutcomeConflict, ModifiedAt: board}, nil
+		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
 	entry := command.Entries[0]
 	record, err := s.query.GetReadRecord(ctx, entry.AnimeID)
 	if err != nil {
-		return AnimePatchResult{Outcome: AnimePatchOutcomeConflict, ModifiedAt: board}, nil
+		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
 	raw, _, _, err := legacy.DecodeForUpdate(record.Snapshot.CanonicalJSON)
 	if err != nil {
-		return AnimePatchResult{Outcome: AnimePatchOutcomeConflict, ModifiedAt: board}, nil
+		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
-	days := make([]legacy.LegacyAnimeDay, 0, len(entry.Placements))
+	days := make([]legacy.AnimeDay, 0, len(entry.Placements))
 	for _, placement := range entry.Placements {
-		days = append(days, legacy.LegacyAnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
+		days = append(days, legacy.AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
 	}
 	raw.SetDays(days)
 	desired, err := raw.MarshalJSON()
 	if err != nil {
-		return AnimePatchResult{Outcome: AnimePatchOutcomeConflict, ModifiedAt: board}, nil
+		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
 	conflictID := fmt.Sprintf("%s-%d", entry.AnimeID, s.nowFuncForToken()().UnixMilli())
 	if err := s.deps.Conflicts.InsertConflict(ctx, contracts.ConflictRecord{
@@ -220,11 +210,12 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 		RemoteSnapshotJSON: append([]byte(nil), desired...),
 		DetectedAtMs:       s.nowFuncForToken()().UnixMilli(),
 	}); err != nil {
-		return AnimePatchResult{}, err
+		return PatchResult{}, err
 	}
-	return AnimePatchResult{Outcome: AnimePatchOutcomeConflict, ModifiedAt: board, ConflictID: conflictID}, nil
+	return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board, ConflictID: conflictID}, nil
 }
 
+// gateway builds the legacy gateway used by schedule operations.
 func (s *ScheduleService) gateway() *legacy.Gateway {
 	filePath := s.deps.FilePath
 	if filePath == "" {
@@ -232,31 +223,7 @@ func (s *ScheduleService) gateway() *legacy.Gateway {
 			filePath = provider.LegacyFilePath()
 		}
 	}
-	var outbox legacy.AnimeChangedOutboxStore
-	if configured, ok := s.writeBases.(legacy.AnimeChangedOutboxStore); ok {
-		outbox = configured
-	}
-	config := legacy.GatewayConfig{
-		LoadSnapshot: func(ctx context.Context, id string) (legacy.Snapshot, error) {
-			record, err := s.store.GetSnapshot(ctx, id)
-			return toLegacySnapshot(record), err
-		},
-		ListSnapshots: func(ctx context.Context) (map[string]legacy.Snapshot, error) {
-			records, err := s.store.ListSnapshots(ctx)
-			result := make(map[string]legacy.Snapshot, len(records))
-			for id, record := range records {
-				result[id] = toLegacySnapshot(record)
-			}
-			return result, err
-		},
-		FilePath:       filePath,
-		Operations:     s.writeBases,
-		Outbox:         outbox,
-		Conflicts:      s.deps.Conflicts,
-		Append:         s.append,
-		PublishChanged: s.publishCommitted,
-		Now:            s.nowFuncForToken(),
-	}
+	config := newLegacyGatewayConfig(s.store, filePath, s.writeBases, s.deps, s.nowFuncForToken(), s.append, s.publishCommitted)
 	if provider, ok := s.writer.(replacementEchoProvider); ok {
 		config.ReplacementEcho = provider.ReplacementEchoRegistry()
 	}
@@ -266,6 +233,7 @@ func (s *ScheduleService) gateway() *legacy.Gateway {
 	return legacy.NewGateway(config)
 }
 
+// replaceFile replaces the anime data file through a capable writer.
 func (s *ScheduleService) replaceFile(ctx context.Context, filePath string, desired [][]byte) error {
 	if writer, ok := s.writer.(batchReplaceWriter); ok {
 		return writer.ReplaceFile(ctx, filePath, desired)
@@ -273,6 +241,7 @@ func (s *ScheduleService) replaceFile(ctx context.Context, filePath string, desi
 	return nil
 }
 
+// append writes a schedule payload through the configured writer.
 func (s *ScheduleService) append(ctx context.Context, _ string, payload []byte) error {
 	if s.writer == nil {
 		return legacy.NewDefiniteAppendError(fmt.Errorf("anime writer is required"))
@@ -283,6 +252,7 @@ func (s *ScheduleService) append(ctx context.Context, _ string, payload []byte) 
 	return s.writer.RequestWrite(ctx, animeIDFromPayload(payload), payload)
 }
 
+// publishCommitted publishes a committed schedule change.
 func (s *ScheduleService) publishCommitted(eventID, id string, payload []byte) {
 	if s.deps.Publisher != nil {
 		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...)})
@@ -293,6 +263,7 @@ func (s *ScheduleService) publishCommitted(eventID, id string, payload []byte) {
 	}
 }
 
+// nowFuncForToken returns the configured schedule clock function.
 func (s *ScheduleService) nowFuncForToken() func() time.Time {
 	if s.now == nil {
 		return time.Now

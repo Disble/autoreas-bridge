@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// importAliases maps each imported package path to its names in the source file.
 func importAliases(file *ast.File) map[string]map[string]bool {
 	aliases := make(map[string]map[string]bool)
 	for _, spec := range file.Imports {
@@ -28,6 +29,7 @@ func importAliases(file *ast.File) map[string]map[string]bool {
 	return aliases
 }
 
+// legacyJSONStructs identifies local structs containing multiple legacy JSON fields.
 func legacyJSONStructs(file *ast.File) map[string]bool {
 	result := make(map[string]bool)
 	for _, declaration := range file.Decls {
@@ -49,6 +51,7 @@ func legacyJSONStructs(file *ast.File) map[string]bool {
 	return result
 }
 
+// expressionUsesNamedType reports whether an expression refers to a named type.
 func expressionUsesNamedType(expression ast.Expr, names map[string]bool) bool {
 	switch value := expression.(type) {
 	case *ast.Ident:
@@ -64,6 +67,7 @@ func expressionUsesNamedType(expression ast.Expr, names map[string]bool) bool {
 	}
 }
 
+// isLegacyRawType reports whether an expression denotes LegacyAnimeRaw.
 func isLegacyRawType(expression ast.Expr, aliases map[string]bool) bool {
 	switch value := expression.(type) {
 	case *ast.SelectorExpr:
@@ -80,6 +84,7 @@ func isLegacyRawType(expression ast.Expr, aliases map[string]bool) bool {
 	}
 }
 
+// legacyJSONTagCount counts legacy JSON field tags on a struct type.
 func legacyJSONTagCount(structure *ast.StructType) int {
 	count := 0
 	for _, field := range structure.Fields.List {

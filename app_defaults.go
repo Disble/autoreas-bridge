@@ -25,6 +25,7 @@ import (
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// defaultObservabilityEmit forwards an observability event to the Wails runtime.
 func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...interface{}) {
 	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
 		return
@@ -32,6 +33,7 @@ func defaultObservabilityEmit(ctx context.Context, eventName string, optionalDat
 	wruntime.EventsEmit(ctx, eventName, optionalData...)
 }
 
+// defaultNotifier builds the default notification dispatcher and adapters.
 func defaultNotifier(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
 	adapters := []notification.Adapter{
 		notification.NewUIToastAdapter(emit),
@@ -43,6 +45,7 @@ func defaultNotifier(emit func(ctx context.Context, eventName string, optionalDa
 	return notification.NewDispatcher(adapters...)
 }
 
+// defaultPairingTokenGenerator creates a cryptographically random pairing token.
 func defaultPairingTokenGenerator() (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
@@ -51,7 +54,16 @@ func defaultPairingTokenGenerator() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+// ensureRuntimeDependencies initializes all runtime dependency groups.
 func (a *App) ensureRuntimeDependencies() {
+	a.ensureAnimeRuntimeDependencies()
+	a.ensureSyncRuntimeDependencies()
+	a.ensureDesktopRuntimeDependencies()
+	a.ensureDownloadRuntimeDependencies()
+}
+
+// ensureAnimeRuntimeDependencies fills missing anime runtime dependencies.
+func (a *App) ensureAnimeRuntimeDependencies() {
 	if a.bootstrapBridgeDB == nil {
 		a.bootstrapBridgeDB = bridgeSync.BootstrapBridgeDB
 	}
@@ -98,9 +110,13 @@ func (a *App) ensureRuntimeDependencies() {
 			return anime.NewUpdateWriter(config)
 		}
 	}
+}
+
+// ensureSyncRuntimeDependencies fills missing sync runtime dependencies.
+func (a *App) ensureSyncRuntimeDependencies() {
 	if a.newChangelogStore == nil {
 		a.newChangelogStore = func(db *sql.DB) changelogPendingStore {
-			return bridgeSync.NewChangelogStore(bridgeSync.NewSyncSQLiteProvider(db))
+			return bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 		}
 	}
 	if a.newChangelogRecorder == nil {
@@ -134,7 +150,7 @@ func (a *App) ensureRuntimeDependencies() {
 		}
 	}
 	if a.newTrayManager == nil {
-		a.newTrayManager = func() tray.TrayManager {
+		a.newTrayManager = func() tray.Manager {
 			return nil
 		}
 	}
@@ -148,8 +164,12 @@ func (a *App) ensureRuntimeDependencies() {
 			return tracerbullet.NewStdoutSink()
 		}
 	}
+}
+
+// ensureDownloadRuntimeDependencies fills missing download runtime dependencies.
+func (a *App) ensureDownloadRuntimeDependencies() {
 	if a.newDownloadStore == nil {
-		a.newDownloadStore = func(db *sql.DB) download.DownloadStore {
+		a.newDownloadStore = func(db *sql.DB) download.Store {
 			return download.NewSQLiteStore(db)
 		}
 	}
@@ -168,6 +188,16 @@ func (a *App) ensureRuntimeDependencies() {
 			return schedule.NewScheduler(deps)
 		}
 	}
+}
+
+// ensureDesktopRuntimeDependencies fills missing desktop runtime dependencies.
+func (a *App) ensureDesktopRuntimeDependencies() {
+	a.ensureRuntimeFunctions()
+	a.ensureRuntimeObservability()
+}
+
+// ensureRuntimeFunctions fills missing Wails runtime function hooks.
+func (a *App) ensureRuntimeFunctions() {
 	if a.emitFn == nil {
 		a.emitFn = defaultObservabilityEmit
 	}
@@ -207,6 +237,10 @@ func (a *App) ensureRuntimeDependencies() {
 			})
 		}
 	}
+}
+
+// ensureRuntimeObservability initializes the shared logging and event bus services.
+func (a *App) ensureRuntimeObservability() {
 	if a.memLogger == nil {
 		a.memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{
 			Capacity: 500,

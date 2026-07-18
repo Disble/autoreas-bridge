@@ -9,6 +9,7 @@ import (
 	"autoreas-bridge/internal/anime/legacy"
 )
 
+// softDeletedFixturePayload builds a soft-deleted fixture payload.
 func softDeletedFixturePayload(t *testing.T, id, nombre string) []byte {
 	t.Helper()
 	payload := []byte(`{"_id":"` + id + `","nombre":"` + nombre + `","nrocapvisto":1,"activo":false,"fechaEliminacion":{"$$date":1700000000000}}`)
@@ -49,42 +50,9 @@ func TestRestoreBridgeNativeAnimesReactivatesAndRegistersBothKnownIDs(t *testing
 	}
 
 	persisted := store.lastPersistedCurrent()
-	for i, id := range bridgeNativeRestoreIDs {
-		record, ok := persisted[id]
-		if !ok {
-			t.Fatalf("expected %q to be present after restore", id)
-		}
-		value := decodeAnimeDomainInternal(t, record.CanonicalJSON)
-		if value.Active != domain.TriStateTrue {
-			t.Fatalf("expected %q active after restore, got state %v", id, value.Active)
-		}
-		if value.DeletedAt != nil {
-			t.Fatalf("expected %q deletion date cleared after restore, got %v", id, value.DeletedAt)
-		}
-		wantPrevModifiedAt := int64(100)
-		if i == 1 {
-			wantPrevModifiedAt = 200
-		}
-		if record.ModifiedAt <= wantPrevModifiedAt {
-			t.Fatalf("expected %q ModifiedAt to bump above %d, got %d", id, wantPrevModifiedAt, record.ModifiedAt)
-		}
-	}
-
-	registered := registry.registeredIDs()
-	if len(registered) != 2 {
-		t.Fatalf("expected both ids registered as Bridge-native, got %v", registered)
-	}
-	for _, id := range bridgeNativeRestoreIDs {
-		found := false
-		for _, r := range registered {
-			if r == id {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("expected %q to be registered, got %v", id, registered)
-		}
-	}
+	assertRestoredBridgeNativeRecord(t, persisted, bridgeNativeRestoreIDs[0], 100)
+	assertRestoredBridgeNativeRecord(t, persisted, bridgeNativeRestoreIDs[1], 200)
+	assertRegisteredBridgeNativeIDs(t, registry.registeredIDs(), bridgeNativeRestoreIDs[:])
 
 	flag, err := settings.Get(ctx, bridgeNativeRestoreDoneKey)
 	if err != nil {
@@ -93,6 +61,49 @@ func TestRestoreBridgeNativeAnimesReactivatesAndRegistersBothKnownIDs(t *testing
 	if flag != "true" {
 		t.Fatalf("expected restore-done flag to be set to true, got %q", flag)
 	}
+}
+
+// assertRestoredBridgeNativeRecord verifies a restored snapshot record.
+func assertRestoredBridgeNativeRecord(t *testing.T, persisted map[string]SnapshotRecord, id string, wantPrevModifiedAt int64) {
+	t.Helper()
+	record, ok := persisted[id]
+	if !ok {
+		t.Fatalf("expected %q to be present after restore", id)
+	}
+	value := decodeAnimeDomainInternal(t, record.CanonicalJSON)
+	if value.Active != domain.TriStateTrue {
+		t.Fatalf("expected %q active after restore, got state %v", id, value.Active)
+	}
+	if value.DeletedAt != nil {
+		t.Fatalf("expected %q deletion date cleared after restore, got %v", id, value.DeletedAt)
+	}
+	if record.ModifiedAt <= wantPrevModifiedAt {
+		t.Fatalf("expected %q ModifiedAt to bump above %d, got %d", id, wantPrevModifiedAt, record.ModifiedAt)
+	}
+}
+
+// assertRegisteredBridgeNativeIDs verifies restored ownership registrations.
+func assertRegisteredBridgeNativeIDs(t *testing.T, registered []string, wantIDs []string) {
+	t.Helper()
+	if len(registered) != len(wantIDs) {
+		t.Fatalf("expected both ids registered as Bridge-native, got %v", registered)
+	}
+	for _, id := range wantIDs {
+		if containsString(registered, id) {
+			continue
+		}
+		t.Fatalf("expected %q to be registered, got %v", id, registered)
+	}
+}
+
+// containsString reports whether a string is present in a slice.
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 // TestRestoreBridgeNativeAnimesIsIdempotentOnSecondRun covers the one-shot
@@ -222,6 +233,7 @@ type fakeFlagStore struct {
 	values map[string]string
 }
 
+// newFakeFlagStore creates the flag store used by restore tests.
 func newFakeFlagStore() *fakeFlagStore {
 	return &fakeFlagStore{values: make(map[string]string)}
 }

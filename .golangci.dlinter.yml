@@ -1,0 +1,115 @@
+# dlinter-go v0.3.1 — the "advanced" lint profile.
+#
+# Run via: scripts/lint.ps1 -Profile advanced   (or -Profile all)
+# That script builds ./.tools/bin/dlinter-gcl from .custom-gcl.yml and runs it
+# with THIS config. Plain golangci-lint cannot read this file: the `dlinter`
+# linter only exists inside the custom binary.
+#
+# Split of responsibility with .golangci.yml (the "base" profile):
+#   base     — errcheck/govet/ineffassign/staticcheck/unused + depguard.
+#              depguard denies specific EXTERNAL packages per layer (net/http,
+#              database/sql, wails), which dlinter cannot express.
+#   advanced — this file: dlinter's role graph + the discipline harness.
+#              dlinter constrains only this module's own import graph.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - dlinter # architecture (mayDependOn) + docs on unexported (requireDoc)
+    - revive # docs on the exported surface, package comments, file size
+    - godoclint # doc comments that exist are well-formed
+    - dupl # duplicated code fragments
+    - gocognit # cognitive complexity per function
+    - funlen # function length
+    - nestif # nesting depth
+    - nolintlint # every //nolint names its linter and explains itself
+
+  exclusions:
+    paths:
+      # Vendored third-party Go shipped inside a JS dependency. Not our code
+      # and never edited here; every complexity finding in this repo came from
+      # it.
+      - frontend/node_modules
+    rules:
+      # Calibrated on this repo: funlen fired 26 times and 23 (88%) were tests;
+      # dupl split 11/11. Long test functions and repeated fixture scaffolding
+      # are idiomatic Go, not design smells. gocognit and nestif deliberately
+      # still apply to tests — a test whose control flow is hard to follow
+      # cannot be trusted as a specification.
+      - path: _test\.go
+        linters:
+          - funlen
+          - dupl
+
+  settings:
+    dupl:
+      threshold: 100
+
+    funlen:
+      lines: 60
+      statements: 40
+      # Opposite of file-length-limit's choice, deliberately: comments INSIDE a
+      # function are what a good decomposition adds, so do not penalize them.
+      ignore-comments: true
+
+    gocognit:
+      # Cognitive complexity has no escape by relocation -- moving code does
+      # not lower a function's score. The only way out is real decomposition.
+      min-complexity: 15
+
+    nestif:
+      # Independent of gocognit: a SHORT function with a 4-level pyramid scores
+      # ~10 on gocognit and slips under it. Deep nesting is the clearest
+      # signature of generated spaghetti.
+      min-complexity: 4
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+      allow-no-explanation: []
+
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: file-length-limit
+          arguments:
+            - max: 400
+              # Comments are NOT counted: requireDoc makes a doc comment
+              # mandatory on every unexported func, so counting them would
+              # punish compliance. File size measures CODE mass.
+              skipComments: true
+              skipBlankLines: false
+
+    custom:
+      dlinter:
+        type: module
+        description: package-role / import-direction contracts (hexagonal)
+        settings:
+          # requireDoc reports unexported funcs/methods with no doc comment.
+          # ON by default in dlinter-go v0.3.0+. Currently ~1060 findings here;
+          # set to false to defer, or scope it with an exclusions rule above.
+          requireDoc: true
+          # Roles validated green against this codebase. Packages with no role
+          # are ignored, as are stdlib and external imports — these rules
+          # constrain only this module's own import graph. Expand as more of
+          # the hexagon is formalized.
+          roles:
+            contracts:
+              packages:
+                - internal/api/contracts/
+              mayDependOn: []
+            domain:
+              packages:
+                - internal/anime/domain/
+                - internal/season/domain/
+              mayDependOn:
+                - contracts
+            handler:
+              packages:
+                - internal/api/handlers/
+              mayDependOn:
+                - domain
+                - contracts

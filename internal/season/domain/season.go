@@ -11,7 +11,9 @@ import (
 type Status string
 
 const (
-	StatusOpen   Status = "open"
+	// StatusOpen means the season is still editable and active.
+	StatusOpen Status = "open"
+	// StatusClosed means the season reached its terminal state.
 	StatusClosed Status = "closed"
 )
 

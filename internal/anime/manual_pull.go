@@ -10,10 +10,12 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// LegacyPullService triggers a one-shot refresh from the legacy snapshot source.
 type LegacyPullService interface {
 	Pull(ctx context.Context) contracts.AnimeLegacyPullResult
 }
 
+// LegacyPullServiceConfig wires the dependencies required by LegacyPullService.
 type LegacyPullServiceConfig struct {
 	FilePath     string
 	Parser       SnapshotParser
@@ -40,6 +42,7 @@ type legacyPullService struct {
 	running      atomic.Bool
 }
 
+// NewLegacyPullService builds the one-shot legacy pull service.
 func NewLegacyPullService(config LegacyPullServiceConfig) LegacyPullService {
 	service := &legacyPullService{
 		filePath:     config.FilePath,
@@ -94,6 +97,8 @@ func (s *legacyPullService) Pull(ctx context.Context) contracts.AnimeLegacyPullR
 	}
 }
 
+// buildLegacyPullMessage formats a human-readable summary of the numbers of updated
+// and pruned entries from a legacy pull operation.
 func buildLegacyPullMessage(updatedCount int, prunedCount int) string {
 	if updatedCount == 0 && prunedCount == 0 {
 		return "Bridge is already up to date with legacy."
@@ -114,6 +119,7 @@ func buildLegacyPullMessage(updatedCount int, prunedCount int) string {
 	return fmt.Sprintf("Pulled %s and %s from legacy.", parts[0], parts[1])
 }
 
+// formatLegacyPullCount pluralises a count-and-noun pair for use in pull result messages.
 func formatLegacyPullCount(count int, noun string) string {
 	if count == 1 {
 		return fmt.Sprintf("1 %s", noun)

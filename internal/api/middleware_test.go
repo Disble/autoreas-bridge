@@ -83,47 +83,23 @@ func TestRequestLoggingMiddlewareLogsMethodPathStatusDuration(t *testing.T) {
 
 func TestRequestLoggingMiddlewareLogsWarnFor4xx(t *testing.T) {
 	t.Parallel()
-
-	logger := &recordingAPILogger{}
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	})
-	handler := RequestLoggingMiddleware(inner, logger)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/animes/missing", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	entries := logger.entries()
-	entry := findEntryByDomain(entries, "api")
-	if entry == nil {
-		t.Fatal("expected log entry with domain 'api'")
-	}
-	if entry.Level != sharedlogger.LevelWarn {
-		t.Fatalf("expected level %q for 404 response, got %q", sharedlogger.LevelWarn, entry.Level)
-	}
+	assertRequestLogLevel(t, http.MethodGet, "/api/animes/missing", http.StatusNotFound, sharedlogger.LevelWarn)
 }
 
 func TestRequestLoggingMiddlewareLogsErrorFor5xx(t *testing.T) {
 	t.Parallel()
+	assertRequestLogLevel(t, http.MethodPost, "/api/sync/reconcile", http.StatusInternalServerError, sharedlogger.LevelError)
+}
 
+// assertRequestLogLevel verifies the log level emitted for an HTTP response.
+func assertRequestLogLevel(t *testing.T, method, path string, status int, want string) {
+	t.Helper()
 	logger := &recordingAPILogger{}
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	})
-	handler := RequestLoggingMiddleware(inner, logger)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	entries := logger.entries()
-	entry := findEntryByDomain(entries, "api")
-	if entry == nil {
-		t.Fatal("expected log entry with domain 'api'")
-	}
-	if entry.Level != sharedlogger.LevelError {
-		t.Fatalf("expected level %q for 500 response, got %q", sharedlogger.LevelError, entry.Level)
+	handler := RequestLoggingMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) }), logger)
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(method, path, nil))
+	entry := findEntryByDomain(logger.entries(), "api")
+	if entry == nil || entry.Level != want {
+		t.Fatalf("expected api log level %q for status %d, got %#v", want, status, entry)
 	}
 }
 

@@ -143,6 +143,7 @@ func TestSQLiteAnimeSnapshotStoreGetSnapshotReturnsNotFound(t *testing.T) {
 	}
 }
 
+// openTestBridgeDB opens the SQLite database used by snapshot tests.
 func openTestBridgeDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -151,9 +152,7 @@ func openTestBridgeDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("open test bridge db: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
+	t.Cleanup(func() { closeTestDB(t, db) })
 
 	return db
 }

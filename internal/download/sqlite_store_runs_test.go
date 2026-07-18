@@ -11,7 +11,7 @@ func TestSQLiteStoreOpenRunWritesProvisionalRunningStatus(t *testing.T) {
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	run := DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}
+	run := Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}
 	if err := store.OpenRun(ctx, run); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
@@ -30,10 +30,10 @@ func TestSQLiteStoreUpdateRunProgressRefreshesRunningCounters(t *testing.T) {
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	if err := store.OpenRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
+	if err := store.OpenRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
-	if err := store.UpdateRunProgress(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual", AnimesChecked: 2, EpisodesFound: 2, EpisodesDownloaded: 1, UpToDateCount: 3, JDAvailable: true, Status: "running"}); err != nil {
+	if err := store.UpdateRunProgress(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual", AnimesChecked: 2, EpisodesFound: 2, EpisodesDownloaded: 1, UpToDateCount: 3, JDAvailable: true, Status: "running"}); err != nil {
 		t.Fatalf("UpdateRunProgress: %v", err)
 	}
 	runs, err := store.ListRuns(ctx, 10)
@@ -54,11 +54,11 @@ func TestSQLiteStoreFinalizeRunSetsTerminalStatusAndFinishedAt(t *testing.T) {
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	if err := store.OpenRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
+	if err := store.OpenRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "manual"}); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	finishedAt := int64(500)
-	if err := store.FinalizeRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "manual", AnimesChecked: 3, EpisodesDownloaded: 2, Status: "ok"}); err != nil {
+	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "manual", AnimesChecked: 3, EpisodesDownloaded: 2, Status: "ok"}); err != nil {
 		t.Fatalf("FinalizeRun: %v", err)
 	}
 	runs, err := store.ListRuns(ctx, 10)
@@ -79,12 +79,12 @@ func TestSQLiteStoreFinalizeRunPersistsManualLinksForJDOffline(t *testing.T) {
 	db := openTestBridgeDB(t)
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
-	if err := store.OpenRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, Trigger: "scheduled"}); err != nil {
+	if err := store.OpenRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, Trigger: "scheduled"}); err != nil {
 		t.Fatalf("OpenRun: %v", err)
 	}
 	finishedAt := int64(200)
 	links := []ManualLink{{Anime: "Naruto", Episode: 5, Links: []string{"https://mediafire.example/ep5"}}}
-	if err := store.FinalizeRun(ctx, DownloadRun{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "jd_offline", ManualLinks: links}); err != nil {
+	if err := store.FinalizeRun(ctx, Run{RunID: "run-1", StartedAtMs: 100, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "jd_offline", ManualLinks: links}); err != nil {
 		t.Fatalf("FinalizeRun: %v", err)
 	}
 	runs, err := store.ListRuns(ctx, 10)
@@ -110,11 +110,11 @@ func TestSQLiteStoreListRunsOrdersMostRecentFirst(t *testing.T) {
 	ctx := context.Background()
 	for i, runID := range []string{"run-a", "run-b", "run-c"} {
 		startedAt := int64(100 * (i + 1))
-		if err := store.OpenRun(ctx, DownloadRun{RunID: runID, StartedAtMs: startedAt, Trigger: "manual"}); err != nil {
+		if err := store.OpenRun(ctx, Run{RunID: runID, StartedAtMs: startedAt, Trigger: "manual"}); err != nil {
 			t.Fatalf("OpenRun %s: %v", runID, err)
 		}
 		finishedAt := startedAt + 10
-		if err := store.FinalizeRun(ctx, DownloadRun{RunID: runID, StartedAtMs: startedAt, FinishedAtMs: &finishedAt, Trigger: "manual", Status: "ok"}); err != nil {
+		if err := store.FinalizeRun(ctx, Run{RunID: runID, StartedAtMs: startedAt, FinishedAtMs: &finishedAt, Trigger: "manual", Status: "ok"}); err != nil {
 			t.Fatalf("FinalizeRun %s: %v", runID, err)
 		}
 	}
@@ -136,11 +136,11 @@ func TestSQLiteStoreFinalizeRunPrunesToRetentionLimit(t *testing.T) {
 	for i := 0; i < total; i++ {
 		runID := runIDForIndex(i)
 		startedAt := int64(i + 1)
-		if err := store.OpenRun(ctx, DownloadRun{RunID: runID, StartedAtMs: startedAt, Trigger: "scheduled"}); err != nil {
+		if err := store.OpenRun(ctx, Run{RunID: runID, StartedAtMs: startedAt, Trigger: "scheduled"}); err != nil {
 			t.Fatalf("OpenRun %s: %v", runID, err)
 		}
 		finishedAt := startedAt + 1
-		if err := store.FinalizeRun(ctx, DownloadRun{RunID: runID, StartedAtMs: startedAt, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "ok"}); err != nil {
+		if err := store.FinalizeRun(ctx, Run{RunID: runID, StartedAtMs: startedAt, FinishedAtMs: &finishedAt, Trigger: "scheduled", Status: "ok"}); err != nil {
 			t.Fatalf("FinalizeRun %s: %v", runID, err)
 		}
 	}
