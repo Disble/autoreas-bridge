@@ -10,6 +10,7 @@
         "@heroui/react": "^3.2.2",
         "@heroui/styles": "^3.2.2",
         "@iconify-icons/solar": "^1.2.3",
+        "@iconify-icons/tabler": "^1.2.95",
         "@iconify/react": "^6.0.2",
         "@nivo/bar": "^0.99.0",
         "qrcode": "1.5.4",
@@ -187,6 +188,8 @@
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
     "@iconify-icons/solar": ["@iconify-icons/solar@1.2.3", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-yGLhu8oggEEGI63UG7y24+mzNytp+0pIc9+7AYRBlYzaQuThqVmAYj4d79Gif+pIrLfv+y+d0HFl9miQAPUj/Q=="],
+
+    "@iconify-icons/tabler": ["@iconify-icons/tabler@1.2.95", "", { "dependencies": { "@iconify/types": "*" } }, "sha512-d7bcyNs/AHWcdTwN+2/yohPeU0Kg5jvzt9JiLFnTnx9HYc54q2cU08rSEF0rIVHB5PEP9M8dTN/ZFxquAFCamw=="],
 
     "@iconify/react": ["@iconify/react@6.0.2", "", { "dependencies": { "@iconify/types": "^2.0.0" }, "peerDependencies": { "react": ">=16" } }, "sha512-SMmC2sactfpJD427WJEDN6PMyznTFMhByK9yLW0gOTtnjzzbsi/Ke/XqsumsavFPwNiXs8jSiYeZTmLCLwO+Fg=="],
 

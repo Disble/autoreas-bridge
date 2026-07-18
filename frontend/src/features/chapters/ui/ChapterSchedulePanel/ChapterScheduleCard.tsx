@@ -1,8 +1,8 @@
-import addCircleIcon from '@iconify-icons/solar/add-circle-broken';
+import plusIcon from '@iconify-icons/tabler/plus';
 import folderIcon from '@iconify-icons/solar/folder-open-bold-duotone';
 import linkIcon from '@iconify-icons/solar/link-round-bold-duotone';
 import menuIcon from '@iconify-icons/solar/menu-dots-bold';
-import minusCircleIcon from '@iconify-icons/solar/minus-circle-broken';
+import minusIcon from '@iconify-icons/tabler/minus';
 import { Icon } from '@iconify/react';
 import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
@@ -106,7 +106,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
               }}
               onPress={() => void adjustWatchedChapters(row.id, -1, row.modifiedAt)}
             >
-              <Icon icon={minusCircleIcon} className="size-5" />
+              <Icon icon={minusIcon} className="size-5" />
             </Button>
             <Button
               isIconOnly
@@ -120,7 +120,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
               }}
               onPress={() => void adjustWatchedChapters(row.id, 1, row.modifiedAt)}
             >
-              <Icon icon={addCircleIcon} className="size-5" />
+              <Icon icon={plusIcon} className="size-5" />
             </Button>
             <Modal>
               <Button isIconOnly aria-label={`Change status for ${row.name}. Current status: ${row.stateLabel}.`} className="hover:text-warning" size="sm" variant="tertiary">
