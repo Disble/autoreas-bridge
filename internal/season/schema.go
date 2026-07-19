@@ -1,6 +1,11 @@
 package season
 
-import "autoreas-bridge/internal/persistence"
+import (
+	"database/sql"
+	"fmt"
+
+	"autoreas-bridge/internal/persistence"
+)
 
 const (
 	seasonsDDL = `
@@ -34,7 +39,7 @@ const (
 			match_candidates_json TEXT,
 			availability TEXT NOT NULL DEFAULT 'waiting',
 			first_available_at INTEGER,
-			available_chapters INTEGER NOT NULL DEFAULT 0,
+			available_episodes INTEGER NOT NULL DEFAULT 0,
 			anime_id TEXT,
 			premiere_grade INTEGER,
 			grade_source TEXT,
@@ -63,9 +68,68 @@ const (
 	// SDD-41, never written before now).
 	seasonAnimesConsiderationDDL = `ALTER TABLE season_animes RENAME COLUMN consideracion TO consideration`
 
-	// SDD-43c added the available-chapter count surfaced by the availability watch.
-	seasonAnimesAvailableChaptersDDL = `ALTER TABLE season_animes ADD COLUMN available_chapters INTEGER NOT NULL DEFAULT 0`
+	// SDD-52 renamed the availability count column from the "chapter" calque to the
+	// domain term "episode". Existing installs (created SDD-43c+) carry
+	// available_chapters, so migrateSeasonAnimes RENAMEs it; an install that
+	// skip-jumped straight from pre-SDD-43c never had it, so that path ADDs
+	// available_episodes fresh instead (see migrateSeasonAnimes).
+	seasonAnimesAvailableEpisodesDDL      = `ALTER TABLE season_animes RENAME COLUMN available_chapters TO available_episodes`
+	seasonAnimesAvailableEpisodesFreshDDL = `ALTER TABLE season_animes ADD COLUMN available_episodes INTEGER NOT NULL DEFAULT 0`
 )
+
+// seasonAnimesColumnAdds are the additive, order-independent column migrations
+// applied to an existing season_animes table (each runs only when its Column is
+// absent). Kept as a package-level slice so migrateSeasonAnimes can reuse the
+// same probe-and-apply logic before handling the idiosyncratic episode column.
+var seasonAnimesColumnAdds = []persistence.ColumnMigration{
+	{Column: "premiere_grade", AlterDDL: seasonAnimesPremiereGradeDDL},
+	{Column: "grade_source", AlterDDL: seasonAnimesGradeSourceDDL},
+	{Column: "post_season_grade", AlterDDL: seasonAnimesPostSeasonGradeDDL},
+	{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
+	{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
+	{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
+}
+
+// migrateSeasonAnimes applies season_animes's additive column migrations, then
+// resolves the available_episodes column: RENAME available_chapters when
+// present (every install created SDD-43c..SDD-52 has it — the common case), or
+// a plain ADD when absent (an install that skip-jumped straight from
+// pre-SDD-43c and therefore never tracked an availability count at all). A
+// plain ColumnMigration probe can't express this "rename OR add" branch, so
+// season_animes uses the Migrate hook instead of ColumnAdds (SDD-52 D3).
+func migrateSeasonAnimes(db *sql.DB, cols []string) error {
+	for _, m := range seasonAnimesColumnAdds {
+		if columnPresent(cols, m.Column) {
+			continue
+		}
+		if _, err := db.Exec(m.AlterDDL); err != nil {
+			return fmt.Errorf("add column season_animes.%s: %w", m.Column, err)
+		}
+	}
+	if columnPresent(cols, "available_episodes") {
+		return nil
+	}
+	if columnPresent(cols, "available_chapters") {
+		if _, err := db.Exec(seasonAnimesAvailableEpisodesDDL); err != nil {
+			return fmt.Errorf("rename column season_animes.available_chapters: %w", err)
+		}
+		return nil
+	}
+	if _, err := db.Exec(seasonAnimesAvailableEpisodesFreshDDL); err != nil {
+		return fmt.Errorf("add column season_animes.available_episodes: %w", err)
+	}
+	return nil
+}
+
+// columnPresent reports whether target appears in cols.
+func columnPresent(cols []string, target string) bool {
+	for _, c := range cols {
+		if c == target {
+			return true
+		}
+	}
+	return false
+}
 
 // SchemaTables returns the season-owned bridge table descriptors for the sdd-34
 // schema registry. The DDL lives HERE (not in internal/sync) per the
@@ -86,16 +150,8 @@ func SchemaTables() []persistence.TableSchema {
 		{
 			Name:      "season_animes",
 			CreateDDL: seasonAnimesDDL,
-			ColumnAdds: []persistence.ColumnMigration{
-				{Column: "premiere_grade", AlterDDL: seasonAnimesPremiereGradeDDL},
-				{Column: "grade_source", AlterDDL: seasonAnimesGradeSourceDDL},
-				{Column: "post_season_grade", AlterDDL: seasonAnimesPostSeasonGradeDDL},
-				{Column: "rated_at", AlterDDL: seasonAnimesRatedAtDDL},
-				{Column: "skip_grading", AlterDDL: seasonAnimesSkipGradingDDL},
-				{Column: "consideration", AlterDDL: seasonAnimesConsiderationDDL},
-				{Column: "available_chapters", AlterDDL: seasonAnimesAvailableChaptersDDL},
-			},
-			Indexes: []string{seasonAnimesSeasonIndexDDL},
+			Migrate:   migrateSeasonAnimes,
+			Indexes:   []string{seasonAnimesSeasonIndexDDL},
 		},
 	}
 }
