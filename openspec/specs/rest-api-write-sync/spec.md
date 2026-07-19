@@ -10,7 +10,7 @@ Defines the requirements and behaviors for the `PATCH /api/animes/:id` and `POST
 
 The system MUST accept valid PATCH requests to update an anime, applying changes and stamping the server timestamp.
 
-#### Scenario: Valid update with fractional chapter
+#### Scenario: Valid update with fractional episode
 - GIVEN a valid bearer token AND an active anime
 - WHEN the client sends `PATCH /api/animes/:id` with `{"nrocapvisto": 0.5}`
 - THEN the system updates `nrocapvisto` to 0.5

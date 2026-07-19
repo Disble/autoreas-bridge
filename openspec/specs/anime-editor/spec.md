@@ -33,7 +33,7 @@ Provide a dedicated desktop Anime Editor workspace and one reusable ID-driven ed
 
 ### Requirement: Dedicated workspace and reusable deep-link editor
 
-The system MUST provide a dedicated **Anime Editor** section with a watching-first searchable and filterable list, and it MUST reuse the same ID-driven editor when Anime Detail launches **Edit anime**. Catalog MUST remain the complete local collection, History MUST remain a read-only activity log, and Chapters MUST remain the today-progress surface.
+The system MUST provide a dedicated **Anime Editor** section with a watching-first searchable and filterable list, and it MUST reuse the same ID-driven editor when Anime Detail launches **Edit anime**. Catalog MUST remain the complete local collection, History MUST remain a read-only activity log, and Episodes MUST remain the today-progress surface.
 
 #### Scenario: Workspace opens for rapid consecutive edits
 

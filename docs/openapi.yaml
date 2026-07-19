@@ -7,6 +7,10 @@ info:
     Used by mobile clients to pair, bootstrap local SQLite state, fetch incremental
     bridge changelogs, patch anime state, inspect bridge status, and receive real-time events.
 
+    2026-07-19 — SDD-52 API consumer impact: vocabulary-only bridge refactor.
+    No HTTP path, REST field, WebSocket message field, or payload shape changed.
+    ADR-007 legacy payload names such as `nrocapvisto` and `totalcap` remain byte-identical.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

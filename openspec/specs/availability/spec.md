@@ -15,16 +15,16 @@ the same durable write path as every other write, readable by Legacy.
 
 ### Requirement: Daily availability recheck
 
-The system SHALL, while a season is open, recheck chapter-1 availability for
+The system SHALL, while a season is open, recheck episode-1 availability for
 matched, still-waiting rows; a newly-available anime SHALL link to an existing
 active anime with the same page or be created into "Sin ver", advancing the
 row to created. The recheck SHALL be idempotent and SHALL NOT fail a whole run
 on a single scrape error.
 
-Additions over sdd-43: the recheck loop MUST ALSO refresh chapter availability
+Additions over sdd-43: the recheck loop MUST ALSO refresh episode availability
 for already-created rows that are still parked in the "Sin ver" Estrenos
 section, so a "Re-check now" press (or the scheduled recheck) keeps the Daily
-Board's Sin-ver chapter counts live instead of frozen at creation time.
+Board's Sin-ver episode counts live instead of frozen at creation time.
 
 1. **Widened eligibility.** A row with `Availability == created` becomes probe
    -eligible IF, and only if, its CURRENT Estrenos section — resolved via the
@@ -35,35 +35,35 @@ Board's Sin-ver chapter counts live instead of frozen at creation time.
    placements) MUST also be treated as ineligible (skipped), the same as an
    unresolvable row is today.
 2. **Scope of the write.** For a widened-eligible created row, the recheck
-   MUST update ONLY `AvailableChapters` from the probe result. It MUST NOT
+   MUST update ONLY `AvailableEpisodes` from the probe result. It MUST NOT
    change `Availability` (it stays `created`), `MatchStatus`, or `AnimeID` —
    those fields remain the exclusive concern of the creation/staging flows.
    This is a MUST, not an implementation detail: overwriting `Availability`
    away from `created` would silently drop the row out of the Daily Board
    (which only renders created rows) and could make it eligible again for
    `CreateSeasonAnimes`, a regression this requirement forbids.
-3. **Notification scope unchanged.** A widened-eligible created row's chapter
+3. **Notification scope unchanged.** A widened-eligible created row's episode
    refresh MUST NOT contribute to `RecheckResult.Available` (the newly
    -available-for-creation report that drives the aggregate "Available today"
    notification and download chain). That report continues to reflect ONLY
    matched, uncreated rows transitioning to available, exactly as sdd-43
-   specified — an already-created anime getting a new chapter is not a
+   specified — an already-created anime getting a new episode is not a
    creation-pending event.
 4. **No side effects beyond the count.** Refreshing a Sin-ver created row's
-   `AvailableChapters` MUST NOT create, link, or move any anime, and MUST NOT
+   `AvailableEpisodes` MUST NOT create, link, or move any anime, and MUST NOT
    fail the whole run if its probe call errors (the row is left unchanged and
    the loop continues) — identical error-swallowing semantics to the existing
    matched-row probe path.
 5. **Non-regression.** The existing eligibility and behavior for matched,
    uncreated rows (pending/ambiguous/not_found match rows excluded; matched
-   rows probed; `Availability`/`AvailableChapters` updated; `Available` report
+   rows probed; `Availability`/`AvailableEpisodes` updated; `Available` report
    populated only on new transitions) MUST remain exactly as sdd-43
    specified — the intake list's own recheck flow is untouched by this
    widening.
 
 #### Scenario: newly available anime is created
 
-- **WHEN** a waiting row's page now has chapter 1
+- **WHEN** a waiting row's page now has episode 1
 - **THEN** the anime is created into "Sin ver" and the row becomes created
 
 #### Scenario: rerun is a no-op
@@ -77,14 +77,14 @@ Board's Sin-ver chapter counts live instead of frozen at creation time.
 - **THEN** one aggregate "Available today" notification fires and a download run
   is triggered
 
-#### Scenario: Sin-ver created row's chapter count refreshes live
+#### Scenario: Sin-ver created row's episode count refreshes live
 
 - **GIVEN** a created row whose anime's current section (via
-  `AnimeGateway.CurrentPlacements`) is `"Sin ver"`, with `AvailableChapters`
+  `AnimeGateway.CurrentPlacements`) is `"Sin ver"`, with `AvailableEpisodes`
   frozen at 2 from creation time
-- **WHEN** `RecheckAvailability` runs and the probe now reports 5 chapters for
+- **WHEN** `RecheckAvailability` runs and the probe now reports 5 episodes for
   that row's page
-- **THEN** the row's `AvailableChapters` becomes 5, and `Availability`,
+- **THEN** the row's `AvailableEpisodes` becomes 5, and `Availability`,
   `MatchStatus`, and `AnimeID` are unchanged (still `created`)
 
 #### Scenario: Ver hoy created row is never probed
@@ -109,7 +109,7 @@ Board's Sin-ver chapter counts live instead of frozen at creation time.
 
 #### Scenario: a Sin-ver created row's refresh never triggers a new-availability report
 
-- **GIVEN** a Sin-ver created row whose `AvailableChapters` moves from 2 to 5
+- **GIVEN** a Sin-ver created row whose `AvailableEpisodes` moves from 2 to 5
   this run
 - **WHEN** `RecheckAvailability` returns its `RecheckResult`
 - **THEN** that row's name is NOT added to `RecheckResult.Available`
@@ -127,7 +127,7 @@ Board's Sin-ver chapter counts live instead of frozen at creation time.
   matched-waiting row, and a matched-available row, none of them created
 - **WHEN** `RecheckAvailability` runs
 - **THEN** only the matched rows are probed (pending/ambiguous/not_found are
-  skipped exactly as before), and their `Availability`/`AvailableChapters`
+  skipped exactly as before), and their `Availability`/`AvailableEpisodes`
   update exactly as sdd-43 specified
 
 ### Requirement: Stage animes across Estrenos sections
@@ -140,16 +140,16 @@ at-a-glance availability information the Intake list already shows for
 matched rows, using data already present on `SeasonAnimeRow` — no new field,
 no new Wails call.
 
-1. Each Sin-ver row MUST show its live "N chapter(s) available" text (matching
+1. Each Sin-ver row MUST show its live "N episode(s) available" text (matching
    `IntakePanel`'s existing wording and singular/plural rule) driven by
-   `row.availableChapters`.
+   `row.availableEpisodes`.
 2. Each Sin-ver row MUST show an open-page link icon pointing at
    `row.matchedSlug` when it is non-empty, mirroring `IntakePanel`'s pattern.
 3. This new derived/lookup logic MUST live in `daily-board.helpers.ts`
    (exported, JSDoc'd) and/or `use-daily-board.ts` — `DailyBoard.tsx` stays
    dumb UI per the frontend architecture constraints (no business logic in
    `.tsx`).
-4. Ver hoy and Visto row rendering is explicitly UNCHANGED: no chapter count,
+4. Ver hoy and Visto row rendering is explicitly UNCHANGED: no episode count,
    no link icon, no availability-dot semantics are added to those groups by
    this change.
 
@@ -158,19 +158,19 @@ no new Wails call.
 - **WHEN** the user stages a created anime into "Ver hoy"
 - **THEN** the anime's dias is set to `Ver hoy`
 
-#### Scenario: Sin-ver row shows live chapter count and open-page link
+#### Scenario: Sin-ver row shows live episode count and open-page link
 
-- **GIVEN** a Sin-ver row with `availableChapters: 5` and a non-empty
+- **GIVEN** a Sin-ver row with `availableEpisodes: 5` and a non-empty
   `matchedSlug`
 - **WHEN** the Daily Board renders
-- **THEN** the row shows "5 chapters available" text and an open-page link
+- **THEN** the row shows "5 episodes available" text and an open-page link
   icon pointing at `matchedSlug`
 
-#### Scenario: Sin-ver row singular chapter wording
+#### Scenario: Sin-ver row singular episode wording
 
-- **GIVEN** a Sin-ver row with `availableChapters: 1`
+- **GIVEN** a Sin-ver row with `availableEpisodes: 1`
 - **WHEN** the Daily Board renders
-- **THEN** the row shows "1 chapter available" (singular, no trailing "s")
+- **THEN** the row shows "1 episode available" (singular, no trailing "s")
 
 #### Scenario: Sin-ver row with no matched slug shows no link
 
@@ -181,7 +181,7 @@ no new Wails call.
 #### Scenario: Ver hoy / Visto rows are unaffected (non-regression)
 
 - **GIVEN** a Ver hoy row and a Visto row, each with a non-zero
-  `availableChapters` and a non-empty `matchedSlug`
+  `availableEpisodes` and a non-empty `matchedSlug`
 - **WHEN** the Daily Board renders
-- **THEN** neither row shows a chapter-count text or an open-page link icon —
+- **THEN** neither row shows an episode-count text or an open-page link icon —
   their rendering is byte-for-byte the same as before this change
