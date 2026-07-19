@@ -11,7 +11,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-func (a *App) OpenAnimePage(animeID string) contracts.ChapterCommandResult {
+func (a *App) OpenAnimePage(animeID string) contracts.EpisodeCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimePageOpened, pageValue, func(ctx context.Context, value string) error {
 		if err := anime.ValidatePageURL(value); err != nil {
 			return err
@@ -22,14 +22,14 @@ func (a *App) OpenAnimePage(animeID string) contracts.ChapterCommandResult {
 	})
 }
 
-func (a *App) CopyAnimePage(animeID string) contracts.ChapterCommandResult {
+func (a *App) CopyAnimePage(animeID string) contracts.EpisodeCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimePageCopied, pageValue, func(ctx context.Context, value string) error {
 		a.ensureRuntimeDependencies()
 		return a.copyText(ctx, value)
 	})
 }
 
-func (a *App) OpenAnimeFolder(animeID string) contracts.ChapterCommandResult {
+func (a *App) OpenAnimeFolder(animeID string) contracts.EpisodeCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimeFolderOpened, folderValue, func(_ context.Context, value string) error {
 		if err := anime.ValidateLocalFolder(value); err != nil {
 			return err
@@ -39,7 +39,7 @@ func (a *App) OpenAnimeFolder(animeID string) contracts.ChapterCommandResult {
 	})
 }
 
-func (a *App) CopyAnimeFolder(animeID string) contracts.ChapterCommandResult {
+func (a *App) CopyAnimeFolder(animeID string) contracts.EpisodeCommandResult {
 	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimeFolderCopied, folderValue, func(ctx context.Context, value string) error {
 		a.ensureRuntimeDependencies()
 		return a.copyText(ctx, value)
@@ -52,31 +52,31 @@ func (a *App) runAnimeDesktopAction(
 	actionType string,
 	valueFn func(contracts.MobileAnime) *string,
 	run func(context.Context, string) error,
-) contracts.ChapterCommandResult {
+) contracts.EpisodeCommandResult {
 	if a.animeQuery == nil {
-		return contracts.ChapterCommandResult{Status: "error", Message: "anime query service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "anime query service unavailable"}
 	}
 
 	current, err := a.animeQuery.GetMobileAnime(a.appContext(), animeID)
 	if err != nil {
-		return contracts.ChapterCommandResult{Status: "error", Message: err.Error()}
+		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
 
 	value := valueFn(*current)
 	if value == nil || strings.TrimSpace(*value) == "" {
-		return contracts.ChapterCommandResult{Status: "error", Message: "anime action value unavailable", AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "anime action value unavailable", AnimeID: animeID, AnimeName: current.Nombre}
 	}
 
 	if err := run(a.appContext(), *value); err != nil {
-		return contracts.ChapterCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
 	}
 
 	occurredAtMs := time.Now().UnixMilli()
 	if err := a.recordDesktopAnimeAction(*current, actionType, occurredAtMs); err != nil {
-		return contracts.ChapterCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
 	}
 
-	return contracts.ChapterCommandResult{
+	return contracts.EpisodeCommandResult{
 		Status:        "ok",
 		AnimeID:       animeID,
 		AnimeName:     current.Nombre,

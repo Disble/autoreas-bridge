@@ -10,16 +10,16 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-type stubChapterOutcomeWriter struct {
+type stubEpisodeOutcomeWriter struct {
 	result contracts.AnimePatchResult
 	err    error
 }
 
-func (s stubChapterOutcomeWriter) PatchAnime(context.Context, string, contracts.AnimePatch) (contracts.AnimePatchResult, error) {
+func (s stubEpisodeOutcomeWriter) PatchAnime(context.Context, string, contracts.AnimePatch) (contracts.AnimePatchResult, error) {
 	return s.result, s.err
 }
 
-func TestChapterServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *testing.T) {
+func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *testing.T) {
 	tests := []struct {
 		name         string
 		result       contracts.AnimePatchResult
@@ -50,9 +50,9 @@ func TestChapterServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 		t.Run(test.name, func(t *testing.T) {
 			store := openAnimeServiceTestStore(t)
 			seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":1,"activo":true}`, 1000)
-			activity := &stubChapterActivityRecorder{}
-			service := anime.NewChapterService(anime.ChapterServiceDeps{
-				Query: anime.NewQueryService(store), Writer: stubChapterOutcomeWriter{result: test.result}, Activity: activity,
+			activity := &stubEpisodeActivityRecorder{}
+			service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
+				Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{result: test.result}, Activity: activity,
 				Now: func() time.Time { return time.UnixMilli(1710000001111).UTC() },
 			})
 
@@ -70,20 +70,20 @@ func TestChapterServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 	}
 }
 
-func TestChapterServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *testing.T) {
+func TestEpisodeServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":1,"activo":true}`, 1000)
 	writeErr := errors.New("gateway unavailable")
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
-		Query: anime.NewQueryService(store), Writer: stubChapterOutcomeWriter{err: writeErr}, Activity: activity,
+	activity := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
+		Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{err: writeErr}, Activity: activity,
 	})
 
 	got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: int64Ptr(1000)})
 	if !errors.Is(err, writeErr) {
 		t.Fatalf("RepeatAnime error = %v, want %v", err, writeErr)
 	}
-	if got != (anime.ChapterCommandResult{}) {
+	if got != (anime.EpisodeCommandResult{}) {
 		t.Fatalf("failure result = %#v, want zero value", got)
 	}
 	if len(activity.records) != 0 {

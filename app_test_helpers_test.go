@@ -210,10 +210,10 @@ func (s *stubAppCoverResolver) Resolve(_ context.Context, animeID, portadaPath s
 }
 
 type stubAppChapterService struct {
-	schedule       []anime.ChapterScheduleItem
-	dayCounts      []anime.ChapterDayCount
+	schedule       []anime.EpisodeScheduleItem
+	dayCounts      []anime.EpisodeDayCount
 	lastDay        string
-	lastAdjust     anime.AdjustWatchedChaptersCommand
+	lastAdjust     anime.AdjustWatchedEpisodesCommand
 	lastState      anime.SetAnimeStateCommand
 	lastDays       anime.SetAnimeDaysCommand
 	lastSoftDelete anime.SoftDeleteAnimeCommand
@@ -222,50 +222,50 @@ type stubAppChapterService struct {
 	err            error
 }
 
-func (s *stubAppChapterService) ListChapterDayCounts(context.Context) ([]anime.ChapterDayCount, error) {
+func (s *stubAppChapterService) ListEpisodeDayCounts(context.Context) ([]anime.EpisodeDayCount, error) {
 	return s.dayCounts, s.err
 }
 
-func (s *stubAppChapterService) ListChapterSchedule(_ context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error) {
+func (s *stubAppChapterService) ListEpisodeSchedule(_ context.Context, query anime.EpisodeScheduleQuery) ([]anime.EpisodeScheduleItem, error) {
 	s.lastDay = query.Day
 	return s.schedule, s.err
 }
 
-func (s *stubAppChapterService) AdjustWatchedChapters(_ context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) AdjustWatchedEpisodes(_ context.Context, cmd anime.AdjustWatchedEpisodesCommand) (anime.EpisodeCommandResult, error) {
 	s.lastAdjust = cmd
-	return anime.ChapterCommandResult{
+	return anime.EpisodeCommandResult{
 		AnimeID:     cmd.AnimeID,
 		NroCapVisto: cmd.Delta,
 		Estado:      0,
 	}, s.err
 }
 
-func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.EpisodeCommandResult, error) {
 	s.lastState = cmd
-	return anime.ChapterCommandResult{
+	return anime.EpisodeCommandResult{
 		AnimeID: cmd.AnimeID,
 		Estado:  cmd.Estado,
 	}, s.err
 }
 
-func (s *stubAppChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
 	s.lastDays = cmd
-	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastSoftDelete = cmd
-	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastRestore = cmd
-	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error) {
+func (s *stubAppChapterService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastRepeat = cmd
-	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID}, s.err
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
 type recordingAppNotifier struct{ received []notification.Notification }

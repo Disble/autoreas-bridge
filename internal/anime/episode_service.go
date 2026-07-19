@@ -6,20 +6,19 @@ import (
 	"fmt"
 	"time"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/api/contracts"
 )
 
 const (
-	// ActivitySourceDesktop marks a desktop-initiated chapter action.
+	// ActivitySourceDesktop marks a desktop-initiated episode action.
 	ActivitySourceDesktop = "desktop"
-	// ActivitySourceMobile marks a mobile-initiated chapter action.
+	// ActivitySourceMobile marks a mobile-initiated episode action.
 	ActivitySourceMobile = "mobile"
-	// ActivitySourceSystem marks a system-initiated chapter action.
+	// ActivitySourceSystem marks a system-initiated episode action.
 	ActivitySourceSystem = "system"
-	// ActivitySourceLegacy marks a legacy-observed chapter action.
+	// ActivitySourceLegacy marks a legacy-observed episode action.
 	ActivitySourceLegacy = "legacy"
-	// ActivityActionChapterAdjusted marks a chapter progress mutation.
-	ActivityActionChapterAdjusted = "chapter_adjusted"
 	// ActivityActionAnimeStateSet marks an explicit anime state mutation.
 	ActivityActionAnimeStateSet = "anime_state_set"
 	// ActivityActionAnimeSoftDeleted marks an anime deactivation mutation.
@@ -36,26 +35,26 @@ const (
 	ActivityActionAnimeFolderOpened = "anime_folder_opened"
 	// ActivityActionAnimeFolderCopied marks a folder-copy desktop action.
 	ActivityActionAnimeFolderCopied = "anime_folder_copied"
-	defaultActivityCorrelationType  = "anime.chapter"
+	defaultActivityCorrelationType  = "anime.episode"
 )
 
 var (
-	// ErrInvalidChapterDelta reports a chapter delta outside the supported increments.
-	ErrInvalidChapterDelta = errors.New("invalid chapter delta")
-	// ErrChapterProgressBlocked reports chapter progress blocked by the current anime state.
-	ErrChapterProgressBlocked = errors.New("chapter progress is blocked by anime state")
-	// ErrChapterProgressBelowZero reports a chapter decrement below zero progress.
-	ErrChapterProgressBelowZero = errors.New("chapter progress cannot go below zero")
+	// ErrInvalidEpisodeDelta reports an episode delta outside the supported increments.
+	ErrInvalidEpisodeDelta = errors.New("invalid episode delta")
+	// ErrEpisodeProgressBlocked reports episode progress blocked by the current anime state.
+	ErrEpisodeProgressBlocked = errors.New("episode progress is blocked by anime state")
+	// ErrEpisodeProgressBelowZero reports an episode decrement below zero progress.
+	ErrEpisodeProgressBelowZero = errors.New("episode progress cannot go below zero")
 )
 
-// ChapterQuery loads the read models required by chapter mutations.
-type ChapterQuery interface {
+// EpisodeQuery loads the read models required by episode mutations.
+type EpisodeQuery interface {
 	GetMobileAnime(ctx context.Context, id string) (*contracts.MobileAnime, error)
 	ListMobileAnimes(ctx context.Context) ([]contracts.MobileAnime, error)
 }
 
-// ChapterWriter applies chapter-related anime patches.
-type ChapterWriter interface {
+// EpisodeWriter applies episode-related anime patches.
+type EpisodeWriter interface {
 	PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) (contracts.AnimePatchResult, error)
 }
 
@@ -64,21 +63,21 @@ type ActivityRecorder interface {
 	RecordActivity(ctx context.Context, record ActivityRecord) error
 }
 
-// ChapterServiceDeps wires the ports required by ChapterService.
-type ChapterServiceDeps struct {
-	Query    ChapterQuery
-	Writer   ChapterWriter
+// EpisodeServiceDeps wires the ports required by EpisodeService.
+type EpisodeServiceDeps struct {
+	Query    EpisodeQuery
+	Writer   EpisodeWriter
 	Activity ActivityRecorder
 	Now      func() time.Time
 }
 
-// ChapterScheduleQuery filters chapter schedule items by day/section.
-type ChapterScheduleQuery struct {
+// EpisodeScheduleQuery filters episode schedule items by day/section.
+type EpisodeScheduleQuery struct {
 	Day string
 }
 
-// ChapterScheduleItem is the read model returned by ListChapterSchedule.
-type ChapterScheduleItem struct {
+// EpisodeScheduleItem is the read model returned by ListEpisodeSchedule.
+type EpisodeScheduleItem struct {
 	AnimeID      string
 	AnimeName    string
 	Estado       int
@@ -94,16 +93,16 @@ type ChapterScheduleItem struct {
 	FirstWatched *int64
 }
 
-// ChapterService owns chapter progress and related lifecycle mutations.
-type ChapterService struct {
-	query    ChapterQuery
-	writer   ChapterWriter
+// EpisodeService owns episode progress and related lifecycle mutations.
+type EpisodeService struct {
+	query    EpisodeQuery
+	writer   EpisodeWriter
 	activity ActivityRecorder
 	now      func() time.Time
 }
 
-// AdjustWatchedChaptersCommand increments or decrements watched progress.
-type AdjustWatchedChaptersCommand struct {
+// AdjustWatchedEpisodesCommand increments or decrements watched progress.
+type AdjustWatchedEpisodesCommand struct {
 	AnimeID string
 	Delta   float64
 	Base    *int64
@@ -149,8 +148,8 @@ type RepeatAnimeCommand struct {
 	Source  string
 }
 
-// ChapterCommandResult returns the semantic outcome of one chapter mutation.
-type ChapterCommandResult struct {
+// EpisodeCommandResult returns the semantic outcome of one episode mutation.
+type EpisodeCommandResult struct {
 	AnimeID       string
 	Outcome       PatchOutcome
 	ModifiedAt    int64
@@ -181,13 +180,13 @@ type ActivityAnimeSnapshot struct {
 	Activo      int
 }
 
-// NewChapterService builds a ChapterService with default clock behavior.
-func NewChapterService(deps ChapterServiceDeps) *ChapterService {
+// NewEpisodeService builds an EpisodeService with default clock behavior.
+func NewEpisodeService(deps EpisodeServiceDeps) *EpisodeService {
 	now := deps.Now
 	if now == nil {
 		now = time.Now
 	}
-	return &ChapterService{
+	return &EpisodeService{
 		query:    deps.Query,
 		writer:   deps.Writer,
 		activity: deps.Activity,
@@ -195,42 +194,42 @@ func NewChapterService(deps ChapterServiceDeps) *ChapterService {
 	}
 }
 
-// AdjustWatchedChapters updates watched progress using the supported +/- 1 and +/- 0.5 steps.
-func (s *ChapterService) AdjustWatchedChapters(ctx context.Context, cmd AdjustWatchedChaptersCommand) (ChapterCommandResult, error) {
-	if !isAllowedChapterDelta(cmd.Delta) {
-		return ChapterCommandResult{}, ErrInvalidChapterDelta
+// AdjustWatchedEpisodes updates watched progress using the supported +/- 1 and +/- 0.5 steps.
+func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWatchedEpisodesCommand) (EpisodeCommandResult, error) {
+	if !isAllowedEpisodeDelta(cmd.Delta) {
+		return EpisodeCommandResult{}, ErrInvalidEpisodeDelta
 	}
 
 	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 	if current.Estado > 0 {
-		return ChapterCommandResult{}, ErrChapterProgressBlocked
+		return EpisodeCommandResult{}, ErrEpisodeProgressBlocked
 	}
 
 	nextProgress := current.NroCapVisto + cmd.Delta
 	if nextProgress < 0 {
-		return ChapterCommandResult{}, ErrChapterProgressBelowZero
+		return EpisodeCommandResult{}, ErrEpisodeProgressBelowZero
 	}
 
 	occurredAtMs := s.now().UnixMilli()
-	patchResult, err := s.writer.PatchAnime(ctx, cmd.AnimeID, buildChapterProgressPatch(current, nextProgress, occurredAtMs, cmd.Base))
+	patchResult, err := s.writer.PatchAnime(ctx, cmd.AnimeID, buildEpisodeProgressPatch(current, nextProgress, occurredAtMs, cmd.Base))
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 
 	source := defaultActivitySource(cmd.Source)
 	correlationID := activityCorrelationID(cmd.AnimeID, occurredAtMs)
-	if err := s.recordChapterAdjustment(ctx, patchResult.Outcome, current, cmd.AnimeID, source, correlationID, occurredAtMs, nextProgress); err != nil {
-		return ChapterCommandResult{}, err
+	if err := s.recordEpisodeAdjustment(ctx, patchResult.Outcome, current, cmd.AnimeID, source, correlationID, occurredAtMs, nextProgress); err != nil {
+		return EpisodeCommandResult{}, err
 	}
 
-	return chapterCommandResult(patchResult, current.Nombre, current.Estado, nextProgress, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Nombre, current.Estado, nextProgress, occurredAtMs, correlationID), nil
 }
 
-// buildChapterProgressPatch creates the anime patch for a chapter progress adjustment.
-func buildChapterProgressPatch(current *contracts.MobileAnime, nextProgress float64, occurredAtMs int64, base *int64) contracts.AnimePatch {
+// buildEpisodeProgressPatch creates the anime patch for an episode progress adjustment.
+func buildEpisodeProgressPatch(current *contracts.MobileAnime, nextProgress float64, occurredAtMs int64, base *int64) contracts.AnimePatch {
 	patch := contracts.AnimePatch{
 		NroCapVisto:      &nextProgress,
 		FechaUltCapVisto: &occurredAtMs,
@@ -250,19 +249,19 @@ func defaultActivitySource(source string) string {
 	return source
 }
 
-// activityCorrelationID builds the correlation identifier for a chapter activity.
+// activityCorrelationID builds the correlation identifier for an episode activity.
 func activityCorrelationID(animeID string, occurredAtMs int64) string {
 	return fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, animeID, occurredAtMs)
 }
 
-// recordChapterAdjustment records an applied chapter progress adjustment as activity.
-func (s *ChapterService) recordChapterAdjustment(ctx context.Context, outcome contracts.AnimePatchOutcome, current *contracts.MobileAnime, animeID string, source string, correlationID string, occurredAtMs int64, nextProgress float64) error {
+// recordEpisodeAdjustment records an applied episode progress adjustment as activity.
+func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, outcome contracts.AnimePatchOutcome, current *contracts.MobileAnime, animeID string, source string, correlationID string, occurredAtMs int64, nextProgress float64) error {
 	if s.activity == nil || outcome != contracts.AnimePatchOutcomeApplied {
 		return nil
 	}
 	return s.activity.RecordActivity(ctx, ActivityRecord{
 		Source:        source,
-		ActionType:    ActivityActionChapterAdjusted,
+		ActionType:    activity.ActionEpisodeAdjusted,
 		AnimeID:       animeID,
 		AnimeName:     current.Nombre,
 		OccurredAtMs:  occurredAtMs,
@@ -280,24 +279,24 @@ func (s *ChapterService) recordChapterAdjustment(ctx context.Context, outcome co
 	})
 }
 
-// chapterCommandResult builds the command result for a chapter patch.
-func chapterCommandResult(
+// episodeCommandResult builds the command result for an episode patch.
+func episodeCommandResult(
 	patch contracts.AnimePatchResult,
 	animeName string,
 	estado int,
 	progress float64,
 	occurredAtMs int64,
 	correlationID string,
-) ChapterCommandResult {
-	return ChapterCommandResult{
+) EpisodeCommandResult {
+	return EpisodeCommandResult{
 		AnimeID: patch.AnimeID, Outcome: patch.Outcome, ModifiedAt: patch.ModifiedAt, ConflictID: patch.ConflictID,
 		AnimeName: animeName, Estado: estado, NroCapVisto: progress,
 		OccurredAtMs: occurredAtMs, CorrelationID: correlationID,
 	}
 }
 
-// isAllowedChapterDelta reports whether a chapter adjustment uses a supported increment.
-func isAllowedChapterDelta(delta float64) bool {
+// isAllowedEpisodeDelta reports whether an episode adjustment uses a supported increment.
+func isAllowedEpisodeDelta(delta float64) bool {
 	return delta == 1 || delta == -1 || delta == 0.5 || delta == -0.5
 }
 

@@ -215,11 +215,11 @@ type SendToVerHoyDTO struct {
 // has already passed for today (PastDownloadTime), it notifies the user and the UI
 // offers a manual download so they still have episodes to watch today.
 func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
-	if a.chapterService == nil {
+	if a.episodeService == nil {
 		return SendToVerHoyDTO{Status: "chapter service unavailable"}
 	}
 	for _, id := range animeIDs {
-		result, err := a.chapterService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
+		result, err := a.episodeService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{
 			AnimeID: id,
 			Dias:    []string{"Ver hoy"},
 		})

@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
 )
 
-func TestChapterServiceAdjustWatchedChaptersWritesProgressAndRecordsActivity(t *testing.T) {
+func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -25,29 +26,29 @@ func TestChapterServiceAdjustWatchedChaptersWritesProgressAndRecordsActivity(t *
 	writer := &stubAnimeWriter{}
 	writeService := anime.NewWriteService(store, writer)
 	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	activityRecorder := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
-		Activity: activity,
+		Activity: activityRecorder,
 		Now:      func() time.Time { return time.UnixMilli(1710000000123).UTC() },
 	})
 
-	result, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+	result, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   0.5,
 		Base:    int64Ptr(1000),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {
-		t.Fatalf("adjust watched chapters: %v", err)
+		t.Fatalf("adjust watched episodes: %v", err)
 	}
 
-	assertChapterAdjustmentResult(t, result, writer, activity)
+	assertEpisodeAdjustmentResult(t, result, writer, activityRecorder)
 }
 
-// assertChapterAdjustmentResult verifies the chapter adjustment outcome.
-func assertChapterAdjustmentResult(t *testing.T, result anime.ChapterCommandResult, writer *stubAnimeWriter, activity *stubChapterActivityRecorder) {
+// assertEpisodeAdjustmentResult verifies the episode adjustment outcome.
+func assertEpisodeAdjustmentResult(t *testing.T, result anime.EpisodeCommandResult, writer *stubAnimeWriter, activityRecorder *stubEpisodeActivityRecorder) {
 	t.Helper()
 	if result.NroCapVisto != 3 {
 		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
@@ -56,16 +57,16 @@ func assertChapterAdjustmentResult(t *testing.T, result anime.ChapterCommandResu
 	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 || value.PremieredAt == nil || value.PremieredAt.UnixMilli() != 1710000000123 {
 		t.Fatalf("expected writer to persist progress and timestamps, got %#v", value)
 	}
-	if len(activity.records) != 1 {
-		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	if len(activityRecorder.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activityRecorder.records))
 	}
-	record := activity.records[0]
-	if record.ActionType != anime.ActivityActionChapterAdjusted || record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" || record.Source != anime.ActivitySourceDesktop || record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
+	record := activityRecorder.records[0]
+	if record.ActionType != activity.ActionEpisodeAdjusted || record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" || record.Source != anime.ActivitySourceDesktop || record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
 		t.Fatalf("unexpected adjustment record: %#v", record)
 	}
 }
 
-func TestChapterServiceAdjustWatchedChaptersRejectsBlockedStates(t *testing.T) {
+func TestEpisodeServiceAdjustWatchedEpisodesRejectsBlockedStates(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -77,17 +78,17 @@ func TestChapterServiceAdjustWatchedChaptersRejectsBlockedStates(t *testing.T) {
 	)
 
 	writer := &stubAnimeWriter{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
 	})
 
-	_, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+	_, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   1,
 		Base:    int64Ptr(1000),
 	})
-	if !errors.Is(err, anime.ErrChapterProgressBlocked) {
+	if !errors.Is(err, anime.ErrEpisodeProgressBlocked) {
 		t.Fatalf("expected blocked progress error, got %v", err)
 	}
 	if writer.payload != nil {
@@ -95,7 +96,7 @@ func TestChapterServiceAdjustWatchedChaptersRejectsBlockedStates(t *testing.T) {
 	}
 }
 
-func TestChapterServiceAdjustWatchedChaptersRejectsNegativeProgress(t *testing.T) {
+func TestEpisodeServiceAdjustWatchedEpisodesRejectsNegativeProgress(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -107,17 +108,17 @@ func TestChapterServiceAdjustWatchedChaptersRejectsNegativeProgress(t *testing.T
 	)
 
 	writer := &stubAnimeWriter{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
 	})
 
-	_, err := service.AdjustWatchedChapters(ctx, anime.AdjustWatchedChaptersCommand{
+	_, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   -0.5,
 		Base:    int64Ptr(1000),
 	})
-	if !errors.Is(err, anime.ErrChapterProgressBelowZero) {
+	if !errors.Is(err, anime.ErrEpisodeProgressBelowZero) {
 		t.Fatalf("expected below-zero progress error, got %v", err)
 	}
 	if writer.payload != nil {
@@ -125,7 +126,7 @@ func TestChapterServiceAdjustWatchedChaptersRejectsNegativeProgress(t *testing.T
 	}
 }
 
-func TestChapterServiceSetAnimeDaysWritesDias(t *testing.T) {
+func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -137,7 +138,7 @@ func TestChapterServiceSetAnimeDaysWritesDias(t *testing.T) {
 	)
 
 	writer := &stubAnimeWriter{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
 		Now:    func() time.Time { return time.UnixMilli(1710000000456).UTC() },
@@ -158,7 +159,7 @@ func TestChapterServiceSetAnimeDaysWritesDias(t *testing.T) {
 	}
 }
 
-func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) {
+func TestEpisodeServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -171,11 +172,11 @@ func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 
 	writer := &stubAnimeWriter{}
 	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	activityRecorder := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
-		Activity: activity,
+		Activity: activityRecorder,
 		Now:      func() time.Time { return time.UnixMilli(1710000000456).UTC() },
 	})
 
@@ -197,10 +198,10 @@ func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 		t.Fatalf("expected writer payload state 3, got %#v", value.Status)
 	}
 
-	if len(activity.records) != 1 {
-		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	if len(activityRecorder.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activityRecorder.records))
 	}
-	record := activity.records[0]
+	record := activityRecorder.records[0]
 	if record.ActionType != anime.ActivityActionAnimeStateSet {
 		t.Fatalf("expected state-set activity, got %q", record.ActionType)
 	}
@@ -209,7 +210,7 @@ func TestChapterServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 	}
 }
 
-func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivity(t *testing.T) {
+func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -222,11 +223,11 @@ func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 
 	writer := &stubAnimeWriter{}
 	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	activityRecorder := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
-		Activity: activity,
+		Activity: activityRecorder,
 		Now:      func() time.Time { return time.UnixMilli(1710000000789).UTC() },
 	})
 
@@ -254,10 +255,10 @@ func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 		t.Fatalf("expected soft delete not to stamp last watched time, got %v", value.LastWatchedAt)
 	}
 
-	if len(activity.records) != 1 {
-		t.Fatalf("expected 1 activity record, got %d", len(activity.records))
+	if len(activityRecorder.records) != 1 {
+		t.Fatalf("expected 1 activity record, got %d", len(activityRecorder.records))
 	}
-	record := activity.records[0]
+	record := activityRecorder.records[0]
 	if record.ActionType != anime.ActivityActionAnimeSoftDeleted {
 		t.Fatalf("expected soft-delete activity, got %q", record.ActionType)
 	}
@@ -266,7 +267,7 @@ func TestChapterServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 	}
 }
 
-func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testing.T) {
+func TestEpisodeServiceListEpisodeScheduleFiltersActiveAnimeByDayOrder(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-late", `{"_id":"anime-late","nombre":"Late","nrocapvisto":1,"estado":0,"activo":true,"dias":[{"dia":"Viernes","orden":3}]}`)
@@ -274,13 +275,13 @@ func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testin
 	seedAnimeSnapshot(t, store, "anime-other-day", `{"_id":"anime-other-day","nombre":"Other","nrocapvisto":3,"estado":0,"activo":true,"dias":[{"dia":"Jueves","orden":1}]}`)
 	seedAnimeSnapshot(t, store, "anime-inactive", `{"_id":"anime-inactive","nombre":"Inactive","nrocapvisto":4,"estado":0,"activo":false,"dias":[{"dia":"Viernes","orden":0}]}`)
 
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query: anime.NewQueryService(store),
 	})
 
-	got, err := service.ListChapterSchedule(ctx, anime.ChapterScheduleQuery{Day: "Viernes"})
+	got, err := service.ListEpisodeSchedule(ctx, anime.EpisodeScheduleQuery{Day: "Viernes"})
 	if err != nil {
-		t.Fatalf("list chapter schedule: %v", err)
+		t.Fatalf("list episode schedule: %v", err)
 	}
 
 	gotIDs := make([]string, 0, len(got))
@@ -296,7 +297,7 @@ func TestChapterServiceListChapterScheduleFiltersActiveAnimeByDayOrder(t *testin
 	}
 }
 
-func TestChapterServiceListChapterScheduleExposesLiteralFolderPageAndHasCover(t *testing.T) {
+func TestEpisodeServiceListEpisodeScheduleExposesLiteralFolderPageAndHasCover(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-cover",
@@ -311,14 +312,14 @@ func TestChapterServiceListChapterScheduleExposesLiteralFolderPageAndHasCover(t 
 		`{"_id":"anime-null-portada","nombre":"NullPortada","nrocapvisto":1,"estado":0,"activo":true,`+
 			`"dias":[{"dia":"Lunes","orden":3}],"portada":{"type":"image","path":"null"}}`)
 
-	service := anime.NewChapterService(anime.ChapterServiceDeps{Query: anime.NewQueryService(store)})
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 
-	got, err := service.ListChapterSchedule(ctx, anime.ChapterScheduleQuery{Day: "Lunes"})
+	got, err := service.ListEpisodeSchedule(ctx, anime.EpisodeScheduleQuery{Day: "Lunes"})
 	if err != nil {
-		t.Fatalf("list chapter schedule: %v", err)
+		t.Fatalf("list episode schedule: %v", err)
 	}
 
-	byID := make(map[string]anime.ChapterScheduleItem, len(got))
+	byID := make(map[string]anime.EpisodeScheduleItem, len(got))
 	for _, item := range got {
 		byID[item.AnimeID] = item
 	}
@@ -357,11 +358,11 @@ func TestChapterServiceListChapterScheduleExposesLiteralFolderPageAndHasCover(t 
 	}
 }
 
-type stubChapterActivityRecorder struct {
+type stubEpisodeActivityRecorder struct {
 	records []anime.ActivityRecord
 }
 
-func (s *stubChapterActivityRecorder) RecordActivity(_ context.Context, record anime.ActivityRecord) error {
+func (s *stubEpisodeActivityRecorder) RecordActivity(_ context.Context, record anime.ActivityRecord) error {
 	s.records = append(s.records, record)
 	return nil
 }

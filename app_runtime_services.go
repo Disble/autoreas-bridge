@@ -28,7 +28,7 @@ func (a *App) configureRuntimeServices(ctx context.Context, animeDataPath string
 		return
 	}
 	a.startAnimeObservers(animeDataPath)
-	a.wireChapterServiceWithWriter(a.animeWrite)
+	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
 }
 

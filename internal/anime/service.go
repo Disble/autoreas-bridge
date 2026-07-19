@@ -169,7 +169,7 @@ func hasNonEmptyLegacyString(value *string) bool {
 
 // legacyStringValue unwraps a legacy optional string field (e.g.
 // MobileAnime.Pagina/Carpeta) to its literal value, or "" when absent.
-// Companion to hasNonEmptyLegacyString for callers (ChapterScheduleItem)
+// Companion to hasNonEmptyLegacyString for callers (EpisodeScheduleItem)
 // that expose the literal string itself rather than a presence boolean.
 func legacyStringValue(value *string) string {
 	if value == nil {
@@ -255,7 +255,7 @@ func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
 		Progress: contracts.AnimeDetailProgress{
 			Watched:   item.NroCapVisto,
 			Total:     item.TotalCap,
-			Remaining: remainingChapters(item.NroCapVisto, item.TotalCap),
+			Remaining: remainingEpisodes(item.NroCapVisto, item.TotalCap),
 		},
 		Schedule: item.Dias,
 		Dates: contracts.AnimeDetailDates{
@@ -280,8 +280,8 @@ func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
 	}
 }
 
-// remainingChapters calculates the number of unwatched chapters when known.
-func remainingChapters(watched float64, total *int) *float64 {
+// remainingEpisodes calculates the number of unwatched episodes when known.
+func remainingEpisodes(watched float64, total *int) *float64 {
 	if total == nil {
 		return nil
 	}

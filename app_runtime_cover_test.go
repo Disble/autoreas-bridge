@@ -17,7 +17,7 @@ import (
 func TestToChapterScheduleContractsMapsFolderPagePageURLHasCoverAndDropsBooleans(t *testing.T) {
 	t.Parallel()
 
-	items := []anime.ChapterScheduleItem{{
+	items := []anime.EpisodeScheduleItem{{
 		AnimeID:    "anime-1",
 		AnimeName:  "Frieren",
 		FolderPath: `C:\anime\frieren`,
@@ -103,7 +103,7 @@ func TestGetAnimeCoverHappyPathReturnsResolvedDataURL(t *testing.T) {
 func TestToChapterDayCountContractsMapsDayAndCount(t *testing.T) {
 	t.Parallel()
 
-	items := []anime.ChapterDayCount{{Day: "Lunes", Count: 3}}
+	items := []anime.EpisodeDayCount{{Day: "Lunes", Count: 3}}
 
 	got := toChapterDayCountContracts(items)
 	if len(got) != 1 {
@@ -121,18 +121,18 @@ func TestGetChapterDayCountsReturnsEmptySliceWhenChapterServiceNil(t *testing.T)
 
 	got := app.GetChapterDayCounts()
 	if got == nil {
-		t.Fatal("expected non-nil empty slice when chapterService is nil, got nil")
+		t.Fatal("expected non-nil empty slice when episodeService is nil, got nil")
 	}
 	if len(got) != 0 {
-		t.Fatalf("expected empty slice when chapterService is nil, got %#v", got)
+		t.Fatalf("expected empty slice when episodeService is nil, got %#v", got)
 	}
 }
 
 func TestGetChapterDayCountsDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
 
-	service := &stubAppChapterService{dayCounts: []anime.ChapterDayCount{{Day: "Viernes", Count: 2}}}
-	app := &App{ctx: context.Background(), chapterService: service}
+	service := &stubAppChapterService{dayCounts: []anime.EpisodeDayCount{{Day: "Viernes", Count: 2}}}
+	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.GetChapterDayCounts()
 	if len(got) != 1 || got[0].Day != "Viernes" || got[0].Count != 2 {

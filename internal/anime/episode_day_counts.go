@@ -2,25 +2,25 @@ package anime
 
 import "context"
 
-// ChapterDayCount is a single weekday's active-progress count, mirroring
+// EpisodeDayCount is a single weekday's active-progress count, mirroring
 // Legacy's buscarMedalla (chapters-cover-pipeline spec, "Per-day
 // active-progress count mirrors Legacy's buscarMedalla semantics").
-type ChapterDayCount struct {
+type EpisodeDayCount struct {
 	Day   string
 	Count int
 }
 
-// ListChapterDayCounts counts, per weekday, the anime entries that are
+// ListEpisodeDayCounts counts, per weekday, the anime entries that are
 // active-or-have-no-active-flag AND have estado > 0 (any non-"Viendo"
 // state). Only days with a non-zero count are present in the result, per
 // design G5 ("emit only non-zero to keep the payload minimal").
 //
 // Drift note (code wins, deliberate): Legacy's buscarMedalla treats activo
 // as tri-state (true/absent counted, only explicit false excluded). The
-// bridge collapses activo to an int and ListChapterSchedule already treats
+// bridge collapses activo to an int and ListEpisodeSchedule already treats
 // Activo == 0 as inactive; this query reuses that SAME predicate for
 // internal consistency with the schedule the badges annotate.
-func (s *ChapterService) ListChapterDayCounts(ctx context.Context) ([]ChapterDayCount, error) {
+func (s *EpisodeService) ListEpisodeDayCounts(ctx context.Context) ([]EpisodeDayCount, error) {
 	items, err := s.query.ListMobileAnimes(ctx)
 	if err != nil {
 		return nil, err
@@ -40,12 +40,12 @@ func (s *ChapterService) ListChapterDayCounts(ctx context.Context) ([]ChapterDay
 		}
 	}
 
-	result := make([]ChapterDayCount, 0, len(order))
+	result := make([]EpisodeDayCount, 0, len(order))
 	for _, day := range order {
 		if counts[day] == 0 {
 			continue
 		}
-		result = append(result, ChapterDayCount{Day: day, Count: counts[day]})
+		result = append(result, EpisodeDayCount{Day: day, Count: counts[day]})
 	}
 	return result, nil
 }

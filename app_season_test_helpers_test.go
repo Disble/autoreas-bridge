@@ -15,9 +15,9 @@ type appliedDaysChapterService struct {
 	*stubAppChapterService
 }
 
-func (s *appliedDaysChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error) {
+func (s *appliedDaysChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
 	s.lastDays = cmd
-	return anime.ChapterCommandResult{AnimeID: cmd.AnimeID, Outcome: anime.PatchOutcomeApplied}, s.err
+	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID, Outcome: anime.PatchOutcomeApplied}, s.err
 }
 
 // fakeSeasonRepo is an in-memory season.Repository for binding tests.

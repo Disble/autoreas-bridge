@@ -170,8 +170,8 @@ type AnimeDetail struct {
 	ModifiedAt int64               `json:"modified_at"`
 }
 
-// ChapterScheduleItem is an anime scheduled for a chapter workflow.
-type ChapterScheduleItem struct {
+// EpisodeScheduleItem is an anime scheduled for an episode workflow.
+type EpisodeScheduleItem struct {
 	AnimeID     string  `json:"animeId"`
 	AnimeName   string  `json:"animeName"`
 	Estado      int     `json:"estado"`
@@ -181,7 +181,7 @@ type ChapterScheduleItem struct {
 	DayOrder    int     `json:"dayOrder"`
 	ModifiedAt  int64   `json:"modified_at"`
 	// FolderPath/PageURL are the literal carpeta/pagina strings (chapters-
-	// cover-pipeline spec, "ChapterScheduleItem contract carries cover and
+	// cover-pipeline spec, "EpisodeScheduleItem contract carries cover and
 	// literal path fields"). They REPLACE the former HasPage/HasFolder
 	// booleans -- presence is re-derived client-side as `string !== ''`,
 	// avoiding two sources of truth for the same fact. Empty when the
@@ -213,16 +213,16 @@ type AnimeCover struct {
 	Source  string `json:"source"`
 }
 
-// ChapterDayCount is a single weekday's active-progress badge count
+// EpisodeDayCount is a single weekday's active-progress badge count
 // (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
 // Legacy's buscarMedalla semantics").
-type ChapterDayCount struct {
+type EpisodeDayCount struct {
 	Day   string `json:"day"`
 	Count int    `json:"count"`
 }
 
-// ChapterCommandResult reports the result of a chapter command.
-type ChapterCommandResult struct {
+// EpisodeCommandResult reports the result of an episode command.
+type EpisodeCommandResult struct {
 	Status        string  `json:"status"`
 	Message       string  `json:"message,omitempty"`
 	AnimeID       string  `json:"animeId,omitempty"`

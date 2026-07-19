@@ -10,7 +10,7 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 )
 
-func TestChapterServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.T) {
+func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -23,8 +23,8 @@ func TestChapterServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 
 	writer := &stubAnimeWriter{}
 	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	activity := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
 		Activity: activity,
@@ -67,7 +67,7 @@ func TestChapterServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 	}
 }
 
-func TestChapterServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing.T) {
+func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(
@@ -80,8 +80,8 @@ func TestChapterServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 
 	writer := &stubAnimeWriter{}
 	writeService := anime.NewWriteService(store, writer)
-	activity := &stubChapterActivityRecorder{}
-	service := anime.NewChapterService(anime.ChapterServiceDeps{
+	activity := &stubEpisodeActivityRecorder{}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
 		Activity: activity,

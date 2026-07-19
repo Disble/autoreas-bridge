@@ -72,7 +72,7 @@ type App struct {
 	animeLegacyPull           anime.LegacyPullService
 	animeRuntimeWatcher       anime.RuntimeWatcher
 	animeUpdateWriter         anime.UpdateWriter
-	chapterService            chapterCommandService
+	episodeService            episodeCommandService
 	syncChangelogRecorder     changelogRecorder
 	realtimeHub               realtime.Hub
 	httpServer                api.Server
@@ -142,19 +142,19 @@ type changelogRecorder interface {
 	Err() error
 }
 
-type chapterCommandService interface {
-	ListChapterSchedule(ctx context.Context, query anime.ChapterScheduleQuery) ([]anime.ChapterScheduleItem, error)
-	AdjustWatchedChapters(ctx context.Context, cmd anime.AdjustWatchedChaptersCommand) (anime.ChapterCommandResult, error)
-	SetAnimeState(ctx context.Context, cmd anime.SetAnimeStateCommand) (anime.ChapterCommandResult, error)
-	SetAnimeDays(ctx context.Context, cmd anime.SetAnimeDaysCommand) (anime.ChapterCommandResult, error)
-	SoftDeleteAnime(ctx context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.ChapterCommandResult, error)
-	RestoreAnime(ctx context.Context, cmd anime.RestoreAnimeCommand) (anime.ChapterCommandResult, error)
-	RepeatAnime(ctx context.Context, cmd anime.RepeatAnimeCommand) (anime.ChapterCommandResult, error)
-	ListChapterDayCounts(ctx context.Context) ([]anime.ChapterDayCount, error)
+type episodeCommandService interface {
+	ListEpisodeSchedule(ctx context.Context, query anime.EpisodeScheduleQuery) ([]anime.EpisodeScheduleItem, error)
+	AdjustWatchedEpisodes(ctx context.Context, cmd anime.AdjustWatchedEpisodesCommand) (anime.EpisodeCommandResult, error)
+	SetAnimeState(ctx context.Context, cmd anime.SetAnimeStateCommand) (anime.EpisodeCommandResult, error)
+	SetAnimeDays(ctx context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error)
+	SoftDeleteAnime(ctx context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.EpisodeCommandResult, error)
+	RestoreAnime(ctx context.Context, cmd anime.RestoreAnimeCommand) (anime.EpisodeCommandResult, error)
+	RepeatAnime(ctx context.Context, cmd anime.RepeatAnimeCommand) (anime.EpisodeCommandResult, error)
+	ListEpisodeDayCounts(ctx context.Context) ([]anime.EpisodeDayCount, error)
 }
 
 // coverResolver is the local seam GetAnimeCover depends on (mirrors
-// chapterCommandService above) so app_runtime_test.go can inject a fake
+// episodeCommandService above) so app_runtime_test.go can inject a fake
 // without a real HTTP client. The real implementation is *cover.Resolver
 // (internal/anime/cover), wired in startup via cover.NewDefaultResolver.
 type coverResolver interface {
@@ -240,12 +240,12 @@ func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite
 	}
 }
 
-// wireChapterServiceWithWriter connects the chapter service to its writer.
-func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {
+// wireEpisodeServiceWithWriter connects the episode service to its writer.
+func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimeWriteService) {
 	if a.animeQuery == nil || writer == nil {
 		return
 	}
-	deps := anime.ChapterServiceDeps{
+	deps := anime.EpisodeServiceDeps{
 		Query:  a.animeQuery,
 		Writer: writer,
 	}
@@ -254,11 +254,11 @@ func (a *App) wireChapterServiceWithWriter(writer contracts.AnimeWriteService) {
 			store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB)),
 		}
 	}
-	a.chapterService = anime.NewChapterService(deps)
+	a.episodeService = anime.NewEpisodeService(deps)
 }
 
-// wireChapterService constructs the chapter service and its write dependencies.
-func (a *App) wireChapterService(conflictWriter anime.ConflictWriter) {
+// wireEpisodeService constructs the episode service and its write dependencies.
+func (a *App) wireEpisodeService(conflictWriter anime.ConflictWriter) {
 	if a.bridgeDB == nil || a.animeUpdateWriter == nil {
 		return
 	}
@@ -272,7 +272,7 @@ func (a *App) wireChapterService(conflictWriter anime.ConflictWriter) {
 			OCCObserveOnly: true,
 		})
 	}
-	a.wireChapterServiceWithWriter(writer)
+	a.wireEpisodeServiceWithWriter(writer)
 }
 
 type activityRecorderAdapter struct {

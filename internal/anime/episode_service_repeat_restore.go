@@ -8,10 +8,10 @@ import (
 )
 
 // RestoreAnime reactivates one anime and records activity when the write applies.
-func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeCommand) (ChapterCommandResult, error) {
+func (s *EpisodeService) RestoreAnime(ctx context.Context, cmd RestoreAnimeCommand) (EpisodeCommandResult, error) {
 	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 
 	occurredAtMs := s.now().UnixMilli()
@@ -23,7 +23,7 @@ func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 		Base:                  cmd.Base,
 	})
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 
 	source := cmd.Source
@@ -50,18 +50,18 @@ func (s *ChapterService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 				Activo:      1,
 			},
 		}); err != nil {
-			return ChapterCommandResult{}, err
+			return EpisodeCommandResult{}, err
 		}
 	}
 
-	return chapterCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
 }
 
 // RepeatAnime marks one anime as repeated and records activity when the write applies.
-func (s *ChapterService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand) (ChapterCommandResult, error) {
+func (s *EpisodeService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand) (EpisodeCommandResult, error) {
 	current, err := s.query.GetMobileAnime(ctx, cmd.AnimeID)
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 
 	occurredAtMs := s.now().UnixMilli()
@@ -71,7 +71,7 @@ func (s *ChapterService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand
 		Base:                cmd.Base,
 	})
 	if err != nil {
-		return ChapterCommandResult{}, err
+		return EpisodeCommandResult{}, err
 	}
 
 	source := cmd.Source
@@ -98,9 +98,9 @@ func (s *ChapterService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand
 				Activo:      1,
 			},
 		}); err != nil {
-			return ChapterCommandResult{}, err
+			return EpisodeCommandResult{}, err
 		}
 	}
 
-	return chapterCommandResult(patchResult, current.Nombre, 0, 0, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Nombre, 0, 0, occurredAtMs, correlationID), nil
 }
