@@ -1,5 +1,5 @@
 import { useParams } from 'react-router';
-import { AnimeDetail } from '../../features/anime-detail/ui/AnimeDetail/AnimeDetail';
+import { AnimeDetail } from '../../features/anime-detail/ui/AnimeDetail';
 
 /**
  * Thin composition route: reads the `:id` param and renders the shared
