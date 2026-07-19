@@ -108,9 +108,8 @@ func TestRunOnceMissingEpisodeCallsEnsureOnlineExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce runs the fan-out with -race and
-// asserts the lazy gate is resolved exactly once even when multiple animes concurrently discover
-// a missing episode.
+// TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce asserts the lazy gate is
+// resolved exactly once even when multiple animes concurrently discover a missing episode.
 func TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce(t *testing.T) {
 	t.Parallel()
 
