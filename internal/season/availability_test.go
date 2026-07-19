@@ -36,10 +36,10 @@ func TestRecheckAvailabilityMarksAvailableNeverCreates(t *testing.T) {
 	for _, r := range rows {
 		byID[r.ID] = r
 	}
-	if a := byID["sa-a"]; a.Availability != domain.AvailabilityAvailable || a.AvailableChapters != 3 || a.AnimeID != "" {
+	if a := byID["sa-a"]; a.Availability != domain.AvailabilityAvailable || a.AvailableEpisodes != 3 || a.AnimeID != "" {
 		t.Fatalf("A should be available with 3 chapters and NOT created, got %+v", a)
 	}
-	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AvailableChapters != 0 {
+	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AvailableEpisodes != 0 {
 		t.Fatalf("B should still be waiting, got %+v", b)
 	}
 	if len(gateway.created) != 0 {
@@ -72,7 +72,7 @@ func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 	}
 }
 
-// A created row still parked in "Sin ver" MUST have its AvailableChapters
+// A created row still parked in "Sin ver" MUST have its AvailableEpisodes
 // refreshed live; Availability, MatchStatus, AnimeID stay untouched and the
 // row is never reported in res.Available (ADR-3, ADR-4).
 func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
@@ -94,8 +94,8 @@ func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
 	}
 
 	row := findRow(t, svc, season.ID, "sa-created")
-	if row.AvailableChapters != 5 {
-		t.Fatalf("AvailableChapters = %d, want 5", row.AvailableChapters)
+	if row.AvailableEpisodes != 5 {
+		t.Fatalf("AvailableEpisodes = %d, want 5", row.AvailableEpisodes)
 	}
 	if row.Availability != domain.AvailabilityCreated {
 		t.Fatalf("Availability = %v, want AvailabilityCreated (must never flip)", row.Availability)
@@ -133,8 +133,8 @@ func TestRecheckAvailabilitySkipsCreatedRowsInSpecialQueues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RecheckAvailability: %v", err)
 			}
-			if row := findRow(t, svc, season.ID, rowID); row.AvailableChapters != test.available {
-				t.Fatalf("AvailableChapters = %d, want %d", row.AvailableChapters, test.available)
+			if row := findRow(t, svc, season.ID, rowID); row.AvailableEpisodes != test.available {
+				t.Fatalf("AvailableEpisodes = %d, want %d", row.AvailableEpisodes, test.available)
 			}
 			if res.Checked != 0 {
 				t.Fatalf("res.Checked = %d, want 0", res.Checked)
@@ -163,8 +163,8 @@ func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T)
 	}
 
 	row := findRow(t, svc, season.ID, "sa-unresolved")
-	if row.AvailableChapters != 1 {
-		t.Fatalf("AvailableChapters must stay frozen at 1, got %d", row.AvailableChapters)
+	if row.AvailableEpisodes != 1 {
+		t.Fatalf("AvailableEpisodes must stay frozen at 1, got %d", row.AvailableEpisodes)
 	}
 	if res.Checked != 0 {
 		t.Fatalf("res.Checked = %d, want 0 (unresolvable row must not be probed)", res.Checked)
@@ -195,12 +195,12 @@ func TestRecheckAvailabilityToleratesPlacementsError(t *testing.T) {
 	}
 
 	created := findRow(t, svc, season.ID, "sa-created")
-	if created.AvailableChapters != 2 {
-		t.Fatalf("created row must stay untouched on placements error, got %d", created.AvailableChapters)
+	if created.AvailableEpisodes != 2 {
+		t.Fatalf("created row must stay untouched on placements error, got %d", created.AvailableEpisodes)
 	}
 
 	matched := findRow(t, svc, season.ID, "sa-a")
-	if matched.Availability != domain.AvailabilityAvailable || matched.AvailableChapters != 3 {
+	if matched.Availability != domain.AvailabilityAvailable || matched.AvailableEpisodes != 3 {
 		t.Fatalf("matched-uncreated row must still be probed despite placements error, got %+v", matched)
 	}
 	if res.Checked != 1 {
@@ -236,8 +236,8 @@ func TestRecheckAvailabilitySinVerCreatedRowIsIdempotent(t *testing.T) {
 	if !reflect.DeepEqual(first, second) {
 		t.Fatalf("Sin-ver created row must be identical across runs, first=%+v second=%+v", first, second)
 	}
-	if second.AvailableChapters != 5 {
-		t.Fatalf("AvailableChapters = %d, want 5", second.AvailableChapters)
+	if second.AvailableEpisodes != 5 {
+		t.Fatalf("AvailableEpisodes = %d, want 5", second.AvailableEpisodes)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestCreateSeasonAnimesCreatesLinksAndGuards(t *testing.T) {
 		sa.MatchStatus = domain.MatchMatched
 		sa.MatchedSlug = slug
 		sa.Availability = domain.AvailabilityAvailable
-		sa.AvailableChapters = 2
+		sa.AvailableEpisodes = 2
 		_ = repo.CreateSeasonAnime(ctx, sa)
 	}
 	mkAvail("sa-a", "Anime A", "https://jkanime.net/a/")

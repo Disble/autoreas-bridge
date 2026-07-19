@@ -135,6 +135,6 @@ type fakeAppAvailabilityProbe struct {
 	chapters map[string]int
 }
 
-func (f fakeAppAvailabilityProbe) AvailableChapters(_ context.Context, pageURL string) (int, error) {
+func (f fakeAppAvailabilityProbe) AvailableEpisodes(_ context.Context, pageURL string) (int, error) {
 	return f.chapters[pageURL], nil
 }

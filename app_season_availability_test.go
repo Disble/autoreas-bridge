@@ -49,17 +49,17 @@ func TestSeasonAvailabilityProbe(t *testing.T) {
 	ctx := context.Background()
 
 	yes := seasonAvailabilityProbe{registry: fakeRegistry{source: fakeEpisodeSource{latest: 2}}}
-	if n, err := yes.AvailableChapters(ctx, "https://jkanime.net/a/"); err != nil || n != 2 {
+	if n, err := yes.AvailableEpisodes(ctx, "https://jkanime.net/a/"); err != nil || n != 2 {
 		t.Fatalf("latest 2 → 2 chapters; got n=%d err=%v", n, err)
 	}
 
 	no := seasonAvailabilityProbe{registry: fakeRegistry{source: fakeEpisodeSource{latest: 0}}}
-	if n, err := no.AvailableChapters(ctx, "https://jkanime.net/b/"); err != nil || n != 0 {
+	if n, err := no.AvailableEpisodes(ctx, "https://jkanime.net/b/"); err != nil || n != 0 {
 		t.Fatalf("latest 0 → 0 chapters; got n=%d err=%v", n, err)
 	}
 
 	unsupported := seasonAvailabilityProbe{registry: fakeRegistry{resolveErr: errors.New("unsupported")}}
-	if n, err := unsupported.AvailableChapters(ctx, "https://other.site/x/"); err != nil || n != 0 {
+	if n, err := unsupported.AvailableEpisodes(ctx, "https://other.site/x/"); err != nil || n != 0 {
 		t.Fatalf("unsupported site → (0, nil); got n=%d err=%v", n, err)
 	}
 }

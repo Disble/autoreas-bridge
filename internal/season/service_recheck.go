@@ -6,9 +6,9 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// RecheckAvailability probes chapter availability for every matched, uncreated
-// row and records it (Availability + AvailableChapters) — it NEVER creates an
-// anime. It ALSO refreshes AvailableChapters for already-created rows still
+// RecheckAvailability probes episode availability for every matched, uncreated
+// row and records it (Availability + AvailableEpisodes) — it NEVER creates an
+// anime. It ALSO refreshes AvailableEpisodes for already-created rows still
 // parked in the "Sin ver" Estrenos section (resolved via the batched
 // AnimeGateway.CurrentPlacements), leaving Availability/MatchStatus/AnimeID
 // untouched so a created row never re-enters the creation-eligible state.
@@ -63,20 +63,20 @@ func (s *Service) recheckCreateCandidate(ctx context.Context, row domain.SeasonA
 		return false, nil
 	}
 	res.Checked++
-	chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
+	chapters, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
 		return true, nil
 	}
 	wasAvailable := row.Availability == domain.AvailabilityAvailable
 	if chapters >= 1 {
 		row.Availability = domain.AvailabilityAvailable
-		row.AvailableChapters = chapters
+		row.AvailableEpisodes = chapters
 		if !wasAvailable {
 			res.Available = append(res.Available, row.RawName)
 		}
 	} else {
 		row.Availability = domain.AvailabilityWaiting
-		row.AvailableChapters = 0
+		row.AvailableEpisodes = 0
 	}
 	return true, s.repo.UpdateSeasonAnime(ctx, row)
 }
@@ -90,11 +90,11 @@ func (s *Service) refreshCreatedPlacementAvailability(ctx context.Context, row d
 		return nil
 	}
 	res.Checked++
-	chapters, probeErr := s.probe.AvailableChapters(ctx, row.MatchedSlug)
+	chapters, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
 		return nil
 	}
-	row.AvailableChapters = chapters
+	row.AvailableEpisodes = chapters
 	return s.repo.UpdateSeasonAnime(ctx, row)
 }
 

@@ -14,7 +14,7 @@ type fakeProbe struct {
 	err      error
 }
 
-func (f *fakeProbe) AvailableChapters(_ context.Context, pageURL string) (int, error) {
+func (f *fakeProbe) AvailableEpisodes(_ context.Context, pageURL string) (int, error) {
 	if f.err != nil {
 		return 0, f.err
 	}
@@ -121,7 +121,7 @@ func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name,
 	sa.MatchedSlug = slug
 	sa.Availability = domain.AvailabilityCreated
 	sa.AnimeID = animeID
-	sa.AvailableChapters = chapters
+	sa.AvailableEpisodes = chapters
 	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

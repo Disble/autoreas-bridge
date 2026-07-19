@@ -60,9 +60,9 @@ type SeasonAnime struct {
 	MatchedSlug  string
 	Candidates   []MatchCandidate
 	Availability Availability
-	// AvailableChapters is how many chapters are online (SDD-43c); 0 until the
+	// AvailableEpisodes is how many chapters are online (SDD-43c); 0 until the
 	// availability watch sees the first one. Informational — creation stays manual.
-	AvailableChapters int
+	AvailableEpisodes int
 	AnimeID           string
 	// Grade is the 1–6 first-episode grade; 0 means ungraded.
 	Grade int

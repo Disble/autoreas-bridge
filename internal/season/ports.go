@@ -73,7 +73,7 @@ type NameSearcher interface {
 // = none available). Implemented at the composition root over the download sites
 // registry. It only READS availability — creation is a separate, explicit action.
 type AvailabilityProbe interface {
-	AvailableChapters(ctx context.Context, pageURL string) (int, error)
+	AvailableEpisodes(ctx context.Context, pageURL string) (int, error)
 }
 
 // AnimeCreateInput is the season-side projection of what a new anime needs; the

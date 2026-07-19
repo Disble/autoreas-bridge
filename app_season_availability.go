@@ -35,7 +35,7 @@ type seasonAvailabilityProbe struct {
 	registry siteResolver
 }
 
-func (p seasonAvailabilityProbe) AvailableChapters(ctx context.Context, pageURL string) (int, error) {
+func (p seasonAvailabilityProbe) AvailableEpisodes(ctx context.Context, pageURL string) (int, error) {
 	source, err := p.registry.Resolve(pageURL)
 	if err != nil {
 		return 0, nil
