@@ -86,14 +86,14 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
   });
 
-  it('renders the chapters route directly', async () => {
+  it('renders the episodes route directly', async () => {
     render(
-      <MemoryRouter initialEntries={['/chapters']}>
+      <MemoryRouter initialEntries={['/episodes']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Chapters' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Episodes' })).toBeInTheDocument();
   });
 
   it('falls through to not found for the removed observability path', async () => {

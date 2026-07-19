@@ -3,38 +3,38 @@ import closeCircleIcon from '@iconify-icons/solar/close-circle-bold-duotone';
 import pauseCircleIcon from '@iconify-icons/solar/pause-circle-bold-duotone';
 import playCircleIcon from '@iconify-icons/solar/play-circle-bold-duotone';
 import { ANIME_ESTADO_LABELS } from '../../../../shared/constants/anime-estado.constants';
-import type { ChapterViewLens, CoverEntry } from './chapter-schedule-panel.types';
+import type { EpisodeViewLens, CoverEntry } from './episode-schedule-panel.types';
 
 /** Legacy weekday keys supported by anime schedule records. */
-export const CHAPTER_DAY_OPTIONS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'] as const;
+export const EPISODE_DAY_OPTIONS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'] as const;
 
 /** Legacy season keys used when season mode groups anime by watch state. */
-export const CHAPTER_SEASON_OPTIONS = ['Sin ver', 'Visto', 'Ver hoy'] as const;
+export const EPISODE_SEASON_OPTIONS = ['Sin ver', 'Visto', 'Ver hoy'] as const;
 
 /** Accessible name for the in-view grouping toggle. */
-export const CHAPTER_LENS_TOGGLE_LABEL = 'Chapters view lens';
+export const EPISODE_LENS_TOGGLE_LABEL = 'Episodes view lens';
 
 /** Selectable grouping lenses in display order. */
-export const CHAPTER_LENS_OPTIONS: readonly { readonly id: ChapterViewLens; readonly label: string }[] = [
+export const EPISODE_LENS_OPTIONS: readonly { readonly id: EpisodeViewLens; readonly label: string }[] = [
   { id: 'season', label: 'Season' },
   { id: 'daily', label: 'Daily' },
 ];
 
 /** Empty-state copy for days with no active scheduled anime. */
-export const CHAPTERS_EMPTY_MESSAGE = 'No active anime are scheduled for this filter.';
+export const EPISODES_EMPTY_MESSAGE = 'No active anime are scheduled for this filter.';
 
 /**
  * User-facing labels for Legacy anime state ids. Sourced from the canonical
- * shared vocabulary (`shared/constants/anime-estado.constants.ts`) so Chapters shows the
+ * shared vocabulary (`shared/constants/anime-estado.constants.ts`) so Episodes shows the
  * same Spanish estado wording as History/Catalog/AnimeDetail.
  */
-export const CHAPTER_STATE_LABELS: Readonly<Record<number, string>> = ANIME_ESTADO_LABELS;
+export const EPISODE_STATE_LABELS: Readonly<Record<number, string>> = ANIME_ESTADO_LABELS;
 
 /** Runtime fallback result used when Wails bindings are not ready. */
-export const CHAPTER_RUNTIME_UNAVAILABLE_RESULT = { status: 'error', message: 'runtime unavailable' } as const;
+export const EPISODE_RUNTIME_UNAVAILABLE_RESULT = { status: 'error', message: 'runtime unavailable' } as const;
 
-/** State transition options exposed by the Chapters operational panel. */
-export const CHAPTER_STATE_OPTIONS = [
+/** State transition options exposed by the Episodes operational panel. */
+export const EPISODE_STATE_OPTIONS = [
   { icon: playCircleIcon, label: ANIME_ESTADO_LABELS[0], value: 0 },
   { icon: checkCircleIcon, label: ANIME_ESTADO_LABELS[1], value: 1 },
   { icon: closeCircleIcon, label: ANIME_ESTADO_LABELS[2], value: 2 },
@@ -48,10 +48,10 @@ export const CHAPTER_STATE_OPTIONS = [
  * `relative` lets the art position absolutely so the source aspect ratio can never
  * change the card height.
  */
-export const CHAPTER_COVER_SLOT_CLASS = 'relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden';
+export const EPISODE_COVER_SLOT_CLASS = 'relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden';
 
-/** Hoisted Spanish weekday formatter used by the chapter schedule default-day helper. */
-export const CHAPTER_SCHEDULE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
+/** Hoisted Spanish weekday formatter used by the episode schedule default-day helper. */
+export const EPISODE_SCHEDULE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('es-ES', { weekday: 'long' });
 
 /** Shared empty cover cache used when no cover map is provided to the row helper. */
-export const CHAPTER_SCHEDULE_EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();
+export const EPISODE_SCHEDULE_EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();

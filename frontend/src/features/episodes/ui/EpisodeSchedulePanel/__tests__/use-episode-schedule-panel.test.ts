@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useChapterSchedulePanel } from '../use-chapter-schedule-panel';
-import { getDefaultChapterDay } from '../chapter-schedule-panel.helpers';
-import type { ChapterScheduleSource } from '../chapter-schedule-panel.types';
+import { useEpisodeSchedulePanel } from '../use-episode-schedule-panel';
+import { getDefaultEpisodeDay } from '../episode-schedule-panel.helpers';
+import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
 
 const toastMock = vi.hoisted(() => ({
   success: vi.fn(),
@@ -15,15 +15,15 @@ vi.mock('@heroui/react', () => ({
   toast: toastMock,
 }));
 
-function createSource(overrides: Partial<ChapterScheduleSource> = {}): ChapterScheduleSource {
+function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeScheduleSource {
   return {
-    adjustWatchedChapters: vi.fn(),
+    adjustWatchedEpisodes: vi.fn(),
     copyAnimeFolder: vi.fn(),
     copyAnimePage: vi.fn(),
     getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
-    getChapterDayCounts: vi.fn().mockResolvedValue([]),
+    getEpisodeDayCounts: vi.fn().mockResolvedValue([]),
     getSeasonMode: vi.fn().mockResolvedValue(false),
-    getChapterSchedule: vi.fn().mockResolvedValue([]),
+    getEpisodeSchedule: vi.fn().mockResolvedValue([]),
     openAnimeFolder: vi.fn(),
     openAnimePage: vi.fn(),
     setAnimeState: vi.fn(),
@@ -31,10 +31,10 @@ function createSource(overrides: Partial<ChapterScheduleSource> = {}): ChapterSc
   };
 }
 
-describe('useChapterSchedulePanel', () => {
+describe('useEpisodeSchedulePanel', () => {
   it('loads the selected day schedule through the injected source', async () => {
     const source = createSource({
-      getChapterSchedule: vi.fn().mockResolvedValue([
+      getEpisodeSchedule: vi.fn().mockResolvedValue([
         {
           animeId: 'anime-1',
           animeName: 'Frieren',
@@ -51,52 +51,52 @@ describe('useChapterSchedulePanel', () => {
       ]),
     });
 
-    const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
 
-    expect(source.getChapterSchedule).toHaveBeenCalledWith('Viernes');
+    expect(source.getEpisodeSchedule).toHaveBeenCalledWith('Viernes');
     expect(result.current.rows[0]?.name).toBe('Frieren');
   });
 
   it('starts on Ver hoy when season mode is enabled', async () => {
     const source = createSource({
-      getChapterSchedule: vi.fn().mockResolvedValue([]),
+      getEpisodeSchedule: vi.fn().mockResolvedValue([]),
       getSeasonMode: vi.fn().mockResolvedValue(true),
     });
 
-    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ source }));
 
     await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
-    await waitFor(() => expect(source.getChapterSchedule).toHaveBeenLastCalledWith('Ver hoy'));
+    await waitFor(() => expect(source.getEpisodeSchedule).toHaveBeenLastCalledWith('Ver hoy'));
     expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
   });
 
   it('initializes the view lens from the global season mode preference', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
 
-    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ source }));
 
     await waitFor(() => expect(result.current.lens).toBe('season'));
   });
 
-  it('overrides the chapter lens to daily without mutating the global season mode', async () => {
+  it('overrides the episode lens to daily without mutating the global season mode', async () => {
     const getSeasonMode = vi.fn().mockResolvedValue(true);
     const source = createSource({ getSeasonMode });
-    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ source }));
 
     await waitFor(() => expect(result.current.selectedDay).toBe('Ver hoy'));
     act(() => result.current.selectLens('daily'));
 
     await waitFor(() => expect(result.current.lens).toBe('daily'));
     expect(result.current.filterOptions).toContain('Sábado');
-    expect(result.current.selectedDay).toBe(getDefaultChapterDay());
+    expect(result.current.selectedDay).toBe(getDefaultEpisodeDay());
     expect(getSeasonMode).toHaveBeenCalledTimes(1);
   });
 
   it('switches back to the season lens and reopens on Ver hoy', async () => {
     const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
-    const { result } = renderHook(() => useChapterSchedulePanel({ source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ source }));
     await waitFor(() => expect(result.current.lens).toBe('season'));
 
     act(() => result.current.selectLens('daily'));
@@ -107,8 +107,8 @@ describe('useChapterSchedulePanel', () => {
     expect(result.current.filterOptions).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
   });
 
-  it('delegates chapter adjustments with the row modified_at base and refreshes', async () => {
-    const getChapterSchedule = vi
+  it('delegates episode adjustments with the row modified_at base and refreshes', async () => {
+    const getEpisodeSchedule = vi
       .fn()
       .mockResolvedValueOnce([
         {
@@ -126,18 +126,18 @@ describe('useChapterSchedulePanel', () => {
         },
       ])
       .mockResolvedValueOnce([]);
-    const adjustWatchedChapters = vi.fn().mockResolvedValue({ status: 'ok' });
-    const source = createSource({ adjustWatchedChapters, getChapterSchedule });
+    const adjustWatchedEpisodes = vi.fn().mockResolvedValue({ status: 'ok' });
+    const source = createSource({ adjustWatchedEpisodes, getEpisodeSchedule });
 
-    const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
     await waitFor(() => expect(result.current.rows).toHaveLength(1));
 
     await act(async () => {
-      await result.current.adjustWatchedChapters('anime-1', 0.5, 1000);
+      await result.current.adjustWatchedEpisodes('anime-1', 0.5, 1000);
     });
 
-    expect(adjustWatchedChapters).toHaveBeenCalledWith('anime-1', 0.5, 1000);
-    expect(getChapterSchedule).toHaveBeenCalledTimes(2);
+    expect(adjustWatchedEpisodes).toHaveBeenCalledWith('anime-1', 0.5, 1000);
+    expect(getEpisodeSchedule).toHaveBeenCalledTimes(2);
   });
 
   it('delegates desktop page and folder actions', async () => {
@@ -148,7 +148,7 @@ describe('useChapterSchedulePanel', () => {
       openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
     });
 
-    const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+    const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
     await act(async () => {
       await result.current.openAnimePage('anime-1');
@@ -166,7 +166,7 @@ describe('useChapterSchedulePanel', () => {
 
     it('confirms a successful folder copy with a toast', async () => {
       const source = createSource({ copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }) });
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await act(async () => {
         await result.current.copyAnimeFolder('anime-1');
@@ -177,7 +177,7 @@ describe('useChapterSchedulePanel', () => {
 
     it('confirms a successful page copy with a toast', async () => {
       const source = createSource({ copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }) });
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await act(async () => {
         await result.current.copyAnimePage('anime-1');
@@ -188,7 +188,7 @@ describe('useChapterSchedulePanel', () => {
 
     it('does not toast when the copy fails and keeps the error message', async () => {
       const source = createSource({ copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'error', message: 'clipboard unavailable' }) });
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await act(async () => {
         await result.current.copyAnimeFolder('anime-1');
@@ -200,7 +200,7 @@ describe('useChapterSchedulePanel', () => {
 
     it('does not toast on open actions', async () => {
       const source = createSource({ openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }) });
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await act(async () => {
         await result.current.openAnimeFolder('anime-1');
@@ -230,10 +230,10 @@ describe('useChapterSchedulePanel', () => {
       const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/png;base64,abc', source: 'cover' });
       const source = createSource({
         getAnimeCover,
-        getChapterSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true), scheduleItem('anime-2', false)]),
+        getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true), scheduleItem('anime-2', false)]),
       });
 
-      const { result, rerender } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result, rerender } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await waitFor(() => expect(result.current.rows).toHaveLength(2));
       await waitFor(() => expect(getAnimeCover).toHaveBeenCalledTimes(1));
@@ -251,10 +251,10 @@ describe('useChapterSchedulePanel', () => {
       const getAnimeCover = vi.fn().mockRejectedValue(new Error('boom'));
       const source = createSource({
         getAnimeCover,
-        getChapterSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true)]),
+        getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true)]),
       });
 
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await waitFor(() => expect(result.current.rows).toHaveLength(1));
       await waitFor(() => expect(getAnimeCover).toHaveBeenCalledTimes(1));
@@ -265,10 +265,10 @@ describe('useChapterSchedulePanel', () => {
       const getAnimeCover = vi.fn().mockResolvedValue({ source: 'placeholder' });
       const source = createSource({
         getAnimeCover,
-        getChapterSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true)]),
+        getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true)]),
       });
 
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
       await waitFor(() => expect(result.current.rows).toHaveLength(1));
       await waitFor(() => expect(getAnimeCover).toHaveBeenCalledTimes(1));
@@ -278,39 +278,39 @@ describe('useChapterSchedulePanel', () => {
 
   describe('day counts', () => {
     it('fetches day counts once on mount but not again after a plain day selection change', async () => {
-      const getChapterDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]);
-      const source = createSource({ getChapterDayCounts });
+      const getEpisodeDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]);
+      const source = createSource({ getEpisodeDayCounts });
 
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
-      await waitFor(() => expect(getChapterDayCounts).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1));
 
       act(() => {
         result.current.selectDay('Sábado');
       });
 
       await waitFor(() => expect(result.current.selectedDay).toBe('Sábado'));
-      expect(getChapterDayCounts).toHaveBeenCalledTimes(1);
+      expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1);
     });
 
     it('re-fetches day counts after a successful setAnimeState call', async () => {
-      const getChapterDayCounts = vi.fn().mockResolvedValue([]);
+      const getEpisodeDayCounts = vi.fn().mockResolvedValue([]);
       const setAnimeState = vi.fn().mockResolvedValue({ status: 'ok' });
       const source = createSource({
-        getChapterDayCounts,
-        getChapterSchedule: vi.fn().mockResolvedValue([]),
+        getEpisodeDayCounts,
+        getEpisodeSchedule: vi.fn().mockResolvedValue([]),
         setAnimeState,
       });
 
-      const { result } = renderHook(() => useChapterSchedulePanel({ initialDay: 'Viernes', source }));
+      const { result } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
 
-      await waitFor(() => expect(getChapterDayCounts).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1));
 
       await act(async () => {
         await result.current.setAnimeState('anime-1', 1, 1000);
       });
 
-      await waitFor(() => expect(getChapterDayCounts).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(2));
     });
   });
 });

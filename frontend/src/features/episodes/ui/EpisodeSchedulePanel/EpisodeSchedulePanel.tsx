@@ -1,21 +1,21 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
-import { ChapterScheduleCard } from './ChapterScheduleCard';
-import { CHAPTER_LENS_OPTIONS, CHAPTER_LENS_TOGGLE_LABEL, CHAPTERS_EMPTY_MESSAGE } from './chapter-schedule-panel.constants';
-import { dayBadge, toChapterViewLens } from './chapter-schedule-panel.helpers';
-import type { ChapterSchedulePanelProps } from './chapter-schedule-panel.types';
-import { useChapterSchedulePanel } from './use-chapter-schedule-panel';
+import { EpisodeScheduleCard } from './EpisodeScheduleCard';
+import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODES_EMPTY_MESSAGE } from './episode-schedule-panel.constants';
+import { dayBadge, toEpisodeViewLens } from './episode-schedule-panel.helpers';
+import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
+import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 
 /**
- * Renders the operational schedule for updating anime chapter progress.
+ * Renders the operational schedule for updating anime episode progress.
  */
-export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>) {
-  const { adjustWatchedChapters, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState } = useChapterSchedulePanel(props);
+export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
+  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState } = useEpisodeSchedulePanel(props);
 
   if (errorMessage !== '') {
     return (
       <Alert status="danger">
         <Alert.Content>
-          <Alert.Title>Chapter schedule unavailable</Alert.Title>
+          <Alert.Title>Episode schedule unavailable</Alert.Title>
           <Alert.Description>{errorMessage}</Alert.Description>
         </Alert.Content>
       </Alert>
@@ -29,8 +29,8 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
           <Typography type="h1" className="text-3xl font-semibold tracking-tight text-foreground">
             {selectedDay}
           </Typography>
-          <ToggleButtonGroup aria-label={CHAPTER_LENS_TOGGLE_LABEL} disallowEmptySelection selectedKeys={[lens]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectLens(toChapterViewLens(String(Array.from(keys)[0] ?? lens)))}>
-            {CHAPTER_LENS_OPTIONS.map((option) => (
+          <ToggleButtonGroup aria-label={EPISODE_LENS_TOGGLE_LABEL} disallowEmptySelection selectedKeys={[lens]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectLens(toEpisodeViewLens(String(Array.from(keys)[0] ?? lens)))}>
+            {EPISODE_LENS_OPTIONS.map((option) => (
               <ToggleButton id={option.id} key={option.id}>
                 {option.label}
               </ToggleButton>
@@ -54,14 +54,14 @@ export function ChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>)
         </ToggleButtonGroup>
       </div>
 
-      {rows.length === 0 ? <Typography type="body-sm" color="muted">{CHAPTERS_EMPTY_MESSAGE}</Typography> : null}
+      {rows.length === 0 ? <Typography type="body-sm" color="muted">{EPISODES_EMPTY_MESSAGE}</Typography> : null}
 
       <div className="grid gap-3">
         {rows.map((row) => (
-          <ChapterScheduleCard
+          <EpisodeScheduleCard
             key={row.id}
             row={row}
-            adjustWatchedChapters={adjustWatchedChapters}
+            adjustWatchedEpisodes={adjustWatchedEpisodes}
             copyAnimeFolder={copyAnimeFolder}
             copyAnimePage={copyAnimePage}
             openAnimeFolder={openAnimeFolder}

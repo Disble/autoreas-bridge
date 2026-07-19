@@ -1,32 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@heroui/react';
-import { createChapterScheduleSource, getChapterFilterOptions, getDefaultLensSelection, getInitialChapterSelection, toChapterScheduleRows } from './chapter-schedule-panel.helpers';
-import type { ChapterCommandResult, ChapterDayCount, ChapterScheduleItem, ChapterSchedulePanelProps, ChapterViewLens, CoverEntry } from './chapter-schedule-panel.types';
+import { createEpisodeScheduleSource, getEpisodeFilterOptions, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows } from './episode-schedule-panel.helpers';
+import type { EpisodeCommandResult, EpisodeDayCount, EpisodeScheduleItem, EpisodeSchedulePanelProps, EpisodeViewLens, CoverEntry } from './episode-schedule-panel.types';
 
 
 /**
- * Loads the selected chapter schedule and exposes backend chapter commands.
+ * Loads the selected episode schedule and exposes backend episode commands.
  */
-export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProps>) {
+export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
   // 1. Refs
   const fetchedCoverIdsRef = useRef<Set<string>>(new Set());
 
   // 2. State
   const [selectedDay, setSelectedDay] = useState(props.initialDay ?? '');
-  const [lens, setLens] = useState<ChapterViewLens>('daily');
-  const [items, setItems] = useState<readonly ChapterScheduleItem[]>([]);
+  const [lens, setLens] = useState<EpisodeViewLens>('daily');
+  const [items, setItems] = useState<readonly EpisodeScheduleItem[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [covers, setCovers] = useState<ReadonlyMap<string, CoverEntry>>(new Map());
-  const [dayCounts, setDayCounts] = useState<readonly ChapterDayCount[]>([]);
+  const [dayCounts, setDayCounts] = useState<readonly EpisodeDayCount[]>([]);
 
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const source = useMemo(() => createChapterScheduleSource(props.source), [props.source]);
-  const filterOptions = useMemo(() => getChapterFilterOptions(lens === 'season'), [lens]);
-  const rows = useMemo(() => toChapterScheduleRows(items, covers), [items, covers]);
+  const source = useMemo(() => createEpisodeScheduleSource(props.source), [props.source]);
+  const filterOptions = useMemo(() => getEpisodeFilterOptions(lens === 'season'), [lens]);
+  const rows = useMemo(() => toEpisodeScheduleRows(items, covers), [items, covers]);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const refresh = useCallback(() => {
@@ -35,12 +35,12 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     }
     setErrorMessage('');
     void source
-      .getChapterSchedule(selectedDay)
+      .getEpisodeSchedule(selectedDay)
       .then((nextItems) => {
         setItems(nextItems);
       })
       .catch(() => {
-        setErrorMessage('Could not load chapter schedule.');
+        setErrorMessage('Could not load episode schedule.');
       });
   }, [selectedDay, source]);
 
@@ -48,14 +48,14 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     setSelectedDay(day);
   }, []);
 
-  const selectLens = useCallback((nextLens: ChapterViewLens) => {
+  const selectLens = useCallback((nextLens: EpisodeViewLens) => {
     setLens(nextLens);
     setSelectedDay(getDefaultLensSelection(nextLens));
   }, []);
 
   const refreshDayCounts = useCallback(() => {
     void source
-      .getChapterDayCounts()
+      .getEpisodeDayCounts()
       .then((counts) => {
         setDayCounts(counts);
       })
@@ -64,12 +64,12 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
       });
   }, [source]);
 
-  const adjustWatchedChapters = useCallback(
+  const adjustWatchedEpisodes = useCallback(
     async (animeID: string, delta: number, base: number) => {
       setErrorMessage('');
-      const result = await source.adjustWatchedChapters(animeID, delta, base);
+      const result = await source.adjustWatchedEpisodes(animeID, delta, base);
       if (result.status !== 'ok') {
-        setErrorMessage(result.message ?? 'Could not update chapter progress.');
+        setErrorMessage(result.message ?? 'Could not update episode progress.');
         return;
       }
       refresh();
@@ -92,7 +92,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
     [refresh, refreshDayCounts, source],
   );
 
-  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<ChapterCommandResult>, animeID: string, successToast?: string) => {
+  const runDesktopAction = useCallback(async (action: (animeID: string) => Promise<EpisodeCommandResult>, animeID: string, successToast?: string) => {
     setErrorMessage('');
     const result = await action(animeID);
     if (result.status !== 'ok') {
@@ -122,7 +122,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
           return;
         }
         setLens(enabled ? 'season' : 'daily');
-        setSelectedDay(getInitialChapterSelection({ isSeasonMode: enabled }));
+        setSelectedDay(getInitialEpisodeSelection({ isSeasonMode: enabled }));
       })
       .catch(() => {
         if (isActive) {
@@ -193,7 +193,7 @@ export function useChapterSchedulePanel(props: Readonly<ChapterSchedulePanelProp
   }, [items, source]);
 
   return {
-    adjustWatchedChapters,
+    adjustWatchedEpisodes,
     copyAnimeFolder,
     copyAnimePage,
     dayCounts,

@@ -1,1 +1,0 @@
-export { ChapterSchedulePanel } from './ChapterSchedulePanel';

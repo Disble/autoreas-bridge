@@ -8,26 +8,26 @@ import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
 import { SeasonRateAction } from '../../../season/ui/SeasonRateAction/SeasonRateAction';
-import { CHAPTER_COVER_SLOT_CLASS, CHAPTER_STATE_OPTIONS } from './chapter-schedule-panel.constants';
-import type { ChapterScheduleCardProps } from './chapter-schedule-panel.types';
+import { EPISODE_COVER_SLOT_CLASS, EPISODE_STATE_OPTIONS } from './episode-schedule-panel.constants';
+import type { EpisodeScheduleCardProps } from './episode-schedule-panel.types';
 
 /**
- * Renders one chapter-schedule row: cover slot, watched/remaining hover-swap,
+ * Renders one episode-schedule row: cover slot, watched/remaining hover-swap,
  * danger-colored minus, primary plus, real-path tooltips, and the status modal.
  */
-export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
-  const { adjustWatchedChapters, copyAnimeFolder, copyAnimePage, openAnimeFolder, openAnimePage, row, setAnimeState } = props;
+export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
+  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, openAnimeFolder, openAnimePage, row, setAnimeState } = props;
   const hasResolvedCover = !row.showCoverPlaceholder && row.coverDataUrl !== undefined;
 
   return (
     <Card className="overflow-hidden">
       <div className="flex min-h-24 gap-4">
         {hasResolvedCover ? (
-          <div className={CHAPTER_COVER_SLOT_CLASS} data-testid="chapter-schedule-cover-slot">
-            <img alt="" className="absolute inset-0 size-full object-cover" data-testid="chapter-schedule-cover-image" src={row.coverDataUrl} />
+          <div className={EPISODE_COVER_SLOT_CLASS} data-testid="episode-schedule-cover-slot">
+            <img alt="" className="absolute inset-0 size-full object-cover" data-testid="episode-schedule-cover-image" src={row.coverDataUrl} />
           </div>
         ) : (
-          <div className={CHAPTER_COVER_SLOT_CLASS} data-testid="chapter-schedule-cover-slot">
+          <div className={EPISODE_COVER_SLOT_CLASS} data-testid="episode-schedule-cover-slot">
             <CoverPlaceholderScene className="absolute inset-0 size-full" />
           </div>
         )}
@@ -96,29 +96,29 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <Button
               isIconOnly
-              aria-label={`Subtract one chapter for ${row.name}. Secondary click subtracts half chapter.`}
+              aria-label={`Subtract one episode for ${row.name}. Secondary click subtracts half episode.`}
               isDisabled={row.isProgressBlocked}
               size="sm"
               variant="secondary"
               onContextMenu={(event: MouseEvent) => {
                 event.preventDefault();
-                void adjustWatchedChapters(row.id, -0.5, row.modifiedAt);
+                void adjustWatchedEpisodes(row.id, -0.5, row.modifiedAt);
               }}
-              onPress={() => void adjustWatchedChapters(row.id, -1, row.modifiedAt)}
+              onPress={() => void adjustWatchedEpisodes(row.id, -1, row.modifiedAt)}
             >
               <Icon icon={minusIcon} className="size-5" />
             </Button>
             <Button
               isIconOnly
-              aria-label={`Add one chapter for ${row.name}. Secondary click adds half chapter.`}
+              aria-label={`Add one episode for ${row.name}. Secondary click adds half episode.`}
               isDisabled={row.isProgressBlocked}
               size="sm"
               variant="primary"
               onContextMenu={(event: MouseEvent) => {
                 event.preventDefault();
-                void adjustWatchedChapters(row.id, 0.5, row.modifiedAt);
+                void adjustWatchedEpisodes(row.id, 0.5, row.modifiedAt);
               }}
-              onPress={() => void adjustWatchedChapters(row.id, 1, row.modifiedAt)}
+              onPress={() => void adjustWatchedEpisodes(row.id, 1, row.modifiedAt)}
             >
               <Icon icon={plusIcon} className="size-5" />
             </Button>
@@ -138,7 +138,7 @@ export function ChapterScheduleCard(props: Readonly<ChapterScheduleCardProps>) {
                     </Modal.Header>
                     <Modal.Body>
                       <div className="grid grid-cols-2 gap-2">
-                        {CHAPTER_STATE_OPTIONS.map((state) => (
+                        {EPISODE_STATE_OPTIONS.map((state) => (
                           <Button key={state.value} aria-label={`Set ${row.name} as ${state.label}`} variant={row.stateLabel === state.label ? 'secondary' : 'tertiary'} onPress={() => void setAnimeState(row.id, state.value, row.modifiedAt)}>
                             <Icon icon={state.icon} className="size-4" />
                             {state.label}

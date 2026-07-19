@@ -1,7 +1,7 @@
 import catalogIcon from '@iconify-icons/solar/calendar-bold-duotone';
-import chaptersIcon from '@iconify-icons/solar/list-check-bold-duotone';
 import dashboardIcon from '@iconify-icons/solar/widget-5-bold-duotone';
 import downloadIcon from '@iconify-icons/solar/download-bold-duotone';
+import episodesIcon from '@iconify-icons/solar/list-check-bold-duotone';
 import historyIcon from '@iconify-icons/solar/history-bold-duotone';
 import networkIcon from '@iconify-icons/solar/server-2-bold-duotone';
 import optionsIcon from '@iconify-icons/solar/settings-bold-duotone';
@@ -16,7 +16,7 @@ export const APP_LAYOUT_NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: dashboardIcon },
   { to: '/catalog', label: 'Catalog', icon: catalogIcon },
   { to: '/history', label: 'History', icon: historyIcon },
-  { to: '/chapters', label: 'Chapters', icon: chaptersIcon },
+  { to: '/episodes', label: 'Episodes', icon: episodesIcon },
   { to: '/downloads', label: 'Downloads', icon: downloadIcon },
   { to: '/editor', label: 'Anime Editor', icon: penIcon },
   { to: '/status', label: 'Status', icon: statusIcon },

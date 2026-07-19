@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { createChapterScheduleSource, dayBadge, getChapterFilterOptions, getDefaultChapterDay, getDefaultLensSelection, getInitialChapterSelection, toChapterScheduleRows, toChapterViewLens } from '../chapter-schedule-panel.helpers';
-import type { ChapterDayCount, ChapterScheduleItem, ChapterScheduleSource, CoverEntry } from '../chapter-schedule-panel.types';
+import { createEpisodeScheduleSource, dayBadge, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
+import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
-describe('toChapterScheduleRows', () => {
+describe('toEpisodeScheduleRows', () => {
   it('preserves an explicitly injected source for isolated hook tests', () => {
-    const source = {} as ChapterScheduleSource;
+    const source = {} as EpisodeScheduleSource;
 
-    expect(createChapterScheduleSource(source)).toBe(source);
+    expect(createEpisodeScheduleSource(source)).toBe(source);
   });
 
   it('maps progress and remaining labels without hiding fractional progress', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       {
         animeId: 'anime-1',
         animeName: 'Frieren',
@@ -26,7 +26,7 @@ describe('toChapterScheduleRows', () => {
       },
     ];
 
-    expect(toChapterScheduleRows(items)).toEqual([
+    expect(toEpisodeScheduleRows(items)).toEqual([
       {
         id: 'anime-1',
         name: 'Frieren',
@@ -47,8 +47,8 @@ describe('toChapterScheduleRows', () => {
     ]);
   });
 
-  it('clamps remaining chapters to zero while keeping fractional watched progress', () => {
-    const items: readonly ChapterScheduleItem[] = [
+  it('clamps remaining episodes to zero while keeping fractional watched progress', () => {
+    const items: readonly EpisodeScheduleItem[] = [
       {
         animeId: 'anime-1',
         animeName: 'Frieren',
@@ -62,7 +62,7 @@ describe('toChapterScheduleRows', () => {
       },
     ];
 
-    expect(toChapterScheduleRows(items)[0]).toMatchObject({
+    expect(toEpisodeScheduleRows(items)[0]).toMatchObject({
       watchedLabel: '12.5 watched',
       remainingLabel: '0 remaining',
       progressTitle: '12.5 watched of 12 · 0 remaining',
@@ -70,7 +70,7 @@ describe('toChapterScheduleRows', () => {
   });
 
   it('marks completed, paused, and dropped anime as blocked for direct progress changes', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       {
         animeId: 'anime-1',
         animeName: 'Paused',
@@ -83,12 +83,12 @@ describe('toChapterScheduleRows', () => {
       },
     ];
 
-    expect(toChapterScheduleRows(items)[0]?.isProgressBlocked).toBe(true);
-    expect(toChapterScheduleRows(items)[0]?.remainingLabel).toBe('Unknown remaining');
+    expect(toEpisodeScheduleRows(items)[0]?.isProgressBlocked).toBe(true);
+    expect(toEpisodeScheduleRows(items)[0]?.remainingLabel).toBe('Unknown remaining');
   });
 
   it('derives hasPage/hasFolder from the literal path strings, defaulting to empty when absent', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       {
         animeId: 'anime-1',
         animeName: 'No paths',
@@ -113,23 +113,23 @@ describe('toChapterScheduleRows', () => {
       },
     ];
 
-    const rows = toChapterScheduleRows(items);
+    const rows = toEpisodeScheduleRows(items);
 
     expect(rows[0]).toMatchObject({ folderPath: '', hasFolder: false, hasPage: false, pageUrl: '' });
     expect(rows[1]).toMatchObject({ folderPath: '/anime/both', hasFolder: true, hasPage: true, pageUrl: 'https://example.com/both' });
   });
 
   it('shows the placeholder when hasCover is false, regardless of any cover entry', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       { animeId: 'anime-1', animeName: 'No cover', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: false, modified_at: 1000, nrocapvisto: 1 },
     ];
     const covers = new Map<string, CoverEntry>([['anime-1', { dataUrl: 'data:image/png;base64,abc', status: 'cover' }]]);
 
-    expect(toChapterScheduleRows(items, covers)[0]).toMatchObject({ coverDataUrl: undefined, showCoverPlaceholder: true });
+    expect(toEpisodeScheduleRows(items, covers)[0]).toMatchObject({ coverDataUrl: undefined, showCoverPlaceholder: true });
   });
 
   it('shows the placeholder while the cover is loading or missing from the map', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       { animeId: 'anime-1', animeName: 'Loading', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
       { animeId: 'anime-2', animeName: 'Placeholder', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
     ];
@@ -138,37 +138,37 @@ describe('toChapterScheduleRows', () => {
       ['anime-2', { status: 'placeholder' }],
     ]);
 
-    const rows = toChapterScheduleRows(items, covers);
+    const rows = toEpisodeScheduleRows(items, covers);
 
     expect(rows[0]).toMatchObject({ coverDataUrl: undefined, showCoverPlaceholder: true });
     expect(rows[1]).toMatchObject({ coverDataUrl: undefined, showCoverPlaceholder: true });
   });
 
   it('shows the resolved cover once the entry resolves to a data URL', () => {
-    const items: readonly ChapterScheduleItem[] = [
+    const items: readonly EpisodeScheduleItem[] = [
       { animeId: 'anime-1', animeName: 'Resolved', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
     ];
     const covers = new Map<string, CoverEntry>([['anime-1', { dataUrl: 'data:image/png;base64,abc', status: 'cover' }]]);
 
-    expect(toChapterScheduleRows(items, covers)[0]).toMatchObject({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false });
+    expect(toEpisodeScheduleRows(items, covers)[0]).toMatchObject({ coverDataUrl: 'data:image/png;base64,abc', showCoverPlaceholder: false });
   });
 });
 
-describe('getDefaultChapterDay', () => {
+describe('getDefaultEpisodeDay', () => {
   it('returns the current Spanish weekday name', () => {
-    expect(getDefaultChapterDay(new Date('2026-07-03T12:00:00'))).toBe('Viernes');
+    expect(getDefaultEpisodeDay(new Date('2026-07-03T12:00:00'))).toBe('Viernes');
   });
 });
 
-describe('chapter filter selection', () => {
+describe('episode filter selection', () => {
   it('uses season lenses and starts on Ver hoy when season mode is active', () => {
-    expect(getChapterFilterOptions(true)).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
-    expect(getInitialChapterSelection({ isSeasonMode: true, today: new Date('2026-07-04T12:00:00') })).toBe('Ver hoy');
+    expect(getEpisodeFilterOptions(true)).toEqual(['Sin ver', 'Visto', 'Ver hoy']);
+    expect(getInitialEpisodeSelection({ isSeasonMode: true, today: new Date('2026-07-04T12:00:00') })).toBe('Ver hoy');
   });
 
   it('uses weekday lenses and starts on today when season mode is inactive', () => {
-    expect(getChapterFilterOptions(false)).toContain('Sábado');
-    expect(getInitialChapterSelection({ isSeasonMode: false, today: new Date('2026-07-04T12:00:00') })).toBe('Sábado');
+    expect(getEpisodeFilterOptions(false)).toContain('Sábado');
+    expect(getInitialEpisodeSelection({ isSeasonMode: false, today: new Date('2026-07-04T12:00:00') })).toBe('Sábado');
   });
 });
 
@@ -182,16 +182,16 @@ describe('getDefaultLensSelection', () => {
   });
 });
 
-describe('toChapterViewLens', () => {
+describe('toEpisodeViewLens', () => {
   it('keeps supported keys and defaults unknown values to daily', () => {
-    expect(toChapterViewLens('season')).toBe('season');
-    expect(toChapterViewLens('daily')).toBe('daily');
-    expect(toChapterViewLens('garbage')).toBe('daily');
+    expect(toEpisodeViewLens('season')).toBe('season');
+    expect(toEpisodeViewLens('daily')).toBe('daily');
+    expect(toEpisodeViewLens('garbage')).toBe('daily');
   });
 });
 
 describe('dayBadge', () => {
-  const counts: readonly ChapterDayCount[] = [
+  const counts: readonly EpisodeDayCount[] = [
     { count: 2, day: 'Lunes' },
     { count: 0, day: 'Martes' },
   ];

@@ -1,32 +1,32 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
 
-/** Which lens groups the Chapters list: season watch states or weekdays. */
-export type ChapterViewLens = 'season' | 'daily';
+/** Which lens groups the Episodes list: season watch states or weekdays. */
+export type EpisodeViewLens = 'season' | 'daily';
 
-/** Props accepted by the operational chapter schedule panel. */
-export interface ChapterSchedulePanelProps {
+/** Props accepted by the operational episode schedule panel. */
+export interface EpisodeSchedulePanelProps {
   /** Optional source for tests or non-Wails adapters. */
-  readonly source?: ChapterScheduleSource;
+  readonly source?: EpisodeScheduleSource;
   /** Optional initial day; defaults to the current legacy weekday or season lens. */
   readonly initialDay?: string;
 }
 
-/** Request/reply port used by the Chapters UI hook. */
-export interface ChapterScheduleSource {
+/** Request/reply port used by the Episodes UI hook. */
+export interface EpisodeScheduleSource {
   readonly getSeasonMode: () => Promise<boolean>;
-  readonly getChapterSchedule: (day: string) => Promise<readonly ChapterScheduleItem[]>;
-  readonly adjustWatchedChapters: (animeID: string, delta: number, base: number) => Promise<ChapterCommandResult>;
-  readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<ChapterCommandResult>;
-  readonly openAnimePage: (animeID: string) => Promise<ChapterCommandResult>;
-  readonly copyAnimePage: (animeID: string) => Promise<ChapterCommandResult>;
-  readonly openAnimeFolder: (animeID: string) => Promise<ChapterCommandResult>;
-  readonly copyAnimeFolder: (animeID: string) => Promise<ChapterCommandResult>;
+  readonly getEpisodeSchedule: (day: string) => Promise<readonly EpisodeScheduleItem[]>;
+  readonly adjustWatchedEpisodes: (animeID: string, delta: number, base: number) => Promise<EpisodeCommandResult>;
+  readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<EpisodeCommandResult>;
+  readonly openAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
+  readonly copyAnimePage: (animeID: string) => Promise<EpisodeCommandResult>;
+  readonly openAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
+  readonly copyAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly getAnimeCover: (animeID: string) => Promise<AnimeCover>;
-  readonly getChapterDayCounts: () => Promise<readonly ChapterDayCount[]>;
+  readonly getEpisodeDayCounts: () => Promise<readonly EpisodeDayCount[]>;
 }
 
-/** Wails-facing schedule item returned by the backend chapter command service. */
-export type ChapterScheduleItem = Pick<
+/** Wails-facing schedule item returned by the backend episode command service. */
+export type EpisodeScheduleItem = Pick<
   Anime,
   'estado' | 'nrocapvisto' | 'totalcap'
 > & {
@@ -49,7 +49,7 @@ export interface AnimeCover {
 }
 
 /** Per-weekday count of active, unresolved-progress anime (mirrors Legacy's buscarMedalla). */
-export interface ChapterDayCount {
+export interface EpisodeDayCount {
   readonly day: string;
   readonly count: number;
 }
@@ -57,8 +57,8 @@ export interface ChapterDayCount {
 /** In-memory, per-session cover cache entry keyed by anime id. */
 export type CoverEntry = { readonly status: 'loading' | 'placeholder' } | { readonly status: 'cover'; readonly dataUrl: string };
 
-/** Wails-facing result returned by chapter write commands. */
-export interface ChapterCommandResult {
+/** Wails-facing result returned by episode write commands. */
+export interface EpisodeCommandResult {
   readonly status: string;
   readonly message?: string;
   readonly animeId?: string;
@@ -69,8 +69,8 @@ export interface ChapterCommandResult {
   readonly correlationId?: string;
 }
 
-/** View model row consumed by the dumb Chapters component. */
-export interface ChapterScheduleRow {
+/** View model row consumed by the dumb Episodes component. */
+export interface EpisodeScheduleRow {
   readonly id: string;
   readonly name: string;
   readonly stateLabel: string;
@@ -89,16 +89,16 @@ export interface ChapterScheduleRow {
 }
 
 /** Input used to resolve the initial schedule filter. */
-export interface InitialChapterSelectionInput {
+export interface InitialEpisodeSelectionInput {
   readonly isSeasonMode: boolean;
   readonly initialDay?: string;
   readonly today?: Date;
 }
 
-/** Props for one row card in the chapter schedule list. */
-export interface ChapterScheduleCardProps {
-  readonly row: ChapterScheduleRow;
-  readonly adjustWatchedChapters: (animeID: string, delta: number, base: number) => Promise<void>;
+/** Props for one row card in the episode schedule list. */
+export interface EpisodeScheduleCardProps {
+  readonly row: EpisodeScheduleRow;
+  readonly adjustWatchedEpisodes: (animeID: string, delta: number, base: number) => Promise<void>;
   readonly setAnimeState: (animeID: string, estado: number, base: number) => Promise<void>;
   readonly openAnimePage: (animeID: string) => Promise<void>;
   readonly copyAnimePage: (animeID: string) => Promise<void>;
