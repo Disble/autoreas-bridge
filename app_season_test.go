@@ -160,7 +160,7 @@ func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("expected one row, got %+v", rows)
 	}
-	if rows[0].MatchStatus != "matched" || rows[0].Availability != "available" || rows[0].AvailableChapters != 1 {
+	if rows[0].MatchStatus != "matched" || rows[0].Availability != "available" || rows[0].AvailableEpisodes != 1 {
 		t.Fatalf("matching must immediately expose creatable rows, got %+v", rows[0])
 	}
 }

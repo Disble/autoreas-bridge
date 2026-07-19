@@ -20,7 +20,7 @@ func seasonAnimeToDTO(r domain.SeasonAnime) SeasonAnimeDTO {
 		MatchedSlug:       r.MatchedSlug,
 		Candidates:        candidates,
 		Availability:      string(r.Availability),
-		AvailableChapters: r.AvailableEpisodes,
+		AvailableEpisodes: r.AvailableEpisodes,
 		AnimeID:           r.AnimeID,
 		Grade:             r.Grade,
 		GradeSource:       string(r.GradeSource),

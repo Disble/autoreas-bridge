@@ -32,7 +32,7 @@ type SeasonAnimeDTO struct {
 	MatchedSlug       string                    `json:"matchedSlug"`
 	Candidates        []SeasonAnimeCandidateDTO `json:"candidates"`
 	Availability      string                    `json:"availability"`
-	AvailableChapters int                       `json:"availableChapters"`
+	AvailableEpisodes int                       `json:"availableEpisodes"`
 	AnimeID           string                    `json:"animeId"`
 	Section           string                    `json:"section"`
 	Grade             int                       `json:"grade"`
