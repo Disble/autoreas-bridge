@@ -222,7 +222,7 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 		TotalCap: ptrInt(12),
 	}
 
-	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, false)
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(false))
 
 	// A season already complete on disk is "up to date" -- it was evaluated (against
 	// TotalCap/on-disk), not skipped like a misconfigured anime.
@@ -261,7 +261,7 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 		Carpeta: ptrStr(folder),
 	}
 
-	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, true)
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
 
 	if !got.upToDate || got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 {
 		t.Fatalf("expected up-to-date outcome when nothing new is online, got %#v", got)
@@ -366,7 +366,7 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 				TotalCap: tc.totalCap,
 			}
 
-			got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, false)
+			got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(false))
 
 			if registry.calls() != 1 {
 				t.Fatalf("expected Resolve to be called once, got %d calls", registry.calls())

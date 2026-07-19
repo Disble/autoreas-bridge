@@ -3,6 +3,7 @@ package download
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
@@ -10,22 +11,25 @@ import (
 	"autoreas-bridge/internal/notification"
 )
 
-// executeAnimeLive runs the download pipeline for one anime and finalizes its run.
+// executeAnimeLive runs the download pipeline for one anime and finalizes its run. Like
+// executeAnimes, it defers EnsureOnline behind a lazy jdGate: JDownloader is never launched
+// unless the single anime actually has a missing episode.
 func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, anime contracts.MobileAnime) RunResult {
-	jdOnline := s.ensureJDOnline(ctx)
-	run.JDAvailable = jdOnline
-	s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: jdOnline, CorrelationID: runID})
-	s.recordProgress(ctx, run)
+	var runMu sync.Mutex
+	gate := s.newJDGateForRun(ctx, runID, run, &runMu)
 
 	applyDelta := func(delta animeProgressDelta) {
+		runMu.Lock()
 		applyProgressDelta(run, delta)
-		s.recordProgress(ctx, run)
+		snapshot := cloneRun(*run)
+		runMu.Unlock()
+		s.recordProgress(ctx, &snapshot)
 	}
 
-	outcome := s.processAnime(ctx, runID, anime, jdOnline, applyDelta)
+	outcome := s.processAnime(ctx, runID, anime, gate, applyDelta)
 
 	switch {
-	case !jdOnline && len(run.ManualLinks) > 0:
+	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
 		s.notify(ctx, notification.LevelWarning, runID,
 			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))

@@ -95,8 +95,9 @@ var _ sites.EpisodeSource = (*svcFakeEpisodeSource)(nil)
 type svcFakeJDClient struct {
 	mu sync.Mutex
 
-	ensureOnlineErr error
-	addAndStartCall []jdownloader.EnqueueRequest
+	ensureOnlineErr   error
+	ensureOnlineCalls int
+	addAndStartCall   []jdownloader.EnqueueRequest
 }
 
 func (f *svcFakeJDClient) Connect(ctx context.Context) error { return nil }
@@ -104,7 +105,18 @@ func (f *svcFakeJDClient) ListDevices(ctx context.Context) ([]jdownloader.Device
 	return nil, nil
 }
 func (f *svcFakeJDClient) EnsureOnline(ctx context.Context, deviceName string, launchIfMissing bool) error {
+	f.mu.Lock()
+	f.ensureOnlineCalls++
+	f.mu.Unlock()
 	return f.ensureOnlineErr
+}
+
+// ensureOnlineCallCount returns how many times EnsureOnline was invoked, so tests can assert
+// JDownloader is never launched (or launched exactly once) for a given run.
+func (f *svcFakeJDClient) ensureOnlineCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.ensureOnlineCalls
 }
 func (f *svcFakeJDClient) AddAndStart(ctx context.Context, deviceName string, req jdownloader.EnqueueRequest) error {
 	f.mu.Lock()

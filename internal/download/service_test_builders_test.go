@@ -13,6 +13,14 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// fixedJDGate returns a jdGate pre-resolved to the given online status, for tests that call
+// processAnime directly (bypassing the run-level lazy resolution wired in executeAnimes).
+func fixedJDGate(online bool) *jdGate {
+	g := newJDGate(func(context.Context) bool { return online }, nil)
+	g.online(context.Background())
+	return g
+}
+
 // ptrStr returns a pointer to a string value.
 func ptrStr(s string) *string { return &s }
 

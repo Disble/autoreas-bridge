@@ -241,13 +241,11 @@ func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time
 	return s.executeAnimes(ctx, runID, run, animes)
 }
 
-// executeAnimes runs the selected anime fan-out and finalizes its aggregate result.
+// executeAnimes runs the selected anime fan-out and finalizes its aggregate result. JDownloader
+// is never contacted here -- the lazy jdGate defers EnsureOnline until an anime actually
+// discovers a missing episode (see downloadAvailableEpisodes), so a run where every anime is
+// already up to date, skipped, or fails at listing never launches the JDownloader exe.
 func (s *Service) executeAnimes(ctx context.Context, runID string, run *Run, animes []contracts.MobileAnime) RunResult {
-	jdOnline := s.ensureJDOnline(ctx)
-	run.JDAvailable = jdOnline
-	s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: jdOnline, CorrelationID: runID})
-	s.recordProgress(ctx, run)
-
 	var progressMu sync.Mutex
 	applyDelta := func(delta animeProgressDelta) {
 		progressMu.Lock()
@@ -257,21 +255,38 @@ func (s *Service) executeAnimes(ctx context.Context, runID string, run *Run, ani
 		s.recordProgress(ctx, &snapshot)
 	}
 
-	anyFailed, anySucceeded := s.processAnimes(ctx, runID, animes, jdOnline, applyDelta)
-	s.setRunCompletionStatus(ctx, runID, run, jdOnline, anyFailed, anySucceeded)
+	gate := s.newJDGateForRun(ctx, runID, run, &progressMu)
+
+	anyFailed, anySucceeded := s.processAnimes(ctx, runID, animes, gate, applyDelta)
+	s.setRunCompletionStatus(ctx, runID, run, gate, anyFailed, anySucceeded)
 
 	s.finalize(ctx, run)
 	return RunResult{RunID: runID, Status: run.Status}
 }
 
+// newJDGateForRun builds a jdGate whose onResolve callback records JD availability on run
+// (guarded by runMu -- the same mutex applyDelta uses) and publishes the JD status event/progress
+// snapshot the first (and only) time any anime actually needs to launch JDownloader. If the gate
+// never resolves, run.JDAvailable stays false and no JD status event is ever published.
+func (s *Service) newJDGateForRun(ctx context.Context, runID string, run *Run, runMu *sync.Mutex) *jdGate {
+	return newJDGate(s.ensureJDOnline, func(online bool) {
+		runMu.Lock()
+		run.JDAvailable = online
+		snapshot := cloneRun(*run)
+		runMu.Unlock()
+		s.publish(events.DownloadJDStatusEvent{RunID: runID, Online: online, CorrelationID: runID})
+		s.recordProgress(ctx, &snapshot)
+	})
+}
+
 // processAnimes concurrently processes selected animes and summarizes their outcomes.
-func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, jdOnline bool, applyDelta func(animeProgressDelta)) (bool, bool) {
+func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, gate *jdGate, applyDelta func(animeProgressDelta)) (bool, bool) {
 	outcomes := make(chan animeRunOutcome, len(animes))
 	var wg sync.WaitGroup
 	for _, anime := range animes {
 		anime := anime
 		wg.Add(1)
-		go func() { defer wg.Done(); outcomes <- s.processAnime(ctx, runID, anime, jdOnline, applyDelta) }()
+		go func() { defer wg.Done(); outcomes <- s.processAnime(ctx, runID, anime, gate, applyDelta) }()
 	}
 	wg.Wait()
 	close(outcomes)
@@ -289,9 +304,9 @@ func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool) {
 }
 
 // setRunCompletionStatus assigns the terminal status and related notification.
-func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, jdOnline, anyFailed, anySucceeded bool) {
+func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool) {
 	switch {
-	case !jdOnline && len(run.ManualLinks) > 0:
+	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
 		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
 	case anyFailed && anySucceeded:

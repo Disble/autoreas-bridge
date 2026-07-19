@@ -18,7 +18,7 @@ func (s *Service) processAnime(
 	ctx context.Context,
 	runID string,
 	anime contracts.MobileAnime,
-	jdOnline bool,
+	gate *jdGate,
 	progress ...func(animeProgressDelta),
 ) animeRunOutcome {
 	emitProgress := progressEmitter(progress)
@@ -26,7 +26,7 @@ func (s *Service) processAnime(
 	if complete {
 		return outcome
 	}
-	return s.downloadAvailableEpisodes(ctx, runID, anime, jdOnline, preparation, emitProgress)
+	return s.downloadAvailableEpisodes(ctx, runID, anime, gate, preparation, emitProgress)
 }
 
 type animeDownloadPreparation struct {
@@ -104,14 +104,19 @@ func (s *Service) episodeListFailure(runID string, anime contracts.MobileAnime, 
 	return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindHosterDown}
 }
 
-// downloadAvailableEpisodes processes every episode missing from the prepared listing.
-func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, anime contracts.MobileAnime, jdOnline bool, preparation animeDownloadPreparation, emitProgress func(animeProgressDelta)) animeRunOutcome {
+// downloadAvailableEpisodes processes every episode missing from the prepared listing. This is
+// the ONLY place the lazy jdGate is resolved: reaching here already proves at least one episode
+// is missing, so this is the earliest point at which launching JDownloader is actually justified
+// (bug fix: previously EnsureOnline ran unconditionally before any episode discovery).
+func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, anime contracts.MobileAnime, gate *jdGate, preparation animeDownloadPreparation, emitProgress func(animeProgressDelta)) animeRunOutcome {
+	gate.online(ctx)
+
 	missingEpisodes := preparation.listing.LatestEpisode - preparation.onDiskEpisode
 	outcome := animeRunOutcome{checked: true, episodesFound: missingEpisodes}
 	emitProgress(animeProgressDelta{checked: true, episodesFound: missingEpisodes})
 	current := preparation.onDiskEpisode
 	for current < preparation.listing.LatestEpisode {
-		nextCount, terminal := s.processAvailableEpisode(ctx, runID, anime, jdOnline, preparation.source, current, &outcome, emitProgress)
+		nextCount, terminal := s.processAvailableEpisode(ctx, runID, anime, gate, preparation.source, current, &outcome, emitProgress)
 		if terminal {
 			return outcome
 		}
@@ -120,12 +125,14 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 	return outcome
 }
 
-// processAvailableEpisode resolves, extracts, and downloads one available episode.
-func (s *Service) processAvailableEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, jdOnline bool, source sites.EpisodeSource, current int, outcome *animeRunOutcome, emitProgress func(animeProgressDelta)) (int, bool) {
+// processAvailableEpisode resolves, extracts, and downloads one available episode. The gate is
+// already resolved by downloadAvailableEpisodes before this runs, so gate.knownOffline() is the
+// single source of truth for JD availability here -- it never forces a launch.
+func (s *Service) processAvailableEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, gate *jdGate, source sites.EpisodeSource, current int, outcome *animeRunOutcome, emitProgress func(animeProgressDelta)) (int, bool) {
 	nextEpisode := current + 1
 	episodePageURL, err := source.EpisodePageURL(ctx, *anime.Pagina, nextEpisode)
 	if err != nil {
-		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, jdOnline, "anime %s: resolve episode %d page failed: %v", anime.Nombre, nextEpisode, err) {
+		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, gate, "anime %s: resolve episode %d page failed: %v", anime.Nombre, nextEpisode, err) {
 			return current + 1, false
 		}
 		return current, true
@@ -135,12 +142,12 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	s.publish(events.DownloadEpisodeAvailableEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	links, err := source.ExtractLinks(ctx, episodePageURL)
 	if linkExtractionFailed(err, links) {
-		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, jdOnline, "anime %s: extract links failed: %v", anime.Nombre, err) {
+		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, gate, "anime %s: extract links failed: %v", anime.Nombre, err) {
 			return current + 1, false
 		}
 		return current, true
 	}
-	if !jdOnline {
+	if gate.knownOffline() {
 		manualLink := ManualLink{Anime: anime.Nombre, Episode: nextEpisode, Links: linkURLs(links)}
 		outcome.manualLinks = append(outcome.manualLinks, manualLink)
 		emitProgress(animeProgressDelta{manualLinks: []ManualLink{manualLink}})
@@ -167,14 +174,16 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 }
 
 // recordEpisodeFailure records an episode failure and reports whether processing should stop.
-func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), jdOnline bool, logFormat string, logArgs ...any) bool {
+// Uses gate.knownOffline() so a listing/page-resolution failure never forces the gate to resolve
+// just to decide whether to continue.
+func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), gate *jdGate, logFormat string, logArgs ...any) bool {
 	s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": failureKind}, logFormat, logArgs...)
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
 	outcome.episodesFailed++
 	outcome.failed = true
 	outcome.failureKind = failureKind
 	emitProgress(animeProgressDelta{episodesFailed: 1})
-	return !jdOnline
+	return gate.knownOffline()
 }
 
 // linkExtractionFailed reports whether link extraction yielded an unusable result.
