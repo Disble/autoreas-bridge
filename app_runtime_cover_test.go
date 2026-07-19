@@ -11,10 +11,10 @@ import (
 
 // Split out of app_runtime_test.go to keep both files under the 500-line
 // hard limit (file-size policy) -- these cases cover the cover-pipeline
-// slice of app_runtime.go (toChapterScheduleContracts's new fields,
+// slice of app_runtime.go (toEpisodeScheduleContracts's new fields,
 // GetAnimeCover).
 
-func TestToChapterScheduleContractsMapsFolderPagePageURLHasCoverAndDropsBooleans(t *testing.T) {
+func TestToEpisodeScheduleContractsMapsFolderPagePageURLHasCoverAndDropsBooleans(t *testing.T) {
 	t.Parallel()
 
 	items := []anime.EpisodeScheduleItem{{
@@ -25,7 +25,7 @@ func TestToChapterScheduleContractsMapsFolderPagePageURLHasCoverAndDropsBooleans
 		HasCover:   true,
 	}}
 
-	got := toChapterScheduleContracts(items)
+	got := toEpisodeScheduleContracts(items)
 	if len(got) != 1 {
 		t.Fatalf("expected one contract, got %#v", got)
 	}
@@ -100,12 +100,12 @@ func TestGetAnimeCoverHappyPathReturnsResolvedDataURL(t *testing.T) {
 	}
 }
 
-func TestToChapterDayCountContractsMapsDayAndCount(t *testing.T) {
+func TestToEpisodeDayCountContractsMapsDayAndCount(t *testing.T) {
 	t.Parallel()
 
 	items := []anime.EpisodeDayCount{{Day: "Lunes", Count: 3}}
 
-	got := toChapterDayCountContracts(items)
+	got := toEpisodeDayCountContracts(items)
 	if len(got) != 1 {
 		t.Fatalf("expected one contract, got %#v", got)
 	}
@@ -114,12 +114,12 @@ func TestToChapterDayCountContractsMapsDayAndCount(t *testing.T) {
 	}
 }
 
-func TestGetChapterDayCountsReturnsEmptySliceWhenChapterServiceNil(t *testing.T) {
+func TestGetEpisodeDayCountsReturnsEmptySliceWhenEpisodeServiceNil(t *testing.T) {
 	t.Parallel()
 
 	app := &App{ctx: context.Background()}
 
-	got := app.GetChapterDayCounts()
+	got := app.GetEpisodeDayCounts()
 	if got == nil {
 		t.Fatal("expected non-nil empty slice when episodeService is nil, got nil")
 	}
@@ -128,13 +128,13 @@ func TestGetChapterDayCountsReturnsEmptySliceWhenChapterServiceNil(t *testing.T)
 	}
 }
 
-func TestGetChapterDayCountsDelegatesToChapterService(t *testing.T) {
+func TestGetEpisodeDayCountsDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
 
 	service := &stubAppChapterService{dayCounts: []anime.EpisodeDayCount{{Day: "Viernes", Count: 2}}}
 	app := &App{ctx: context.Background(), episodeService: service}
 
-	got := app.GetChapterDayCounts()
+	got := app.GetEpisodeDayCounts()
 	if len(got) != 1 || got[0].Day != "Viernes" || got[0].Count != 2 {
 		t.Fatalf("expected delegated day counts, got %#v", got)
 	}

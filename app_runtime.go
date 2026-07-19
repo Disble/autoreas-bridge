@@ -198,7 +198,7 @@ func (a *App) GetAnimeDetailView(animeID string) contracts.AnimeDetail {
 	return *item
 }
 
-func (a *App) GetChapterSchedule(day string) []contracts.EpisodeScheduleItem {
+func (a *App) GetEpisodeSchedule(day string) []contracts.EpisodeScheduleItem {
 	if a.episodeService == nil {
 		return []contracts.EpisodeScheduleItem{}
 	}
@@ -206,7 +206,7 @@ func (a *App) GetChapterSchedule(day string) []contracts.EpisodeScheduleItem {
 	if err != nil {
 		return []contracts.EpisodeScheduleItem{}
 	}
-	return toChapterScheduleContracts(items)
+	return toEpisodeScheduleContracts(items)
 }
 
 // GetAnimeCover resolves a single anime's cover into a base64 data-URL, or
@@ -234,9 +234,9 @@ func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
 	return contracts.AnimeCover{DataURL: res.DataURL, Source: contracts.CoverSourceCover}
 }
 
-func (a *App) AdjustWatchedChapters(animeID string, delta float64, base int64) contracts.EpisodeCommandResult {
+func (a *App) AdjustWatchedEpisodes(animeID string, delta float64, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.AdjustWatchedEpisodes(a.appContext(), anime.AdjustWatchedEpisodesCommand{
 		AnimeID: animeID,
@@ -247,12 +247,12 @@ func (a *App) AdjustWatchedChapters(animeID string, delta float64, base int64) c
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
 func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.SetAnimeState(a.appContext(), anime.SetAnimeStateCommand{
 		AnimeID: animeID,
@@ -263,12 +263,12 @@ func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.Ep
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
 func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.SetAnimeDays(a.appContext(), anime.SetAnimeDaysCommand{
 		AnimeID: animeID,
@@ -278,12 +278,12 @@ func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
 func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.SoftDeleteAnime(a.appContext(), anime.SoftDeleteAnimeCommand{
 		AnimeID: animeID,
@@ -293,12 +293,12 @@ func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.EpisodeComma
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
 func (a *App) RestoreAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.RestoreAnime(a.appContext(), anime.RestoreAnimeCommand{
 		AnimeID: animeID,
@@ -308,12 +308,12 @@ func (a *App) RestoreAnime(animeID string, base int64) contracts.EpisodeCommandR
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
 func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "chapter service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
 	}
 	result, err := a.episodeService.RepeatAnime(a.appContext(), anime.RepeatAnimeCommand{
 		AnimeID: animeID,
@@ -323,15 +323,15 @@ func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandRe
 	if err != nil {
 		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error()}
 	}
-	return toChapterCommandContract(result)
+	return toEpisodeCommandContract(result)
 }
 
-// GetChapterDayCounts returns the per-weekday active-progress badge counts
+// GetEpisodeDayCounts returns the per-weekday active-progress badge counts
 // (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
 // Legacy's buscarMedalla semantics"). Degrades to an empty (non-nil) slice
-// on a nil service or any query error, mirroring GetChapterSchedule's
+// on a nil service or any query error, mirroring GetEpisodeSchedule's
 // nil-guard contract.
-func (a *App) GetChapterDayCounts() []contracts.EpisodeDayCount {
+func (a *App) GetEpisodeDayCounts() []contracts.EpisodeDayCount {
 	if a.episodeService == nil {
 		return []contracts.EpisodeDayCount{}
 	}
@@ -339,7 +339,7 @@ func (a *App) GetChapterDayCounts() []contracts.EpisodeDayCount {
 	if err != nil {
 		return []contracts.EpisodeDayCount{}
 	}
-	return toChapterDayCountContracts(counts)
+	return toEpisodeDayCountContracts(counts)
 }
 
 // appContext returns the application context or a background fallback.
@@ -350,8 +350,8 @@ func (a *App) appContext() context.Context {
 	return a.ctx
 }
 
-// toChapterScheduleContracts maps chapter schedule items to API contracts.
-func toChapterScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.EpisodeScheduleItem {
+// toEpisodeScheduleContracts maps episode schedule items to API contracts.
+func toEpisodeScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.EpisodeScheduleItem {
 	result := make([]contracts.EpisodeScheduleItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, contracts.EpisodeScheduleItem{
@@ -373,8 +373,8 @@ func toChapterScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.E
 	return result
 }
 
-// toChapterDayCountContracts maps chapter day counts to API contracts.
-func toChapterDayCountContracts(items []anime.EpisodeDayCount) []contracts.EpisodeDayCount {
+// toEpisodeDayCountContracts maps episode day counts to API contracts.
+func toEpisodeDayCountContracts(items []anime.EpisodeDayCount) []contracts.EpisodeDayCount {
 	result := make([]contracts.EpisodeDayCount, 0, len(items))
 	for _, item := range items {
 		result = append(result, contracts.EpisodeDayCount{Day: item.Day, Count: item.Count})
@@ -382,8 +382,8 @@ func toChapterDayCountContracts(items []anime.EpisodeDayCount) []contracts.Episo
 	return result
 }
 
-// toChapterCommandContract maps a chapter command result to its API contract.
-func toChapterCommandContract(result anime.EpisodeCommandResult) contracts.EpisodeCommandResult {
+// toEpisodeCommandContract maps an episode command result to its API contract.
+func toEpisodeCommandContract(result anime.EpisodeCommandResult) contracts.EpisodeCommandResult {
 	return contracts.EpisodeCommandResult{
 		Status:        "ok",
 		AnimeID:       result.AnimeID,

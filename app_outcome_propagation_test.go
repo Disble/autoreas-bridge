@@ -7,8 +7,8 @@ import (
 	"autoreas-bridge/internal/anime"
 )
 
-func TestToChapterCommandContractPreservesMutationAuthority(t *testing.T) {
-	got := toChapterCommandContract(anime.EpisodeCommandResult{
+func TestToEpisodeCommandContractPreservesMutationAuthority(t *testing.T) {
+	got := toEpisodeCommandContract(anime.EpisodeCommandResult{
 		AnimeID: "anime-1", Outcome: anime.PatchOutcomeConflict,
 		ModifiedAt: 2000, ConflictID: "conflict-17",
 	})
@@ -18,8 +18,8 @@ func TestToChapterCommandContractPreservesMutationAuthority(t *testing.T) {
 	}
 }
 
-func TestToChapterCommandContractPreservesZeroMutationTokenOnJSONWire(t *testing.T) {
-	got := toChapterCommandContract(anime.EpisodeCommandResult{
+func TestToEpisodeCommandContractPreservesZeroMutationTokenOnJSONWire(t *testing.T) {
+	got := toEpisodeCommandContract(anime.EpisodeCommandResult{
 		AnimeID: "anime-zero", Outcome: anime.PatchOutcomeConflict,
 		ModifiedAt: 0, ConflictID: "conflict-zero",
 	})
