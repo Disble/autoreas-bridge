@@ -4,7 +4,7 @@ import {contracts} from '../models';
 import {main} from '../models';
 import {logger} from '../models';
 
-export function AdjustWatchedChapters(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
+export function AdjustWatchedEpisodes(arg1:string,arg2:number,arg3:number):Promise<contracts.EpisodeCommandResult>;
 
 export function ApplyAnimeEditorSchedule(arg1:main.ApplyAnimeScheduleDraftCommandDTO):Promise<contracts.AnimeEditorScheduleApplyResult>;
 
@@ -14,9 +14,9 @@ export function CloseSeason():Promise<string>;
 
 export function ConfirmSeasonSelection():Promise<main.ConfirmSelectionDTO>;
 
-export function CopyAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+export function CopyAnimeFolder(arg1:string):Promise<contracts.EpisodeCommandResult>;
 
-export function CopyAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+export function CopyAnimePage(arg1:string):Promise<contracts.EpisodeCommandResult>;
 
 export function CreateSeason(arg1:string):Promise<string>;
 
@@ -42,10 +42,6 @@ export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
 
-export function GetChapterDayCounts():Promise<Array<contracts.ChapterDayCount>>;
-
-export function GetChapterSchedule(arg1:string):Promise<Array<contracts.ChapterScheduleItem>>;
-
 export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
 
 export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
@@ -53,6 +49,10 @@ export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
 export function GetDownloadsRoot():Promise<string>;
 
 export function GetEffectiveAddress():Promise<string>;
+
+export function GetEpisodeDayCounts():Promise<Array<contracts.EpisodeDayCount>>;
+
+export function GetEpisodeSchedule(arg1:string):Promise<Array<contracts.EpisodeScheduleItem>>;
 
 export function GetJDStatus():Promise<contracts.JDStatus>;
 
@@ -84,9 +84,9 @@ export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
 export function ListSeasons():Promise<Array<main.SeasonDTO>>;
 
-export function OpenAnimeFolder(arg1:string):Promise<contracts.ChapterCommandResult>;
+export function OpenAnimeFolder(arg1:string):Promise<contracts.EpisodeCommandResult>;
 
-export function OpenAnimePage(arg1:string):Promise<contracts.ChapterCommandResult>;
+export function OpenAnimePage(arg1:string):Promise<contracts.EpisodeCommandResult>;
 
 export function PickFile(arg1:string):Promise<string>;
 
@@ -100,11 +100,11 @@ export function ReconcileSeasonIntake(arg1:string):Promise<string>;
 
 export function ReopenSeasonOrdering():Promise<string>;
 
-export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.EpisodeCommandResult>;
 
 export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
 
-export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.EpisodeCommandResult>;
 
 export function RunSeasonMatching():Promise<string>;
 
@@ -114,9 +114,9 @@ export function SaveSeasonOrderingDraft(arg1:string):Promise<string>;
 
 export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<main.SendToVerHoyDTO>;
 
-export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.ChapterCommandResult>;
+export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.EpisodeCommandResult>;
 
-export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.ChapterCommandResult>;
+export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.EpisodeCommandResult>;
 
 export function SetDownloadsRoot(arg1:string):Promise<string>;
 
@@ -136,7 +136,7 @@ export function SetSeasonSlots(arg1:number):Promise<string>;
 
 export function SkipSeasonGrading(arg1:string):Promise<string>;
 
-export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.ChapterCommandResult>;
+export function SoftDeleteAnime(arg1:string,arg2:number):Promise<contracts.EpisodeCommandResult>;
 
 export function TriggerAnimeDownload(arg1:string):Promise<string>;
 

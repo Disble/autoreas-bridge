@@ -683,88 +683,6 @@ export namespace contracts {
 	}
 	
 	
-	export class ChapterCommandResult {
-	    status: string;
-	    message?: string;
-	    animeId?: string;
-	    outcome?: string;
-	    modifiedAt: number;
-	    conflictId?: string;
-	    animeName?: string;
-	    estado?: number;
-	    nrocapvisto?: number;
-	    occurredAtMs?: number;
-	    correlationId?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ChapterCommandResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.status = source["status"];
-	        this.message = source["message"];
-	        this.animeId = source["animeId"];
-	        this.outcome = source["outcome"];
-	        this.modifiedAt = source["modifiedAt"];
-	        this.conflictId = source["conflictId"];
-	        this.animeName = source["animeName"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.occurredAtMs = source["occurredAtMs"];
-	        this.correlationId = source["correlationId"];
-	    }
-	}
-	export class ChapterDayCount {
-	    day: string;
-	    count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new ChapterDayCount(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.day = source["day"];
-	        this.count = source["count"];
-	    }
-	}
-	export class ChapterScheduleItem {
-	    animeId: string;
-	    animeName: string;
-	    estado: number;
-	    nrocapvisto: number;
-	    totalcap?: number;
-	    day: string;
-	    dayOrder: number;
-	    modified_at: number;
-	    folderPath?: string;
-	    pageUrl?: string;
-	    hasCover: boolean;
-	    lastWatched?: number;
-	    firstWatched?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new ChapterScheduleItem(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.animeId = source["animeId"];
-	        this.animeName = source["animeName"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.totalcap = source["totalcap"];
-	        this.day = source["day"];
-	        this.dayOrder = source["dayOrder"];
-	        this.modified_at = source["modified_at"];
-	        this.folderPath = source["folderPath"];
-	        this.pageUrl = source["pageUrl"];
-	        this.hasCover = source["hasCover"];
-	        this.lastWatched = source["lastWatched"];
-	        this.firstWatched = source["firstWatched"];
-	    }
-	}
 	export class DeviceInfo {
 	    device_id: string;
 	    device_name: string;
@@ -966,6 +884,88 @@ export namespace contracts {
 		    }
 		    return a;
 		}
+	}
+	export class EpisodeCommandResult {
+	    status: string;
+	    message?: string;
+	    animeId?: string;
+	    outcome?: string;
+	    modifiedAt: number;
+	    conflictId?: string;
+	    animeName?: string;
+	    estado?: number;
+	    nrocapvisto?: number;
+	    occurredAtMs?: number;
+	    correlationId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EpisodeCommandResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.message = source["message"];
+	        this.animeId = source["animeId"];
+	        this.outcome = source["outcome"];
+	        this.modifiedAt = source["modifiedAt"];
+	        this.conflictId = source["conflictId"];
+	        this.animeName = source["animeName"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.occurredAtMs = source["occurredAtMs"];
+	        this.correlationId = source["correlationId"];
+	    }
+	}
+	export class EpisodeDayCount {
+	    day: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EpisodeDayCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.count = source["count"];
+	    }
+	}
+	export class EpisodeScheduleItem {
+	    animeId: string;
+	    animeName: string;
+	    estado: number;
+	    nrocapvisto: number;
+	    totalcap?: number;
+	    day: string;
+	    dayOrder: number;
+	    modified_at: number;
+	    folderPath?: string;
+	    pageUrl?: string;
+	    hasCover: boolean;
+	    lastWatched?: number;
+	    firstWatched?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EpisodeScheduleItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.animeId = source["animeId"];
+	        this.animeName = source["animeName"];
+	        this.estado = source["estado"];
+	        this.nrocapvisto = source["nrocapvisto"];
+	        this.totalcap = source["totalcap"];
+	        this.day = source["day"];
+	        this.dayOrder = source["dayOrder"];
+	        this.modified_at = source["modified_at"];
+	        this.folderPath = source["folderPath"];
+	        this.pageUrl = source["pageUrl"];
+	        this.hasCover = source["hasCover"];
+	        this.lastWatched = source["lastWatched"];
+	        this.firstWatched = source["firstWatched"];
+	    }
 	}
 	
 	export class JDConfigInput {
@@ -1515,7 +1515,7 @@ export namespace main {
 	    matchedSlug: string;
 	    candidates: SeasonAnimeCandidateDTO[];
 	    availability: string;
-	    availableChapters: number;
+	    availableEpisodes: number;
 	    animeId: string;
 	    section: string;
 	    grade: number;
@@ -1536,7 +1536,7 @@ export namespace main {
 	        this.matchedSlug = source["matchedSlug"];
 	        this.candidates = this.convertValues(source["candidates"], SeasonAnimeCandidateDTO);
 	        this.availability = source["availability"];
-	        this.availableChapters = source["availableChapters"];
+	        this.availableEpisodes = source["availableEpisodes"];
 	        this.animeId = source["animeId"];
 	        this.section = source["section"];
 	        this.grade = source["grade"];
