@@ -159,7 +159,7 @@
       ]
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.schema.ts",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.schema.ts",
       "actions": [
         {
           "type": "delete-file",
@@ -176,7 +176,7 @@
       ]
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/index.ts",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/index.ts",
       "actions": [
         {
           "type": "delete-file",
@@ -1025,8 +1025,8 @@
       ]
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.helpers.ts",
-      "export_name": "formatChapterNumber",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.helpers.ts",
+      "export_name": "formatEpisodeNumber",
       "is_type_only": false,
       "line": 91,
       "col": 16,

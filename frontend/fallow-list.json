@@ -32,7 +32,7 @@
     "src/app/routes/AnimeDetailRoute.tsx",
     "src/app/routes/BridgeStatusRoute.tsx",
     "src/app/routes/CatalogRoute.tsx",
-    "src/app/routes/ChaptersRoute.tsx",
+    "src/app/routes/EpisodesRoute.tsx",
     "src/app/routes/DownloadsRoute.tsx",
     "src/app/routes/HistoryRoute.tsx",
     "src/app/routes/NetworkRoute.tsx",
@@ -66,18 +66,18 @@
     "src/features/catalog/ui/CatalogPanel/catalog-panel.types.ts",
     "src/features/catalog/ui/CatalogPanel/index.ts",
     "src/features/catalog/ui/CatalogPanel/use-catalog-panel.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/ChapterScheduleCard.tsx",
-    "src/features/chapters/ui/ChapterSchedulePanel/ChapterSchedulePanel.tsx",
-    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterScheduleCard.test.tsx",
-    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterSchedulePanel.test.tsx",
-    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/chapter-schedule-panel.helpers.test.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/__tests__/use-chapter-schedule-panel.test.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.constants.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.helpers.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.schema.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/chapter-schedule-panel.types.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/index.ts",
-    "src/features/chapters/ui/ChapterSchedulePanel/use-chapter-schedule-panel.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleCard.tsx",
+    "src/features/episodes/ui/EpisodeSchedulePanel/EpisodeSchedulePanel.tsx",
+    "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/EpisodeScheduleCard.test.tsx",
+    "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/EpisodeSchedulePanel.test.tsx",
+    "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/episode-schedule-panel.helpers.test.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/use-episode-schedule-panel.test.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.constants.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.helpers.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.schema.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.types.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/index.ts",
+    "src/features/episodes/ui/EpisodeSchedulePanel/use-episode-schedule-panel.ts",
     "src/features/dashboard/index.ts",
     "src/features/dashboard/ui/BridgeDashboard/BridgeDashboard.tsx",
     "src/features/dashboard/ui/BridgeDashboard/__tests__/bridge-dashboard.helpers.test.ts",
@@ -409,19 +409,19 @@
       "source": "vitest"
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterScheduleCard.test.tsx",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/EpisodeScheduleCard.test.tsx",
       "source": "vitest"
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/ChapterSchedulePanel.test.tsx",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/EpisodeSchedulePanel.test.tsx",
       "source": "vitest"
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/chapter-schedule-panel.helpers.test.ts",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/episode-schedule-panel.helpers.test.ts",
       "source": "vitest"
     },
     {
-      "path": "src/features/chapters/ui/ChapterSchedulePanel/__tests__/use-chapter-schedule-panel.test.ts",
+      "path": "src/features/episodes/ui/EpisodeSchedulePanel/__tests__/use-episode-schedule-panel.test.ts",
       "source": "vitest"
     },
     {
