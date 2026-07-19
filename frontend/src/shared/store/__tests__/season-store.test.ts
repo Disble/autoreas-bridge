@@ -131,7 +131,7 @@ describe('useSeasonStore', () => {
   it('reconcileIntake runs the reconcile then refreshes the rows', async () => {
     const getSeasonAnimes = vi
       .fn()
-      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false }]);
+      .mockResolvedValue([{ id: 'sa-1', rawName: 'Dr. Stone', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false }]);
     const source = makeSource({ getSeasonAnimes });
     await getSeasonStoreState().reconcileIntake(source, 'Dr. Stone');
 
@@ -292,7 +292,7 @@ describe('useSeasonStore', () => {
       getPastSeason: vi.fn().mockResolvedValue(makeSeason({ id: 's-old', status: 'closed' })),
       getPastSeasonAnimes: vi
         .fn()
-        .mockResolvedValue([{ id: 'sa-1', rawName: 'Naruto', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableChapters: 12, animeId: 'anime-1', section: 'Visto', grade: 5, gradeSource: 'manual', skipGrading: false }]),
+        .mockResolvedValue([{ id: 'sa-1', rawName: 'Naruto', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableEpisodes: 12, animeId: 'anime-1', section: 'Visto', grade: 5, gradeSource: 'manual', skipGrading: false }]),
     });
 
     await getSeasonStoreState().viewPastSeason(source, 's-old');

@@ -28,7 +28,7 @@ export interface SeasonAnimeRow {
   readonly matchedSlug: string;
   readonly candidates: readonly SeasonAnimeCandidate[];
   readonly availability: string;
-  readonly availableChapters: number;
+  readonly availableEpisodes: number;
   readonly animeId: string;
   readonly section: string;
   readonly grade: number;

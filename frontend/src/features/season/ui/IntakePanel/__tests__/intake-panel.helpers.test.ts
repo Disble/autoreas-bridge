@@ -19,7 +19,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'pending',
     matchedSlug: '',
     candidates: [],
-    availability: 'waiting', availableChapters: 0,
+    availability: 'waiting', availableEpisodes: 0,
     animeId: '', section: '',
     grade: 0,
     gradeSource: '',
@@ -60,7 +60,7 @@ describe('buildRawText', () => {
   it('joins only the editable (uncreated, non-discarded) row names', () => {
     const rows = [
       row({ rawName: 'Anime A' }),
-      row({ rawName: 'Anime B', availability: 'created', availableChapters: 0, animeId: 'x' }),
+      row({ rawName: 'Anime B', availability: 'created', availableEpisodes: 0, animeId: 'x' }),
       row({ rawName: 'Anime C', matchStatus: 'discarded' }),
       row({ rawName: 'Anime D' }),
     ];
@@ -83,7 +83,7 @@ describe('splitIntakeRows', () => {
   it('separates editable from created and drops discarded', () => {
     const rows = [
       row({ id: 'a', rawName: 'A' }),
-      row({ id: 'b', rawName: 'B', availability: 'created', availableChapters: 0, animeId: 'x' }),
+      row({ id: 'b', rawName: 'B', availability: 'created', availableEpisodes: 0, animeId: 'x' }),
       row({ id: 'c', rawName: 'C', matchStatus: 'discarded' }),
     ];
     const { editable, created } = splitIntakeRows(rows);

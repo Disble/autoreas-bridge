@@ -47,7 +47,7 @@ function createdRow(id: string, animeId: string, grade: number, section = 'Visto
     matchedSlug: 'x',
     candidates: [],
     availability: 'created',
-    availableChapters: 0,
+    availableEpisodes: 0,
     animeId,
     section,
     grade,

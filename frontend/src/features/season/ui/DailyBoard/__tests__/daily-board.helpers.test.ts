@@ -10,7 +10,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created', availableChapters: 0,
+    availability: 'created', availableEpisodes: 0,
     animeId: 'anime-1',
     section: 'Sin ver',
     grade: 0,
@@ -36,7 +36,7 @@ describe('groupCreatedBySection', () => {
   });
 
   it('ignores rows that are not created', () => {
-    const rows = [row({ id: 'a', availability: 'waiting', availableChapters: 0, matchStatus: 'pending', animeId: '', section: '' })];
+    const rows = [row({ id: 'a', availability: 'waiting', availableEpisodes: 0, matchStatus: 'pending', animeId: '', section: '' })];
     const groups = groupCreatedBySection(rows);
     expect(groups.sinVer).toHaveLength(0);
   });
@@ -58,14 +58,14 @@ describe('formatAvailableChapters', () => {
 
 describe('getSinVerAvailabilityIndicator', () => {
   it('is success with a chapters-available label when chapters are online', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableChapters: 3 }))).toEqual({
+    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 3 }))).toEqual({
       color: 'success',
       label: '3 chapters available',
     });
   });
 
   it('is danger when no chapters are online yet', () => {
-    expect(getSinVerAvailabilityIndicator(row({ availableChapters: 0 }))).toEqual({
+    expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 0 }))).toEqual({
       color: 'danger',
       label: 'No chapters online yet',
     });

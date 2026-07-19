@@ -22,12 +22,12 @@ export function createChapterScheduleSource(source?: ChapterScheduleSource): Cha
   const getAnimeCover = bridgeRuntimeSource.getAnimeCover;
 
   return {
-    adjustWatchedChapters: bridgeRuntimeSource.adjustWatchedChapters ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
+    adjustWatchedChapters: bridgeRuntimeSource.adjustWatchedEpisodes ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
     copyAnimeFolder: bridgeRuntimeSource.copyAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
     copyAnimePage: bridgeRuntimeSource.copyAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
     getAnimeCover: getAnimeCover ? (animeID: string) => getAnimeCover(animeID).then(toAnimeCover) : () => Promise.resolve({ source: 'placeholder' }),
-    getChapterDayCounts: bridgeRuntimeSource.getChapterDayCounts ?? (() => Promise.resolve([])),
-    getChapterSchedule: bridgeRuntimeSource.getChapterSchedule ?? (() => Promise.resolve([])),
+    getChapterDayCounts: bridgeRuntimeSource.getEpisodeDayCounts ?? (() => Promise.resolve([])),
+    getChapterSchedule: bridgeRuntimeSource.getEpisodeSchedule ?? (() => Promise.resolve([])),
     getSeasonMode: preferencesSource.getSeasonMode,
     openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),
     openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(CHAPTER_RUNTIME_UNAVAILABLE_RESULT)),

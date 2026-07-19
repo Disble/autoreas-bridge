@@ -59,9 +59,9 @@ describe('useIntakePanel', () => {
 
   it('keeps only editable rows (created rows leave intake) and counts unresolved + available', async () => {
     const rows: SeasonAnimeRow[] = [
-      { id: 'a', rawName: 'A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
-      { id: 'b', rawName: 'B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableChapters: 2, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
-      { id: 'c', rawName: 'C', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableChapters: 0, animeId: 'anime-c', section: 'Sin ver' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'a', rawName: 'A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'b', rawName: 'B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 2, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'c', rawName: 'C', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableEpisodes: 0, animeId: 'anime-c', section: 'Sin ver' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
@@ -104,7 +104,7 @@ describe('useIntakePanel', () => {
 
   it('exposes the default download folder preview for creatable rows', async () => {
     const rows: SeasonAnimeRow[] = [
-      { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableChapters: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'sa-1', rawName: 'Re:Zero', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const downloadsRootSource = createDownloadsRootSource('D:/Anime');
@@ -132,8 +132,8 @@ describe('useIntakePanel', () => {
 
   it('switching to raw builds the draft from editable names and switching back flushes', async () => {
     const rows: SeasonAnimeRow[] = [
-      { id: 'a', rawName: 'Anime A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
-      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableChapters: 0, animeId: 'anime-b', section: 'Sin ver' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'a', rawName: 'Anime A', matchStatus: 'pending', matchedSlug: '', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'created', availableEpisodes: 0, animeId: 'anime-b', section: 'Sin ver' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));
@@ -177,8 +177,8 @@ describe('useIntakePanel', () => {
 
   it('exposes matched rows waiting for availability and rechecks them on demand', async () => {
     const rows: SeasonAnimeRow[] = [
-      { id: 'a', rawName: 'Anime A', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', availableChapters: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
-      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableChapters: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'a', rawName: 'Anime A', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'waiting', availableEpisodes: 0, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
+      { id: 'b', rawName: 'Anime B', matchStatus: 'matched', matchedSlug: 'x', candidates: [], availability: 'available', availableEpisodes: 1, animeId: '', section: '' , grade: 0, gradeSource: '', skipGrading: false, consideration: 'none' },
     ];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useIntakePanel(source));

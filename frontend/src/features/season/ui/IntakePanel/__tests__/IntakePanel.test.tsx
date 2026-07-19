@@ -19,7 +19,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'pending',
     matchedSlug: '',
     candidates: [],
-    availability: 'waiting', availableChapters: 0,
+    availability: 'waiting', availableEpisodes: 0,
     animeId: '',
     section: '',
     grade: 0,
@@ -91,7 +91,7 @@ describe('IntakePanel', () => {
 
   it('shows an available row with its chapter count and a create checkbox', () => {
     mockHook({
-      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableChapters: 3 })],
+      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableEpisodes: 3 })],
       availableCount: 1,
     });
     render(<IntakePanel />);
@@ -103,7 +103,7 @@ describe('IntakePanel', () => {
   it('creates the picked rows', () => {
     const onCreate = vi.fn();
     mockHook({
-      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
       selected: new Set(['sa-1']),
       onCreate,
     });
@@ -134,7 +134,7 @@ describe('IntakePanel', () => {
 
   it('shows the default folder path preview on the folder trigger', () => {
     mockHook({
-      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
       folderPreviews: { 'sa-1': 'D:/Anime/Dr. Stone' },
     });
     render(<IntakePanel />);
@@ -144,7 +144,7 @@ describe('IntakePanel', () => {
   it('opens the matched page in the system browser from the link button', () => {
     const onOpenPage = vi.fn();
     mockHook({
-      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableChapters: 1 })],
+      editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/dr-stone/', availability: 'available', availableEpisodes: 1 })],
       onOpenPage,
     });
     render(<IntakePanel />);
@@ -163,7 +163,7 @@ describe('IntakePanel', () => {
   it('hides mutation controls in read-only mode', () => {
     mockHook({
       readOnly: true,
-      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableChapters: 1 })],
+      editableRows: [row({ matchStatus: 'matched', availability: 'available', availableEpisodes: 1 })],
     });
     render(<IntakePanel />);
 

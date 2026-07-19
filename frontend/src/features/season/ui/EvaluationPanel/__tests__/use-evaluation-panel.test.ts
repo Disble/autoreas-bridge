@@ -46,7 +46,7 @@ function created(id: string, animeId: string, grade: number, skipGrading = false
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created', availableChapters: 0,
+    availability: 'created', availableEpisodes: 0,
     animeId,
     section: 'Visto',
     grade,

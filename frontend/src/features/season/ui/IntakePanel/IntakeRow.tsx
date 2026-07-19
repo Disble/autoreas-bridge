@@ -35,7 +35,7 @@ export function IntakeRow({
         </Chip>
         {creatable && (
           <span className="text-xs text-success">
-            {row.availableChapters} chapter{row.availableChapters === 1 ? '' : 's'} available
+            {row.availableEpisodes} chapter{row.availableEpisodes === 1 ? '' : 's'} available
           </span>
         )}
         <IntakeRowActions

@@ -96,7 +96,7 @@ export function toAnimeDetailConfirmation(
  */
 export function resolveAnimeDetailMutation(
   action: AnimeDetailAction,
-  result: contracts.ChapterCommandResult,
+  result: contracts.EpisodeCommandResult,
 ): AnimeDetailMutationResolution {
   const actionLabel = action === 'repeat' ? 'Repeat' : 'Restore';
   const failure = (description: string): AnimeDetailMutationResolution => ({

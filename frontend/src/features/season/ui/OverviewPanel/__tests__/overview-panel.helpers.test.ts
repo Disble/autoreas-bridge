@@ -23,7 +23,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchedSlug: '',
     candidates: [],
     availability: 'pending',
-    availableChapters: 0,
+    availableEpisodes: 0,
     animeId: '',
     section: '',
     grade: 0,

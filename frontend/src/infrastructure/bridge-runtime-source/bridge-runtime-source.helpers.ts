@@ -1,5 +1,5 @@
 import {
-  AdjustWatchedChapters,
+  AdjustWatchedEpisodes,
   ApplyAnimeEditorSchedule,
   CopyAnimeFolder,
   CopyAnimePage,
@@ -10,10 +10,10 @@ import {
   GetAnimeEditorScheduleBoard,
   GetAnimeHistory,
   GetAnimes,
-  GetChapterDayCounts,
-  GetChapterSchedule,
   GetConnectedDevices,
   GetEffectiveAddress,
+  GetEpisodeDayCounts,
+  GetEpisodeSchedule,
   GetPairingToken,
   GetSQLiteStatus,
   GetSyncingAnimeItems,
@@ -301,17 +301,17 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     getAnimeHistory() {
       return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);
     },
-    getChapterSchedule(day) {
-      return invokeGoBinding('GetChapterSchedule', () => GetChapterSchedule(day), () => []);
+    getEpisodeSchedule(day) {
+      return invokeGoBinding('GetEpisodeSchedule', () => GetEpisodeSchedule(day), () => []);
     },
     getAnimeCover(animeID) {
       return invokeGoBinding('GetAnimeCover', () => GetAnimeCover(animeID), () => ({ source: 'placeholder' }));
     },
-    getChapterDayCounts() {
-      return invokeGoBinding('GetChapterDayCounts', GetChapterDayCounts, () => []);
+    getEpisodeDayCounts() {
+      return invokeGoBinding('GetEpisodeDayCounts', GetEpisodeDayCounts, () => []);
     },
-    adjustWatchedChapters(animeID, delta, base) {
-      return invokeGoBinding('AdjustWatchedChapters', () => AdjustWatchedChapters(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
+    adjustWatchedEpisodes(animeID, delta, base) {
+      return invokeGoBinding('AdjustWatchedEpisodes', () => AdjustWatchedEpisodes(animeID, delta, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);
     },
     setAnimeState(animeID, estado, base) {
       return invokeGoBinding('SetAnimeState', () => SetAnimeState(animeID, estado, base), () => RUNTIME_UNAVAILABLE_COMMAND_RESULT);

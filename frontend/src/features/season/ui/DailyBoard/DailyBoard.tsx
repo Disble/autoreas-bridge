@@ -89,7 +89,7 @@ export function DailyBoard() {
                             {row.rawName}
                           </LabeledCheckbox>
                         )}
-                        <span className="text-xs text-muted">{formatAvailableChapters(row.availableChapters)}</span>
+                        <span className="text-xs text-muted">{formatAvailableChapters(row.availableEpisodes)}</span>
                         <div className="ml-auto flex items-center gap-2">
                           {row.matchedSlug !== '' && (
                             <Tooltip>

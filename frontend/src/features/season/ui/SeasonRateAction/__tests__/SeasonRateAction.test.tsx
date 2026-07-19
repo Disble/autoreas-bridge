@@ -21,7 +21,7 @@ function candidate(grade: number): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created', availableChapters: 0,
+    availability: 'created', availableEpisodes: 0,
     animeId: 'anime-a',
     section: 'Sin ver',
     grade,

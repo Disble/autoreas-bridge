@@ -15,7 +15,7 @@ export const RUNTIME_UNAVAILABLE_PULL_RESULT: AnimeLegacyPullResult = {
 };
 
 /** Fail-closed result matching the generated Wails command-result contract. */
-export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.ChapterCommandResult = {
+export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.EpisodeCommandResult = {
   message: 'runtime unavailable',
   modifiedAt: 0,
   status: 'error',

@@ -45,7 +45,7 @@ export function formatAvailableChapters(count: number): string {
  * created, so "Available to create" / "Waiting for chapter 1" wording is wrong.
  */
 export function getSinVerAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success' | 'danger'; label: string } {
-  return row.availableChapters >= 1
-    ? { color: 'success', label: formatAvailableChapters(row.availableChapters) }
+  return row.availableEpisodes >= 1
+    ? { color: 'success', label: formatAvailableChapters(row.availableEpisodes) }
     : { color: 'danger', label: 'No chapters online yet' };
 }

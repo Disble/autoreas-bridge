@@ -46,7 +46,7 @@ function createdRow(id: string, animeId: string, section: string): SeasonAnimeRo
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created', availableChapters: 0,
+    availability: 'created', availableEpisodes: 0,
     animeId,
     section,
     grade: 0,
@@ -71,13 +71,13 @@ describe('useDailyBoard', () => {
     expect(source.getSeasonAnimes).toHaveBeenCalled();
   });
 
-  it('passes a Sin-ver row\'s availableChapters through unchanged', async () => {
-    const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableChapters: 4 }];
+  it('passes a Sin-ver row\'s availableEpisodes through unchanged', async () => {
+    const rows = [{ ...createdRow('a', 'anime-a', 'Sin ver'), availableEpisodes: 4 }];
     const source = createSource({ getSeasonAnimes: vi.fn().mockResolvedValue(rows) });
     const { result } = renderHook(() => useDailyBoard(source));
 
     await waitFor(() => expect(result.current.sections.sinVer).toHaveLength(1));
-    expect(result.current.sections.sinVer[0]?.availableChapters).toBe(4);
+    expect(result.current.sections.sinVer[0]?.availableEpisodes).toBe(4);
   });
 
   it('toggleSelect adds and removes anime ids', () => {

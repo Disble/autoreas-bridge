@@ -10,7 +10,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     matchedSlug: 'x',
     candidates: [],
-    availability: 'created', availableChapters: 0,
+    availability: 'created', availableEpisodes: 0,
     animeId: 'anime-1',
     section: 'Sin ver',
     grade: 0,
@@ -27,12 +27,12 @@ describe('findSeasonCandidate', () => {
   });
 
   it('returns undefined when the anime is not a created candidate', () => {
-    const rows = [row({ availability: 'waiting', availableChapters: 0, animeId: '' })];
+    const rows = [row({ availability: 'waiting', availableEpisodes: 0, animeId: '' })];
     expect(findSeasonCandidate(rows, 'anime-a')).toBeUndefined();
   });
 
   it('ignores a matching anime id that is not created yet', () => {
-    const rows = [row({ availability: 'available', availableChapters: 0, animeId: 'anime-a' })];
+    const rows = [row({ availability: 'available', availableEpisodes: 0, animeId: 'anime-a' })];
     expect(findSeasonCandidate(rows, 'anime-a')).toBeUndefined();
   });
 });
