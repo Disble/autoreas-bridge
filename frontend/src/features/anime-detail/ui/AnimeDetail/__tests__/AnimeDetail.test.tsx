@@ -245,7 +245,7 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Current version: 42. Conflict: conflict-7.')).toBeInTheDocument();
   });
 
-  it('renders the per-chapter stat tiles with explicit fallbacks', () => {
+  it('renders the per-episode stat tiles with explicit fallbacks', () => {
     mockAnimeDetailState({
       detail: createDetailViewModel({
         statTiles: [

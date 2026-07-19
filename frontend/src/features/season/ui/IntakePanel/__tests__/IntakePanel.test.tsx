@@ -89,13 +89,13 @@ describe('IntakePanel', () => {
     expect(switchMode).toHaveBeenCalledWith('raw');
   });
 
-  it('shows an available row with its chapter count and a create checkbox', () => {
+  it('shows an available row with its episode count and a create checkbox', () => {
     mockHook({
       editableRows: [row({ matchStatus: 'matched', matchedSlug: 'https://jkanime.net/x/', availability: 'available', availableEpisodes: 3 })],
       availableCount: 1,
     });
     render(<IntakePanel />);
-    expect(screen.getByText('3 chapters available')).toBeInTheDocument();
+    expect(screen.getByText('3 episodes available')).toBeInTheDocument();
     expect(screen.getByRole('checkbox')).toBeInTheDocument(); // creatable → checkbox
     expect(screen.getByText(/1 available to create/)).toBeInTheDocument();
   });
@@ -180,8 +180,8 @@ describe('IntakePanel', () => {
   });
 
   it('shows a processing indicator while an operation is in flight', () => {
-    mockHook({ busyMessage: 'Checking chapter availability…' });
+    mockHook({ busyMessage: 'Checking episode availability…' });
     render(<IntakePanel />);
-    expect(screen.getByRole('status')).toHaveTextContent('Checking chapter availability…');
+    expect(screen.getByRole('status')).toHaveTextContent('Checking episode availability…');
   });
 });

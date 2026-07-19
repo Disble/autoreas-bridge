@@ -32,7 +32,7 @@ describe('SoloAnimeDownloadPanel', () => {
     render(<SoloAnimeDownloadPanel />);
 
     fireEvent.click(screen.getByRole('button', { name: /frieren/i }));
-    fireEvent.click(screen.getByRole('button', { name: /download missing chapters/i }));
+    fireEvent.click(screen.getByRole('button', { name: /download missing episodes/i }));
 
     expect(onSelectAnime).toHaveBeenCalledWith('anime-1');
     expect(onTriggerDownload).toHaveBeenCalledTimes(1);
@@ -53,6 +53,6 @@ describe('SoloAnimeDownloadPanel', () => {
 
     render(<SoloAnimeDownloadPanel />);
 
-    expect(screen.getByRole('button', { name: /download missing chapters/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /download missing episodes/i })).toBeDisabled();
   });
 });

@@ -266,7 +266,7 @@ export const seasonStore = createStore<SeasonStoreState>()((set, get) => ({
   },
 
   recheckAvailability: async (source) => {
-    await runIntakeCommand(get, set, () => source.recheckAvailability(), source, 'Failed to recheck availability', 'Checking chapter availability…');
+    await runIntakeCommand(get, set, () => source.recheckAvailability(), source, 'Failed to recheck availability', 'Checking episode availability…');
   },
 }));
 

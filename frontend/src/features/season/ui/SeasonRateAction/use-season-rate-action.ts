@@ -5,7 +5,7 @@ import { useSeasonStore } from '../../../../shared/store/season-store/season-sto
 import { findSeasonCandidate } from './season-rate-action.helpers';
 
 /**
- * useSeasonRateAction tells the Chapters card whether an anime is a gradeable
+ * useSeasonRateAction tells the Episodes card whether an anime is a gradeable
  * season candidate. It ensures the active season's candidates are loaded once
  * (deduped across the many cards) and selects the created candidate for this
  * anime. Grading itself flows through the shared RateAnimeModal.

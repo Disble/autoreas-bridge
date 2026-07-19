@@ -137,7 +137,7 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
   }
   const progress = parseNullableFloat(draft.progress);
   if (progress === undefined || progress < 0) {
-    return 'Watched chapters must be a non-negative number.';
+    return 'Watched episodes must be a non-negative number.';
   }
   if (draft.totalEpisodes.trim().length > 0 && (parseNullableInteger(draft.totalEpisodes) === undefined || Number(draft.totalEpisodes) < 0)) {
     return 'Total episodes must be a non-negative whole number.';

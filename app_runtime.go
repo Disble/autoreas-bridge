@@ -210,7 +210,7 @@ func (a *App) GetEpisodeSchedule(day string) []contracts.EpisodeScheduleItem {
 }
 
 // GetAnimeCover resolves a single anime's cover into a base64 data-URL, or
-// an explicit placeholder signal (chapters-cover-pipeline spec, "Cover
+// an explicit placeholder signal (episodes-cover-pipeline spec, "Cover
 // resolution follows a deterministic, placeholder-first order"). Degrades to
 // the placeholder signal -- never an error -- on a nil dependency, a lookup
 // failure, or a resolver-reported non-cover, mirroring GetAnimeDetail's
@@ -327,7 +327,7 @@ func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandRe
 }
 
 // GetEpisodeDayCounts returns the per-weekday active-progress badge counts
-// (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
+// (episodes-cover-pipeline spec, "Per-day active-progress count mirrors
 // Legacy's buscarMedalla semantics"). Degrades to an empty (non-nil) slice
 // on a nil service or any query error, mirroring GetEpisodeSchedule's
 // nil-guard contract.

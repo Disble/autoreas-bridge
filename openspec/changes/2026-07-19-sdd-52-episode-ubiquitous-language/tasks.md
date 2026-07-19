@@ -158,13 +158,13 @@ main
 
 **Tasks:**
 
-- [ ] 4.1 RED (test-first, light): update `frontend/src/App.test.tsx` to expect the `/episodes` route and "Episodes" nav label; run it and confirm it fails against the current `/chapters` route.
-- [ ] 4.2 GREEN (mechanical, `git mv` + tsserver "update imports on move"): `git mv frontend/src/features/chapters frontend/src/features/episodes`; rename `ChapterSchedulePanel` -> `EpisodeSchedulePanel` (component + all 12 colocated files, tsserver-driven import updates).
-- [ ] 4.3 GREEN (mechanical): `git mv .../ChaptersRoute.tsx .../EpisodesRoute.tsx`; update the component name and `<h1>` copy.
-- [ ] 4.4 GREEN (manual edit): `App.tsx` — update the route registration to `/episodes` -> `EpisodesRoute`. Confirm 4.1 passes.
-- [ ] 4.5 GREEN (manual edit): `app-layout.constants.ts` — update nav `to`/`label` to `/episodes`/"Episodes"; rename `chaptersIcon` variable if present.
-- [ ] 4.6 GREEN (manual edit, same PR per design): `frontend/fallow-list.json` and `frontend/fallow-dead-code.json` — update hardcoded `features/chapters/**` paths to `features/episodes/**`.
-- [ ] 4.7 Verify `.tsx` files touched stay dumb UI (no Wails calls, no `useEffect`, no business logic added) — this is a rename only.
+- [x] 4.1 RED (test-first, light): update `frontend/src/App.test.tsx` to expect the `/episodes` route and "Episodes" nav label; run it and confirm it fails against the current `/chapters` route.
+- [x] 4.2 GREEN (mechanical, `git mv` + tsserver "update imports on move"): `git mv frontend/src/features/chapters frontend/src/features/episodes`; rename `ChapterSchedulePanel` -> `EpisodeSchedulePanel` (component + all 12 colocated files, tsserver-driven import updates).
+- [x] 4.3 GREEN (mechanical): `git mv .../ChaptersRoute.tsx .../EpisodesRoute.tsx`; update the component name and `<h1>` copy.
+- [x] 4.4 GREEN (manual edit): `App.tsx` — update the route registration to `/episodes` -> `EpisodesRoute`. Confirm 4.1 passes.
+- [x] 4.5 GREEN (manual edit): `app-layout.constants.ts` — update nav `to`/`label` to `/episodes`/"Episodes"; rename `chaptersIcon` variable if present.
+- [x] 4.6 GREEN (manual edit, same PR per design): `frontend/fallow-list.json` and `frontend/fallow-dead-code.json` — update hardcoded `features/chapters/**` paths to `features/episodes/**`.
+- [x] 4.7 Verify `.tsx` files touched stay dumb UI (no Wails calls, no `useEffect`, no business logic added) — this is a rename only.
 
 **Green gate:** `bun --cwd=frontend run test`, `bun --cwd=frontend run validate`, `bun --cwd=frontend run fallow ...` clean (no stale `features/chapters` paths).
 
@@ -192,9 +192,9 @@ main
 
 **Tasks:**
 
-- [ ] 5.1 GREEN (manual, targeted edits): update the UI copy strings and comments listed in the file list above. Do not touch ADR-007 Spanish data literals (`"Sin ver"`, `"Ver hoy"`, `"Visto"`, `"No me gusto"`) or `NroCapVisto`-family fields.
-- [ ] 5.2 GREEN: update any existing component tests/snapshots whose assertions embed the changed copy strings (moves with the copy per work-unit-commits convention).
-- [ ] 5.3 Run a repo-wide case-insensitive `chapter` grep and confirm the only remaining hits are: ADR-007 boundary fields, Spanish data literals, archived/change-folder docs, `docs/learning-log.md` historical lines, and the NSIS `Chapter4.html` false positive. Any other hit blocks this PR.
+- [x] 5.1 GREEN (manual, targeted edits): update the UI copy strings and comments listed in the file list above. Do not touch ADR-007 Spanish data literals (`"Sin ver"`, `"Ver hoy"`, `"Visto"`, `"No me gusto"`) or `NroCapVisto`-family fields.
+- [x] 5.2 GREEN: update any existing component tests/snapshots whose assertions embed the changed copy strings (moves with the copy per work-unit-commits convention).
+- [x] 5.3 Run a repo-wide case-insensitive `chapter` grep and confirm the only remaining hits are: ADR-007 boundary fields, Spanish data literals, archived/change-folder docs, `docs/learning-log.md` historical lines, and the NSIS `Chapter4.html` false positive. Any other hit blocks this PR.
 
 **Green gate:** `bun --cwd=frontend run test`, `bun --cwd=frontend run validate`, `go test ./...`, plus the repo-wide grep in 5.3.
 

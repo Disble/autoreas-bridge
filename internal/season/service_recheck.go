@@ -63,14 +63,14 @@ func (s *Service) recheckCreateCandidate(ctx context.Context, row domain.SeasonA
 		return false, nil
 	}
 	res.Checked++
-	chapters, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
+	episodes, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
 		return true, nil
 	}
 	wasAvailable := row.Availability == domain.AvailabilityAvailable
-	if chapters >= 1 {
+	if episodes >= 1 {
 		row.Availability = domain.AvailabilityAvailable
-		row.AvailableEpisodes = chapters
+		row.AvailableEpisodes = episodes
 		if !wasAvailable {
 			res.Available = append(res.Available, row.RawName)
 		}
@@ -90,11 +90,11 @@ func (s *Service) refreshCreatedPlacementAvailability(ctx context.Context, row d
 		return nil
 	}
 	res.Checked++
-	chapters, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
+	episodes, probeErr := s.probe.AvailableEpisodes(ctx, row.MatchedSlug)
 	if probeErr != nil {
 		return nil
 	}
-	row.AvailableEpisodes = chapters
+	row.AvailableEpisodes = episodes
 	return s.repo.UpdateSeasonAnime(ctx, row)
 }
 

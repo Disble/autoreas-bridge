@@ -38,7 +38,7 @@ func assertSoloRunProgress(t *testing.T, snapshots []Run) {
 		t.Fatalf("expected EpisodesFound to advance before all downloads finish, got %#v", snapshots)
 	}
 	if !downloadedOne || !downloadedTwo {
-		t.Fatalf("expected EpisodesDownloaded to advance per chapter before final completion, got %#v", snapshots)
+		t.Fatalf("expected EpisodesDownloaded to advance per episode before final completion, got %#v", snapshots)
 	}
 }
 

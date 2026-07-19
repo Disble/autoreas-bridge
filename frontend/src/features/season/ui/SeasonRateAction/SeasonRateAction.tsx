@@ -3,10 +3,10 @@ import type { SeasonRateActionProps } from './season-rate-action.types';
 import { useSeasonRateAction } from './use-season-rate-action';
 
 /**
- * SeasonRateAction is the season grade action embedded in the Chapters card: it
+ * SeasonRateAction is the season grade action embedded in the Episodes card: it
  * renders the shared RateAnimeModal only when a season is open and the anime is a
  * created candidate, and nothing otherwise. It encapsulates all season-awareness
- * so the Chapters card stays dumb and feature-agnostic (it passes id + name).
+ * so the Episodes card stays dumb and feature-agnostic (it passes id + name).
  */
 export function SeasonRateAction({ animeId, rawName }: Readonly<SeasonRateActionProps>) {
   const { candidate } = useSeasonRateAction(animeId);

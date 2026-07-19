@@ -171,7 +171,7 @@ func (a *App) DiscardSeasonName(rowID string) string {
 }
 
 // SetSeasonGrade records a MANUAL first-episode grade (1–6) for an anime in the
-// active season — the Chapters card / Evaluation panel rate action. Manual always
+// active season — the Episodes card / Evaluation panel rate action. Manual always
 // wins over a mobile grade. Returns "ok" or a descriptive error string.
 func (a *App) SetSeasonGrade(animeID string, grade int) string {
 	if a.seasonService == nil {

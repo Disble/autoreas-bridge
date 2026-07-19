@@ -200,7 +200,7 @@ func TestRunAnimeRetriesFlattenUntilDownloadedEpisodeReachesRoot(t *testing.T) {
 		t.Fatalf("expected ok result, got %#v", result)
 	}
 	if got := counter.CountAtRoot(folder); got != 10 {
-		t.Fatalf("expected final chapter to be flattened into root count, got %d", got)
+		t.Fatalf("expected final episode to be flattened into root count, got %d", got)
 	}
 }
 

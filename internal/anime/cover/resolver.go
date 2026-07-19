@@ -15,7 +15,7 @@ const defaultMaxBytes int64 = 10 * 1024 * 1024
 var placeholderResult = Result{IsCover: false}
 
 // Resolver implements the deterministic, placeholder-first cover resolution
-// order (chapters-cover-pipeline spec, "Cover resolution follows a
+// order (episodes-cover-pipeline spec, "Cover resolution follows a
 // deterministic, placeholder-first order"). Every dependency is an
 // interface so tests inject fakes at every boundary.
 type Resolver struct {

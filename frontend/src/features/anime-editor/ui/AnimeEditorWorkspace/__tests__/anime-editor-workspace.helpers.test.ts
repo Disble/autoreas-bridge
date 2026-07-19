@@ -120,7 +120,7 @@ describe('anime-editor-workspace.helpers', () => {
 
   it('returns field feedback for invalid drafts before save', () => {
     expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), name: '  ' })).toBe('Name is required.');
-    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), progress: '-1' })).toBe('Watched chapters must be a non-negative number.');
+    expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), progress: '-1' })).toBe('Watched episodes must be a non-negative number.');
   });
 
   it('requires a Type before any save (Legacy: Type is mandatory, never optional)', () => {

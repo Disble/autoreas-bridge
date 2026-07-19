@@ -131,7 +131,7 @@ func TestGetEpisodeDayCountsReturnsEmptySliceWhenEpisodeServiceNil(t *testing.T)
 func TestGetEpisodeDayCountsDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
 
-	service := &stubAppChapterService{dayCounts: []anime.EpisodeDayCount{{Day: "Viernes", Count: 2}}}
+	service := &stubAppEpisodeService{dayCounts: []anime.EpisodeDayCount{{Day: "Viernes", Count: 2}}}
 	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.GetEpisodeDayCounts()

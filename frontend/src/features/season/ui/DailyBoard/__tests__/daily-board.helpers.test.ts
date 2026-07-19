@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
-import { formatAvailableChapters, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
+import { formatAvailableEpisodes, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
@@ -42,32 +42,32 @@ describe('groupCreatedBySection', () => {
   });
 });
 
-describe('formatAvailableChapters', () => {
-  it('pluralizes "chapters" for zero', () => {
-    expect(formatAvailableChapters(0)).toBe('0 chapters available');
+describe('formatAvailableEpisodes', () => {
+  it('pluralizes "episodes" for zero', () => {
+    expect(formatAvailableEpisodes(0)).toBe('0 episodes available');
   });
 
-  it('uses the singular "chapter" for exactly one', () => {
-    expect(formatAvailableChapters(1)).toBe('1 chapter available');
+  it('uses the singular "episode" for exactly one', () => {
+    expect(formatAvailableEpisodes(1)).toBe('1 episode available');
   });
 
-  it('pluralizes "chapters" for more than one', () => {
-    expect(formatAvailableChapters(5)).toBe('5 chapters available');
+  it('pluralizes "episodes" for more than one', () => {
+    expect(formatAvailableEpisodes(5)).toBe('5 episodes available');
   });
 });
 
 describe('getSinVerAvailabilityIndicator', () => {
-  it('is success with a chapters-available label when chapters are online', () => {
+  it('is success with an episodes-available label when episodes are online', () => {
     expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 3 }))).toEqual({
       color: 'success',
-      label: '3 chapters available',
+      label: '3 episodes available',
     });
   });
 
-  it('is danger when no chapters are online yet', () => {
+  it('is danger when no episodes are online yet', () => {
     expect(getSinVerAvailabilityIndicator(row({ availableEpisodes: 0 }))).toEqual({
       color: 'danger',
-      label: 'No chapters online yet',
+      label: 'No episodes online yet',
     });
   });
 });

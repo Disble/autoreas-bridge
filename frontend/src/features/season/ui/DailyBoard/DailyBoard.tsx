@@ -3,13 +3,13 @@ import { Icon } from '@iconify/react';
 import { Alert, Button, Card, Chip, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
-import { formatAvailableChapters, getSinVerAvailabilityIndicator } from './daily-board.helpers';
+import { formatAvailableEpisodes, getSinVerAvailabilityIndicator } from './daily-board.helpers';
 import { useDailyBoard } from './use-daily-board';
 
 /**
  * DailyBoard is the conveyor: created animes grouped by section. Pick from the
  * Sin ver pool which to watch today → Ver hoy (auto-downloads); Ver hoy drains
- * automatically as chapters are watched; Visto flows on to evaluation. All Wails
+ * automatically as episodes are watched; Visto flows on to evaluation. All Wails
  * I/O and state live in the colocated `useDailyBoard` hook.
  */
 export function DailyBoard() {
@@ -89,7 +89,7 @@ export function DailyBoard() {
                             {row.rawName}
                           </LabeledCheckbox>
                         )}
-                        <span className="text-xs text-muted">{formatAvailableChapters(row.availableEpisodes)}</span>
+                        <span className="text-xs text-muted">{formatAvailableEpisodes(row.availableEpisodes)}</span>
                         <div className="ml-auto flex items-center gap-2">
                           {row.matchedSlug !== '' && (
                             <Tooltip>

@@ -3,7 +3,7 @@ import type { SoloAnimeDownloadOptionViewModel } from './solo-anime-download-pan
 import { SOLO_ANIME_DOWNLOAD_MAX_RESULTS } from './solo-anime-download-panel.constants';
 
 /**
- * Formats the current-vs-total chapter progress shown next to an anime option,
+ * Formats the current-vs-total episode progress shown next to an anime option,
  * so the user can recognize what will be caught up before pressing Download.
  */
 export function formatSoloAnimeProgress(current: number, total?: number): string {

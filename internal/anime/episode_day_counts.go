@@ -3,7 +3,7 @@ package anime
 import "context"
 
 // EpisodeDayCount is a single weekday's active-progress count, mirroring
-// Legacy's buscarMedalla (chapters-cover-pipeline spec, "Per-day
+// Legacy's buscarMedalla (episodes-cover-pipeline spec, "Per-day
 // active-progress count mirrors Legacy's buscarMedalla semantics").
 type EpisodeDayCount struct {
 	Day   string

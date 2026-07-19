@@ -180,7 +180,7 @@ type EpisodeScheduleItem struct {
 	Day         string  `json:"day"`
 	DayOrder    int     `json:"dayOrder"`
 	ModifiedAt  int64   `json:"modified_at"`
-	// FolderPath/PageURL are the literal carpeta/pagina strings (chapters-
+	// FolderPath/PageURL are the literal carpeta/pagina strings (episodes-
 	// cover-pipeline spec, "EpisodeScheduleItem contract carries cover and
 	// literal path fields"). They REPLACE the former HasPage/HasFolder
 	// booleans -- presence is re-derived client-side as `string !== ''`,
@@ -196,7 +196,7 @@ type EpisodeScheduleItem struct {
 }
 
 // CoverSourceCover/CoverSourcePlaceholder are the two values AnimeCover.Source
-// may take (chapters-cover-pipeline spec, "Cover resolution follows a
+// may take (episodes-cover-pipeline spec, "Cover resolution follows a
 // deterministic, placeholder-first order").
 const (
 	CoverSourceCover       = "cover"
@@ -214,7 +214,7 @@ type AnimeCover struct {
 }
 
 // EpisodeDayCount is a single weekday's active-progress badge count
-// (chapters-cover-pipeline spec, "Per-day active-progress count mirrors
+// (episodes-cover-pipeline spec, "Per-day active-progress count mirrors
 // Legacy's buscarMedalla semantics").
 type EpisodeDayCount struct {
 	Day   string `json:"day"`

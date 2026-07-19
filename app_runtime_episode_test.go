@@ -13,7 +13,7 @@ import (
 func TestGetEpisodeScheduleDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
 
-	service := &stubAppChapterService{
+	service := &stubAppEpisodeService{
 		schedule: []anime.EpisodeScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
 	}
 	app := &App{ctx: context.Background(), episodeService: service}
@@ -34,7 +34,7 @@ func TestGetEpisodeScheduleDelegatesToEpisodeService(t *testing.T) {
 func TestAdjustWatchedEpisodesDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
 
-	service := &stubAppChapterService{}
+	service := &stubAppEpisodeService{}
 	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.AdjustWatchedEpisodes("anime-1", 0.5, 1000)
@@ -53,7 +53,7 @@ func TestAdjustWatchedEpisodesDelegatesToEpisodeService(t *testing.T) {
 func TestSetAnimeStateDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
 
-	service := &stubAppChapterService{}
+	service := &stubAppEpisodeService{}
 	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.SetAnimeState("anime-1", 3, 1000)
@@ -71,29 +71,29 @@ func TestSetAnimeStateDelegatesToEpisodeService(t *testing.T) {
 
 func TestSoftDeleteAnimeDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
-	assertEpisodeActionDelegation(t, "soft-delete", func(app *App) contracts.EpisodeCommandResult { return app.SoftDeleteAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertEpisodeActionDelegation(t, "soft-delete", func(app *App) contracts.EpisodeCommandResult { return app.SoftDeleteAnime("anime-1", 1000) }, func(service *stubAppEpisodeService) (string, *int64) {
 		return service.lastSoftDelete.AnimeID, service.lastSoftDelete.Base
 	})
 }
 
 func TestRestoreAnimeDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
-	assertEpisodeActionDelegation(t, "restore", func(app *App) contracts.EpisodeCommandResult { return app.RestoreAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertEpisodeActionDelegation(t, "restore", func(app *App) contracts.EpisodeCommandResult { return app.RestoreAnime("anime-1", 1000) }, func(service *stubAppEpisodeService) (string, *int64) {
 		return service.lastRestore.AnimeID, service.lastRestore.Base
 	})
 }
 
 func TestRepeatAnimeDelegatesToEpisodeService(t *testing.T) {
 	t.Parallel()
-	assertEpisodeActionDelegation(t, "repeat", func(app *App) contracts.EpisodeCommandResult { return app.RepeatAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertEpisodeActionDelegation(t, "repeat", func(app *App) contracts.EpisodeCommandResult { return app.RepeatAnime("anime-1", 1000) }, func(service *stubAppEpisodeService) (string, *int64) {
 		return service.lastRepeat.AnimeID, service.lastRepeat.Base
 	})
 }
 
 // assertEpisodeActionDelegation verifies delegation of an episode action.
-func assertEpisodeActionDelegation(t *testing.T, action string, invoke func(*App) contracts.EpisodeCommandResult, command func(*stubAppChapterService) (string, *int64)) {
+func assertEpisodeActionDelegation(t *testing.T, action string, invoke func(*App) contracts.EpisodeCommandResult, command func(*stubAppEpisodeService) (string, *int64)) {
 	t.Helper()
-	service := &stubAppChapterService{}
+	service := &stubAppEpisodeService{}
 	result := invoke(&App{ctx: context.Background(), episodeService: service})
 	animeID, base := command(service)
 	if result.Status != "ok" || animeID != "anime-1" || base == nil || *base != 1000 {

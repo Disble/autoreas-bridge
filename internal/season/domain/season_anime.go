@@ -18,13 +18,13 @@ const (
 	MatchDiscarded MatchStatus = "discarded"
 )
 
-// Availability is the chapter-1 availability state (advanced by SDD-43).
+// Availability is the episode-1 availability state (advanced by SDD-43).
 type Availability string
 
 const (
-	// AvailabilityWaiting means no online chapters were detected yet.
+	// AvailabilityWaiting means no online episodes were detected yet.
 	AvailabilityWaiting Availability = "waiting"
-	// AvailabilityAvailable means at least one chapter is available to create from.
+	// AvailabilityAvailable means at least one episode is available to create from.
 	AvailabilityAvailable Availability = "available"
 	// AvailabilityCreated means the season row is already linked to an anime.
 	AvailabilityCreated Availability = "created"
@@ -60,7 +60,7 @@ type SeasonAnime struct {
 	MatchedSlug  string
 	Candidates   []MatchCandidate
 	Availability Availability
-	// AvailableEpisodes is how many chapters are online (SDD-43c); 0 until the
+	// AvailableEpisodes is how many episodes are online (SDD-43c); 0 until the
 	// availability watch sees the first one. Informational — creation stays manual.
 	AvailableEpisodes int
 	AnimeID           string

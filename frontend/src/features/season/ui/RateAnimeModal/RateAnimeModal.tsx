@@ -7,7 +7,7 @@ import { useRateAnimeModal } from './use-rate-anime-modal';
 /**
  * RateAnimeModal is the shared grade-capture modal: a trigger showing the current
  * grade opens a dialog with a 1–6 picker. Picking a grade records it manually.
- * Two entry points reuse it (the Chapters card and the Evaluation panel). All
+ * Two entry points reuse it (the Episodes card and the Evaluation panel). All
  * Wails I/O and state live in the colocated `useRateAnimeModal` hook.
  */
 export function RateAnimeModal({ animeId, rawName, currentGrade, gradeSource }: Readonly<RateAnimeModalProps>) {

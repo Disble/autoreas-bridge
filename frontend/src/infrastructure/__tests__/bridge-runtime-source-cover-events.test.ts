@@ -14,7 +14,7 @@ describe('bridge-runtime-source cover and events', () => {
     Reflect.deleteProperty(window, 'runtime');
   });
 
-  it('degrades cover and chapter counts while runtime is absent', async () => {
+  it('degrades cover and episode counts while runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
     const coverPromise = source.getAnimeCover?.('anime-1');
@@ -46,7 +46,7 @@ describe('bridge-runtime-source cover and events', () => {
     ]));
   });
 
-  it('calls cover and chapter-count bindings once ready', async () => {
+  it('calls cover and episode-count bindings once ready', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
     const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });

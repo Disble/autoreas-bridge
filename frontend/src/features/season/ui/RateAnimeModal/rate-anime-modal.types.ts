@@ -1,4 +1,4 @@
-/** Props for the shared grade-capture modal (Chapters card + Evaluation panel). */
+/** Props for the shared grade-capture modal (Episodes card + Evaluation panel). */
 export interface RateAnimeModalProps {
   /** Legacy anime id the grade is recorded against. */
   readonly animeId: string;

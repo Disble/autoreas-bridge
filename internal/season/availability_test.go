@@ -14,8 +14,8 @@ import (
 func TestRecheckAvailabilityMarksAvailableNeverCreates(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{
-		"https://jkanime.net/a/": 3, // available (3 chapters)
+	probe := &fakeProbe{episodes: map[string]int{
+		"https://jkanime.net/a/": 3, // available (3 episodes)
 		"https://jkanime.net/b/": 0, // not available yet
 	}}
 	gateway := &fakeGateway{}
@@ -37,7 +37,7 @@ func TestRecheckAvailabilityMarksAvailableNeverCreates(t *testing.T) {
 		byID[r.ID] = r
 	}
 	if a := byID["sa-a"]; a.Availability != domain.AvailabilityAvailable || a.AvailableEpisodes != 3 || a.AnimeID != "" {
-		t.Fatalf("A should be available with 3 chapters and NOT created, got %+v", a)
+		t.Fatalf("A should be available with 3 episodes and NOT created, got %+v", a)
 	}
 	if b := byID["sa-b"]; b.Availability != domain.AvailabilityWaiting || b.AvailableEpisodes != 0 {
 		t.Fatalf("B should still be waiting, got %+v", b)
@@ -53,7 +53,7 @@ func TestRecheckAvailabilityMarksAvailableNeverCreates(t *testing.T) {
 func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/a/": 1}}
+	probe := &fakeProbe{episodes: map[string]int{"https://jkanime.net/a/": 1}}
 	svc.SetAvailabilityDeps(probe, &fakeGateway{})
 
 	ctx := context.Background()
@@ -78,7 +78,7 @@ func TestRecheckAvailabilityReportsOnlyNewTransitions(t *testing.T) {
 func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/created/": 5}}
+	probe := &fakeProbe{episodes: map[string]int{"https://jkanime.net/created/": 5}}
 	gateway := &fakeGateway{placements: map[string][]domain.Placement{
 		"anime-created": {{Dia: sinVerSection, Orden: 1}},
 	}}
@@ -124,7 +124,7 @@ func TestRecheckAvailabilitySkipsCreatedRowsInSpecialQueues(t *testing.T) {
 			repo := newFakeRepo()
 			svc := newTestService(repo)
 			animeID := "anime-" + test.name
-			svc.SetAvailabilityDeps(&fakeProbe{chapters: map[string]int{"https://jkanime.net/" + test.name: 9}}, &fakeGateway{placements: map[string][]domain.Placement{animeID: {{Dia: test.section, Orden: 1}}}})
+			svc.SetAvailabilityDeps(&fakeProbe{episodes: map[string]int{"https://jkanime.net/" + test.name: 9}}, &fakeGateway{placements: map[string][]domain.Placement{animeID: {{Dia: test.section, Orden: 1}}}})
 			ctx := context.Background()
 			season, _ := svc.CreateSeason(ctx, "Julio 2026")
 			rowID := "sa-" + test.name
@@ -149,7 +149,7 @@ func TestRecheckAvailabilitySkipsCreatedRowsInSpecialQueues(t *testing.T) {
 func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/unresolved/": 9}}
+	probe := &fakeProbe{episodes: map[string]int{"https://jkanime.net/unresolved/": 9}}
 	gateway := &fakeGateway{placements: map[string][]domain.Placement{}}
 	svc.SetAvailabilityDeps(probe, gateway)
 
@@ -177,7 +177,7 @@ func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T)
 func TestRecheckAvailabilityToleratesPlacementsError(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{
+	probe := &fakeProbe{episodes: map[string]int{
 		"https://jkanime.net/created/": 9,
 		"https://jkanime.net/a/":       3,
 	}}
@@ -213,7 +213,7 @@ func TestRecheckAvailabilityToleratesPlacementsError(t *testing.T) {
 func TestRecheckAvailabilitySinVerCreatedRowIsIdempotent(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo)
-	probe := &fakeProbe{chapters: map[string]int{"https://jkanime.net/created/": 5}}
+	probe := &fakeProbe{episodes: map[string]int{"https://jkanime.net/created/": 5}}
 	gateway := &fakeGateway{placements: map[string][]domain.Placement{
 		"anime-created": {{Dia: sinVerSection, Orden: 1}},
 	}}

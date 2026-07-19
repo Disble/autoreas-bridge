@@ -209,7 +209,7 @@ func (s *stubAppCoverResolver) Resolve(_ context.Context, animeID, portadaPath s
 	return s.result
 }
 
-type stubAppChapterService struct {
+type stubAppEpisodeService struct {
 	schedule       []anime.EpisodeScheduleItem
 	dayCounts      []anime.EpisodeDayCount
 	lastDay        string
@@ -222,16 +222,16 @@ type stubAppChapterService struct {
 	err            error
 }
 
-func (s *stubAppChapterService) ListEpisodeDayCounts(context.Context) ([]anime.EpisodeDayCount, error) {
+func (s *stubAppEpisodeService) ListEpisodeDayCounts(context.Context) ([]anime.EpisodeDayCount, error) {
 	return s.dayCounts, s.err
 }
 
-func (s *stubAppChapterService) ListEpisodeSchedule(_ context.Context, query anime.EpisodeScheduleQuery) ([]anime.EpisodeScheduleItem, error) {
+func (s *stubAppEpisodeService) ListEpisodeSchedule(_ context.Context, query anime.EpisodeScheduleQuery) ([]anime.EpisodeScheduleItem, error) {
 	s.lastDay = query.Day
 	return s.schedule, s.err
 }
 
-func (s *stubAppChapterService) AdjustWatchedEpisodes(_ context.Context, cmd anime.AdjustWatchedEpisodesCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) AdjustWatchedEpisodes(_ context.Context, cmd anime.AdjustWatchedEpisodesCommand) (anime.EpisodeCommandResult, error) {
 	s.lastAdjust = cmd
 	return anime.EpisodeCommandResult{
 		AnimeID:     cmd.AnimeID,
@@ -240,7 +240,7 @@ func (s *stubAppChapterService) AdjustWatchedEpisodes(_ context.Context, cmd ani
 	}, s.err
 }
 
-func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) SetAnimeState(_ context.Context, cmd anime.SetAnimeStateCommand) (anime.EpisodeCommandResult, error) {
 	s.lastState = cmd
 	return anime.EpisodeCommandResult{
 		AnimeID: cmd.AnimeID,
@@ -248,22 +248,22 @@ func (s *stubAppChapterService) SetAnimeState(_ context.Context, cmd anime.SetAn
 	}, s.err
 }
 
-func (s *stubAppChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
 	s.lastDays = cmd
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) SoftDeleteAnime(_ context.Context, cmd anime.SoftDeleteAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastSoftDelete = cmd
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) RestoreAnime(_ context.Context, cmd anime.RestoreAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastRestore = cmd
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }
 
-func (s *stubAppChapterService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.EpisodeCommandResult, error) {
+func (s *stubAppEpisodeService) RepeatAnime(_ context.Context, cmd anime.RepeatAnimeCommand) (anime.EpisodeCommandResult, error) {
 	s.lastRepeat = cmd
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID}, s.err
 }

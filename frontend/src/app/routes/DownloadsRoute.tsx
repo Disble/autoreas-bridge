@@ -32,7 +32,7 @@ export function DownloadsRoute() {
         <Card>
           <Card.Header>
             <Card.Title>Solo anime download</Card.Title>
-            <Card.Description>Search one anime and download every missing chapter until it is up to date</Card.Description>
+            <Card.Description>Search one anime and download every missing episode until it is up to date</Card.Description>
           </Card.Header>
           <Card.Content>
             <SoloAnimeDownloadPanel />

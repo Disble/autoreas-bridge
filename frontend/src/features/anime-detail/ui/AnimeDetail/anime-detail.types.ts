@@ -42,7 +42,7 @@ export interface AnimeRepetitionTimelineProps {
   readonly repetitions: readonly AnimeRepeticionViewModel[];
 }
 
-/** A single per-chapter stat tile (label + display-ready value). */
+/** A single per-episode stat tile (label + display-ready value). */
 export interface AnimeDetailStatTile {
   readonly label: string;
   readonly value: string;

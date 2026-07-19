@@ -136,19 +136,19 @@ func TestRunSeasonMatchingRefreshesAvailabilityForNewMatches(t *testing.T) {
 		n++
 		return fmt.Sprintf("id-%d", n)
 	}, fakeAppNameSearcher{byQuery: map[string][]match.Candidate{
-		"Anime With Chapter": {
-			{Title: "Anime With Chapter", PageURL: "https://jkanime.net/anime-with-chapter/"},
+		"Anime With Episode": {
+			{Title: "Anime With Episode", PageURL: "https://jkanime.net/anime-with-episode/"},
 		},
 	}})
-	svc.SetAvailabilityDeps(fakeAppAvailabilityProbe{chapters: map[string]int{
-		"https://jkanime.net/anime-with-chapter/": 1,
+	svc.SetAvailabilityDeps(fakeAppAvailabilityProbe{episodes: map[string]int{
+		"https://jkanime.net/anime-with-episode/": 1,
 	}}, nil)
 	app := &App{ctx: context.Background(), seasonService: svc}
 
 	if got := app.CreateSeason("Julio 2026"); got != "ok" {
 		t.Fatalf("CreateSeason: %q", got)
 	}
-	if got := app.ImportSeasonIntake("Anime With Chapter"); got != "ok" {
+	if got := app.ImportSeasonIntake("Anime With Episode"); got != "ok" {
 		t.Fatalf("ImportSeasonIntake: %q", got)
 	}
 
@@ -221,15 +221,15 @@ func TestReconcileSeasonIntakeAddsAndDiscards(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 	t.Parallel()
-	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
-	app := &App{ctx: context.Background(), episodeService: chapter}
+	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
+	app := &App{ctx: context.Background(), episodeService: episode}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
 	if got.Status != "ok" {
 		t.Fatalf("SendSeasonAnimesToVerHoy: %q", got.Status)
 	}
-	if chapter.lastDays.AnimeID != "anime-1" || len(chapter.lastDays.Dias) != 1 || chapter.lastDays.Dias[0] != "Ver hoy" {
-		t.Fatalf("expected a Ver hoy move for anime-1, got %+v", chapter.lastDays)
+	if episode.lastDays.AnimeID != "anime-1" || len(episode.lastDays.Dias) != 1 || episode.lastDays.Dias[0] != "Ver hoy" {
+		t.Fatalf("expected a Ver hoy move for anime-1, got %+v", episode.lastDays)
 	}
 	// No download store configured -> the window is treated as passed (offer manual).
 	if !got.PastDownloadTime {
@@ -239,12 +239,12 @@ func TestSendSeasonAnimesToVerHoy(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 	t.Parallel()
-	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
+	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	future := fixedNow.Add(2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: future}}
 	sched := &fakeAppScheduler{}
-	app := &App{ctx: context.Background(), episodeService: chapter, downloadStore: store, downloadScheduler: sched, nowTime: func() time.Time { return fixedNow }}
+	app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, downloadScheduler: sched, nowTime: func() time.Time { return fixedNow }}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
 	if got.Status != "ok" || got.PastDownloadTime {
@@ -260,11 +260,11 @@ func TestSendSeasonAnimesToVerHoyBeforeWindowIsAutomatic(t *testing.T) {
 
 func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 	t.Parallel()
-	chapter := &appliedDaysChapterService{stubAppChapterService: &stubAppChapterService{}}
+	episode := &appliedDaysEpisodeService{stubAppEpisodeService: &stubAppEpisodeService{}}
 	fixedNow := time.Date(2026, 7, 8, 10, 0, 0, 0, time.Local)
 	past := fixedNow.Add(-2 * time.Hour).Format("15:04")
 	store := &fakeAppDownloadStore{scheduleConfig: download.ScheduleConfig{Enabled: true, DailyTimeHHMM: past}}
-	app := &App{ctx: context.Background(), episodeService: chapter, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
+	app := &App{ctx: context.Background(), episodeService: episode, downloadStore: store, nowTime: func() time.Time { return fixedNow }}
 
 	got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"})
 	if got.Status != "ok" || !got.PastDownloadTime {
@@ -272,11 +272,11 @@ func TestSendSeasonAnimesToVerHoyPastWindowOffersManual(t *testing.T) {
 	}
 }
 
-func TestSendSeasonAnimesToVerHoyNoChapterService(t *testing.T) {
+func TestSendSeasonAnimesToVerHoyNoEpisodeService(t *testing.T) {
 	t.Parallel()
 	app := &App{ctx: context.Background()}
 	if got := app.SendSeasonAnimesToVerHoy([]string{"anime-1"}); got.Status == "ok" || got.Status == "" {
-		t.Fatalf("expected error without chapter service, got %q", got.Status)
+		t.Fatalf("expected error without episode service, got %q", got.Status)
 	}
 }
 

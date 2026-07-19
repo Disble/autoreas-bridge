@@ -31,21 +31,21 @@ export function groupCreatedBySection(rows: readonly SeasonAnimeRow[]): BoardSec
 }
 
 /**
- * Formats a Sin-ver row's available chapter count for display, singularizing
- * "chapter" for a count of exactly one.
+ * Formats a Sin-ver row's available episode count for display, singularizing
+ * "episode" for a count of exactly one.
  */
-export function formatAvailableChapters(count: number): string {
-  return `${count} chapter${count === 1 ? '' : 's'} available`;
+export function formatAvailableEpisodes(count: number): string {
+  return `${count} episode${count === 1 ? '' : 's'} available`;
 }
 
 /**
  * The availability indicator for an already-created Sin-ver row: 'success'
- * (green) once at least one chapter is online, 'danger' (red) while none are.
+ * (green) once at least one episode is online, 'danger' (red) while none are.
  * Distinct from IntakePanel's indicator (ADR-2): these rows are already
- * created, so "Available to create" / "Waiting for chapter 1" wording is wrong.
+ * created, so "Available to create" / "Waiting for episode 1" wording is wrong.
  */
 export function getSinVerAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success' | 'danger'; label: string } {
   return row.availableEpisodes >= 1
-    ? { color: 'success', label: formatAvailableChapters(row.availableEpisodes) }
-    : { color: 'danger', label: 'No chapters online yet' };
+    ? { color: 'success', label: formatAvailableEpisodes(row.availableEpisodes) }
+    : { color: 'danger', label: 'No episodes online yet' };
 }

@@ -92,8 +92,8 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           onRequestRestore={onRequestRestore}
         />
 
-        <section aria-label="Chapter info" className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-foreground">Chapter info</h3>
+        <section aria-label="Episode info" className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Episode info</h3>
           <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
             {detail.statTiles.map((tile) => (
               <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2" key={tile.label}>

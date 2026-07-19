@@ -48,7 +48,7 @@ func (a *App) RecheckSeasonAvailability() string {
 // clients (empty id / "closed" status when no season is open). Because season
 // mode is derived from the open season (SDD-41b), it ALSO re-broadcasts the
 // derived season-mode flag over preferences_changed so mobile and the
-// download/chapters season-mode readers update on open/close.
+// download/episodes season-mode readers update on open/close.
 func (a *App) broadcastSeasonChanged() {
 	if a.realtimeHub == nil {
 		return

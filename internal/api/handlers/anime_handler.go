@@ -160,7 +160,7 @@ func decodePatchEstado(payload map[string]json.RawMessage, patch *AnimePatch) er
 	return nil
 }
 
-// decodePatchProgress decodes and validates the watched-chapter patch field.
+// decodePatchProgress decodes and validates the watched-episode patch field.
 func decodePatchProgress(payload map[string]json.RawMessage, patch *AnimePatch) error {
 	raw, ok := payload["nrocapvisto"]
 	if !ok {

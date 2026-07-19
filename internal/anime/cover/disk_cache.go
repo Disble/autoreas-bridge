@@ -10,7 +10,7 @@ import (
 
 // diskCache is the default Cache adapter: a persistent, OS-appropriate
 // directory keyed by a sha256 hash of the source URL so a changed URL never
-// serves a stale image (chapters-cover-pipeline spec, "Cached covers
+// serves a stale image (episodes-cover-pipeline spec, "Cached covers
 // persist across restarts").
 type diskCache struct {
 	root string

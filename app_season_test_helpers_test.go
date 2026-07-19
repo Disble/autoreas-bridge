@@ -11,11 +11,11 @@ import (
 	"autoreas-bridge/internal/season/match"
 )
 
-type appliedDaysChapterService struct {
-	*stubAppChapterService
+type appliedDaysEpisodeService struct {
+	*stubAppEpisodeService
 }
 
-func (s *appliedDaysChapterService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
+func (s *appliedDaysEpisodeService) SetAnimeDays(_ context.Context, cmd anime.SetAnimeDaysCommand) (anime.EpisodeCommandResult, error) {
 	s.lastDays = cmd
 	return anime.EpisodeCommandResult{AnimeID: cmd.AnimeID, Outcome: anime.PatchOutcomeApplied}, s.err
 }
@@ -132,9 +132,9 @@ func (f fakeAppNameSearcher) Search(_ context.Context, query string) ([]match.Ca
 }
 
 type fakeAppAvailabilityProbe struct {
-	chapters map[string]int
+	episodes map[string]int
 }
 
 func (f fakeAppAvailabilityProbe) AvailableEpisodes(_ context.Context, pageURL string) (int, error) {
-	return f.chapters[pageURL], nil
+	return f.episodes[pageURL], nil
 }

@@ -61,7 +61,7 @@ export function SoloAnimeDownloadPanel({ className }: Readonly<SoloAnimeDownload
       ) : null}
 
       <Button isDisabled={!canTrigger} variant="primary" onPress={() => void onTriggerDownload()}>
-        {status === 'triggering' ? 'Starting anime download...' : 'Download missing chapters'}
+        {status === 'triggering' ? 'Starting anime download...' : 'Download missing episodes'}
       </Button>
 
       {status === 'success' ? (

@@ -62,7 +62,7 @@ export function countUnresolved(rows: readonly SeasonAnimeRow[]): number {
 /**
  * Counts matched rows that are blocked only by the availability probe. These
  * rows are valid matches, but creation stays disabled until the app verifies
- * that chapter 1 is online.
+ * that episode 1 is online.
  */
 export function countMatchedWaitingForAvailability(rows: readonly SeasonAnimeRow[]): number {
   return rows.filter((row) => row.matchStatus === 'matched' && row.availability === 'waiting').length;
@@ -102,7 +102,7 @@ function isEditableRow(row: SeasonAnimeRow): boolean {
 }
 
 /**
- * A matched row is CREATABLE once its chapter 1 is online (availability
+ * A matched row is CREATABLE once its episode 1 is online (availability
  * 'available'). Creation is an explicit, user-picked action — the availability
  * watch never creates on its own.
  */
@@ -112,7 +112,7 @@ export function isCreatableRow(row: SeasonAnimeRow): boolean {
 
 /**
  * The availability indicator for a matched row: 'success' (green) once it can be
- * created, 'danger' (red) while its first chapter is not online yet. Returns null
+ * created, 'danger' (red) while its first episode is not online yet. Returns null
  * for rows still being matched (their match-status chip conveys their state).
  */
 export function getAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success' | 'danger'; label: string } | null {
@@ -121,7 +121,7 @@ export function getAvailabilityIndicator(row: SeasonAnimeRow): { color: 'success
   }
   return row.availability === 'available'
     ? { color: 'success', label: 'Available to create' }
-    : { color: 'danger', label: 'Waiting for chapter 1' };
+    : { color: 'danger', label: 'Waiting for episode 1' };
 }
 
 /**

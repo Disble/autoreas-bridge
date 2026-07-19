@@ -5,8 +5,8 @@ import type { SVGProps } from 'react';
  * cover fails to load (Anime Detail spec, "Placeholder on missing or failing
  * cover"). Pure inline SVG line art on `currentColor` so it follows the
  * theme in both light and dark; no external asset, no network. Shared by
- * Anime Detail and Chapters (chapters-schedule-ui spec, "A single shared
- * cover placeholder is used by both Anime Detail and Chapters").
+ * Anime Detail and Episodes (episodes-schedule-ui spec, "A single shared
+ * cover placeholder is used by both Anime Detail and Episodes").
  */
 export function AnimeCoverPlaceholder(props: Readonly<SVGProps<SVGSVGElement>>) {
   return (

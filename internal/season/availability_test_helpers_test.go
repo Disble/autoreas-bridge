@@ -8,9 +8,9 @@ import (
 	"autoreas-bridge/internal/season/domain"
 )
 
-// fakeProbe reports the count of available chapters per page URL.
+// fakeProbe reports the count of available episodes per page URL.
 type fakeProbe struct {
-	chapters map[string]int
+	episodes map[string]int
 	err      error
 }
 
@@ -18,7 +18,7 @@ func (f *fakeProbe) AvailableEpisodes(_ context.Context, pageURL string) (int, e
 	if f.err != nil {
 		return 0, f.err
 	}
-	return f.chapters[pageURL], nil
+	return f.episodes[pageURL], nil
 }
 
 // fakeGateway records creates and answers existing-by-pagina lookups.
@@ -114,14 +114,14 @@ func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name,
 }
 
 // seedCreated adds a created availability row to the test repository.
-func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, chapters int) {
+func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, episodes int) {
 	t.Helper()
 	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
 	sa.MatchStatus = domain.MatchMatched
 	sa.MatchedSlug = slug
 	sa.Availability = domain.AvailabilityCreated
 	sa.AnimeID = animeID
-	sa.AvailableEpisodes = chapters
+	sa.AvailableEpisodes = episodes
 	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

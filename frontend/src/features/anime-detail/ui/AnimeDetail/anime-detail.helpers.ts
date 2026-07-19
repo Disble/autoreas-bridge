@@ -311,7 +311,7 @@ export function formatAnimeDetailProgressRatio(current: number, total?: number):
 }
 
 /**
- * Builds the per-chapter section's three stat tiles (watched, total
+ * Builds the per-episode section's three stat tiles (watched, total
  * episodes, duration), each with an explicit fallback baked in via
  * {@link formatAnimeDetailTotalLabel} / {@link formatAnimeDetailDurationLabel}.
  */
@@ -388,7 +388,7 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
  * detail component. `repetir` is optional on the wire (Go's `omitempty` drops
  * the key for the ~93% of anime with no repetition history), so it MUST be
  * defaulted with `?? []` here rather than assumed present. Every field the
- * Anime Detail delta spec calls out (hero, per-chapter, general data) gets an
+ * Anime Detail delta spec calls out (hero, per-episode, general data) gets an
  * explicit fallback rather than a silent blank. Repetitions are ordered
  * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
  */

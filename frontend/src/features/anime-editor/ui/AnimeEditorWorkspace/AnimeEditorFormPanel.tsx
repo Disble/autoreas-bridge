@@ -74,7 +74,7 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <LabeledTextField label="Watched chapters" min={0} type="number" value={viewModel.draft.progress} onChange={(value) => viewModel.onDraftChange('progress', value)} />
+            <LabeledTextField label="Watched episodes" min={0} type="number" value={viewModel.draft.progress} onChange={(value) => viewModel.onDraftChange('progress', value)} />
             <LabeledTextField description="Leave empty if the total is unknown." label="Total episodes" min={0} placeholder="Unknown" type="number" value={viewModel.draft.totalEpisodes} onChange={(value) => viewModel.onDraftChange('totalEpisodes', value)} />
           </div>
 

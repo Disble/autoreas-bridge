@@ -1,6 +1,6 @@
 // Package cover resolves an anime's portada value (a local disk path, an
 // http(s) URL, or an absent/"null" sentinel) into either cover image bytes
-// or an explicit "use placeholder" signal, per the chapters-cover-pipeline
+// or an explicit "use placeholder" signal, per the episodes-cover-pipeline
 // spec. It never returns an error to the caller: every failure or absence
 // degrades to the placeholder signal, since a missing cover is normal, not
 // exceptional.
@@ -29,7 +29,7 @@ var urlSchemes = []string{"http://", "https://", "ftp://"}
 
 // Classify decides a portada value's Kind from its string shape only (scheme
 // prefix), never the vestigial portada.type field. Exported: internal/anime
-// (chapter_service.go, a different package) imports it to compute HasCover
+// (episode_service.go, a different package) imports it to compute HasCover
 // without duplicating this string-shape rule.
 func Classify(path string) Kind {
 	if path == "" || path == nullSentinel {

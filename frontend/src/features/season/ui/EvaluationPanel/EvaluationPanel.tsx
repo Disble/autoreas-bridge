@@ -7,7 +7,7 @@ import { useEvaluationPanel } from './use-evaluation-panel';
 /**
  * EvaluationPanel is the grading progress/audit view: created candidates with
  * their grade, capture source, and rated-at, plus a per-row skip. Grading opens
- * the shared RateAnimeModal (same component the Chapters card uses). All Wails
+ * the shared RateAnimeModal (same component the Episodes card uses). All Wails
  * I/O and state live in the colocated `useEvaluationPanel` hook.
  */
 export function EvaluationPanel() {

@@ -1,7 +1,7 @@
 /**
  * Canonical Legacy anime `estado` vocabulary — the single source of truth for
  * how estado values are worded across every feature (History, Catalog,
- * AnimeDetail, Chapters). Values and labels are Legacy's own domain vocabulary,
+ * AnimeDetail, Episodes). Values and labels are Legacy's own domain vocabulary,
  * confirmed against Legacy's Historial UI: 0=Viendo, 1=Finalizado,
  * 2=No me gusto, 3=En pausa. Kept as Spanish data literals (like the Estrenos
  * section names "Sin ver"/"Ver hoy"/"Visto"), not translated UI copy.
