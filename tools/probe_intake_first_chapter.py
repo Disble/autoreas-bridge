@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Live probe for first-chapter pages of matched intake rows.
+"""Live probe for first-episode pages of matched intake rows.
 
 This script is intentionally read-only. It checks the real bridge SQLite intake
-rows, then requests `<matched_slug>/1/` from jkanime to verify whether chapter 1
+rows, then requests `<matched_slug>/1/` from jkanime to verify whether episode 1
 is reachable even when the local availability read model says "waiting".
 """
 
@@ -45,7 +45,7 @@ def connect_readonly(path: Path) -> sqlite3.Connection:
 def fetch_waiting_matched_rows(con: sqlite3.Connection) -> list[sqlite3.Row]:
     return con.execute(
         """
-        SELECT raw_name, matched_slug, availability, available_chapters
+        SELECT raw_name, matched_slug, availability, available_episodes
         FROM season_animes
         WHERE season_id IN (SELECT id FROM seasons WHERE status = 'open')
           AND match_status = 'matched'
@@ -56,7 +56,7 @@ def fetch_waiting_matched_rows(con: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def first_chapter_url(page_url: str) -> str:
+def first_episode_url(page_url: str) -> str:
     return page_url.rstrip("/") + "/1/"
 
 
@@ -91,7 +91,7 @@ def probe_url(url: str, timeout: float) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Probe matched waiting intake rows for reachable chapter 1 pages.")
+    parser = argparse.ArgumentParser(description="Probe matched waiting intake rows for reachable episode 1 pages.")
     parser.add_argument("--db", type=Path, default=default_db_path(), help="Path to bridge.db")
     parser.add_argument("--timeout", type=float, default=20.0, help="HTTP timeout per page")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
@@ -102,15 +102,15 @@ def main() -> int:
 
     results = []
     for row in rows:
-        url = first_chapter_url(row["matched_slug"])
+        url = first_episode_url(row["matched_slug"])
         probe = probe_url(url, args.timeout)
         results.append(
             {
                 "raw_name": row["raw_name"],
                 "matched_slug": row["matched_slug"],
                 "db_availability": row["availability"],
-                "db_available_chapters": row["available_chapters"],
-                "first_chapter_url": url,
+                "db_available_episodes": row["available_episodes"],
+                "first_episode_url": url,
                 **probe,
             },
         )
@@ -118,8 +118,8 @@ def main() -> int:
     payload = {
         "db": str(args.db),
         "checked": len(results),
-        "reachable_first_chapter": sum(1 for r in results if r["reachable"]),
-        "missing_first_chapter": sum(1 for r in results if not r["reachable"]),
+        "reachable_first_episode": sum(1 for r in results if r["reachable"]),
+        "missing_first_episode": sum(1 for r in results if not r["reachable"]),
         "results": results,
     }
 
@@ -130,13 +130,13 @@ def main() -> int:
     print(f"DB: {payload['db']}")
     print(
         f"Matched waiting rows checked: {payload['checked']} · "
-        f"chapter 1 reachable: {payload['reachable_first_chapter']} · "
-        f"missing/error: {payload['missing_first_chapter']}",
+        f"episode 1 reachable: {payload['reachable_first_episode']} · "
+        f"missing/error: {payload['missing_first_episode']}",
     )
     print()
     for result in results:
         marker = "YES" if result["reachable"] else "NO"
-        print(f"- {marker} | {result['raw_name']} | {result['first_chapter_url']} | {result['error']}")
+        print(f"- {marker} | {result['raw_name']} | {result['first_episode_url']} | {result['error']}")
     return 0
 
 

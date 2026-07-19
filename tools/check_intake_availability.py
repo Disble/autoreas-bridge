@@ -58,7 +58,7 @@ def fetch_rows(con: sqlite3.Connection) -> tuple[dict[str, Any], list[sqlite3.Ro
 
     rows = con.execute(
         """
-        SELECT id, raw_name, match_status, availability, available_chapters, anime_id, matched_slug
+        SELECT id, raw_name, match_status, availability, available_episodes, anime_id, matched_slug
         FROM season_animes
         WHERE season_id = ?
         ORDER BY created_at, id
@@ -100,7 +100,7 @@ def main() -> int:
                 "raw_name": row["raw_name"],
                 "match_status": row["match_status"],
                 "availability": row["availability"],
-                "available_chapters": row["available_chapters"],
+                "available_episodes": row["available_episodes"],
                 "selectable": row_is_creatable(row),
                 "reason": "selectable"
                 if row_is_creatable(row)
