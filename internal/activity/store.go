@@ -16,8 +16,8 @@ const (
 	// SourceLegacy marks activity observed from legacy-data synchronization.
 	SourceLegacy = "legacy"
 
-	// ActionChapterAdjusted records a progress adjustment.
-	ActionChapterAdjusted = "chapter_adjusted"
+	// ActionEpisodeAdjusted records a progress adjustment.
+	ActionEpisodeAdjusted = "episode_adjusted"
 	// ActionAnimeStateSet records a state transition.
 	ActionAnimeStateSet = "anime_state_set"
 	// ActionAnimeSoftDeleted records a soft-delete operation.
@@ -35,6 +35,13 @@ const (
 	// ActionAnimeFolderCopied records a copy-folder action.
 	ActionAnimeFolderCopied = "anime_folder_copied"
 )
+
+// IsEpisodeAdjusted reports whether an action string denotes an episode-progress
+// adjustment, accepting the legacy "chapter_adjusted" value written before SDD-52
+// so historical audit rows keep rendering. New writes use ActionEpisodeAdjusted.
+func IsEpisodeAdjusted(action string) bool {
+	return action == ActionEpisodeAdjusted || action == "chapter_adjusted"
+}
 
 // SQLiteProvider exposes the SQL database used by the activity store.
 type SQLiteProvider interface {

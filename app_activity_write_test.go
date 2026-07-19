@@ -50,7 +50,7 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("expected 1 mobile activity row, got %#v", records)
 	}
-	if records[0].Source != activity.SourceMobile || records[0].ActionType != activity.ActionChapterAdjusted {
+	if records[0].Source != activity.SourceMobile || records[0].ActionType != activity.ActionEpisodeAdjusted {
 		t.Fatalf("unexpected mobile activity row: %#v", records[0])
 	}
 }

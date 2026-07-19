@@ -17,7 +17,7 @@ func TestStoreRecordsAndListsAnimeActivity(t *testing.T) {
 
 	err := store.RecordActivity(ctx, activity.Record{
 		Source:        activity.SourceDesktop,
-		ActionType:    activity.ActionChapterAdjusted,
+		ActionType:    activity.ActionEpisodeAdjusted,
 		AnimeID:       "anime-1",
 		AnimeName:     "Dungeon Meshi",
 		OccurredAtMs:  1710000000123,
@@ -37,7 +37,7 @@ func TestStoreRecordsAndListsAnimeActivity(t *testing.T) {
 		t.Fatalf("expected 1 activity row, got %#v", got)
 	}
 	row := got[0]
-	if row.Source != activity.SourceDesktop || row.ActionType != activity.ActionChapterAdjusted {
+	if row.Source != activity.SourceDesktop || row.ActionType != activity.ActionEpisodeAdjusted {
 		t.Fatalf("unexpected source/action: %#v", row)
 	}
 	if row.AnimeID != "anime-1" || row.AnimeName != "Dungeon Meshi" {

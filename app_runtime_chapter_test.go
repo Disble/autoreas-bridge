@@ -14,9 +14,9 @@ func TestGetChapterScheduleDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
 
 	service := &stubAppChapterService{
-		schedule: []anime.ChapterScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
+		schedule: []anime.EpisodeScheduleItem{{AnimeID: "anime-1", AnimeName: "Frieren", DayOrder: 1}},
 	}
-	app := &App{ctx: context.Background(), chapterService: service}
+	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.GetChapterSchedule("Viernes")
 
@@ -35,7 +35,7 @@ func TestAdjustWatchedChaptersDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
 
 	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
+	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.AdjustWatchedChapters("anime-1", 0.5, 1000)
 
@@ -54,7 +54,7 @@ func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
 
 	service := &stubAppChapterService{}
-	app := &App{ctx: context.Background(), chapterService: service}
+	app := &App{ctx: context.Background(), episodeService: service}
 
 	got := app.SetAnimeState("anime-1", 3, 1000)
 
@@ -71,30 +71,30 @@ func TestSetAnimeStateDelegatesToChapterService(t *testing.T) {
 
 func TestSoftDeleteAnimeDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
-	assertChapterActionDelegation(t, "soft-delete", func(app *App) contracts.ChapterCommandResult { return app.SoftDeleteAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertChapterActionDelegation(t, "soft-delete", func(app *App) contracts.EpisodeCommandResult { return app.SoftDeleteAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
 		return service.lastSoftDelete.AnimeID, service.lastSoftDelete.Base
 	})
 }
 
 func TestRestoreAnimeDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
-	assertChapterActionDelegation(t, "restore", func(app *App) contracts.ChapterCommandResult { return app.RestoreAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertChapterActionDelegation(t, "restore", func(app *App) contracts.EpisodeCommandResult { return app.RestoreAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
 		return service.lastRestore.AnimeID, service.lastRestore.Base
 	})
 }
 
 func TestRepeatAnimeDelegatesToChapterService(t *testing.T) {
 	t.Parallel()
-	assertChapterActionDelegation(t, "repeat", func(app *App) contracts.ChapterCommandResult { return app.RepeatAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
+	assertChapterActionDelegation(t, "repeat", func(app *App) contracts.EpisodeCommandResult { return app.RepeatAnime("anime-1", 1000) }, func(service *stubAppChapterService) (string, *int64) {
 		return service.lastRepeat.AnimeID, service.lastRepeat.Base
 	})
 }
 
 // assertChapterActionDelegation verifies delegation of a chapter action.
-func assertChapterActionDelegation(t *testing.T, action string, invoke func(*App) contracts.ChapterCommandResult, command func(*stubAppChapterService) (string, *int64)) {
+func assertChapterActionDelegation(t *testing.T, action string, invoke func(*App) contracts.EpisodeCommandResult, command func(*stubAppChapterService) (string, *int64)) {
 	t.Helper()
 	service := &stubAppChapterService{}
-	result := invoke(&App{ctx: context.Background(), chapterService: service})
+	result := invoke(&App{ctx: context.Background(), episodeService: service})
 	animeID, base := command(service)
 	if result.Status != "ok" || animeID != "anime-1" || base == nil || *base != 1000 {
 		t.Fatalf("expected %s command with anime-1 and base 1000, got result=%#v anime=%q base=%#v", action, result, animeID, base)
@@ -113,7 +113,7 @@ func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
 	app.bridgeDB = db
 	app.animeQuery = anime.NewQueryService(store)
 	app.animeUpdateWriter = writer
-	app.wireChapterService(bridgeSync.NewConflictStore(db))
+	app.wireEpisodeService(bridgeSync.NewConflictStore(db))
 
 	result := app.AdjustWatchedChapters("anime-1", 1, 1000)
 	if result.Status != "ok" {
@@ -127,7 +127,7 @@ func TestStartupWiresActivityRecorderIntoChapterService(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("expected 1 persisted activity row, got %#v", records)
 	}
-	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionChapterAdjusted {
+	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionEpisodeAdjusted {
 		t.Fatalf("unexpected persisted activity row: %#v", records[0])
 	}
 }

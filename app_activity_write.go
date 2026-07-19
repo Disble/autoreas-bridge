@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 )
@@ -47,7 +48,7 @@ func activityPatchOutcome(before contracts.MobileAnime, patch contracts.AnimePat
 		after.Estado, actionType = *patch.Estado, anime.ActivityActionAnimeStateSet
 	}
 	if patch.NroCapVisto != nil {
-		after.NroCapVisto, actionType = *patch.NroCapVisto, anime.ActivityActionChapterAdjusted
+		after.NroCapVisto, actionType = *patch.NroCapVisto, activity.ActionEpisodeAdjusted
 	}
 	if patch.Activo != nil {
 		after.Activo = 0
