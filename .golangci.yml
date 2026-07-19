@@ -5,6 +5,12 @@ run:
   tests: true
 
 linters:
+  # Vendored JS dependencies can carry stray Go files (e.g. flatted's Go port);
+  # they are not part of this module and must never gate the repo.
+  exclusions:
+    paths:
+      - frontend/node_modules
+
   enable:
     - errcheck
     - govet
