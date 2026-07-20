@@ -120,15 +120,20 @@ func (s *stubAnimeReadQuery) GetReadRecord(_ context.Context, id string) (anime.
 	return anime.ReadRecord{}, errors.New("anime not found")
 }
 
-func TestAnimeSectionsByIDUsesEnglishReadRecords(t *testing.T) {
+func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
+	folder1 := "D:/downloads/anime-1"
+	page1 := "https://jkanime.net/anime-1/"
 	app := &App{animeQuery: &stubAnimeReadQuery{records: []anime.ReadRecord{
-		{Value: domain.Anime{ID: "anime-1", Days: []domain.AnimeDay{{Day: "Sin ver", Order: 1}}}},
+		{Value: domain.Anime{ID: "anime-1", Days: []domain.AnimeDay{{Day: "Sin ver", Order: 1}}, Folder: &folder1, SourceURL: &page1}},
 		{Value: domain.Anime{ID: "anime-2", Days: []domain.AnimeDay{{Day: "Visto", Order: 2}}}},
 	}}}
 
-	got := app.animeSectionsByID(context.Background())
-	if got["anime-1"] != "Sin ver" || got["anime-2"] != "Visto" {
-		t.Fatalf("animeSectionsByID() = %#v, want English read-record sections", got)
+	got := app.animeOverlaysByID(context.Background())
+	if got["anime-1"].section != "Sin ver" || got["anime-1"].folderPath != folder1 || got["anime-1"].pageURL != page1 {
+		t.Fatalf("animeOverlaysByID()[anime-1] = %#v, want section=Sin ver folderPath=%q pageURL=%q", got["anime-1"], folder1, page1)
+	}
+	if got["anime-2"].section != "Visto" || got["anime-2"].folderPath != "" || got["anime-2"].pageURL != "" {
+		t.Fatalf("animeOverlaysByID()[anime-2] = %#v, want section=Visto with empty folder/page (nil pointers)", got["anime-2"])
 	}
 }
 

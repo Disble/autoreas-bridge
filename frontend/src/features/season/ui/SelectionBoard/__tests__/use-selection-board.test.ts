@@ -5,6 +5,28 @@ import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure
 import { resetSeasonStore } from '../../../../../shared/store/season-store';
 import { useSelectionBoard } from '../use-selection-board';
 
+const toastMock = vi.hoisted(() => ({
+  success: vi.fn(),
+  danger: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+}));
+
+const bridgeRuntimeSourceMock = vi.hoisted(() => ({
+  openAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+  copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
+  openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
+  copyAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),
+}));
+
+vi.mock('@heroui/react', () => ({
+  toast: toastMock,
+}));
+
+vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
+  bridgeRuntimeSource: bridgeRuntimeSourceMock,
+}));
+
 function createSource(overrides: Partial<SeasonSource> = {}): SeasonSource {
   return {
     getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0 }),
@@ -53,6 +75,8 @@ function created(id: string, animeId: string, grade: number): SeasonAnimeRow {
     gradeSource: 'manual',
     skipGrading: false,
     consideration: 'none',
+    folderPath: '',
+    pageUrl: '',
   };
 }
 
@@ -60,6 +84,33 @@ describe('useSelectionBoard', () => {
   afterEach(() => {
     resetSeasonStore();
     vi.clearAllMocks();
+  });
+
+  it('exposes open/copy desktop actions sourced from bridgeRuntimeSource', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useSelectionBoard(source));
+
+    await act(async () => {
+      await result.current.onOpenPage('anime-1');
+    });
+    expect(bridgeRuntimeSourceMock.openAnimePage).toHaveBeenCalledWith('anime-1');
+
+    await act(async () => {
+      await result.current.onCopyPage('anime-1');
+    });
+    expect(bridgeRuntimeSourceMock.copyAnimePage).toHaveBeenCalledWith('anime-1');
+    expect(toastMock.success).toHaveBeenCalledWith('Page URL copied to clipboard');
+
+    await act(async () => {
+      await result.current.onOpenFolder('anime-1');
+    });
+    expect(bridgeRuntimeSourceMock.openAnimeFolder).toHaveBeenCalledWith('anime-1');
+
+    await act(async () => {
+      await result.current.onCopyFolder('anime-1');
+    });
+    expect(bridgeRuntimeSourceMock.copyAnimeFolder).toHaveBeenCalledWith('anime-1');
+    expect(toastMock.success).toHaveBeenCalledWith('Folder path copied to clipboard');
   });
 
   it('loads on mount and derives rows, approved count, and quota', async () => {

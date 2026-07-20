@@ -36,6 +36,10 @@ export interface SeasonAnimeRow {
   readonly ratedAt?: number;
   readonly skipGrading: boolean;
   readonly consideration: string;
+  /** Download folder of the created anime; absent/empty when none. */
+  readonly folderPath?: string;
+  /** Source page URL of the created anime; absent/empty when none. */
+  readonly pageUrl?: string;
 }
 
 /** One anime card on the season ordering board. */

@@ -98,14 +98,18 @@ func (a *App) GetSeasonAnimes() []SeasonAnimeDTO {
 }
 
 // seasonAnimeDTOs maps a season's intake rows to DTOs, overlaying each created
-// anime's current Estrenos section. Shared by the active and past-season reads.
+// anime's current Estrenos section plus its desktop-action folder/page targets.
+// Shared by the active and past-season reads.
 func (a *App) seasonAnimeDTOs(ctx context.Context, rows []domain.SeasonAnime) []SeasonAnimeDTO {
-	sections := a.animeSectionsByID(ctx)
+	overlays := a.animeOverlaysByID(ctx)
 	out := make([]SeasonAnimeDTO, 0, len(rows))
 	for _, r := range rows {
 		dto := seasonAnimeToDTO(r)
 		if r.AnimeID != "" {
-			dto.Section = sections[r.AnimeID]
+			overlay := overlays[r.AnimeID]
+			dto.Section = overlay.section
+			dto.FolderPath = overlay.folderPath
+			dto.PageURL = overlay.pageURL
 		}
 		out = append(out, dto)
 	}

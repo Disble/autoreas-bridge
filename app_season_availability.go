@@ -87,11 +87,30 @@ func (a *App) readRecordLister() (animeReadRecordLister, bool) {
 	return query, ok
 }
 
-// animeSectionsByID returns each anime's current section (first days entry)
-// keyed by anime id, so the season board can show which created animes are in
-// Sin ver vs Ver hoy vs Visto. Empty map on any read error.
-func (a *App) animeSectionsByID(ctx context.Context) map[string]string {
-	out := map[string]string{}
+// animeOverlay carries the season board's per-anime read overlay: current
+// section (first days entry) plus the desktop-action targets (download folder,
+// source page) so the season board can open/copy them without a second read.
+type animeOverlay struct {
+	section    string
+	folderPath string
+	pageURL    string
+}
+
+// stringOrEmpty dereferences a nullable string, returning "" for nil. Package
+// main has no access to package anime's legacyStringValue, so this is a local
+// equivalent for the season overlay read path.
+func stringOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// animeOverlaysByID returns each anime's current section (Sin ver / Ver hoy /
+// Visto) plus its folder/page desktop-action targets, keyed by anime id, in a
+// single ListReadRecords pass. Empty map on any read error.
+func (a *App) animeOverlaysByID(ctx context.Context) map[string]animeOverlay {
+	out := map[string]animeOverlay{}
 	query, ok := a.readRecordLister()
 	if !ok {
 		return out
@@ -101,9 +120,14 @@ func (a *App) animeSectionsByID(ctx context.Context) map[string]string {
 		return out
 	}
 	for _, record := range records {
-		if days := record.Value.Days; len(days) > 0 {
-			out[record.Value.ID] = days[0].Day
+		overlay := animeOverlay{
+			folderPath: stringOrEmpty(record.Value.Folder),
+			pageURL:    stringOrEmpty(record.Value.SourceURL),
 		}
+		if days := record.Value.Days; len(days) > 0 {
+			overlay.section = days[0].Day
+		}
+		out[record.Value.ID] = overlay
 	}
 	return out
 }

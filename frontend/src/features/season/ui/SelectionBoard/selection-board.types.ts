@@ -18,6 +18,14 @@ export interface SelectionRow {
   readonly consideration: string;
   /** The live-derived verdict. */
   readonly verdict: Verdict;
+  /** The created anime's download folder path, empty when absent. */
+  readonly folderPath: string;
+  /** The created anime's source page URL, empty when absent. */
+  readonly pageUrl: string;
+  /** Whether the folder desktop action should render. */
+  readonly hasFolder: boolean;
+  /** Whether the page desktop action should render. */
+  readonly hasPage: boolean;
 }
 
 /** One option in the consideration Select. */

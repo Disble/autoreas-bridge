@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"autoreas-bridge/internal/anime"
+	animeDomain "autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/season"
+	seasonDomain "autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/season/match"
 )
 
@@ -289,6 +292,31 @@ func TestTriggerSeasonDownloads(t *testing.T) {
 	}
 	if sched.triggerNowCalls != 1 {
 		t.Fatalf("expected one manual download trigger, got %d", sched.triggerNowCalls)
+	}
+}
+
+func TestSeasonAnimeDTOsOverlaysFolderAndPageForCreatedRowsOnly(t *testing.T) {
+	t.Parallel()
+	folder := "D:/downloads/frieren"
+	page := "https://jkanime.net/frieren/"
+	app := &App{ctx: context.Background(), animeQuery: &stubAnimeReadQuery{records: []anime.ReadRecord{
+		{Value: animeDomain.Anime{ID: "anime-1", Days: []animeDomain.AnimeDay{{Day: "Sin ver", Order: 1}}, Folder: &folder, SourceURL: &page}},
+	}}}
+	rows := []seasonDomain.SeasonAnime{
+		{ID: "row-created", RawName: "Frieren", AnimeID: "anime-1"},
+		{ID: "row-pending", RawName: "Pending Anime", AnimeID: ""},
+	}
+
+	dtos := app.seasonAnimeDTOs(context.Background(), rows)
+	if len(dtos) != 2 {
+		t.Fatalf("expected 2 DTOs, got %d", len(dtos))
+	}
+	created, pending := dtos[0], dtos[1]
+	if created.FolderPath != folder || created.PageURL != page || created.Section != "Sin ver" {
+		t.Fatalf("created row = %+v, want folderPath=%q pageUrl=%q section=Sin ver", created, folder, page)
+	}
+	if pending.FolderPath != "" || pending.PageURL != "" || pending.Section != "" {
+		t.Fatalf("uncreated row must have empty folder/page/section, got %+v", pending)
 	}
 }
 

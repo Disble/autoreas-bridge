@@ -1523,6 +1523,8 @@ export namespace main {
 	    ratedAt?: number;
 	    skipGrading: boolean;
 	    consideration: string;
+	    folderPath: string;
+	    pageUrl: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SeasonAnimeDTO(source);
@@ -1544,6 +1546,8 @@ export namespace main {
 	        this.ratedAt = source["ratedAt"];
 	        this.skipGrading = source["skipGrading"];
 	        this.consideration = source["consideration"];
+	        this.folderPath = source["folderPath"];
+	        this.pageUrl = source["pageUrl"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

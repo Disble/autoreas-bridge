@@ -25,6 +25,10 @@ type SeasonAnimeCandidateDTO struct {
 // Section is the created anime's current Estrenos section (Sin ver / Ver hoy /
 // Visto), empty for uncreated rows. Grade/GradeSource/RatedAt/SkipGrading carry
 // the SDD-44 first-episode grade (grade 0 = ungraded, ratedAt null until graded).
+// FolderPath/PageURL are the created anime's desktop-action targets (download
+// folder, source page), empty for uncreated rows. This DTO is Wails-only (never
+// exposed over REST/openapi.yaml), so these additive fields have no OpenAPI
+// schema counterpart.
 type SeasonAnimeDTO struct {
 	ID                string                    `json:"id"`
 	RawName           string                    `json:"rawName"`
@@ -40,6 +44,8 @@ type SeasonAnimeDTO struct {
 	RatedAt           *int64                    `json:"ratedAt"`
 	SkipGrading       bool                      `json:"skipGrading"`
 	Consideration     string                    `json:"consideration"`
+	FolderPath        string                    `json:"folderPath"`
+	PageURL           string                    `json:"pageUrl"`
 }
 
 // ApplyScheduleDTO is the Wails-facing result of applying the ordering schedule.

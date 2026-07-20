@@ -1,4 +1,5 @@
 import { Alert, Button, Card, Chip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
+import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
 import {
   CONSIDERATION_OPTIONS,
   MAX_GRADE,
@@ -28,6 +29,10 @@ export function SelectionBoard() {
     onSetSlots,
     onSetConsideration,
     onConfirm,
+    onOpenPage,
+    onCopyPage,
+    onOpenFolder,
+    onCopyFolder,
   } = useSelectionBoard();
 
   let quotaColor: 'danger' | 'warning' | 'success' = 'success';
@@ -149,6 +154,7 @@ export function SelectionBoard() {
                 <Table.Column className="w-[100px]">Grade</Table.Column>
                 <Table.Column className="w-[220px]">Consideration</Table.Column>
                 <Table.Column className="w-[120px]">Verdict</Table.Column>
+                <Table.Column className="w-[100px]">Actions</Table.Column>
               </Table.Header>
               <Table.Body>
                 {rows.map((row) => (
@@ -186,6 +192,22 @@ export function SelectionBoard() {
                       <Chip color={row.verdict === 'approved' ? 'success' : 'default'} size="sm" variant="soft">
                         {getVerdictLabel(row.verdict)}
                       </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center gap-2">
+                        <AnimeDesktopActions
+                          animeId={row.animeId}
+                          name={row.rawName}
+                          hasPage={row.hasPage}
+                          hasFolder={row.hasFolder}
+                          pageUrl={row.pageUrl}
+                          folderPath={row.folderPath}
+                          onOpenPage={onOpenPage}
+                          onCopyPage={onCopyPage}
+                          onOpenFolder={onOpenFolder}
+                          onCopyFolder={onCopyFolder}
+                        />
+                      </div>
                     </Table.Cell>
                   </Table.Row>
                 ))}

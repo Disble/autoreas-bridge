@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
 import { CONSIDERATION_OPTIONS } from '../selection-board.constants';
@@ -8,6 +8,7 @@ import {
   getConsiderationLabel,
   getVerdictLabel,
   quotaStatus,
+  runDesktopAction,
   toSelectionRows,
 } from '../selection-board.helpers';
 
@@ -52,6 +53,8 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     gradeSource: 'manual',
     skipGrading: false,
     consideration: 'none',
+    folderPath: '',
+    pageUrl: '',
     ...overrides,
   };
 }
@@ -67,6 +70,26 @@ describe('toSelectionRows', () => {
     expect(out.map((r) => r.id)).toEqual(['b', 'a']); // approved first
     expect(out[0].verdict).toBe('approved');
     expect(out[1].verdict).toBe('rejected');
+  });
+
+  it('carries folderPath/pageUrl and derives hasPage/hasFolder', () => {
+    const rows = [
+      row({ id: 'with-both', animeId: 'anime-with-both', folderPath: 'D:/downloads/frieren', pageUrl: 'https://jkanime.net/frieren/' }),
+      row({ id: 'without-either', animeId: 'anime-without-either', folderPath: '', pageUrl: '' }),
+    ];
+    const out = toSelectionRows(rows, 4);
+    const withBoth = out.find((r) => r.id === 'with-both');
+    const withoutEither = out.find((r) => r.id === 'without-either');
+
+    expect(withBoth?.folderPath).toBe('D:/downloads/frieren');
+    expect(withBoth?.pageUrl).toBe('https://jkanime.net/frieren/');
+    expect(withBoth?.hasPage).toBe(true);
+    expect(withBoth?.hasFolder).toBe(true);
+
+    expect(withoutEither?.folderPath).toBe('');
+    expect(withoutEither?.pageUrl).toBe('');
+    expect(withoutEither?.hasPage).toBe(false);
+    expect(withoutEither?.hasFolder).toBe(false);
   });
 });
 
@@ -105,5 +128,22 @@ describe('labels', () => {
       'temporarily_approved',
       'spare_quota',
     ]);
+  });
+});
+
+describe('runDesktopAction', () => {
+  it('no-ops when the binding is absent (non-Wails context)', async () => {
+    await expect(runDesktopAction(undefined, 'a1', 'copied')).resolves.toBeUndefined();
+  });
+
+  it('runs the action and skips the toast on a non-copy (open) call', async () => {
+    const action = vi.fn().mockResolvedValue({ status: 'ok' });
+    await runDesktopAction(action, 'a1');
+    expect(action).toHaveBeenCalledWith('a1');
+  });
+
+  it('does not throw when the action reports a non-ok status', async () => {
+    const action = vi.fn().mockResolvedValue({ status: 'error' });
+    await expect(runDesktopAction(action, 'a1', 'copied')).resolves.toBeUndefined();
   });
 });

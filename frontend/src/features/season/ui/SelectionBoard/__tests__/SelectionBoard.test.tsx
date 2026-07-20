@@ -11,7 +11,11 @@ const mockedUseSelectionBoard = vi.mocked(useSelectionBoard);
 type HookReturn = ReturnType<typeof useSelectionBoard>;
 
 function selRow(overrides: Partial<SelectionRow> = {}): SelectionRow {
-  return { id: 'r', animeId: 'a', rawName: 'Anime A', grade: 5, consideration: 'none', verdict: 'approved', ...overrides };
+  return {
+    id: 'r', animeId: 'a', rawName: 'Anime A', grade: 5, consideration: 'none', verdict: 'approved',
+    folderPath: '', pageUrl: '', hasFolder: false, hasPage: false,
+    ...overrides,
+  };
 }
 
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
@@ -28,6 +32,10 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onSetSlots: vi.fn(),
     onSetConsideration: vi.fn(),
     onConfirm: vi.fn().mockResolvedValue({ status: 'ok', approved: 0, rejected: 0, quotaExceeded: false }),
+    onOpenPage: vi.fn(),
+    onCopyPage: vi.fn(),
+    onOpenFolder: vi.fn(),
+    onCopyFolder: vi.fn(),
     ...overrides,
   };
   mockedUseSelectionBoard.mockReturnValue(value);
@@ -74,5 +82,38 @@ describe('SelectionBoard', () => {
     render(<SelectionBoard />);
     fireEvent.click(screen.getByRole('button', { name: 'Increase minimum approval grade' }));
     expect(onSetMinApprovalGrade).toHaveBeenCalledWith(5);
+  });
+
+  it('renders the desktop actions for a candidate with a page and a folder', () => {
+    mockHook({
+      rows: [selRow({ animeId: 'anime-1', rawName: 'Dr. Stone', hasPage: true, hasFolder: true, pageUrl: 'https://jkanime.net/dr-stone/', folderPath: 'D:/downloads/dr-stone' })],
+      approvedCount: 1,
+    });
+    render(<SelectionBoard />);
+    expect(screen.getByRole('button', { name: /open page/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open folder/i })).toBeInTheDocument();
+  });
+
+  it('opens the page and folder through the desktop-action callbacks', () => {
+    const onOpenPage = vi.fn();
+    const onOpenFolder = vi.fn();
+    mockHook({
+      rows: [selRow({ animeId: 'anime-1', rawName: 'Dr. Stone', hasPage: true, hasFolder: true, pageUrl: 'https://jkanime.net/dr-stone/', folderPath: 'D:/downloads/dr-stone' })],
+      approvedCount: 1,
+      onOpenPage,
+      onOpenFolder,
+    });
+    render(<SelectionBoard />);
+    fireEvent.click(screen.getByRole('button', { name: /open page/i }));
+    expect(onOpenPage).toHaveBeenCalledWith('anime-1');
+    fireEvent.click(screen.getByRole('button', { name: /open folder/i }));
+    expect(onOpenFolder).toHaveBeenCalledWith('anime-1');
+  });
+
+  it('hides the desktop actions for a candidate without a page or folder', () => {
+    mockHook({ rows: [selRow({ rawName: 'No Path Anime', hasPage: false, hasFolder: false })], approvedCount: 1 });
+    render(<SelectionBoard />);
+    expect(screen.queryByRole('button', { name: /open page/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /open folder/i })).not.toBeInTheDocument();
   });
 });

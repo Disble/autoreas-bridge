@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo } from 'react';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS } from './selection-board.constants';
-import { countApproved, quotaStatus, toSelectionRows } from './selection-board.helpers';
+import { countApproved, quotaStatus, runDesktopAction, toSelectionRows } from './selection-board.helpers';
 
 /**
  * useSelectionBoard drives the Excel-replacement decision board: it derives live
@@ -42,6 +43,10 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     [setConsideration, source],
   );
   const onConfirm = useCallback((): Promise<ConfirmSelectionResult> => confirmSelection(source), [confirmSelection, source]);
+  const onOpenPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
+  const onCopyPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
+  const onOpenFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);
+  const onCopyFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimeFolder, animeId, 'Folder path copied to clipboard'), []);
 
   // 7. Effects
   useEffect(() => {
@@ -62,5 +67,9 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     onSetSlots,
     onSetConsideration,
     onConfirm,
+    onOpenPage,
+    onCopyPage,
+    onOpenFolder,
+    onCopyFolder,
   };
 }

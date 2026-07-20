@@ -1,11 +1,10 @@
 import plusIcon from '@iconify-icons/tabler/plus';
-import folderIcon from '@iconify-icons/solar/folder-open-bold-duotone';
-import linkIcon from '@iconify-icons/solar/link-round-bold-duotone';
 import menuIcon from '@iconify-icons/solar/menu-dots-bold';
 import minusIcon from '@iconify-icons/tabler/minus';
 import { Icon } from '@iconify/react';
-import { Button, Card, Chip, Modal, Tooltip, Typography } from '@heroui/react';
+import { Button, Card, Chip, Modal, Typography } from '@heroui/react';
 import type { MouseEvent } from 'react';
+import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
 import { SeasonRateAction } from '../../../season/ui/SeasonRateAction/SeasonRateAction';
 import { EPISODE_COVER_SLOT_CLASS, EPISODE_STATE_OPTIONS } from './episode-schedule-panel.constants';
@@ -46,50 +45,18 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
                 <span className="group-hover:hidden">{row.watchedLabel}</span>
                 <span className="hidden group-hover:inline">{row.remainingLabel}</span>
               </span>
-              {row.hasPage ? (
-                <Tooltip delay={0}>
-                  <Button
-                    isIconOnly
-                    aria-label={`Open page for ${row.name}. Secondary click copies page URL.`}
-                    className="hover:text-accent"
-                    size="sm"
-                    variant="tertiary"
-                    onContextMenu={(event: MouseEvent) => {
-                      event.preventDefault();
-                      void copyAnimePage(row.id);
-                    }}
-                    onPress={() => void openAnimePage(row.id)}
-                  >
-                    <Icon icon={linkIcon} className="size-4" />
-                  </Button>
-                  <Tooltip.Content showArrow>
-                    <Tooltip.Arrow />
-                    {row.pageUrl}
-                  </Tooltip.Content>
-                </Tooltip>
-              ) : null}
-              {row.hasFolder ? (
-                <Tooltip delay={0}>
-                  <Button
-                    isIconOnly
-                    aria-label={`Open folder for ${row.name}. Secondary click copies folder path.`}
-                    className="hover:text-success"
-                    size="sm"
-                    variant="tertiary"
-                    onContextMenu={(event: MouseEvent) => {
-                      event.preventDefault();
-                      void copyAnimeFolder(row.id);
-                    }}
-                    onPress={() => void openAnimeFolder(row.id)}
-                  >
-                    <Icon icon={folderIcon} className="size-4" />
-                  </Button>
-                  <Tooltip.Content showArrow>
-                    <Tooltip.Arrow />
-                    {row.folderPath}
-                  </Tooltip.Content>
-                </Tooltip>
-              ) : null}
+              <AnimeDesktopActions
+                animeId={row.id}
+                name={row.name}
+                hasPage={row.hasPage}
+                hasFolder={row.hasFolder}
+                pageUrl={row.pageUrl}
+                folderPath={row.folderPath}
+                onOpenPage={openAnimePage}
+                onCopyPage={copyAnimePage}
+                onOpenFolder={openAnimeFolder}
+                onCopyFolder={copyAnimeFolder}
+              />
             </div>
           </div>
 
