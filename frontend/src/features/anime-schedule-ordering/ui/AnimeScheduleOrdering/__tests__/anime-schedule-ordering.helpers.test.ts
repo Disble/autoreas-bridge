@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { countAnimeScheduleChanges, createAnimeScheduleApplyEntries, createAnimeScheduleOrderingState, duplicateAnimeScheduleCard, moveAnimeScheduleCard, validateAnimeScheduleDraft } from '../anime-schedule-ordering.helpers';
+import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from '../anime-schedule-ordering.constants';
+import {
+  countAnimeScheduleChanges,
+  createAnimeScheduleApplyEntries,
+  createAnimeScheduleOrderingState,
+  duplicateAnimeScheduleCard,
+  formatStagingWarning,
+  getStagedAnimeIds,
+  moveAnimeScheduleCard,
+  validateAnimeScheduleDraft,
+  withStagingDestination,
+} from '../anime-schedule-ordering.helpers';
 
 const board = {
   originAnimeId: 'anime-1',
@@ -136,6 +147,60 @@ describe('anime-schedule-ordering.helpers', () => {
       { animeId: 'yani-neko', baseModifiedAt: 102, placements: [{ day: 'Sin ver', order: 3 }] },
       { animeId: 'youjo-senki-ii', baseModifiedAt: 103, placements: [{ day: 'Sin ver', order: 4 }] },
     ]);
+  });
+
+  it('adds an empty duplicate-allowed staging destination', () => {
+    const state = withStagingDestination(createAnimeScheduleOrderingState(board));
+
+    expect(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toEqual([]);
+    expect(state.duplicateAllowedDestinations).toContain(ANIME_SCHEDULE_STAGING_CONTAINER_ID);
+  });
+
+  it('treats a parked anime as still holding its slot — no ripple, no changes', () => {
+    let state = withStagingDestination(createAnimeScheduleOrderingState(sparseSundayBoard));
+    state = moveAnimeScheduleCard(state, { animeId: 'futsutsuka', destinationId: ANIME_SCHEDULE_STAGING_CONTAINER_ID, order: 1 });
+
+    expect([...getStagedAnimeIds(state)]).toEqual(['futsutsuka']);
+    expect(countAnimeScheduleChanges(sparseSundayBoard, state)).toBe(0);
+    expect(createAnimeScheduleApplyEntries(sparseSundayBoard, state)).toEqual([]);
+  });
+
+  it('releases the ripple once the parked anime lands on a real destination', () => {
+    let state = withStagingDestination(createAnimeScheduleOrderingState(sparseSundayBoard));
+    state = moveAnimeScheduleCard(state, { animeId: 'futsutsuka', destinationId: ANIME_SCHEDULE_STAGING_CONTAINER_ID, order: 1 });
+    state = moveAnimeScheduleCard(state, { animeId: 'futsutsuka', destinationId: 'Domingo', order: 1 });
+
+    expect(countAnimeScheduleChanges(sparseSundayBoard, state)).toBe(5);
+    expect(createAnimeScheduleApplyEntries(sparseSundayBoard, state)).toEqual([
+      { animeId: 'futsutsuka', baseModifiedAt: 105, placements: [{ day: 'Domingo', order: 1 }] },
+      { animeId: 'domingo-legacy', baseModifiedAt: 109, placements: [{ day: 'Domingo', order: 2 }] },
+      { animeId: 'iwamoto', baseModifiedAt: 106, placements: [{ day: 'Visto', order: 1 }] },
+      { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ day: 'Visto', order: 2 }] },
+      { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ day: 'Visto', order: 3 }] },
+    ]);
+  });
+
+  it('stages duplicates in the wildcard area without dirtying the draft', () => {
+    const state = duplicateAnimeScheduleCard(withStagingDestination(createAnimeScheduleOrderingState(board)), 'anime-1');
+
+    expect(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(1);
+    expect(validateAnimeScheduleDraft(state)).toBeUndefined();
+    expect(countAnimeScheduleChanges(board, state)).toBe(0);
+    expect(createAnimeScheduleApplyEntries(board, state)).toEqual([]);
+  });
+
+  it('keeps real-destination moves for an anime whose duplicate is staged', () => {
+    let state = duplicateAnimeScheduleCard(withStagingDestination(createAnimeScheduleOrderingState(board)), 'anime-1');
+    state = moveAnimeScheduleCard(state, { animeId: 'anime-1', destinationId: 'Sin ver', order: 1 });
+
+    expect(createAnimeScheduleApplyEntries(board, state)).toEqual([
+      { animeId: 'anime-1', baseModifiedAt: 100, placements: [{ day: 'Sin ver', order: 1 }] },
+    ]);
+  });
+
+  it('formats the staging warning with singular and plural wording', () => {
+    expect(formatStagingWarning(1)).toBe('1 anime is parked in the staging area. Apply ignores it — place it on a destination or its staged move will be lost.');
+    expect(formatStagingWarning(2)).toBe('2 animes are parked in the staging area. Apply ignores them — place them on a destination or their staged moves will be lost.');
   });
 
   it('captures a drop between two cards in another destination', () => {

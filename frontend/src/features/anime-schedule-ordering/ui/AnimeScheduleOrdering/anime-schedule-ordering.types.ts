@@ -79,6 +79,8 @@ export interface AnimeScheduleOrderingViewModel {
   readonly columns: readonly AnimeScheduleOrderingColumnViewModel[];
   readonly weekdayColumns: readonly AnimeScheduleOrderingColumnViewModel[];
   readonly specialColumns: readonly AnimeScheduleOrderingColumnViewModel[];
+  readonly stagingCards: readonly AnimeScheduleOrderingInstance[];
+  readonly stagedAnimeCount: number;
   readonly changeCount: number;
   readonly validationMessage?: string;
   readonly onDragOver: (event: DragOverEvent) => void;

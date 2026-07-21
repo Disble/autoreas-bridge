@@ -21,22 +21,23 @@ describe('useAnimeScheduleOrdering', () => {
     expect(result.current.changeCount).toBe(0);
   });
 
-  it('blocks apply while the draft is invalid', async () => {
-    const onApply = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply }));
+  it('stages duplicates in the wildcard area and reports the staged count', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
 
     act(() => result.current.onDuplicate('anime-1'));
-    await act(async () => result.current.onApply());
 
-    expect(result.current.validationMessage).toBeDefined();
-    expect(onApply).not.toHaveBeenCalled();
+    expect(result.current.stagedAnimeCount).toBe(1);
+    expect(result.current.stagingCards.map((card) => card.animeId)).toEqual(['anime-1']);
+    expect(result.current.changeCount).toBe(0);
+    expect(result.current.validationMessage).toBeUndefined();
   });
 
   it('resets the full shared draft to authoritative state', () => {
     const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
     act(() => result.current.onDuplicate('anime-1'));
-    expect(result.current.changeCount).toBe(1);
+    expect(result.current.stagedAnimeCount).toBe(1);
     act(() => result.current.onReset());
+    expect(result.current.stagedAnimeCount).toBe(0);
     expect(result.current.changeCount).toBe(0);
     expect(result.current.validationMessage).toBeUndefined();
   });

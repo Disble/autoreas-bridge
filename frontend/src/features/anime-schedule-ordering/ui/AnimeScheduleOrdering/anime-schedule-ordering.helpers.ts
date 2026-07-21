@@ -1,6 +1,6 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { ApplyAnimeScheduleDraftEntry, AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
-import { ANIME_SCHEDULE_ORDERING_DUPLICATE_ERROR } from './anime-schedule-ordering.constants';
+import { ANIME_SCHEDULE_ORDERING_DUPLICATE_ERROR, ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
 import type { AnimeScheduleDraftPlacement, AnimeScheduleOrderingInstance, AnimeScheduleOrderingState, AnimeScheduleOrderingTestMoveCommand } from './anime-schedule-ordering.types';
 
 function createEmptyOrder(board: AnimeEditorScheduleBoard) {
@@ -43,6 +43,23 @@ function keyForAnime(state: AnimeScheduleOrderingState, animeId: string) {
 
 function createDestinationRank(board: AnimeEditorScheduleBoard) {
   return new Map(board.destinations.map((destination, index) => [destination.id, index]));
+}
+
+// The authoritative state minus the currently staged card keys: a parked card is
+// treated as still holding its original slot, so parking alone never ripples its
+// former column mates into the diff — the ripple appears once the card lands on
+// a real destination (or is removed).
+function originalStateIgnoringStaged(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState): AnimeScheduleOrderingState {
+  const original = createAnimeScheduleOrderingState(board);
+  const stagedKeys = new Set(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID] ?? []);
+  if (stagedKeys.size === 0) {
+    return original;
+  }
+  const order: Record<string, readonly string[]> = {};
+  for (const [destinationId, keys] of Object.entries(original.order)) {
+    order[destinationId] = keys.filter((key) => !stagedKeys.has(key));
+  }
+  return { order, instances: original.instances };
 }
 
 function compareDestinationIds(destinationRank: ReadonlyMap<string, number>, leftDay: string, rightDay: string) {
@@ -102,6 +119,37 @@ export function createAnimeScheduleOrderingState(board: AnimeEditorScheduleBoard
   }
 
   return { order, instances };
+}
+
+/**
+ * Adds the client-only staging (wildcard) destination to a freshly built draft
+ * state. Cards parked there are excluded from validation and the apply payload:
+ * a staged move is discarded unless the card lands on a real destination.
+ */
+export function withStagingDestination(state: AnimeScheduleOrderingState): AnimeScheduleOrderingState {
+  return {
+    order: { ...state.order, [ANIME_SCHEDULE_STAGING_CONTAINER_ID]: [] },
+    instances: state.instances,
+    duplicateAllowedDestinations: [...(state.duplicateAllowedDestinations ?? []), ANIME_SCHEDULE_STAGING_CONTAINER_ID],
+  };
+}
+
+/**
+ * Resolves the distinct anime ids that currently have a card parked in the
+ * staging area, so change counting and apply can honor the discard semantics.
+ */
+export function getStagedAnimeIds(state: AnimeScheduleOrderingState): ReadonlySet<string> {
+  return new Set((state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID] ?? []).map((key) => state.instances[key].animeId));
+}
+
+/**
+ * Formats the discard warning shown while the staging area holds animes,
+ * singularizing the wording for a count of exactly one.
+ */
+export function formatStagingWarning(count: number): string {
+  return count === 1
+    ? '1 anime is parked in the staging area. Apply ignores it — place it on a destination or its staged move will be lost.'
+    : `${count} animes are parked in the staging area. Apply ignores them — place them on a destination or their staged moves will be lost.`;
 }
 
 /**
@@ -168,7 +216,9 @@ export function duplicateAnimeScheduleCard(state: AnimeScheduleOrderingState, an
   }
 
   const key = nextKey(state.instances, animeId);
-  const firstDestinationId = Object.keys(state.order)[0];
+  // A wildcard container (rail or staging area) is where a fresh copy belongs:
+  // it never collides there and the user drags it out to its real destination.
+  const firstDestinationId = state.duplicateAllowedDestinations?.[0] ?? Object.keys(state.order)[0];
 
   return {
     order: {
@@ -288,13 +338,16 @@ function compareApplyEntries(
  */
 export function countAnimeScheduleChanges(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState) {
   const destinationRank = createDestinationRank(board);
-  const original = createAnimeScheduleOrderingState(board);
-  const before = buildAnimeScheduleDraftPlacements(original);
+  const before = buildAnimeScheduleDraftPlacements(originalStateIgnoringStaged(board, state));
   const after = buildAnimeScheduleDraftPlacements(state);
+  const staged = getStagedAnimeIds(state);
   const ids = new Set([...Object.keys(before), ...Object.keys(after)]);
   let changes = 0;
 
   for (const animeId of ids) {
+    if ((after[animeId] ?? []).length === 0 && staged.has(animeId)) {
+      continue;
+    }
     const normalizedBefore = JSON.stringify(normalizePlacements(destinationRank, before[animeId] ?? []));
     const normalizedAfter = JSON.stringify(normalizePlacements(destinationRank, after[animeId] ?? []));
     if (normalizedBefore !== normalizedAfter) {
@@ -330,13 +383,19 @@ export function validateAnimeScheduleDraft(state: AnimeScheduleOrderingState) {
  */
 export function createAnimeScheduleApplyEntries(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState): readonly ApplyAnimeScheduleDraftEntry[] {
   const destinationRank = createDestinationRank(board);
-  const original = buildAnimeScheduleDraftPlacements(createAnimeScheduleOrderingState(board));
+  const original = buildAnimeScheduleDraftPlacements(originalStateIgnoringStaged(board, state));
   const current = buildAnimeScheduleDraftPlacements(state);
+  const staged = getStagedAnimeIds(state);
   const changed: ApplyAnimeScheduleDraftEntry[] = [];
 
   for (const entry of board.entries) {
     const before = JSON.stringify(normalizePlacements(destinationRank, original[entry.animeId] ?? []));
     const currentPlacements = current[entry.animeId] ?? [];
+    // A fully staged anime reverts to its authoritative placements: the staged
+    // move is discarded rather than serialized as an empty-placement removal.
+    if (currentPlacements.length === 0 && staged.has(entry.animeId)) {
+      continue;
+    }
     const after = JSON.stringify(normalizePlacements(destinationRank, currentPlacements));
     if (before === after) {
       continue;

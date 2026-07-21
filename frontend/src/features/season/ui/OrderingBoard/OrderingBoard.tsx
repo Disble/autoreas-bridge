@@ -4,6 +4,7 @@ import { DroppableColumn } from './DroppableColumn';
 import { ORDERING_EMPTY_MESSAGE, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import { SortableCard } from './SortableCard';
 import { useOrderingBoard } from './use-ordering-board';
+import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 
 /**
  * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: a left rail of
@@ -75,7 +76,7 @@ export function OrderingBoard() {
               <Card.Title>Approved to place ({rail.length})</Card.Title>
             </Card.Header>
             <Card.Content>
-              <DroppableColumn containerId={RAIL_CONTAINER_ID} className="min-h-16">
+              <DroppableColumn containerId={RAIL_CONTAINER_ID} className="min-h-16 rounded-lg border border-border/70 p-2 bg-zinc-800">
                 {rail.length === 0 ? (
                   <p className="text-sm text-muted">{ORDERING_EMPTY_MESSAGE}</p>
                 ) : (
@@ -86,7 +87,6 @@ export function OrderingBoard() {
                         instance={instance}
                         container={RAIL_CONTAINER_ID}
                         index={index}
-                        showOrder={false}
                         readOnly={readOnly}
                         canRemove={canRemove(instance.animeId)}
                         onDuplicate={() => duplicate(instance.animeId)}
@@ -99,37 +99,43 @@ export function OrderingBoard() {
             </Card.Content>
           </Card>
 
-          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-4">
             {WEEKDAYS.map((day) => {
               const cards = columns[day] ?? [];
               return (
-                <DroppableColumn
-                  key={day}
-                  containerId={day}
-                  className="flex min-h-24 min-w-0 flex-col gap-2 rounded-lg border border-border p-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">{day}</span>
+                <Card key={day} className="min-w-0">
+                  <Card.Header>
+                    <Card.Title>{day}</Card.Title>
                     <Chip size="sm" variant="soft">
                       {cards.length}
                     </Chip>
-                  </div>
-                  <ul className="flex flex-col gap-2">
-                    {cards.map((instance, index) => (
-                      <SortableCard
-                        key={instance.key}
-                        instance={instance}
-                        container={day}
-                        index={index}
-                        showOrder
-                        readOnly={readOnly}
-                        canRemove={canRemove(instance.animeId)}
-                        onDuplicate={() => duplicate(instance.animeId)}
-                        onRemove={() => removeCard(instance.key)}
-                      />
-                    ))}
-                  </ul>
-                </DroppableColumn>
+                  </Card.Header>
+                  <Card.Content>
+                    <DroppableColumn
+                      containerId={day}
+                      className="flex min-h-24 min-w-0 flex-col gap-2 rounded-lg border border-border/70 p-2 bg-zinc-800"
+                    >
+                      {cards.length === 0 ? (
+                        <p className="text-sm text-muted">{ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE}</p>
+                      ) : (
+                      <ul className="flex flex-col gap-2">
+                        {cards.map((instance, index) => (
+                          <SortableCard
+                            key={instance.key}
+                            instance={instance}
+                            container={day}
+                            index={index}
+                            readOnly={readOnly}
+                            canRemove={canRemove(instance.animeId)}
+                            onDuplicate={() => duplicate(instance.animeId)}
+                            onRemove={() => removeCard(instance.key)}
+                          />
+                        ))}
+                      </ul>
+                      )}
+                    </DroppableColumn>
+                  </Card.Content>
+                </Card>
               );
             })}
           </div>

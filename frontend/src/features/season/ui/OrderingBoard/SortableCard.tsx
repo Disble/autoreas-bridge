@@ -16,7 +16,6 @@ export function SortableCard({
   instance,
   container,
   index,
-  showOrder,
   readOnly,
   canRemove,
   onDuplicate,
@@ -42,13 +41,12 @@ export function SortableCard({
     <li
       ref={ref}
       style={{ touchAction: 'none', opacity: isDragging ? 0.4 : 1 }}
-      className={`flex min-w-0 flex-col gap-1 rounded-md border border-border bg-surface p-2 ${cursorClassName}`}
+      className={`flex min-w-0 flex-col gap-1 rounded-md border border-border bg-zinc-900 p-2 ${cursorClassName}`}
     >
-      <span className="flex min-w-0 items-center gap-1 truncate text-xs text-foreground">
+      <div className="flex min-w-0 items-center gap-1 text-xs text-foreground">
         {instance.isNewcomer && <span className="size-1.5 shrink-0 rounded-full bg-success" />}
-        {showOrder ? `${index + 1}. ` : ''}
-        {instance.name}
-      </span>
+        <span className="truncate">{instance.name}</span>
+      </div>
       <div className="flex items-center gap-1">
         {onDuplicate !== undefined && (
           <Tooltip delay={0}>

@@ -8,11 +8,14 @@ import {
   createAnimeScheduleOrderingState,
   duplicateAnimeScheduleCard,
   getInstancesInDestination,
+  getStagedAnimeIds,
   moveAnimeScheduleCard,
   removeAnimeScheduleCard,
   shouldBlockDuplicateHover,
   validateAnimeScheduleDraft,
+  withStagingDestination,
 } from './anime-schedule-ordering.helpers';
+import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
 import type { AnimeScheduleOrderingProps, AnimeScheduleOrderingState, AnimeScheduleOrderingViewModel } from './anime-schedule-ordering.types';
 
 /**
@@ -23,7 +26,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   // 1. Refs
 
   // 2. State
-  const [state, setState] = useState<AnimeScheduleOrderingState>(() => createAnimeScheduleOrderingState(props.board));
+  const [state, setState] = useState<AnimeScheduleOrderingState>(() => withStagingDestination(createAnimeScheduleOrderingState(props.board)));
 
   // 3. Context/3rd Party Hooks
 
@@ -38,6 +41,8 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   })), [props.board.destinations, state]);
   const weekdayColumns = useMemo(() => columns.filter((column) => column.kind === 'weekday'), [columns]);
   const specialColumns = useMemo(() => columns.filter((column) => column.kind === 'special'), [columns]);
+  const stagingCards = useMemo(() => getInstancesInDestination(state, ANIME_SCHEDULE_STAGING_CONTAINER_ID), [state]);
+  const stagedAnimeCount = useMemo(() => getStagedAnimeIds(state).size, [state]);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onDragOver = useCallback((event: DragOverEvent) => {
@@ -54,7 +59,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
     setState((current) => removeAnimeScheduleCard(current, key));
   }, []);
   const onReset = useCallback(() => {
-    setState(createAnimeScheduleOrderingState(props.board));
+    setState(withStagingDestination(createAnimeScheduleOrderingState(props.board)));
   }, [props.board]);
   const onApply = useCallback(async () => {
     if (validationMessage !== undefined) {
@@ -67,7 +72,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
 
   // 7. Effects
   useEffect(() => {
-    setState(createAnimeScheduleOrderingState(props.board));
+    setState(withStagingDestination(createAnimeScheduleOrderingState(props.board)));
   }, [props.board]);
   useEffect(() => {
     const testDriverRef = props.testDriverRef;
@@ -93,6 +98,8 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
     columns,
     weekdayColumns,
     specialColumns,
+    stagingCards,
+    stagedAnimeCount,
     changeCount,
     validationMessage,
     onDragOver,

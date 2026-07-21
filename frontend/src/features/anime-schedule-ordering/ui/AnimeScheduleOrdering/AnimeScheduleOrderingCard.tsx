@@ -13,7 +13,7 @@ export function AnimeScheduleOrderingCard({ instance, containerId, index, canRem
     <li
       ref={ref}
       data-origin-anime={instance.originHighlighted ? instance.animeId : undefined}
-      className={`flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-2 bg-zinc-900 ${instance.originHighlighted ? 'border-accent bg-accent/5' : 'border-border bg-content1'} ${isDragging ? 'opacity-40' : ''}`}
+      className={`flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-2 bg-zinc-900 ${instance.originHighlighted ? 'border-accent bg-accent/5' : 'border-border bg-content1'} ${isDragging ? 'cursor-grabbing opacity-40' : 'cursor-grab'}`}
       style={{ touchAction: 'none' }}
     >
       <div className="flex items-center gap-2">

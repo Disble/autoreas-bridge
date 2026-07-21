@@ -64,7 +64,7 @@ describe('OrderingBoard', () => {
     });
     render(<OrderingBoard />);
     expect(screen.getByText('To Place')).toBeInTheDocument();
-    expect(screen.getByText('1. On Thursday')).toBeInTheDocument();
+    expect(screen.getByText('On Thursday')).toBeInTheDocument();
     expect(screen.getByText('1 changes')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate To Place to another day' }));

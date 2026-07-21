@@ -1,8 +1,19 @@
+import questionIcon from '@iconify-icons/tabler/question-mark';
+import { Icon } from '@iconify/react';
 import { DragDropProvider, DragOverlay } from '@dnd-kit/react';
-import { Alert, Button, Card, Chip, ScrollShadow, Typography } from '@heroui/react';
+import { Alert, Button, Card, Chip, ScrollShadow, Tooltip, Typography } from '@heroui/react';
 import { AnimeScheduleOrderingCard } from './AnimeScheduleOrderingCard';
 import { AnimeScheduleOrderingColumn } from './AnimeScheduleOrderingColumn';
-import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE, ANIME_SCHEDULE_ORDERING_MODAL_TITLE } from './anime-schedule-ordering.constants';
+import {
+  ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE,
+  ANIME_SCHEDULE_ORDERING_MODAL_TITLE,
+  ANIME_SCHEDULE_STAGING_CONTAINER_ID,
+  ANIME_SCHEDULE_STAGING_EMPTY_MESSAGE,
+  ANIME_SCHEDULE_STAGING_HELP_LABEL,
+  ANIME_SCHEDULE_STAGING_HELP_MESSAGE,
+  ANIME_SCHEDULE_STAGING_LABEL,
+} from './anime-schedule-ordering.constants';
+import { formatStagingWarning } from './anime-schedule-ordering.helpers';
 import type { AnimeScheduleOrderingProps } from './anime-schedule-ordering.types';
 import { useAnimeScheduleOrdering } from './use-anime-schedule-ordering';
 
@@ -11,7 +22,7 @@ import { useAnimeScheduleOrdering } from './use-anime-schedule-ordering';
  * all draft logic inside the colocated hook.
  */
 export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps>) {
-  const { weekdayColumns, specialColumns, changeCount, validationMessage, onDragOver, onDuplicate, onRemove, onReset, onApply, canRemove, getOverlayName } = useAnimeScheduleOrdering(props);
+  const { weekdayColumns, specialColumns, stagingCards, stagedAnimeCount, changeCount, validationMessage, onDragOver, onDuplicate, onRemove, onReset, onApply, canRemove, getOverlayName } = useAnimeScheduleOrdering(props);
 
   return (
     <DragDropProvider onDragOver={onDragOver}>
@@ -40,6 +51,16 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
             <Alert.Content>
               <Alert.Title>Invalid draft</Alert.Title>
               <Alert.Description>{validationMessage}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        {stagedAnimeCount > 0 && (
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Unplaced animes</Alert.Title>
+              <Alert.Description>{formatStagingWarning(stagedAnimeCount)}</Alert.Description>
             </Alert.Content>
           </Alert>
         )}
@@ -76,7 +97,33 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
               </Card>
             ))}
           </div>
-          <div aria-label="Special queue row" className="mt-4 grid gap-4 md:grid-cols-3">
+          <div aria-label="Special queue row" className="mt-4 grid gap-4 md:grid-cols-4">
+            <Card>
+              <Card.Header>
+                <div className="flex items-center gap-2">
+                  <Card.Title>{ANIME_SCHEDULE_STAGING_LABEL}</Card.Title>
+                  <Tooltip delay={0}>
+                    <Button aria-label={ANIME_SCHEDULE_STAGING_HELP_LABEL} isIconOnly className="size-5" variant="tertiary">
+                      <Icon className="size-4" icon={questionIcon} />
+                    </Button>
+                    <Tooltip.Content showArrow className="max-w-72">
+                      <Tooltip.Arrow />
+                      {ANIME_SCHEDULE_STAGING_HELP_MESSAGE}
+                    </Tooltip.Content>
+                  </Tooltip>
+                </div>
+                <Chip color="warning" size="sm" variant="soft">{stagingCards.length}</Chip>
+              </Card.Header>
+              <Card.Content>
+                <AnimeScheduleOrderingColumn className="min-h-24 rounded-lg border border-dashed border-warning/50 p-2 bg-zinc-800" containerId={ANIME_SCHEDULE_STAGING_CONTAINER_ID}>
+                  {stagingCards.length === 0 ? <Typography color="muted" type="body-sm">{ANIME_SCHEDULE_STAGING_EMPTY_MESSAGE}</Typography> : (
+                    <ul className="flex flex-col gap-2">
+                      {stagingCards.map((instance, index) => <AnimeScheduleOrderingCard key={instance.key} canRemove={canRemove(instance.animeId)} containerId={ANIME_SCHEDULE_STAGING_CONTAINER_ID} index={index} instance={instance} onDuplicate={() => onDuplicate(instance.animeId)} onRemove={() => onRemove(instance.key)} />)}
+                    </ul>
+                  )}
+                </AnimeScheduleOrderingColumn>
+              </Card.Content>
+            </Card>
             {specialColumns.map((column) => (
               <Card key={column.id}>
                 <Card.Header><Card.Title>{column.label}</Card.Title><Chip size="sm" variant="soft">{column.cards.length}</Chip></Card.Header>

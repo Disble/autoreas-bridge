@@ -35,8 +35,6 @@ export interface OrderingItemProps {
   /** The dnd-kit container id this card currently lives in (a weekday or RAIL_CONTAINER_ID). */
   readonly container: string;
   readonly index: number;
-  /** Weekday clones show their "N." order prefix; rail cards do not. */
-  readonly showOrder: boolean;
   readonly readOnly: boolean;
   /** False disables Delete — the anime's last card can never be removed. */
   readonly canRemove: boolean;
