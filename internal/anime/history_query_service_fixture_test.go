@@ -1,34 +1,43 @@
 package anime_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering
+// historyFixtureLines are hand-authored stored-shape records covering the
+// membership/ordering/projection edge cases the real Autoreas library
+// fixture used to exercise (tasks.md Phase 1.1): mixed presence of
+// fechaUltCapVisto, tipo, and fechaCreacion, across multiple distinct
+// timestamps to prove non-increasing ordering.
+//
+// SDD-55 Slice B: resources/autoreas-data/animes.dat (the Legacy append-only
+// file, gitignored private user data) and its streaming parser are deleted.
+// This fixture no longer reads that real file at runtime -- it pins the same
+// shape as small, non-identifying synthetic records instead.
+var historyFixtureLines = []string{
+	`{"_id":"history-1","nombre":"History One","nrocapvisto":12,"estado":1,"tipo":0,"fechaCreacion":{"$$date":1000},"fechaUltCapVisto":{"$$date":3000}}`,
+	`{"_id":"history-2","nombre":"History Two","nrocapvisto":5,"estado":2,"fechaUltCapVisto":{"$$date":2000}}`,
+	`{"_id":"history-3","nombre":"History Three","nrocapvisto":8,"estado":1,"tipo":1,"fechaCreacion":{"$$date":1500},"fechaUltCapVisto":{"$$date":1000}}`,
+	`{"_id":"history-4","nombre":"History Four (never watched)","nrocapvisto":0,"estado":0}`,
+}
+
+// TestQueryServiceListAnimeHistoryMatchesFixtureMembershipAndOrdering
 // validates ListAnimeHistory (Anime History spec, "History Read Model")
-// against the real autoreas-data fixture (tasks.md Phase 1.1): the expected
-// membership count is derived from the fixture itself in test setup (records
-// with a present fechaUltCapVisto), never hardcoded, and the result MUST be
-// non-increasing by FechaUltCapVisto.
-func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *testing.T) {
+// against historyFixtureLines: the expected membership count is derived from
+// the fixture itself in test setup (records with a present fechaUltCapVisto),
+// never hardcoded, and the result MUST be non-increasing by FechaUltCapVisto.
+func TestQueryServiceListAnimeHistoryMatchesFixtureMembershipAndOrdering(t *testing.T) {
 	t.Parallel()
 
-	sourcePath := filepath.Join("..", "..", "resources", "autoreas-data", "animes.dat")
-	data, err := os.ReadFile(sourcePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("real Autoreas fixture not present at %s; resources/autoreas-data/*.dat is gitignored private data", sourcePath)
-		}
-		t.Fatalf("read real fixture: %v", err)
-	}
-
+	data := []byte(strings.Join(historyFixtureLines, "\n"))
 	records := parseFixtureHistoryRecords(t, data)
 	wantCount, wantTipoCount, wantFechaCreacionCount := summarizeFixtureHistory(t, records)
 	if wantCount == 0 {
@@ -67,16 +76,28 @@ func TestQueryServiceListAnimeHistoryMatchesRealFixtureMembershipAndOrdering(t *
 	assertHistoryOrder(t, got)
 }
 
-// parseFixtureHistoryRecords parses snapshot records from the real fixture.
+// parseFixtureHistoryRecords decodes one already-deduped snapshot per line
+// from the real-data-derived fixture into snapshot records.
 func parseFixtureHistoryRecords(t *testing.T, data []byte) map[string]anime.SnapshotRecord {
 	t.Helper()
-	parser := anime.NewSnapshotParser()
-	records, warnings, err := parser.Parse(bytes.NewReader(data))
-	if err != nil {
-		t.Fatalf("parse real fixture: %v", err)
+	records := make(map[string]anime.SnapshotRecord)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		value, canonical, err := store.Decode(line)
+		if err != nil {
+			t.Fatalf("decode fixture line: %v", err)
+		}
+		records[value.ID] = anime.SnapshotRecord{
+			AnimeID: value.ID, CanonicalJSON: canonical, Hash: anime.HashSnapshot(canonical),
+		}
 	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no parse warnings for real fixture, got %v", warnings)
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan fixture: %v", err)
 	}
 	return records
 }

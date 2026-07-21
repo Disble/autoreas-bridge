@@ -1,15 +1,25 @@
 # Autoreas Bridge
 
-Autoreas Bridge acts as a seamless, local-first synchronization bridge between the legacy Autoreas Desktop application and its companion devices over a local WiFi network. 
+Autoreas Bridge is a local-first, offline-capable anime tracker. It is the
+**sole owner** of anime state: every catalog entry, schedule, and progress
+update lives in Bridge's own embedded SQLite database, with no external
+file or companion process required to read or write it.
 
-By observing and interacting directly with the legacy app's underlying data store (`animes.dat`), the Bridge achieves bi-directional synchronization without altering a single byte of the original Autoreas Desktop source code.
+**Historical origin:** Bridge began as a synchronization bridge that
+observed and mirrored a legacy Windows desktop app's NeDB-style data file
+(`animes.dat`) to companion devices over LAN. SDD-55 retired that
+synchronization channel entirely: Bridge no longer reads, writes, or
+watches any Legacy file, and does not sync with the Legacy Desktop app.
+Users who still run the Legacy app get **no synchronization** from this
+version of Bridge — its catalog and Bridge's SQLite database are
+independent going forward. The name "Bridge" is kept for continuity, even
+though it no longer bridges to anything external.
 
 ## Key Features
 
-- **Local Network Synchronization:** Real-time peer-to-peer sync locally. No cloud servers or internet access required.
-- **Non-Destructive Legacy Integration:** Custom parser and file watcher natively integrate with the legacy NeDB file (`animes.dat`).
-- **Intelligent Conflict Resolution:** Utilizes an embedded SQLite database to track changelogs and perform CRDT-like semantic reconciliation to prevent data loss.
-- **Concurrent Write Protection:** Employs an append-only, single-threaded write queue to safely update the legacy database on Windows without concurrent file locks.
+- **Local Network Synchronization:** Real-time peer-to-peer sync between Bridge and its companion mobile app locally. No cloud servers or internet access required.
+- **SQLite-Native Persistence:** All anime state (catalog, schedule, progress) is read from and written directly to an embedded SQLite database — no external file format, parser, or watcher involved.
+- **Intelligent Conflict Resolution:** Utilizes the same embedded SQLite database to track changelogs and perform CRDT-like semantic reconciliation to prevent data loss across paired devices.
 - **Real-Time & Peer-to-Peer:** Exposes a local REST API and WebSocket server for real-time state updates with device pairing based on raw LAN IP + QR/Token, using one-shot pairing tokens and persistent auth tokens.
 - **Lightweight Desktop App:** Built with Go and Wails v2 (React/Vite frontend). Runs silently in the Windows system tray with a low memory footprint (~15MB idle). Provides a clean UI for managing paired devices, viewing sync logs, and resolving conflicts manually.
 

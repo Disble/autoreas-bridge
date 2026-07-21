@@ -37,18 +37,6 @@ func (a *App) TriggerReconcile() string {
 	return "ok"
 }
 
-// PullAnimesFromLegacy performs a one-shot bridge<-legacy sync from animes.dat.
-func (a *App) PullAnimesFromLegacy() contracts.AnimeLegacyPullResult {
-	if a.animeLegacyPull == nil {
-		return contracts.AnimeLegacyPullResult{
-			Status:  "error",
-			Message: "legacy pull service unavailable",
-		}
-	}
-
-	return a.animeLegacyPull.Pull(a.appContext())
-}
-
 func (a *App) GetSQLiteStatus() string {
 	if a.bridgeDB == nil {
 		return "db unavailable"

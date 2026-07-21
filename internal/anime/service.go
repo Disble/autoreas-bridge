@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"autoreas-bridge/internal/anime/domain"
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -20,7 +20,7 @@ type QueryService struct {
 }
 
 // ReadRecord is the English contract returned by the Legacy gateway. Wire
-// vocabulary and JSON mechanics remain inside internal/anime/legacy.
+// vocabulary and JSON mechanics remain inside internal/anime/store.
 type ReadRecord struct {
 	Snapshot SnapshotRecord
 	Value    domain.Anime
@@ -290,15 +290,15 @@ func remainingEpisodes(watched float64, total *int) *float64 {
 }
 
 // legacyGateway builds the gateway used for legacy snapshot queries.
-func (s *QueryService) legacyGateway() *legacy.Gateway {
-	return legacy.NewGateway(legacy.GatewayConfig{
-		LoadSnapshot: func(ctx context.Context, id string) (legacy.Snapshot, error) {
+func (s *QueryService) legacyGateway() *store.Gateway {
+	return store.NewGateway(store.GatewayConfig{
+		LoadSnapshot: func(ctx context.Context, id string) (store.Snapshot, error) {
 			record, err := s.store.GetSnapshot(ctx, id)
 			return toLegacySnapshot(record), err
 		},
-		ListSnapshots: func(ctx context.Context) (map[string]legacy.Snapshot, error) {
+		ListSnapshots: func(ctx context.Context) (map[string]store.Snapshot, error) {
 			records, err := s.store.ListSnapshots(ctx)
-			result := make(map[string]legacy.Snapshot, len(records))
+			result := make(map[string]store.Snapshot, len(records))
 			for id, record := range records {
 				result[id] = toLegacySnapshot(record)
 			}
@@ -308,7 +308,7 @@ func (s *QueryService) legacyGateway() *legacy.Gateway {
 }
 
 // fromLegacySnapshot converts a legacy snapshot to the anime snapshot record.
-func fromLegacySnapshot(record legacy.Snapshot) SnapshotRecord {
+func fromLegacySnapshot(record store.Snapshot) SnapshotRecord {
 	return SnapshotRecord{
 		AnimeID: record.AnimeID, CanonicalJSON: append([]byte(nil), record.CanonicalJSON...),
 		Hash: record.Hash, ModifiedAt: record.ModifiedAt,

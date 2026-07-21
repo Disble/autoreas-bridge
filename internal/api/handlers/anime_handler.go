@@ -146,9 +146,12 @@ func decodeAnimePatchFields(payload map[string]json.RawMessage) (AnimePatch, err
 	return patch, nil
 }
 
-// decodePatchEstado decodes and validates the estado patch field.
+// decodePatchEstado decodes and validates the estado patch field, additively accepting the
+// SDD-55 English wire alias "status" alongside the Legacy-Spanish "estado" (openapi spec:
+// "Static OpenAPI Document Uses English Wire Field Names"; the rename is additive, so
+// un-migrated mobile clients keep working un-renamed).
 func decodePatchEstado(payload map[string]json.RawMessage, patch *AnimePatch) error {
-	raw, ok := payload["estado"]
+	raw, ok := firstPresentField(payload, "status", "estado")
 	if !ok {
 		return nil
 	}
@@ -160,9 +163,10 @@ func decodePatchEstado(payload map[string]json.RawMessage, patch *AnimePatch) er
 	return nil
 }
 
-// decodePatchProgress decodes and validates the watched-episode patch field.
+// decodePatchProgress decodes and validates the watched-episode patch field, additively
+// accepting the SDD-55 English wire alias "episodesWatched" alongside "nrocapvisto".
 func decodePatchProgress(payload map[string]json.RawMessage, patch *AnimePatch) error {
-	raw, ok := payload["nrocapvisto"]
+	raw, ok := firstPresentField(payload, "episodesWatched", "nrocapvisto")
 	if !ok {
 		return nil
 	}
@@ -172,6 +176,18 @@ func decodePatchProgress(payload map[string]json.RawMessage, patch *AnimePatch) 
 	}
 	patch.NroCapVisto = &value
 	return nil
+}
+
+// firstPresentField returns the raw JSON value of whichever candidate key is present in
+// payload, preferring earlier candidates. Backs the SDD-55 additive English wire aliases:
+// both the new and the Legacy-Spanish key name decode into the same patch field.
+func firstPresentField(payload map[string]json.RawMessage, keys ...string) (json.RawMessage, bool) {
+	for _, key := range keys {
+		if raw, ok := payload[key]; ok {
+			return raw, true
+		}
+	}
+	return nil, false
 }
 
 // decodePatchLastWatched decodes and validates the last-watched timestamp.
@@ -188,9 +204,10 @@ func decodePatchLastWatched(payload map[string]json.RawMessage, patch *AnimePatc
 	return nil
 }
 
-// decodePatchDays decodes the scheduled days patch field.
+// decodePatchDays decodes the scheduled days patch field, additively accepting the SDD-55
+// English wire alias "days" alongside "dias".
 func decodePatchDays(payload map[string]json.RawMessage, patch *AnimePatch) error {
-	raw, ok := payload["dias"]
+	raw, ok := firstPresentField(payload, "days", "dias")
 	if !ok {
 		return nil
 	}

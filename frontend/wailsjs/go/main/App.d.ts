@@ -92,8 +92,6 @@ export function PickFile(arg1:string):Promise<string>;
 
 export function PickFolder(arg1:string):Promise<string>;
 
-export function PullAnimesFromLegacy():Promise<contracts.AnimeLegacyPullResult>;
-
 export function RecheckSeasonAvailability():Promise<string>;
 
 export function ReconcileSeasonIntake(arg1:string):Promise<string>;

@@ -1,4 +1,3 @@
-import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
 
 /**
@@ -92,7 +91,4 @@ export interface CatalogPanelState {
   readonly onDiaChange: (value: string) => void;
   readonly onGenerosChange: (values: readonly (string | number)[]) => void;
   readonly onGapChange: (value: string) => void;
-  readonly onPullFromLegacy: () => Promise<void>;
-  readonly isPullingFromLegacy: boolean;
-  readonly pullResult: AnimeLegacyPullResult | undefined;
 }

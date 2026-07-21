@@ -40,13 +40,6 @@ function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource
       : vi.fn().mockResolvedValue(items),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
     getAnimeHistory: vi.fn(),
-    pullAnimesFromLegacy: vi.fn().mockResolvedValue({
-      message: 'ok',
-      prunedCount: 0,
-      status: 'ok',
-      updatedCount: 0,
-      warningCount: 0,
-    }),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
   };
@@ -142,43 +135,5 @@ describe('useCatalogPanel', () => {
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     expect(result.current.items[0].id).toBe('anime-b');
     expect(result.current.items[0].hasDownloadGap).toBe(true);
-  });
-
-  it('pulls from legacy and refreshes animes after success', async () => {
-    const source = createSource([animeA]);
-    vi.mocked(source.getAnimes)
-      .mockResolvedValueOnce([animeA])
-      .mockResolvedValueOnce([animeA, animeB]);
-    vi.mocked(source.pullAnimesFromLegacy).mockResolvedValueOnce({
-      message: 'Pulled 1 update from legacy.',
-      prunedCount: 0,
-      status: 'ok',
-      updatedCount: 1,
-      warningCount: 0,
-    });
-    const { result } = renderHook(() => useCatalogPanel({}, source));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await result.current.onPullFromLegacy();
-
-    await waitFor(() => expect(result.current.items).toHaveLength(2));
-    expect(source.pullAnimesFromLegacy).toHaveBeenCalledTimes(1);
-    expect(source.triggerReconcile).not.toHaveBeenCalled();
-    expect(source.getAnimes).toHaveBeenCalledTimes(2);
-    expect(result.current.pullResult?.status).toBe('ok');
-  });
-
-  it('exposes a safe error result when pull from legacy fails', async () => {
-    const source = createSource([animeA]);
-    vi.mocked(source.pullAnimesFromLegacy).mockRejectedValueOnce(new Error('boom'));
-    const { result } = renderHook(() => useCatalogPanel({}, source));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await result.current.onPullFromLegacy();
-
-    await waitFor(() => expect(result.current.pullResult?.status).toBe('error'));
-    expect(result.current.pullResult?.message).toBe('Pull from legacy failed.');
   });
 });

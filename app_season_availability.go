@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/download/sites"
 	"autoreas-bridge/internal/download/sites/jkanime"
@@ -136,7 +136,7 @@ func (a *App) animeOverlaysByID(ctx context.Context) map[string]animeOverlay {
 
 // animeWatchedState extracts the section and progress from an anime payload.
 func animeWatchedState(payload []byte) (string, float64, bool) {
-	value, _, err := legacy.Decode(payload)
+	value, _, err := store.Decode(payload)
 	if err != nil {
 		return "", 0, false
 	}

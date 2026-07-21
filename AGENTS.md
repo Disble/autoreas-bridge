@@ -6,8 +6,7 @@
 - Stack: Go + Wails v2 + React/Vite
 - Architecture target: Hexagonal / Ports & Adapters with bounded contexts and an in-memory Event Bus
 - SDD mode: `hybrid`
-- Current source of truth for sync: `animes.dat`
-- `pendientes.dat` is out of sync scope unless a future SDD change states otherwise
+- Bridge is the sole owner of anime state; its embedded SQLite database (`anime_snapshots` and related tables) is the only source of truth. There is no Legacy Desktop synchronization channel (retired in SDD-55 — see `docs/adr/008-legacy-breakup-sqlite-sole-owner.md`).
 
 ## CRITICAL FRONTEND ARCHITECTURE CONSTRAINTS (DO NOT IGNORE)
 
@@ -40,8 +39,7 @@
 - Load `bridge-debugging` when investigating regressions or any mismatch between tests and runtime behavior.
 - When writing Go tests, also load `go-testing`.
 - When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → REFACTOR strictly.
-- Real fixtures in `resources/autoreas-data/animes.dat` MUST be preferred when validating parser compatibility or legacy schema assumptions.
-- Never mutate `resources/autoreas-data/*.dat` in place during tests; copy to temp locations first.
+- Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted in SDD-55) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
 
 ## Cross-Cutting File Size Policy
 
@@ -77,13 +75,17 @@
 ## Language Policy (Code in English)
 
 - **All code is English by default**: identifiers, function/method names, DB column
-  names, error strings, and comments. See `docs/adr/007-english-code-spanish-boundaries.md`.
+  names, error strings, and comments. See `docs/adr/007-english-code-spanish-boundaries.md`
+  (superseded by `docs/adr/008-legacy-breakup-sqlite-sole-owner.md`, which retains
+  this policy's storage-format exception below).
 - Spanish is allowed ONLY at three boundaries:
-  1. **Legacy adapter** — fields that must byte-match the NeDB `animes.dat` JSON
-     (`LegacyAnimeRaw`, `NewAnimeSpec`, projection helpers: `Pagina`, `Dias`,
-     `NroCapVisto`, `FechaEstreno`, `activo`, `primeravez`, …). This is the adapter;
-     Spanish MUST NOT propagate past it into domain/service/API/storage.
-  2. **Runtime data literals** — Spanish *values* in legacy data (Estrenos sections
+  1. **Retained storage-format codec** — fields that must byte-match the historical
+     NeDB-shaped JSON stored in `anime_snapshots.snapshot_json`
+     (`internal/anime/store`'s `wire.go`/`mapper.go`/`projection.go`: `Pagina`, `Dias`,
+     `NroCapVisto`, `FechaEstreno`, `activo`, `primeravez`, …). This is Bridge's own
+     internal storage codec (there is no external Legacy consumer left); Spanish
+     MUST NOT propagate past it into domain/service/API layers.
+  2. **Runtime data literals** — Spanish *values* in stored data (Estrenos sections
      `"Sin ver"`/`"Ver hoy"`/`"Visto"`, `"No me gusto"`, …). The values stay Spanish;
      the identifiers carrying them are English.
   3. **UI copy** — separate rule (frontend UI text is English).
@@ -97,11 +99,11 @@
 
 ## Boundary Truths
 
-- GREEN is provisional when the bug lives at the filesystem, SQLite, Windows, or legacy-data boundary.
+- GREEN is provisional when the bug lives at the SQLite or Windows filesystem boundary.
 - Real behavior beats permissive mocks.
-- `animes.dat` is append-only legacy data; effective state must be reasoned by `_id`, not by naive line diffs.
+- Anime state lives in `anime_snapshots.snapshot_json`, keyed by `_id`; effective state must be reasoned by `_id`, not by naive row-order diffs.
 - `activo=false` is not a tombstone.
-- Direct file watch on `animes.dat` is not trustworthy for Windows atomic replace flows; watch the parent directory.
+- Bridge no longer watches, parses, or writes any external Legacy file (SDD-55). There is no `animes.dat` file-watch or atomic-replace concern left to reason about.
 
 ## Delegation and Verification Guardrails
 

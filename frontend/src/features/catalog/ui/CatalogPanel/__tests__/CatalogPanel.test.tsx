@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { ANIME_FILTER_ALL_VALUE } from '../catalog-panel.constants';
@@ -38,9 +38,6 @@ function createHookReturn(overrides = {}) {
     onDiaChange: vi.fn(),
     onGenerosChange: vi.fn(),
     onGapChange: vi.fn(),
-    onPullFromLegacy: vi.fn(),
-    isPullingFromLegacy: false,
-    pullResult: undefined,
     ...overrides,
   };
 }
@@ -170,62 +167,6 @@ describe('CatalogPanel', () => {
     );
 
     expect(screen.queryByTestId('anime-gap-anime-complete')).not.toBeInTheDocument();
-  });
-
-  it('renders a Pull from legacy action wired to the hook callback', () => {
-    const onPullFromLegacy = vi.fn().mockResolvedValue(undefined);
-    useCatalogPanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
-
-    const view = render(
-      <MemoryRouter>
-        <CatalogPanel />
-      </MemoryRouter>,
-    );
-
-    const button = within(view.container).getByRole('button', { name: 'Pull from legacy' });
-    fireEvent.click(button);
-
-    expect(onPullFromLegacy).toHaveBeenCalledTimes(1);
-  });
-
-  it('owns a rejected legacy pull promise at the press boundary', () => {
-    const catchHandler = vi.fn();
-    const onPullFromLegacy = vi.fn().mockReturnValueOnce({ catch: catchHandler });
-    useCatalogPanelMock.mockReturnValue(createHookReturn({ onPullFromLegacy }));
-
-    render(
-      <MemoryRouter>
-        <CatalogPanel />
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Pull from legacy' }));
-
-    expect(onPullFromLegacy).toHaveBeenCalledTimes(1);
-    expect(catchHandler).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows pull progress and result feedback', () => {
-    useCatalogPanelMock.mockReturnValue(
-      createHookReturn({
-        isPullingFromLegacy: true,
-        pullResult: {
-          message: 'Pulled 2 updates from legacy.',
-          prunedCount: 0,
-          status: 'ok',
-          updatedCount: 2,
-          warningCount: 0,
-        },
-      }),
-    );
-
-    render(
-      <MemoryRouter>
-        <CatalogPanel />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByRole('button', { name: 'Pulling from legacy...' })).toBeDisabled();
-    expect(screen.getByText('Pulled 2 updates from legacy.')).toBeInTheDocument();
   });
 
   it('links each anime row to its shared detail route', () => {

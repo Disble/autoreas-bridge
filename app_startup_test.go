@@ -99,31 +99,18 @@ func TestAppStartupInitializesDownloadStoreBeforeHTTPServerFailure(t *testing.T)
 	}
 }
 
-func TestAppStartupLaunchesAnimeCatchUpAsyncAfterSQLiteBootstrap(t *testing.T) {
+func TestAppStartupBootstrapsSQLiteAndWiresUpdateWriter(t *testing.T) {
 	t.Parallel()
 
 	wantDB := &sql.DB{}
-	started := make(chan context.Context, 1)
-	coordinator := &stubAppCoordinator{started: started}
 	app := newAppTestApp(t)
-	configureStartupRuntimeDependencies(t, app, wantDB, coordinator)
+	configureStartupRuntimeDependencies(t, app, wantDB)
 
 	ctx := context.Background()
 	app.startup(ctx)
 
-	select {
-	case gotCtx := <-started:
-		if gotCtx == nil {
-			t.Fatal("expected catch-up to receive a context")
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected startup to launch anime catch-up asynchronously")
-	}
 	if app.bridgeDB != wantDB {
 		t.Fatal("expected sqlite db handle to be retained")
-	}
-	if app.animeStartupCoordinator != coordinator {
-		t.Fatal("expected app to retain startup coordinator")
 	}
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
@@ -207,41 +194,15 @@ func TestDefaultNotifierDoesNotRegisterLogForwardAdapterWhenLoggerArgIsNilValue(
 	})
 }
 
-func TestAppStartupThreadsNotifierIntoRuntimeWatcherConfig(t *testing.T) {
-	t.Parallel()
-
-	fakeNotifier := &stubAppNotifier{}
-	var receivedConfig anime.RuntimeWatcherConfig
-	app := newAppTestApp(t)
-	app.newNotifier = func(func(context.Context, string, ...interface{}), ...sharedlogger.Logger) notification.Notifier {
-		return fakeNotifier
-	}
-	app.newRuntimeWatcher = func(config anime.RuntimeWatcherConfig) anime.RuntimeWatcher {
-		receivedConfig = config
-		return &stubAppRuntimeWatcher{}
-	}
-
-	app.startup(context.Background())
-
-	if receivedConfig.Notifier != fakeNotifier {
-		t.Fatalf("expected the watcher factory to receive a.notifier as RuntimeWatcherConfig.Notifier, got %#v", receivedConfig.Notifier)
-	}
-	if app.startupErr != nil {
-		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
-	}
-}
-
 func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	t.Parallel()
 
 	var receivedBus events.Bus
 	var receivedSink tracerbullet.TraceSink
 	runner := &stubTracerBulletRunner{}
-	runtimeWatcher := &stubAppRuntimeWatcher{}
 	updateWriter := &stubAppUpdateWriter{}
 	recorder := &stubAppChangelogRecorder{}
 	app := newAppTestApp(t)
-	app.newRuntimeWatcher = func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return runtimeWatcher }
 	app.newUpdateWriter = func(anime.UpdateWriterConfig) anime.UpdateWriter { return updateWriter }
 	app.newChangelogRecorder = func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
 		return recorder
@@ -266,9 +227,6 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	}
 	if app.tracerBulletRunner != runner {
 		t.Fatal("expected app to retain tracer bullet runner")
-	}
-	if !runtimeWatcher.started {
-		t.Fatal("expected startup to start runtime watcher")
 	}
 	if !updateWriter.started {
 		t.Fatal("expected startup to start update writer")

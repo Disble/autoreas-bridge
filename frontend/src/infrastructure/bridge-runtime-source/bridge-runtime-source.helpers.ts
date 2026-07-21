@@ -21,7 +21,6 @@ import {
   OpenAnimePage,
   PickFile,
   PickFolder,
-  PullAnimesFromLegacy,
   RepeatAnime,
   RestoreAnime,
   SaveAnimeEditor,
@@ -40,7 +39,6 @@ import type {
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoard,
   AnimeEditorScheduleBoardResult,
-  AnimeLegacyPullResult,
   AnimeSchedulePlacement,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
@@ -50,36 +48,9 @@ import {
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
-  RUNTIME_UNAVAILABLE_PULL_RESULT,
 } from './bridge-runtime-source.constants';
 import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
-
-/**
- * Normalizes legacy-pull payloads to the frontend contract, forcing unknown statuses
- * into the degraded `error` state so callers never branch on backend-only variants.
- */
-function toAnimeLegacyPullResult(
-  result: AnimeLegacyPullResult | { readonly status: string; readonly message: string; readonly updatedCount: number; readonly prunedCount: number; readonly warningCount: number },
-): AnimeLegacyPullResult {
-  if (result.status === 'ok' || result.status === 'error' || result.status === 'in_progress') {
-    return {
-      message: result.message,
-      prunedCount: result.prunedCount,
-      status: result.status,
-      updatedCount: result.updatedCount,
-      warningCount: result.warningCount,
-    };
-  }
-
-  return {
-    message: result.message,
-    prunedCount: result.prunedCount,
-    status: 'error',
-    updatedCount: result.updatedCount,
-    warningCount: result.warningCount,
-  };
-}
 
 function createRuntimeUnavailableScheduleBoard(originAnimeID: string): AnimeEditorScheduleBoard {
   return { originAnimeId: originAnimeID, boardModifiedAt: 0, destinations: [], entries: [] };
@@ -345,9 +316,6 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     getConnectedDevices() {
       return invokeGoBinding('GetConnectedDevices', GetConnectedDevices, () => []);
-    },
-    pullAnimesFromLegacy() {
-      return invokeGoBinding('PullAnimesFromLegacy', PullAnimesFromLegacy, () => RUNTIME_UNAVAILABLE_PULL_RESULT).then(toAnimeLegacyPullResult);
     },
     triggerReconcile() {
       return invokeGoBinding('TriggerReconcile', TriggerReconcile, () => 'runtime unavailable');

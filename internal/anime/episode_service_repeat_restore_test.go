@@ -43,11 +43,15 @@ func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 		t.Fatalf("restore result did not preserve the authoritative patch outcome: %#v", result)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if value.Active != domain.TriStateTrue {
 		t.Fatalf("expected active domain state, got %v", value.Active)
 	}
-	fields := decodeJSONFields(t, writer.payload)
+	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	if string(fields["fechaEliminacion"]) != "null" {
 		t.Fatalf("expected fechaEliminacion null, got %s", fields["fechaEliminacion"])
 	}
@@ -103,7 +107,11 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 		t.Fatalf("repeat result did not preserve the authoritative patch outcome: %#v", result)
 	}
 
-	payload := decodeRawJSONMap(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	payload := decodeRawJSONMap(t, snapshot.CanonicalJSON)
 	assertRepeatPayloadReset(t, payload)
 	assertRepeatedCycleSnapshot(t, payload)
 

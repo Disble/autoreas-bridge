@@ -2,7 +2,6 @@ package anime_test
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -16,19 +15,23 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true,"pagina":"netflix"}`)
 
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
-	if writer.animeID != "anime-1" {
-		t.Fatalf("expected anime id %q, got %q", "anime-1", writer.animeID)
+
+	got, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if got.AnimeID != "anime-1" {
+		t.Fatalf("expected anime id %q, got %q", "anime-1", got.AnimeID)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
 	if value.Title != "Cowboy Bebop" {
 		t.Fatalf("expected title to be preserved, got %q", value.Title)
 	}
@@ -49,8 +52,7 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":11,"estado":2,"totalcap":12}`)
 
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000456).UTC() })
 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(12), Base: int64Ptr(0)}
@@ -58,7 +60,11 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 		t.Fatalf("patch anime: %v", err)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	got, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
 	if value.Status == nil || *value.Status != 1 {
 		t.Fatalf("expected forced state 1, got %#v", value.Status)
 	}
@@ -69,8 +75,7 @@ func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
 
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000999).UTC() })
 
 	clientTs := int64(1710000000123)
@@ -79,25 +84,14 @@ func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing
 		t.Fatalf("patch anime: %v", err)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	got, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
 	stampedAt := value.LastWatchedAt
 	if stampedAt == nil || stampedAt.UnixMilli() != clientTs {
 		t.Fatalf("expected client fechaUltCapVisto %d, got %v", clientTs, stampedAt)
-	}
-}
-
-func TestWriteServicePatchAnimeReturnsWriterError(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2}`)
-
-	wantErr := errors.New("append failed")
-	writer := &stubAnimeWriter{err: wantErr}
-	service := anime.NewWriteService(store, writer)
-
-	_, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(3), Base: int64Ptr(0)})
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("expected writer error %v, got %v", wantErr, err)
 	}
 }
 
@@ -123,31 +117,40 @@ func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T)
 	}
 }
 
+// TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites
+// proves each PatchAnime call reads its base state from the just-finalized
+// SQLite snapshot, not from stale in-memory state. SDD-55 Slice B: persist()
+// finalizes straight into anime_snapshots (ADR-55-1), so the second patch's
+// base merge is observed directly from store.GetSnapshot -- no manual replay
+// of a writer-captured payload is needed anymore.
 func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12,"dias":[{"dia":"Lunes","orden":1}]}`)
 
-	writer := &capturingAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
 	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(0)}); err != nil {
 		t.Fatalf("first patch anime: %v", err)
 	}
-	if len(writer.payloads) != 1 {
-		t.Fatalf("expected 1 payload after first write, got %d", len(writer.payloads))
+	afterFirst, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot after first write: %v", err)
 	}
-	updateAnimeSnapshot(t, store, "anime-1", writer.payloads[0])
 
-	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{Dias: []string{"Martes", "Miercoles"}, Base: int64Ptr(0)}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{Dias: []string{"Martes", "Miercoles"}, Base: int64Ptr(afterFirst.ModifiedAt)}); err != nil {
 		t.Fatalf("second patch anime: %v", err)
 	}
-	if len(writer.payloads) != 2 {
-		t.Fatalf("expected 2 payloads after second write, got %d", len(writer.payloads))
+	afterSecond, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot after second write: %v", err)
+	}
+	if afterSecond.ModifiedAt == afterFirst.ModifiedAt {
+		t.Fatalf("expected second write to advance ModifiedAt past %d", afterFirst.ModifiedAt)
 	}
 
-	value := decodeAnimeDomain(t, writer.payloads[1])
+	value := decodeAnimeDomain(t, afterSecond.CanonicalJSON)
 	if value.Progress != 5 {
 		t.Fatalf("expected second write to preserve progress 5, got %v", value.Progress)
 	}

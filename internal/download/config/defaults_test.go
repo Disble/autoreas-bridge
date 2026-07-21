@@ -1,6 +1,10 @@
 package config
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -71,7 +75,7 @@ func TestVideoFileExtensionsMatchesPoCSet(t *testing.T) {
 	}
 }
 
-func TestSpanishWeekdayHelperReturnsAccentedNamesForFixedTime(t *testing.T) {
+func TestWeekdayNameHelperReturnsEnglishNamesForFixedTime(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -79,18 +83,52 @@ func TestSpanishWeekdayHelperReturnsAccentedNamesForFixedTime(t *testing.T) {
 		date time.Time
 		want string
 	}{
-		{name: "monday", date: time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC), want: "Lunes"},
-		{name: "wednesday", date: time.Date(2026, time.June, 24, 12, 0, 0, 0, time.UTC), want: "Miércoles"},
-		{name: "saturday", date: time.Date(2026, time.June, 27, 12, 0, 0, 0, time.UTC), want: "Sábado"},
-		{name: "sunday", date: time.Date(2026, time.June, 28, 12, 0, 0, 0, time.UTC), want: "Domingo"},
+		{name: "monday", date: time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC), want: "Monday"},
+		{name: "wednesday", date: time.Date(2026, time.June, 24, 12, 0, 0, 0, time.UTC), want: "Wednesday"},
+		{name: "saturday", date: time.Date(2026, time.June, 27, 12, 0, 0, 0, time.UTC), want: "Saturday"},
+		{name: "sunday", date: time.Date(2026, time.June, 28, 12, 0, 0, 0, time.UTC), want: "Sunday"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := SpanishWeekdayName(tc.date)
+			got := WeekdayName(tc.date)
 			if got != tc.want {
 				t.Fatalf("expected %q for %v, got %q", tc.want, tc.date, got)
 			}
 		})
+	}
+}
+
+func TestNoExportedSpanishWeekdayVocabularyRemainsInDownloadPackage(t *testing.T) {
+	t.Parallel()
+
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatalf("resolve internal/download root: %v", err)
+	}
+
+	forbidden := []string{"SpanishWeekdayName", "spanishWeekdayNames"}
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "defaults_test.go") {
+			// defaults_test.go itself names the forbidden identifiers as scan targets,
+			// which would otherwise trip its own check.
+			return nil
+		}
+		contents, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, name := range forbidden {
+			if strings.Contains(string(contents), name) {
+				t.Fatalf("forbidden Spanish weekday identifier %q found in %s (episode-vocabulary spec)", name, path)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk internal/download tree: %v", walkErr)
 	}
 }

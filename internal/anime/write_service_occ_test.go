@@ -25,14 +25,6 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
-	if writer.calls != 1 {
-		t.Fatalf("expected 1 RequestWrite call for fast-forward, got %d", writer.calls)
-	}
-
-	value := decodeAnimeDomain(t, writer.payload)
-	if value.Progress != 5 {
-		t.Fatalf("expected applied progress 5, got %v", value.Progress)
-	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
 	if err != nil {
@@ -40,6 +32,11 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 	}
 	if got.ModifiedAt <= 1000 {
 		t.Fatalf("expected ModifiedAt to advance past base 1000, got %d", got.ModifiedAt)
+	}
+
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
+	if value.Progress != 5 {
+		t.Fatalf("expected applied progress 5, got %v", value.Progress)
 	}
 }
 
@@ -57,9 +54,6 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on divergence, got error: %v", err)
-	}
-	if writer.calls != 0 {
-		t.Fatalf("expected 0 RequestWrite calls on divergence (must not clobber), got %d", writer.calls)
 	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
@@ -89,9 +83,6 @@ func TestWriteServicePatchAnimeNoOpsWhenDesiredValueAlreadyMatchesCurrent(t *tes
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected no-op success, got error: %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected 0 RequestWrite calls for no-op idempotent retry, got %d", writer.calls)
-	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
 	if err != nil {
@@ -113,9 +104,6 @@ func TestWriteServicePatchAnimeCreatesWhenBaseNilAndRecordIsNew(t *testing.T) {
 	patch := api.AnimePatch{NroCapVisto: floatPtr(1)}
 	if _, err := service.PatchAnime(ctx, "anime-new", patch); err != nil {
 		t.Fatalf("expected create to succeed, got error: %v", err)
-	}
-	if writer.calls != 1 {
-		t.Fatalf("expected 1 RequestWrite call for create, got %d", writer.calls)
 	}
 
 	got, err := store.GetSnapshot(ctx, "anime-new")
@@ -139,9 +127,6 @@ func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) 
 	patch := api.AnimePatch{NroCapVisto: floatPtr(9)}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on old-client safe path, got error: %v", err)
-	}
-	if writer.calls != 1 {
-		t.Fatalf("expected 1 RequestWrite call on base-less compatibility path, got %d", writer.calls)
 	}
 
 	got, err := store.GetSnapshot(ctx, "anime-1")
@@ -210,8 +195,9 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 	if len(notifier.notifications) != 0 {
 		t.Fatalf("expected UI result propagation, not a pre-commit notification, got %d", len(notifier.notifications))
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected 0 RequestWrite calls on divergence, got %d", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("expected divergence to leave the current snapshot untouched: %#v, %v", current, err)
 	}
 }
 
@@ -270,14 +256,15 @@ func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *test
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected success in observe-only mode, got error: %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected no write for explicit stale base, got %d", writer.calls)
-	}
 	if len(conflicts.inserted) != 1 {
 		t.Fatalf("expected 1 InsertConflict call for explicit stale base, got %d", len(conflicts.inserted))
 	}
 	if len(notifier.notifications) != 0 {
 		t.Fatalf("expected 0 Notify calls in observe-only mode, got %d", len(notifier.notifications))
+	}
+	current, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("expected explicit stale base to leave the current snapshot untouched: %#v, %v", current, err)
 	}
 }
 
@@ -307,9 +294,8 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
-	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
@@ -320,8 +306,8 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 	if result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 300 {
 		t.Fatalf("unexpected base-less result: %#v", result)
 	}
-	if writer.calls != 1 || len(conflicts.inserted) != 0 {
-		t.Fatalf("unexpected compatibility side effects: writes=%d conflicts=%d", writer.calls, len(conflicts.inserted))
+	if len(conflicts.inserted) != 0 {
+		t.Fatalf("unexpected compatibility side effects: conflicts=%d", len(conflicts.inserted))
 	}
 }
 
@@ -329,9 +315,8 @@ func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
-	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 	stale := int64(100)
@@ -343,7 +328,7 @@ func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	if result.Outcome != anime.PatchOutcomeNoOp || result.ModifiedAt != 200 {
 		t.Fatalf("unexpected no-op result: %#v", result)
 	}
-	if writer.calls != 0 || len(conflicts.inserted) != 0 {
-		t.Fatalf("unexpected no-op side effects: writes=%d conflicts=%d", writer.calls, len(conflicts.inserted))
+	if len(conflicts.inserted) != 0 {
+		t.Fatalf("unexpected no-op side effects: conflicts=%d", len(conflicts.inserted))
 	}
 }

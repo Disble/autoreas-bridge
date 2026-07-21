@@ -178,10 +178,6 @@ export function PickFolder(arg1) {
   return window['go']['main']['App']['PickFolder'](arg1);
 }
 
-export function PullAnimesFromLegacy() {
-  return window['go']['main']['App']['PullAnimesFromLegacy']();
-}
-
 export function RecheckSeasonAvailability() {
   return window['go']['main']['App']['RecheckSeasonAvailability']();
 }

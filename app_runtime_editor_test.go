@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -270,43 +268,6 @@ func (p *runtimeSchedulePublisher) animeIDs() []string {
 	}
 	sort.Strings(ids)
 	return ids
-}
-
-// writeRuntimeScheduleFixtureCopy writes schedule payloads to a test file.
-func writeRuntimeScheduleFixtureCopy(t *testing.T, filePath string, payloads []string) {
-	t.Helper()
-	contents := make([]byte, 0)
-	for _, payload := range payloads {
-		contents = append(contents, []byte(payload)...)
-		contents = append(contents, '\n')
-	}
-	if err := os.WriteFile(filePath, contents, 0o600); err != nil {
-		t.Fatalf("write runtime schedule fixture copy: %v", err)
-	}
-}
-
-// runtimeScheduleLinesByAnimeID indexes schedule payloads by anime ID.
-func runtimeScheduleLinesByAnimeID(t *testing.T, payloads []string) map[string]string {
-	t.Helper()
-	result := make(map[string]string, len(payloads))
-	for _, payload := range payloads {
-		result[runtimeAnimeIDFromSchedulePayload(t, payload)] = payload
-	}
-	return result
-}
-
-// readRuntimeScheduleLinesByAnimeID reads and indexes schedule lines by anime ID.
-func readRuntimeScheduleLinesByAnimeID(t *testing.T, filePath string) map[string]string {
-	t.Helper()
-	contents, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("read runtime schedule fixture copy: %v", err)
-	}
-	trimmed := strings.TrimSuffix(string(contents), "\n")
-	if trimmed == "" {
-		return map[string]string{}
-	}
-	return runtimeScheduleLinesByAnimeID(t, strings.Split(trimmed, "\n"))
 }
 
 // runtimeAnimeIDFromSchedulePayload extracts an anime ID from a schedule payload.

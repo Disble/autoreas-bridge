@@ -1,7 +1,16 @@
 # ADR 007: Code in English; Spanish Only at Explicit Boundaries
 
 ## Status
-Accepted
+**SUPERSEDED** by [ADR 008: Legacy Breakup — SQLite Is the Sole Owner of Anime State](008-legacy-breakup-sqlite-sole-owner.md) (SDD-55).
+
+SDD-55 retired the external Legacy Desktop synchronization channel entirely, so
+"Legacy adapter surface" below no longer describes a live external boundary.
+The retained storage-format codec (`internal/anime/store`) still stores
+Spanish-keyed JSON in `anime_snapshots.snapshot_json` for byte-compat with
+already-persisted rows, and this ADR's boundary rules (1)-(3) continue to
+apply to it unchanged — only the *reason* for boundary 1 changed, from "must
+byte-match an external Legacy file" to "must byte-match Bridge's own existing
+stored rows". See ADR 008 for the full rationale.
 
 ## Context
 The season-selection contexts grew Spanish identifiers, DB columns, and comments

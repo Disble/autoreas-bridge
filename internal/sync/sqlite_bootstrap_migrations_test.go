@@ -48,21 +48,6 @@ func TestWriteOperationMigrationCreatesIdempotentSchemaAndIndexes(t *testing.T) 
 	}
 }
 
-func TestBatchReplacementJournalMigrationCreatesRecoverySchema(t *testing.T) {
-	t.Parallel()
-
-	db := openTestBridgeDB(t)
-	columns := readTableColumns(t, db, "anime_batch_replacements")
-	for _, required := range []string{
-		"batch_id", "canonical_path", "temp_path", "backup_path", "base_file_hash",
-		"desired_file_hash", "phase", "created_at_ms", "updated_at_ms",
-	} {
-		if !containsString(columns, required) {
-			t.Fatalf("expected anime_batch_replacements to contain column %q, got %#v", required, columns)
-		}
-	}
-}
-
 func TestWriteOperationMigrationCreatesUniqueLiveReservationIndex(t *testing.T) {
 	t.Parallel()
 
@@ -275,6 +260,78 @@ func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
 	}
 	if modifiedAt != 0 {
 		t.Fatalf("expected pre-existing row to read back modified_at=0, got %d", modifiedAt)
+	}
+}
+
+// TestScheduleDayMigrationPreservesExistingSpanishDiasRows proves the SDD-55 Slice C
+// additive schedule-day migration (episode-vocabulary spec scenario "Existing schedule-day
+// rows are preserved"): migrating a pre-existing anime_snapshots row never drops or rewrites
+// its stored Spanish "dias" values, and only adds the new marker column.
+func TestScheduleDayMigrationPreservesExistingSpanishDiasRows(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite db: %v", err)
+	}
+	const storedSnapshot = `{"_id":"anime-1","nombre":"One Piece","dias":[{"dia":"Lunes","orden":0}]}`
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE anime_snapshots (
+			anime_id TEXT PRIMARY KEY,
+			snapshot_json TEXT NOT NULL,
+			snapshot_hash TEXT NOT NULL,
+			modified_at INTEGER NOT NULL DEFAULT 0
+		);
+	`); err != nil {
+		closeTestDB(t, legacyDB)
+		t.Fatalf("create pre-Slice-C anime_snapshots schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash, modified_at)
+		VALUES ('anime-1', ?, 'deadbeef', 0);
+	`, storedSnapshot); err != nil {
+		closeTestDB(t, legacyDB)
+		t.Fatalf("insert pre-Slice-C anime_snapshots row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite db: %v", err)
+	}
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("open bridge db with schedule-day migration: %v", err)
+	}
+	defer closeTestDB(t, db)
+
+	columns := readTableColumns(t, db, "anime_snapshots")
+	if !containsString(columns, "schedule_day_migrated_at") {
+		t.Fatalf("expected migrated anime_snapshots schema to contain column %q, got %#v", "schedule_day_migrated_at", columns)
+	}
+
+	var snapshotJSON string
+	if err := db.QueryRow(`SELECT snapshot_json FROM anime_snapshots WHERE anime_id = 'anime-1'`).Scan(&snapshotJSON); err != nil {
+		t.Fatalf("query migrated anime_snapshots row: %v", err)
+	}
+	if snapshotJSON != storedSnapshot {
+		t.Fatalf("expected stored Spanish dias snapshot preserved unchanged, got %q", snapshotJSON)
+	}
+}
+
+// TestScheduleDayMigrationRerunIsNoOp proves the SDD-55 Slice C migration re-run scenario:
+// running the migration again on an already-migrated database detects the column is present
+// and skips re-applying it without error.
+func TestScheduleDayMigrationRerunIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	before := readTableColumns(t, db, "anime_snapshots")
+	if err := ensureAnimeSnapshotsSchema(db); err != nil {
+		t.Fatalf("re-run schedule-day migration: %v", err)
+	}
+	after := readTableColumns(t, db, "anime_snapshots")
+	if len(before) != len(after) {
+		t.Fatalf("expected schedule-day migration re-run to be a no-op, before=%#v after=%#v", before, after)
 	}
 }
 

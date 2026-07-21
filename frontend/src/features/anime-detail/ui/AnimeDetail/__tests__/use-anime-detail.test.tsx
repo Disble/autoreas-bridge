@@ -35,7 +35,6 @@ function createSource(
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
     getAnimeHistory: vi.fn(),
-    pullAnimesFromLegacy: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),

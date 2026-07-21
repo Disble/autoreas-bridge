@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 )
@@ -118,7 +117,7 @@ func (s *EditorService) Save(ctx context.Context, command SaveAnimeEditorCommand
 	if err != nil {
 		return PatchResult{}, err
 	}
-	_, current, _, err := legacy.DecodeForUpdate(record.CanonicalJSON)
+	_, current, _, err := store.DecodeForUpdate(record.CanonicalJSON)
 	if err != nil {
 		return PatchResult{}, err
 	}
@@ -126,10 +125,10 @@ func (s *EditorService) Save(ctx context.Context, command SaveAnimeEditorCommand
 		return PatchResult{}, err
 	}
 	base := command.BaseModifiedAt
-	result, err := s.gateway().UpdateRaw(ctx, legacy.UpdateRawCommand{
+	result, err := s.gateway().UpdateRaw(ctx, store.UpdateRawCommand{
 		AnimeID: command.AnimeID,
 		Base:    &base,
-		Mutate:  legacy.NewEditorRawMutation(toLegacyEditorMutation(command.Patch), s.nowFunc()),
+		Mutate:  store.NewEditorRawMutation(toLegacyEditorMutation(command.Patch), s.nowFunc()),
 	})
 	return fromLegacyPatchResult(result), err
 }
@@ -161,17 +160,17 @@ func patchedStatus(current, patch *int) *int {
 // Deactivate marks an anime inactive through the shared lifecycle mutation.
 func (s *EditorService) Deactivate(ctx context.Context, animeID string, baseModifiedAt int64) (PatchResult, error) {
 	base := baseModifiedAt
-	result, err := s.gateway().UpdateRaw(ctx, legacy.UpdateRawCommand{
+	result, err := s.gateway().UpdateRaw(ctx, store.UpdateRawCommand{
 		AnimeID: animeID,
 		Base:    &base,
-		Mutate:  legacy.NewDeactivateRawMutation(s.nowFunc()),
+		Mutate:  store.NewDeactivateRawMutation(s.nowFunc()),
 	})
 	return fromLegacyPatchResult(result), err
 }
 
 // toLegacyEditorMutation converts an editor patch into a legacy mutation.
-func toLegacyEditorMutation(patch EditorPatch) legacy.EditorMutation {
-	return legacy.EditorMutation{
+func toLegacyEditorMutation(patch EditorPatch) store.EditorMutation {
+	return store.EditorMutation{
 		Name:          patch.Name,
 		Status:        patch.Status,
 		Progress:      patch.Progress,
@@ -181,45 +180,28 @@ func toLegacyEditorMutation(patch EditorPatch) legacy.EditorMutation {
 		Folder:        toLegacyNullableStringMutation(patch.Folder),
 		Origin:        toLegacyNullableStringMutation(patch.Origin),
 		Duration:      toLegacyNullableIntMutation(patch.Duration),
-		PremieredAt:   legacy.NullableTimeMutation{Present: patch.PremieredAt.Present, Clear: patch.PremieredAt.Clear, UnixMilli: patch.PremieredAt.UnixMilli},
+		PremieredAt:   store.NullableTimeMutation{Present: patch.PremieredAt.Present, Clear: patch.PremieredAt.Clear, UnixMilli: patch.PremieredAt.UnixMilli},
 		Genres:        patch.Genres,
 		Placements:    append([]contracts.MobileAnimeDay{}, patch.Placements...),
 		Active:        patch.Active,
-		Cover:         legacy.CoverMutation{Present: patch.Cover.Present, Clear: patch.Cover.Clear, Type: patch.Cover.Type, Path: patch.Cover.Path, Raw: patch.Cover.Raw},
-		Studios:       legacy.StudiosMutation{Present: patch.Studios.Present, Clear: patch.Studios.Clear, Values: patch.Studios.Values},
+		Cover:         store.CoverMutation{Present: patch.Cover.Present, Clear: patch.Cover.Clear, Type: patch.Cover.Type, Path: patch.Cover.Path, Raw: patch.Cover.Raw},
+		Studios:       store.StudiosMutation{Present: patch.Studios.Present, Clear: patch.Studios.Clear, Values: patch.Studios.Values},
 	}
 }
 
 // toLegacyNullableStringMutation converts an editor nullable string patch into a legacy mutation.
-func toLegacyNullableStringMutation(patch EditorNullableStringPatch) legacy.NullableStringMutation {
-	return legacy.NullableStringMutation{Present: patch.Present, Clear: patch.Clear, Value: patch.Value}
+func toLegacyNullableStringMutation(patch EditorNullableStringPatch) store.NullableStringMutation {
+	return store.NullableStringMutation{Present: patch.Present, Clear: patch.Clear, Value: patch.Value}
 }
 
 // toLegacyNullableIntMutation converts an editor nullable integer patch into a legacy mutation.
-func toLegacyNullableIntMutation(patch EditorNullableIntPatch) legacy.NullableIntMutation {
-	return legacy.NullableIntMutation{Present: patch.Present, Clear: patch.Clear, Value: patch.Value}
+func toLegacyNullableIntMutation(patch EditorNullableIntPatch) store.NullableIntMutation {
+	return store.NullableIntMutation{Present: patch.Present, Clear: patch.Clear, Value: patch.Value}
 }
 
-// EditorService.gateway creates a legacy gateway with the service's dependencies and callbacks.
-func (s *EditorService) gateway() *legacy.Gateway {
-	filePath := s.deps.FilePath
-	if filePath == "" {
-		if provider, ok := s.writer.(legacyFilePathProvider); ok {
-			filePath = provider.LegacyFilePath()
-		}
-	}
-	return legacy.NewGateway(newLegacyGatewayConfig(s.store, filePath, s.writeBases, s.deps, s.nowFuncForToken(), s.append, s.publishCommitted))
-}
-
-// EditorService.append writes an anime payload through the configured writer.
-func (s *EditorService) append(ctx context.Context, _ string, payload []byte) error {
-	if s.writer == nil {
-		return legacy.NewDefiniteAppendError(fmt.Errorf("anime writer is required"))
-	}
-	if writer, ok := s.writer.(appendOnlyAnimeWriter); ok {
-		return writer.RequestAppend(ctx, animeIDFromPayload(payload), payload)
-	}
-	return s.writer.RequestWrite(ctx, animeIDFromPayload(payload), payload)
+// EditorService.gateway creates a store gateway with the service's dependencies and callbacks.
+func (s *EditorService) gateway() *store.Gateway {
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // EditorService.publishCommitted publishes a committed anime change through the configured publisher.

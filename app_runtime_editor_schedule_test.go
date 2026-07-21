@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"path/filepath"
 	"sort"
 	"testing"
 
@@ -16,14 +15,15 @@ func TestApplyAnimeEditorScheduleMovesBanGDreamSayonaraLaraAndYaniNekoToVistoAnd
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	payloads := runtimeScheduleFixturePayloads()
 	seedRuntimeSchedulePayloads(t, store, payloads)
-	initialLegacyLines := runtimeScheduleLinesByAnimeID(t, payloads)
+	initialSnapshotLines := runtimeScheduleLinesByAnimeID(t, payloads)
 
-	dataPath := filepath.Join(t.TempDir(), "animes.dat")
-	writeRuntimeScheduleFixtureCopy(t, dataPath, payloads)
+	// SDD-55 Slice B: ScheduleService.Apply finalizes a batch straight into
+	// SQLite (anime_snapshots) -- no legacy file-replacement journal exists
+	// anymore (ADR-55-3), so there is no backing file to seed here.
 	query := anime.NewQueryService(store)
 	publisher := &runtimeSchedulePublisher{}
 	service := anime.NewScheduleService(query, &stubAppUpdateWriter{})
-	service.SetDeps(anime.WriteServiceDeps{FilePath: dataPath, Publisher: publisher})
+	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	app := &App{
 		ctx:                      context.Background(),
 		animeEditorScheduleWrite: service,
@@ -34,7 +34,52 @@ func TestApplyAnimeEditorScheduleMovesBanGDreamSayonaraLaraAndYaniNekoToVistoAnd
 	assertRuntimeScheduleApplyResult(t, result)
 	assertRuntimeSchedulePublishedAnimeIDs(t, publisher.animeIDs())
 	assertRuntimeScheduleBoardPlacements(t, runtimeBoardPlacementsByAnimeID(result.Board))
-	assertRuntimeScheduleDiskWrites(t, initialLegacyLines, readRuntimeScheduleLinesByAnimeID(t, dataPath))
+	assertRuntimeScheduleSnapshotWrites(t, initialSnapshotLines, readRuntimeScheduleLinesByAnimeID(t, store))
+}
+
+// runtimeScheduleLinesByAnimeID indexes schedule payloads by anime ID.
+func runtimeScheduleLinesByAnimeID(t *testing.T, payloads []string) map[string]string {
+	t.Helper()
+	result := make(map[string]string, len(payloads))
+	for _, payload := range payloads {
+		result[runtimeAnimeIDFromSchedulePayload(t, payload)] = payload
+	}
+	return result
+}
+
+// readRuntimeScheduleLinesByAnimeID reads and indexes persisted snapshots by anime ID.
+func readRuntimeScheduleLinesByAnimeID(t *testing.T, store *bridgeSync.AnimeSnapshotStore) map[string]string {
+	t.Helper()
+	records, err := store.ListSnapshots(context.Background())
+	if err != nil {
+		t.Fatalf("list runtime schedule snapshots: %v", err)
+	}
+	result := make(map[string]string, len(records))
+	for id, record := range records {
+		result[id] = string(record.CanonicalJSON)
+	}
+	return result
+}
+
+// assertRuntimeScheduleSnapshotWrites verifies changed and untouched snapshots.
+func assertRuntimeScheduleSnapshotWrites(t *testing.T, initialLines map[string]string, persistedLines map[string]string) {
+	t.Helper()
+	changedAnimeIDs := make([]string, 0)
+	for animeID, initialLine := range initialLines {
+		if persistedLines[animeID] != initialLine {
+			changedAnimeIDs = append(changedAnimeIDs, animeID)
+		}
+	}
+	sort.Strings(changedAnimeIDs)
+	wantChanged := []string{"bang-dream", "futsutsuka", "iwamoto", "sayonara-lara", "tai-ari", "tenmaku", "yani-neko", "youjo-senki-ii"}
+	if !runtimeStringSlicesEqual(changedAnimeIDs, wantChanged) {
+		t.Fatalf("expected the three moves and the required destination reflow records to change, got %v", changedAnimeIDs)
+	}
+	for _, untouched := range []string{"equal-order-a", "equal-order-b"} {
+		if persistedLines[untouched] != initialLines[untouched] {
+			t.Fatalf("expected %s snapshot to stay byte-identical, got %q", untouched, persistedLines[untouched])
+		}
+	}
 }
 
 // runtimeScheduleFixturePayloads returns legacy schedule payloads for tests.
@@ -112,27 +157,6 @@ func assertRuntimeScheduleBoardPlacements(t *testing.T, placementsByAnime map[st
 	} {
 		if got := placementsByAnime[animeID]; !runtimeDaysEqual(got, want) {
 			t.Fatalf("expected %s placements %+v, got %+v", animeID, want, got)
-		}
-	}
-}
-
-// assertRuntimeScheduleDiskWrites verifies changed and untouched legacy lines.
-func assertRuntimeScheduleDiskWrites(t *testing.T, initialLegacyLines map[string]string, persistedLegacyLines map[string]string) {
-	t.Helper()
-	changedAnimeIDs := make([]string, 0)
-	for animeID, initialLine := range initialLegacyLines {
-		if persistedLegacyLines[animeID] != initialLine {
-			changedAnimeIDs = append(changedAnimeIDs, animeID)
-		}
-	}
-	sort.Strings(changedAnimeIDs)
-	wantChanged := []string{"bang-dream", "futsutsuka", "iwamoto", "sayonara-lara", "tai-ari", "tenmaku", "yani-neko", "youjo-senki-ii"}
-	if !runtimeStringSlicesEqual(changedAnimeIDs, wantChanged) {
-		t.Fatalf("expected the three moves and the required destination reflow records to change on disk, got %v", changedAnimeIDs)
-	}
-	for _, untouched := range []string{"equal-order-a", "equal-order-b"} {
-		if persistedLegacyLines[untouched] != initialLegacyLines[untouched] {
-			t.Fatalf("expected %s legacy line to stay byte-identical, got %q", untouched, persistedLegacyLines[untouched])
 		}
 	}
 }

@@ -10,7 +10,6 @@ import {
   ANIME_FILTER_ALL_VALUE,
   ANIME_FILTER_DEBOUNCE_MS,
   ANIME_GAP_OPTIONS,
-  ANIME_LEGACY_PULL_FAILED_RESULT,
   ANIME_TIPO_OPTIONS,
 } from './catalog-panel.constants';
 import {
@@ -30,8 +29,6 @@ export function useCatalogPanel(
   // 1. Refs
 
   // 2. State
-  const [isPullingFromLegacy, setIsPullingFromLegacy] = useState(false);
-  const [pullResult, setPullResult] = useState<CatalogPanelState['pullResult']>(undefined);
   const [filters, setFilters] = useState<AnimeFilterState>({
     query: '',
     estado: ANIME_FILTER_ALL_VALUE,
@@ -45,7 +42,7 @@ export function useCatalogPanel(
   // 3. Context/3rd Party Hooks
 
   // 4. Queries/Mutations
-  const { items, isLoading, reload } = useAsyncList<Anime>(() => source.getAnimes(), source);
+  const { items, isLoading } = useAsyncList<Anime>(() => source.getAnimes(), source);
 
   // 5. Derived State (useMemo)
   const debouncedQuery = useDebounce(filters.query, ANIME_FILTER_DEBOUNCE_MS);
@@ -89,22 +86,6 @@ export function useCatalogPanel(
   const onGapChange = useCallback((gap: string) => {
     setFilters((previous) => ({ ...previous, gap }));
   }, []);
-  const onPullFromLegacy = useCallback(async () => {
-    setIsPullingFromLegacy(true);
-
-    try {
-      const nextPullResult = await source.pullAnimesFromLegacy();
-      setPullResult(nextPullResult);
-
-      if (nextPullResult.status === 'ok') {
-        reload();
-      }
-    } catch {
-      setPullResult(ANIME_LEGACY_PULL_FAILED_RESULT);
-    } finally {
-      setIsPullingFromLegacy(false);
-    }
-  }, [reload, source]);
 
   // 7. Effects
 
@@ -126,8 +107,5 @@ export function useCatalogPanel(
     onDiaChange,
     onGenerosChange,
     onGapChange,
-    onPullFromLegacy,
-    isPullingFromLegacy,
-    pullResult,
   };
 }

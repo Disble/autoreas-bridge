@@ -55,22 +55,13 @@ var VideoFileExtensions = map[string]bool{
 	".ts":   true,
 }
 
-// spanishWeekdayNames maps Go's time.Weekday to the Spanish day names used in animes.dat
-// (ported from cmd/poc/poc.go weekDaySpanish, design §2.2 -- this is NEW, testable code,
-// not assumed-correct by reuse since no equivalent existed in internal/ before this change).
-var spanishWeekdayNames = map[time.Weekday]string{
-	time.Monday:    "Lunes",
-	time.Tuesday:   "Martes",
-	time.Wednesday: "Miércoles",
-	time.Thursday:  "Jueves",
-	time.Friday:    "Viernes",
-	time.Saturday:  "Sábado",
-	time.Sunday:    "Domingo",
-}
-
-// SpanishWeekdayName returns the Spanish day name for the given time, accepting a
-// time.Time parameter (rather than reading the wall clock) so callers/tests can pin a
-// fixed weekday (design §2.2, decision.go's weekday filter dependency).
-func SpanishWeekdayName(t time.Time) string {
-	return spanishWeekdayNames[t.Weekday()]
+// WeekdayName returns the English weekday name (Monday...Sunday) for the given time,
+// accepting a time.Time parameter (rather than reading the wall clock) so callers/tests can
+// pin a fixed weekday (SDD-55 ADR-55-4, episode-vocabulary spec). This is the English-domain
+// replacement for this package's retired Spanish-literal weekday vocabulary: no exported
+// Spanish weekday symbol remains here. Anime schedule days stored as Legacy-Spanish literals
+// (e.g. "Lunes") are translated to this English representation at read time by the
+// download-selection domain; storage itself is untouched (additive migration only).
+func WeekdayName(t time.Time) string {
+	return t.Weekday().String()
 }

@@ -3,14 +3,13 @@ package anime_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/notification"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -19,7 +18,7 @@ import (
 // decodeAnimeDomain decodes a test payload into the domain anime model.
 func decodeAnimeDomain(t *testing.T, payload []byte) domain.Anime {
 	t.Helper()
-	value, _, err := legacy.Decode(payload)
+	value, _, err := store.Decode(payload)
 	if err != nil {
 		t.Fatalf("decode anime payload: %v", err)
 	}
@@ -126,13 +125,20 @@ func floatPtr(value float64) *float64 { return &value }
 // int64Ptr returns a pointer to an int64 test value.
 func int64Ptr(value int64) *int64 { return &value }
 
+// stubAnimeWriter is the Writer test double.
+//
+// SDD-55 Slice B: the gateway no longer routes writes through Writer at all
+// (persist() finalizes straight into SQLite -- ADR-55-1/ADR-55-3), so
+// RequestWrite is never called by production code anymore. Tests that used
+// to assert `.calls`/`.payload`/`.animeID` after a write now assert against
+// the SQLite snapshot store instead (see openAnimeServiceTestStore /
+// seedAnimeSnapshot and the per-test snapshot lookups).
 type stubAnimeWriter struct {
 	animeID string
 	payload []byte
 	err     error
 	calls   int
 	onWrite func()
-	path    string
 }
 
 func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payload []byte) error {
@@ -143,75 +149,6 @@ func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payloa
 	s.animeID = animeID
 	s.payload = append([]byte(nil), payload...)
 	return s.err
-}
-
-func (s *stubAnimeWriter) RequestAppend(_ context.Context, animeID string, payload []byte) (err error) {
-	if s.onWrite != nil {
-		s.onWrite()
-	}
-	s.calls++
-	s.animeID = animeID
-	s.payload = append([]byte(nil), payload...)
-	if s.path != "" {
-		file, err := os.OpenFile(s.path, os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if closeErr := file.Close(); err == nil && closeErr != nil {
-				err = closeErr
-			}
-		}()
-		if _, err := file.Write(append(append([]byte(nil), payload...), '\n')); err != nil {
-			return err
-		}
-	}
-	return s.err
-}
-
-func (s *stubAnimeWriter) LegacyFilePath() string { return s.path }
-
-// writeLegacyDataFile writes payload fixtures to a temporary legacy file.
-func writeLegacyDataFile(t *testing.T, payloads ...string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "animes.dat")
-	content := []byte{}
-	for _, payload := range payloads {
-		content = append(content, []byte(payload)...)
-		content = append(content, '\n')
-	}
-	if err := os.WriteFile(path, content, 0o600); err != nil {
-		t.Fatalf("write legacy data file: %v", err)
-	}
-	return path
-}
-
-type capturingAnimeWriter struct {
-	payloads [][]byte
-	err      error
-}
-
-func (w *capturingAnimeWriter) RequestWrite(_ context.Context, _ string, payload []byte) error {
-	w.payloads = append(w.payloads, append([]byte(nil), payload...))
-	return w.err
-}
-
-// updateAnimeSnapshot updates one snapshot fixture in the test store.
-func updateAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload []byte) {
-	t.Helper()
-
-	records, err := store.ListSnapshots(context.Background())
-	if err != nil {
-		t.Fatalf("list snapshots: %v", err)
-	}
-	records[animeID] = anime.SnapshotRecord{
-		AnimeID:       animeID,
-		CanonicalJSON: append([]byte(nil), payload...),
-		Hash:          anime.HashSnapshot(payload),
-	}
-	if err := store.ReplaceBaseline(context.Background(), records, nil); err != nil {
-		t.Fatalf("replace snapshot baseline: %v", err)
-	}
 }
 
 // assertNoPendingAnimeChanged verifies that no anime change remains pending.

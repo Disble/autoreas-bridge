@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *testing.T) {
@@ -44,18 +45,22 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 		t.Fatalf("adjust watched episodes: %v", err)
 	}
 
-	assertEpisodeAdjustmentResult(t, result, writer, activityRecorder)
+	assertEpisodeAdjustmentResult(t, ctx, store, result, activityRecorder)
 }
 
 // assertEpisodeAdjustmentResult verifies the episode adjustment outcome.
-func assertEpisodeAdjustmentResult(t *testing.T, result anime.EpisodeCommandResult, writer *stubAnimeWriter, activityRecorder *stubEpisodeActivityRecorder) {
+func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore, result anime.EpisodeCommandResult, activityRecorder *stubEpisodeActivityRecorder) {
 	t.Helper()
 	if result.NroCapVisto != 3 {
 		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
 	}
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if value.Progress != 3 || value.LastWatchedAt == nil || value.LastWatchedAt.UnixMilli() != 1710000000123 || value.PremieredAt == nil || value.PremieredAt.UnixMilli() != 1710000000123 {
-		t.Fatalf("expected writer to persist progress and timestamps, got %#v", value)
+		t.Fatalf("expected the finalized snapshot to persist progress and timestamps, got %#v", value)
 	}
 	if len(activityRecorder.records) != 1 {
 		t.Fatalf("expected 1 activity record, got %d", len(activityRecorder.records))
@@ -91,8 +96,9 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsBlockedStates(t *testing.T) {
 	if !errors.Is(err, anime.ErrEpisodeProgressBlocked) {
 		t.Fatalf("expected blocked progress error, got %v", err)
 	}
-	if writer.payload != nil {
-		t.Fatalf("expected no writer payload for blocked state, got %s", writer.payload)
+	current, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("expected no finalized write for blocked state: %#v, %v", current, err)
 	}
 }
 
@@ -121,8 +127,9 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsNegativeProgress(t *testing.T
 	if !errors.Is(err, anime.ErrEpisodeProgressBelowZero) {
 		t.Fatalf("expected below-zero progress error, got %v", err)
 	}
-	if writer.payload != nil {
-		t.Fatalf("expected no writer payload for negative progress, got %s", writer.payload)
+	current, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("expected no finalized write for negative progress: %#v, %v", current, err)
 	}
 }
 
@@ -152,7 +159,11 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 		t.Fatalf("SetAnimeDays: %v", err)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	days := value.Days
 	if len(days) != 1 || days[0].Day != "Ver hoy" || days[0].Order != 1 {
 		t.Fatalf("dias = %+v, want a single Ver hoy/1 entry", days)
@@ -193,9 +204,13 @@ func TestEpisodeServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 		t.Fatalf("expected resulting state 3, got %d", result.Estado)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if value.Status == nil || *value.Status != 3 {
-		t.Fatalf("expected writer payload state 3, got %#v", value.Status)
+		t.Fatalf("expected finalized snapshot state 3, got %#v", value.Status)
 	}
 
 	if len(activityRecorder.records) != 1 {
@@ -243,7 +258,11 @@ func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 		t.Fatalf("expected anime-1 result, got %#v", result)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-1")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if value.Active != domain.TriStateFalse {
 		t.Fatalf("expected inactive domain state, got %v", value.Active)
 	}

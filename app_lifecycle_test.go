@@ -96,19 +96,6 @@ func TestAppTrayOnExitRequestsQuit(t *testing.T) {
 	}
 }
 
-func TestAppShutdownWaitsForRuntimeWatcher(t *testing.T) {
-	t.Parallel()
-
-	runtimeWatcher := &stubAppRuntimeWatcher{}
-	app := &App{animeRuntimeWatcher: runtimeWatcher}
-
-	app.shutdown(context.Background())
-
-	if !runtimeWatcher.waitCalled {
-		t.Fatal("expected shutdown to wait for runtime watcher")
-	}
-}
-
 func TestAppShutdownWaitsForUpdateWriter(t *testing.T) {
 	t.Parallel()
 
@@ -138,17 +125,13 @@ func TestAppShutdownStopsChangelogRecorder(t *testing.T) {
 func TestAppShutdownCancelsAnimeCatchUp(t *testing.T) {
 	t.Parallel()
 
-	coordinator := &stubAppCoordinator{started: make(chan context.Context, 1)}
-	app := &App{animeStartupCoordinator: coordinator}
+	app := &App{}
 	ctx, cancel := context.WithCancel(context.Background())
 	app.catchUpContext = ctx
 	app.catchUpCancel = cancel
 
 	app.shutdown(ctx)
 
-	if !coordinator.waitCalled {
-		t.Fatal("expected shutdown to wait for anime startup coordinator")
-	}
 	if app.catchUpContext == nil || !errors.Is(app.catchUpContext.Err(), context.Canceled) {
 		t.Fatalf("expected catch-up context to be canceled, got %v", app.catchUpContext)
 	}

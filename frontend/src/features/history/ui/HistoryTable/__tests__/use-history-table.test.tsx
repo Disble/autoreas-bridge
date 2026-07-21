@@ -53,7 +53,6 @@ function createSource(entries: readonly AnimeHistoryEntry[]): BridgeRuntimeSourc
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
     getAnimeHistory: vi.fn().mockResolvedValue(entries),
-    pullAnimesFromLegacy: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
   };
@@ -244,7 +243,6 @@ describe('useHistoryTable', () => {
         'totalPages',
       ].sort(),
     );
-    expect(source.pullAnimesFromLegacy).not.toHaveBeenCalled();
     expect(source.triggerReconcile).not.toHaveBeenCalled();
   });
 

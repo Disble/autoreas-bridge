@@ -1,71 +1,56 @@
 package anime
 
-import "autoreas-bridge/internal/anime/legacy"
+import "autoreas-bridge/internal/anime/store"
 
 // Write-base store errors are re-exported from the legacy adapter for package
 // callers that work through the anime boundary.
 var (
-	ErrWriteOperationNotFound          = legacy.ErrWriteOperationNotFound
-	ErrWriteOperationNotStaged         = legacy.ErrWriteOperationNotStaged
-	ErrWriteOperationSuperseded        = legacy.ErrWriteOperationSuperseded
-	ErrWriteBaseNotFound               = legacy.ErrWriteBaseNotFound
-	ErrWriteReservationBusy            = legacy.ErrWriteReservationBusy
-	ErrWriteBaseChanged                = legacy.ErrWriteBaseChanged
-	ErrAnimeChangedOutboxEventNotFound = legacy.ErrAnimeChangedOutboxEventNotFound
+	ErrWriteOperationNotFound          = store.ErrWriteOperationNotFound
+	ErrWriteOperationNotStaged         = store.ErrWriteOperationNotStaged
+	ErrWriteOperationSuperseded        = store.ErrWriteOperationSuperseded
+	ErrWriteBaseNotFound               = store.ErrWriteBaseNotFound
+	ErrWriteReservationBusy            = store.ErrWriteReservationBusy
+	ErrWriteBaseChanged                = store.ErrWriteBaseChanged
+	ErrAnimeChangedOutboxEventNotFound = store.ErrAnimeChangedOutboxEventNotFound
 )
 
 // WriteOperationStatus tracks the lifecycle state of one staged write.
-type WriteOperationStatus = legacy.WriteOperationStatus
+type WriteOperationStatus = store.WriteOperationStatus
 
 // Write operation statuses are re-exported from the legacy adapter.
 const (
-	WriteOperationStatusStaged     = legacy.WriteOperationStatusStaged
-	WriteOperationStatusCommitted  = legacy.WriteOperationStatusCommitted
-	WriteOperationStatusAborted    = legacy.WriteOperationStatusAborted
-	WriteOperationStatusSuperseded = legacy.WriteOperationStatusSuperseded
+	WriteOperationStatusStaged     = store.WriteOperationStatusStaged
+	WriteOperationStatusCommitted  = store.WriteOperationStatusCommitted
+	WriteOperationStatusAborted    = store.WriteOperationStatusAborted
+	WriteOperationStatusSuperseded = store.WriteOperationStatusSuperseded
 )
 
 // WriteRecoveryAction describes how recovery resolved a staged write.
-type WriteRecoveryAction = legacy.WriteRecoveryAction
+type WriteRecoveryAction = store.WriteRecoveryAction
 
 // Write recovery actions are re-exported from the legacy adapter.
 const (
-	WriteRecoveryActionFinalized   = legacy.WriteRecoveryActionFinalized
-	WriteRecoveryActionRetryAppend = legacy.WriteRecoveryActionRetryAppend
-	WriteRecoveryActionDivergent   = legacy.WriteRecoveryActionDivergent
+	WriteRecoveryActionFinalized   = store.WriteRecoveryActionFinalized
+	WriteRecoveryActionRetryAppend = store.WriteRecoveryActionRetryAppend
+	WriteRecoveryActionDivergent   = store.WriteRecoveryActionDivergent
 )
 
 // WriteOperation is the durable evidence staged before a canonical Legacy
 // append. The raw JSON values are complete lossless envelopes, not sparse
 // domain projections.
-type WriteOperation = legacy.WriteOperation
+type WriteOperation = store.WriteOperation
 
 // WriteBase is the pre-write state retained for the token produced by a
 // committed operation.
-type WriteBase = legacy.WriteBase
+type WriteBase = store.WriteBase
 
 // WriteBaseStore is the domain-facing persistence port for staging writes and
 // retaining their pre-write bases. Recovery classifies hashes only; it never
 // merges or chooses fields.
-type WriteBaseStore = legacy.WriteBaseStore
-
-// BatchReplacementPhase tracks the lifecycle of a full-file replacement.
-type BatchReplacementPhase = legacy.BatchReplacementPhase
-
-// Batch replacement phases are re-exported from the legacy adapter.
-const (
-	BatchReplacementPhaseStaged      = legacy.BatchReplacementPhaseStaged
-	BatchReplacementPhaseTempDurable = legacy.BatchReplacementPhaseTempDurable
-	BatchReplacementPhaseBackupMoved = legacy.BatchReplacementPhaseBackupMoved
-	BatchReplacementPhasePromoted    = legacy.BatchReplacementPhasePromoted
-	BatchReplacementPhaseFinalized   = legacy.BatchReplacementPhaseFinalized
-)
-
-// BatchReplacementJournal stores the durable checkpoints for one replacement batch.
-type BatchReplacementJournal = legacy.BatchReplacementJournal
+type WriteBaseStore = store.WriteBaseStore
 
 // ChangedOutboxEvent stores one deferred anime.changed publication.
-type ChangedOutboxEvent = legacy.AnimeChangedOutboxEvent
+type ChangedOutboxEvent = store.AnimeChangedOutboxEvent
 
 // ChangedOutboxStore persists deferred anime.changed publications.
-type ChangedOutboxStore = legacy.AnimeChangedOutboxStore
+type ChangedOutboxStore = store.AnimeChangedOutboxStore

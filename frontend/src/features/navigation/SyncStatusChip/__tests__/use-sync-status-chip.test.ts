@@ -12,13 +12,6 @@ function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeR
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
     getAnimeHistory: vi.fn().mockResolvedValue([]),
-    pullAnimesFromLegacy: vi.fn().mockResolvedValue({
-      message: '',
-      prunedCount: 0,
-      status: 'ok',
-      updatedCount: 0,
-      warningCount: 0,
-    }),
     triggerReconcile: vi.fn().mockResolvedValue(''),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,

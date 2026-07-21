@@ -125,14 +125,19 @@ func (a *App) configureTray(ctx context.Context) bool {
 }
 
 // prepareAnimeRuntime initializes the anime writer and its startup context.
-func (a *App) prepareAnimeRuntime(ctx context.Context, animeDataPath string) {
+//
+// SDD-55 Slice B (ADR-55-1/ADR-55-3): the file-append channel is deleted
+// entirely (no `AppendLine` seam left to wire) -- persist() finalizes
+// straight into SQLite. The writer still publishes committed anime.changed
+// events on the shared event bus (PublishCommitted) for the SQLite outbox
+// drain.
+func (a *App) prepareAnimeRuntime(ctx context.Context) {
 	catchUpContext, catchUpCancel := context.WithCancel(ctx)
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
 	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
 	a.animeSelfEchoRegistry = a.newSelfEchoRegistry()
 	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
-		FilePath:         animeDataPath,
 		Bus:              a.eventBus,
 		Publisher:        a.eventBus,
 		Logger:           anime.NewStdLogger(),
@@ -140,42 +145,6 @@ func (a *App) prepareAnimeRuntime(ctx context.Context, animeDataPath string) {
 		SelfEchoRegistry: a.animeSelfEchoRegistry,
 	})
 	a.animeUpdateWriter.StartAsync(catchUpContext)
-}
-
-// startAnimeObservers starts anime startup recovery, pull, and watch services.
-func (a *App) startAnimeObservers(animeDataPath string) {
-	a.animeStartupCoordinator = a.newStartupCoordinator(anime.StartupCoordinatorConfig{
-		FilePath:     animeDataPath,
-		Parser:       a.newSnapshotParser(),
-		Store:        a.newSnapshotStore(a.bridgeDB),
-		Publisher:    a.eventBus,
-		Logger:       anime.NewStdLogger(),
-		SharedLogger: a.sharedLogger,
-		Ownership:    a.bridgeNativeRegistry,
-	})
-	a.animeStartupCoordinator.StartAsync(a.catchUpContext)
-	a.animeLegacyPull = a.newLegacyPullService(anime.LegacyPullServiceConfig{
-		FilePath:     animeDataPath,
-		Parser:       a.newSnapshotParser(),
-		Store:        a.newSnapshotStore(a.bridgeDB),
-		Publisher:    a.eventBus,
-		Logger:       anime.NewStdLogger(),
-		SharedLogger: a.sharedLogger,
-		Ownership:    a.bridgeNativeRegistry,
-	})
-	a.animeRuntimeWatcher = a.newRuntimeWatcher(anime.RuntimeWatcherConfig{
-		FilePath:         animeDataPath,
-		Parser:           a.newSnapshotParser(),
-		Store:            a.newSnapshotStore(a.bridgeDB),
-		Publisher:        a.eventBus,
-		Logger:           anime.NewStdLogger(),
-		SharedLogger:     a.sharedLogger,
-		SelfEchoRegistry: a.animeSelfEchoRegistry,
-		RetryDelay:       100 * time.Millisecond,
-		Notifier:         a.notifier,
-		Ownership:        a.bridgeNativeRegistry,
-	})
-	a.animeRuntimeWatcher.StartAsync(a.catchUpContext)
 }
 
 // buildHTTPServer creates the configured bridge HTTP server.

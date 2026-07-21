@@ -18,8 +18,8 @@ import (
 )
 
 // configureRuntimeServices wires and starts the bridge runtime services.
-func (a *App) configureRuntimeServices(ctx context.Context, animeDataPath string) {
-	a.prepareAnimeRuntime(ctx, animeDataPath)
+func (a *App) configureRuntimeServices(ctx context.Context) {
+	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
 	a.configureRealtimeHub(ctx)
@@ -27,7 +27,6 @@ func (a *App) configureRuntimeServices(ctx context.Context, animeDataPath string
 	if !a.recoverStagedAnimeWrites(ctx) {
 		return
 	}
-	a.startAnimeObservers(animeDataPath)
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
 }
@@ -116,9 +115,6 @@ func (a *App) newAnimeWriteDeps(conflictService *bridgeSync.ConflictStore) anime
 		Notifier:       a.notifier,
 		Logger:         a.sharedLogger,
 		OCCObserveOnly: true,
-		// SDD-48 ADR-48-3: register every new season/bridge-created anime as
-		// Bridge-native so it survives the next reconcile-absence soft-delete.
-		Ownership: a.bridgeNativeRegistry,
 	}
 }
 

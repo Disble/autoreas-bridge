@@ -15,11 +15,9 @@ import (
 func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
 	service.SetIDGen(func() string { return "seasonanime01" })
-	service.SetDeps(anime.WriteServiceDeps{Ownership: &stubOwnershipRegistry{}})
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{
 		Nombre:  "Dr. Stone: Science Future Part 3",
@@ -33,11 +31,16 @@ func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 	if id != "seasonanime01" {
 		t.Fatalf("returned id = %q, want the generated id", id)
 	}
-	if writer.animeID != "seasonanime01" {
-		t.Fatalf("writer got id %q, want seasonanime01", writer.animeID)
+
+	got, err := store.GetSnapshot(ctx, "seasonanime01")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if got.AnimeID != "seasonanime01" {
+		t.Fatalf("snapshot got id %q, want seasonanime01", got.AnimeID)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	value := decodeAnimeDomain(t, got.CanonicalJSON)
 	if value.ID != "seasonanime01" || value.Title != "Dr. Stone: Science Future Part 3" {
 		t.Fatalf("identity mismatch: %+v", value)
 	}
@@ -59,10 +62,8 @@ func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetIDGen(func() string { return "with-folder" })
-	service.SetDeps(anime.WriteServiceDeps{Ownership: &stubOwnershipRegistry{}})
 
 	if _, err := service.CreateAnime(ctx, api.AnimeCreate{
 		Nombre:  "Con Carpeta",
@@ -74,13 +75,17 @@ func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 		t.Fatalf("CreateAnime: %v", err)
 	}
 
+	snapshot, err := store.GetSnapshot(ctx, "with-folder")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
 	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(writer.payload, &obj); err != nil {
-		t.Fatalf("unmarshal writer payload: %v", err)
+	if err := json.Unmarshal(snapshot.CanonicalJSON, &obj); err != nil {
+		t.Fatalf("unmarshal snapshot payload: %v", err)
 	}
 	got, ok := obj["carpeta"]
 	if !ok {
-		t.Fatalf("expected carpeta persisted, payload: %s", writer.payload)
+		t.Fatalf("expected carpeta persisted, payload: %s", snapshot.CanonicalJSON)
 	}
 	if string(got) != `"D:/Anime/Con Carpeta"` {
 		t.Fatalf("carpeta = %s, want %q", got, "D:/Anime/Con Carpeta")
@@ -92,7 +97,6 @@ func TestWriteServiceCreateAnimeGeneratesIDWhenBlank(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetIDGen(func() string { return "generated-id" })
-	service.SetDeps(anime.WriteServiceDeps{Ownership: &stubOwnershipRegistry{}})
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{Nombre: "X", Pagina: "p", Section: "Sin ver", Orden: 1})
 	if err != nil {
@@ -139,12 +143,9 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			writer := &stubAnimeWriter{}
-			registry := &stubOwnershipRegistry{}
 			store := openAnimeServiceTestStore(t)
-			service := anime.NewWriteService(store, writer)
+			service := anime.NewWriteService(store, &stubAnimeWriter{})
 			service.SetIDGen(func() string { return test.newID })
-			service.SetDeps(anime.WriteServiceDeps{Ownership: registry})
 
 			result, err := service.CreateAnimeResult(context.Background(), test.create)
 			if err == nil || !strings.Contains(strings.ToLower(err.Error()), test.wantErr) {
@@ -153,11 +154,10 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 			if result != (anime.PatchResult{}) {
 				t.Fatalf("result = %+v, want zero result", result)
 			}
-			if got := registry.registeredIDs(); len(got) != 0 {
-				t.Fatalf("ownership registrations = %v, want none before valid canonical state", got)
-			}
-			if writer.calls != 0 {
-				t.Fatalf("Legacy writes = %d, want zero", writer.calls)
+			if test.newID != "" {
+				if _, err := store.GetSnapshot(context.Background(), test.newID); err == nil {
+					t.Fatalf("expected no snapshot to be finalized for a rejected create")
+				}
 			}
 			assertNoPendingAnimeChanged(t, store)
 		})
@@ -171,7 +171,6 @@ func TestWriteServiceCreateAnimeCanonicalReturnsAuthoritativeToken(t *testing.T)
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(modifiedAt).UTC() })
 	service.SetIDGen(func() string { return "canonical-token" })
-	service.SetDeps(anime.WriteServiceDeps{Ownership: &stubOwnershipRegistry{}})
 
 	result, err := service.CreateCanonicalAnime(context.Background(), api.AnimeCreate{
 		Nombre: "Canonical", Pagina: "https://example.test/canonical", Section: "Sin ver", Orden: 1,

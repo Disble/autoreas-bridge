@@ -7,7 +7,6 @@ import type {
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoardResult,
   AnimeHistoryEntry,
-  AnimeLegacyPullResult,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
 } from '../../shared/contracts/anime.types';
@@ -44,7 +43,6 @@ export interface BridgeRuntimeSource {
   readonly pickFolder?: (title: string) => Promise<string>;
   readonly pickFile?: (title: string) => Promise<string>;
   readonly getConnectedDevices?: () => Promise<readonly contracts.DeviceInfo[]>;
-  readonly pullAnimesFromLegacy: () => Promise<AnimeLegacyPullResult>;
   readonly triggerReconcile: () => Promise<string>;
   readonly unpairDevice?: (deviceID: string) => Promise<string>;
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;

@@ -84,18 +84,6 @@ export type AnimeHistoryEntry = Pick<
   readonly fechaCreacion?: number;
 };
 
-/** Status values returned by the manual bridge<-legacy anime pull. */
-export type AnimeLegacyPullStatus = 'ok' | 'error' | 'in_progress';
-
-/** Result returned by the manual bridge<-legacy anime pull. */
-export interface AnimeLegacyPullResult {
-  readonly status: AnimeLegacyPullStatus;
-  readonly message: string;
-  readonly updatedCount: number;
-  readonly prunedCount: number;
-  readonly warningCount: number;
-}
-
 /** Fidelity marker for legacy `estudios` ownership on the editor wire contract. */
 export type AnimeEditorStudiosKind = 'missing' | 'null' | 'empty' | 'values';
 

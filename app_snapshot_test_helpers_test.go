@@ -9,32 +9,6 @@ import (
 	"autoreas-bridge/internal/anime"
 )
 
-// stubAppBridgeNativeRegistry is the app-level test double for
-// anime.BridgeNativeRegistry (SDD-48), mirroring stubAppStore's shape.
-type stubAppBridgeNativeRegistry struct {
-	owned     map[string]struct{}
-	registers []string
-}
-
-func (s *stubAppBridgeNativeRegistry) ListOwnedIDs(context.Context) (map[string]struct{}, error) {
-	return s.owned, nil
-}
-
-func (s *stubAppBridgeNativeRegistry) RegisterOwned(_ context.Context, animeID string) error {
-	s.registers = append(s.registers, animeID)
-	return nil
-}
-
-type stubAppStore struct{}
-
-func (stubAppStore) ListSnapshots(context.Context) (map[string]anime.SnapshotRecord, error) {
-	return nil, nil
-}
-
-func (stubAppStore) ReplaceBaseline(context.Context, map[string]anime.SnapshotRecord, []string) error {
-	return nil
-}
-
 // seedRuntimeAnimeSnapshot stores one runtime anime snapshot for tests.
 func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID string, payload string, modifiedAt int64) {
 	t.Helper()

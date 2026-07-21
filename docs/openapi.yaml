@@ -11,6 +11,15 @@ info:
     No HTTP path, REST field, WebSocket message field, or payload shape changed.
     ADR-007 legacy payload names such as `nrocapvisto` and `totalcap` remain byte-identical.
 
+    2026-07-21 — SDD-55 API consumer impact: additive English wire field rename for
+    PATCH /api/animes/{id}. Bridge now accepts (and documents) `status`, `episodesWatched`,
+    and `days` as English equivalents of the Legacy-Spanish `estado`, `nrocapvisto`, and
+    `dias` fields, with identical validation ranges and semantics. This is ADDITIVE ONLY:
+    `estado`, `nrocapvisto`, and `dias` keep working exactly as before for any un-migrated
+    client. No field was removed, renamed away, or given different validation. Coordinate
+    the `autoreas-mobile` migration to the English field names on its own schedule before
+    relying on the Spanish names being retired in a future change.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -532,17 +541,46 @@ paths:
             schema:
               type: object
               properties:
+                status:
+                  type: integer
+                  minimum: 0
+                  maximum: 3
+                  description: |
+                    SDD-55 English wire alias for `estado` (additive; same validation
+                    range). Accepted alongside `estado`, not a replacement for it.
                 estado:
                   type: integer
                   minimum: 0
                   maximum: 3
+                  description: |
+                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
+                    `status` for new integrations.
+                episodesWatched:
+                  type: number
+                  minimum: 0
+                  description: |
+                    SDD-55 English wire alias for `nrocapvisto` (additive; same
+                    fractional-progress semantics). Accepted alongside `nrocapvisto`.
                 nrocapvisto:
                   type: number
                   minimum: 0
+                  description: |
+                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
+                    `episodesWatched` for new integrations.
+                days:
+                  type: array
+                  items:
+                    type: string
+                  description: |
+                    SDD-55 English wire alias for `dias` (additive; same day-list
+                    shape). Accepted alongside `dias`.
                 dias:
                   type: array
                   items:
                     type: string
+                  description: |
+                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
+                    `days` for new integrations.
                 base:
                   type: integer
                   nullable: true

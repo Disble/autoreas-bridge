@@ -27,7 +27,6 @@ function createAnimeSource(items: readonly Anime[] = [anime]): BridgeRuntimeSour
     getAnimes: vi.fn().mockResolvedValue(items),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
     getAnimeHistory: vi.fn(),
-    pullAnimesFromLegacy: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
   };

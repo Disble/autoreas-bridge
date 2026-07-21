@@ -1,3 +1,4 @@
+// Package main validates source boundaries in the bridge architecture.
 package main
 
 import (
@@ -37,13 +38,6 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 		text := string(content)
 		if strings.Contains(text, "activity_log") && !isActivityBoundaryFile(normalized) {
 			violations = append(violations, fmt.Sprintf("%s references activity_log outside internal/activity", normalized))
-		}
-		if filepath.Ext(path) == ".go" {
-			legacyViolations, checkErr := checkLegacyBoundary(normalized, content)
-			if checkErr != nil {
-				return checkErr
-			}
-			violations = append(violations, legacyViolations...)
 		}
 		return nil
 	})

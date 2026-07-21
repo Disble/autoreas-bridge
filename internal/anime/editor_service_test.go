@@ -3,7 +3,6 @@ package anime_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -11,7 +10,6 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/events"
 )
 
 func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testing.T) {
@@ -44,7 +42,11 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("save full editor matrix: result=%+v err=%v", result, err)
 	}
-	fields := decodeJSONFields(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
 		"totalcap": "13", "tipo": "1", "duracion": "90", "fechaEstreno": `{"$$date":1710000000123}`,
 		"generos": `["Fantasy"]`, "estudios": "null", "dias": `[{"dia":"Viernes","orden":1}]`,
@@ -78,8 +80,9 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 			}
 		})
 	}
-	if writer.calls != 0 {
-		t.Fatalf("invalid editor patches must not write, got %d", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("invalid editor patches must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -91,8 +94,12 @@ func TestEditorServiceSaveCannotReactivateInactiveAnime(t *testing.T) {
 	service := anime.NewEditorService(store, writer)
 	active := true
 	_, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Active: &active}})
-	if err == nil || writer.calls != 0 {
-		t.Fatalf("general save reactivated inactive anime: err=%v writes=%d", err, writer.calls)
+	if err == nil {
+		t.Fatalf("general save reactivated inactive anime: err=%v", err)
+	}
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("general save must not finalize a write when rejected: %#v, %v", current, err)
 	}
 }
 
@@ -109,66 +116,15 @@ func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject
 	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("clear editor metadata: result=%+v err=%v", result, err)
 	}
-	fields := decodeJSONFields(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
 		"fechaEstreno": "null",
 		"portada":      `{"type":"file","path":"","future":{"keep":true}}`,
 	})
-}
-
-func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 1000)
-	writer := &stubAnimeWriter{}
-	publisher := &editorRecordingPublisher{}
-	service := anime.NewEditorService(store, writer)
-	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
-	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
-	name := "Frieren Beyond"
-	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}})
-	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
-		t.Fatalf("accepted editor save: result=%+v err=%v", result, err)
-	}
-	if writer.calls != 1 || len(publisher.events()) != 1 {
-		t.Fatalf("accepted editor save must write/publish exactly once: writes=%d events=%d", writer.calls, len(publisher.events()))
-	}
-
-	blank := " "
-	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 2000, Patch: anime.EditorPatch{Name: &blank}}); err == nil {
-		t.Fatal("expected invalid follow-up save to fail")
-	}
-	if writer.calls != 1 || len(publisher.events()) != 1 {
-		t.Fatalf("invalid editor save emitted side effects: writes=%d events=%d", writer.calls, len(publisher.events()))
-	}
-}
-
-func TestEditorServiceSaveInfrastructureFailureDoesNotPublish(t *testing.T) {
-	ctx := context.Background()
-	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 1000)
-	writer := &stubAnimeWriter{err: errors.New("disk unavailable")}
-	publisher := &editorRecordingPublisher{}
-	service := anime.NewEditorService(store, writer)
-	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
-	name := "Frieren Beyond"
-	if _, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{Name: &name}}); err == nil {
-		t.Fatal("expected infrastructure failure")
-	}
-	if writer.calls != 1 || len(publisher.events()) != 0 {
-		t.Fatalf("failed editor save publication mismatch: writes=%d events=%d", writer.calls, len(publisher.events()))
-	}
-}
-
-type editorRecordingPublisher struct{ recorded []events.Event }
-
-func (p *editorRecordingPublisher) Publish(event events.Event) {
-	p.recorded = append(p.recorded, event)
-}
-
-// events returns the publisher's recorded events.
-func (p *editorRecordingPublisher) events() []events.Event {
-	return append([]events.Event{}, p.recorded...)
 }
 
 // float64Pointer returns a pointer to a float test value.
@@ -220,7 +176,11 @@ func TestEditorServiceSavePreservesUnknownFieldsAndStructuredMetadata(t *testing
 	if result.Outcome != anime.PatchOutcomeApplied || result.ModifiedAt != 1710000000123 {
 		t.Fatalf("unexpected save result: %+v", result)
 	}
-	fields := decodeJSONFields(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	if !jsonValueEqual(t, fields["future"], []byte(`{"nested":true}`)) {
 		t.Fatalf("expected unknown field to survive, got %s", fields["future"])
 	}
@@ -261,11 +221,12 @@ func TestEditorServiceSaveReturnsConflictWithoutWriteOnStaleBase(t *testing.T) {
 	if result.Outcome != anime.PatchOutcomeConflict || result.ModifiedAt != 1000 {
 		t.Fatalf("unexpected stale result: %+v", result)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected zero writes on stale base, got %d", writer.calls)
-	}
 	if len(conflicts.inserted) != 1 {
 		t.Fatalf("expected one recorded conflict, got %d", len(conflicts.inserted))
+	}
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("stale base must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -285,8 +246,9 @@ func TestEditorServiceSaveRejectsBlankTitleWithoutWrite(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected blank title to be rejected")
 	}
-	if writer.calls != 0 {
-		t.Fatalf("blank title must not write, got %d writes", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("blank title must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -302,8 +264,9 @@ func TestEditorServiceSaveRejectsUnsupportedStatusWithoutWrite(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unsupported status") {
 		t.Fatalf("expected unsupported status rejection, got %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("unsupported status must not write, got %d writes", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("unsupported status must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -319,8 +282,9 @@ func TestEditorServiceSaveRejectsNegativeProgressWithoutWrite(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "progress cannot be negative") {
 		t.Fatalf("expected negative progress rejection, got %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("negative progress must not write, got %d writes", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("negative progress must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -342,8 +306,9 @@ func TestEditorServiceSaveRejectsUnsafeURLAndFolderWithoutWrite(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unsafe page url") {
 		t.Fatalf("expected unsafe page url rejection, got %v", err)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("unsafe page/folder must not write, got %d writes", writer.calls)
+	current, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil || current.ModifiedAt != 1000 {
+		t.Fatalf("unsafe page/folder must not finalize a write: %#v, %v", current, err)
 	}
 }
 
@@ -363,7 +328,11 @@ func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testin
 	if result.Outcome != anime.PatchOutcomeApplied {
 		t.Fatalf("unexpected deactivate result: %+v", result)
 	}
-	fields := decodeJSONFields(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	if !jsonValueEqual(t, fields["activo"], []byte(`false`)) {
 		t.Fatalf("expected activo=false, got %s", fields["activo"])
 	}

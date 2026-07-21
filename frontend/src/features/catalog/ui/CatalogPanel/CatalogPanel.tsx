@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Chip, Spinner } from '@heroui/react';
+import { Card, Chip, Spinner } from '@heroui/react';
 import { Link } from 'react-router';
 import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
 import type { CatalogPanelProps } from './catalog-panel.types';
@@ -6,7 +6,6 @@ import {
   CATALOG_PANEL_EMPTY_MESSAGE,
   CATALOG_PANEL_EMPTY_TITLE,
 } from './catalog-panel.constants';
-import { getAnimeLegacyPullAlertStatus } from './catalog-panel.helpers';
 import { useCatalogPanel } from './use-catalog-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
@@ -29,9 +28,6 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
     onDiaChange,
     onGenerosChange,
     onGapChange,
-    onPullFromLegacy,
-    isPullingFromLegacy,
-    pullResult,
   } = useCatalogPanel(props);
 
   return (
@@ -53,25 +49,6 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           onGenerosChange={onGenerosChange}
           onGapChange={onGapChange}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            isDisabled={isLoading || isPullingFromLegacy}
-            isPending={isPullingFromLegacy}
-            onPress={() => {
-              onPullFromLegacy().catch(() => undefined);
-            }}
-            variant="secondary"
-          >
-            {isPullingFromLegacy ? 'Pulling from legacy...' : 'Pull from legacy'}
-          </Button>
-          {pullResult ? (
-            <Alert status={getAnimeLegacyPullAlertStatus(pullResult.status)}>
-              <Alert.Content>
-                <Alert.Description>{pullResult.message}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ) : null}
-        </div>
         {isLoading ? (
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
             <Spinner size="sm" />

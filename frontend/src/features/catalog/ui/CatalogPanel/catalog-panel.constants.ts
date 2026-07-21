@@ -1,6 +1,5 @@
 import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado.constants';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
-import type { AnimeLegacyPullResult } from '../../../../shared/contracts/anime.types';
 import type { AnimeFilterOption } from './catalog-panel.types';
 
 /**
@@ -100,12 +99,3 @@ export const ANIME_GAP_LABEL_MISSING_FOLDER = 'Missing folder';
  * Badge label shown when both the download page and folder are missing.
  */
 export const ANIME_GAP_LABEL_MISSING_BOTH = 'Missing page & folder';
-
-/** Safe fallback shown when the manual legacy pull throws before returning a DTO. */
-export const ANIME_LEGACY_PULL_FAILED_RESULT: AnimeLegacyPullResult = {
-  message: 'Pull from legacy failed.',
-  prunedCount: 0,
-  status: 'error',
-  updatedCount: 0,
-  warningCount: 0,
-};

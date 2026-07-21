@@ -8,7 +8,8 @@ const (
 			anime_id TEXT PRIMARY KEY,
 			snapshot_json TEXT NOT NULL,
 			snapshot_hash TEXT NOT NULL,
-			modified_at INTEGER NOT NULL DEFAULT 0
+			modified_at INTEGER NOT NULL DEFAULT 0,
+			schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0
 		)`
 
 	changelogDDL = `
@@ -63,16 +64,6 @@ const (
 			sync_status TEXT NOT NULL DEFAULT 'active'
 		)`
 
-	// bridgeOwnedAnimesDDL (SDD-48, ADR-48-1) tracks anime ids created natively
-	// in Bridge (e.g. season creates via WriteService.CreateAnime), so the
-	// reconcile diff can exempt them from the legacy-absence soft-delete
-	// signal. Additive, create-only: it holds no anime state, only a hint the
-	// reconcile consults.
-	bridgeOwnedAnimesDDL = `
-		CREATE TABLE IF NOT EXISTS bridge_owned_animes (
-			anime_id TEXT PRIMARY KEY
-		)`
-
 	animeWriteOperationsDDL = `
 		CREATE TABLE IF NOT EXISTS anime_write_operations (
 			operation_id TEXT PRIMARY KEY,
@@ -119,19 +110,6 @@ const (
 	animeChangedOutboxPendingIndexDDL = `
 		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
 		ON anime_changed_outbox (status, created_at_ms, event_id)`
-
-	animeBatchReplacementsDDL = `
-		CREATE TABLE IF NOT EXISTS anime_batch_replacements (
-			batch_id TEXT PRIMARY KEY,
-			canonical_path TEXT NOT NULL,
-			temp_path TEXT NOT NULL,
-			backup_path TEXT NOT NULL,
-			base_file_hash TEXT NOT NULL,
-			desired_file_hash TEXT NOT NULL,
-			phase TEXT NOT NULL CHECK (phase IN ('staged', 'temp_durable', 'backup_moved', 'promoted', 'finalized')),
-			created_at_ms INTEGER NOT NULL,
-			updated_at_ms INTEGER NOT NULL
-		)`
 )
 
 // containsSchemaColumn reports whether columns contains want.

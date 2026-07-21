@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -224,7 +223,7 @@ func TestWebSocketBroadcastPayloadIsValidJSON(t *testing.T) {
 func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	t.Parallel()
 
-	dataPath, query, writeService := newWebSocketWriteEnvironment(t)
+	snapshots, query, writeService := newWebSocketWriteEnvironment(t)
 
 	hub, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", AuthToken: "good-token"}},
@@ -265,23 +264,21 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		lines := readAnimeDataLinesForWebSocketTest(t, dataPath)
-		if len(lines) == 2 {
-			assertJSONLineEqualForWebSocketTest(t, lines[1], `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`)
+		record, err := snapshots.GetSnapshot(context.Background(), "anime-1")
+		if err == nil && record.ModifiedAt != 0 {
+			assertJSONLineEqualForWebSocketTest(t, string(record.CanonicalJSON), `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`)
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	t.Fatalf("expected websocket reconcile message to append updated anime line, got %v", readAnimeDataLinesForWebSocketTest(t, dataPath))
+	t.Fatal("expected websocket reconcile message to finalize the updated anime snapshot")
 }
 
-// newWebSocketWriteEnvironment creates file, database, and service test state.
-func newWebSocketWriteEnvironment(t *testing.T) (string, *anime.QueryService, *anime.WriteService) {
+// newWebSocketWriteEnvironment creates database and service test state.
+func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore, *anime.QueryService, *anime.WriteService) {
 	t.Helper()
-	dataPath := filepath.Join(t.TempDir(), "animes.dat")
 	seed := `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`
-	writeAnimeDataFileForWebSocketTest(t, dataPath, []string{seed})
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
 	if err != nil {
 		t.Fatalf("open bridge db: %v", err)
@@ -295,47 +292,17 @@ func newWebSocketWriteEnvironment(t *testing.T) (string, *anime.QueryService, *a
 	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
 	bus := events.NewBus()
 	ctx, cancel := context.WithCancel(context.Background())
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{FilePath: dataPath, Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
+	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
 	writer.StartAsync(ctx)
 	t.Cleanup(func() { cancel(); writer.Wait() })
 	write := anime.NewWriteService(store, writer)
 	write.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
-	return dataPath, anime.NewQueryService(store), write
+	return store, anime.NewQueryService(store), write
 }
 
 type websocketWarningLogger struct{}
 
 func (websocketWarningLogger) Warnf(string, ...any) {}
-
-// writeAnimeDataFileForWebSocketTest writes JSON lines to a websocket test file.
-func writeAnimeDataFileForWebSocketTest(t *testing.T, filePath string, lines []string) {
-	t.Helper()
-	contents := []byte("")
-	for _, line := range lines {
-		contents = append(contents, []byte(line+"\n")...)
-	}
-	if err := os.WriteFile(filePath, contents, 0o600); err != nil {
-		t.Fatalf("write anime data file: %v", err)
-	}
-}
-
-// readAnimeDataLinesForWebSocketTest reads non-empty lines from a websocket test file.
-func readAnimeDataLinesForWebSocketTest(t *testing.T, filePath string) []string {
-	t.Helper()
-	contents, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("read anime data file: %v", err)
-	}
-	lines := strings.Split(strings.ReplaceAll(string(contents), "\r\n", "\n"), "\n")
-	filtered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		filtered = append(filtered, line)
-	}
-	return filtered
-}
 
 // assertJSONLineEqualForWebSocketTest compares two JSON lines structurally.
 func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) {

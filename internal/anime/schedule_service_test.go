@@ -32,11 +32,12 @@ func TestScheduleServiceRejectsWholeDraftWhenAnyBaseIsStale(t *testing.T) {
 	if result.Outcome != anime.PatchOutcomeConflict {
 		t.Fatalf("expected whole-draft conflict, got %+v", result)
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected zero writes for stale draft, got %d", writer.calls)
-	}
 	if len(conflicts.inserted) != 1 {
 		t.Fatalf("expected one recorded conflict for stale draft, got %d", len(conflicts.inserted))
+	}
+	animeA, err := store.GetSnapshot(ctx, "anime-a")
+	if err != nil || animeA.ModifiedAt != 101 {
+		t.Fatalf("expected whole-draft conflict to leave anime-a untouched: %#v, %v", animeA, err)
 	}
 }
 
@@ -48,7 +49,7 @@ func TestScheduleServiceRejectsWholeDraftWhenUnchangedBoardMemberAdvances(t *tes
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 203)
 
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloadA, payloadB)}
+	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -76,20 +77,15 @@ func TestScheduleServiceApplyDoesNotPartiallyWriteWhenBatchReplacementFails(t *t
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 202)
 
-	// failingSecondWriteAnimeWriter implements batchReplaceWriter, so the
-	// ScheduleService gateway delegates ReplaceFile to it instead of running
-	// the default file-mutation coordinator. On first call the injected
-	// ReplaceFile returns an error, simulating a batch replacement failure
-	// before any append or finalize occurs. The batch path stages operations
-	// atomically via ApplyBatch and releases echo state on both definite and
-	// ambiguous errors, so a failure at the ReplaceFile seam leaves the
-	// canonical file and store untouched. This is a delegate seam, not the
-	// production writer, because the production path would perform an actual
-	// filesystem replacement; the atomicity invariant under failure is the
-	// same either way.
-	writer := &failingSecondWriteAnimeWriter{path: writeLegacyDataFile(t, payloadA, payloadB)}
-	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
+	// failingFinalizeBatchStore fails the SQLite FinalizeBatch step, simulating
+	// a batch failure before any snapshot is committed. SDD-55 Slice B:
+	// ApplyBatch stages the whole batch then finalizes it in one SQLite step
+	// (ADR-55-3) -- a FinalizeBatch failure must leave every snapshot in the
+	// batch untouched (all-or-nothing), which is what this test now proves.
+	failing := &failingFinalizeBatchStore{WriteBaseStore: store.WriteBaseStore()}
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	service.SetDeps(anime.WriteServiceDeps{WriteBases: failing})
 
 	_, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 202, Entries: []anime.ApplyAnimeScheduleDraftEntry{
 		{AnimeID: "anime-a", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 1}}},
@@ -120,7 +116,7 @@ func TestScheduleServiceApplyAcceptsValidPartialDraftIntoPopulatedWeekday(t *tes
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 
 	publisher := &editorRecordingPublisher{}
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloadA, payloadB)}
+	writer := &stubAnimeWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -151,7 +147,7 @@ func TestScheduleServiceApplyTwoAnimeDraftProducesAppliedOutcomeAndExactPublicat
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 
 	publisher := &editorRecordingPublisher{}
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloadA, payloadB)}
+	writer := &stubAnimeWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -200,7 +196,7 @@ func TestScheduleServiceApplyAcceptsTopInsertedSpecialQueueDraftWithUntouchedSpa
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
 	}
 
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)}
+	writer := &stubAnimeWriter{}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
@@ -252,7 +248,7 @@ func TestScheduleServiceApplyReordersEveryCardAfterAnInColumnMove(t *testing.T) 
 	}
 
 	publisher := &editorRecordingPublisher{}
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
 	service.SetDeps(anime.WriteServiceDeps{Publisher: publisher})
 	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 104, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
 		AnimeID:        "futsutsuka",
@@ -300,7 +296,7 @@ func TestScheduleServiceApplyReflowsSourceQueueAfterTwoCardsMoveToVisto(t *testi
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
 	}
 
-	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{path: writeLegacyDataFile(t, payloads...)})
+	service := anime.NewScheduleService(anime.NewQueryService(store), &stubAnimeWriter{})
 	result, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 108, Entries: []anime.ApplyAnimeScheduleDraftEntry{
 		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}}},
 		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 2}}},
@@ -343,7 +339,7 @@ func TestScheduleServiceRejectsInvalidScheduleDraftsBeforeWrite(t *testing.T) {
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", payloadA, 101)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", payloadB, 102)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-c", payloadC, 103)
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payloadA, payloadB, payloadC)}
+	writer := &stubAnimeWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 
 	tests := []anime.ApplyAnimeScheduleDraftCommand{
@@ -357,8 +353,9 @@ func TestScheduleServiceRejectsInvalidScheduleDraftsBeforeWrite(t *testing.T) {
 			t.Fatalf("expected invalid schedule draft to be rejected: %+v", command)
 		}
 	}
-	if writer.calls != 0 {
-		t.Fatalf("invalid schedule drafts must not write, got %d writes", writer.calls)
+	animeA, err := store.GetSnapshot(ctx, "anime-a")
+	if err != nil || animeA.ModifiedAt != 101 {
+		t.Fatalf("invalid schedule drafts must not finalize any write: %#v, %v", animeA, err)
 	}
 }
 
@@ -367,7 +364,7 @@ func TestScheduleServiceRejectsExplicitNonContiguousSundayPayload(t *testing.T) 
 	store := openAnimeServiceTestStore(t)
 	payload := `{"_id":"domingo-explicit","nombre":"Sunday Explicit","activo":true,"dias":[{"dia":"Domingo","orden":1}]}`
 	seedAnimeSnapshotWithModifiedAt(t, store, "domingo-explicit", payload, 101)
-	writer := &stubAnimeWriter{path: writeLegacyDataFile(t, payload)}
+	writer := &stubAnimeWriter{}
 	service := anime.NewScheduleService(anime.NewQueryService(store), writer)
 
 	_, err := service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 101, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
@@ -381,7 +378,8 @@ func TestScheduleServiceRejectsExplicitNonContiguousSundayPayload(t *testing.T) 
 	if err.Error() != "non-contiguous positions for Domingo" {
 		t.Fatalf("expected exact Sunday validation error, got %q", err.Error())
 	}
-	if writer.calls != 0 {
-		t.Fatalf("expected zero writes for rejected Sunday payload, got %d", writer.calls)
+	current, err := store.GetSnapshot(ctx, "domingo-explicit")
+	if err != nil || current.ModifiedAt != 101 {
+		t.Fatalf("expected rejected Sunday payload to leave the snapshot untouched: %#v, %v", current, err)
 	}
 }

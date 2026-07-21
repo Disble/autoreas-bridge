@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"path/filepath"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
@@ -27,25 +25,10 @@ func newAppTestApp(t *testing.T) *App {
 	t.Helper()
 
 	return &App{
-		bootstrapBridgeDB:    func() (*sql.DB, error) { return &sql.DB{}, nil },
-		resolveAnimeDataPath: func() (string, error) { return filepath.Join(t.TempDir(), "animes.dat"), nil },
-		newSnapshotParser:    func() anime.SnapshotParser { return &stubAppParser{} },
-		newSnapshotStore:     func(*sql.DB) anime.SnapshotStore { return &stubAppStore{} },
-		newStartupCoordinator: func(anime.StartupCoordinatorConfig) anime.StartupCoordinator {
-			return &stubAppCoordinator{}
-		},
-		newRuntimeWatcher: func(anime.RuntimeWatcherConfig) anime.RuntimeWatcher { return &stubAppRuntimeWatcher{} },
-		newBridgeNativeRegistry: func(*sql.DB) anime.BridgeNativeRegistry {
-			return &stubAppBridgeNativeRegistry{}
-		},
-		// restoreBridgeNativeAnimes is a fully swappable hook precisely so
-		// tests using a fake/zero-value *sql.DB (wantDB := &sql.DB{}) never
-		// touch a real bridge DB during startup(). Tests exercising the
-		// real repair set this explicitly.
-		restoreBridgeNativeAnimes: func(context.Context) error { return nil },
-		newSelfEchoRegistry:       anime.NewSelfEchoRegistry,
-		newUpdateWriter:           func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
-		newChangelogStore:         func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
+		bootstrapBridgeDB:   func() (*sql.DB, error) { return &sql.DB{}, nil },
+		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
+		newUpdateWriter:     func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
+		newChangelogStore:   func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
 		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
 			return &stubAppChangelogRecorder{}
 		},
@@ -80,11 +63,6 @@ func (l *recordingSharedAppLogger) Logf(domain, level string, fields sharedlogge
 	l.entries = append(l.entries, format)
 }
 
-type stubAppCoordinator struct {
-	started    chan context.Context
-	waitCalled bool
-}
-
 type trayLifecycleTestApp struct {
 	*App
 	hideWindowCalls       int
@@ -115,11 +93,6 @@ func newTrayLifecycleTestApp(t *testing.T, manager *tray.MockTrayManager) *trayL
 
 type stubTracerBulletRunner struct{ started bool }
 
-type stubAppRuntimeWatcher struct {
-	started    bool
-	waitCalled bool
-}
-
 type stubAppUpdateWriter struct {
 	started    bool
 	waitCalled bool
@@ -146,16 +119,6 @@ type stubAppDeviceService struct{}
 type stubAppNotifier struct{}
 
 func (*stubAppNotifier) Notify(context.Context, notification.Notification) error { return nil }
-
-type stubAnimeLegacyPullService struct {
-	result contracts.AnimeLegacyPullResult
-	calls  int
-}
-
-func (s *stubAnimeLegacyPullService) Pull(context.Context) contracts.AnimeLegacyPullResult {
-	s.calls++
-	return s.result
-}
 
 // stubAnimeQueryService is a minimal contracts.AnimeQueryService double for
 // app_runtime_test.go's GetAnimeDetail cases. Only GetMobileAnime is
@@ -342,10 +305,6 @@ type stubAppChangelogRecorder struct {
 	stopped bool
 }
 
-func (s *stubAppRuntimeWatcher) StartAsync(context.Context) { s.started = true }
-func (s *stubAppRuntimeWatcher) Wait()                      { s.waitCalled = true }
-func (s *stubAppRuntimeWatcher) Err() error                 { return nil }
-
 func (s *stubAppUpdateWriter) StartAsync(context.Context) { s.started = true }
 func (s *stubAppUpdateWriter) Wait()                      { s.waitCalled = true }
 func (s *stubAppUpdateWriter) Err() error                 { return nil }
@@ -362,26 +321,3 @@ func (s *stubTracerBulletRunner) Start() { s.started = true }
 type stubTraceSink struct{}
 
 func (*stubTraceSink) Record(string) {}
-
-func (s *stubAppCoordinator) StartAsync(ctx context.Context) {
-	if s.started != nil {
-		s.started <- ctx
-	}
-}
-func (s *stubAppCoordinator) Wait() {
-	s.waitCalled = true
-}
-
-func (s *stubAppCoordinator) Err() error {
-	return nil
-}
-
-func (s *stubAppCoordinator) ContextErr() error {
-	return nil
-}
-
-type stubAppParser struct{}
-
-func (stubAppParser) Parse(io.Reader) (map[string]anime.SnapshotRecord, []anime.ParseWarning, error) {
-	return nil, nil, nil
-}

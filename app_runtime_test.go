@@ -73,43 +73,6 @@ func TestTriggerReconcileReturnsOkWhenSyncTriggerPublishes(t *testing.T) {
 	}
 }
 
-func TestPullAnimesFromLegacyReturnsUnavailableWhenServiceNil(t *testing.T) {
-	t.Parallel()
-
-	app := &App{}
-
-	got := app.PullAnimesFromLegacy()
-
-	if got.Status != "error" {
-		t.Fatalf("expected error status when manual pull service is nil, got %#v", got)
-	}
-	if got.Message == "" {
-		t.Fatalf("expected explicit unavailable message, got %#v", got)
-	}
-}
-
-func TestPullAnimesFromLegacyDelegatesToManualPullService(t *testing.T) {
-	t.Parallel()
-
-	service := &stubAnimeLegacyPullService{
-		result: contracts.AnimeLegacyPullResult{
-			Status:       "ok",
-			UpdatedCount: 2,
-			WarningCount: 1,
-		},
-	}
-	app := &App{ctx: context.Background(), animeLegacyPull: service}
-
-	got := app.PullAnimesFromLegacy()
-
-	if got.Status != "ok" || got.UpdatedCount != 2 || got.WarningCount != 1 {
-		t.Fatalf("unexpected manual pull result: %#v", got)
-	}
-	if service.calls != 1 {
-		t.Fatalf("expected one manual pull call, got %d", service.calls)
-	}
-}
-
 func TestGetSQLiteStatusReturnsErrorWhenBridgeDBNil(t *testing.T) {
 	t.Parallel()
 

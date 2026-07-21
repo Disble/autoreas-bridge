@@ -28,7 +28,7 @@ func TestRunWithArchitectureFSRejectsViolationInsideDirectorySymlink(t *testing.
 			filepath.Join(target, "loop"): true,
 		},
 		files: map[string][]byte{
-			filepath.Join(target, "leak.go"): []byte("package copied\nimport boundary \"autoreas-bridge/internal/anime/legacy\"\nvar _ boundary.LegacyAnimeRaw\n"),
+			filepath.Join(target, "leak.go"): []byte("package copied\nconst query = \"INSERT INTO activity_log DEFAULT VALUES\"\n"),
 		},
 	}
 
@@ -36,8 +36,8 @@ func TestRunWithArchitectureFSRejectsViolationInsideDirectorySymlink(t *testing.
 	if err == nil {
 		t.Fatal("runWithArchitectureFS error = nil, want directory-symlink violation")
 	}
-	if got := err.Error(); !strings.Contains(got, "linked/leak.go") || !strings.Contains(got, "LegacyAnimeRaw") {
-		t.Fatalf("runWithArchitectureFS error = %q, want logical symlink path and DTO violation", got)
+	if got := err.Error(); !strings.Contains(got, "linked/leak.go") || !strings.Contains(got, "activity_log") {
+		t.Fatalf("runWithArchitectureFS error = %q, want logical symlink path and activity_log violation", got)
 	}
 }
 

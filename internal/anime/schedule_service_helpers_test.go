@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 )
@@ -64,25 +65,22 @@ func assertSchedulePublishedAnimeChanged(t *testing.T, event events.Event, wantI
 	}
 }
 
-type failingSecondWriteAnimeWriter struct {
+// failingFinalizeBatchStore wraps a real WriteBaseStore and fails the first
+// FinalizeBatch call.
+//
+// SDD-55 Slice B: ScheduleService.Apply's batch path (ApplyBatch) finalizes
+// straight into SQLite -- there is no file-replacement seam left to inject a
+// failure into (ADR-55-3), so batch-atomicity-under-failure is now proven by
+// failing the SQLite FinalizeBatch step instead.
+type failingFinalizeBatchStore struct {
+	anime.WriteBaseStore
 	calls int
-	path  string
 }
 
-func (w *failingSecondWriteAnimeWriter) RequestWrite(context.Context, string, []byte) error {
-	w.calls++
-	if w.calls == 2 {
-		return errors.New("second append failed")
+func (s *failingFinalizeBatchStore) FinalizeBatch(ctx context.Context, batchID string, committedAtMs int64) error {
+	s.calls++
+	if s.calls == 1 {
+		return errors.New("injected batch finalize failure")
 	}
-	return nil
-}
-
-func (w *failingSecondWriteAnimeWriter) LegacyFilePath() string { return w.path }
-
-func (w *failingSecondWriteAnimeWriter) ReplaceFile(context.Context, string, [][]byte) error {
-	w.calls++
-	if w.calls == 1 {
-		return errors.New("second append failed")
-	}
-	return nil
+	return s.WriteBaseStore.FinalizeBatch(ctx, batchID, committedAtMs)
 }

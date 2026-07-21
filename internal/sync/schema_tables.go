@@ -19,10 +19,8 @@ func schemaTables() []persistence.TableSchema {
 		changelogTable(),
 		createOnlyTable("app_settings", appSettingsDDL),
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
-		createOnlyTable("bridge_owned_animes", bridgeOwnedAnimesDDL),
 		animeWriteOperationsTable(),
 		indexedCreateOnlyTable("anime_changed_outbox", animeChangedOutboxDDL, animeChangedOutboxPendingIndexDDL),
-		createOnlyTable("anime_batch_replacements", animeBatchReplacementsDDL),
 	}
 }
 
@@ -47,14 +45,29 @@ func animeSnapshotsTable() persistence.TableSchema {
 
 // migrateAnimeSnapshotsSchema upgrades a legacy anime snapshot schema.
 func migrateAnimeSnapshotsSchema(db *sql.DB, cols []string) error {
-	if containsSchemaColumn(cols, "modified_at") {
+	if !containsSchemaColumn(cols, "modified_at") {
+		if !isLegacyAnimeSnapshotsSchema(cols) {
+			return fmt.Errorf("unsupported anime_snapshots schema columns: %v", cols)
+		}
+		if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN modified_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
+		}
+	}
+	return ensureScheduleDayMigrationColumn(db, cols)
+}
+
+// ensureScheduleDayMigrationColumn adds the additive, idempotent SDD-55 schedule-day
+// English-domain migration marker column when absent (ADR-55-4, decision 0.2: the
+// weekday-comparison English representation is read-time-mapped in the download-selection
+// domain, so this column carries no comparison data itself; it exists solely as the
+// migration-registry entry the idempotence scenario targets). Existing snapshot_json rows
+// and their Spanish "dias" values are never touched.
+func ensureScheduleDayMigrationColumn(db *sql.DB, cols []string) error {
+	if containsSchemaColumn(cols, "schedule_day_migrated_at") {
 		return nil
 	}
-	if !isLegacyAnimeSnapshotsSchema(cols) {
-		return fmt.Errorf("unsupported anime_snapshots schema columns: %v", cols)
-	}
-	if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN modified_at INTEGER NOT NULL DEFAULT 0`); err != nil {
-		return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
+	if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("add anime_snapshots schedule-day migration marker: %w", err)
 	}
 	return nil
 }

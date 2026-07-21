@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing.T) {
@@ -19,7 +20,7 @@ func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing
 		DurationMinutes: &duration,
 		CoverURL:        "https://cdn.example.test/canonical.jpg",
 	}}
-	write, writer := configuredCreateWriteService(t, "metadata-anime", modifiedAt)
+	store, write := configuredCreateWriteService(t, "metadata-anime", modifiedAt)
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
@@ -35,7 +36,11 @@ func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing
 		t.Fatalf("metadata lookup = calls %d source %q", provider.calls, provider.sourceURL)
 	}
 
-	fields := decodeCreatePayload(t, writer.payload)
+	snapshot, err := store.GetSnapshot(context.Background(), "metadata-anime")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeCreatePayload(t, snapshot.CanonicalJSON)
 	assertCreateJSONField(t, fields, "totalcap", `24`)
 	assertCreateJSONField(t, fields, "duracion", `23`)
 	assertCreateJSONField(t, fields, "portada", `{"type":"url","path":"https://cdn.example.test/canonical.jpg"}`)
@@ -44,7 +49,7 @@ func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing
 func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t *testing.T) {
 	latest := 13
 	provider := &stubCreateMetadataProvider{metadata: anime.CreateMetadata{LatestEpisode: &latest}}
-	write, writer := configuredCreateWriteService(t, "unknown-metadata", 1_700_000_000_789)
+	store, write := configuredCreateWriteService(t, "unknown-metadata", 1_700_000_000_789)
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
@@ -57,21 +62,23 @@ func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t
 		t.Fatalf("result = %+v, want authoritative id and token", result)
 	}
 
-	fields := decodeCreatePayload(t, writer.payload)
+	snapshot, err := store.GetSnapshot(context.Background(), result.AnimeID)
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeCreatePayload(t, snapshot.CanonicalJSON)
 	assertCreateJSONField(t, fields, "totalcap", `null`)
 	assertCreateJSONField(t, fields, "duracion", `null`)
 	assertCreateJSONField(t, fields, "portada", `{"type":"url","path":""}`)
 }
 
-func TestCreateServiceReturnsMetadataSourceFailureWithoutOwnershipOrAppend(t *testing.T) {
+func TestCreateServiceReturnsMetadataSourceFailureWithoutAppend(t *testing.T) {
 	sourceErr := errors.New("metadata source unavailable")
 	provider := &stubCreateMetadataProvider{err: sourceErr}
 	writer := &stubAnimeWriter{}
-	registry := &stubOwnershipRegistry{}
 	store := openAnimeServiceTestStore(t)
 	write := anime.NewWriteService(store, writer)
 	write.SetIDGen(func() string { return "source-failure" })
-	write.SetDeps(anime.WriteServiceDeps{Ownership: registry})
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
@@ -83,37 +90,13 @@ func TestCreateServiceReturnsMetadataSourceFailureWithoutOwnershipOrAppend(t *te
 	if result != (anime.PatchResult{}) {
 		t.Fatalf("result = %+v, want zero result", result)
 	}
-	if len(registry.registeredIDs()) != 0 || writer.calls != 0 {
-		t.Fatalf("side effects before metadata success: registered=%v writes=%d", registry.registeredIDs(), writer.calls)
-	}
 	assertNoPendingAnimeChanged(t, store)
 }
 
-func TestCreateServiceReturnsGatewayFailureWithoutSuccessResult(t *testing.T) {
-	persistErr := errors.New("Legacy append unavailable")
-	writer := &stubAnimeWriter{err: persistErr}
-	registry := &stubOwnershipRegistry{}
-	write := anime.NewWriteService(openAnimeServiceTestStore(t), writer)
-	write.SetIDGen(func() string { return "persist-failure" })
-	write.SetDeps(anime.WriteServiceDeps{Ownership: registry})
-	service := anime.NewCreateService(write, nil)
-
-	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
-		Nombre: "Persist Failure", Pagina: "https://example.test/persist-failure", Section: "Sin ver", Orden: 1,
-	})
-	if !errors.Is(err, persistErr) {
-		t.Fatalf("CreateAnime error = %v, want persistence error", err)
-	}
-	if result != (anime.PatchResult{}) {
-		t.Fatalf("result = %+v, want zero result", result)
-	}
-	if got := registry.registeredIDs(); len(got) != 1 || got[0] != "persist-failure" {
-		t.Fatalf("register-first ownership = %v, want [persist-failure]", got)
-	}
-	if writer.calls != 1 {
-		t.Fatalf("Legacy append attempts = %d, want one failed attempt", writer.calls)
-	}
-}
+// TestCreateServiceReturnsGatewayFailureWithoutSuccessResult was removed by
+// the SDD-55 cold cut: it exercised a Legacy append failure surfacing as a
+// gateway error, but persist() no longer calls the (now unwired) append port
+// at all -- see gateway_write_helpers.go's `g.config.Append != nil` guard.
 
 type stubCreateMetadataProvider struct {
 	metadata  anime.CreateMetadata
@@ -128,15 +111,14 @@ func (s *stubCreateMetadataProvider) Lookup(_ context.Context, sourceURL string)
 	return s.metadata, s.err
 }
 
-// configuredCreateWriteService builds the writer used by create-service tests.
-func configuredCreateWriteService(t *testing.T, id string, modifiedAt int64) (*anime.WriteService, *stubAnimeWriter) {
+// configuredCreateWriteService builds the store and write service used by create-service tests.
+func configuredCreateWriteService(t *testing.T, id string, modifiedAt int64) (*bridgeSync.AnimeSnapshotStore, *anime.WriteService) {
 	t.Helper()
-	writer := &stubAnimeWriter{}
-	write := anime.NewWriteService(openAnimeServiceTestStore(t), writer)
+	store := openAnimeServiceTestStore(t)
+	write := anime.NewWriteService(store, &stubAnimeWriter{})
 	write.SetIDGen(func() string { return id })
 	write.SetNow(func() time.Time { return time.UnixMilli(modifiedAt).UTC() })
-	write.SetDeps(anime.WriteServiceDeps{Ownership: &stubOwnershipRegistry{}})
-	return write, writer
+	return store, write
 }
 
 // decodeCreatePayload decodes a create payload into raw fields.

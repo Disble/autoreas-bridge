@@ -629,26 +629,6 @@ export namespace contracts {
 	        this.fechaCreacion = source["fechaCreacion"];
 	    }
 	}
-	export class AnimeLegacyPullResult {
-	    status: string;
-	    message: string;
-	    updatedCount: number;
-	    prunedCount: number;
-	    warningCount: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new AnimeLegacyPullResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.status = source["status"];
-	        this.message = source["message"];
-	        this.updatedCount = source["updatedCount"];
-	        this.prunedCount = source["prunedCount"];
-	        this.warningCount = source["warningCount"];
-	    }
-	}
 	export class AnimeListItem {
 	    id: string;
 	    nombre: string;

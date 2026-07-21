@@ -31,7 +31,6 @@ describe('bridge-runtime-source', () => {
     const copyPagePromise = source.copyAnimePage?.('anime-1');
     const openFolderPromise = source.openAnimeFolder?.('anime-1');
     const copyFolderPromise = source.copyAnimeFolder?.('anime-1');
-    const pullPromise = source.pullAnimesFromLegacy();
     const reconcilePromise = source.triggerReconcile();
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -49,13 +48,6 @@ describe('bridge-runtime-source', () => {
     await expect(copyPagePromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
     await expect(openFolderPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
     await expect(copyFolderPromise).resolves.toEqual({ message: 'runtime unavailable', modifiedAt: 0, status: 'error' });
-    await expect(pullPromise).resolves.toEqual({
-      message: 'runtime unavailable',
-      prunedCount: 0,
-      status: 'error',
-      updatedCount: 0,
-      warningCount: 0,
-    });
     await expect(reconcilePromise).resolves.toBe('runtime unavailable');
   });
 
@@ -496,42 +488,6 @@ describe('bridge-runtime-source', () => {
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(reconcilePromise).resolves.toBe('done');
-  });
-
-  it('calls PullAnimesFromLegacy once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
-    const source = createBridgeRuntimeSource();
-    const pullAnimesFromLegacyMock = vi.fn().mockResolvedValue({
-      message: 'Pulled 2 updates from legacy.',
-      prunedCount: 0,
-      status: 'ok',
-      updatedCount: 2,
-      warningCount: 0,
-    });
-    const triggerReconcileMock = vi.fn().mockResolvedValue('wrong path');
-
-    const pullPromise = source.pullAnimesFromLegacy();
-
-    window.go = {
-      main: {
-        App: {
-          PullAnimesFromLegacy: pullAnimesFromLegacyMock,
-          TriggerReconcile: triggerReconcileMock,
-        },
-      },
-    } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(pullPromise).resolves.toEqual({
-      message: 'Pulled 2 updates from legacy.',
-      prunedCount: 0,
-      status: 'ok',
-      updatedCount: 2,
-      warningCount: 0,
-    });
-    expect(pullAnimesFromLegacyMock).toHaveBeenCalledTimes(1);
-    expect(triggerReconcileMock).not.toHaveBeenCalled();
   });
 
 });

@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
-	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getlantern/systray v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3

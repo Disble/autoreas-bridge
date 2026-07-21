@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 )
 
@@ -57,7 +57,7 @@ func mobileAnimeFromDomain(value domain.Anime, modifiedAt int64) contracts.Mobil
 // for writes; the query endpoints (GetMobileAnime/ListMobileAnimes) are the
 // source of the live token.
 func MobileAnimeFromSnapshotForSync(payload []byte) (contracts.MobileAnime, error) {
-	value, _, err := legacy.DecodeDomain(payload)
+	value, _, err := store.DecodeDomain(payload)
 	if err != nil {
 		return contracts.MobileAnime{}, err
 	}

@@ -3,12 +3,11 @@ package anime
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"autoreas-bridge/internal/anime/domain"
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/logger"
@@ -30,7 +29,10 @@ const (
 // PatchResult mirrors the public write result contract.
 type PatchResult = contracts.AnimePatchResult
 
-// Writer persists one canonical legacy append or write.
+// Writer publishes committed anime.changed events after a write finalizes.
+// SDD-55 Slice B: the file-append port is gone -- RequestWrite is retained
+// for source compatibility only (some doubles still implement it), but the
+// gateway no longer calls it; persist() finalizes straight into SQLite.
 type Writer interface {
 	RequestWrite(context.Context, string, []byte) error
 }
@@ -44,16 +46,8 @@ type writeBaseStoreProvider interface {
 	WriteBaseStore() WriteBaseStore
 }
 
-type appendOnlyAnimeWriter interface {
-	RequestAppend(context.Context, string, []byte) error
-}
-
 type committedAnimePublisher interface {
 	PublishCommitted(string, string, []byte)
-}
-
-type legacyFilePathProvider interface {
-	LegacyFilePath() string
 }
 
 // WriteServiceDeps carries optional collaborators for write flows.
@@ -64,10 +58,8 @@ type WriteServiceDeps struct {
 	// OCCObserveOnly remains for source compatibility. Base-less writes alone
 	// use observe-only last-write-wins; explicit stale bases are always enforced.
 	OCCObserveOnly bool
-	Ownership      BridgeNativeRegistry
 	WriteBases     WriteBaseStore
 	Publisher      EventPublisher
-	FilePath       string
 }
 
 // WriteService applies canonical create and patch mutations through the legacy gateway.
@@ -131,7 +123,7 @@ func (s *WriteService) CreateCanonicalAnime(
 	if id == "" {
 		id = s.newID()
 	}
-	raw, err := legacy.NewCanonicalCreate(legacy.CanonicalCreateInput{
+	raw, err := store.NewCanonicalCreate(store.CanonicalCreateInput{
 		ID: id, Title: create.Nombre, SourceURL: create.Pagina,
 		Section: create.Section, Order: create.Orden, CreatedAt: s.nowFunc(),
 		Folder: create.Carpeta, Type: create.Tipo, PremieredAtMs: create.FechaEstreno,
@@ -141,19 +133,13 @@ func (s *WriteService) CreateCanonicalAnime(
 	if err != nil {
 		return PatchResult{}, err
 	}
-	if s.deps.Ownership == nil {
-		return PatchResult{}, fmt.Errorf("register bridge-native anime %q: ownership registry is required", id)
-	}
-	if err := s.deps.Ownership.RegisterOwned(ctx, id); err != nil {
-		return PatchResult{}, fmt.Errorf("register bridge-native anime %q: %w", id, err)
-	}
 	result, err := s.gateway().Create(ctx, raw)
 	return fromLegacyPatchResult(result), err
 }
 
 // PatchAnime applies one canonical anime patch by id.
 func (s *WriteService) PatchAnime(ctx context.Context, id string, patch contracts.AnimePatch) (PatchResult, error) {
-	result, err := s.gateway().Update(ctx, legacy.UpdateCommand{
+	result, err := s.gateway().Update(ctx, store.UpdateCommand{
 		AnimeID:         id,
 		Base:            patch.Base,
 		CreateIfMissing: true,
@@ -178,39 +164,26 @@ func (s *WriteService) RecoverWrites(ctx context.Context) error {
 	return gateway.DrainOutbox(ctx)
 }
 
-// RecoveryConfigured reports whether legacy recovery has enough file-path wiring to run.
+// RecoveryConfigured reports whether the service has a real write-base store
+// AND a production-wired writer, so recovery can safely replay any
+// staged-but-not-finalized SQLite write left by a prior crash. SDD-55 Slice B:
+// recovery no longer needs a file path -- SQLite is the only durable write
+// step (ADR-55-1) -- but it still gates on `committedAnimePublisher` to avoid
+// running against an App-level test double's placeholder database (many
+// startup tests wire a real snapshot store over a non-functional *sql.DB{}
+// precisely because their writer double is not production-shaped).
 func (s *WriteService) RecoveryConfigured() bool {
-	if s.deps.FilePath != "" {
-		return true
+	if s.writeBases == nil {
+		return false
 	}
-	_, ok := s.writer.(legacyFilePathProvider)
+	_, ok := s.writer.(committedAnimePublisher)
 	return ok
 }
 
-// gateway builds the legacy gateway used by write operations.
-func (s *WriteService) gateway() *legacy.Gateway {
-	filePath := s.deps.FilePath
-	if filePath == "" {
-		if provider, ok := s.writer.(legacyFilePathProvider); ok {
-			filePath = provider.LegacyFilePath()
-		}
-	}
-	config := newLegacyGatewayConfig(s.store, filePath, s.writeBases, s.deps, s.nowFuncForToken(), s.append, s.publishCommitted)
-	if provider, ok := s.writer.(replacementEchoProvider); ok {
-		config.ReplacementEcho = provider.ReplacementEchoRegistry()
-	}
-	return legacy.NewGateway(config)
-}
-
-// append writes an anime payload through the configured writer.
-func (s *WriteService) append(ctx context.Context, _ string, payload []byte) error {
-	if s.writer == nil {
-		return legacy.NewDefiniteAppendError(fmt.Errorf("anime writer is required"))
-	}
-	if writer, ok := s.writer.(appendOnlyAnimeWriter); ok {
-		return writer.RequestAppend(ctx, animeIDFromPayload(payload), payload)
-	}
-	return s.writer.RequestWrite(ctx, animeIDFromPayload(payload), payload)
+// gateway builds the store gateway used by write operations.
+func (s *WriteService) gateway() *store.Gateway {
+	config := newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted)
+	return store.NewGateway(config)
 }
 
 // publishCommitted publishes a committed anime change when a publisher is configured.
@@ -326,28 +299,19 @@ func patchChangesValue(value domain.Anime, patch contracts.AnimePatch) bool {
 }
 
 // toLegacySnapshot converts a snapshot record to the legacy gateway shape.
-func toLegacySnapshot(record SnapshotRecord) legacy.Snapshot {
-	return legacy.Snapshot{
+func toLegacySnapshot(record SnapshotRecord) store.Snapshot {
+	return store.Snapshot{
 		AnimeID: record.AnimeID, CanonicalJSON: append([]byte(nil), record.CanonicalJSON...),
 		Hash: record.Hash, ModifiedAt: record.ModifiedAt,
 	}
 }
 
 // fromLegacyPatchResult converts a legacy patch result to the service result.
-func fromLegacyPatchResult(result legacy.AnimePatchResult) PatchResult {
+func fromLegacyPatchResult(result store.AnimePatchResult) PatchResult {
 	return PatchResult{
 		AnimeID: result.AnimeID, Outcome: PatchOutcome(result.Outcome),
 		ModifiedAt: result.ModifiedAt, ConflictID: result.ConflictID,
 	}
-}
-
-// animeIDFromPayload extracts the anime identifier from a JSON payload.
-func animeIDFromPayload(payload []byte) string {
-	var envelope struct {
-		ID string `json:"_id"`
-	}
-	_ = json.Unmarshal(payload, &envelope)
-	return envelope.ID
 }
 
 // timeFromMillis converts epoch milliseconds to a UTC time pointer.

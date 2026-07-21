@@ -13,14 +13,17 @@ func TestWriteServicePatchAnimePreservesLegacyFieldsAcrossDayPatch(t *testing.T)
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-preserve", `{"_id":"anime-preserve","nombre":"Keep","nrocapvisto":2,"estado":2,"pagina":"Netflix","carpeta":"C:/Anime/Keep","dia":"Lunes","orden":1}`)
 
-	writer := &stubAnimeWriter{}
-	service := anime.NewWriteService(store, writer)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
 
 	if _, err := service.PatchAnime(ctx, "anime-preserve", api.AnimePatch{Dias: []string{"Martes", "Jueves"}, Base: int64Ptr(0)}); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 
-	value := decodeAnimeDomain(t, writer.payload)
+	snapshot, err := store.GetSnapshot(ctx, "anime-preserve")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	value := decodeAnimeDomain(t, snapshot.CanonicalJSON)
 	if got := value.SourceURL; got == nil || *got != "Netflix" {
 		t.Fatalf("expected pagina to be preserved, got %#v", got)
 	}

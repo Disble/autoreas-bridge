@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"autoreas-bridge/internal/anime/legacy"
+	"autoreas-bridge/internal/anime/store"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
 )
@@ -32,14 +32,6 @@ type ScheduleService struct {
 	writeBases WriteBaseStore
 	now        func() time.Time
 	deps       WriteServiceDeps
-}
-
-type batchReplaceWriter interface {
-	ReplaceFile(context.Context, string, [][]byte) error
-}
-
-type replacementEchoProvider interface {
-	ReplacementEchoRegistry() legacy.ReplacementEchoRegistry
 }
 
 // NewScheduleService builds a schedule mutation service over query and writer seams.
@@ -167,10 +159,10 @@ func currentBoardModifiedAt(records []ReadRecord) int64 {
 
 // conflict applies a schedule update against the current snapshot.
 func (s *ScheduleService) conflict(ctx context.Context, current SnapshotRecord, entry ApplyAnimeScheduleDraftEntry) (PatchResult, error) {
-	result, err := s.gateway().UpdateRaw(ctx, legacy.UpdateRawCommand{
+	result, err := s.gateway().UpdateRaw(ctx, store.UpdateRawCommand{
 		AnimeID: current.AnimeID,
 		Base:    &entry.BaseModifiedAt,
-		Mutate:  legacy.NewSchedulePlacementsMutation(entry.Placements),
+		Mutate:  store.NewSchedulePlacementsMutation(entry.Placements),
 	})
 	if err != nil {
 		return PatchResult{}, err
@@ -189,13 +181,13 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 	if err != nil {
 		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
-	raw, _, _, err := legacy.DecodeForUpdate(record.Snapshot.CanonicalJSON)
+	raw, _, _, err := store.DecodeForUpdate(record.Snapshot.CanonicalJSON)
 	if err != nil {
 		return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board}, nil
 	}
-	days := make([]legacy.AnimeDay, 0, len(entry.Placements))
+	days := make([]store.AnimeDay, 0, len(entry.Placements))
 	for _, placement := range entry.Placements {
-		days = append(days, legacy.AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
+		days = append(days, store.AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
 	}
 	raw.SetDays(days)
 	desired, err := raw.MarshalJSON()
@@ -215,41 +207,9 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 	return PatchResult{Outcome: PatchOutcomeConflict, ModifiedAt: board, ConflictID: conflictID}, nil
 }
 
-// gateway builds the legacy gateway used by schedule operations.
-func (s *ScheduleService) gateway() *legacy.Gateway {
-	filePath := s.deps.FilePath
-	if filePath == "" {
-		if provider, ok := s.writer.(legacyFilePathProvider); ok {
-			filePath = provider.LegacyFilePath()
-		}
-	}
-	config := newLegacyGatewayConfig(s.store, filePath, s.writeBases, s.deps, s.nowFuncForToken(), s.append, s.publishCommitted)
-	if provider, ok := s.writer.(replacementEchoProvider); ok {
-		config.ReplacementEcho = provider.ReplacementEchoRegistry()
-	}
-	if _, ok := s.writer.(batchReplaceWriter); ok {
-		config.ReplaceFile = s.replaceFile
-	}
-	return legacy.NewGateway(config)
-}
-
-// replaceFile replaces the anime data file through a capable writer.
-func (s *ScheduleService) replaceFile(ctx context.Context, filePath string, desired [][]byte) error {
-	if writer, ok := s.writer.(batchReplaceWriter); ok {
-		return writer.ReplaceFile(ctx, filePath, desired)
-	}
-	return nil
-}
-
-// append writes a schedule payload through the configured writer.
-func (s *ScheduleService) append(ctx context.Context, _ string, payload []byte) error {
-	if s.writer == nil {
-		return legacy.NewDefiniteAppendError(fmt.Errorf("anime writer is required"))
-	}
-	if writer, ok := s.writer.(appendOnlyAnimeWriter); ok {
-		return writer.RequestAppend(ctx, animeIDFromPayload(payload), payload)
-	}
-	return s.writer.RequestWrite(ctx, animeIDFromPayload(payload), payload)
+// gateway builds the store gateway used by schedule operations.
+func (s *ScheduleService) gateway() *store.Gateway {
+	return store.NewGateway(newStoreGatewayConfig(s.store, s.writeBases, s.deps, s.nowFuncForToken(), s.publishCommitted))
 }
 
 // publishCommitted publishes a committed schedule change.
