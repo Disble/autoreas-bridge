@@ -18,7 +18,14 @@ export function DownloadsRoute() {
         <p className="text-sm text-muted">Configure auto-download, run a check now, and review run history</p>
       </header>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+      {/*
+       * Masonry-lite via CSS multi-column: cards pack down each column with no
+       * row-height gaps (fixes the dead space under short cards like "Manual
+       * check"). WebView2 (Chromium stable) has no `grid-template-rows: masonry`
+       * support, so multi-column is the portable path. Trade-off: cards flow
+       * down-column, not left-to-right across rows.
+       */}
+      <div className="min-w-0 columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
         <Card>
           <Card.Header>
             <Card.Title>Manual check</Card.Title>
@@ -68,17 +75,18 @@ export function DownloadsRoute() {
             <JDConfigPanel />
           </Card.Content>
         </Card>
-
-        <Card className="lg:col-span-2">
-          <Card.Header>
-            <Card.Title>Run history</Card.Title>
-            <Card.Description>Past download checks and any manual links left by an offline JDownloader</Card.Description>
-          </Card.Header>
-          <Card.Content>
-            <RunHistoryPanel />
-          </Card.Content>
-        </Card>
       </div>
+
+      {/* Run history stays full-width below the packed columns. */}
+      <Card>
+        <Card.Header>
+          <Card.Title>Run history</Card.Title>
+          <Card.Description>Past download checks and any manual links left by an offline JDownloader</Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <RunHistoryPanel />
+        </Card.Content>
+      </Card>
     </div>
   );
 }

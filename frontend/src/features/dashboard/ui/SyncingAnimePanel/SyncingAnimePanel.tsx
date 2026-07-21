@@ -35,7 +35,7 @@ export function SyncingAnimePanel(props: Readonly<SyncingAnimePanelProps>) {
         ) : null}
 
         {!isLoading && !isEmpty ? (
-          <div className="flex max-h-[28rem] flex-col gap-3 overflow-y-auto pr-1">
+          <div className="grid max-h-[28rem] grid-cols-1 gap-3 overflow-y-auto pr-1 xl:grid-cols-2">
             {items.map((item) => (
               <article key={item.animeId} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]">
                 <div className="flex flex-wrap items-start justify-between gap-3">

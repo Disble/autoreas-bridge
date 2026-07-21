@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.11"
+  version: "1.0.14"
   scope: project
   updates: living
 ---
@@ -99,6 +99,41 @@ Colors resolve through `getIntakeHealthSegmentColor` (`overview-panel.helpers.ts
 
 `.card` (HeroUI) has `p-4` and `border-radius: min(32px, var(--radius-3xl))`. For an edge-flowing image column inside a Card (Chapters schedule): give the Card `overflow-hidden`, and the slot `relative -my-4 -ml-4 w-24 shrink-0 self-stretch overflow-hidden` — the negative margins bleed through the padding and the Card clips the corners. Put the art `absolute inset-0 size-full object-cover` (or an SVG with `preserveAspectRatio="xMidYMid slice"`) so the source aspect ratio can NEVER change the card height. Add `gap-4 min-h-24` on the flex row for breathing room and consistent card presence. Default cover art is `shared/ui/CoverPlaceholderScene.tsx` (night bridge scene) — full-bleed, not an icon centered in a gray box.
 
+## Multi-column card packing (masonry-lite)
+
+For any page of **variable-height cards**, a plain `grid grid-cols-2` locks every row to the tallest card in it — short cards leave dead vertical space beside a tall neighbor. The fix is CSS **multi-column**, NOT a masonry library:
+
+```tsx
+<div className="min-w-0 columns-1 gap-4 lg:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+  <Card>…</Card> {/* repeat */}
+</div>
+```
+
+- **Why not native CSS masonry?** This app runs in **Wails → WebView2 → Chromium stable**, which has **not** shipped `grid-template-rows: masonry` (spec still unsettled between `masonry` and `item-flow`). So `@supports (grid-template-rows: masonry)` is always false here — never write that branch; it's dead code. Multi-column is the portable path.
+- **Why not `react-masonry-css`?** Not worth a dependency for a handful of settings cards. Only reach for it if strict left-to-right (row-major) reading order is a hard requirement.
+- **Gotchas:**
+  - `columns` gap between stacked items needs **`[&>*]:mb-4`** (the `gap`/`columns` shorthand only sets the *column* gap, not vertical rhythm within a column).
+  - Every child needs **`break-inside-avoid`** or a card can split across the column boundary.
+  - **Cards flow DOWN each column, not across rows** — accepted trade-off. Order in the JSX controls which card lands where; balance uneven column heights by reordering.
+  - **A full-width card cannot live inside a multi-column container** (multi-column has no column-span). Pull it OUT as a sibling below the packed block. Do NOT try `col-span-2` — that's grid-only.
+- **`columns` vs `grid` — pick by container:** use `columns-*` (masonry-lite) for free-standing variable-height cards where down-column order is fine. Use a **responsive `grid` (`grid-cols-1 xl:grid-cols-2`)** when the tiles live **inside a fixed-height `overflow-y-auto` scroller** or when **row-major reading order matters** — `columns` fills column 1 to the container's max-height before wrapping, which fights a vertical scroller; grid keeps order and wraps cleanly. Grid costs a little row-height gap, negligible when tiles are near-uniform.
+- **When NOT to use EITHER:** a page's top-level stack of full-bleed *sections* stays one section per row. Pack cards *within* a section; don't columnize whole sections — that makes a clean page ragged.
+
+## Filling horizontal space on wide screens (split-panel cards)
+
+Distinct from masonry: the wide-screen complaint is often **horizontal whitespace inside a single full-width card**, not vertical row-gaps. A card whose content stacks vertically (a centered image with empty flanks, a form hugging the left edge) wastes the width. Fix with an **internal responsive split**, not by columnizing the page:
+
+```tsx
+<Card.Content className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-8">
+  <div className="flex min-w-0 flex-col gap-4">{/* text / fields fill the flexible column */}</div>
+  <div className="flex justify-center lg:justify-end">{/* media pins to the intrinsic column */}</div>
+</Card.Content>
+```
+
+- `grid-cols-[minmax(0,1fr)_auto]`: flexible content column + intrinsic-width media column. `minmax(0,1fr)` (not bare `1fr`) so the left column can shrink and its children can `truncate` instead of overflowing.
+- Collapses to `flex flex-col` below the breakpoint — single stacked column on narrow windows.
+- Let media grow with the space it earns (e.g. `size-40 lg:size-48`) rather than sitting fixed-small in a now-roomy card.
+
 ## Toast feedback
 
 `toast` from `@heroui/react` (`toast.success/danger/warning/info`). Backend notifications flow through `use-notification-toasts` (the only `notification.push` subscriber). For LOCAL imperative feedback (e.g. clipboard copy confirmations), hooks call `toast.success(...)` directly in the mutation callback — English copy, e.g. "Folder path copied to clipboard". Mock pattern for hook tests: `vi.hoisted` toast object + `vi.mock('@heroui/react', () => ({ toast: toastMock }))` (see `use-chapter-schedule-panel.test.ts`).
@@ -127,6 +162,9 @@ Colors resolve through `getIntakeHealthSegmentColor` (`overview-panel.helpers.ts
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.0.14` — Made the layout sections **view-agnostic**: removed the per-screen bindings (which card lives where, named feature files as "references") from the masonry-lite and split-panel guidance. The technique is described by content *shape* (variable-height cards, tiles in a scroller, image-with-empty-flanks), not by which view currently uses it — views churn, the pattern doesn't. Changelog keeps its historical view names as a record of what prompted each entry.
+- `1.0.13` — Reconciled Devices "use the full-screen width" work with the masonry-lite rule. Two new distinctions: (1) `columns` vs `grid` — use a responsive `grid-cols-1 xl:grid-cols-2` (not `columns`) when tiles live inside a fixed-height `overflow-y-auto` scroller or when row order matters (SyncingAnimePanel's list); `columns` fills to the container max-height before wrapping and fights a vertical scroller. (2) New "Filling horizontal space on wide screens (split-panel cards)" section: the wide-screen problem is often horizontal whitespace *inside* one full-width card, fixed with an internal `lg:grid-cols-[minmax(0,1fr)_auto]` split (info left, media right; media grows `size-40 lg:size-48`) — PairingPanel. Clarified the earlier "Devices stays single-column" note: it means top-level *sections* don't columnize, NOT that a section's internals can't use the width.
+- `1.0.12` — Added the "Multi-column card packing (masonry-lite)" section after converting the Downloads route off `grid grid-cols-2` (short cards like "Manual check" left dead space beside tall neighbors). Pattern: `columns-1 lg:columns-2 gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid` on the variable-height config cards, with the full-width "Run history" card pulled OUT as a sibling below (multi-column has no column-span). Documented WHY native CSS masonry is dead code here (WebView2/Chromium stable hasn't shipped `grid-template-rows: masonry`), why `react-masonry-css` isn't worth it for a few settings cards, the down-column flow trade-off, and that full-bleed section stacks (Devices) must stay single-column.
 - `1.0.11` — Settled the large-rail rendering strategy for the Anime Editor left list (800+ animes) on **progressive loading**, and recorded two rejected paths so nobody re-treads them. Approach: render `items.slice(0, renderLimit)` of selectable `Button` rows (`onPress` → select) inside an `overflow-y-auto` div; `renderLimit` starts at 20 and grows by a batch when `isNearListBottom` fires on scroll; reset to 20 on filter/search change via a render-phase reset (`if (itemCount !== seen) { setSeen(itemCount); setRenderLimit(initial) }`, not an effect — dodges `react-doctor/no-derived-state-effect`). The scrollbar starts short and grows, so users don't read it as "everything loaded". **Rejected #1: `ListBox` + `Virtualizer`/`ListLayout` windowing** — DOM stays small but the full-height padded scrollbar reads as "all 842 loaded", and worse, `ListBox` with `selectionMode="single"` fires `onAction` only on **double-click** (single-click just selects), so click-to-navigate silently broke. **Rejected #2: fixed-height windowing** (`slice(start,end)` + top/bottom spacer padding) — same "scrollbar looks full" perception problem. **Bug fixed alongside:** selection locked after the first pick because a `params.id → selectedAnimeId` sync effect reverted the choice during the async-`navigate` intermediate render (stale `params.id`); guard the effect with a previous-param ref so it only reacts to real URL changes. Validate row count with a DOM-count test (`AnimeEditorWorkspace.windowing.test.tsx`), not just the pure math. Also: `bg-accent-soft` is NOT a valid utility here — use `bg-accent/10`.
 - `1.0.9` — Added the "Chart palette (nivo, literal hex)" section (SDD-47, `OverviewPanel`'s watching-pipeline/intake-health/grade-histogram charts): the surface/ink neutrals, the semantic status set, the chart-tuned neutrals, the validated categorical intake set (with its `getMatchStatusColor`-role mapping and the `discarded`-gray exception), the ordinal pipeline ramp, and the histogram emphasis pair. Documented the `--default`-dark-invisible-as-bar gotcha: HeroUI's `--default` dark token (`#27272A`) is one lightness step off the `#18181B` card surface and disappears as a bar fill, so charts use lifted zinc-hue grays (`#71717A`/`#62626C`) instead.
 - `1.0.8` — Added the canonical anime `estado` vocabulary rule (SDD-40): labels live in `shared/constants/anime-estado.ts`, imported everywhere (scoped exception to per-feature colocation); colors stay feature-local. Fixed the three-way label drift (2/3 were "Abandonado"/"Pendiente" and "Dropped"/"Paused"; Legacy truth is "No me gusto"/"En pausa").
