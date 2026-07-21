@@ -1,20 +1,6 @@
-# Frontend Specification
+# Delta for Frontend
 
-## Purpose
-
-This specification defines the frontend MVP for the `autoreas-bridge`, including the package baseline, bridge status display, mobile pairing panel, and the corresponding Wails Go bindings.
-
-## Requirements
-
-### Requirement: Package Baseline
-
-The frontend package configuration MUST use exact version pinning for dependencies, include ESLint for code quality, and provide a `lint` script.
-
-#### Scenario: ESLint Execution
-- GIVEN the frontend project has ESLint configured
-- WHEN the developer runs `bun run lint`
-- THEN the execution MUST pass cleanly with no errors
-- AND `bun run build` MUST succeed cleanly
+## MODIFIED Requirements
 
 ### Requirement: Bridge Status Panel
 
@@ -71,34 +57,7 @@ The Pairing Panel MUST display the raw LAN IP address, port, a copyable one-time
 - THEN the Pairing Panel MUST be visible alongside Connected Devices, Syncing Now, and Trigger Reconcile
 - AND no standalone `/pairing` route MUST exist
 
-### Requirement: Wails Binding - GetSQLiteStatus
-
-The `GetSQLiteStatus()` Wails binding MUST return the current status of the SQLite database.
-
-#### Scenario: DB Available
-- GIVEN the SQLite database is initialized and available
-- WHEN `GetSQLiteStatus()` is called
-- THEN it MUST return the string "ok"
-
-#### Scenario: DB Unavailable
-- GIVEN the SQLite database is nil or unavailable
-- WHEN `GetSQLiteStatus()` is called
-- THEN it MUST return an error string
-
-### Requirement: Wails Binding - GetPairingToken
-
-The `GetPairingToken()` Wails binding MUST generate, persist, and return a one-time pairing token.
-
-#### Scenario: Token Persistence
-- GIVEN the backend is functioning normally
-- WHEN `GetPairingToken()` is called
-- THEN it MUST persist the generated token via `device.Store`
-- AND it MUST return the token string
-
-#### Scenario: Token Generation Failure
-- GIVEN the database or `device.Store` is nil
-- WHEN `GetPairingToken()` is called
-- THEN it MUST gracefully degrade and return an error string
+## ADDED Requirements
 
 ### Requirement: Devices Page Composition
 
