@@ -22,6 +22,11 @@ the `remainingEpisodes` helper, and the Wails-bound
 `App` methods in `app_runtime.go`/`app_desktop_actions.go`. This is a pure
 rename: no scheduling, availability, or download behavior changes.
 
+This requirement additionally covers the weekday-matching vocabulary used by
+the download-selection domain: internal identifiers and comparison logic MUST
+use English weekday names (`Monday`…`Sunday`), not the Spanish literals
+(`Lunes`…`Domingo`) previously exposed by `spanishWeekdayNames`/`SpanishWeekdayName`.
+
 The ADR-007 legacy boundary is explicitly OUT of this requirement's scope:
 `LegacyAnimeRaw` and every `.dat` byte-compat field (`NroCapVisto`, `TotalCap`,
 `Pagina`, `Dias`, …) MUST stay Spanish and MUST NOT be renamed. Spanish runtime
@@ -75,6 +80,40 @@ dual-read), and MUST be safe to run repeatedly.
 - **WHEN** the `ColumnMigration` registry runs again on a later startup
 - **THEN** the migration probes for the new column name, finds it already
   present, and skips the `RENAME COLUMN` statement without error
+
+### Requirement: Stored Schedule-Day Values Migrate Additively, Preserving Existing Data
+
+Wherever an anime's schedule day is persisted using a Legacy-Spanish literal
+(e.g. `"Lunes"`), the system MUST introduce an English-domain representation
+through an additive SQLite migration. The migration MUST NOT drop or rename
+away the existing Spanish-literal column or values; it MUST add the
+English-domain representation alongside it and MUST preserve every existing
+row's value unchanged. Domain code performing schedule-day comparisons MUST
+read/compare using the English-domain representation going forward.
+
+#### Scenario: Existing schedule-day rows are preserved
+
+- **GIVEN** a SQLite database with anime rows whose schedule days are stored
+  as Spanish literals from before this change
+- **WHEN** the additive migration runs on startup
+- **THEN** every existing row's stored value is preserved unchanged
+- **AND** no column holding schedule-day data is dropped or renamed away
+
+#### Scenario: Re-running the migration is a no-op
+
+- **GIVEN** a database already migrated to expose the English-domain
+  schedule-day representation
+- **WHEN** the migration registry runs again on a later startup
+- **THEN** it detects the representation is already present and skips
+  re-applying the migration without error
+
+#### Scenario: Today's-schedule matching reads the English representation
+
+- **GIVEN** the migrated database
+- **WHEN** the download-selection domain resolves which animes are airing
+  today
+- **THEN** it compares against the English-domain schedule-day
+  representation, not the legacy Spanish literal
 
 ### Requirement: Activity Log Uses "episode_adjusted" With Tolerant Historical Reads
 

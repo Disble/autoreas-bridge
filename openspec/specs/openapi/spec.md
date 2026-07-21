@@ -15,9 +15,37 @@
   - `BearerAuth` security scheme
   - All request bodies, path parameters, response schemas, and websocket notes must be accurate per the verified API contracts:
   - **POST /api/devices/pair**: No auth. Requires `pairing_token` (string) and `device_name` (string) in body. Returns 201 (`{device_id, device_name, auth_token}`), 400, 401, 500. Unknown body fields must be rejected (400).
-  - **PATCH /api/animes/{id}**: Bearer auth required. Path param `id` (string). Optional body fields: `estado` (integer 0-3), `nrocapvisto` (number >= 0), `dias` (array of strings). Unknown fields are silently ignored. Returns 200 (`{status: "ok"}`), 400, 401, 404, 500.
+  - **PATCH /api/animes/{id}**: Bearer auth required. Path param `id` (string). Optional body fields: English names `status` (integer 0-3), `episodesWatched` (number >= 0), `days` (array of strings), with legacy Spanish names `estado`, `nrocapvisto`, `dias` accepted additively alongside them. Unknown fields are silently ignored. Returns 200 (`{status: "ok"}`), 400, 401, 404, 500.
   - **POST /api/sync/reconcile**: Bearer auth required. Optional reconcile-compatible request body with `device_id`, `last_changelog_id`, and `pending_operations`. Returns 202 (`{status: "accepted", bridge_changes, conflicts}`), 400, 401, 500.
   - **/ws informational note**: Must document `sync_required` and anime change broadcasts. It should also note the compatibility inbound reconcile message shape if the runtime supports it.
+
+### REQ-1b: Wire Rename Is Announced and Coordinated With Mobile
+
+Any REST or WebSocket field rename introduced by this change MUST be recorded
+in `docs/openapi.yaml` and MUST be coordinated with the `autoreas-mobile`
+consumer before the rename merges, per the project's API-consumer
+doc-announcement convention. The rename MUST be additive at the transport
+level: Bridge MUST accept the renamed fields going forward, and the rollout
+MUST NOT silently break an un-migrated mobile client without prior
+announcement.
+
+#### Sub-requirement Scenarios:
+
+**Scenario: Mobile coordination precedes the merge**
+
+- **GIVEN** the wire rename is ready to merge
+- **WHEN** the change is prepared for merge
+- **THEN** `docs/openapi.yaml` reflects the renamed fields
+- **AND** the rename has been announced/coordinated with the
+  `autoreas-mobile` repository before the merge, per the existing
+  API-consumer doc-update convention
+
+**Scenario: checkopenapi gate still passes after the rename**
+
+- **GIVEN** `internal/api/router.go` and the renamed `docs/openapi.yaml`
+- **WHEN** `go run ./tools/checkopenapi` runs
+- **THEN** the gate passes with `OpenAPI gate passed.`, using the renamed
+  field documentation
 
 ### REQ-2: `checkopenapi` CLI tool
 - Must be located at `tools/checkopenapi/main.go`.
