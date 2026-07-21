@@ -1,82 +1,64 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import App from '../../App';
-import { APP_LAYOUT_NAV_ITEMS } from '../../shared/navigation/app-layout.constants';
+import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
+import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { resetNetworkStore } from '../../shared/store/network-store';
+import { seasonStore } from '../../shared/store/season-store/season-store.helpers';
 
 describe('App routing', () => {
+  beforeEach(() => {
+    // Preset the season store so /season resolves synchronously instead of
+    // waiting on the real Wails binding timeout in this jsdom integration test.
+    seasonStore.setState({ hasLoaded: true, season: null, pastSeasons: [], readOnly: false });
+  });
+
   afterEach(() => {
     cleanup();
     resetNetworkStore();
   });
 
-  it('redirects the root path to the network route', async () => {
+  it('redirects the root path to /today', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Network' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
   });
 
-  it('renders the network route directly', async () => {
+  it('renders the today route directly', async () => {
     render(
-      <MemoryRouter initialEntries={['/network']}>
+      <MemoryRouter initialEntries={['/today']}>
         <App />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Network' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
   });
 
-  it('renders Network as the first nav item', async () => {
-    render(
-      <MemoryRouter initialEntries={['/network']}>
-        <App />
-      </MemoryRouter>,
-    );
+  describe('legacy route redirects', () => {
+    it.each([
+      ['/episodes', 'Today'],
+      ['/dashboard', 'Today'],
+      ['/network', 'Activity'],
+      ['/status', 'Activity'],
+      ['/pairing', 'Devices'],
+      ['/preferences', 'Settings'],
+    ])('redirects %s to the page headed %s', async (path, label) => {
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <App />
+        </MemoryRouter>,
+      );
 
-    const navLinks = await screen.findAllByRole('link', { name: 'Network' });
-
-    expect(navLinks.length).toBeGreaterThan(0);
-    expect(navLinks[0]).toHaveAttribute('href', '/network');
+      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
+    });
   });
 
-  it('renders the dashboard route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Autoreas Bridge' })).toBeInTheDocument();
-  });
-
-  it('renders the bridge status route', async () => {
-    render(
-      <MemoryRouter initialEntries={['/status']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { name: 'Bridge Status' })).toBeInTheDocument();
-    expect(screen.getByText('Local service health')).toBeInTheDocument();
-  });
-
-  it('renders the pairing route', async () => {
-    render(
-      <MemoryRouter initialEntries={['/pairing']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { name: 'Pair a Device' })).toBeInTheDocument();
-    expect(screen.getByText('Scan the QR code from Autoreas Mobile, or use the token below as a manual fallback')).toBeInTheDocument();
-  });
-
-  it('renders the downloads route', async () => {
+  it('renders the downloads route directly', async () => {
     render(
       <MemoryRouter initialEntries={['/downloads']}>
         <App />
@@ -86,75 +68,6 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Downloads' })).toBeInTheDocument();
   });
 
-  it('renders the episodes route directly', async () => {
-    render(
-      <MemoryRouter initialEntries={['/episodes']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Episodes' })).toBeInTheDocument();
-  });
-
-  it('falls through to not found for the removed observability path', async () => {
-    render(
-      <MemoryRouter initialEntries={['/observability']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
-  });
-
-  it('does not render a Logs navigation entry', async () => {
-    render(
-      <MemoryRouter initialEntries={['/network']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
-  });
-
-  it('renders Catalog as the renamed nav entry pointing to /catalog', async () => {
-    render(
-      <MemoryRouter initialEntries={['/network']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
-    const catalogLink = within(nav).getByRole('link', { name: 'Catalog' });
-
-    expect(catalogLink).toHaveAttribute('href', '/catalog');
-    expect(within(nav).queryByRole('link', { name: 'Animes' })).not.toBeInTheDocument();
-  });
-
-  it('renders History as its own nav entry pointing to /history', async () => {
-    render(
-      <MemoryRouter initialEntries={['/network']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
-    const historyLink = within(nav).getByRole('link', { name: 'History' });
-
-    expect(historyLink).toHaveAttribute('href', '/history');
-  });
-
-  it('keeps exactly 11 primary navigation entries after the Anime Editor workspace is added', async () => {
-    render(
-      <MemoryRouter initialEntries={['/network']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    const nav = screen.getByRole('navigation', { name: 'Bridge primary navigation' });
-
-    expect(within(nav).getAllByRole('link')).toHaveLength(11);
-  });
-
   it('renders the anime editor route directly', async () => {
     render(
       <MemoryRouter initialEntries={['/editor']}>
@@ -162,7 +75,7 @@ describe('App routing', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Anime Editor' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
   });
 
   it('resolves /editor/:id to the anime editor workspace', async () => {
@@ -172,7 +85,7 @@ describe('App routing', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Anime Editor' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Editor' })).toBeInTheDocument();
   });
 
   it('renders the catalog route directly', async () => {
@@ -205,18 +118,6 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'History' })).toBeInTheDocument();
   });
 
-  it('does not render a Catalog/History lens switch on /catalog', async () => {
-    render(
-      <MemoryRouter initialEntries={['/catalog']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    await screen.findByRole('heading', { level: 1, name: 'Catalog' });
-    expect(screen.queryByRole('radio', { name: 'Catalog' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'History' })).not.toBeInTheDocument();
-  });
-
   it('no longer serves History under /catalog/history', async () => {
     render(
       <MemoryRouter initialEntries={['/catalog/history']}>
@@ -227,11 +128,47 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('declares exactly 11 primary navigation entries in the shared layout constants', () => {
-    expect(APP_LAYOUT_NAV_ITEMS).toHaveLength(11);
+  it('renders the devices route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/devices']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Devices' })).toBeInTheDocument();
   });
 
-  it('renders a not found route for unknown paths', async () => {
+  it('renders the activity route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/activity']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
+  });
+
+  it('renders the season route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/season']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Season' })).toBeInTheDocument();
+  });
+
+  it('renders the settings route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('renders a not found route for unknown paths, linking to /today', async () => {
     render(
       <MemoryRouter initialEntries={['/does-not-exist']}>
         <App />
@@ -239,6 +176,71 @@ describe('App routing', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Go to dashboard' })).toHaveAttribute('href', '/dashboard');
+    expect(screen.getByRole('link', { name: 'Go to Today' })).toHaveAttribute('href', '/today');
+  });
+
+  describe('grouped rail navigation', () => {
+    it('renders exactly 9 nav items across 3 groups in the documented order', async () => {
+      render(
+        <MemoryRouter initialEntries={['/today']}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      const nav = await screen.findByRole('navigation', { name: 'Bridge primary navigation' });
+
+      expect(within(nav).getAllByRole('link')).toHaveLength(9);
+      expect(APP_LAYOUT_NAV_GROUPS).toHaveLength(3);
+      expect(APP_LAYOUT_NAV_GROUPS[0]?.items.map((item) => item.label)).toEqual([
+        'Today',
+        'Downloads',
+        'Editor',
+        'Catalog',
+        'History',
+        'Season',
+      ]);
+      expect(APP_LAYOUT_NAV_GROUPS[1]?.items.map((item) => item.label)).toEqual(['Devices']);
+      expect(APP_LAYOUT_NAV_GROUPS[2]?.items.map((item) => item.label)).toEqual(['Activity', 'Settings']);
+      expect(APP_LAYOUT_NAV_GROUPS[2]?.pinned).toBe(true);
+    });
+
+    it('flattens to 9 items preserving group order for the mobile tab bar', () => {
+      const flat = flattenNavItems(APP_LAYOUT_NAV_GROUPS);
+
+      expect(flat).toHaveLength(9);
+      expect(flat.map((item) => item.label)).toEqual([
+        'Today',
+        'Downloads',
+        'Editor',
+        'Catalog',
+        'History',
+        'Season',
+        'Devices',
+        'Activity',
+        'Settings',
+      ]);
+    });
+  });
+
+  describe('page header equals nav label', () => {
+    it.each([
+      ['/today', 'Today'],
+      ['/downloads', 'Downloads'],
+      ['/editor', 'Editor'],
+      ['/catalog', 'Catalog'],
+      ['/history', 'History'],
+      ['/season', 'Season'],
+      ['/devices', 'Devices'],
+      ['/activity', 'Activity'],
+      ['/settings', 'Settings'],
+    ])('the %s page h1 equals its nav label %s', async (path, label) => {
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
+    });
   });
 });

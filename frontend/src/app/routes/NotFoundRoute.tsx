@@ -12,8 +12,8 @@ export function NotFoundRoute() {
         <Card.Description>The route you asked for does not exist in the bridge UI.</Card.Description>
       </Card.Header>
       <Card.Content>
-        <Link className="text-sm font-semibold text-primary underline" to="/dashboard">
-          Go to dashboard
+        <Link className="text-sm font-semibold text-primary underline" to="/today">
+          Go to Today
         </Link>
       </Card.Content>
     </Card>

@@ -1,1 +1,1 @@
-export { BridgeDashboard } from './ui/BridgeDashboard';
+export { BridgeStatusCard } from './ui/BridgeStatusCard';

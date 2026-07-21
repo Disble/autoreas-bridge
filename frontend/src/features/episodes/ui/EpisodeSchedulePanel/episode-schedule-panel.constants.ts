@@ -8,6 +8,21 @@ import type { EpisodeViewLens, CoverEntry } from './episode-schedule-panel.types
 /** Legacy weekday keys supported by anime schedule records. */
 export const EPISODE_DAY_OPTIONS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo'] as const;
 
+/**
+ * English display labels for the Spanish weekday keys above. The Spanish key
+ * remains the tab `id` and schedule filter value; only the rendered label is
+ * English (spec: "Today Weekday Tabs in English").
+ */
+export const EPISODE_DAY_LABELS_EN: Readonly<Record<string, string>> = {
+  Lunes: 'Monday',
+  Martes: 'Tuesday',
+  'Mi\u00e9rcoles': 'Wednesday',
+  Jueves: 'Thursday',
+  Viernes: 'Friday',
+  'S\u00e1bado': 'Saturday',
+  Domingo: 'Sunday',
+};
+
 /** Legacy season keys used when season mode groups anime by watch state. */
 export const EPISODE_SEASON_OPTIONS = ['Sin ver', 'Visto', 'Ver hoy'] as const;
 

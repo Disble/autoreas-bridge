@@ -43,8 +43,8 @@ export const SEASON_SECTION_TABS: readonly SeasonSectionTab[] = [
   { id: 'ordering', label: 'Ordering', available: true },
 ];
 
-/** Page heading for the Season Workspace route. */
-export const SEASON_WORKSPACE_TITLE = 'Season Workspace';
+/** Page heading for the Season Workspace route. Must equal the nav item label exactly. */
+export const SEASON_WORKSPACE_TITLE = 'Season';
 /** Empty-state title shown when no season is open. */
 export const SEASON_WORKSPACE_EMPTY_TITLE = 'No open season';
 /** Empty-state helper message shown alongside the create-season form. */

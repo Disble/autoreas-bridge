@@ -1,7 +1,10 @@
 import { Icon } from '@iconify/react';
 import { NavLink, Outlet } from 'react-router';
 import { NotificationToasts } from '../NotificationToasts';
-import { APP_LAYOUT_BRIDGE_MARK_PATHS, APP_LAYOUT_NAV_ITEMS } from '../../shared/navigation/app-layout.constants';
+import { SeasonNavBadge } from '../../features/navigation/SeasonNavBadge';
+import { SyncStatusChip } from '../../features/navigation/SyncStatusChip';
+import { APP_LAYOUT_BRIDGE_MARK_PATHS, APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
+import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { railItemClass, tabItemClass } from './AppLayout.helpers';
 
 /**
@@ -60,19 +63,27 @@ export function AppLayout() {
             </div>
           </div>
 
-          <nav aria-label="Bridge primary navigation" className="flex flex-col gap-1 px-2 py-1">
-            {APP_LAYOUT_NAV_ITEMS.map(({ to, label, icon }) => (
-              <NavLink className={railItemClass} key={to} to={to}>
-                <Icon aria-hidden="true" className="size-5 shrink-0" icon={icon} />
-                <span className="overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
-                  {label}
-                </span>
-              </NavLink>
+          <nav aria-label="Bridge primary navigation" className="flex flex-1 flex-col gap-1 px-2 py-1">
+            {APP_LAYOUT_NAV_GROUPS.map((group) => (
+              <div className={group.pinned ? 'mt-auto flex flex-col gap-1' : 'flex flex-col gap-1'} key={group.id}>
+                <p className="truncate px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
+                  {group.label}
+                </p>
+                {group.items.map(({ to, label, icon }) => (
+                  <NavLink className={railItemClass} key={to} to={to}>
+                    <Icon aria-hidden="true" className="size-5 shrink-0" icon={icon} />
+                    <span className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
+                      {label}
+                      {to === '/season' ? <SeasonNavBadge /> : null}
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
 
-          <div className="mt-auto px-3 pb-4 pt-2 text-[11px] text-muted opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
-            <p className="truncate">Desktop ↔ Mobile sync</p>
+          <div className="px-3 pb-4 pt-2 opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
+            <SyncStatusChip />
           </div>
         </aside>
 
@@ -87,7 +98,7 @@ export function AppLayout() {
         aria-label="Bridge mobile navigation"
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-divider/60 bg-background/90 backdrop-blur md:hidden"
       >
-        {APP_LAYOUT_NAV_ITEMS.map(({ to, label, icon }) => (
+        {flattenNavItems(APP_LAYOUT_NAV_GROUPS).map(({ to, label, icon }) => (
           <NavLink className={tabItemClass} key={to} to={to}>
             <Icon aria-hidden="true" className="size-5" icon={icon} />
             <span className="font-medium">{label}</span>

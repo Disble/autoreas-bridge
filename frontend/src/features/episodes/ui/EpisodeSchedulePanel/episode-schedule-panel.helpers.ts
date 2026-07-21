@@ -1,4 +1,5 @@
 import {
+  EPISODE_DAY_LABELS_EN,
   EPISODE_DAY_OPTIONS,
   EPISODE_RUNTIME_UNAVAILABLE_RESULT,
   EPISODE_SCHEDULE_EMPTY_COVERS,
@@ -127,6 +128,15 @@ export function getInitialEpisodeSelection(input: InitialEpisodeSelectionInput):
  */
 export function getDefaultEpisodeDay(date: Date = new Date()): string {
   return EPISODE_SCHEDULE_WEEKDAY_FORMATTER.format(date).replace(/^./, (char) => char.toUpperCase());
+}
+
+/**
+ * Renders the English weekday label for a Spanish weekday key. Non-weekday
+ * keys (e.g. the ADR-007 season status literals "Ver hoy"/"Visto") pass
+ * through unchanged since they are not translated by this map.
+ */
+export function episodeDayLabel(dayKey: string): string {
+  return EPISODE_DAY_LABELS_EN[dayKey] ?? dayKey;
 }
 
 /**

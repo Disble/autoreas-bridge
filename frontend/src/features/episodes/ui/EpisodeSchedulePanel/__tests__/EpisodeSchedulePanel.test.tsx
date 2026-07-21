@@ -148,7 +148,7 @@ describe('EpisodeSchedulePanel', () => {
 
       fireEvent.click(screen.getByRole('radio', { name: 'Daily' }));
 
-      expect(await screen.findByRole('radio', { name: /Lunes/ })).toBeInTheDocument();
+      expect(await screen.findByRole('radio', { name: /Monday/ })).toBeInTheDocument();
       expect(screen.queryByRole('radio', { name: /Sin ver/ })).not.toBeInTheDocument();
     });
   });
@@ -159,7 +159,7 @@ describe('EpisodeSchedulePanel', () => {
 
       render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
-      const viernesOption = await screen.findByRole('radio', { name: /Viernes/ });
+      const viernesOption = await screen.findByRole('radio', { name: /Friday/ });
       expect(viernesOption).toHaveTextContent('2');
     });
 
@@ -168,8 +168,8 @@ describe('EpisodeSchedulePanel', () => {
 
       render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
-      const viernesOption = await screen.findByRole('radio', { name: 'Viernes' });
-      expect(viernesOption).toHaveTextContent('Viernes');
+      const viernesOption = await screen.findByRole('radio', { name: 'Friday' });
+      expect(viernesOption).toHaveTextContent('Friday');
       expect(screen.queryByText('0')).not.toBeInTheDocument();
     });
   });

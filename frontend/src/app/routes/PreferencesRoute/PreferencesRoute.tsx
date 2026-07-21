@@ -9,11 +9,11 @@ export function PreferencesRoute() {
   return (
     <div className="flex flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Opciones</h1>
-        <p className="text-sm text-muted">Configura el comportamiento de la aplicación</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Settings</h1>
+        <p className="text-sm text-muted">Configure application behavior</p>
       </header>
 
-      <Tabs defaultSelectedKey="devices">
+      <Tabs defaultSelectedKey="downloads">
         <Tabs.ListContainer>
           <Tabs.List aria-label="Options categories">
             {PREFERENCES_ROUTE_TABS.map((tab) => (

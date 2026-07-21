@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEpisodeScheduleSource, dayBadge, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
+import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
 import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
 describe('toEpisodeScheduleRows', () => {
@@ -206,5 +206,23 @@ describe('dayBadge', () => {
 
   it('returns undefined for a day absent from the counts list', () => {
     expect(dayBadge('Domingo', counts)).toBeUndefined();
+  });
+});
+
+describe('episodeDayLabel', () => {
+  it('returns the English weekday name for each Spanish weekday key', () => {
+    expect(episodeDayLabel('Lunes')).toBe('Monday');
+    expect(episodeDayLabel('Martes')).toBe('Tuesday');
+    expect(episodeDayLabel('Miércoles')).toBe('Wednesday');
+    expect(episodeDayLabel('Jueves')).toBe('Thursday');
+    expect(episodeDayLabel('Viernes')).toBe('Friday');
+    expect(episodeDayLabel('Sábado')).toBe('Saturday');
+    expect(episodeDayLabel('Domingo')).toBe('Sunday');
+  });
+
+  it('leaves ADR-007 season status literals unchanged (not weekday keys)', () => {
+    expect(episodeDayLabel('Ver hoy')).toBe('Ver hoy');
+    expect(episodeDayLabel('Visto')).toBe('Visto');
+    expect(episodeDayLabel('Sin ver')).toBe('Sin ver');
   });
 });

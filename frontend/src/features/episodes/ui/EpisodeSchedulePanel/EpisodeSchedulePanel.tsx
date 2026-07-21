@@ -1,7 +1,7 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
 import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODES_EMPTY_MESSAGE } from './episode-schedule-panel.constants';
-import { dayBadge, toEpisodeViewLens } from './episode-schedule-panel.helpers';
+import { dayBadge, episodeDayLabel, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
 
@@ -26,8 +26,8 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
     <section className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <Typography type="h1" className="text-3xl font-semibold tracking-tight text-foreground">
-            {selectedDay}
+          <Typography type="h2" className="text-3xl font-semibold tracking-tight text-foreground">
+            {episodeDayLabel(selectedDay)}
           </Typography>
           <ToggleButtonGroup aria-label={EPISODE_LENS_TOGGLE_LABEL} disallowEmptySelection selectedKeys={[lens]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectLens(toEpisodeViewLens(String(Array.from(keys)[0] ?? lens)))}>
             {EPISODE_LENS_OPTIONS.map((option) => (
@@ -42,7 +42,7 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
             const badgeCount = dayBadge(day, dayCounts);
             return (
               <ToggleButton id={day} key={day}>
-                {day}
+                {episodeDayLabel(day)}
                 {badgeCount === undefined ? null : (
                   <Chip size="sm" variant="soft">
                     {badgeCount}

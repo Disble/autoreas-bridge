@@ -54,7 +54,7 @@ describe('AnimeEditorWorkspace', () => {
 
     render(<MemoryRouter><AnimeEditorWorkspace /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { name: 'Anime Editor' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Deactivate anime' })).toBeInTheDocument();
   });

@@ -11,7 +11,7 @@ export function AnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProps>)
   return (
     <section className="flex min-h-screen flex-col gap-4">
       <header className="flex items-start justify-between gap-4">
-        <div><Typography type="h1">Anime Editor</Typography><Typography color="muted" type="body-sm">Edit anime metadata and schedule from one focused workspace.</Typography></div>
+        <div><Typography type="h1">Editor</Typography><Typography color="muted" type="body-sm">Edit anime metadata and schedule from one focused workspace.</Typography></div>
         {viewModel.isDirty && <Chip color="warning" size="sm" variant="soft">Unsaved changes</Chip>}
       </header>
       {viewModel.feedback !== undefined && <Alert status="default"><Alert.Indicator /><Alert.Content><Alert.Description>{viewModel.feedback}</Alert.Description></Alert.Content></Alert>}
