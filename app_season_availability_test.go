@@ -129,11 +129,11 @@ func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
 	}}}
 
 	got := app.animeOverlaysByID(context.Background())
-	if got["anime-1"].section != "Sin ver" || got["anime-1"].folderPath != folder1 || got["anime-1"].pageURL != page1 {
-		t.Fatalf("animeOverlaysByID()[anime-1] = %#v, want section=Sin ver folderPath=%q pageURL=%q", got["anime-1"], folder1, page1)
+	if got["anime-1"].section != "Sin ver" || got["anime-1"].order != 1 || got["anime-1"].folderPath != folder1 || got["anime-1"].pageURL != page1 {
+		t.Fatalf("animeOverlaysByID()[anime-1] = %#v, want section=Sin ver order=1 folderPath=%q pageURL=%q", got["anime-1"], folder1, page1)
 	}
-	if got["anime-2"].section != "Visto" || got["anime-2"].folderPath != "" || got["anime-2"].pageURL != "" {
-		t.Fatalf("animeOverlaysByID()[anime-2] = %#v, want section=Visto with empty folder/page (nil pointers)", got["anime-2"])
+	if got["anime-2"].section != "Visto" || got["anime-2"].order != 2 || got["anime-2"].folderPath != "" || got["anime-2"].pageURL != "" {
+		t.Fatalf("animeOverlaysByID()[anime-2] = %#v, want section=Visto order=2 with empty folder/page (nil pointers)", got["anime-2"])
 	}
 }
 

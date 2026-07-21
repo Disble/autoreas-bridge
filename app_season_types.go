@@ -23,7 +23,8 @@ type SeasonAnimeCandidateDTO struct {
 
 // SeasonAnimeDTO is the Wails-facing projection of one intake/matching row.
 // Section is the created anime's current Estrenos section (Sin ver / Ver hoy /
-// Visto), empty for uncreated rows. Grade/GradeSource/RatedAt/SkipGrading carry
+// Visto) or weekday once its schedule is applied, empty for uncreated rows;
+// SectionOrder is its orden within that section (0 when unknown). Grade/GradeSource/RatedAt/SkipGrading carry
 // the SDD-44 first-episode grade (grade 0 = ungraded, ratedAt null until graded).
 // FolderPath/PageURL are the created anime's desktop-action targets (download
 // folder, source page), empty for uncreated rows. This DTO is Wails-only (never
@@ -39,6 +40,7 @@ type SeasonAnimeDTO struct {
 	AvailableEpisodes int                       `json:"availableEpisodes"`
 	AnimeID           string                    `json:"animeId"`
 	Section           string                    `json:"section"`
+	SectionOrder      int                       `json:"sectionOrder"`
 	Grade             int                       `json:"grade"`
 	GradeSource       string                    `json:"gradeSource"`
 	RatedAt           *int64                    `json:"ratedAt"`

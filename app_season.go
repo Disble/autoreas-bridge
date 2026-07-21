@@ -108,6 +108,7 @@ func (a *App) seasonAnimeDTOs(ctx context.Context, rows []domain.SeasonAnime) []
 		if r.AnimeID != "" {
 			overlay := overlays[r.AnimeID]
 			dto.Section = overlay.section
+			dto.SectionOrder = overlay.order
 			dto.FolderPath = overlay.folderPath
 			dto.PageURL = overlay.pageURL
 		}

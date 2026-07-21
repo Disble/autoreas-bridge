@@ -92,6 +92,7 @@ func (a *App) readRecordLister() (animeReadRecordLister, bool) {
 // source page) so the season board can open/copy them without a second read.
 type animeOverlay struct {
 	section    string
+	order      int
 	folderPath string
 	pageURL    string
 }
@@ -126,6 +127,7 @@ func (a *App) animeOverlaysByID(ctx context.Context) map[string]animeOverlay {
 		}
 		if days := record.Value.Days; len(days) > 0 {
 			overlay.section = days[0].Day
+			overlay.order = int(days[0].Order)
 		}
 		out[record.Value.ID] = overlay
 	}

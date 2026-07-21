@@ -1,9 +1,12 @@
 import type { SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import { WEEKDAY_SECTIONS } from './daily-board.constants';
 import type { BoardSections } from './daily-board.types';
 
 /**
  * Groups the CREATED season animes by their live Estrenos section. Only created
  * animes reach the Daily Board; an unknown/empty section falls into Sin ver.
+ * A weekday section means the anime graduated (its schedule was applied): it
+ * lists under Visto — its last conveyor state — never back in the Sin ver pool.
  */
 export function groupCreatedBySection(rows: readonly SeasonAnimeRow[]): BoardSections {
   const sinVer: SeasonAnimeRow[] = [];
@@ -22,12 +25,24 @@ export function groupCreatedBySection(rows: readonly SeasonAnimeRow[]): BoardSec
         visto.push(row);
         break;
       default:
-        sinVer.push(row);
+        (WEEKDAY_SECTIONS.has(row.section) ? visto : sinVer).push(row);
         break;
     }
   }
 
   return { sinVer, verHoy, visto };
+}
+
+/**
+ * Returns the weekday (plus its orden when known, e.g. "Domingo - 2") a graduated
+ * row is scheduled on, or null while the row still lives in an Estrenos section
+ * (or has no section yet).
+ */
+export function getScheduledDay(row: SeasonAnimeRow): string | null {
+  if (!WEEKDAY_SECTIONS.has(row.section)) {
+    return null;
+  }
+  return row.sectionOrder >= 1 ? `${row.section} - ${row.sectionOrder}` : row.section;
 }
 
 /**

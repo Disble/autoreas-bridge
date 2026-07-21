@@ -31,6 +31,7 @@ export interface SeasonAnimeRow {
   readonly availableEpisodes: number;
   readonly animeId: string;
   readonly section: string;
+  readonly sectionOrder: number;
   readonly grade: number;
   readonly gradeSource: string;
   readonly ratedAt?: number;

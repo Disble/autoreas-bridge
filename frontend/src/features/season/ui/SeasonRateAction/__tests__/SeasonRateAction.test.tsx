@@ -23,7 +23,7 @@ function candidate(grade: number): SeasonAnimeRow {
     candidates: [],
     availability: 'created', availableEpisodes: 0,
     animeId: 'anime-a',
-    section: 'Sin ver',
+    section: 'Sin ver', sectionOrder: 0,
     grade,
     gradeSource: 'manual',
     skipGrading: false,

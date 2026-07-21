@@ -49,6 +49,7 @@ function createdRow(id: string, animeId: string, section: string): SeasonAnimeRo
     availability: 'created', availableEpisodes: 0,
     animeId,
     section,
+    sectionOrder: 0,
     grade: 0,
     gradeSource: '',
     skipGrading: false,

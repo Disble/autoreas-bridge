@@ -18,7 +18,7 @@ function createdRow(id: string, animeId: string): SeasonAnimeRow {
     candidates: [],
     availability: 'created', availableEpisodes: 0,
     animeId,
-    section: 'Sin ver',
+    section: 'Sin ver', sectionOrder: 0,
     grade: 0,
     gradeSource: '',
     skipGrading: false,

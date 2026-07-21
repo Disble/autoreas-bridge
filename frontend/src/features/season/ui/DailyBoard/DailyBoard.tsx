@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { Alert, Button, Card, Chip, Tooltip } from '@heroui/react';
 import { LabeledCheckbox } from '../../../../shared/ui/LabeledCheckbox';
 import { DAILY_BOARD_EMPTY_MESSAGE } from './daily-board.constants';
-import { formatAvailableEpisodes, getSinVerAvailabilityIndicator } from './daily-board.helpers';
+import { formatAvailableEpisodes, getScheduledDay, getSinVerAvailabilityIndicator } from './daily-board.helpers';
 import { useDailyBoard } from './use-daily-board';
 
 /**
@@ -146,11 +146,19 @@ export function DailyBoard() {
                     </Chip>
                   </div>
                   <ul className="flex flex-col gap-1">
-                    {group.rows.map((row) => (
-                      <li key={row.id} className="text-sm text-foreground">
-                        {row.rawName}
-                      </li>
-                    ))}
+                    {group.rows.map((row) => {
+                      const scheduledDay = getScheduledDay(row);
+                      return (
+                        <li key={row.id} className="flex items-center gap-2 text-sm text-foreground">
+                          {row.rawName}
+                          {scheduledDay !== null && (
+                            <Chip color="accent" size="sm" variant="soft">
+                              {scheduledDay}
+                            </Chip>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ),

@@ -47,7 +47,7 @@ function created(animeId: string, grade: number): SeasonAnimeRow {
     candidates: [],
     availability: 'created', availableEpisodes: 0,
     animeId,
-    section: 'Sin ver',
+    section: 'Sin ver', sectionOrder: 0,
     grade,
     gradeSource: grade >= 1 ? 'manual' : '',
     skipGrading: false,

@@ -48,7 +48,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     candidates: [],
     availability: 'created', availableEpisodes: 0,
     animeId: 'anime-1',
-    section: 'Visto',
+    section: 'Visto', sectionOrder: 0,
     grade: 5,
     gradeSource: 'manual',
     skipGrading: false,

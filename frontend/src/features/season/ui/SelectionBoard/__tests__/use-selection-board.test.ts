@@ -70,7 +70,7 @@ function created(id: string, animeId: string, grade: number): SeasonAnimeRow {
     candidates: [],
     availability: 'created', availableEpisodes: 0,
     animeId,
-    section: 'Visto',
+    section: 'Visto', sectionOrder: 0,
     grade,
     gradeSource: 'manual',
     skipGrading: false,

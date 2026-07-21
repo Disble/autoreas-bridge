@@ -25,7 +25,7 @@ function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     availability: 'pending',
     availableEpisodes: 0,
     animeId: '',
-    section: '',
+    section: '', sectionOrder: 0,
     grade: 0,
     gradeSource: '',
     skipGrading: false,
@@ -39,7 +39,7 @@ function createdRow(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
     matchStatus: 'matched',
     availability: 'created',
     animeId: 'anime-x',
-    section: 'Visto',
+    section: 'Visto', sectionOrder: 0,
     ...overrides,
   });
 }

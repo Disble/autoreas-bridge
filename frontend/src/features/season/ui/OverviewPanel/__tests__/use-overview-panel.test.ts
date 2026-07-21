@@ -50,6 +50,7 @@ function createdRow(id: string, animeId: string, grade: number, section = 'Visto
     availableEpisodes: 0,
     animeId,
     section,
+    sectionOrder: 0,
     grade,
     gradeSource: grade >= 1 ? 'manual' : '',
     skipGrading: false,

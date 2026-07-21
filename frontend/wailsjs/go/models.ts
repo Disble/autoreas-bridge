@@ -1518,6 +1518,7 @@ export namespace main {
 	    availableEpisodes: number;
 	    animeId: string;
 	    section: string;
+	    sectionOrder: number;
 	    grade: number;
 	    gradeSource: string;
 	    ratedAt?: number;
@@ -1541,6 +1542,7 @@ export namespace main {
 	        this.availableEpisodes = source["availableEpisodes"];
 	        this.animeId = source["animeId"];
 	        this.section = source["section"];
+	        this.sectionOrder = source["sectionOrder"];
 	        this.grade = source["grade"];
 	        this.gradeSource = source["gradeSource"];
 	        this.ratedAt = source["ratedAt"];

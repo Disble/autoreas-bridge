@@ -12,7 +12,7 @@ vi.mock('../use-daily-board', () => ({
 const mockedUseDailyBoard = vi.mocked(useDailyBoard);
 type HookReturn = ReturnType<typeof useDailyBoard>;
 
-function created(id: string, animeId: string, section: string): SeasonAnimeRow {
+function created(id: string, animeId: string, section: string, sectionOrder = 0): SeasonAnimeRow {
   return {
     id,
     rawName: id.toUpperCase(),
@@ -22,6 +22,7 @@ function created(id: string, animeId: string, section: string): SeasonAnimeRow {
     availability: 'created', availableEpisodes: 0,
     animeId,
     section,
+    sectionOrder,
     grade: 0,
     gradeSource: '',
     skipGrading: false,
@@ -94,6 +95,21 @@ describe('DailyBoard', () => {
     expect(screen.getByText(/Visto — watched/)).toBeInTheDocument();
     expect(screen.getByText('B')).toBeInTheDocument();
     expect(screen.getByText('C')).toBeInTheDocument();
+  });
+
+  it('shows a scheduled-day chip on graduated Visto rows only', () => {
+    mockHook({
+      sections: {
+        sinVer: [],
+        verHoy: [],
+        visto: [created('c', 'anime-c', 'Visto'), created('d', 'anime-d', 'Domingo', 2)],
+      },
+    });
+    render(<DailyBoard />);
+    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getByText('D')).toBeInTheDocument();
+    expect(screen.getByText('Domingo - 2')).toBeInTheDocument();
+    expect(screen.queryByText('Visto', { exact: true })).not.toBeInTheDocument();
   });
 
   it('re-check now triggers a recheck', () => {
