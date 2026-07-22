@@ -31,7 +31,7 @@ describe('useSyncingAnimePanel', () => {
           progressCurrent: 18,
           progressTotal: 24,
           lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 15, 0),
-          activo: 1,
+          active: 1,
         },
       ]),
     });
@@ -60,7 +60,7 @@ describe('useSyncingAnimePanel', () => {
             changedFields: ['estado'],
           progressCurrent: 12,
           lastChangedAtMs: Date.UTC(2026, 5, 20, 18, 30, 0),
-          activo: 1,
+          active: 1,
           },
         ]),
     });

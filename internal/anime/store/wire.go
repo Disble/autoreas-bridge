@@ -10,17 +10,18 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 )
 
-// AnimeRaw is the lossless legacy wire envelope. Spanish identifiers are
-// intentionally confined to this adapter; unknown fields remain opaque JSON.
+// AnimeRaw is the lossless canonical wire envelope. SDD-56 hard-cuts the
+// vocabulary from Legacy-inherited Spanish to English; unknown fields remain
+// opaque JSON.
 type AnimeRaw struct {
-	ID          string  `json:"_id"`
-	Nombre      string  `json:"nombre"`
-	NroCapVisto float64 `json:"nrocapvisto"`
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	EpisodesWatched float64 `json:"episodesWatched"`
 
 	extraFields map[string]json.RawMessage
 }
 
-// SetStringField stores a nullable string field in the raw legacy payload.
+// SetStringField stores a nullable string field in the raw payload.
 func (r *AnimeRaw) SetStringField(key string, value *string) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
@@ -29,7 +30,7 @@ func (r *AnimeRaw) SetStringField(key string, value *string) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-// SetIntField stores a nullable integer field in the raw legacy payload.
+// SetIntField stores a nullable integer field in the raw payload.
 func (r *AnimeRaw) SetIntField(key string, value *int) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
@@ -38,7 +39,7 @@ func (r *AnimeRaw) SetIntField(key string, value *int) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-// SetFloatField stores a nullable numeric field in the raw legacy payload.
+// SetFloatField stores a nullable numeric field in the raw payload.
 func (r *AnimeRaw) SetFloatField(key string, value *float64) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
@@ -47,36 +48,36 @@ func (r *AnimeRaw) SetFloatField(key string, value *float64) {
 	r.extraFields[key] = mustJSON(*value)
 }
 
-// SetBoolField stores a boolean field in the raw legacy payload.
+// SetBoolField stores a boolean field in the raw payload.
 func (r *AnimeRaw) SetBoolField(key string, value bool) {
 	r.extraFields[key] = mustJSON(value)
 }
 
-// SetDateField stores a nullable legacy $$date wrapper field.
+// SetDateField stores a nullable epoch-millis date field.
 func (r *AnimeRaw) SetDateField(key string, value *time.Time) {
 	if value == nil {
 		r.extraFields[key] = mustJSON(nil)
 		return
 	}
-	r.extraFields[key] = mustJSON(legacyDateWrapper{Date: value.UTC().UnixMilli()})
+	r.extraFields[key] = mustJSON(value.UTC().UnixMilli())
 }
 
-// SetDays stores modern dias[] placement data and removes legacy dia/orden fields.
+// SetDays stores modern days[] placement data and removes the flat single-day fallback fields.
 func (r *AnimeRaw) SetDays(days []AnimeDay) {
-	r.extraFields["dias"] = mustJSON(days)
-	delete(r.extraFields, "dia")
-	delete(r.extraFields, "orden")
+	r.extraFields["days"] = mustJSON(days)
+	delete(r.extraFields, "day")
+	delete(r.extraFields, "order")
 }
 
-// SetStringArrayField stores a string slice field in the raw legacy payload.
+// SetStringArrayField stores a string slice field in the raw payload.
 func (r *AnimeRaw) SetStringArrayField(key string, values []string) {
 	r.extraFields[key] = mustJSON(values)
 }
 
-// SetPortada updates the legacy portada.path field while preserving unknown portada keys.
-func (r *AnimeRaw) SetPortada(path string) {
+// SetCoverPath updates the cover.path field while preserving unknown cover keys.
+func (r *AnimeRaw) SetCoverPath(path string) {
 	raw := map[string]json.RawMessage{}
-	if current, ok := nonNullField(r.extraFields, "portada"); ok {
+	if current, ok := nonNullField(r.extraFields, "cover"); ok {
 		_ = json.Unmarshal(current, &raw)
 	}
 	if len(raw) == 0 {
@@ -86,40 +87,40 @@ func (r *AnimeRaw) SetPortada(path string) {
 	if _, ok := raw["type"]; !ok {
 		raw["type"] = mustJSON("url")
 	}
-	r.extraFields["portada"] = mustJSON(raw)
+	r.extraFields["cover"] = mustJSON(raw)
 }
 
-// SetStudios updates estudios while preserving the legacy clear-versus-null semantics.
+// SetStudios updates studios while preserving the clear-versus-null semantics.
 func (r *AnimeRaw) SetStudios(clear bool, values []string) {
 	if !clear {
-		r.SetStringArrayField("estudios", append([]string{}, values...))
+		r.SetStringArrayField("studios", append([]string{}, values...))
 		return
 	}
-	current, exists := r.extraFields["estudios"]
+	current, exists := r.extraFields["studios"]
 	if !exists {
 		return
 	}
 	if bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
-		r.extraFields["estudios"] = mustJSON(nil)
+		r.extraFields["studios"] = mustJSON(nil)
 		return
 	}
-	r.SetStringArrayField("estudios", []string{})
+	r.SetStringArrayField("studios", []string{})
 }
 
-// SetCover updates portada while preserving caller-provided extra metadata keys.
+// SetCover updates cover while preserving caller-provided extra metadata keys.
 func (r *AnimeRaw) SetCover(clear bool, coverType, path string, extra map[string]json.RawMessage) {
 	if clear {
-		if current, exists := r.extraFields["portada"]; !exists || bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
+		if current, exists := r.extraFields["cover"]; !exists || bytes.Equal(bytes.TrimSpace(current), []byte("null")) {
 			if exists {
-				r.extraFields["portada"] = mustJSON(nil)
+				r.extraFields["cover"] = mustJSON(nil)
 			}
 			return
 		}
-		r.SetPortada("")
+		r.SetCoverPath("")
 		return
 	}
 	raw := map[string]json.RawMessage{}
-	if current, ok := nonNullField(r.extraFields, "portada"); ok {
+	if current, ok := nonNullField(r.extraFields, "cover"); ok {
 		_ = json.Unmarshal(current, &raw)
 	}
 	for key, value := range extra {
@@ -127,39 +128,35 @@ func (r *AnimeRaw) SetCover(clear bool, coverType, path string, extra map[string
 	}
 	raw["type"] = mustJSON(coverType)
 	raw["path"] = mustJSON(path)
-	r.extraFields["portada"] = mustJSON(raw)
+	r.extraFields["cover"] = mustJSON(raw)
 }
 
-// DeleteField removes one raw field from the legacy payload.
+// DeleteField removes one raw field from the payload.
 func (r *AnimeRaw) DeleteField(key string) {
 	delete(r.extraFields, key)
 }
 
-// AnimeDay is the raw legacy schedule placement entry.
+// AnimeDay is the raw schedule placement entry.
 type AnimeDay struct {
-	Dia   string  `json:"dia"`
-	Orden float64 `json:"orden"`
+	Day   string  `json:"day"`
+	Order float64 `json:"order"`
 }
 
-type legacyDateWrapper struct {
-	Date int64 `json:"$$date"`
-}
-
-// UnmarshalJSON decodes a lossless raw legacy payload while validating key fields.
+// UnmarshalJSON decodes a lossless raw payload while validating key fields.
 func (r *AnimeRaw) UnmarshalJSON(data []byte) error {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &fields); err != nil {
-		return fmt.Errorf("unmarshal legacy anime payload: %w", err)
+		return fmt.Errorf("unmarshal anime payload: %w", err)
 	}
 
 	r.extraFields = cloneFields(fields)
-	if err := unmarshalKnown(fields, "_id", &r.ID); err != nil {
+	if err := unmarshalKnown(fields, "id", &r.ID); err != nil {
 		return err
 	}
-	if err := unmarshalKnown(fields, "nombre", &r.Nombre); err != nil {
+	if err := unmarshalKnown(fields, "name", &r.Name); err != nil {
 		return err
 	}
-	if err := unmarshalKnown(fields, "nrocapvisto", &r.NroCapVisto); err != nil {
+	if err := unmarshalKnown(fields, "episodesWatched", &r.EpisodesWatched); err != nil {
 		return err
 	}
 	if err := validateKnownFields(fields); err != nil {
@@ -169,12 +166,12 @@ func (r *AnimeRaw) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON re-encodes the lossless raw legacy payload with deterministic key order.
+// MarshalJSON re-encodes the lossless raw payload with deterministic key order.
 func (r AnimeRaw) MarshalJSON() ([]byte, error) {
 	fields := cloneFields(r.extraFields)
-	fields["_id"] = mustJSON(r.ID)
-	fields["nombre"] = mustJSON(r.Nombre)
-	fields["nrocapvisto"] = mustJSON(r.NroCapVisto)
+	fields["id"] = mustJSON(r.ID)
+	fields["name"] = mustJSON(r.Name)
+	fields["episodesWatched"] = mustJSON(r.EpisodesWatched)
 	return marshalFields(fields)
 }
 
@@ -199,7 +196,7 @@ func nonNullField(fields map[string]json.RawMessage, key string) (json.RawMessag
 	return value, true
 }
 
-// number decodes an optional numeric legacy field.
+// number decodes an optional numeric field.
 func (r AnimeRaw) number(key string) *float64 {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
@@ -212,7 +209,7 @@ func (r AnimeRaw) number(key string) *float64 {
 	return &decoded
 }
 
-// integer decodes an optional integer legacy field.
+// integer decodes an optional integer field.
 func (r AnimeRaw) integer(key string) *int {
 	value := r.number(key)
 	if value == nil {
@@ -222,7 +219,7 @@ func (r AnimeRaw) integer(key string) *int {
 	return &decoded
 }
 
-// stringValue decodes an optional string legacy field.
+// stringValue decodes an optional string field.
 func (r AnimeRaw) stringValue(key string) *string {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
@@ -235,21 +232,21 @@ func (r AnimeRaw) stringValue(key string) *string {
 	return &decoded
 }
 
-// date decodes an optional legacy date field.
+// date decodes an optional epoch-millis date field.
 func (r AnimeRaw) date(key string) *time.Time {
 	value, ok := nonNullField(r.extraFields, key)
 	if !ok {
 		return nil
 	}
-	var wrapper legacyDateWrapper
-	if json.Unmarshal(value, &wrapper) != nil {
+	var millis int64
+	if json.Unmarshal(value, &millis) != nil {
 		return nil
 	}
-	decoded := time.UnixMilli(wrapper.Date).UTC()
+	decoded := time.UnixMilli(millis).UTC()
 	return &decoded
 }
 
-// triState decodes a legacy boolean field into a tri-state value.
+// triState decodes a boolean field into a tri-state value.
 func (r AnimeRaw) triState(key string) domain.TriState {
 	value, exists := r.extraFields[key]
 	if !exists {
@@ -262,21 +259,21 @@ func (r AnimeRaw) triState(key string) domain.TriState {
 	return domain.TriStateTrue
 }
 
-// days decodes legacy schedule fields into anime days.
+// days decodes schedule fields into anime days.
 func (r AnimeRaw) days() []AnimeDay {
-	value, ok := nonNullField(r.extraFields, "dias")
+	value, ok := nonNullField(r.extraFields, "days")
 	if ok {
 		var days []AnimeDay
 		if json.Unmarshal(value, &days) == nil && len(days) > 0 {
 			return days
 		}
 	}
-	day := r.stringValue("dia")
-	order := r.number("orden")
+	day := r.stringValue("day")
+	order := r.number("order")
 	if day == nil || order == nil {
 		return nil
 	}
-	return []AnimeDay{{Dia: *day, Orden: *order}}
+	return []AnimeDay{{Day: *day, Order: *order}}
 }
 
 // cloneFields copies raw JSON field values into a new map.

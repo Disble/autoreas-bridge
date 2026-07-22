@@ -65,11 +65,11 @@ function toOutcome(outcome: string): AnimeEditorSaveResult['outcome'] {
 }
 
 function toSchedulePlacement(placement: wailsContracts.MobileAnimeDay): AnimeSchedulePlacement {
-  return { day: placement.dia, order: placement.orden };
+  return { day: placement.day, order: placement.order };
 }
 
 function toWailsSchedulePlacement(placement: AnimeSchedulePlacement): wailsContracts.MobileAnimeDay {
-  return { dia: placement.day, orden: placement.order };
+  return { day: placement.day, order: placement.order };
 }
 
 function toStudiosKind(record: wailsContracts.AnimeEditorRecord): 'missing' | 'null' | 'empty' | 'values' {
@@ -85,7 +85,7 @@ function toStudiosKind(record: wailsContracts.AnimeEditorRecord): 'missing' | 'n
 function toAnimeEditorFrequentFields(record: wailsContracts.AnimeEditorRecord): AnimeEditorRecord['frequent'] {
   const totalEpisodes = nullableValue(record.frequent.totalEpisodes);
   const kind = nullableValue(record.frequent.kind);
-  const page = nullableValue(record.frequent.page);
+  const page = nullableValue(record.frequent.sourceUrl);
   const folder = nullableValue(record.frequent.folder);
   return {
     name: record.frequent.name, status: record.frequent.status, progress: record.frequent.progress,

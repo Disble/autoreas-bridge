@@ -23,7 +23,7 @@ func TestGetAnimeEditorRecordReturnsNilWhenServiceUnavailable(t *testing.T) {
 func TestGetAnimeEditorRecordDelegatesToEditorQuery(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"estudios":["Madhouse"],"portada":{"type":"url","path":"C:/covers/frieren.jpg"}}`, 777)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"studios":["Madhouse"],"cover":{"type":"url","path":"C:/covers/frieren.jpg"}}`, 777)
 	query := anime.NewQueryService(store)
 	app := &App{ctx: context.Background(), animeEditorQuery: query}
 
@@ -36,7 +36,7 @@ func TestGetAnimeEditorRecordDelegatesToEditorQuery(t *testing.T) {
 func TestSaveAnimeEditorDelegatesToEditorService(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
 	writer := &stubAppUpdateWriter{}
 	service := anime.NewEditorService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
@@ -76,7 +76,7 @@ func TestApplyAnimeEditorScheduleReturnsExplicitOutcomeWhenServiceUnavailable(t 
 func TestGetAnimeEditorScheduleBoardDelegatesToScheduleQuery(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","activo":true,"dias":[{"dia":"Viernes","orden":1}]}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","active":true,"days":[{"day":"Viernes","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{ctx: context.Background(), animeEditorScheduleQuery: anime.NewScheduleQueryService(query)}
 
@@ -89,7 +89,7 @@ func TestGetAnimeEditorScheduleBoardDelegatesToScheduleQuery(t *testing.T) {
 func TestSaveAnimeEditorReturnsErrorOutcomeForValidationFailure(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
 	writer := &stubAppUpdateWriter{}
 	service := anime.NewEditorService(store, writer)
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
@@ -103,7 +103,7 @@ func TestSaveAnimeEditorReturnsErrorOutcomeForValidationFailure(t *testing.T) {
 func TestSaveAnimeEditorReturnsConflictWithRefreshedRecord(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
 	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: bridgeSync.NewConflictStore(db)})
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
@@ -117,15 +117,15 @@ func TestSaveAnimeEditorReturnsConflictWithRefreshedRecord(t *testing.T) {
 func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicitOutcome(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2}`, 100)
 	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
 	requests := []string{
 		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"totalEpisodes":{"present":true,"value":"twelve"}}}`,
 		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"modified_at":100}}`,
-		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"repetir":[]}}`,
-		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"primeravez":false}}`,
-		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"_id":"other"}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"repetitions":[]}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"firstCycle":false}}`,
+		`{"animeId":"anime-1","baseModifiedAt":100,"patch":{"id":"other"}}`,
 	}
 	for _, payload := range requests {
 		var command SaveAnimeEditorCommandDTO
@@ -142,7 +142,7 @@ func TestSaveAnimeEditorRejectsMalformedNumericAndForbiddenOwnershipWithExplicit
 func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true}`, 100)
 	service := anime.NewEditorService(store, &stubAppUpdateWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(200).UTC() })
 	app := &App{ctx: context.Background(), animeEditorWrite: service, animeEditorQuery: anime.NewQueryService(store)}
@@ -155,13 +155,13 @@ func TestDeactivateAnimeReturnsAppliedAuthority(t *testing.T) {
 func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Lunes","orden":1}]}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Lunes","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
 		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
 		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
 	}
-	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 99, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 1}}}}})
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 99, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}}}}})
 	if got.Outcome != contracts.AnimePatchOutcomeConflict || got.Board == nil || got.Board.BoardModifiedAt != 100 || got.Message == "" {
 		t.Fatalf("expected schedule conflict with refreshed authority, got %#v", got)
 	}
@@ -170,13 +170,13 @@ func TestApplyAnimeEditorScheduleReturnsConflictWithRefreshedBoard(t *testing.T)
 func TestApplyAnimeEditorScheduleReturnsValidationErrorWithRefreshedBoard(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Lunes","orden":1}]}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Lunes","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
 		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
 		animeEditorScheduleQuery: anime.NewScheduleQueryService(query),
 	}
-	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Dia: "Unsafe", Orden: 1}}}}})
+	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{AnimeID: "anime-1", BaseModifiedAt: 100, Placements: []contracts.MobileAnimeDay{{Day: "Unsafe", Order: 1}}}}})
 	if got.Outcome != contracts.AnimePatchOutcomeError || got.Board == nil || got.Message == "" || got.Details["operation"] != "apply_schedule" {
 		t.Fatalf("expected validation error with refreshed board, got %#v", got)
 	}
@@ -185,7 +185,7 @@ func TestApplyAnimeEditorScheduleReturnsValidationErrorWithRefreshedBoard(t *tes
 func TestApplyAnimeEditorScheduleRejectsMalformedSundayPayloadWithoutWrite(t *testing.T) {
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"activo":true,"dias":[{"dia":"Domingo","orden":1}]}`, 100)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"active":true,"days":[{"day":"Domingo","order":1}]}`, 100)
 	query := anime.NewQueryService(store)
 	app := &App{
 		ctx: context.Background(), animeEditorScheduleWrite: anime.NewScheduleService(query, &stubAppUpdateWriter{}),
@@ -195,12 +195,12 @@ func TestApplyAnimeEditorScheduleRejectsMalformedSundayPayloadWithoutWrite(t *te
 	got := app.ApplyAnimeEditorSchedule(ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 100, Entries: []ApplyAnimeScheduleDraftEntryDTO{{
 		AnimeID:        "anime-1",
 		BaseModifiedAt: 100,
-		Placements:     []contracts.MobileAnimeDay{{Dia: "Domingo", Orden: 3}},
+		Placements:     []contracts.MobileAnimeDay{{Day: "Domingo", Order: 3}},
 	}}})
 	if got.Outcome != contracts.AnimePatchOutcomeError || got.Board == nil || got.Message != "apply anime editor schedule: non-contiguous positions for Domingo" || got.Details["operation"] != "apply_schedule" {
 		t.Fatalf("expected exact malformed Sunday validation outcome, got %#v", got)
 	}
-	if got.Board.BoardModifiedAt != 100 || len(got.Board.Entries) != 1 || len(got.Board.Entries[0].Placements) != 1 || got.Board.Entries[0].Placements[0].Dia != "Domingo" || got.Board.Entries[0].Placements[0].Orden != 1 {
+	if got.Board.BoardModifiedAt != 100 || len(got.Board.Entries) != 1 || len(got.Board.Entries[0].Placements) != 1 || got.Board.Entries[0].Placements[0].Day != "Domingo" || got.Board.Entries[0].Placements[0].Order != 1 {
 		t.Fatalf("expected unchanged authoritative Sunday board after rejection, got %#v", got.Board)
 	}
 	after, err := query.GetReadRecord(context.Background(), "anime-1")
@@ -208,27 +208,27 @@ func TestApplyAnimeEditorScheduleRejectsMalformedSundayPayloadWithoutWrite(t *te
 		t.Fatalf("read unchanged snapshot after malformed Sunday apply: %v", err)
 	}
 	placements := decodeRuntimeScheduleDays(t, after.Snapshot.CanonicalJSON)
-	if len(placements) != 1 || placements[0].Dia != "Domingo" || placements[0].Orden != 1 {
+	if len(placements) != 1 || placements[0].Day != "Domingo" || placements[0].Order != 1 {
 		t.Fatalf("expected zero write for malformed Sunday payload, got %+v", placements)
 	}
 }
 
 // decodeRuntimeScheduleDays decodes day placements from a schedule payload.
 func decodeRuntimeScheduleDays(t *testing.T, payload []byte) []struct {
-	Dia   string  `json:"dia"`
-	Orden float64 `json:"orden"`
+	Day   string  `json:"day"`
+	Order float64 `json:"order"`
 } {
 	t.Helper()
 	var decoded struct {
-		Dias []struct {
-			Dia   string  `json:"dia"`
-			Orden float64 `json:"orden"`
-		} `json:"dias"`
+		Days []struct {
+			Day   string  `json:"day"`
+			Order float64 `json:"order"`
+		} `json:"days"`
 	}
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		t.Fatalf("decode runtime schedule payload days: %v", err)
 	}
-	return decoded.Dias
+	return decoded.Days
 }
 
 func TestEditorReadBindingsReturnInfrastructureErrorsWithoutZeroValueAuthority(t *testing.T) {
@@ -274,7 +274,7 @@ func (p *runtimeSchedulePublisher) animeIDs() []string {
 func runtimeAnimeIDFromSchedulePayload(t *testing.T, payload string) string {
 	t.Helper()
 	var decoded struct {
-		ID string `json:"_id"`
+		ID string `json:"id"`
 	}
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		t.Fatalf("decode runtime anime id from payload: %v", err)

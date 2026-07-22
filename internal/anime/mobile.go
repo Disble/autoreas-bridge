@@ -17,32 +17,32 @@ import (
 // legitimate base value, not a sentinel for "unknown".
 func mobileAnimeFromDomain(value domain.Anime, modifiedAt int64) contracts.MobileAnime {
 	item := contracts.MobileAnime{
-		ID:               value.ID,
-		Nombre:           value.Title,
-		Estado:           intValueOrDefault(value.Status, 0),
-		NroCapVisto:      value.Progress,
-		Activo:           triStateToInt(value.Active),
-		PrimeraVez:       triStateToInt(value.FirstCycle),
-		Dias:             mobileDays(value.Days),
-		Generos:          cloneStrings(value.Genres),
-		Tipo:             cloneInt(value.ContentType),
-		FechaUltCapVisto: timeToMillis(value.LastWatchedAt),
-		FechaEstreno:     timeToMillis(value.PremieredAt),
-		FechaCreacion:    timeToMillis(value.CreatedAt),
-		FechaEliminacion: timeToMillis(value.DeletedAt),
-		Portada:          cloneString(value.CoverPath),
-		Pagina:           cloneString(value.SourceURL),
-		Carpeta:          cloneString(value.Folder),
-		Estudios:         joinedStrings(value.Studios),
-		Origen:           cloneString(value.Origin),
-		Duracion:         floatToInt(value.DurationMinutes),
-		Repetir:          mobileRepetitions(value.Repetitions),
-		ModifiedAt:       modifiedAt,
+		ID:              value.ID,
+		Name:            value.Title,
+		Status:          intValueOrDefault(value.Status, 0),
+		EpisodesWatched: value.Progress,
+		Active:          triStateToInt(value.Active),
+		FirstCycle:      triStateToInt(value.FirstCycle),
+		Days:            mobileDays(value.Days),
+		Genres:          cloneStrings(value.Genres),
+		Kind:            cloneInt(value.ContentType),
+		LastWatchedAt:   timeToMillis(value.LastWatchedAt),
+		PremieredAt:     timeToMillis(value.PremieredAt),
+		CreatedAt:       timeToMillis(value.CreatedAt),
+		DeletedAt:       timeToMillis(value.DeletedAt),
+		Cover:           cloneString(value.CoverPath),
+		SourceURL:       cloneString(value.SourceURL),
+		Folder:          cloneString(value.Folder),
+		Studios:         joinedStrings(value.Studios),
+		Origin:          cloneString(value.Origin),
+		DurationMinutes: floatToInt(value.DurationMinutes),
+		Repetitions:     mobileRepetitions(value.Repetitions),
+		ModifiedAt:      modifiedAt,
 	}
 
 	if value.TotalEpisodes != nil {
 		converted := int(*value.TotalEpisodes)
-		item.TotalCap = &converted
+		item.TotalEpisodes = &converted
 	}
 
 	return item
@@ -68,7 +68,7 @@ func MobileAnimeFromSnapshotForSync(payload []byte) (contracts.MobileAnime, erro
 func mobileDays(values []domain.AnimeDay) []contracts.MobileAnimeDay {
 	result := make([]contracts.MobileAnimeDay, 0, len(values))
 	for _, value := range values {
-		result = append(result, contracts.MobileAnimeDay{Dia: value.Day, Orden: int(value.Order)})
+		result = append(result, contracts.MobileAnimeDay{Day: value.Day, Order: int(value.Order)})
 	}
 	return result
 }
@@ -103,10 +103,10 @@ func mobileRepetitions(values []domain.Repetition) []contracts.MobileRepeticion 
 	result := make([]contracts.MobileRepeticion, 0, len(values))
 	for _, value := range values {
 		result = append(result, contracts.MobileRepeticion{
-			NumRepeticion: value.Number, NroCapVisto: value.Progress, Estado: value.Status,
-			FechaCreacion: timeToMillis(value.CreatedAt), FechaEstreno: timeToMillis(value.PremieredAt),
-			FechaUltCapVisto: timeToMillis(value.LastWatchedAt), FechaEliminacion: timeToMillis(value.DeletedAt),
-			FechaRepeticion: timeToMillis(nonZeroTime(value.RepeatedAt)),
+			NumRepetitions: value.Number, EpisodesWatched: value.Progress, Status: value.Status,
+			CreatedAt: timeToMillis(value.CreatedAt), PremieredAt: timeToMillis(value.PremieredAt),
+			LastWatchedAt: timeToMillis(value.LastWatchedAt), DeletedAt: timeToMillis(value.DeletedAt),
+			RepeatedAt: timeToMillis(nonZeroTime(value.RepeatedAt)),
 		})
 	}
 	return result

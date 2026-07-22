@@ -27,7 +27,7 @@ func activeScheduleAnimeIDs(records []ReadRecord) map[string]struct{} {
 	activeIDs := map[string]struct{}{}
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo == 1 {
+		if item.Active == 1 {
 			activeIDs[item.ID] = struct{}{}
 		}
 	}
@@ -54,13 +54,13 @@ func validateScheduleEntry(entry ApplyAnimeScheduleDraftEntry, activeIDs, seenAn
 
 // validateSchedulePlacement validates one placement and reserves its position.
 func validateSchedulePlacement(animeID string, placement contracts.MobileAnimeDay, seen map[string]struct{}, submittedPositions map[string]map[int]struct{}) error {
-	if _, ok := allowedScheduleDestinations[placement.Dia]; !ok {
-		return fmt.Errorf("invalid schedule destination %s", placement.Dia)
+	if _, ok := allowedScheduleDestinations[placement.Day]; !ok {
+		return fmt.Errorf("invalid schedule destination %s", placement.Day)
 	}
-	if placement.Orden <= 0 {
-		return fmt.Errorf("invalid schedule order %d for anime %s", placement.Orden, animeID)
+	if placement.Order <= 0 {
+		return fmt.Errorf("invalid schedule order %d for anime %s", placement.Order, animeID)
 	}
-	key := fmt.Sprintf("%s#%d", placement.Dia, placement.Orden)
+	key := fmt.Sprintf("%s#%d", placement.Day, placement.Order)
 	if _, ok := seen[key]; ok {
 		return fmt.Errorf("duplicate placement %s for anime %s", key, animeID)
 	}
@@ -70,13 +70,13 @@ func validateSchedulePlacement(animeID string, placement contracts.MobileAnimeDa
 
 // reserveSubmittedPosition reserves a submitted destination position.
 func reserveSubmittedPosition(placement contracts.MobileAnimeDay, submittedPositions map[string]map[int]struct{}) error {
-	if submittedPositions[placement.Dia] == nil {
-		submittedPositions[placement.Dia] = map[int]struct{}{}
+	if submittedPositions[placement.Day] == nil {
+		submittedPositions[placement.Day] = map[int]struct{}{}
 	}
-	if _, exists := submittedPositions[placement.Dia][placement.Orden]; exists {
-		return fmt.Errorf("non-contiguous positions for %s", placement.Dia)
+	if _, exists := submittedPositions[placement.Day][placement.Order]; exists {
+		return fmt.Errorf("non-contiguous positions for %s", placement.Day)
 	}
-	submittedPositions[placement.Dia][placement.Orden] = struct{}{}
+	submittedPositions[placement.Day][placement.Order] = struct{}{}
 	return nil
 }
 
@@ -95,8 +95,8 @@ func positionsForDestination(placementsByAnime map[string][]contracts.MobileAnim
 	positions := make([]int, 0)
 	for _, placements := range placementsByAnime {
 		for _, placement := range placements {
-			if placement.Dia == destination {
-				positions = append(positions, placement.Orden)
+			if placement.Day == destination {
+				positions = append(positions, placement.Order)
 			}
 		}
 	}

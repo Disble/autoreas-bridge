@@ -146,10 +146,10 @@ func validateCurrentOptionalNumber(name string, value *float64, allowZero bool) 
 func validateEditorPlacements(placements []contracts.MobileAnimeDay) error {
 	seen := map[string]struct{}{}
 	for _, placement := range placements {
-		if _, allowed := allowedScheduleDestinations[placement.Dia]; !allowed || placement.Orden <= 0 {
-			return fmt.Errorf("editor save: invalid schedule placement %q at %d", placement.Dia, placement.Orden)
+		if _, allowed := allowedScheduleDestinations[placement.Day]; !allowed || placement.Order <= 0 {
+			return fmt.Errorf("editor save: invalid schedule placement %q at %d", placement.Day, placement.Order)
 		}
-		key := fmt.Sprintf("%s#%d", placement.Dia, placement.Orden)
+		key := fmt.Sprintf("%s#%d", placement.Day, placement.Order)
 		if _, duplicate := seen[key]; duplicate {
 			return fmt.Errorf("editor save: duplicate schedule placement %s", key)
 		}

@@ -10,7 +10,7 @@ import (
 func TestLegacyWireRoundTripsNullableMetadataAndUnknownFields(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"anime-wire","nombre":"Wire","nrocapvisto":2.5,"totalcap":null,"duracion":null,"portada":{"type":"url","path":""},"future":{"nested":true}}`
+	const payload = `{"id":"anime-wire","name":"Wire","episodesWatched":2.5,"totalEpisodes":null,"durationMinutes":null,"cover":{"type":"url","path":""},"future":{"nested":true}}`
 
 	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err != nil {
@@ -37,7 +37,7 @@ func TestLegacyWireRoundTripsNullableMetadataAndUnknownFields(t *testing.T) {
 func TestLegacyWireRoundTripsRealShapeNullableTotalcapAndObjectPortada(t *testing.T) {
 	t.Parallel()
 
-	const line = `{"_id":"anime-real-shape","nombre":"Real Shape","nrocapvisto":1,"totalcap":null,"tipo":1,"portada":{"type":"url","path":""}}`
+	const line = `{"id":"anime-real-shape","name":"Real Shape","episodesWatched":1,"totalEpisodes":null,"kind":1,"cover":{"type":"url","path":""}}`
 
 	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(line), &wire); err != nil {
@@ -54,7 +54,7 @@ func TestLegacyWireRoundTripsRealShapeNullableTotalcapAndObjectPortada(t *testin
 func TestLegacyWireRejectsMalformedNestedRepetition(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"anime-wire","nombre":"Wire","nrocapvisto":2.5,"repetir":[{"estado":"broken"}]}`
+	const payload = `{"id":"anime-wire","name":"Wire","episodesWatched":2.5,"repetitions":[{"status":"broken"}]}`
 	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err == nil {
 		t.Fatal("expected malformed nested repetition to fail")
@@ -63,10 +63,10 @@ func TestLegacyWireRejectsMalformedNestedRepetition(t *testing.T) {
 
 func TestLegacyWireCoversNullableMetadataVariantMatrix(t *testing.T) {
 	variants := []string{
-		`{"_id":"variant-missing","nombre":"Missing","nrocapvisto":0,"unknown":{"keep":true}}`,
-		`{"_id":"variant-null","nombre":"Null","nrocapvisto":0,"fechaEstreno":null,"estudios":null,"generos":null,"portada":null,"unknown":{"keep":true}}`,
-		`{"_id":"variant-empty","nombre":"Empty","nrocapvisto":0,"estudios":[],"generos":[],"portada":{"type":"url","path":""},"unknown":{"keep":true}}`,
-		`{"_id":"variant-values","nombre":"Values","nrocapvisto":0,"fechaEstreno":{"$$date":1710000000123},"estudios":["A"],"generos":["B"],"portada":{"type":"file","path":"cover.jpg","future":{"keep":true}},"unknown":{"keep":true}}`,
+		`{"id":"variant-missing","name":"Missing","episodesWatched":0,"unknown":{"keep":true}}`,
+		`{"id":"variant-null","name":"Null","episodesWatched":0,"premieredAt":null,"studios":null,"genres":null,"cover":null,"unknown":{"keep":true}}`,
+		`{"id":"variant-empty","name":"Empty","episodesWatched":0,"studios":[],"genres":[],"cover":{"type":"url","path":""},"unknown":{"keep":true}}`,
+		`{"id":"variant-values","name":"Values","episodesWatched":0,"premieredAt":1710000000123,"studios":["A"],"genres":["B"],"cover":{"type":"file","path":"cover.jpg","future":{"keep":true}},"unknown":{"keep":true}}`,
 	}
 	seen := collectLegacyVariantIDs(t, variants)
 	if len(seen) != len(variants) {

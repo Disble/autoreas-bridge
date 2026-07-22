@@ -16,7 +16,7 @@ func TestScheduleServiceApplyBreaksEqualLegacyOrdersDeterministicallyByAnimeID(t
 		result, err := env.service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 103, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
 			AnimeID:        "anime-c",
 			BaseModifiedAt: 103,
-			Placements:     []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}},
+			Placements:     []contracts.MobileAnimeDay{{Day: "Visto", Order: 1}},
 		}}})
 		assertDeterministicScheduleResult(t, iteration, err, result)
 		assertDeterministicSchedulePublishedEvent(t, iteration, env.publisher)
@@ -36,9 +36,9 @@ func newDeterministicScheduleTestEnv(t *testing.T) deterministicScheduleTestEnv 
 	t.Helper()
 	store := openAnimeServiceTestStore(t)
 	payloads := []string{
-		`{"_id":"anime-b","nombre":"Anime B","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
-		`{"_id":"anime-a","nombre":"Anime A","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
-		`{"_id":"anime-c","nombre":"Anime C","activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		`{"id":"anime-b","name":"Anime B","active":true,"days":[{"day":"Lunes","order":1}]}`,
+		`{"id":"anime-a","name":"Anime A","active":true,"days":[{"day":"Lunes","order":1}]}`,
+		`{"id":"anime-c","name":"Anime C","active":true,"days":[{"day":"Sin ver","order":1}]}`,
 	}
 	for index, payload := range payloads {
 		seedAnimeSnapshotWithModifiedAt(t, store, animeIDFromSchedulePayload(t, payload), payload, int64(101+index))
@@ -66,7 +66,7 @@ func assertDeterministicSchedulePublishedEvent(t *testing.T, iteration int, publ
 	if got := len(publisher.events()); got != 1 {
 		t.Fatalf("iteration %d expected exactly one publication for the changed anime, got %d", iteration, got)
 	}
-	assertSchedulePublishedAnimeChanged(t, publisher.events()[0], "anime-c", `{"_id":"anime-c","nombre":"Anime C","nrocapvisto":0,"activo":true,"dias":[{"dia":"Visto","orden":1}]}`)
+	assertSchedulePublishedAnimeChanged(t, publisher.events()[0], "anime-c", `{"id":"anime-c","name":"Anime C","episodesWatched":0,"active":true,"days":[{"day":"Visto","order":1}]}`)
 }
 
 // assertDeterministicScheduleBoard verifies the projected schedule board.
@@ -102,7 +102,7 @@ func assertDeterministicLegacySnapshots(t *testing.T, iteration int, ctx context
 // assertEditorBoardPlacement verifies one editor board placement.
 func assertEditorBoardPlacement(t *testing.T, iteration int, got []contracts.MobileAnimeDay, animeID string, wantDay string, wantOrder int) {
 	t.Helper()
-	if len(got) != 1 || got[0].Dia != wantDay || got[0].Orden != wantOrder {
+	if len(got) != 1 || got[0].Day != wantDay || got[0].Order != wantOrder {
 		t.Fatalf("iteration %d expected %s at %s#%d, got %+v", iteration, animeID, wantDay, wantOrder, got)
 	}
 }
@@ -111,7 +111,7 @@ func assertEditorBoardPlacement(t *testing.T, iteration int, got []contracts.Mob
 func assertLegacySchedulePlacement(t *testing.T, iteration int, payload []byte, animeID string, wantDay string, wantOrder float64) {
 	t.Helper()
 	got := decodeSchedulePayloadDays(t, payload)
-	if len(got) != 1 || got[0].Dia != wantDay || got[0].Orden != wantOrder {
+	if len(got) != 1 || got[0].Day != wantDay || got[0].Order != wantOrder {
 		t.Fatalf("iteration %d expected %s at %s#%.0f, got %+v", iteration, animeID, wantDay, wantOrder, got)
 	}
 }

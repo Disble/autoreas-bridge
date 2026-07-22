@@ -16,13 +16,13 @@ describe('toEpisodeScheduleRows', () => {
         animeName: 'Frieren',
         day: 'Viernes',
         dayOrder: 1,
-        estado: 0,
+        status: 0,
         folderPath: '/anime/frieren',
         hasCover: false,
         modified_at: 1000,
-        nrocapvisto: 10.5,
+        episodesWatched: 10.5,
         pageUrl: '',
-        totalcap: 28,
+        totalEpisodes: 28,
       },
     ];
 
@@ -54,11 +54,11 @@ describe('toEpisodeScheduleRows', () => {
         animeName: 'Frieren',
         day: 'Viernes',
         dayOrder: 1,
-        estado: 0,
+        status: 0,
         hasCover: false,
         modified_at: 1000,
-        nrocapvisto: 12.5,
-        totalcap: 12,
+        episodesWatched: 12.5,
+        totalEpisodes: 12,
       },
     ];
 
@@ -76,10 +76,10 @@ describe('toEpisodeScheduleRows', () => {
         animeName: 'Paused',
         day: 'Viernes',
         dayOrder: 1,
-        estado: 3,
+        status: 3,
         hasCover: false,
         modified_at: 1000,
-        nrocapvisto: 4,
+        episodesWatched: 4,
       },
     ];
 
@@ -94,21 +94,21 @@ describe('toEpisodeScheduleRows', () => {
         animeName: 'No paths',
         day: 'Viernes',
         dayOrder: 1,
-        estado: 0,
+        status: 0,
         hasCover: false,
         modified_at: 1000,
-        nrocapvisto: 1,
+        episodesWatched: 1,
       },
       {
         animeId: 'anime-2',
         animeName: 'Both paths',
         day: 'Viernes',
         dayOrder: 1,
-        estado: 0,
+        status: 0,
         folderPath: '/anime/both',
         hasCover: false,
         modified_at: 1000,
-        nrocapvisto: 1,
+        episodesWatched: 1,
         pageUrl: 'https://example.com/both',
       },
     ];
@@ -121,7 +121,7 @@ describe('toEpisodeScheduleRows', () => {
 
   it('shows the placeholder when hasCover is false, regardless of any cover entry', () => {
     const items: readonly EpisodeScheduleItem[] = [
-      { animeId: 'anime-1', animeName: 'No cover', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: false, modified_at: 1000, nrocapvisto: 1 },
+      { animeId: 'anime-1', animeName: 'No cover', day: 'Viernes', dayOrder: 1, status: 0, hasCover: false, modified_at: 1000, episodesWatched: 1 },
     ];
     const covers = new Map<string, CoverEntry>([['anime-1', { dataUrl: 'data:image/png;base64,abc', status: 'cover' }]]);
 
@@ -130,8 +130,8 @@ describe('toEpisodeScheduleRows', () => {
 
   it('shows the placeholder while the cover is loading or missing from the map', () => {
     const items: readonly EpisodeScheduleItem[] = [
-      { animeId: 'anime-1', animeName: 'Loading', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
-      { animeId: 'anime-2', animeName: 'Placeholder', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
+      { animeId: 'anime-1', animeName: 'Loading', day: 'Viernes', dayOrder: 1, status: 0, hasCover: true, modified_at: 1000, episodesWatched: 1 },
+      { animeId: 'anime-2', animeName: 'Placeholder', day: 'Viernes', dayOrder: 1, status: 0, hasCover: true, modified_at: 1000, episodesWatched: 1 },
     ];
     const covers = new Map<string, CoverEntry>([
       ['anime-1', { status: 'loading' }],
@@ -146,7 +146,7 @@ describe('toEpisodeScheduleRows', () => {
 
   it('shows the resolved cover once the entry resolves to a data URL', () => {
     const items: readonly EpisodeScheduleItem[] = [
-      { animeId: 'anime-1', animeName: 'Resolved', day: 'Viernes', dayOrder: 1, estado: 0, hasCover: true, modified_at: 1000, nrocapvisto: 1 },
+      { animeId: 'anime-1', animeName: 'Resolved', day: 'Viernes', dayOrder: 1, status: 0, hasCover: true, modified_at: 1000, episodesWatched: 1 },
     ];
     const covers = new Map<string, CoverEntry>([['anime-1', { dataUrl: 'data:image/png;base64,abc', status: 'cover' }]]);
 

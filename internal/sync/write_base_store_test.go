@@ -54,7 +54,7 @@ func TestWriteOperationStageDurablyReservesAnimeAndValidatesCurrentBase(t *testi
 	db := openTestBridgeDB(t)
 	store := NewWriteBaseStore(db)
 	ctx := context.Background()
-	base := []byte(`{"_id":"anime-1","nrocapvisto":2}`)
+	base := []byte(`{"id":"anime-1","episodesWatched":2}`)
 	if err := NewAnimeSnapshotStore(db).ReplaceBaseline(ctx, map[string]anime.SnapshotRecord{
 		"anime-1": {AnimeID: "anime-1", CanonicalJSON: base, Hash: anime.HashSnapshot(base), ModifiedAt: 100},
 	}, nil); err != nil {

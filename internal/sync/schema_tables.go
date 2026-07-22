@@ -15,12 +15,18 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("pairing_tokens", pairingTokensDDL),
 		createOnlyTable("devices", devicesDDL),
 		createOnlyTable("conflicts", conflictsDDL),
-		animeSnapshotsTable(),
 		changelogTable(),
 		createOnlyTable("app_settings", appSettingsDDL),
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
 		animeWriteOperationsTable(),
 		indexedCreateOnlyTable("anime_changed_outbox", animeChangedOutboxDDL, animeChangedOutboxPendingIndexDDL),
+		createOnlyTable("schema_migration_markers", schemaMigrationMarkersDDL),
+		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
+		// cross-table vocabulary migration (ensureVocabularyMigration), which
+		// reads/writes conflicts, changelog, anime_write_operations, and
+		// anime_changed_outbox -- all of which must already exist by the time
+		// it runs, including on a truly fresh install.
+		animeSnapshotsTable(),
 	}
 }
 
@@ -53,7 +59,23 @@ func migrateAnimeSnapshotsSchema(db *sql.DB, cols []string) error {
 			return fmt.Errorf("migrate legacy anime_snapshots schema: %w", err)
 		}
 	}
-	return ensureScheduleDayMigrationColumn(db, cols)
+	if err := ensureScheduleDayMigrationColumn(db, cols); err != nil {
+		return err
+	}
+	if !containsSchemaColumn(cols, "vocabulary_migrated_at") {
+		if _, err := db.Exec(`ALTER TABLE anime_snapshots ADD COLUMN vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("add anime_snapshots vocabulary migration marker: %w", err)
+		}
+	}
+	// The SDD-56 content migration itself is NOT run from here: EnsureTableSchema
+	// never calls Migrate for a table it just created via CreateDDL (cols == 0),
+	// so a call here would miss the fresh-install case and only ever fire on the
+	// *second* bootstrap of a brand-new database -- by which point real,
+	// already-English rows created by normal app use in between would be
+	// wrongly reprocessed. initializeBridgeDB calls ensureVocabularyMigration
+	// once, unconditionally, after every table in schemaTables() is ensured
+	// (fresh-created or pre-existing), so the ordering is correct either way.
+	return nil
 }
 
 // ensureScheduleDayMigrationColumn adds the additive, idempotent SDD-55 schedule-day

@@ -29,11 +29,11 @@ export namespace contracts {
 	    }
 	}
 	export class AnimeDetailContent {
-	    tipo?: number;
-	    duracion?: number;
-	    generos: string[];
+	    kind?: number;
+	    durationMinutes?: number;
+	    genres: string[];
 	    studios?: string;
-	    origen?: string;
+	    origin?: string;
 	    cover?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -42,11 +42,11 @@ export namespace contracts {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.tipo = source["tipo"];
-	        this.duracion = source["duracion"];
-	        this.generos = source["generos"];
+	        this.kind = source["kind"];
+	        this.durationMinutes = source["durationMinutes"];
+	        this.genres = source["genres"];
 	        this.studios = source["studios"];
-	        this.origen = source["origen"];
+	        this.origin = source["origin"];
 	        this.cover = source["cover"];
 	    }
 	}
@@ -69,8 +69,8 @@ export namespace contracts {
 	    }
 	}
 	export class MobileAnimeDay {
-	    dia: string;
-	    orden: number;
+	    day: string;
+	    order: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MobileAnimeDay(source);
@@ -78,8 +78,8 @@ export namespace contracts {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.dia = source["dia"];
-	        this.orden = source["orden"];
+	        this.day = source["day"];
+	        this.order = source["order"];
 	    }
 	}
 	export class AnimeDetailProgress {
@@ -100,10 +100,10 @@ export namespace contracts {
 	}
 	export class AnimeDetail {
 	    id: string;
-	    nombre: string;
-	    estado: number;
-	    activo: number;
-	    primeravez: number;
+	    name: string;
+	    status: number;
+	    active: number;
+	    firstCycle: number;
 	    progress: AnimeDetailProgress;
 	    schedule: MobileAnimeDay[];
 	    dates: AnimeDetailDates;
@@ -118,10 +118,10 @@ export namespace contracts {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.nombre = source["nombre"];
-	        this.estado = source["estado"];
-	        this.activo = source["activo"];
-	        this.primeravez = source["primeravez"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	        this.active = source["active"];
+	        this.firstCycle = source["firstCycle"];
 	        this.progress = this.convertValues(source["progress"], AnimeDetailProgress);
 	        this.schedule = this.convertValues(source["schedule"], MobileAnimeDay);
 	        this.dates = this.convertValues(source["dates"], AnimeDetailDates);
@@ -273,7 +273,7 @@ export namespace contracts {
 	    totalEpisodes: AnimeEditorNullableIntDTO;
 	    active: boolean;
 	    kind: AnimeEditorNullableIntDTO;
-	    page: AnimeEditorNullableStringDTO;
+	    sourceUrl: AnimeEditorNullableStringDTO;
 	    folder: AnimeEditorNullableStringDTO;
 	    placements: MobileAnimeDay[];
 	
@@ -289,7 +289,7 @@ export namespace contracts {
 	        this.totalEpisodes = this.convertValues(source["totalEpisodes"], AnimeEditorNullableIntDTO);
 	        this.active = source["active"];
 	        this.kind = this.convertValues(source["kind"], AnimeEditorNullableIntDTO);
-	        this.page = this.convertValues(source["page"], AnimeEditorNullableStringDTO);
+	        this.sourceUrl = this.convertValues(source["sourceUrl"], AnimeEditorNullableStringDTO);
 	        this.folder = this.convertValues(source["folder"], AnimeEditorNullableStringDTO);
 	        this.placements = this.convertValues(source["placements"], MobileAnimeDay);
 	    }
@@ -607,12 +607,12 @@ export namespace contracts {
 	
 	export class AnimeHistoryItem {
 	    id: string;
-	    nombre: string;
-	    nrocapvisto: number;
-	    fechaUltCapVisto: number;
-	    estado: number;
-	    tipo?: number;
-	    fechaCreacion?: number;
+	    name: string;
+	    episodesWatched: number;
+	    lastWatchedAt: number;
+	    status: number;
+	    kind?: number;
+	    createdAt?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AnimeHistoryItem(source);
@@ -621,24 +621,24 @@ export namespace contracts {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.nombre = source["nombre"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
-	        this.estado = source["estado"];
-	        this.tipo = source["tipo"];
-	        this.fechaCreacion = source["fechaCreacion"];
+	        this.name = source["name"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.lastWatchedAt = source["lastWatchedAt"];
+	        this.status = source["status"];
+	        this.kind = source["kind"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 	export class AnimeListItem {
 	    id: string;
-	    nombre: string;
-	    estado: number;
-	    nrocapvisto: number;
-	    totalcap?: number;
-	    activo: number;
-	    tipo?: number;
-	    dias: string[];
-	    generos: string[];
+	    name: string;
+	    status: number;
+	    episodesWatched: number;
+	    totalEpisodes?: number;
+	    active: number;
+	    kind?: number;
+	    days: string[];
+	    genres: string[];
 	    hasDownloadPage: boolean;
 	    hasFolder: boolean;
 	
@@ -649,14 +649,14 @@ export namespace contracts {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.nombre = source["nombre"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.totalcap = source["totalcap"];
-	        this.activo = source["activo"];
-	        this.tipo = source["tipo"];
-	        this.dias = source["dias"];
-	        this.generos = source["generos"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.totalEpisodes = source["totalEpisodes"];
+	        this.active = source["active"];
+	        this.kind = source["kind"];
+	        this.days = source["days"];
+	        this.genres = source["genres"];
 	        this.hasDownloadPage = source["hasDownloadPage"];
 	        this.hasFolder = source["hasFolder"];
 	    }
@@ -873,8 +873,8 @@ export namespace contracts {
 	    modifiedAt: number;
 	    conflictId?: string;
 	    animeName?: string;
-	    estado?: number;
-	    nrocapvisto?: number;
+	    animeStatus?: number;
+	    episodesWatched?: number;
 	    occurredAtMs?: number;
 	    correlationId?: string;
 	
@@ -891,8 +891,8 @@ export namespace contracts {
 	        this.modifiedAt = source["modifiedAt"];
 	        this.conflictId = source["conflictId"];
 	        this.animeName = source["animeName"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
+	        this.animeStatus = source["animeStatus"];
+	        this.episodesWatched = source["episodesWatched"];
 	        this.occurredAtMs = source["occurredAtMs"];
 	        this.correlationId = source["correlationId"];
 	    }
@@ -914,9 +914,9 @@ export namespace contracts {
 	export class EpisodeScheduleItem {
 	    animeId: string;
 	    animeName: string;
-	    estado: number;
-	    nrocapvisto: number;
-	    totalcap?: number;
+	    status: number;
+	    episodesWatched: number;
+	    totalEpisodes?: number;
 	    day: string;
 	    dayOrder: number;
 	    modified_at: number;
@@ -934,9 +934,9 @@ export namespace contracts {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
 	        this.animeName = source["animeName"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.totalcap = source["totalcap"];
+	        this.status = source["status"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.totalEpisodes = source["totalEpisodes"];
 	        this.day = source["day"];
 	        this.dayOrder = source["dayOrder"];
 	        this.modified_at = source["modified_at"];
@@ -971,14 +971,14 @@ export namespace contracts {
 	
 	
 	export class MobileRepeticion {
-	    numrepeticion: number;
-	    nrocapvisto: number;
-	    estado: number;
-	    fechaCreacion?: number;
-	    fechaEstreno?: number;
-	    fechaUltCapVisto?: number;
-	    fechaEliminacion?: number;
-	    fechaRepeticion?: number;
+	    numRepetitions: number;
+	    episodesWatched: number;
+	    status: number;
+	    createdAt?: number;
+	    premieredAt?: number;
+	    lastWatchedAt?: number;
+	    deletedAt?: number;
+	    repeatedAt?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MobileRepeticion(source);
@@ -986,38 +986,38 @@ export namespace contracts {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.numrepeticion = source["numrepeticion"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.estado = source["estado"];
-	        this.fechaCreacion = source["fechaCreacion"];
-	        this.fechaEstreno = source["fechaEstreno"];
-	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
-	        this.fechaEliminacion = source["fechaEliminacion"];
-	        this.fechaRepeticion = source["fechaRepeticion"];
+	        this.numRepetitions = source["numRepetitions"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.status = source["status"];
+	        this.createdAt = source["createdAt"];
+	        this.premieredAt = source["premieredAt"];
+	        this.lastWatchedAt = source["lastWatchedAt"];
+	        this.deletedAt = source["deletedAt"];
+	        this.repeatedAt = source["repeatedAt"];
 	    }
 	}
 	export class MobileAnime {
-	    _id: string;
-	    nombre: string;
-	    estado: number;
-	    nrocapvisto: number;
-	    totalcap?: number;
-	    activo: number;
-	    primeravez: number;
-	    dias: MobileAnimeDay[];
-	    generos: string[];
-	    tipo?: number;
-	    fechaUltCapVisto?: number;
-	    fechaEstreno?: number;
-	    fechaCreacion?: number;
-	    fechaEliminacion?: number;
-	    portada?: string;
-	    pagina?: string;
-	    carpeta?: string;
-	    estudios?: string;
-	    origen?: string;
-	    duracion?: number;
-	    repetir?: MobileRepeticion[];
+	    id: string;
+	    name: string;
+	    status: number;
+	    episodesWatched: number;
+	    totalEpisodes?: number;
+	    active: number;
+	    firstCycle: number;
+	    days: MobileAnimeDay[];
+	    genres: string[];
+	    kind?: number;
+	    lastWatchedAt?: number;
+	    premieredAt?: number;
+	    createdAt?: number;
+	    deletedAt?: number;
+	    cover?: string;
+	    sourceUrl?: string;
+	    folder?: string;
+	    studios?: string;
+	    origin?: string;
+	    durationMinutes?: number;
+	    repetitions?: MobileRepeticion[];
 	    modified_at: number;
 	
 	    static createFrom(source: any = {}) {
@@ -1026,27 +1026,27 @@ export namespace contracts {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this._id = source["_id"];
-	        this.nombre = source["nombre"];
-	        this.estado = source["estado"];
-	        this.nrocapvisto = source["nrocapvisto"];
-	        this.totalcap = source["totalcap"];
-	        this.activo = source["activo"];
-	        this.primeravez = source["primeravez"];
-	        this.dias = this.convertValues(source["dias"], MobileAnimeDay);
-	        this.generos = source["generos"];
-	        this.tipo = source["tipo"];
-	        this.fechaUltCapVisto = source["fechaUltCapVisto"];
-	        this.fechaEstreno = source["fechaEstreno"];
-	        this.fechaCreacion = source["fechaCreacion"];
-	        this.fechaEliminacion = source["fechaEliminacion"];
-	        this.portada = source["portada"];
-	        this.pagina = source["pagina"];
-	        this.carpeta = source["carpeta"];
-	        this.estudios = source["estudios"];
-	        this.origen = source["origen"];
-	        this.duracion = source["duracion"];
-	        this.repetir = this.convertValues(source["repetir"], MobileRepeticion);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.totalEpisodes = source["totalEpisodes"];
+	        this.active = source["active"];
+	        this.firstCycle = source["firstCycle"];
+	        this.days = this.convertValues(source["days"], MobileAnimeDay);
+	        this.genres = source["genres"];
+	        this.kind = source["kind"];
+	        this.lastWatchedAt = source["lastWatchedAt"];
+	        this.premieredAt = source["premieredAt"];
+	        this.createdAt = source["createdAt"];
+	        this.deletedAt = source["deletedAt"];
+	        this.cover = source["cover"];
+	        this.sourceUrl = source["sourceUrl"];
+	        this.folder = source["folder"];
+	        this.studios = source["studios"];
+	        this.origin = source["origin"];
+	        this.durationMinutes = source["durationMinutes"];
+	        this.repetitions = this.convertValues(source["repetitions"], MobileRepeticion);
 	        this.modified_at = source["modified_at"];
 	    }
 	
@@ -1080,7 +1080,7 @@ export namespace contracts {
 	    progressCurrent?: number;
 	    progressTotal?: number;
 	    lastChangedAtMs: number;
-	    activo: number;
+	    active: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SyncingAnimeItem(source);
@@ -1096,7 +1096,7 @@ export namespace contracts {
 	        this.progressCurrent = source["progressCurrent"];
 	        this.progressTotal = source["progressTotal"];
 	        this.lastChangedAtMs = source["lastChangedAtMs"];
-	        this.activo = source["activo"];
+	        this.active = source["active"];
 	    }
 	}
 

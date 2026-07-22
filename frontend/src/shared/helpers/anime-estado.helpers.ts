@@ -10,12 +10,12 @@ export function getAnimeEstadoLabel(estado: number): string {
 }
 
 /**
- * Returns true when the anime is currently being watched: `activo === 1` and
- * `estado === 0` (Viendo). Centralizes the feature-local "watching" predicate
+ * Returns true when the anime is currently being watched: `active === 1` and
+ * `status === 0` (Viendo). Centralizes the feature-local "watching" predicate
  * so future estado vocabulary changes are a one-module edit.
  */
 export function isWatchingAnime(anime: AnimeEstadoStatus): boolean {
-  return anime.activo === 1 && anime.estado === 0;
+  return anime.active === 1 && anime.status === 0;
 }
 
 /**

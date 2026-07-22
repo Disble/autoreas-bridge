@@ -21,7 +21,7 @@ func TestChangelogRecorderDeduplicatesStableAnimeChangedEventID(t *testing.T) {
 	event := events.AnimeChangedEvent{
 		EventID: "operation-replayed",
 		AnimeID: "anime-1",
-		Payload: []byte(`{"_id":"anime-1"}`),
+		Payload: []byte(`{"id":"anime-1"}`),
 	}
 	bus.Publish(event)
 	bus.Publish(event)

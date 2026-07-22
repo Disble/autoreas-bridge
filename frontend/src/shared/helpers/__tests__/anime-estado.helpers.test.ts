@@ -17,16 +17,16 @@ describe('getAnimeEstadoLabel', () => {
 });
 
 describe('isWatchingAnime', () => {
-  it('returns true when activo is 1 and estado is 0 (Viendo)', () => {
-    expect(isWatchingAnime({ activo: 1, estado: 0 })).toBe(true);
+  it('returns true when active is 1 and status is 0 (Viendo)', () => {
+    expect(isWatchingAnime({ active: 1, status: 0 })).toBe(true);
   });
 
-  it('returns false when activo is 0 even if estado is 0', () => {
-    expect(isWatchingAnime({ activo: 0, estado: 0 })).toBe(false);
+  it('returns false when active is 0 even if status is 0', () => {
+    expect(isWatchingAnime({ active: 0, status: 0 })).toBe(false);
   });
 
-  it('returns false when estado is not 0 (Finalizado) even if active', () => {
-    expect(isWatchingAnime({ activo: 1, estado: 1 })).toBe(false);
+  it('returns false when status is not 0 (Finalizado) even if active', () => {
+    expect(isWatchingAnime({ active: 1, status: 1 })).toBe(false);
   });
 });
 

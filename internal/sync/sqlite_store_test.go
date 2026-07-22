@@ -20,7 +20,7 @@ func TestSQLiteProviderReusesBootstrappedHandle(t *testing.T) {
 		AnimeID:       "anime-provider",
 		ChangeType:    ChangelogTypeCreate,
 		ChangedFields: []string{"nombre"},
-		SnapshotJSON:  []byte(`{"_id":"anime-provider","nombre":"Provider"}`),
+		SnapshotJSON:  []byte(`{"id":"anime-provider","name":"Provider"}`),
 		ChangedAtMs:   1710000000123,
 	}
 	if err := store.InsertPending(context.Background(), entry); err != nil {

@@ -4,84 +4,84 @@
  */
 export interface Anime {
   readonly id: string;
-  readonly nombre: string;
-  readonly estado: number;
-  readonly nrocapvisto: number;
-  readonly totalcap?: number;
-  readonly activo: number;
-  readonly tipo?: number;
-  readonly dias: readonly string[];
-  readonly generos: readonly string[];
-  /** True when the legacy `pagina` (download source page) field is present and non-empty. */
+  readonly name: string;
+  readonly status: number;
+  readonly episodesWatched: number;
+  readonly totalEpisodes?: number;
+  readonly active: number;
+  readonly kind?: number;
+  readonly days: readonly string[];
+  readonly genres: readonly string[];
+  /** True when the `sourceUrl` (download source page) field is present and non-empty. */
   readonly hasDownloadPage: boolean;
-  /** True when the legacy `carpeta` (download destination folder) field is present and non-empty. */
+  /** True when the `folder` (download destination folder) field is present and non-empty. */
   readonly hasFolder: boolean;
 }
 
-/** A single repetition-history entry from the legacy `repetir` timeline. */
+/** A single repetition-history entry from the `repetitions` timeline. */
 export interface AnimeRepeticion {
-  readonly numrepeticion: number;
-  readonly nrocapvisto: number;
-  readonly estado: number;
-  readonly fechaCreacion?: number;
-  readonly fechaEstreno?: number;
-  readonly fechaUltCapVisto?: number;
-  readonly fechaEliminacion?: number;
-  readonly fechaRepeticion?: number;
+  readonly numRepetitions: number;
+  readonly episodesWatched: number;
+  readonly status: number;
+  readonly createdAt?: number;
+  readonly premieredAt?: number;
+  readonly lastWatchedAt?: number;
+  readonly deletedAt?: number;
+  readonly repeatedAt?: number;
 }
 
-/** A single scheduled-day entry (`dias`) on an anime detail record. */
+/** A single scheduled-day entry (`days`) on an anime detail record. */
 export interface AnimeDetailDay {
-  readonly dia: string;
-  readonly orden: number;
+  readonly day: string;
+  readonly order: number;
 }
 
 /**
  * AnimeDetail is the rich, read-only detail DTO returned by `GetAnimeDetail`.
  * Shares only the scalar catalog fields with `Anime`. It deliberately does
- * not extend the full catalog DTO because `dias`, download-page, and folder
+ * not extend the full catalog DTO because `days`, download-page, and folder
  * data have richer detail-specific representations.
  *
- * `repetir` is optional (not just empty-array) because the Go contract omits
- * it from the wire payload via `omitempty` even for a non-nil empty slice
- * (encoding/json's `omitempty` treats zero-length slices as empty) -- the
- * vast majority of anime have no repetition history, so callers must treat a
- * missing `repetir` the same as an empty timeline.
+ * `repetitions` is optional (not just empty-array) because the Go contract
+ * omits it from the wire payload via `omitempty` even for a non-nil empty
+ * slice (encoding/json's `omitempty` treats zero-length slices as empty) --
+ * the vast majority of anime have no repetition history, so callers must
+ * treat a missing `repetitions` the same as an empty timeline.
  */
 export interface AnimeDetail extends Omit<
   Anime,
-  'id' | 'dias' | 'hasDownloadPage' | 'hasFolder'
+  'id' | 'days' | 'hasDownloadPage' | 'hasFolder'
 > {
-  readonly _id: string;
-  readonly primeravez: number;
-  readonly dias: readonly AnimeDetailDay[];
-  readonly fechaUltCapVisto?: number;
-  readonly fechaEstreno?: number;
-  readonly fechaCreacion?: number;
-  readonly fechaEliminacion?: number;
-  readonly portada?: string;
-  readonly pagina?: string;
-  readonly carpeta?: string;
-  readonly estudios?: string;
-  readonly origen?: string;
-  readonly duracion?: number;
-  readonly repetir?: readonly AnimeRepeticion[];
+  readonly id: string;
+  readonly firstCycle: number;
+  readonly days: readonly AnimeDetailDay[];
+  readonly lastWatchedAt?: number;
+  readonly premieredAt?: number;
+  readonly createdAt?: number;
+  readonly deletedAt?: number;
+  readonly cover?: string;
+  readonly sourceUrl?: string;
+  readonly folder?: string;
+  readonly studios?: string;
+  readonly origin?: string;
+  readonly durationMinutes?: number;
+  readonly repetitions?: readonly AnimeRepeticion[];
   readonly modified_at: number;
 }
 
 /**
  * AnimeHistoryEntry is a single row of the History read model returned by
  * `GetAnimeHistory` (Anime History spec, "History Read Model"): a
- * watch-activity log entry, server-sorted DESC by `fechaUltCapVisto` and
- * membership-filtered (only animes with a present `fechaUltCapVisto`) --
+ * watch-activity log entry, server-sorted DESC by `lastWatchedAt` and
+ * membership-filtered (only animes with a present `lastWatchedAt`) --
  * never re-derived or re-sorted on the frontend.
  */
 export type AnimeHistoryEntry = Pick<
   Anime,
-  'id' | 'nombre' | 'nrocapvisto' | 'estado' | 'tipo'
+  'id' | 'name' | 'episodesWatched' | 'status' | 'kind'
 > & {
-  readonly fechaUltCapVisto: number;
-  readonly fechaCreacion?: number;
+  readonly lastWatchedAt: number;
+  readonly createdAt?: number;
 };
 
 /** Fidelity marker for legacy `estudios` ownership on the editor wire contract. */

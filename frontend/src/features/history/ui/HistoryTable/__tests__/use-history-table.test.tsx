@@ -36,10 +36,10 @@ function renderHistoryTableWithUrlObservability(
 function entry(overrides: Partial<AnimeHistoryEntry>): AnimeHistoryEntry {
   return {
     id: 'anime-1',
-    nombre: 'Frieren',
-    nrocapvisto: 12,
-    fechaUltCapVisto: Date.UTC(2026, 5, 30, 12, 12, 0),
-    estado: 0,
+    name: 'Frieren',
+    episodesWatched: 12,
+    lastWatchedAt: Date.UTC(2026, 5, 30, 12, 12, 0),
+    status: 0,
     ...overrides,
   };
 }
@@ -104,7 +104,7 @@ describe('useHistoryTable', () => {
   it('debounces the search query before it narrows visible rows', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
-    const entries = [entry({ id: 'a', nombre: 'Frieren' }), entry({ id: 'b', nombre: 'Bocchi the Rock' })];
+    const entries = [entry({ id: 'a', name: 'Frieren' }), entry({ id: 'b', name: 'Bocchi the Rock' })];
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
 
@@ -127,7 +127,7 @@ describe('useHistoryTable', () => {
   });
 
   it('filters visible rows by estado', async () => {
-    const entries = [entry({ id: 'a', estado: 0 }), entry({ id: 'b', estado: 1 })];
+    const entries = [entry({ id: 'a', status: 0 }), entry({ id: 'b', status: 1 })];
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
 
@@ -142,7 +142,7 @@ describe('useHistoryTable', () => {
   });
 
   it('filters visible rows by tipo', async () => {
-    const entries = [entry({ id: 'a', tipo: 0 }), entry({ id: 'b', tipo: 1 })];
+    const entries = [entry({ id: 'a', kind: 0 }), entry({ id: 'b', kind: 1 })];
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
 
@@ -157,7 +157,7 @@ describe('useHistoryTable', () => {
   });
 
   it('sorts visible rows by the selected sort order', async () => {
-    const entries = [entry({ id: 'b', nombre: 'Bocchi the Rock' }), entry({ id: 'a', nombre: 'Anohana' })];
+    const entries = [entry({ id: 'b', name: 'Bocchi the Rock' }), entry({ id: 'a', name: 'Anohana' })];
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
 
@@ -174,7 +174,7 @@ describe('useHistoryTable', () => {
 
   it('paginates rows and exposes the total page count', async () => {
     const entries = Array.from({ length: HISTORY_TABLE_PAGE_SIZE + 5 }, (_, index) =>
-      entry({ id: `anime-${index}`, nombre: `Anime ${index}` }),
+      entry({ id: `anime-${index}`, name: `Anime ${index}` }),
     );
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
@@ -195,7 +195,7 @@ describe('useHistoryTable', () => {
 
   it('resets to page 1 when the estado filter changes', async () => {
     const entries = Array.from({ length: HISTORY_TABLE_PAGE_SIZE + 5 }, (_, index) =>
-      entry({ id: `anime-${index}`, estado: index < HISTORY_TABLE_PAGE_SIZE ? 0 : 1 }),
+      entry({ id: `anime-${index}`, status: index < HISTORY_TABLE_PAGE_SIZE ? 0 : 1 }),
     );
     const source = createSource(entries);
     const { result } = renderHook(() => useHistoryTable({}, source), { wrapper: defaultWrapper });
@@ -249,7 +249,7 @@ describe('useHistoryTable', () => {
   describe('URL-persisted state', () => {
     it('restores search, estado, tipo, sort, and page from the initial URL', async () => {
       const entries = Array.from({ length: HISTORY_TABLE_PAGE_SIZE + 5 }, (_, index) =>
-        entry({ id: `anime-${index}`, nombre: `Anime ${index}`, estado: 1, tipo: 0 }),
+        entry({ id: `anime-${index}`, name: `Anime ${index}`, status: 1, kind: 0 }),
       );
       const source = createSource(entries);
       const { result } = renderHistoryTableWithUrlObservability(source, [
@@ -265,7 +265,7 @@ describe('useHistoryTable', () => {
     });
 
     it('writes the estado filter to the URL using push navigation', async () => {
-      const source = createSource([entry({ id: 'a', estado: 1 })]);
+      const source = createSource([entry({ id: 'a', status: 1 })]);
       const { result } = renderHistoryTableWithUrlObservability(source);
 
       await waitFor(() => expect(result.current.table.isLoading).toBe(false));
@@ -280,7 +280,7 @@ describe('useHistoryTable', () => {
     });
 
     it('writes the tipo filter to the URL using push navigation', async () => {
-      const source = createSource([entry({ id: 'a', tipo: 1 })]);
+      const source = createSource([entry({ id: 'a', kind: 1 })]);
       const { result } = renderHistoryTableWithUrlObservability(source);
 
       await waitFor(() => expect(result.current.table.isLoading).toBe(false));
@@ -330,7 +330,7 @@ describe('useHistoryTable', () => {
     it('writes the debounced search query to the URL using replace navigation, resetting the page', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
 
-      const entries = [entry({ id: 'a', nombre: 'Frieren' }), entry({ id: 'b', nombre: 'Bocchi the Rock' })];
+      const entries = [entry({ id: 'a', name: 'Frieren' }), entry({ id: 'b', name: 'Bocchi the Rock' })];
       const source = createSource(entries);
       const { result } = renderHistoryTableWithUrlObservability(source, ['/history?page=2']);
 
@@ -351,7 +351,7 @@ describe('useHistoryTable', () => {
     });
 
     it('omits default-valued params from the URL', async () => {
-      const source = createSource([entry({ id: 'a', estado: 1 })]);
+      const source = createSource([entry({ id: 'a', status: 1 })]);
       const { result } = renderHistoryTableWithUrlObservability(source, ['/history?estado=1']);
 
       await waitFor(() => expect(result.current.table.isLoading).toBe(false));

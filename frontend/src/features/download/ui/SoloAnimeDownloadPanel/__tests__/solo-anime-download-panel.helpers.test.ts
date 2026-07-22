@@ -9,13 +9,13 @@ import {
 
 const baseAnime: Anime = {
   id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 2,
-  nrocapvisto: 12,
-  totalcap: 28,
-  activo: 1,
-  dias: [],
-  generos: [],
+  name: 'Frieren',
+  status: 2,
+  episodesWatched: 12,
+  totalEpisodes: 28,
+  active: 1,
+  days: [],
+  genres: [],
   hasDownloadPage: true,
   hasFolder: true,
 };
@@ -28,7 +28,7 @@ describe('solo anime download helpers', () => {
 
   it('marks an anime downloadable only when active and complete', () => {
     expect(toSoloAnimeDownloadOption(baseAnime).canDownload).toBe(true);
-    expect(toSoloAnimeDownloadOption({ ...baseAnime, activo: 0 }).canDownload).toBe(false);
+    expect(toSoloAnimeDownloadOption({ ...baseAnime, active: 0 }).canDownload).toBe(false);
     expect(toSoloAnimeDownloadOption({ ...baseAnime, hasFolder: false }).canDownload).toBe(false);
   });
 
@@ -40,8 +40,8 @@ describe('solo anime download helpers', () => {
 
   it('filters and sorts selector options by name', () => {
     const options = getSoloAnimeDownloadOptions([
-      { ...baseAnime, id: 'b', nombre: 'Zeta' },
-      { ...baseAnime, id: 'a', nombre: 'Alpha' },
+      { ...baseAnime, id: 'b', name: 'Zeta' },
+      { ...baseAnime, id: 'a', name: 'Alpha' },
     ], 'alp');
 
     expect(options.map((option) => option.name)).toEqual(['Alpha']);
@@ -52,7 +52,7 @@ describe('solo anime download helpers', () => {
       Array.from({ length: 10 }, (_, index) => ({
         ...baseAnime,
         id: `anime-${index + 1}`,
-        nombre: `Anime ${String(10 - index).padStart(2, '0')}`,
+        name: `Anime ${String(10 - index).padStart(2, '0')}`,
       })),
       '',
     );

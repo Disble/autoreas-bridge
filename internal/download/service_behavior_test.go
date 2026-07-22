@@ -103,12 +103,12 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-1",
-		Nombre:  "Some Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/anime/"),
-		Carpeta: ptrStr(destFolder),
+		ID:        "anime-1",
+		Name:      "Some Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/anime/"),
+		Folder:    ptrStr(destFolder),
 	}}}
 	deps.Hosters = &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}}
 	jd := &svcFakeJDClient{}
@@ -149,26 +149,26 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-movie",
-		Nombre:  "A Movie",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Tipo:    ptrInt(1),
-		Pagina:  ptrStr("https://jkanime.net/movie/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-movie",
+		Name:      "A Movie",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		Kind:      ptrInt(1),
+		SourceURL: ptrStr("https://jkanime.net/movie/"),
+		Folder:    ptrStr(t.TempDir()),
 	}, {
-		ID:     "anime-no-folder",
-		Nombre: "No Folder Anime",
-		Activo: 1,
-		Dias:   []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina: ptrStr("https://jkanime.net/no-folder/"),
+		ID:        "anime-no-folder",
+		Name:      "No Folder Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/no-folder/"),
 	}, {
-		ID:      "anime-serie",
-		Nombre:  "A Serie",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/serie/"),
-		Carpeta: ptrStr(destFolder),
+		ID:        "anime-serie",
+		Name:      "A Serie",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/serie/"),
+		Folder:    ptrStr(destFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
@@ -214,12 +214,12 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 	})
 
 	anime := contracts.MobileAnime{
-		ID:       "anime-1",
-		Nombre:   "Some Anime",
-		Activo:   1,
-		Pagina:   ptrStr("https://jkanime.net/anime/"),
-		Carpeta:  ptrStr(folder),
-		TotalCap: ptrInt(12),
+		ID:            "anime-1",
+		Name:          "Some Anime",
+		Active:        1,
+		SourceURL:     ptrStr("https://jkanime.net/anime/"),
+		Folder:        ptrStr(folder),
+		TotalEpisodes: ptrInt(12),
 	}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(false))
@@ -254,11 +254,11 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 	deps.Sites = registry
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Some Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/anime/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Some Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/anime/"),
+		Folder:    ptrStr(folder),
 	}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
@@ -290,19 +290,19 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 	freshFolder := t.TempDir()
 	currentFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-fresh",
-		Nombre:  "Fresh Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/fresh/"),
-		Carpeta: ptrStr(freshFolder),
+		ID:        "anime-fresh",
+		Name:      "Fresh Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/fresh/"),
+		Folder:    ptrStr(freshFolder),
 	}, {
-		ID:      "anime-current",
-		Nombre:  "Up To Date Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/current/"),
-		Carpeta: ptrStr(currentFolder),
+		ID:        "anime-current",
+		Name:      "Up To Date Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/current/"),
+		Folder:    ptrStr(currentFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{freshFolder: 0, currentFolder: 4},
@@ -358,12 +358,12 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 			})
 
 			anime := contracts.MobileAnime{
-				ID:       "anime-1",
-				Nombre:   "Some Anime",
-				Activo:   1,
-				Pagina:   ptrStr("https://jkanime.net/anime/"),
-				Carpeta:  ptrStr(folder),
-				TotalCap: tc.totalCap,
+				ID:            "anime-1",
+				Name:          "Some Anime",
+				Active:        1,
+				SourceURL:     ptrStr("https://jkanime.net/anime/"),
+				Folder:        ptrStr(folder),
+				TotalEpisodes: tc.totalCap,
 			}
 
 			got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(false))

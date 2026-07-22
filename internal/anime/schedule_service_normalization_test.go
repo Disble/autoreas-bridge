@@ -8,9 +8,9 @@ import (
 
 func TestNormalizeSchedulePlacementsMapNormalizesAllowedDestinationsDeterministically(t *testing.T) {
 	placements := map[string][]contracts.MobileAnimeDay{
-		"anime-b": {{Dia: "Lunes", Orden: 1}},
-		"anime-a": {{Dia: "Lunes", Orden: 1}},
-		"anime-c": {{Dia: "Visto", Orden: 4}},
+		"anime-b": {{Day: "Lunes", Order: 1}},
+		"anime-a": {{Day: "Lunes", Order: 1}},
+		"anime-c": {{Day: "Visto", Order: 4}},
 	}
 
 	normalized := normalizeSchedulePlacementsMap(placements)
@@ -22,9 +22,9 @@ func TestNormalizeSchedulePlacementsMapNormalizesAllowedDestinationsDeterministi
 
 func TestNormalizeSchedulePlacementsMapPreservesUnsupportedDestinations(t *testing.T) {
 	placements := map[string][]contracts.MobileAnimeDay{
-		"legacy":  {{Dia: "Especial legado", Orden: 9}},
-		"anime-a": {{Dia: "Martes", Orden: 2}},
-		"anime-b": {{Dia: "Martes", Orden: 1}},
+		"legacy":  {{Day: "Especial legado", Order: 9}},
+		"anime-a": {{Day: "Martes", Order: 2}},
+		"anime-b": {{Day: "Martes", Order: 1}},
 	}
 
 	normalized := normalizeSchedulePlacementsMap(placements)
@@ -38,7 +38,7 @@ func TestNormalizeSchedulePlacementsMapPreservesUnsupportedDestinations(t *testi
 func assertNormalizedPlacement(t *testing.T, placementsByAnime map[string][]contracts.MobileAnimeDay, animeID, destination string, order int) {
 	t.Helper()
 	placements := placementsByAnime[animeID]
-	if len(placements) != 1 || placements[0].Dia != destination || placements[0].Orden != order {
+	if len(placements) != 1 || placements[0].Day != destination || placements[0].Order != order {
 		t.Fatalf("expected %s at %s#%d, got %+v", animeID, destination, order, placements)
 	}
 }

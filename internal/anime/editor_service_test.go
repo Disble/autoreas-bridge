@@ -15,7 +15,7 @@ import (
 func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"estado":0,"activo":true,"totalcap":12,"tipo":0,"pagina":"https://example.test/old","carpeta":"C:/Anime/Frieren","fechaEstreno":null,"duracion":24,"origen":"manga","generos":null,"estudios":null,"dias":[{"dia":"Lunes","orden":1}],"portada":{"type":"url","path":"old.jpg","future":{"keep":true}},"unknown":{"keep":true}}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"totalEpisodes":12,"kind":0,"sourceUrl":"https://example.test/old","folder":"C:/Anime/Frieren","premieredAt":null,"durationMinutes":24,"origin":"manga","genres":null,"studios":null,"days":[{"day":"Lunes","order":1}],"cover":{"type":"url","path":"old.jpg","future":{"keep":true}},"unknown":{"keep":true}}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -36,7 +36,7 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 			Cover: anime.EditorCoverPatch{Present: true, Type: "file", Path: "new.jpg", Raw: map[string]json.RawMessage{
 				"future": json.RawMessage(`{"edited":true}`),
 			}},
-			Placements: []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 1}},
+			Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}},
 		},
 	})
 	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
@@ -48,16 +48,16 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
-		"totalcap": "13", "tipo": "1", "duracion": "90", "fechaEstreno": `{"$$date":1710000000123}`,
-		"generos": `["Fantasy"]`, "estudios": "null", "dias": `[{"dia":"Viernes","orden":1}]`,
-		"portada": `{"type":"file","path":"new.jpg","future":{"edited":true}}`, "unknown": `{"keep":true}`,
+		"totalEpisodes": "13", "kind": "1", "durationMinutes": "90", "premieredAt": `1710000000123`,
+		"genres": `["Fantasy"]`, "studios": "null", "days": `[{"day":"Viernes","order":1}]`,
+		"cover": `{"type":"file","path":"new.jpg","future":{"edited":true}}`, "unknown": `{"keep":true}`,
 	})
 }
 
 func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"estado":0,"activo":true,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"totalEpisodes":12}`, 1000)
 	tests := []struct {
 		name  string
 		patch anime.EditorPatch
@@ -89,7 +89,7 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 func TestEditorServiceSaveCannotReactivateInactiveAnime(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":false}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":false}`, 1000)
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
 	active := true
@@ -106,7 +106,7 @@ func TestEditorServiceSaveCannotReactivateInactiveAnime(t *testing.T) {
 func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":true,"fechaEstreno":{"$$date":1710000000123},"portada":{"type":"file","path":"cover.jpg","future":{"keep":true}}}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true,"premieredAt":1710000000123,"cover":{"type":"file","path":"cover.jpg","future":{"keep":true}}}`, 1000)
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
 	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{AnimeID: "anime-editor", BaseModifiedAt: 1000, Patch: anime.EditorPatch{
@@ -122,8 +122,8 @@ func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
 	assertJSONFieldsEqual(t, fields, map[string]string{
-		"fechaEstreno": "null",
-		"portada":      `{"type":"file","path":"","future":{"keep":true}}`,
+		"premieredAt": "null",
+		"cover":       `{"type":"file","path":"","future":{"keep":true}}`,
 	})
 }
 
@@ -144,15 +144,15 @@ func TestEditorServiceSavePreservesUnknownFieldsAndStructuredMetadata(t *testing
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{
-		"_id":"anime-editor",
-		"nombre":"Frieren",
-		"nrocapvisto":12.5,
-		"estado":0,
-		"activo":true,
-		"pagina":"https://anime.example/frieren",
-		"carpeta":"C:/Anime/Frieren",
-		"estudios":["Madhouse","TOHO animation STUDIO"],
-		"portada":{"type":"url","path":"C:/covers/frieren.jpg","future":"keep"},
+		"id":"anime-editor",
+		"name":"Frieren",
+		"episodesWatched":12.5,
+		"status":0,
+		"active":true,
+		"sourceUrl":"https://anime.example/frieren",
+		"folder":"C:/Anime/Frieren",
+		"studios":["Madhouse","TOHO animation STUDIO"],
+		"cover":{"type":"url","path":"C:/covers/frieren.jpg","future":"keep"},
 		"future":{"nested":true}
 	}`, 1000)
 
@@ -184,24 +184,24 @@ func TestEditorServiceSavePreservesUnknownFieldsAndStructuredMetadata(t *testing
 	if !jsonValueEqual(t, fields["future"], []byte(`{"nested":true}`)) {
 		t.Fatalf("expected unknown field to survive, got %s", fields["future"])
 	}
-	if !jsonValueEqual(t, fields["estudios"], []byte(`["Madhouse","TOHO animation STUDIO"]`)) {
-		t.Fatalf("expected estudios array to survive untouched, got %s", fields["estudios"])
+	if !jsonValueEqual(t, fields["studios"], []byte(`["Madhouse","TOHO animation STUDIO"]`)) {
+		t.Fatalf("expected studios array to survive untouched, got %s", fields["studios"])
 	}
-	if !jsonValueEqual(t, fields["portada"], []byte(`{"future":"keep","path":"C:/covers/frieren.jpg","type":"url"}`)) {
-		t.Fatalf("expected portada object to survive untouched, got %s", fields["portada"])
+	if !jsonValueEqual(t, fields["cover"], []byte(`{"future":"keep","path":"C:/covers/frieren.jpg","type":"url"}`)) {
+		t.Fatalf("expected cover object to survive untouched, got %s", fields["cover"])
 	}
-	if !jsonValueEqual(t, fields["origen"], []byte(`"novel"`)) {
-		t.Fatalf("expected origin to update, got %s", fields["origen"])
+	if !jsonValueEqual(t, fields["origin"], []byte(`"novel"`)) {
+		t.Fatalf("expected origin to update, got %s", fields["origin"])
 	}
-	if !jsonValueEqual(t, fields["nombre"], []byte(`"Frieren Director's Cut"`)) {
-		t.Fatalf("expected nombre to update, got %s", fields["nombre"])
+	if !jsonValueEqual(t, fields["name"], []byte(`"Frieren Director's Cut"`)) {
+		t.Fatalf("expected name to update, got %s", fields["name"])
 	}
 }
 
 func TestEditorServiceSaveReturnsConflictWithoutWriteOnStaleBase(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
@@ -233,7 +233,7 @@ func TestEditorServiceSaveReturnsConflictWithoutWriteOnStaleBase(t *testing.T) {
 func TestEditorServiceSaveRejectsBlankTitleWithoutWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -255,7 +255,7 @@ func TestEditorServiceSaveRejectsBlankTitleWithoutWrite(t *testing.T) {
 func TestEditorServiceSaveRejectsUnsupportedStatusWithoutWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -273,7 +273,7 @@ func TestEditorServiceSaveRejectsUnsupportedStatusWithoutWrite(t *testing.T) {
 func TestEditorServiceSaveRejectsNegativeProgressWithoutWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -291,7 +291,7 @@ func TestEditorServiceSaveRejectsNegativeProgressWithoutWrite(t *testing.T) {
 func TestEditorServiceSaveRejectsUnsafeURLAndFolderWithoutWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -315,7 +315,7 @@ func TestEditorServiceSaveRejectsUnsafeURLAndFolderWithoutWrite(t *testing.T) {
 func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":12.5,"estado":0,"activo":true}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":12.5,"status":0,"active":true}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -333,8 +333,8 @@ func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testin
 		t.Fatalf("get snapshot: %v", err)
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
-	if !jsonValueEqual(t, fields["activo"], []byte(`false`)) {
-		t.Fatalf("expected activo=false, got %s", fields["activo"])
+	if !jsonValueEqual(t, fields["active"], []byte(`false`)) {
+		t.Fatalf("expected active=false, got %s", fields["active"])
 	}
 	if _, ok := fields["$$deleted"]; ok {
 		t.Fatalf("deactivate must not tombstone the record: %s", fields["$$deleted"])

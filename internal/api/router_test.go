@@ -182,7 +182,7 @@ func TestGetAnimesReturnsNormalizedSnapshots(t *testing.T) {
 	handler := NewHandler(Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
 		AnimeQuery: stubAnimeQueryService{
-			list: []contracts.MobileAnime{{ID: "anime-1", Nombre: "Bleach", Estado: 0, NroCapVisto: 1, Activo: 1, PrimeraVez: 1, Dias: []contracts.MobileAnimeDay{}, Generos: []string{}}},
+			list: []contracts.MobileAnime{{ID: "anime-1", Name: "Bleach", Status: 0, EpisodesWatched: 1, Active: 1, FirstCycle: 1, Days: []contracts.MobileAnimeDay{}, Genres: []string{}}},
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/animes", nil)
@@ -210,7 +210,7 @@ func TestGetAnimeByIDReturnsNormalizedSnapshot(t *testing.T) {
 	handler := NewHandler(Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1"}},
 		AnimeQuery: stubAnimeQueryService{
-			item: &contracts.MobileAnime{ID: "anime-1", Nombre: "Bleach", Estado: 0, NroCapVisto: 1, Activo: 1, PrimeraVez: 1, Dias: []contracts.MobileAnimeDay{}, Generos: []string{}},
+			item: &contracts.MobileAnime{ID: "anime-1", Name: "Bleach", Status: 0, EpisodesWatched: 1, Active: 1, FirstCycle: 1, Days: []contracts.MobileAnimeDay{}, Genres: []string{}},
 		},
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/animes/anime-1", nil)

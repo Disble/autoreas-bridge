@@ -85,18 +85,18 @@ func assertRuntimeScheduleSnapshotWrites(t *testing.T, initialLines map[string]s
 // runtimeScheduleFixturePayloads returns legacy schedule payloads for tests.
 func runtimeScheduleFixturePayloads() []string {
 	return []string{
-		`{"_id":"sayonara-lara","nombre":"Sayonara Lara","activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
-		`{"_id":"yani-neko","nombre":"Yani Neko","activo":true,"dias":[{"dia":"Sin ver","orden":2}]}`,
-		`{"_id":"youjo-senki-ii","nombre":"Youjo Senki II","activo":true,"dias":[{"dia":"Sin ver","orden":3}]}`,
-		`{"_id":"bang-dream","nombre":"BanG Dream! YumemoMita","activo":true,"dias":[{"dia":"Sin ver","orden":4}]}`,
-		`{"_id":"futsutsuka","nombre":"Futsutsuka...","activo":true,"dias":[{"dia":"Visto","orden":1}]}`,
-		`{"_id":"iwamoto","nombre":"Iwamoto...","activo":true,"dias":[{"dia":"Visto","orden":2}]}`,
-		`{"_id":"tai-ari","nombre":"Tai-Ari...","activo":true,"dias":[{"dia":"Visto","orden":3}]}`,
-		`{"_id":"tenmaku","nombre":"Tenmaku...","activo":true,"dias":[{"dia":"Visto","orden":4}]}`,
-		`{"_id":"domingo-legacy","nombre":"Sunday Legacy","activo":true,"dias":[{"dia":"Domingo","orden":2}]}`,
-		`{"_id":"legacy-unsupported","nombre":"Legacy Unsupported","activo":true,"dias":[{"dia":"Especial legado","orden":9}]}`,
-		`{"_id":"equal-order-b","nombre":"Equal Order B","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
-		`{"_id":"equal-order-a","nombre":"Equal Order A","activo":true,"dias":[{"dia":"Lunes","orden":1}]}`,
+		`{"id":"sayonara-lara","name":"Sayonara Lara","active":true,"days":[{"day":"Sin ver","order":1}]}`,
+		`{"id":"yani-neko","name":"Yani Neko","active":true,"days":[{"day":"Sin ver","order":2}]}`,
+		`{"id":"youjo-senki-ii","name":"Youjo Senki II","active":true,"days":[{"day":"Sin ver","order":3}]}`,
+		`{"id":"bang-dream","name":"BanG Dream! YumemoMita","active":true,"days":[{"day":"Sin ver","order":4}]}`,
+		`{"id":"futsutsuka","name":"Futsutsuka...","active":true,"days":[{"day":"Visto","order":1}]}`,
+		`{"id":"iwamoto","name":"Iwamoto...","active":true,"days":[{"day":"Visto","order":2}]}`,
+		`{"id":"tai-ari","name":"Tai-Ari...","active":true,"days":[{"day":"Visto","order":3}]}`,
+		`{"id":"tenmaku","name":"Tenmaku...","active":true,"days":[{"day":"Visto","order":4}]}`,
+		`{"id":"domingo-legacy","name":"Sunday Legacy","active":true,"days":[{"day":"Domingo","order":2}]}`,
+		`{"id":"legacy-unsupported","name":"Legacy Unsupported","active":true,"days":[{"day":"Especial legado","order":9}]}`,
+		`{"id":"equal-order-b","name":"Equal Order B","active":true,"days":[{"day":"Lunes","order":1}]}`,
+		`{"id":"equal-order-a","name":"Equal Order A","active":true,"days":[{"day":"Lunes","order":1}]}`,
 	}
 }
 
@@ -111,14 +111,14 @@ func seedRuntimeSchedulePayloads(t *testing.T, store *bridgeSync.AnimeSnapshotSt
 // runtimeMovedCardsScheduleCommand returns the schedule move command under test.
 func runtimeMovedCardsScheduleCommand() ApplyAnimeScheduleDraftCommandDTO {
 	return ApplyAnimeScheduleDraftCommandDTO{BoardModifiedAt: 112, Entries: []ApplyAnimeScheduleDraftEntryDTO{
-		{AnimeID: "youjo-senki-ii", BaseModifiedAt: 103, Placements: []contracts.MobileAnimeDay{{Dia: "Sin ver", Orden: 1}}},
-		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 1}}},
-		{AnimeID: "yani-neko", BaseModifiedAt: 102, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 2}}},
-		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 3}}},
-		{AnimeID: "futsutsuka", BaseModifiedAt: 105, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 4}}},
-		{AnimeID: "iwamoto", BaseModifiedAt: 106, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 5}}},
-		{AnimeID: "tai-ari", BaseModifiedAt: 107, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 6}}},
-		{AnimeID: "tenmaku", BaseModifiedAt: 108, Placements: []contracts.MobileAnimeDay{{Dia: "Visto", Orden: 7}}},
+		{AnimeID: "youjo-senki-ii", BaseModifiedAt: 103, Placements: []contracts.MobileAnimeDay{{Day: "Sin ver", Order: 1}}},
+		{AnimeID: "bang-dream", BaseModifiedAt: 104, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 1}}},
+		{AnimeID: "yani-neko", BaseModifiedAt: 102, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 2}}},
+		{AnimeID: "sayonara-lara", BaseModifiedAt: 101, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 3}}},
+		{AnimeID: "futsutsuka", BaseModifiedAt: 105, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 4}}},
+		{AnimeID: "iwamoto", BaseModifiedAt: 106, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 5}}},
+		{AnimeID: "tai-ari", BaseModifiedAt: 107, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 6}}},
+		{AnimeID: "tenmaku", BaseModifiedAt: 108, Placements: []contracts.MobileAnimeDay{{Day: "Visto", Order: 7}}},
 	}}
 }
 
@@ -149,11 +149,11 @@ func assertRuntimeSchedulePublishedAnimeIDs(t *testing.T, got []string) {
 func assertRuntimeScheduleBoardPlacements(t *testing.T, placementsByAnime map[string][]contracts.MobileAnimeDay) {
 	t.Helper()
 	for animeID, want := range map[string][]contracts.MobileAnimeDay{
-		"youjo-senki-ii": {{Dia: "Sin ver", Orden: 1}},
-		"bang-dream":     {{Dia: "Visto", Orden: 1}},
-		"sayonara-lara":  {{Dia: "Visto", Orden: 3}},
-		"yani-neko":      {{Dia: "Visto", Orden: 2}},
-		"domingo-legacy": {{Dia: "Domingo", Orden: 1}},
+		"youjo-senki-ii": {{Day: "Sin ver", Order: 1}},
+		"bang-dream":     {{Day: "Visto", Order: 1}},
+		"sayonara-lara":  {{Day: "Visto", Order: 3}},
+		"yani-neko":      {{Day: "Visto", Order: 2}},
+		"domingo-legacy": {{Day: "Domingo", Order: 1}},
 	} {
 		if got := placementsByAnime[animeID]; !runtimeDaysEqual(got, want) {
 			t.Fatalf("expected %s placements %+v, got %+v", animeID, want, got)

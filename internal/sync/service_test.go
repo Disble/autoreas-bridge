@@ -60,7 +60,7 @@ func TestTriggerServiceListPendingAnimeSyncsFiltersInactiveAnimes(t *testing.T) 
 				AnimeID:       "anime-active",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto"},
-				SnapshotJSON:  []byte(`{"_id":"anime-active","nombre":"Active Anime","nrocapvisto":5,"activo":true}`),
+				SnapshotJSON:  []byte(`{"id":"anime-active","name":"Active Anime","episodesWatched":5,"active":true}`),
 				ChangedAtMs:   200,
 			},
 			{
@@ -68,7 +68,7 @@ func TestTriggerServiceListPendingAnimeSyncsFiltersInactiveAnimes(t *testing.T) 
 				AnimeID:       "anime-inactive",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"activo"},
-				SnapshotJSON:  []byte(`{"_id":"anime-inactive","nombre":"Inactive Anime","nrocapvisto":3,"activo":false}`),
+				SnapshotJSON:  []byte(`{"id":"anime-inactive","name":"Inactive Anime","episodesWatched":3,"active":false}`),
 				ChangedAtMs:   100,
 			},
 		},
@@ -139,7 +139,7 @@ func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 				AnimeID:       "anime-1",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto", "estado"},
-				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":18,"totalcap":24,"activo":true}`),
+				SnapshotJSON:  []byte(`{"id":"anime-1","name":"Dungeon Meshi","episodesWatched":18,"totalEpisodes":24,"active":true}`),
 				ChangedAtMs:   300,
 			},
 			{
@@ -147,7 +147,7 @@ func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {
 				AnimeID:       "anime-1",
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto"},
-				SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":17,"totalcap":24,"activo":true}`),
+				SnapshotJSON:  []byte(`{"id":"anime-1","name":"Dungeon Meshi","episodesWatched":17,"totalEpisodes":24,"active":true}`),
 				ChangedAtMs:   200,
 			},
 			{

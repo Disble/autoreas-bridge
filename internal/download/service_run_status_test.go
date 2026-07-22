@@ -37,19 +37,19 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 
 	okFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-ok",
-		Nombre:  "OK Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/ok-anime/"),
-		Carpeta: ptrStr(okFolder),
+		ID:        "anime-ok",
+		Name:      "OK Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/ok-anime/"),
+		Folder:    ptrStr(okFolder),
 	}, {
-		ID:      "anime-broken",
-		Nombre:  "Broken Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/broken-anime/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-broken",
+		Name:      "Broken Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/broken-anime/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
@@ -96,12 +96,12 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 	deps.Sites = registry
 	jdOfflineFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-1",
-		Nombre:  "Some Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/anime/"),
-		Carpeta: ptrStr(jdOfflineFolder),
+		ID:        "anime-1",
+		Name:      "Some Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/anime/"),
+		Folder:    ptrStr(jdOfflineFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{jdOfflineFolder: 2}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
@@ -163,12 +163,12 @@ func TestRunOnceJDOfflineCollectsResolvableManualLinksAfterEpisodeFailure(t *tes
 	registry.Register(source)
 	deps.Sites = registry
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-1",
-		Nombre:  "Catchup Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/catchup/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Catchup Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/catchup/"),
+		Folder:    ptrStr(folder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 9}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
@@ -202,12 +202,12 @@ func TestRunOnceReturnsNoAnimesTodayWhenNoneActiveToday(t *testing.T) {
 	deps := baseDeps(t)
 	otherDia := todayDiaName(deps.Clock().AddDate(0, 0, 1))
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-1",
-		Nombre:  "Not Today Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: otherDia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/anime/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-1",
+		Name:      "Not Today Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: otherDia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/anime/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
@@ -225,12 +225,12 @@ func TestRunOnceReturnsNoAnimesTodayWhenOnlyInactiveAnimeMatchesToday(t *testing
 	deps := baseDeps(t)
 	dia := todayDiaName(deps.Clock())
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-inactive",
-		Nombre:  "Inactive Today Anime",
-		Activo:  0,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/inactive-anime/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-inactive",
+		Name:      "Inactive Today Anime",
+		Active:    0,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/inactive-anime/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")

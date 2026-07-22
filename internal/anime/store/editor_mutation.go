@@ -77,21 +77,21 @@ func NewEditorRawMutation(patch EditorMutation, now time.Time) func(*AnimeRaw, *
 // applyEditorScalarMutations applies scalar fields from an editor mutation.
 func applyEditorScalarMutations(raw *AnimeRaw, patch EditorMutation) {
 	if patch.Name != nil {
-		raw.Nombre = *patch.Name
+		raw.Name = *patch.Name
 	}
 	if patch.Status != nil {
-		raw.SetIntField("estado", patch.Status)
+		raw.SetIntField("status", patch.Status)
 	}
 	if patch.Progress != nil {
-		raw.NroCapVisto = *patch.Progress
+		raw.EpisodesWatched = *patch.Progress
 	}
-	applyNullableIntMutation(raw, "totalcap", patch.TotalEpisodes)
-	applyNullableStringMutation(raw, "pagina", patch.Page)
-	applyNullableStringMutation(raw, "carpeta", patch.Folder)
-	applyNullableStringMutation(raw, "origen", patch.Origin)
-	applyNullableIntMutation(raw, "duracion", patch.Duration)
-	applyNullableIntMutation(raw, "tipo", patch.Kind)
-	applyNullableTimeMutation(raw, "fechaEstreno", patch.PremieredAt)
+	applyNullableIntMutation(raw, "totalEpisodes", patch.TotalEpisodes)
+	applyNullableStringMutation(raw, "sourceUrl", patch.Page)
+	applyNullableStringMutation(raw, "folder", patch.Folder)
+	applyNullableStringMutation(raw, "origin", patch.Origin)
+	applyNullableIntMutation(raw, "durationMinutes", patch.Duration)
+	applyNullableIntMutation(raw, "kind", patch.Kind)
+	applyNullableTimeMutation(raw, "premieredAt", patch.PremieredAt)
 }
 
 // applyEditorLifecycleMutations applies active-state and deletion-date changes.
@@ -99,21 +99,21 @@ func applyEditorLifecycleMutations(raw *AnimeRaw, patch EditorMutation, now time
 	if patch.Active == nil {
 		return
 	}
-	raw.SetBoolField("activo", *patch.Active)
+	raw.SetBoolField("active", *patch.Active)
 	if *patch.Active {
-		raw.SetDateField("fechaEliminacion", nil)
+		raw.SetDateField("deletedAt", nil)
 		return
 	}
-	raw.SetDateField("fechaEliminacion", &now)
+	raw.SetDateField("deletedAt", &now)
 }
 
 // applyEditorCollectionMutations applies collection and structured metadata changes.
 func applyEditorCollectionMutations(raw *AnimeRaw, patch EditorMutation) {
 	if patch.Placements != nil {
-		raw.SetDays(toLegacyDays(patch.Placements))
+		raw.SetDays(toRawDays(patch.Placements))
 	}
 	if patch.Genres != nil {
-		raw.SetStringArrayField("generos", append([]string{}, (*patch.Genres)...))
+		raw.SetStringArrayField("genres", append([]string{}, (*patch.Genres)...))
 	}
 	if patch.Studios.Present {
 		raw.SetStudios(patch.Studios.Clear, patch.Studios.Values)
@@ -123,19 +123,19 @@ func applyEditorCollectionMutations(raw *AnimeRaw, patch EditorMutation) {
 	}
 }
 
-// NewDeactivateRawMutation builds a mutator that soft-deletes a legacy anime.
+// NewDeactivateRawMutation builds a mutator that soft-deletes an anime.
 func NewDeactivateRawMutation(now time.Time) func(*AnimeRaw, *domain.Anime) error {
 	return func(raw *AnimeRaw, _ *domain.Anime) error {
-		raw.SetBoolField("activo", false)
-		raw.SetDateField("fechaEliminacion", &now)
+		raw.SetBoolField("active", false)
+		raw.SetDateField("deletedAt", &now)
 		return nil
 	}
 }
 
-// NewSchedulePlacementsMutation builds a mutator that overwrites legacy days.
+// NewSchedulePlacementsMutation builds a mutator that overwrites schedule days.
 func NewSchedulePlacementsMutation(placements []contracts.MobileAnimeDay) func(*AnimeRaw, *domain.Anime) error {
 	return func(raw *AnimeRaw, _ *domain.Anime) error {
-		raw.SetDays(toLegacyDays(placements))
+		raw.SetDays(toRawDays(placements))
 		return nil
 	}
 }
@@ -179,11 +179,11 @@ func applyNullableTimeMutation(raw *AnimeRaw, key string, patch NullableTimeMuta
 	raw.SetDateField(key, &value)
 }
 
-// toLegacyDays converts mobile schedule placements to legacy day records.
-func toLegacyDays(placements []contracts.MobileAnimeDay) []AnimeDay {
+// toRawDays converts mobile schedule placements to raw day records.
+func toRawDays(placements []contracts.MobileAnimeDay) []AnimeDay {
 	result := make([]AnimeDay, 0, len(placements))
 	for _, placement := range placements {
-		result = append(result, AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
+		result = append(result, AnimeDay{Day: placement.Day, Order: float64(placement.Order)})
 	}
 	return result
 }

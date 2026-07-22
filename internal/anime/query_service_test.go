@@ -13,7 +13,7 @@ import (
 func TestQueryServiceGetEffectiveAnimeReturnsInactiveAnime(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":4,"totalcap":12,"activo":false}`)
+	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":4,"totalEpisodes":12,"active":false}`)
 
 	service := anime.NewQueryService(store)
 	got, err := service.GetEffectiveAnime(ctx, "anime-1")
@@ -41,26 +41,26 @@ func TestQueryServiceListMobileAnimesNormalizesLegacyPayload(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-1", `{
-		"_id":"anime-1",
-		"nombre":"Samurai X",
-		"estado":2,
-		"nrocapvisto":10.5,
-		"totalcap":95,
-		"activo":true,
-		"primeravez":false,
-		"dias":[{"dia":"Miércoles","orden":1}],
-		"generos":["Acción","Aventura"],
-		"tipo":1,
-		"fechaUltCapVisto":{"$$date":1710000000123},
-		"fechaEstreno":null,
-		"fechaCreacion":{"$$date":1500000000000},
-		"fechaEliminacion":null,
-		"portada":{"type":"url","path":"C:/images/rurouni.jpg"},
-		"pagina":"Netflix",
-		"carpeta":"C:/Anime/Rurouni",
-		"estudios":["Gallop","Studio Deen"],
-		"origen":"manga",
-		"duracion":24
+		"id":"anime-1",
+		"name":"Samurai X",
+		"status":2,
+		"episodesWatched":10.5,
+		"totalEpisodes":95,
+		"active":true,
+		"firstCycle":false,
+		"days":[{"day":"Miércoles","order":1}],
+		"genres":["Acción","Aventura"],
+		"kind":1,
+		"lastWatchedAt":1710000000123,
+		"premieredAt":null,
+		"createdAt":1500000000000,
+		"deletedAt":null,
+		"cover":{"type":"url","path":"C:/images/rurouni.jpg"},
+		"sourceUrl":"Netflix",
+		"folder":"C:/Anime/Rurouni",
+		"studios":["Gallop","Studio Deen"],
+		"origin":"manga",
+		"durationMinutes":24
 	}`)
 
 	service := anime.NewQueryService(store)
@@ -78,7 +78,7 @@ func TestQueryServiceListMobileAnimesNormalizesLegacyPayload(t *testing.T) {
 // assertNormalizedMobileAnime verifies the normalized mobile anime projection.
 func assertNormalizedMobileAnime(t *testing.T, item contracts.MobileAnime) {
 	t.Helper()
-	valid := item.ID == "anime-1" && item.Activo == 1 && item.PrimeraVez == 0 && item.Portada != nil && *item.Portada == "C:/images/rurouni.jpg" && item.Estudios != nil && *item.Estudios == "Gallop, Studio Deen" && item.FechaUltCapVisto != nil && *item.FechaUltCapVisto == 1710000000123 && item.FechaCreacion != nil && *item.FechaCreacion == 1500000000000 && reflect.DeepEqual(item.Dias, []contracts.MobileAnimeDay{{Dia: "Miércoles", Orden: 1}}) && reflect.DeepEqual(item.Generos, []string{"Acción", "Aventura"})
+	valid := item.ID == "anime-1" && item.Active == 1 && item.FirstCycle == 0 && item.Cover != nil && *item.Cover == "C:/images/rurouni.jpg" && item.Studios != nil && *item.Studios == "Gallop, Studio Deen" && item.LastWatchedAt != nil && *item.LastWatchedAt == 1710000000123 && item.CreatedAt != nil && *item.CreatedAt == 1500000000000 && reflect.DeepEqual(item.Days, []contracts.MobileAnimeDay{{Day: "Miércoles", Order: 1}}) && reflect.DeepEqual(item.Genres, []string{"Acción", "Aventura"})
 	if !valid {
 		t.Fatalf("unexpected normalized anime: %#v", item)
 	}
@@ -87,7 +87,7 @@ func assertNormalizedMobileAnime(t *testing.T, item contracts.MobileAnime) {
 func TestQueryServiceListMobileAnimesEchoesModifiedAtToken(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Samurai X","nrocapvisto":1}`, 1710000000123)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Samurai X","episodesWatched":1}`, 1710000000123)
 
 	service := anime.NewQueryService(store)
 	got, err := service.ListMobileAnimes(ctx)
@@ -105,7 +105,7 @@ func TestQueryServiceListMobileAnimesEchoesModifiedAtToken(t *testing.T) {
 func TestQueryServiceGetMobileAnimeEchoesModifiedAtToken(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Samurai X","nrocapvisto":1}`, 1710000000123)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Samurai X","episodesWatched":1}`, 1710000000123)
 
 	service := anime.NewQueryService(store)
 	got, err := service.GetMobileAnime(ctx, "anime-1")
@@ -121,26 +121,26 @@ func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-detail", `{
-		"_id":"anime-detail",
-		"nombre":"Frieren",
-		"estado":0,
-		"nrocapvisto":10.5,
-		"totalcap":28,
-		"activo":true,
-		"primeravez":false,
-		"dias":[{"dia":"Viernes","orden":2},{"dia":"Sábado","orden":1}],
-		"generos":["Aventura","Drama"],
-		"tipo":1,
-		"fechaUltCapVisto":{"$$date":1710000000123},
-		"fechaEstreno":{"$$date":1700000000000},
-		"fechaCreacion":{"$$date":1600000000000},
-		"fechaEliminacion":null,
-		"portada":{"type":"url","path":"C:/images/frieren.jpg"},
-		"pagina":"https://anime.example/frieren",
-		"carpeta":"C:/Anime/Frieren",
-		"estudios":["Madhouse"],
-		"origen":"manga",
-		"duracion":24
+		"id":"anime-detail",
+		"name":"Frieren",
+		"status":0,
+		"episodesWatched":10.5,
+		"totalEpisodes":28,
+		"active":true,
+		"firstCycle":false,
+		"days":[{"day":"Viernes","order":2},{"day":"Sábado","order":1}],
+		"genres":["Aventura","Drama"],
+		"kind":1,
+		"lastWatchedAt":1710000000123,
+		"premieredAt":1700000000000,
+		"createdAt":1600000000000,
+		"deletedAt":null,
+		"cover":{"type":"url","path":"C:/images/frieren.jpg"},
+		"sourceUrl":"https://anime.example/frieren",
+		"folder":"C:/Anime/Frieren",
+		"studios":["Madhouse"],
+		"origin":"manga",
+		"durationMinutes":24
 	}`, 1711111111000)
 
 	service := anime.NewQueryService(store)
@@ -150,7 +150,7 @@ func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
 	}
 	assertAnimeDetailIdentity(t, *got)
 	assertAnimeDetailProgress(t, got.Progress)
-	wantDays := []contracts.MobileAnimeDay{{Dia: "Viernes", Orden: 2}, {Dia: "Sábado", Orden: 1}}
+	wantDays := []contracts.MobileAnimeDay{{Day: "Viernes", Order: 2}, {Day: "Sábado", Order: 1}}
 	if !reflect.DeepEqual(got.Schedule, wantDays) {
 		t.Fatalf("expected schedule %#v, got %#v", wantDays, got.Schedule)
 	}
@@ -163,10 +163,10 @@ func TestQueryServiceGetAnimeDetailReturnsSharedDesktopReadModel(t *testing.T) {
 // assertAnimeDetailIdentity verifies identity fields in an anime detail.
 func assertAnimeDetailIdentity(t *testing.T, got contracts.AnimeDetail) {
 	t.Helper()
-	if got.ID != "anime-detail" || got.Nombre != "Frieren" {
+	if got.ID != "anime-detail" || got.Name != "Frieren" {
 		t.Fatalf("unexpected identity fields: %#v", got)
 	}
-	if got.Estado != 0 || got.Activo != 1 || got.PrimeraVez != 0 {
+	if got.Status != 0 || got.Active != 1 || got.FirstCycle != 0 {
 		t.Fatalf("unexpected state flags: %#v", got)
 	}
 }
@@ -203,14 +203,14 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-legacy", `{
-		"_id":"anime-legacy",
-		"nombre":"Legacy",
-		"estado":0,
-		"nrocapvisto":1,
-		"dia":"Lunes",
-		"orden":3,
-		"generos":"",
-		"portada":{"type":"url","path":""}
+		"id":"anime-legacy",
+		"name":"Legacy",
+		"status":0,
+		"episodesWatched":1,
+		"day":"Lunes",
+		"order":3,
+		"genres":"",
+		"cover":{"type":"url","path":""}
 	}`)
 
 	service := anime.NewQueryService(store)
@@ -221,18 +221,18 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	if got == nil {
 		t.Fatal("expected anime, got nil")
 	}
-	if got.Activo != 0 {
-		t.Fatalf("expected absent activo to normalize to 0, got %d", got.Activo)
+	if got.Active != 0 {
+		t.Fatalf("expected absent activo to normalize to 0, got %d", got.Active)
 	}
-	if got.PrimeraVez != 0 {
-		t.Fatalf("expected absent primeravez to normalize to 0, got %d", got.PrimeraVez)
+	if got.FirstCycle != 0 {
+		t.Fatalf("expected absent primeravez to normalize to 0, got %d", got.FirstCycle)
 	}
-	wantDias := []contracts.MobileAnimeDay{{Dia: "Lunes", Orden: 3}}
-	if !reflect.DeepEqual(got.Dias, wantDias) {
-		t.Fatalf("expected dias %#v, got %#v", wantDias, got.Dias)
+	wantDias := []contracts.MobileAnimeDay{{Day: "Lunes", Order: 3}}
+	if !reflect.DeepEqual(got.Days, wantDias) {
+		t.Fatalf("expected dias %#v, got %#v", wantDias, got.Days)
 	}
-	if got.Generos == nil || len(got.Generos) != 0 {
-		t.Fatalf("expected non-nil empty generos, got %#v", got.Generos)
+	if got.Genres == nil || len(got.Genres) != 0 {
+		t.Fatalf("expected non-nil empty generos, got %#v", got.Genres)
 	}
 	payload, err := json.Marshal(got)
 	if err != nil {
@@ -242,11 +242,11 @@ func TestQueryServiceGetMobileAnimeFallsBackToLegacyDiaOrdenAndAbsentBooleans(t 
 	if err := json.Unmarshal(payload, &wire); err != nil {
 		t.Fatalf("decode mobile anime JSON: %v", err)
 	}
-	if string(wire["generos"]) != "[]" {
-		t.Fatalf("expected generos JSON array, got %s", wire["generos"])
+	if string(wire["genres"]) != "[]" {
+		t.Fatalf("expected genres JSON array, got %s", wire["genres"])
 	}
-	if got.Portada == nil || *got.Portada != "" {
-		t.Fatalf("expected portada empty string, got %#v", got.Portada)
+	if got.Cover == nil || *got.Cover != "" {
+		t.Fatalf("expected portada empty string, got %#v", got.Cover)
 	}
 }
 
@@ -254,15 +254,15 @@ func TestQueryServiceGetMobileAnimeProjectsRepetirTimeline(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-repeated", `{
-		"_id":"anime-repeated",
-		"nombre":"Repeated Anime",
-		"nrocapvisto":1,
-		"repetir":[{
-			"numrepeticion":0,
-			"nrocapvisto":1,
-			"estado":2,
-			"fechaCreacion":{"$$date":1610685499207},
-			"fechaRepeticion":{"$$date":1618271545221}
+		"id":"anime-repeated",
+		"name":"Repeated Anime",
+		"episodesWatched":1,
+		"repetitions":[{
+			"numRepetitions":0,
+			"episodesWatched":1,
+			"status":2,
+			"createdAt":1610685499207,
+			"repeatedAt":1618271545221
 		}]
 	}`)
 
@@ -274,29 +274,29 @@ func TestQueryServiceGetMobileAnimeProjectsRepetirTimeline(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected anime, got nil")
 	}
-	if len(got.Repetir) != 1 {
-		t.Fatalf("expected 1 repetir entry, got %d: %#v", len(got.Repetir), got.Repetir)
+	if len(got.Repetitions) != 1 {
+		t.Fatalf("expected 1 repetir entry, got %d: %#v", len(got.Repetitions), got.Repetitions)
 	}
 
-	entry := got.Repetir[0]
-	if entry.NumRepeticion != 0 {
-		t.Fatalf("expected numrepeticion 0, got %d", entry.NumRepeticion)
+	entry := got.Repetitions[0]
+	if entry.NumRepetitions != 0 {
+		t.Fatalf("expected numrepeticion 0, got %d", entry.NumRepetitions)
 	}
-	if entry.Estado != 2 {
-		t.Fatalf("expected estado 2, got %d", entry.Estado)
+	if entry.Status != 2 {
+		t.Fatalf("expected estado 2, got %d", entry.Status)
 	}
-	if entry.FechaCreacion == nil || *entry.FechaCreacion != 1610685499207 {
-		t.Fatalf("expected fechaCreacion 1610685499207, got %#v", entry.FechaCreacion)
+	if entry.CreatedAt == nil || *entry.CreatedAt != 1610685499207 {
+		t.Fatalf("expected fechaCreacion 1610685499207, got %#v", entry.CreatedAt)
 	}
-	if entry.FechaRepeticion == nil || *entry.FechaRepeticion != 1618271545221 {
-		t.Fatalf("expected fechaRepeticion 1618271545221, got %#v", entry.FechaRepeticion)
+	if entry.RepeatedAt == nil || *entry.RepeatedAt != 1618271545221 {
+		t.Fatalf("expected fechaRepeticion 1618271545221, got %#v", entry.RepeatedAt)
 	}
 }
 
 func TestQueryServiceGetMobileAnimeReturnsEmptyRepetirWhenAbsent(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-no-repeat", `{"_id":"anime-no-repeat","nombre":"No Repeat","nrocapvisto":1}`)
+	seedAnimeSnapshot(t, store, "anime-no-repeat", `{"id":"anime-no-repeat","name":"No Repeat","episodesWatched":1}`)
 
 	service := anime.NewQueryService(store)
 	got, err := service.GetMobileAnime(ctx, "anime-no-repeat")
@@ -306,11 +306,11 @@ func TestQueryServiceGetMobileAnimeReturnsEmptyRepetirWhenAbsent(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected anime, got nil")
 	}
-	if got.Repetir == nil {
+	if got.Repetitions == nil {
 		t.Fatal("expected non-nil empty Repetir slice, got nil")
 	}
-	if len(got.Repetir) != 0 {
-		t.Fatalf("expected empty Repetir slice, got %#v", got.Repetir)
+	if len(got.Repetitions) != 0 {
+		t.Fatalf("expected empty Repetir slice, got %#v", got.Repetitions)
 	}
 }
 
@@ -323,10 +323,10 @@ func TestQueryServiceCatalogListsEveryActiveInactiveAndStatusRecord(t *testing.T
 		estado  int
 		activo  int
 	}{
-		{id: "active-watching", payload: `{"_id":"active-watching","nombre":"Active Watching","nrocapvisto":5,"estado":0,"activo":true}`, estado: 0, activo: 1},
-		{id: "active-finished", payload: `{"_id":"active-finished","nombre":"Active Finished","nrocapvisto":12,"estado":1,"totalcap":12,"activo":true}`, estado: 1, activo: 1},
-		{id: "inactive-finished", payload: `{"_id":"inactive-finished","nombre":"Inactive Finished","nrocapvisto":12,"estado":1,"activo":false}`, estado: 1, activo: 0},
-		{id: "inactive-disliked", payload: `{"_id":"inactive-disliked","nombre":"Inactive Disliked","nrocapvisto":3,"estado":2,"activo":false}`, estado: 2, activo: 0},
+		{id: "active-watching", payload: `{"id":"active-watching","name":"Active Watching","episodesWatched":5,"status":0,"active":true}`, estado: 0, activo: 1},
+		{id: "active-finished", payload: `{"id":"active-finished","name":"Active Finished","episodesWatched":12,"status":1,"totalEpisodes":12,"active":true}`, estado: 1, activo: 1},
+		{id: "inactive-finished", payload: `{"id":"inactive-finished","name":"Inactive Finished","episodesWatched":12,"status":1,"active":false}`, estado: 1, activo: 0},
+		{id: "inactive-disliked", payload: `{"id":"inactive-disliked","name":"Inactive Disliked","episodesWatched":3,"status":2,"active":false}`, estado: 2, activo: 0},
 	}
 	for _, seed := range seeds {
 		seedAnimeSnapshot(t, store, seed.id, seed.payload)
@@ -350,8 +350,8 @@ func TestQueryServiceCatalogListsEveryActiveInactiveAndStatusRecord(t *testing.T
 		if !ok {
 			t.Fatalf("Catalog silently excluded %s", seed.id)
 		}
-		if item.Activo != seed.activo || item.Estado != seed.estado {
-			t.Fatalf("Catalog changed %s status: got activo=%d estado=%d", seed.id, item.Activo, item.Estado)
+		if item.Active != seed.activo || item.Status != seed.estado {
+			t.Fatalf("Catalog changed %s status: got activo=%d estado=%d", seed.id, item.Active, item.Status)
 		}
 	}
 }
@@ -359,10 +359,10 @@ func TestQueryServiceCatalogListsEveryActiveInactiveAndStatusRecord(t *testing.T
 func TestQueryServiceListAnimeItemsDerivesDownloadGapBooleans(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-present", `{"_id":"anime-present","nombre":"Has Both","nrocapvisto":1,"activo":true,"pagina":"https://jkanime.net/has-both/","carpeta":"C:\\anime\\has-both"}`)
-	seedAnimeSnapshot(t, store, "anime-absent", `{"_id":"anime-absent","nombre":"Has Neither","nrocapvisto":1,"activo":true}`)
-	seedAnimeSnapshot(t, store, "anime-empty", `{"_id":"anime-empty","nombre":"Has Empty Strings","nrocapvisto":1,"activo":true,"pagina":"","carpeta":""}`)
-	seedAnimeSnapshot(t, store, "anime-null", `{"_id":"anime-null","nombre":"Has Explicit Null","nrocapvisto":1,"activo":true,"pagina":null,"carpeta":null}`)
+	seedAnimeSnapshot(t, store, "anime-present", `{"id":"anime-present","name":"Has Both","episodesWatched":1,"active":true,"sourceUrl":"https://jkanime.net/has-both/","folder":"C:\\anime\\has-both"}`)
+	seedAnimeSnapshot(t, store, "anime-absent", `{"id":"anime-absent","name":"Has Neither","episodesWatched":1,"active":true}`)
+	seedAnimeSnapshot(t, store, "anime-empty", `{"id":"anime-empty","name":"Has Empty Strings","episodesWatched":1,"active":true,"sourceUrl":"","folder":""}`)
+	seedAnimeSnapshot(t, store, "anime-null", `{"id":"anime-null","name":"Has Explicit Null","episodesWatched":1,"active":true,"sourceUrl":null,"folder":null}`)
 
 	service := anime.NewQueryService(store)
 	got, err := service.ListAnimeItems(ctx)

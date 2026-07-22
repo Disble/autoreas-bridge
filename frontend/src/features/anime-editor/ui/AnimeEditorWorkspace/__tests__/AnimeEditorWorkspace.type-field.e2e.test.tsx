@@ -15,7 +15,7 @@ const { fakeSource, getAnimeEditorRecordMock } = vi.hoisted(() => {
   const noop = () => Promise.resolve(undefined);
   const fakeSource = {
     getAnimes: vi.fn().mockResolvedValue([
-      { id: 'anime-1', nombre: 'BanG Dream! Yume∞Mita', estado: 0, nrocapvisto: 1, activo: 1 },
+      { id: 'anime-1', name: 'BanG Dream! Yume∞Mita', status: 0, episodesWatched: 1, active: 1 },
     ]),
     getAnimeEditorRecord: getAnimeEditorRecordMock,
     saveAnimeEditor: vi.fn(),

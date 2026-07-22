@@ -13,7 +13,7 @@ import (
 func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
@@ -43,7 +43,7 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
@@ -73,7 +73,7 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 func TestWriteServicePatchAnimeNoOpsWhenDesiredValueAlreadyMatchesCurrent(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":5,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":5,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewWriteService(store, writer)
@@ -118,7 +118,7 @@ func TestWriteServicePatchAnimeCreatesWhenBaseNilAndRecordIsNew(t *testing.T) {
 func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewWriteService(store, writer)
@@ -146,7 +146,7 @@ func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) 
 func TestWriteServicePatchAnimeExplicitStaleFailsWhenConflictCannotBeRecorded(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewWriteService(store, writer)
@@ -161,7 +161,7 @@ func TestWriteServicePatchAnimeExplicitStaleFailsWhenConflictCannotBeRecorded(t 
 func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	currentJSON := `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`
+	currentJSON := `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", currentJSON, 1000)
 
 	writer := &stubAnimeWriter{}
@@ -204,7 +204,7 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 func TestWriteServicePatchAnimePropagatesConflictWriterFailure(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{err: errors.New("insert failed")}
@@ -222,7 +222,7 @@ func TestWriteServicePatchAnimePropagatesConflictWriterFailure(t *testing.T) {
 func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
@@ -243,7 +243,7 @@ func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	conflicts := &stubConflictWriter{}
@@ -271,7 +271,7 @@ func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *test
 func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
@@ -293,7 +293,7 @@ func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T
 func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
@@ -314,7 +314,7 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`, 200)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`, 200)
 	conflicts := &stubConflictWriter{}
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })

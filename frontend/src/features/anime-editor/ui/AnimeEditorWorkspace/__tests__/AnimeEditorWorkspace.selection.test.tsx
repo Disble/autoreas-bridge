@@ -3,8 +3,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { mockSource } = vi.hoisted(() => {
-  function makeAnime(id: string, nombre: string) {
-    return { id, nombre, estado: 0, activo: 1, nrocapvisto: 1 };
+  function makeAnime(id: string, name: string) {
+    return { id, name, status: 0, active: 1, episodesWatched: 1 };
   }
   function makeRecord(id: string, name: string) {
     return {

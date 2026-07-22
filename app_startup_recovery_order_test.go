@@ -26,8 +26,8 @@ func TestAppStartupRecoversStagedWritesBeforeEvents(t *testing.T) {
 		t.Fatalf("open bridge db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	base := []byte(`{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"activo":true}`)
-	desired := []byte(`{"_id":"anime-1","nombre":"Test","nrocapvisto":3,"estado":2,"activo":true}`)
+	base := []byte(`{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"active":true}`)
+	desired := []byte(`{"id":"anime-1","name":"Test","episodesWatched":3,"status":2,"active":true}`)
 	_, base, err = store.Decode(base)
 	if err != nil {
 		t.Fatalf("canonicalize base: %v", err)

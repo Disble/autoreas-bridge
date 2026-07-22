@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { useAnimeEditorList } from '../use-anime-editor-list';
 
-function makeAnime(id: string, nombre: string) {
-  return { id, nombre, estado: 0, activo: 1, nrocapvisto: 1 } as unknown as never;
+function makeAnime(id: string, name: string) {
+  return { id, name, status: 0, active: 1, episodesWatched: 1 } as unknown as never;
 }
 
 function createSource(): AnimeEditorRuntimeSource {

@@ -230,7 +230,7 @@ func TestOpenBridgeDBMigratesLegacyAnimeSnapshotsSchema(t *testing.T) {
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO anime_snapshots (anime_id, snapshot_json, snapshot_hash)
-		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece"}', 'deadbeef');
+		VALUES ('anime-1', '{"id":"anime-1","name":"One Piece"}', 'deadbeef');
 	`); err != nil {
 		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy anime_snapshots row: %v", err)
@@ -275,7 +275,7 @@ func TestScheduleDayMigrationPreservesExistingSpanishDiasRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open legacy sqlite db: %v", err)
 	}
-	const storedSnapshot = `{"_id":"anime-1","nombre":"One Piece","dias":[{"dia":"Lunes","orden":0}]}`
+	const storedSnapshot = `{"id":"anime-1","name":"One Piece","days":[{"day":"Lunes","order":0}]}`
 	if _, err := legacyDB.Exec(`
 		CREATE TABLE anime_snapshots (
 			anime_id TEXT PRIMARY KEY,
@@ -374,7 +374,7 @@ func TestOpenBridgeDBMigratesLegacyChangelogSchema(t *testing.T) {
 	}
 	if _, err := legacyDB.Exec(`
 		INSERT INTO changelog (anime_id, payload_json, status)
-		VALUES ('anime-1', '{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664}', 'pending');
+		VALUES ('anime-1', '{"id":"anime-1","name":"One Piece","episodesWatched":664}', 'pending');
 	`); err != nil {
 		closeTestDB(t, legacyDB)
 		t.Fatalf("insert legacy changelog row: %v", err)

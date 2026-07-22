@@ -21,9 +21,9 @@ const { expectedScheduleEntries, fakeSource, getAnimeEditorRecordMock, getAnimeE
   const noop = () => Promise.resolve(undefined);
   const fakeSource = {
     getAnimes: vi.fn().mockResolvedValue([
-      { id: 'bang-dream', nombre: 'BanG Dream! YumemoMita', estado: 0, nrocapvisto: 0, activo: 1, dias: [{ dia: 'Sin ver', orden: 4 }], generos: [], hasDownloadPage: true, hasFolder: true },
-      { id: 'sayonara-lara', nombre: 'Sayonara Lara', estado: 0, nrocapvisto: 0, activo: 1, dias: [{ dia: 'Sin ver', orden: 1 }], generos: [], hasDownloadPage: true, hasFolder: true },
-      { id: 'yani-neko', nombre: 'Yani Neko', estado: 0, nrocapvisto: 0, activo: 1, dias: [{ dia: 'Sin ver', orden: 2 }], generos: [], hasDownloadPage: true, hasFolder: true },
+      { id: 'bang-dream', name: 'BanG Dream! YumemoMita', status: 0, episodesWatched: 0, active: 1, days: [{ day: 'Sin ver', order: 4 }], genres: [], hasDownloadPage: true, hasFolder: true },
+      { id: 'sayonara-lara', name: 'Sayonara Lara', status: 0, episodesWatched: 0, active: 1, days: [{ day: 'Sin ver', order: 1 }], genres: [], hasDownloadPage: true, hasFolder: true },
+      { id: 'yani-neko', name: 'Yani Neko', status: 0, episodesWatched: 0, active: 1, days: [{ day: 'Sin ver', order: 2 }], genres: [], hasDownloadPage: true, hasFolder: true },
     ]),
     getAnimeEditorRecord: getAnimeEditorRecordMock,
     saveAnimeEditor: vi.fn(),

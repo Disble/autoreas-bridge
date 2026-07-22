@@ -27,9 +27,9 @@ func (r AnimeRaw) strings(key string) []string {
 	return result
 }
 
-// coverPath projects the path from the legacy cover object.
+// coverPath projects the path from the cover object.
 func (r AnimeRaw) coverPath() *string {
-	value, ok := nonNullField(r.extraFields, "portada")
+	value, ok := nonNullField(r.extraFields, "cover")
 	if !ok {
 		return nil
 	}
@@ -42,9 +42,9 @@ func (r AnimeRaw) coverPath() *string {
 	return cover.Path
 }
 
-// repetitions projects legacy repetition history into domain values.
+// repetitions projects repetition history into domain values.
 func (r AnimeRaw) repetitions() []domain.Repetition {
-	value, ok := nonNullField(r.extraFields, "repetir")
+	value, ok := nonNullField(r.extraFields, "repetitions")
 	if !ok {
 		return []domain.Repetition{}
 	}
@@ -54,15 +54,15 @@ func (r AnimeRaw) repetitions() []domain.Repetition {
 	}
 	result := make([]domain.Repetition, 0, len(entries))
 	for _, entry := range entries {
-		repeatedAt := legacyFieldDate(entry, "fechaRepeticion")
+		repeatedAt := rawFieldDate(entry, "repeatedAt")
 		repetition := domain.Repetition{
-			Number:        legacyFieldInt(entry, "numrepeticion"),
-			Progress:      legacyFieldNumber(entry, "nrocapvisto"),
-			Status:        legacyFieldInt(entry, "estado"),
-			CreatedAt:     legacyFieldDate(entry, "fechaCreacion"),
-			PremieredAt:   legacyFieldDate(entry, "fechaEstreno"),
-			LastWatchedAt: legacyFieldDate(entry, "fechaUltCapVisto"),
-			DeletedAt:     legacyFieldDate(entry, "fechaEliminacion"),
+			Number:        rawFieldInt(entry, "numRepetitions"),
+			Progress:      rawFieldNumber(entry, "episodesWatched"),
+			Status:        rawFieldInt(entry, "status"),
+			CreatedAt:     rawFieldDate(entry, "createdAt"),
+			PremieredAt:   rawFieldDate(entry, "premieredAt"),
+			LastWatchedAt: rawFieldDate(entry, "lastWatchedAt"),
+			DeletedAt:     rawFieldDate(entry, "deletedAt"),
 		}
 		if repeatedAt != nil {
 			repetition.RepeatedAt = *repeatedAt
@@ -72,8 +72,8 @@ func (r AnimeRaw) repetitions() []domain.Repetition {
 	return result
 }
 
-// legacyFieldNumber reads a numeric field from a legacy JSON object.
-func legacyFieldNumber(fields map[string]json.RawMessage, key string) float64 {
+// rawFieldNumber reads a numeric field from a raw JSON object.
+func rawFieldNumber(fields map[string]json.RawMessage, key string) float64 {
 	value, ok := nonNullField(fields, key)
 	if !ok {
 		return 0
@@ -83,26 +83,26 @@ func legacyFieldNumber(fields map[string]json.RawMessage, key string) float64 {
 	return result
 }
 
-// legacyFieldInt reads an integer field from a legacy JSON object.
-func legacyFieldInt(fields map[string]json.RawMessage, key string) int {
-	return int(legacyFieldNumber(fields, key))
+// rawFieldInt reads an integer field from a raw JSON object.
+func rawFieldInt(fields map[string]json.RawMessage, key string) int {
+	return int(rawFieldNumber(fields, key))
 }
 
-// legacyFieldDate reads a wrapped timestamp field from a legacy JSON object.
-func legacyFieldDate(fields map[string]json.RawMessage, key string) *time.Time {
+// rawFieldDate reads a plain epoch-millis timestamp field from a raw JSON object.
+func rawFieldDate(fields map[string]json.RawMessage, key string) *time.Time {
 	value, ok := nonNullField(fields, key)
 	if !ok {
 		return nil
 	}
-	var wrapper legacyDateWrapper
-	if json.Unmarshal(value, &wrapper) != nil {
+	var millis int64
+	if json.Unmarshal(value, &millis) != nil {
 		return nil
 	}
-	result := time.UnixMilli(wrapper.Date).UTC()
+	result := time.UnixMilli(millis).UTC()
 	return &result
 }
 
-// IsSoftDeleted reports whether a canonical Legacy payload carries both the
+// IsSoftDeleted reports whether a canonical payload carries both the
 // inactive flag and a deletion timestamp.
 func IsSoftDeleted(payload []byte) (bool, error) {
 	_, value, _, err := decode(payload)

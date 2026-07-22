@@ -303,7 +303,7 @@ func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 	}
 
 	app.startup(context.Background())
-	app.eventBus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"nombre":"Bleach"}`)})
+	app.eventBus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"name":"Bleach"}`)})
 
 	select {
 	case event := <-realtimeHub.received:

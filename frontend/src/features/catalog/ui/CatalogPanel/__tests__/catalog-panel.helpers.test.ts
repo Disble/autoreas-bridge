@@ -12,13 +12,13 @@ import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VAL
 
 const baseAnime: Anime = {
   id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 2,
-  nrocapvisto: 12,
-  totalcap: 28,
-  activo: 1,
-  dias: [],
-  generos: [],
+  name: 'Frieren',
+  status: 2,
+  episodesWatched: 12,
+  totalEpisodes: 28,
+  active: 1,
+  days: [],
+  genres: [],
   hasDownloadPage: true,
   hasFolder: true,
 };
@@ -66,7 +66,7 @@ describe('toAnimeViewModel', () => {
   });
 
   it('maps an inactive anime to the view model', () => {
-    const viewModel = toAnimeViewModel({ ...baseAnime, activo: 0 });
+    const viewModel = toAnimeViewModel({ ...baseAnime, active: 0 });
 
     expect(viewModel.status).toBe('inactive');
     expect(viewModel.statusLabel).toBe('Inactive');
@@ -125,23 +125,23 @@ describe('filterAnimes', () => {
   const actionAnime: Anime = {
     ...baseAnime,
     id: 'action',
-    nombre: '  Solo Leveling  ',
-    estado: 1,
-    activo: 1,
-    tipo: 2,
-    dias: ['Friday'],
-    generos: ['Action'],
+    name: '  Solo Leveling  ',
+    status: 1,
+    active: 1,
+    kind: 2,
+    days: ['Friday'],
+    genres: ['Action'],
   };
 
   const dramaAnime: Anime = {
     ...baseAnime,
     id: 'drama',
-    nombre: 'Violet Evergarden',
-    estado: 2,
-    activo: 0,
-    tipo: 3,
-    dias: ['Sunday'],
-    generos: ['Drama'],
+    name: 'Violet Evergarden',
+    status: 2,
+    active: 0,
+    kind: 3,
+    days: ['Sunday'],
+    genres: ['Drama'],
   };
 
   it('filters by trimmed query plus estado, activo, and tipo values', () => {
@@ -189,30 +189,30 @@ describe('filterAnimes', () => {
 
 describe('sortAnimesByName', () => {
   it('sorts by name ascending', () => {
-    const a: Anime = { ...baseAnime, id: 'a', nombre: 'Zeta' };
-    const b: Anime = { ...baseAnime, id: 'b', nombre: 'Alpha' };
+    const a: Anime = { ...baseAnime, id: 'a', name: 'Zeta' };
+    const b: Anime = { ...baseAnime, id: 'b', name: 'Alpha' };
 
-    expect([a, b].sort(sortAnimesByName).map((item) => item.nombre)).toEqual(['Alpha', 'Zeta']);
+    expect([a, b].sort(sortAnimesByName).map((item) => item.name)).toEqual(['Alpha', 'Zeta']);
   });
 
   it('uses id as tie-breaker when names match', () => {
-    const a: Anime = { ...baseAnime, id: 'b', nombre: 'Same' };
-    const b: Anime = { ...baseAnime, id: 'a', nombre: 'Same' };
+    const a: Anime = { ...baseAnime, id: 'b', name: 'Same' };
+    const b: Anime = { ...baseAnime, id: 'a', name: 'Same' };
 
     expect([a, b].sort(sortAnimesByName).map((item) => item.id)).toEqual(['a', 'b']);
   });
 
   it('returns zero when both name and id match', () => {
-    const a: Anime = { ...baseAnime, id: 'same-id', nombre: 'Same' };
-    const b: Anime = { ...baseAnime, id: 'same-id', nombre: 'Same' };
+    const a: Anime = { ...baseAnime, id: 'same-id', name: 'Same' };
+    const b: Anime = { ...baseAnime, id: 'same-id', name: 'Same' };
 
     expect(sortAnimesByName(a, b)).toBe(0);
   });
 
   it('is case-insensitive', () => {
-    const a: Anime = { ...baseAnime, id: 'a', nombre: 'alpha' };
-    const b: Anime = { ...baseAnime, id: 'b', nombre: 'BETA' };
+    const a: Anime = { ...baseAnime, id: 'a', name: 'alpha' };
+    const b: Anime = { ...baseAnime, id: 'b', name: 'BETA' };
 
-    expect([b, a].sort(sortAnimesByName).map((item) => item.nombre)).toEqual(['alpha', 'BETA']);
+    expect([b, a].sort(sortAnimesByName).map((item) => item.name)).toEqual(['alpha', 'BETA']);
   });
 });

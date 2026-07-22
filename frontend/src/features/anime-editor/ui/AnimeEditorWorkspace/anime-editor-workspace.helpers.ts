@@ -201,12 +201,12 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
 export function createAnimeEditorListItems(animes: readonly Anime[], filter: AnimeEditorFilter, query: string, selectedAnimeId?: string): readonly AnimeEditorListItemViewModel[] {
   const normalizedQuery = query.trim().toLowerCase();
   return animes
-    .filter((anime) => (filter === 'all' || isWatchingAnime(anime)) && (normalizedQuery.length === 0 || anime.nombre.toLowerCase().includes(normalizedQuery)))
+    .filter((anime) => (filter === 'all' || isWatchingAnime(anime)) && (normalizedQuery.length === 0 || anime.name.toLowerCase().includes(normalizedQuery)))
     .toSorted((left, right) => {
       const watchingDifference = Number(!isWatchingAnime(left)) - Number(!isWatchingAnime(right));
-      return watchingDifference === 0 ? left.nombre.localeCompare(right.nombre) : watchingDifference;
+      return watchingDifference === 0 ? left.name.localeCompare(right.name) : watchingDifference;
     })
-    .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.nombre, subtitle: `${anime.nrocapvisto} watched`, selected: anime.id === selectedAnimeId }));
+    .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.name, subtitle: `${anime.episodesWatched} watched`, selected: anime.id === selectedAnimeId }));
 }
 
 /** Keeps transport feedback string-safe while preserving backend messages verbatim. */

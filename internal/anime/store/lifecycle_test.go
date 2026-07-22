@@ -11,7 +11,7 @@ import (
 
 func TestLifecycleMutationsStayInsideLegacyAdapterAndPreserveUnknownFields(t *testing.T) {
 	at := time.UnixMilli(1700000000123).UTC()
-	payload := []byte(`{"_id":"anime-1","nombre":"Frieren","activo":true,"custom":{"keep":7}}`)
+	payload := []byte(`{"id":"anime-1","name":"Frieren","active":true,"custom":{"keep":7}}`)
 
 	deactivated, err := store.Deactivate(payload, at)
 	if err != nil {
@@ -34,7 +34,7 @@ func TestLifecycleMutationsStayInsideLegacyAdapterAndPreserveUnknownFields(t *te
 }
 
 func TestLifecycleMutationsRejectMalformedLegacyPayload(t *testing.T) {
-	malformed := []byte(`{"_id":`)
+	malformed := []byte(`{"id":`)
 	if _, err := store.Deactivate(malformed, time.UnixMilli(1)); err == nil {
 		t.Fatal("Deactivate malformed error = nil")
 	}

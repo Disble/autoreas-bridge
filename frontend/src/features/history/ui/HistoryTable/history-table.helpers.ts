@@ -116,9 +116,9 @@ export function filterHistoryEntries(
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   return entries.filter((entry) => {
-    const matchesEstado = estadoFilter === HISTORY_TABLE_ESTADO_ALL_VALUE || String(entry.estado) === estadoFilter;
-    const matchesQuery = normalizedQuery === '' || entry.nombre.toLowerCase().includes(normalizedQuery);
-    const matchesTipo = tipoFilter === HISTORY_TABLE_TIPO_ALL_VALUE || String(entry.tipo) === tipoFilter;
+    const matchesEstado = estadoFilter === HISTORY_TABLE_ESTADO_ALL_VALUE || String(entry.status) === estadoFilter;
+    const matchesQuery = normalizedQuery === '' || entry.name.toLowerCase().includes(normalizedQuery);
+    const matchesTipo = tipoFilter === HISTORY_TABLE_TIPO_ALL_VALUE || String(entry.kind) === tipoFilter;
 
     return matchesEstado && matchesQuery && matchesTipo;
   });
@@ -136,21 +136,21 @@ export function sortHistoryEntries(
   sort: string,
 ): readonly AnimeHistoryEntry[] {
   if (sort === HISTORY_TABLE_SORT_NOMBRE_VALUE) {
-    return entries.toSorted((a, b) => a.nombre.localeCompare(b.nombre) || a.id.localeCompare(b.id));
+    return entries.toSorted((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }
 
   if (sort === HISTORY_TABLE_SORT_FECHA_CREACION_VALUE) {
     return entries.toSorted((a, b) => {
-      if (a.fechaCreacion === undefined && b.fechaCreacion === undefined) {
+      if (a.createdAt === undefined && b.createdAt === undefined) {
         return 0;
       }
-      if (a.fechaCreacion === undefined) {
+      if (a.createdAt === undefined) {
         return 1;
       }
-      if (b.fechaCreacion === undefined) {
+      if (b.createdAt === undefined) {
         return -1;
       }
-      return b.fechaCreacion - a.fechaCreacion;
+      return b.createdAt - a.createdAt;
     });
   }
 
@@ -221,15 +221,15 @@ function toHistoryRowViewModel(entry: AnimeHistoryEntry, rowNumber: number): His
   return {
     id: entry.id,
     rowNumber,
-    nombre: entry.nombre,
-    nrocapvisto: entry.nrocapvisto,
-    longDateLabel: formatHistoryLongDate(entry.fechaUltCapVisto),
-    weekdayLabel: formatHistoryWeekday(entry.fechaUltCapVisto),
-    timeLabel: formatHistoryTime(entry.fechaUltCapVisto),
-    relativeRecencyLabel: formatHistoryRelativeRecency(entry.fechaUltCapVisto),
-    estado: entry.estado,
-    estadoLabel: getHistoryEstadoLabel(entry.estado),
-    estadoColor: getHistoryEstadoColor(entry.estado),
+    nombre: entry.name,
+    nrocapvisto: entry.episodesWatched,
+    longDateLabel: formatHistoryLongDate(entry.lastWatchedAt),
+    weekdayLabel: formatHistoryWeekday(entry.lastWatchedAt),
+    timeLabel: formatHistoryTime(entry.lastWatchedAt),
+    relativeRecencyLabel: formatHistoryRelativeRecency(entry.lastWatchedAt),
+    estado: entry.status,
+    estadoLabel: getHistoryEstadoLabel(entry.status),
+    estadoColor: getHistoryEstadoColor(entry.status),
   };
 }
 

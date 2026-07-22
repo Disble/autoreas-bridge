@@ -164,7 +164,7 @@ func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) 
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":664,"fechaUltCapVisto":1710000000123},"created_at":1710000000123}]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":664,"lastWatchedAt":1710000000123},"created_at":1710000000123}]}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -215,7 +215,7 @@ func TestSyncHandlerReturnsBadRequestWhenPendingOperationIsInvalid(t *testing.T)
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":-1},"created_at":1710000000123}]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":-1},"created_at":1710000000123}]}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -243,7 +243,7 @@ func TestSyncHandlerReturnsServerErrorWhenApplyingPendingOperationFails(t *testi
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"nrocapvisto":664},"created_at":1710000000123}]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":664},"created_at":1710000000123}]}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)

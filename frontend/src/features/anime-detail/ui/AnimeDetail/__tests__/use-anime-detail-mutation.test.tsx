@@ -6,14 +6,14 @@ import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { useAnimeDetailMutation } from '../use-anime-detail-mutation';
 
 const detail: AnimeDetail = {
-  _id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 1,
-  nrocapvisto: 12,
-  activo: 0,
-  primeravez: 1,
-  dias: [],
-  generos: [],
+  id: 'anime-1',
+  name: 'Frieren',
+  status: 1,
+  episodesWatched: 12,
+  active: 0,
+  firstCycle: 1,
+  days: [],
+  genres: [],
   modified_at: 0,
 };
 
@@ -74,7 +74,7 @@ describe('useAnimeDetailMutation', () => {
       .mockResolvedValueOnce({ status: 'ok', outcome: 'applied', modifiedAt: 21 });
     const source = { ...createSource(), repeatAnime };
     const setDetailSnapshot = vi.fn();
-    const animeTwoDetail = { ...detail, _id: 'anime-2', nombre: 'Dungeon Meshi' };
+    const animeTwoDetail = { ...detail, id: 'anime-2', name: 'Dungeon Meshi' };
     const { result, rerender } = renderHook(
       ({ animeId, currentDetail }: { animeId: string; currentDetail: AnimeDetail }) => (
         useAnimeDetailMutation({

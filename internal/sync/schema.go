@@ -9,7 +9,23 @@ const (
 			snapshot_json TEXT NOT NULL,
 			snapshot_hash TEXT NOT NULL,
 			modified_at INTEGER NOT NULL DEFAULT 0,
-			schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0
+			schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0,
+			vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0
+		)`
+
+	// schemaMigrationMarkersDDL creates the dedicated global one-shot migration
+	// marker table (SDD-56). A per-row column on anime_snapshots cannot safely
+	// gate a whole-database one-shot pass: anime_snapshot_store.go's INSERT
+	// omits vocabulary_migrated_at, so any newly created row (written after the
+	// vocabulary cutover, always English by construction) would default back to
+	// 0 and incorrectly look "unmigrated" on the next boot, re-triggering the
+	// private legacy-Spanish decoder against already-English content. A single
+	// global marker row avoids that defect while still satisfying the
+	// "vocabulary_migrated_at marker" requirement.
+	schemaMigrationMarkersDDL = `
+		CREATE TABLE IF NOT EXISTS schema_migration_markers (
+			marker TEXT PRIMARY KEY,
+			vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0
 		)`
 
 	changelogDDL = `

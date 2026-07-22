@@ -11,10 +11,10 @@ func desiredSchedulePlacements(records []ReadRecord, command ApplyAnimeScheduleD
 	placementsByAnime := map[string][]contracts.MobileAnimeDay{}
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo != 1 {
+		if item.Active != 1 {
 			continue
 		}
-		placementsByAnime[item.ID] = cloneMobileDays(item.Dias)
+		placementsByAnime[item.ID] = cloneMobileDays(item.Days)
 	}
 	for _, entry := range command.Entries {
 		placementsByAnime[entry.AnimeID] = cloneMobileDays(entry.Placements)
@@ -48,8 +48,8 @@ func splitReflowPlacements(placementsByAnime map[string][]contracts.MobileAnimeD
 	byDestination := map[string][]schedulePlacementRef{}
 	for animeID, placements := range placementsByAnime {
 		for index, placement := range placements {
-			if _, normalize := reflow[placement.Dia]; normalize {
-				byDestination[placement.Dia] = append(byDestination[placement.Dia], schedulePlacementRef{animeID: animeID, order: placement.Orden, index: index})
+			if _, normalize := reflow[placement.Day]; normalize {
+				byDestination[placement.Day] = append(byDestination[placement.Day], schedulePlacementRef{animeID: animeID, order: placement.Order, index: index})
 				continue
 			}
 			result[animeID] = append(result[animeID], placement)
@@ -111,7 +111,7 @@ func insertSchedulePlacementRef(refs []schedulePlacementRef, ref schedulePlaceme
 // appendNormalizedDestination writes normalized references into the result map.
 func appendNormalizedDestination(result map[string][]contracts.MobileAnimeDay, destination string, refs []schedulePlacementRef) {
 	for index, ref := range refs {
-		result[ref.animeID] = append(result[ref.animeID], contracts.MobileAnimeDay{Dia: destination, Orden: index + 1})
+		result[ref.animeID] = append(result[ref.animeID], contracts.MobileAnimeDay{Day: destination, Order: index + 1})
 	}
 }
 
@@ -143,13 +143,13 @@ func destinationHasDuplicateOrders(destination string, placementsByAnime map[str
 	seen := map[int]struct{}{}
 	for _, placements := range placementsByAnime {
 		for _, placement := range placements {
-			if placement.Dia != destination {
+			if placement.Day != destination {
 				continue
 			}
-			if _, exists := seen[placement.Orden]; exists {
+			if _, exists := seen[placement.Order]; exists {
 				return true
 			}
-			seen[placement.Orden] = struct{}{}
+			seen[placement.Order] = struct{}{}
 		}
 	}
 	return false
@@ -162,10 +162,10 @@ func affectedScheduleDestinations(records []ReadRecord, command ApplyAnimeSchedu
 	changed := scheduleEntryIDs(command.Entries)
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo != 1 || !isChangedScheduleAnime(changed, item.ID) {
+		if item.Active != 1 || !isChangedScheduleAnime(changed, item.ID) {
 			continue
 		}
-		addAllowedScheduleDestinations(affected, item.Dias)
+		addAllowedScheduleDestinations(affected, item.Days)
 	}
 	return affected
 }
@@ -182,8 +182,8 @@ func affectedDestinationsFromEntries(entries []ApplyAnimeScheduleDraftEntry) map
 // addAllowedScheduleDestinations adds valid placement destinations to a set.
 func addAllowedScheduleDestinations(destinations map[string]struct{}, placements []contracts.MobileAnimeDay) {
 	for _, placement := range placements {
-		if _, ok := allowedScheduleDestinations[placement.Dia]; ok {
-			destinations[placement.Dia] = struct{}{}
+		if _, ok := allowedScheduleDestinations[placement.Day]; ok {
+			destinations[placement.Day] = struct{}{}
 		}
 	}
 }
@@ -194,11 +194,11 @@ func normalizeSchedulePlacementsMap(placementsByAnime map[string][]contracts.Mob
 	result := map[string][]contracts.MobileAnimeDay{}
 	for animeID, placements := range placementsByAnime {
 		for index, placement := range placements {
-			if _, ok := allowedScheduleDestinations[placement.Dia]; !ok {
+			if _, ok := allowedScheduleDestinations[placement.Day]; !ok {
 				result[animeID] = append(result[animeID], placement)
 				continue
 			}
-			byDestination[placement.Dia] = append(byDestination[placement.Dia], schedulePlacementRef{animeID: animeID, order: placement.Orden, index: index})
+			byDestination[placement.Day] = append(byDestination[placement.Day], schedulePlacementRef{animeID: animeID, order: placement.Order, index: index})
 		}
 	}
 	for _, destination := range scheduleDestinationOrder() {
@@ -213,7 +213,7 @@ func normalizeSchedulePlacementsMap(placementsByAnime map[string][]contracts.Mob
 			return refs[i].index < refs[j].index
 		})
 		for index, ref := range refs {
-			result[ref.animeID] = append(result[ref.animeID], contracts.MobileAnimeDay{Dia: destination, Orden: index + 1})
+			result[ref.animeID] = append(result[ref.animeID], contracts.MobileAnimeDay{Day: destination, Order: index + 1})
 		}
 	}
 	return result

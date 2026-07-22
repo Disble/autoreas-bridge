@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { mockSource } = vi.hoisted(() => {
   const animes = Array.from({ length: 842 }, (_, index) => ({
-    id: `anime-${index}`, nombre: `Anime ${String(index).padStart(4, '0')}`, estado: 0, activo: 1, nrocapvisto: index,
+    id: `anime-${index}`, name: `Anime ${String(index).padStart(4, '0')}`, status: 0, active: 1, episodesWatched: index,
   }));
   function makeRecord(id: string) {
     return {

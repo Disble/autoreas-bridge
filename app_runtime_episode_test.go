@@ -58,7 +58,7 @@ func TestSetAnimeStateDelegatesToEpisodeService(t *testing.T) {
 
 	got := app.SetAnimeState("anime-1", 3, 1000)
 
-	if got.Status != "ok" || got.Estado != 3 {
+	if got.Status != "ok" || got.AnimeStatus != 3 {
 		t.Fatalf("expected ok state result, got %#v", got)
 	}
 	if service.lastState.AnimeID != "anime-1" || service.lastState.Estado != 3 {
@@ -105,7 +105,7 @@ func TestStartupWiresActivityRecorderIntoEpisodeService(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
 	writer := &stubAppUpdateWriter{}
 	app := newAppTestApp(t)

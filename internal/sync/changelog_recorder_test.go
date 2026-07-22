@@ -21,7 +21,7 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	defer cancel()
 	recorder.Start(ctx)
 
-	event := events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"_id":"anime-1"}`)}
+	event := events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)}
 	bus.Publish(event)
 
 	eventuallySync(t, func() bool {
@@ -91,7 +91,7 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	defer cancel()
 	recorder.Start(ctx)
 
-	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"_id":"anime-1"}`)})
+	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)})
 
 	eventuallySync(t, func() bool {
 		return recorder.Err() != nil

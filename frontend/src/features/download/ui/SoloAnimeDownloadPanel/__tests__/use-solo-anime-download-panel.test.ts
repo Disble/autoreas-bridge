@@ -7,13 +7,13 @@ import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 
 const anime: Anime = {
   id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 2,
-  nrocapvisto: 12,
-  totalcap: 28,
-  activo: 1,
-  dias: [],
-  generos: [],
+  name: 'Frieren',
+  status: 2,
+  episodesWatched: 12,
+  totalEpisodes: 28,
+  active: 1,
+  days: [],
+  genres: [],
   hasDownloadPage: true,
   hasFolder: true,
 };

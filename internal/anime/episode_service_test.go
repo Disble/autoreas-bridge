@@ -20,7 +20,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Dungeon Meshi","nrocapvisto":2.5,"estado":0,"totalcap":24,"activo":true}`,
+		`{"id":"anime-1","name":"Dungeon Meshi","episodesWatched":2.5,"status":0,"totalEpisodes":24,"active":true}`,
 		1000,
 	)
 
@@ -78,7 +78,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsBlockedStates(t *testing.T) {
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Paused","nrocapvisto":4,"estado":3,"totalcap":12,"activo":true}`,
+		`{"id":"anime-1","name":"Paused","episodesWatched":4,"status":3,"totalEpisodes":12,"active":true}`,
 		1000,
 	)
 
@@ -109,7 +109,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsNegativeProgress(t *testing.T
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Start","nrocapvisto":0,"estado":0,"totalcap":12,"activo":true}`,
+		`{"id":"anime-1","name":"Start","episodesWatched":0,"status":0,"totalEpisodes":12,"active":true}`,
 		1000,
 	)
 
@@ -140,7 +140,7 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":0,"estado":0,"activo":true,"dias":[{"dia":"Sin ver","orden":1}]}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":0,"status":0,"active":true,"days":[{"day":"Sin ver","order":1}]}`,
 		1000,
 	)
 
@@ -177,7 +177,7 @@ func TestEpisodeServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":true}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":0,"totalEpisodes":28,"active":true}`,
 		1000,
 	)
 
@@ -232,7 +232,7 @@ func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":true,"fechaEliminacion":null}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":0,"totalEpisodes":28,"active":true,"deletedAt":null}`,
 		1000,
 	)
 
@@ -289,10 +289,10 @@ func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 func TestEpisodeServiceListEpisodeScheduleFiltersActiveAnimeByDayOrder(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-late", `{"_id":"anime-late","nombre":"Late","nrocapvisto":1,"estado":0,"activo":true,"dias":[{"dia":"Viernes","orden":3}]}`)
-	seedAnimeSnapshot(t, store, "anime-early", `{"_id":"anime-early","nombre":"Early","nrocapvisto":2,"estado":0,"activo":true,"dias":[{"dia":"Viernes","orden":1}]}`)
-	seedAnimeSnapshot(t, store, "anime-other-day", `{"_id":"anime-other-day","nombre":"Other","nrocapvisto":3,"estado":0,"activo":true,"dias":[{"dia":"Jueves","orden":1}]}`)
-	seedAnimeSnapshot(t, store, "anime-inactive", `{"_id":"anime-inactive","nombre":"Inactive","nrocapvisto":4,"estado":0,"activo":false,"dias":[{"dia":"Viernes","orden":0}]}`)
+	seedAnimeSnapshot(t, store, "anime-late", `{"id":"anime-late","name":"Late","episodesWatched":1,"status":0,"active":true,"days":[{"day":"Viernes","order":3}]}`)
+	seedAnimeSnapshot(t, store, "anime-early", `{"id":"anime-early","name":"Early","episodesWatched":2,"status":0,"active":true,"days":[{"day":"Viernes","order":1}]}`)
+	seedAnimeSnapshot(t, store, "anime-other-day", `{"id":"anime-other-day","name":"Other","episodesWatched":3,"status":0,"active":true,"days":[{"day":"Jueves","order":1}]}`)
+	seedAnimeSnapshot(t, store, "anime-inactive", `{"id":"anime-inactive","name":"Inactive","episodesWatched":4,"status":0,"active":false,"days":[{"day":"Viernes","order":0}]}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query: anime.NewQueryService(store),
@@ -320,16 +320,16 @@ func TestEpisodeServiceListEpisodeScheduleExposesLiteralFolderPageAndHasCover(t 
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-cover",
-		`{"_id":"anime-cover","nombre":"Cover","nrocapvisto":1,"estado":0,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":1}],"carpeta":"C:\\anime\\cover",`+
-			`"pagina":"https://example.com/watch",`+
-			`"portada":{"type":"url","path":"https://cdn.jkdesu.com/x.jpg"}}`)
+		`{"id":"anime-cover","name":"Cover","episodesWatched":1,"status":0,"active":true,`+
+			`"days":[{"day":"Lunes","order":1}],"folder":"C:\\anime\\cover",`+
+			`"sourceUrl":"https://example.com/watch",`+
+			`"cover":{"type":"url","path":"https://cdn.jkdesu.com/x.jpg"}}`)
 	seedAnimeSnapshot(t, store, "anime-empty",
-		`{"_id":"anime-empty","nombre":"Empty","nrocapvisto":1,"estado":0,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":2}]}`)
+		`{"id":"anime-empty","name":"Empty","episodesWatched":1,"status":0,"active":true,`+
+			`"days":[{"day":"Lunes","order":2}]}`)
 	seedAnimeSnapshot(t, store, "anime-null-portada",
-		`{"_id":"anime-null-portada","nombre":"NullPortada","nrocapvisto":1,"estado":0,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":3}],"portada":{"type":"image","path":"null"}}`)
+		`{"id":"anime-null-portada","name":"NullPortada","episodesWatched":1,"status":0,"active":true,`+
+			`"days":[{"day":"Lunes","order":3}],"cover":{"type":"image","path":"null"}}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 

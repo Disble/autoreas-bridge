@@ -22,20 +22,20 @@ func TestRunOnceSeasonModeOnSelectsVerHoyAnimeExcludesWeekday(t *testing.T) {
 	deps.Sites = NewStaticRegistry() // empty — any selected anime generates DownloadSkippedEvent
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
 		{
-			ID:      "anime-ver-hoy",
-			Nombre:  "Ver Hoy Anime",
-			Activo:  1,
-			Dias:    []contracts.MobileAnimeDay{{Dia: seasonModeDiaName, Orden: 0}},
-			Pagina:  ptrStr("https://jkanime.net/ver-hoy/"),
-			Carpeta: ptrStr(t.TempDir()),
+			ID:        "anime-ver-hoy",
+			Name:      "Ver Hoy Anime",
+			Active:    1,
+			Days:      []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}},
+			SourceURL: ptrStr("https://jkanime.net/ver-hoy/"),
+			Folder:    ptrStr(t.TempDir()),
 		},
 		{
-			ID:      "anime-weekday",
-			Nombre:  "Weekday Anime",
-			Activo:  1,
-			Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-			Pagina:  ptrStr("https://jkanime.net/weekday/"),
-			Carpeta: ptrStr(t.TempDir()),
+			ID:        "anime-weekday",
+			Name:      "Weekday Anime",
+			Active:    1,
+			Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+			SourceURL: ptrStr("https://jkanime.net/weekday/"),
+			Folder:    ptrStr(t.TempDir()),
 		},
 	}}
 
@@ -98,12 +98,12 @@ func TestRunOnceSeasonModeOnInactiveVerHoyExcluded(t *testing.T) {
 	deps := baseDeps(t)
 	deps.SeasonMode = func(_ context.Context) bool { return true }
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-inactive-ver-hoy",
-		Nombre:  "Inactive Ver Hoy Anime",
-		Activo:  0,
-		Dias:    []contracts.MobileAnimeDay{{Dia: seasonModeDiaName, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/inactive-ver-hoy/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-inactive-ver-hoy",
+		Name:      "Inactive Ver Hoy Anime",
+		Active:    0,
+		Days:      []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/inactive-ver-hoy/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
@@ -146,8 +146,8 @@ func assertSeasonModeOffSelection(t *testing.T, seasonMode func(context.Context)
 	deps.SeasonMode = seasonMode
 	deps.Sites = NewStaticRegistry()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "anime-ver-hoy", Nombre: "Ver Hoy Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: seasonModeDiaName, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/ver-hoy/"), Carpeta: ptrStr(t.TempDir())},
-		{ID: "anime-weekday", Nombre: "Weekday Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/weekday/"), Carpeta: ptrStr(t.TempDir())},
+		{ID: "anime-ver-hoy", Name: "Ver Hoy Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ver-hoy/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-weekday", Name: "Weekday Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/weekday/"), Folder: ptrStr(t.TempDir())},
 	}}
 	var mu sync.Mutex
 	var skippedIDs []string
@@ -173,12 +173,12 @@ func TestRunOnceSeasonModeOnNoVerHoyAnimesYieldsNoAnimesToday(t *testing.T) {
 	dia := todayDiaName(deps.Clock())
 	deps.SeasonMode = func(_ context.Context) bool { return true }
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-weekday-only",
-		Nombre:  "Weekday Only Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, // no "Ver hoy"
-		Pagina:  ptrStr("https://jkanime.net/weekday-only/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-weekday-only",
+		Name:      "Weekday Only Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, // no "Ver hoy"
+		SourceURL: ptrStr("https://jkanime.net/weekday-only/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")

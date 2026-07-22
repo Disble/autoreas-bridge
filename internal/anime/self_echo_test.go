@@ -6,7 +6,7 @@ func TestSelfEchoRegistryConsumeOnceAfterSuccessfulWrite(t *testing.T) {
 	t.Parallel()
 
 	registry := NewSelfEchoRegistry()
-	payload := []byte(`{"_id":"anime-1","nombre":"Own","nrocapvisto":1}`)
+	payload := []byte(`{"id":"anime-1","name":"Own","episodesWatched":1}`)
 
 	registry.Remember(payload)
 
@@ -23,8 +23,8 @@ func TestSelfEchoRegistryForgetRollsBackFailedWrite(t *testing.T) {
 	t.Parallel()
 
 	registry := NewSelfEchoRegistry()
-	failedPayload := []byte(`{"_id":"anime-1","nombre":"Local","nrocapvisto":3}`)
-	externalPayload := []byte(`{"_id":"anime-1","nombre":"External","nrocapvisto":4}`)
+	failedPayload := []byte(`{"id":"anime-1","name":"Local","episodesWatched":3}`)
+	externalPayload := []byte(`{"id":"anime-1","name":"External","episodesWatched":4}`)
 
 	registry.Remember(failedPayload)
 	registry.Forget(failedPayload)

@@ -50,7 +50,7 @@ func TestPatchAnimeHandlerOutcomeAdapterKeepsExistingWireShape(t *testing.T) {
 				PatchAnime: AdaptAnimePatchWriter(stubOutcomePatchWriter{result: test.result}),
 				IsNotFound: func(error) bool { return false },
 			})
-			request := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":2}`))
+			request := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"episodesWatched":2}`))
 			response := httptest.NewRecorder()
 
 			handler.ServeHTTP(response, request)

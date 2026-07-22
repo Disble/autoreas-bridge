@@ -24,7 +24,7 @@ func TestRunOnceHappyPathDownloadsAndMarksRunOk(t *testing.T) {
 	registry.Register(source)
 	deps.Sites = registry
 	destFolder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Nombre: "Some Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/anime/"), Carpeta: ptrStr(destFolder)}}}
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/anime/"), Folder: ptrStr(destFolder)}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -63,7 +63,7 @@ func TestRunOncePersistsProgressBeforeFinalStatus(t *testing.T) {
 	registry.Register(source)
 	deps.Sites = registry
 	destFolder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Nombre: "Some Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/anime/"), Carpeta: ptrStr(destFolder)}}}
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/anime/"), Folder: ptrStr(destFolder)}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
 	bus := events.NewBus()
@@ -102,7 +102,7 @@ func TestRunOnceSurvivesNotifierFailure(t *testing.T) {
 	registry.Register(source)
 	deps.Sites = registry
 	destFolder := t.TempDir()
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Nombre: "Some Anime", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}}, Pagina: ptrStr("https://jkanime.net/anime/"), Carpeta: ptrStr(destFolder)}}}
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{ID: "anime-1", Name: "Some Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/anime/"), Folder: ptrStr(destFolder)}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 	deps.Notifier = &svcFakeNotifier{err: errors.New("notifier transport down")}
 

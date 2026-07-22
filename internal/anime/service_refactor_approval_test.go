@@ -11,7 +11,7 @@ import (
 func TestWriteServicePatchAnimePreservesLegacyFieldsAcrossDayPatch(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-preserve", `{"_id":"anime-preserve","nombre":"Keep","nrocapvisto":2,"estado":2,"pagina":"Netflix","carpeta":"C:/Anime/Keep","dia":"Lunes","orden":1}`)
+	seedAnimeSnapshot(t, store, "anime-preserve", `{"id":"anime-preserve","name":"Keep","episodesWatched":2,"status":2,"sourceUrl":"Netflix","folder":"C:/Anime/Keep","day":"Lunes","order":1}`)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 

@@ -27,13 +27,13 @@ func TestAnimeChangedMessageJSON(t *testing.T) {
 	payload, err := json.Marshal(AnimeChangedMessage{
 		Type:    MessageTypeAnimeChanged,
 		AnimeID: "anime-123",
-		Payload: json.RawMessage(`{"nombre":"Bleach"}`),
+		Payload: json.RawMessage(`{"name":"Bleach"}`),
 	})
 	if err != nil {
 		t.Fatalf("marshal anime changed message: %v", err)
 	}
 
-	if got, want := string(payload), `{"type":"anime_changed","anime_id":"anime-123","payload":{"nombre":"Bleach"}}`; got != want {
+	if got, want := string(payload), `{"type":"anime_changed","anime_id":"anime-123","payload":{"name":"Bleach"}}`; got != want {
 		t.Fatalf("expected %s, got %s", want, got)
 	}
 }

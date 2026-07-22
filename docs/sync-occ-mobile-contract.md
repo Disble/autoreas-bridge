@@ -18,8 +18,12 @@ detect it if mobile tells the bridge **what version it was editing from**.
 Every anime the bridge returns now carries a new field:
 
 ```json
-{ "id": "anime-123", "nombre": "...", "modified_at": 1719160000123, ... }
+{ "id": "anime-123", "name": "...", "modified_at": 1719160000123, ... }
 ```
+
+> SDD-56 note: every response field is English-only (`name`, `status`,
+> `episodesWatched`, `days`, `lastWatchedAt`, etc.) — see
+> `docs/sdd-55-mobile-impact.md` for the full name map.
 
 - `modified_at` (int64) is the bridge-owned **version token** for that anime. It
   is strictly monotonic per anime (it only ever increases; do not interpret it as
@@ -34,8 +38,12 @@ that anime as `base`:
 
 ```json
 PATCH /api/animes/anime-123
-{ "base": 1719160000123, "nroCapVisto": 12, "estado": 1 }
+{ "base": 1719160000123, "episodesWatched": 12, "status": 1 }
 ```
+
+> SDD-56 note: the deprecated Spanish patch keys (`estado`, `nrocapvisto`,
+> `dias`, `fechaUltCapVisto`) are now REJECTED with `400 Bad Request` when
+> sent without their English replacement.
 
 Bridge behavior given `base`:
 

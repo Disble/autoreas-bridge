@@ -11,11 +11,11 @@ func TestEpisodeServiceListEpisodeDayCountsCountsActiveEstadoPositiveEntriesPerD
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-finished",
-		`{"_id":"anime-finished","nombre":"Finished","nrocapvisto":12,"estado":1,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":1}]}`)
+		`{"id":"anime-finished","name":"Finished","episodesWatched":12,"status":1,"active":true,`+
+			`"days":[{"day":"Lunes","order":1}]}`)
 	seedAnimeSnapshot(t, store, "anime-watching",
-		`{"_id":"anime-watching","nombre":"Watching","nrocapvisto":3,"estado":0,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":1}]}`)
+		`{"id":"anime-watching","name":"Watching","episodesWatched":3,"status":0,"active":true,`+
+			`"days":[{"day":"Lunes","order":1}]}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 
@@ -36,13 +36,13 @@ func TestEpisodeServiceListEpisodeDayCountsCountsActiveEstadoPositiveEntriesPerD
 //
 // DOCUMENTED SPEC/DESIGN DRIFT (flagged for sdd-verify): the "absent-flag
 // entries included" half of that scenario is NOT implementable as literally
-// written. contracts.MobileAnime.Activo is already an int by the time
+// written. contracts.MobileAnime.Active is already an int by the time
 // EpisodeQuery.ListMobileAnimes returns it (mobile.go's triStateToInt maps
 // BOTH domain.TriStateFalse and domain.TriStateAbsent to 0 -- only
 // TriStateTrue becomes 1), so an absent `activo` field is indistinguishable
 // from an explicit `false` at this layer. Reaching the literal tri-state
 // behaviour would require exposing domain.Anime.ActivoState (a TriState)
-// through EpisodeQuery instead of the collapsed contracts.MobileAnime.Activo
+// through EpisodeQuery instead of the collapsed contracts.MobileAnime.Active
 // int -- out of scope for this slice per design.md's "locked by proposal,
 // not reopened here". Per design.md G5's own drift note, this query
 // deliberately reuses ListEpisodeSchedule's existing Activo == 0 exclusion
@@ -53,11 +53,11 @@ func TestEpisodeServiceListEpisodeDayCountsExcludesInactiveFlaggedEntries(t *tes
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-inactive",
-		`{"_id":"anime-inactive","nombre":"Inactive","nrocapvisto":12,"estado":1,"activo":false,`+
-			`"dias":[{"dia":"Martes","orden":1}]}`)
+		`{"id":"anime-inactive","name":"Inactive","episodesWatched":12,"status":1,"active":false,`+
+			`"days":[{"day":"Martes","order":1}]}`)
 	seedAnimeSnapshot(t, store, "anime-active",
-		`{"_id":"anime-active","nombre":"Active","nrocapvisto":8,"estado":2,"activo":true,`+
-			`"dias":[{"dia":"Martes","orden":1}]}`)
+		`{"id":"anime-active","name":"Active","episodesWatched":8,"status":2,"active":true,`+
+			`"days":[{"day":"Martes","order":1}]}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 
@@ -76,8 +76,8 @@ func TestEpisodeServiceListEpisodeDayCountsIncrementsEveryDayForMultiDayAnime(t 
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-multiday",
-		`{"_id":"anime-multiday","nombre":"MultiDay","nrocapvisto":12,"estado":3,"activo":true,`+
-			`"dias":[{"dia":"Lunes","orden":1},{"dia":"Miercoles","orden":2}]}`)
+		`{"id":"anime-multiday","name":"MultiDay","episodesWatched":12,"status":3,"active":true,`+
+			`"days":[{"day":"Lunes","order":1},{"day":"Miercoles","order":2}]}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 
@@ -111,8 +111,8 @@ func TestEpisodeServiceListEpisodeDayCountsOmitsZeroCountDays(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshot(t, store, "anime-watching-only",
-		`{"_id":"anime-watching-only","nombre":"WatchingOnly","nrocapvisto":3,"estado":0,"activo":true,`+
-			`"dias":[{"dia":"Jueves","orden":1}]}`)
+		`{"id":"anime-watching-only","name":"WatchingOnly","episodesWatched":3,"status":0,"active":true,`+
+			`"days":[{"day":"Jueves","order":1}]}`)
 
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{Query: anime.NewQueryService(store)})
 

@@ -284,7 +284,7 @@ var errFinalizeInjected = fmt.Errorf("injected finalize failure")
 
 // gatewayAnimeJSON creates a minimal stored anime payload for gateway tests.
 func gatewayAnimeJSON(id string, progress float64) []byte {
-	return []byte(`{"_id":"` + id + `","nombre":"Test","nrocapvisto":` + jsonNumber(progress) + `,"estado":2,"activo":true}`)
+	return []byte(`{"id":"` + id + `","name":"Test","episodesWatched":` + jsonNumber(progress) + `,"status":2,"active":true}`)
 }
 
 // jsonNumber encodes a numeric fixture value as JSON.
@@ -322,5 +322,5 @@ func jsonContainsProgress(t *testing.T, payload []byte, want float64) bool {
 	if err := json.Unmarshal(payload, &value); err != nil {
 		t.Fatalf("unmarshal gateway payload: %v", err)
 	}
-	return value["nrocapvisto"] == want
+	return value["episodesWatched"] == want
 }

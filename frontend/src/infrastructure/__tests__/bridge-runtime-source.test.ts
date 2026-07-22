@@ -110,7 +110,7 @@ describe('bridge-runtime-source', () => {
   it('calls GetAnimes once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
-    const getAnimesMock = vi.fn().mockResolvedValue([{ id: 'anime-1', nombre: 'Test', estado: 2, nrocapvisto: 5, activo: 1 }]);
+    const getAnimesMock = vi.fn().mockResolvedValue([{ id: 'anime-1', name: 'Test', status: 2, episodesWatched: 5, active: 1 }]);
 
     const animePromise = source.getAnimes();
 
@@ -118,7 +118,7 @@ describe('bridge-runtime-source', () => {
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
-    await expect(animePromise).resolves.toEqual([{ id: 'anime-1', nombre: 'Test', estado: 2, nrocapvisto: 5, activo: 1 }]);
+    await expect(animePromise).resolves.toEqual([{ id: 'anime-1', name: 'Test', status: 2, episodesWatched: 5, active: 1 }]);
     expect(getAnimesMock).toHaveBeenCalledTimes(1);
   });
 
@@ -138,14 +138,14 @@ describe('bridge-runtime-source', () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
     const detail = {
-      _id: 'anime-1',
-      nombre: 'Frieren',
-      estado: 2,
-      nrocapvisto: 5,
-      activo: 1,
-      primeravez: 0,
-      dias: [{ dia: 'Miércoles', orden: 1 }],
-      generos: ['Aventura'],
+      id: 'anime-1',
+      name: 'Frieren',
+      status: 2,
+      episodesWatched: 5,
+      active: 1,
+      firstCycle: 0,
+      days: [{ day: 'Miércoles', order: 1 }],
+      genres: ['Aventura'],
       modified_at: 123,
     };
     const getAnimeDetailMock = vi.fn().mockResolvedValue(detail);
@@ -177,7 +177,7 @@ describe('bridge-runtime-source', () => {
         modifiedAt: 123,
         frequent: {
           name: 'Frieren', status: 0, progress: 2, active: true, placements: [],
-          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, page: { kind: 'missing' }, folder: { kind: 'missing' },
+          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
           premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
@@ -194,7 +194,7 @@ describe('bridge-runtime-source', () => {
         animeId: 'anime-1', modifiedAt: 200,
         frequent: {
           name: 'Authority', status: 0, progress: 3, active: true, placements: [],
-          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, page: { kind: 'missing' }, folder: { kind: 'missing' },
+          totalEpisodes: { kind: 'missing' }, kind: { kind: 'missing' }, sourceUrl: { kind: 'missing' }, folder: { kind: 'missing' },
         },
         details: {
           premieredAt: { kind: 'missing' }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
@@ -296,14 +296,14 @@ describe('bridge-runtime-source', () => {
     expect(applyBoardMock).toHaveBeenCalledWith({
       boardModifiedAt: 300,
       entries: [
-        { animeId: 'youjo-senki-ii', baseModifiedAt: 103, placements: [{ dia: 'Sin ver', orden: 1 }] },
-        { animeId: 'bang-dream', baseModifiedAt: 104, placements: [{ dia: 'Visto', orden: 1 }] },
-        { animeId: 'yani-neko', baseModifiedAt: 102, placements: [{ dia: 'Visto', orden: 2 }] },
-        { animeId: 'sayonara-lara', baseModifiedAt: 101, placements: [{ dia: 'Visto', orden: 3 }] },
-        { animeId: 'futsutsuka', baseModifiedAt: 105, placements: [{ dia: 'Visto', orden: 4 }] },
-        { animeId: 'iwamoto', baseModifiedAt: 106, placements: [{ dia: 'Visto', orden: 5 }] },
-        { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ dia: 'Visto', orden: 6 }] },
-        { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ dia: 'Visto', orden: 7 }] },
+        { animeId: 'youjo-senki-ii', baseModifiedAt: 103, placements: [{ day: 'Sin ver', order: 1 }] },
+        { animeId: 'bang-dream', baseModifiedAt: 104, placements: [{ day: 'Visto', order: 1 }] },
+        { animeId: 'yani-neko', baseModifiedAt: 102, placements: [{ day: 'Visto', order: 2 }] },
+        { animeId: 'sayonara-lara', baseModifiedAt: 101, placements: [{ day: 'Visto', order: 3 }] },
+        { animeId: 'futsutsuka', baseModifiedAt: 105, placements: [{ day: 'Visto', order: 4 }] },
+        { animeId: 'iwamoto', baseModifiedAt: 106, placements: [{ day: 'Visto', order: 5 }] },
+        { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ day: 'Visto', order: 6 }] },
+        { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ day: 'Visto', order: 7 }] },
       ],
     });
   });
@@ -324,7 +324,7 @@ describe('bridge-runtime-source', () => {
         frequent: {
           name: 'BanG Dream', status: 0, progress: 1, active: true, placements: [],
           totalEpisodes: { kind: 'value', value: 0 }, kind: { kind: 'value', value: 0 },
-          page: { kind: 'value', value: 'https://example.test/x' }, folder: { kind: 'value', value: 'D:/Anime/x' },
+          sourceUrl: { kind: 'value', value: 'https://example.test/x' }, folder: { kind: 'value', value: 'D:/Anime/x' },
         },
         details: {
           premieredAt: { kind: 'value', unixMilli: 0 }, duration: { kind: 'missing' }, origin: { kind: 'missing' },
@@ -348,7 +348,7 @@ describe('bridge-runtime-source', () => {
   it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();
-    const entries = [{ id: 'anime-1', nombre: 'Frieren', nrocapvisto: 12, fechaUltCapVisto: 1700000000000, estado: 1 }];
+    const entries = [{ id: 'anime-1', name: 'Frieren', episodesWatched: 12, lastWatchedAt: 1700000000000, status: 1 }];
     const getAnimeHistoryMock = vi.fn().mockResolvedValue(entries);
 
     const historyPromise = source.getAnimeHistory();

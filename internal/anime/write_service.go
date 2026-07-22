@@ -234,7 +234,7 @@ func applyAnimeDaysPatch(value *domain.Anime, patch contracts.AnimePatch) {
 func orderedPatchDays(days []contracts.MobileAnimeDay) []domain.AnimeDay {
 	result := make([]domain.AnimeDay, 0, len(days))
 	for _, day := range days {
-		result = append(result, domain.AnimeDay{Day: day.Dia, Order: float64(day.Orden)})
+		result = append(result, domain.AnimeDay{Day: day.Day, Order: float64(day.Order)})
 	}
 	return result
 }

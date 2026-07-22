@@ -12,7 +12,7 @@ import (
 func TestLegacyMapperProjectsCompleteEnglishReadModel(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"projection","nombre":"Projection","nrocapvisto":4.5,"estado":2,"activo":true,"primeravez":false,"fechaCreacion":{"$$date":1609459200000},"fechaEstreno":{"$$date":1612137600000},"fechaUltCapVisto":{"$$date":1612224000000},"fechaEliminacion":null,"totalcap":12,"duracion":24,"tipo":1,"pagina":"https://example.invalid/anime","carpeta":"Projection","origen":"Manga","estudios":["Studio A","Studio B"],"generos":["Action","Comedy"],"portada":{"type":"url","path":"https://example.invalid/cover.jpg"},"dias":[{"dia":"Ver hoy","orden":3}],"repetir":[{"numrepeticion":2,"nrocapvisto":12,"estado":4,"fechaCreacion":{"$$date":1500000000000},"fechaEstreno":null,"fechaUltCapVisto":{"$$date":1500000001000},"fechaEliminacion":null,"fechaRepeticion":{"$$date":1500000002000}}]}`
+	const payload = `{"id":"projection","name":"Projection","episodesWatched":4.5,"status":2,"active":true,"firstCycle":false,"createdAt":1609459200000,"premieredAt":1612137600000,"lastWatchedAt":1612224000000,"deletedAt":null,"totalEpisodes":12,"durationMinutes":24,"kind":1,"sourceUrl":"https://example.invalid/anime","folder":"Projection","origin":"Manga","studios":["Studio A","Studio B"],"genres":["Action","Comedy"],"cover":{"type":"url","path":"https://example.invalid/cover.jpg"},"days":[{"day":"Ver hoy","order":3}],"repetitions":[{"numRepetitions":2,"episodesWatched":12,"status":4,"createdAt":1500000000000,"premieredAt":null,"lastWatchedAt":1500000001000,"deletedAt":null,"repeatedAt":1500000002000}]}`
 
 	var raw AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &raw); err != nil {

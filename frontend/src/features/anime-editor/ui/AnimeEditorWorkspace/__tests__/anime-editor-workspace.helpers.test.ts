@@ -130,8 +130,8 @@ describe('anime-editor-workspace.helpers', () => {
 
   it('sorts watching anime first in the left rail', () => {
     const items = createAnimeEditorListItems([
-      { id: 'b', nombre: 'B', estado: 2, nrocapvisto: 1, activo: 1, dias: [], generos: [], hasDownloadPage: false, hasFolder: false },
-      { id: 'a', nombre: 'A', estado: 0, nrocapvisto: 1, activo: 1, dias: [], generos: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'b', name: 'B', status: 2, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
     ], 'all', '', 'a');
 
     expect(items[0]).toMatchObject({ animeId: 'a', selected: true });

@@ -204,11 +204,11 @@ func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWa
 	if err != nil {
 		return EpisodeCommandResult{}, err
 	}
-	if current.Estado > 0 {
+	if current.Status > 0 {
 		return EpisodeCommandResult{}, ErrEpisodeProgressBlocked
 	}
 
-	nextProgress := current.NroCapVisto + cmd.Delta
+	nextProgress := current.EpisodesWatched + cmd.Delta
 	if nextProgress < 0 {
 		return EpisodeCommandResult{}, ErrEpisodeProgressBelowZero
 	}
@@ -225,7 +225,7 @@ func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWa
 		return EpisodeCommandResult{}, err
 	}
 
-	return episodeCommandResult(patchResult, current.Nombre, current.Estado, nextProgress, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Name, current.Status, nextProgress, occurredAtMs, correlationID), nil
 }
 
 // buildEpisodeProgressPatch creates the anime patch for an episode progress adjustment.
@@ -235,7 +235,7 @@ func buildEpisodeProgressPatch(current *contracts.MobileAnime, nextProgress floa
 		FechaUltCapVisto: &occurredAtMs,
 		Base:             base,
 	}
-	if current.FechaEstreno == nil && current.FechaUltCapVisto == nil {
+	if current.PremieredAt == nil && current.LastWatchedAt == nil {
 		patch.FechaEstreno = &occurredAtMs
 	}
 	return patch
@@ -263,18 +263,18 @@ func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, outcome co
 		Source:        source,
 		ActionType:    activity.ActionEpisodeAdjusted,
 		AnimeID:       animeID,
-		AnimeName:     current.Nombre,
+		AnimeName:     current.Name,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: correlationID,
 		Before: ActivityAnimeSnapshot{
-			Estado:      current.Estado,
-			NroCapVisto: current.NroCapVisto,
-			Activo:      current.Activo,
+			Estado:      current.Status,
+			NroCapVisto: current.EpisodesWatched,
+			Activo:      current.Active,
 		},
 		After: ActivityAnimeSnapshot{
-			Estado:      current.Estado,
+			Estado:      current.Status,
 			NroCapVisto: nextProgress,
-			Activo:      current.Activo,
+			Activo:      current.Active,
 		},
 	})
 }
@@ -303,7 +303,7 @@ func isAllowedEpisodeDelta(delta float64) bool {
 // matchingScheduleDay returns the schedule day matching the requested day.
 func matchingScheduleDay(days []contracts.MobileAnimeDay, requestedDay string) (contracts.MobileAnimeDay, bool) {
 	for _, day := range days {
-		if day.Dia == requestedDay {
+		if day.Day == requestedDay {
 			return day, true
 		}
 	}

@@ -43,7 +43,7 @@ func buildScheduleOperation(animeID string, record ReadRecord, placements []cont
 func toLegacyScheduleDays(placements []contracts.MobileAnimeDay) []store.AnimeDay {
 	days := make([]store.AnimeDay, 0, len(placements))
 	for _, placement := range placements {
-		days = append(days, store.AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
+		days = append(days, store.AnimeDay{Day: placement.Day, Order: float64(placement.Order)})
 	}
 	return days
 }

@@ -339,16 +339,16 @@ export function toAnimeRepeticionViewModel(
   index: number,
 ): AnimeRepeticionViewModel {
   return {
-    key: `${entry.numrepeticion}-${index}`,
-    numRepeticion: entry.numrepeticion,
-    estadoLabel: getAnimeDetailEstadoLabel(entry.estado),
-    estadoColor: getAnimeDetailEstadoColor(entry.estado),
-    episodesWatchedLabel: String(entry.nrocapvisto),
-    creacionLabel: formatAnimeDetailRepetitionDate(entry.fechaCreacion),
-    estrenoLabel: formatAnimeDetailRepetitionDate(entry.fechaEstreno),
-    ultCapVistoLabel: formatAnimeDetailRepetitionDate(entry.fechaUltCapVisto),
-    eliminacionLabel: formatAnimeDetailRepetitionDate(entry.fechaEliminacion),
-    repeatedOnLabel: formatAnimeDetailRepetitionDate(entry.fechaRepeticion),
+    key: `${entry.numRepetitions}-${index}`,
+    numRepeticion: entry.numRepetitions,
+    estadoLabel: getAnimeDetailEstadoLabel(entry.status),
+    estadoColor: getAnimeDetailEstadoColor(entry.status),
+    episodesWatchedLabel: String(entry.episodesWatched),
+    creacionLabel: formatAnimeDetailRepetitionDate(entry.createdAt),
+    estrenoLabel: formatAnimeDetailRepetitionDate(entry.premieredAt),
+    ultCapVistoLabel: formatAnimeDetailRepetitionDate(entry.lastWatchedAt),
+    eliminacionLabel: formatAnimeDetailRepetitionDate(entry.deletedAt),
+    repeatedOnLabel: formatAnimeDetailRepetitionDate(entry.repeatedAt),
   };
 }
 
@@ -363,7 +363,7 @@ export function toAnimeRepeticionViewModel(
 export function sortAnimeRepeticionesMostRecentFirst(
   entries: readonly AnimeRepeticion[],
 ): readonly AnimeRepeticion[] {
-  return entries.toSorted((a, b) => b.numrepeticion - a.numrepeticion);
+  return entries.toSorted((a, b) => b.numRepetitions - a.numRepetitions);
 }
 
 /**
@@ -393,38 +393,38 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
  * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetir ?? []).map((entry, index) =>
+  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetitions ?? []).map((entry, index) =>
     toAnimeRepeticionViewModel(entry, index),
   );
-  const totalLabel = formatAnimeDetailTotalLabel(detail.totalcap);
-  const durationLabel = formatAnimeDetailDurationLabel(detail.duracion);
-  const estadoLabel = getAnimeDetailEstadoLabel(detail.estado);
-  const tipoLabel = getAnimeDetailTipoLabel(detail.tipo);
+  const totalLabel = formatAnimeDetailTotalLabel(detail.totalEpisodes);
+  const durationLabel = formatAnimeDetailDurationLabel(detail.durationMinutes);
+  const estadoLabel = getAnimeDetailEstadoLabel(detail.status);
+  const tipoLabel = getAnimeDetailTipoLabel(detail.kind);
 
   return {
-    id: detail._id,
-    nombre: detail.nombre,
+    id: detail.id,
+    nombre: detail.name,
     modifiedAt: detail.modified_at,
-    canRepeat: detail.estado > 0,
-    canRestore: detail.activo === 0,
-    portadaUrl: normalizeAnimeDetailPortadaUrl(detail.portada),
+    canRepeat: detail.status > 0,
+    canRestore: detail.active === 0,
+    portadaUrl: normalizeAnimeDetailPortadaUrl(detail.cover),
     estadoLabel,
     tipoLabel,
     subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),
-    statusLabel: getAnimeDetailStatusLabel(detail.activo),
-    statusColor: getAnimeDetailStatusColor(detail.activo),
-    statTiles: buildAnimeDetailStatTiles(detail.nrocapvisto, totalLabel, durationLabel),
-    progressRatio: formatAnimeDetailProgressRatio(detail.nrocapvisto, detail.totalcap),
-    paginaUrl: detail.pagina,
-    carpetaLabel: detail.carpeta ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    estrenoLabel: formatAnimeDetailLongDate(detail.fechaEstreno) ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    creacionLabel: formatAnimeDetailLongDate(detail.fechaCreacion) ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    ultCapVistoLabel: formatAnimeDetailLongDate(detail.fechaUltCapVisto) ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    genres: detail.generos,
-    hasGenres: detail.generos.length > 0,
-    studios: detail.estudios ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    origin: detail.origen ?? ANIME_DETAIL_UNKNOWN_LABEL,
-    isFirstWatch: detail.primeravez === 1,
+    statusLabel: getAnimeDetailStatusLabel(detail.active),
+    statusColor: getAnimeDetailStatusColor(detail.active),
+    statTiles: buildAnimeDetailStatTiles(detail.episodesWatched, totalLabel, durationLabel),
+    progressRatio: formatAnimeDetailProgressRatio(detail.episodesWatched, detail.totalEpisodes),
+    paginaUrl: detail.sourceUrl,
+    carpetaLabel: detail.folder ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    estrenoLabel: formatAnimeDetailLongDate(detail.premieredAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    creacionLabel: formatAnimeDetailLongDate(detail.createdAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    ultCapVistoLabel: formatAnimeDetailLongDate(detail.lastWatchedAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    genres: detail.genres,
+    hasGenres: detail.genres.length > 0,
+    studios: detail.studios ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    origin: detail.origin ?? ANIME_DETAIL_UNKNOWN_LABEL,
+    isFirstWatch: detail.firstCycle === 1,
     repetitions,
     hasRepetitionHistory: repetitions.length > 0,
   };

@@ -22,8 +22,8 @@ func TestConflictStoreInsertConflictPersistsBothSnapshots(t *testing.T) {
 	record := contracts.ConflictRecord{
 		ConflictID:         "conflict-1",
 		AnimeID:            "anime-1",
-		LocalSnapshotJSON:  []byte(`{"_id":"anime-1","nrocapvisto":5}`),
-		RemoteSnapshotJSON: []byte(`{"_id":"anime-1","nrocapvisto":7}`),
+		LocalSnapshotJSON:  []byte(`{"id":"anime-1","episodesWatched":5}`),
+		RemoteSnapshotJSON: []byte(`{"id":"anime-1","episodesWatched":7}`),
 		DetectedAtMs:       1710000000123,
 	}
 
@@ -73,8 +73,8 @@ func TestConflictStoreInsertConflictRejectsDuplicateID(t *testing.T) {
 	record := contracts.ConflictRecord{
 		ConflictID:         "dup-1",
 		AnimeID:            "anime-1",
-		LocalSnapshotJSON:  []byte(`{"_id":"anime-1"}`),
-		RemoteSnapshotJSON: []byte(`{"_id":"anime-1"}`),
+		LocalSnapshotJSON:  []byte(`{"id":"anime-1"}`),
+		RemoteSnapshotJSON: []byte(`{"id":"anime-1"}`),
 		DetectedAtMs:       1,
 	}
 
@@ -100,8 +100,8 @@ func TestConflictStoreResolveConflictUnaffectedByNewSnapshotColumns(t *testing.T
 	record := contracts.ConflictRecord{
 		ConflictID:         "resolve-1",
 		AnimeID:            "anime-1",
-		LocalSnapshotJSON:  []byte(`{"_id":"anime-1"}`),
-		RemoteSnapshotJSON: []byte(`{"_id":"anime-1"}`),
+		LocalSnapshotJSON:  []byte(`{"id":"anime-1"}`),
+		RemoteSnapshotJSON: []byte(`{"id":"anime-1"}`),
 		DetectedAtMs:       1,
 	}
 	if err := store.InsertConflict(ctx, record); err != nil {

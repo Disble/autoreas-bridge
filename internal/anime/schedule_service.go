@@ -111,7 +111,7 @@ func activeScheduleRecordsByID(records []ReadRecord) map[string]ReadRecord {
 	result := make(map[string]ReadRecord, len(records))
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo != 1 {
+		if item.Active != 1 {
 			continue
 		}
 		result[item.ID] = record
@@ -133,7 +133,7 @@ func submittedScheduleDestinations(entries []ApplyAnimeScheduleDraftEntry) map[s
 	destinations := map[string]struct{}{}
 	for _, entry := range entries {
 		for _, placement := range entry.Placements {
-			destinations[placement.Dia] = struct{}{}
+			destinations[placement.Day] = struct{}{}
 		}
 	}
 	return destinations
@@ -150,7 +150,7 @@ func currentBoardModifiedAt(records []ReadRecord) int64 {
 	var boardModifiedAt int64
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo == 1 && record.Snapshot.ModifiedAt > boardModifiedAt {
+		if item.Active == 1 && record.Snapshot.ModifiedAt > boardModifiedAt {
 			boardModifiedAt = record.Snapshot.ModifiedAt
 		}
 	}
@@ -187,7 +187,7 @@ func (s *ScheduleService) recordBoardConflict(ctx context.Context, records []Rea
 	}
 	days := make([]store.AnimeDay, 0, len(entry.Placements))
 	for _, placement := range entry.Placements {
-		days = append(days, store.AnimeDay{Dia: placement.Dia, Orden: float64(placement.Orden)})
+		days = append(days, store.AnimeDay{Day: placement.Day, Order: float64(placement.Order)})
 	}
 	raw.SetDays(days)
 	desired, err := raw.MarshalJSON()

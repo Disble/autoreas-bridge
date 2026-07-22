@@ -28,7 +28,7 @@ export interface EpisodeScheduleSource {
 /** Wails-facing schedule item returned by the backend episode command service. */
 export type EpisodeScheduleItem = Pick<
   Anime,
-  'estado' | 'nrocapvisto' | 'totalcap'
+  'status' | 'episodesWatched' | 'totalEpisodes'
 > & {
   readonly animeId: string;
   readonly animeName: string;
@@ -63,8 +63,8 @@ export interface EpisodeCommandResult {
   readonly message?: string;
   readonly animeId?: string;
   readonly animeName?: string;
-  readonly estado?: number;
-  readonly nrocapvisto?: number;
+  readonly animeStatus?: number;
+  readonly episodesWatched?: number;
   readonly occurredAtMs?: number;
   readonly correlationId?: string;
 }

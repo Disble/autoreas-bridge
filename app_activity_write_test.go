@@ -25,7 +25,7 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
 	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
@@ -59,7 +59,7 @@ func TestActivityAnimeWriteServiceRecordsMobileSoftDelete(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 
 	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
@@ -99,7 +99,7 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10.5,"estado":1,"activo":false,"fechaCreacion":{"$$date":1600000000000}}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"active":false,"createdAt":1600000000000}`, 1000)
 
 	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
@@ -165,7 +165,7 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 			ctx := context.Background()
 			db := openRuntimeBridgeDB(t)
 			store := bridgeSync.NewAnimeSnapshotStore(db)
-			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":1,"estado":0,"activo":true}`, 1000)
+			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
 			service := activityAnimeWriteService{
 				query: anime.NewQueryService(store), writer: stubActivityOutcomeWriter{result: test.result, err: test.err},
 				recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))},

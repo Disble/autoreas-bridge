@@ -107,16 +107,16 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
 		result = append(result, contracts.AnimeListItem{
 			ID:              item.ID,
-			Nombre:          item.Nombre,
-			Estado:          item.Estado,
-			NroCapVisto:     item.NroCapVisto,
-			TotalCap:        item.TotalCap,
-			Activo:          item.Activo,
-			Tipo:            item.Tipo,
-			Dias:            extractDayNames(item.Dias),
-			Generos:         item.Generos,
-			HasDownloadPage: hasNonEmptyLegacyString(item.Pagina),
-			HasFolder:       hasNonEmptyLegacyString(item.Carpeta),
+			Name:            item.Name,
+			Status:          item.Status,
+			EpisodesWatched: item.EpisodesWatched,
+			TotalEpisodes:   item.TotalEpisodes,
+			Active:          item.Active,
+			Kind:            item.Kind,
+			Days:            extractDayNames(item.Days),
+			Genres:          item.Genres,
+			HasDownloadPage: hasNonEmptyLegacyString(item.SourceURL),
+			HasFolder:       hasNonEmptyLegacyString(item.Folder),
 		})
 	}
 	return result, nil
@@ -124,12 +124,12 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 
 // ListAnimeHistory projects the same snapshot set as ListAnimeItems into the
 // slim watch-activity read model (Anime History spec, "History Read Model"):
-// membership requires a present FechaUltCapVisto (absent rows excluded), and
+// membership requires a present LastWatchedAt (absent rows excluded), and
 // the result is sorted DESC by it. Soft-deleted/inactive animes are NOT
 // filtered out here, mirroring ListAnimeItems's existing behavior (verified:
 // TestQueryServiceListAnimeItemsReturnsActiveAndInactive) -- History is an
 // activity log, so an eliminated-but-watched anime stays listed with its
-// estado, matching Legacy's "Historial" screen.
+// status, matching Legacy's "Historial" screen.
 // ListAnimeHistory returns the history read model sorted by last-watched descending.
 func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeHistoryItem, error) {
 	records, err := s.ListReadRecords(ctx)
@@ -139,27 +139,27 @@ func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeH
 	result := make([]contracts.AnimeHistoryItem, 0, len(records))
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.FechaUltCapVisto == nil {
+		if item.LastWatchedAt == nil {
 			continue
 		}
 		result = append(result, contracts.AnimeHistoryItem{
-			ID:               item.ID,
-			Nombre:           item.Nombre,
-			NroCapVisto:      item.NroCapVisto,
-			FechaUltCapVisto: *item.FechaUltCapVisto,
-			Estado:           item.Estado,
-			Tipo:             item.Tipo,
-			FechaCreacion:    item.FechaCreacion,
+			ID:              item.ID,
+			Name:            item.Name,
+			EpisodesWatched: item.EpisodesWatched,
+			LastWatchedAt:   *item.LastWatchedAt,
+			Status:          item.Status,
+			Kind:            item.Kind,
+			CreatedAt:       item.CreatedAt,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].FechaUltCapVisto > result[j].FechaUltCapVisto
+		return result[i].LastWatchedAt > result[j].LastWatchedAt
 	})
 	return result, nil
 }
 
 // hasNonEmptyLegacyString reports whether a legacy optional string field (e.g.
-// MobileAnime.Pagina/Carpeta) is present and non-empty. Mirrors the same
+// MobileAnime.SourceURL/Folder) is present and non-empty. Mirrors the same
 // nil-or-empty presence check already used by the download decision engine
 // (internal/download/decision.go) so the AnimePanel gap indicator and the
 // download skip logic agree on what counts as "missing".
@@ -168,7 +168,7 @@ func hasNonEmptyLegacyString(value *string) bool {
 }
 
 // legacyStringValue unwraps a legacy optional string field (e.g.
-// MobileAnime.Pagina/Carpeta) to its literal value, or "" when absent.
+// MobileAnime.SourceURL/Folder) to its literal value, or "" when absent.
 // Companion to hasNonEmptyLegacyString for callers (EpisodeScheduleItem)
 // that expose the literal string itself rather than a presence boolean.
 func legacyStringValue(value *string) string {
@@ -185,7 +185,7 @@ func extractDayNames(days []contracts.MobileAnimeDay) []string {
 	}
 	result := make([]string, 0, len(days))
 	for _, day := range days {
-		result = append(result, day.Dia)
+		result = append(result, day.Day)
 	}
 	return result
 }
@@ -222,22 +222,22 @@ func (s *QueryService) GetAnimeEditorRecord(ctx context.Context, id string) (*co
 		AnimeID:    item.ID,
 		ModifiedAt: item.ModifiedAt,
 		Frequent: contracts.AnimeEditorFrequentFields{
-			Name:          item.Nombre,
-			Status:        item.Estado,
-			Progress:      item.NroCapVisto,
-			TotalEpisodes: editorNullableIntFromFields(fields, "totalcap"),
-			Active:        item.Activo == 1,
-			Kind:          editorNullableIntFromFields(fields, "tipo"),
-			Page:          editorNullableStringFromFields(fields, "pagina"),
-			Folder:        editorNullableStringFromFields(fields, "carpeta"),
-			Placements:    cloneMobileDays(item.Dias),
+			Name:          item.Name,
+			Status:        item.Status,
+			Progress:      item.EpisodesWatched,
+			TotalEpisodes: editorNullableIntFromFields(fields, "totalEpisodes"),
+			Active:        item.Active == 1,
+			Kind:          editorNullableIntFromFields(fields, "kind"),
+			Page:          editorNullableStringFromFields(fields, "sourceUrl"),
+			Folder:        editorNullableStringFromFields(fields, "folder"),
+			Placements:    cloneMobileDays(item.Days),
 		},
 		Details: contracts.AnimeEditorDetailFields{
-			PremieredAt: editorNullableTimeFromFields(fields, "fechaEstreno"),
-			Duration:    editorNullableIntFromFields(fields, "duracion"),
-			Origin:      editorNullableStringFromFields(fields, "origen"),
-			Genres:      editorStringListFromFields(fields, "generos"),
-			Studios:     editorStringListFromFields(fields, "estudios"),
+			PremieredAt: editorNullableTimeFromFields(fields, "premieredAt"),
+			Duration:    editorNullableIntFromFields(fields, "durationMinutes"),
+			Origin:      editorNullableStringFromFields(fields, "origin"),
+			Genres:      editorStringListFromFields(fields, "genres"),
+			Studios:     editorStringListFromFields(fields, "studios"),
 			Cover:       editorCoverFromFields(fields),
 		},
 	}
@@ -248,33 +248,33 @@ func (s *QueryService) GetAnimeEditorRecord(ctx context.Context, id string) (*co
 func animeDetailFromMobile(item contracts.MobileAnime) *contracts.AnimeDetail {
 	return &contracts.AnimeDetail{
 		ID:         item.ID,
-		Nombre:     item.Nombre,
-		Estado:     item.Estado,
-		Activo:     item.Activo,
-		PrimeraVez: item.PrimeraVez,
+		Name:       item.Name,
+		Status:     item.Status,
+		Active:     item.Active,
+		FirstCycle: item.FirstCycle,
 		Progress: contracts.AnimeDetailProgress{
-			Watched:   item.NroCapVisto,
-			Total:     item.TotalCap,
-			Remaining: remainingEpisodes(item.NroCapVisto, item.TotalCap),
+			Watched:   item.EpisodesWatched,
+			Total:     item.TotalEpisodes,
+			Remaining: remainingEpisodes(item.EpisodesWatched, item.TotalEpisodes),
 		},
-		Schedule: item.Dias,
+		Schedule: item.Days,
 		Dates: contracts.AnimeDetailDates{
-			Created:     item.FechaCreacion,
-			FirstWatch:  item.FechaEstreno,
-			LastWatched: item.FechaUltCapVisto,
-			Deleted:     item.FechaEliminacion,
+			Created:     item.CreatedAt,
+			FirstWatch:  item.PremieredAt,
+			LastWatched: item.LastWatchedAt,
+			Deleted:     item.DeletedAt,
 		},
 		Content: contracts.AnimeDetailContent{
-			Tipo:     item.Tipo,
-			Duracion: item.Duracion,
-			Generos:  item.Generos,
-			Studios:  item.Estudios,
-			Origen:   item.Origen,
-			Cover:    item.Portada,
+			Kind:            item.Kind,
+			DurationMinutes: item.DurationMinutes,
+			Genres:          item.Genres,
+			Studios:         item.Studios,
+			Origin:          item.Origin,
+			Cover:           item.Cover,
 		},
 		Download: contracts.AnimeDetailDownload{
-			Page:   item.Pagina,
-			Folder: item.Carpeta,
+			Page:   item.SourceURL,
+			Folder: item.Folder,
 		},
 		ModifiedAt: item.ModifiedAt,
 	}

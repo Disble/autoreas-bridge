@@ -131,6 +131,21 @@ func TestSeasonRatingManualConflictIs409WithGrade(t *testing.T) {
 	}
 }
 
+// TestSeasonRatingRejectsSpanishKeys confirms the season-rating patch decode
+// is already English-only (SDD-56 Slice 3, task 3.1.5): it never accepted the
+// Legacy-Spanish field names, so a Spanish-only body fails decode just like
+// any other unrecognized field, via DisallowUnknownFields.
+func TestSeasonRatingRejectsSpanishKeys(t *testing.T) {
+	stubs := &seasonRatingStubs{authOK: true, result: SeasonRatingResult{Outcome: SeasonRatingRecorded}}
+	res := postRating(t, newRatingHandler(stubs), `{"anime_id":"anime-a","nota":4,"fecha":1}`)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", res.Code)
+	}
+	if stubs.recordCalls != 0 {
+		t.Fatalf("record must not be called on an unrecognized-field body")
+	}
+}
+
 func TestSeasonRatingInfraErrorIs500(t *testing.T) {
 	stubs := &seasonRatingStubs{authOK: true, recordErr: context.DeadlineExceeded}
 	res := postRating(t, newRatingHandler(stubs), `{"anime_id":"anime-a","grade":4,"rated_at":1}`)

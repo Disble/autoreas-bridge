@@ -46,9 +46,9 @@ export function toEpisodeScheduleRows(
   covers: ReadonlyMap<string, CoverEntry> = EPISODE_SCHEDULE_EMPTY_COVERS,
 ): readonly EpisodeScheduleRow[] {
   return items.map((item) => {
-    const remaining = item.totalcap === undefined ? undefined : item.totalcap - item.nrocapvisto;
-    const watchedLabel = `${formatEpisodeNumber(item.nrocapvisto)} watched`;
-    const totalLabel = item.totalcap === undefined ? 'Unknown total' : `of ${item.totalcap}`;
+    const remaining = item.totalEpisodes === undefined ? undefined : item.totalEpisodes - item.episodesWatched;
+    const watchedLabel = `${formatEpisodeNumber(item.episodesWatched)} watched`;
+    const totalLabel = item.totalEpisodes === undefined ? 'Unknown total' : `of ${item.totalEpisodes}`;
     const remainingLabel = remaining === undefined ? 'Unknown remaining' : `${formatEpisodeNumber(Math.max(remaining, 0))} remaining`;
     const folderPath = item.folderPath ?? '';
     const pageUrl = item.pageUrl ?? '';
@@ -58,8 +58,8 @@ export function toEpisodeScheduleRows(
     return {
       id: item.animeId,
       name: item.animeName,
-      stateLabel: EPISODE_STATE_LABELS[item.estado] ?? 'Unknown',
-      isProgressBlocked: item.estado > 0,
+      stateLabel: EPISODE_STATE_LABELS[item.status] ?? 'Unknown',
+      isProgressBlocked: item.status > 0,
       watchedLabel,
       remainingLabel,
       progressTitle: `${watchedLabel} ${totalLabel} · ${remainingLabel}`,

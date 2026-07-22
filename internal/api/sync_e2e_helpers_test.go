@@ -27,7 +27,7 @@ func newSyncE2EHTTPEndpointEnv(t *testing.T) *syncE2EHTTPEndpointEnv {
 	ctx := context.Background()
 	db := openSyncE2EDB(t)
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(db)
-	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
+	seedSyncE2ESnapshot(t, snapshotStore, "anime-1", `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`)
 	deviceService := seedSyncE2EDeviceService(t, ctx, db)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 

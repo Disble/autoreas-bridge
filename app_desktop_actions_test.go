@@ -15,7 +15,7 @@ func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"estado":0,"activo":true,"pagina":"https://anime.example/frieren"}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"sourceUrl":"https://anime.example/frieren"}`, 1000)
 
 	var openedURL string
 	app := &App{
@@ -42,7 +42,7 @@ func TestCopyAnimeFolderCopiesFolderAndRecordsActivity(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"estado":0,"activo":true,"carpeta":"C:/Anime/Frieren"}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"folder":"C:/Anime/Frieren"}`, 1000)
 
 	var copiedText string
 	app := &App{
@@ -70,7 +70,7 @@ func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"estado":0,"activo":true}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true}`, 1000)
 
 	opened := false
 	app := &App{
@@ -103,7 +103,7 @@ func TestOpenAnimePageRejectsUnsafeStoredURLAtLaunchSink(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"pagina":"file:///C:/Windows/System32/calc.exe"}`, 1000)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"sourceUrl":"file:///C:/Windows/System32/calc.exe"}`, 1000)
 	opened := false
 	app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openURL: func(context.Context, string) { opened = true }}
 	got := app.OpenAnimePage("anime-1")
@@ -119,7 +119,7 @@ func TestOpenAnimeFolderRejectsUnsafeStoredPathsAtLaunchSink(t *testing.T) {
 			ctx := context.Background()
 			db := openRuntimeBridgeDB(t)
 			store := bridgeSync.NewAnimeSnapshotStore(db)
-			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"carpeta":`+mustJSONText(t, unsafePath)+`}`, 1000)
+			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"folder":`+mustJSONText(t, unsafePath)+`}`, 1000)
 			opened := false
 			app := &App{ctx: ctx, animeQuery: anime.NewQueryService(store), openFolder: func(string) error { opened = true; return nil }}
 			got := app.OpenAnimeFolder("anime-1")

@@ -25,7 +25,7 @@ type CanonicalCreateInput struct {
 }
 
 // NewCanonicalCreate converts validated application state into the exact
-// Legacy wire shape, including honest null metadata and the cover sentinel.
+// canonical wire shape, including honest null metadata and the cover sentinel.
 func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 	if strings.TrimSpace(input.ID) == "" {
 		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing id")
@@ -48,27 +48,27 @@ func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 		Path string `json:"path"`
 	}{Type: "url", Path: input.CoverURL}
 	fields := map[string]any{
-		"_id":           input.ID,
-		"nombre":        input.Title,
-		"nrocapvisto":   0,
-		"estado":        0,
-		"activo":        true,
-		"primeravez":    true,
-		"fechaCreacion": map[string]int64{"$$date": input.CreatedAt.UTC().UnixMilli()},
-		"dias":          []map[string]any{{"dia": input.Section, "orden": input.Order}},
-		"pagina":        input.SourceURL,
-		"totalcap":      input.TotalEpisodes,
-		"duracion":      input.DurationMinutes,
-		"portada":       cover,
+		"id":              input.ID,
+		"name":            input.Title,
+		"episodesWatched": 0,
+		"status":          0,
+		"active":          true,
+		"firstCycle":      true,
+		"createdAt":       input.CreatedAt.UTC().UnixMilli(),
+		"days":            []map[string]any{{"day": input.Section, "order": input.Order}},
+		"sourceUrl":       input.SourceURL,
+		"totalEpisodes":   input.TotalEpisodes,
+		"durationMinutes": input.DurationMinutes,
+		"cover":           cover,
 	}
 	if input.Folder != "" {
-		fields["carpeta"] = input.Folder
+		fields["folder"] = input.Folder
 	}
 	if input.Type != nil {
-		fields["tipo"] = *input.Type
+		fields["kind"] = *input.Type
 	}
 	if input.PremieredAtMs != nil {
-		fields["fechaEstreno"] = map[string]int64{"$$date": *input.PremieredAtMs}
+		fields["premieredAt"] = *input.PremieredAtMs
 	}
 
 	payload, err := json.Marshal(fields)

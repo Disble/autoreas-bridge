@@ -27,19 +27,19 @@ func TestRunOncePublishesLiveProgressBeforeAllAnimeWorkersFinish(t *testing.T) {
 	registry.Register(source)
 	deps.Sites = registry
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-a",
-		Nombre:  "Anime A",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/a/"),
-		Carpeta: ptrStr(folderA),
+		ID:        "anime-a",
+		Name:      "Anime A",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/a/"),
+		Folder:    ptrStr(folderA),
 	}, {
-		ID:      "anime-b",
-		Nombre:  "Anime B",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/b/"),
-		Carpeta: ptrStr(folderB),
+		ID:        "anime-b",
+		Name:      "Anime B",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/b/"),
+		Folder:    ptrStr(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{folderA: 0, folderB: 0},
@@ -152,19 +152,19 @@ func TestRunOnceSerializesProgressSnapshotsAcrossPersistenceAndEvents(t *testing
 	registry.Register(source)
 	deps.Sites = registry
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-a",
-		Nombre:  "Anime A",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/a/"),
-		Carpeta: ptrStr(folderA),
+		ID:        "anime-a",
+		Name:      "Anime A",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/a/"),
+		Folder:    ptrStr(folderA),
 	}, {
-		ID:      "anime-b",
-		Nombre:  "Anime B",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/b/"),
-		Carpeta: ptrStr(folderB),
+		ID:        "anime-b",
+		Name:      "Anime B",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/b/"),
+		Folder:    ptrStr(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{folderA: 0, folderB: 0},

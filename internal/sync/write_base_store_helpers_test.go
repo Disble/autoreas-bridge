@@ -64,9 +64,9 @@ func writeOperationFixture(operationID, animeID string, baseToken, intendedToken
 		AnimeID:             animeID,
 		BaseModifiedAt:      baseToken,
 		IntendedModifiedAt:  intendedToken,
-		BaseSnapshotJSON:    []byte(`{"_id":"` + animeID + `","nrocapvisto":1,"unknown":{"keep":true}}`),
+		BaseSnapshotJSON:    []byte(`{"id":"` + animeID + `","episodesWatched":1,"unknown":{"keep":true}}`),
 		BaseHash:            "base-hash-" + operationID,
-		DesiredSnapshotJSON: []byte(`{"_id":"` + animeID + `","nrocapvisto":0,"unknown":{"keep":true}}`),
+		DesiredSnapshotJSON: []byte(`{"id":"` + animeID + `","episodesWatched":0,"unknown":{"keep":true}}`),
 		DesiredHash:         "desired-hash-" + operationID,
 		CreatedAtMs:         intendedToken - 1,
 	}

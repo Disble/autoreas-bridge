@@ -12,13 +12,24 @@ info:
     ADR-007 legacy payload names such as `nrocapvisto` and `totalcap` remain byte-identical.
 
     2026-07-21 — SDD-55 API consumer impact: additive English wire field rename for
-    PATCH /api/animes/{id}. Bridge now accepts (and documents) `status`, `episodesWatched`,
+    PATCH /api/animes/{id}. Bridge accepted (and documented) `status`, `episodesWatched`,
     and `days` as English equivalents of the Legacy-Spanish `estado`, `nrocapvisto`, and
-    `dias` fields, with identical validation ranges and semantics. This is ADDITIVE ONLY:
-    `estado`, `nrocapvisto`, and `dias` keep working exactly as before for any un-migrated
-    client. No field was removed, renamed away, or given different validation. Coordinate
-    the `autoreas-mobile` migration to the English field names on its own schedule before
-    relying on the Spanish names being retired in a future change.
+    `dias` fields, with identical validation ranges and semantics.
+
+    2026-07-22 — SDD-56 BREAKING CHANGE, supersedes SDD-55's additive alias notice above:
+    hard English-only cutover across every response DTO (GET /api/animes, GET
+    /api/animes/{id}, GET /api/animes/changes, WebSocket payloads) and the PATCH
+    /api/animes/{id} request body. All Legacy-Spanish field names (`estado`, `nrocapvisto`,
+    `dias`, `nombre`, `activo`, `primeravez`, `fechaUltCapVisto`, `fechaEstreno`,
+    `fechaCreacion`, `fechaEliminacion`, `portada`, `pagina`, `carpeta`, `estudios`,
+    `origen`, `duracion`, `tipo`, `dia`, `orden`, `numrepeticion`, `repetir`) are GONE from
+    every response and are REJECTED on PATCH: a PATCH body carrying a deprecated Spanish
+    key without its English replacement now fails with `400 Bad Request` instead of being
+    silently accepted (see the PATCH operation below for the exact behavior). The
+    `$$date` extended-JSON date wrapper is gone everywhere; every date field is now a
+    plain epoch-milliseconds integer or `null`. See `docs/sdd-55-mobile-impact.md` for the
+    full breaking-change migration notice and name map; deploy is lockstep-gated on the
+    `autoreas-mobile` English client shipping first.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -76,78 +87,83 @@ components:
 
     AnimeDay:
       type: object
-      required: [dia, orden]
+      required: [day, order]
       properties:
-        dia:
+        day:
           type: string
-        orden:
+          example: Monday
+        order:
           type: integer
 
     Anime:
       type: object
-      required: [_id, nombre, estado, nrocapvisto, activo, primeravez, dias, generos]
+      required: [id, name, status, episodesWatched, active, firstCycle, days, genres]
       properties:
-        _id:
+        id:
           type: string
-        nombre:
+        name:
           type: string
-        estado:
+        status:
           type: integer
           minimum: 0
           maximum: 3
-        nrocapvisto:
+        episodesWatched:
           type: number
           minimum: 0
-        totalcap:
+        totalEpisodes:
           type: integer
           nullable: true
-        activo:
+        active:
           type: integer
           minimum: 0
           maximum: 1
-        primeravez:
+        firstCycle:
           type: integer
           minimum: 0
           maximum: 1
-        dias:
+        days:
           type: array
           items:
             $ref: '#/components/schemas/AnimeDay'
-        generos:
+        genres:
           type: array
           items:
             type: string
-        tipo:
+        kind:
           type: integer
           nullable: true
-        fechaUltCapVisto:
+        lastWatchedAt:
           type: integer
           nullable: true
-        fechaEstreno:
+          description: Epoch milliseconds, or null (SDD-56 flattened the `$$date` wrapper).
+        premieredAt:
           type: integer
           nullable: true
-        fechaCreacion:
+          description: Epoch milliseconds, or null (SDD-56 flattened the `$$date` wrapper).
+        createdAt:
           type: integer
           nullable: true
-        fechaEliminacion:
+          description: Epoch milliseconds, or null (SDD-56 flattened the `$$date` wrapper).
+        deletedAt:
           type: integer
           nullable: true
-        portada:
+          description: Epoch milliseconds, or null (SDD-56 flattened the `$$date` wrapper).
+        cover:
           type: string
           nullable: true
-        pagina:
+        sourceUrl:
           type: string
           nullable: true
-        carpeta:
+        folder:
           type: string
           nullable: true
-        estudios:
+        studios:
           type: string
           nullable: true
-        origen:
+        origin:
           type: string
           nullable: true
-        duracion:
+        durationMinutes:
           type: integer
           nullable: true
         modified_at:
@@ -524,8 +540,18 @@ paths:
       summary: Patch anime state
       description: |
         Partially updates the state of an anime entry identified by its legacy ID.
-        All body fields are optional; unknown fields are silently ignored.
-        Business rule: if nrocapvisto >= totalcap and totalcap > 0, estado is forced to 1 (completed).
+        All body fields are optional; truly-unknown fields (neither an English patch
+        field nor a deprecated Spanish one) are silently ignored.
+        Business rule: if episodesWatched >= totalEpisodes and totalEpisodes > 0,
+        status is forced to 1 (completed).
+
+        SDD-56 BREAKING CHANGE (supersedes SDD-55's additive alias behavior): the
+        request body is English-only. `estado`, `nrocapvisto`, `dias`, and
+        `fechaUltCapVisto` are deprecated Spanish keys and are REJECTED with `400`
+        when present WITHOUT their English replacement. If both the English key and
+        its deprecated Spanish counterpart are present for the same concept, the
+        request still succeeds (`200`): the English value is applied and the stale
+        Spanish value is ignored.
       security:
         - BearerAuth: []
       parameters:
@@ -546,41 +572,30 @@ paths:
                   minimum: 0
                   maximum: 3
                   description: |
-                    SDD-55 English wire alias for `estado` (additive; same validation
-                    range). Accepted alongside `estado`, not a replacement for it.
-                estado:
-                  type: integer
-                  minimum: 0
-                  maximum: 3
-                  description: |
-                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
-                    `status` for new integrations.
+                    English patch field. The deprecated Spanish key `estado` is
+                    rejected with 400 unless `status` is also present.
                 episodesWatched:
                   type: number
                   minimum: 0
                   description: |
-                    SDD-55 English wire alias for `nrocapvisto` (additive; same
-                    fractional-progress semantics). Accepted alongside `nrocapvisto`.
-                nrocapvisto:
-                  type: number
-                  minimum: 0
+                    English patch field. The deprecated Spanish key `nrocapvisto`
+                    is rejected with 400 unless `episodesWatched` is also present.
+                lastWatchedAt:
+                  type: integer
+                  nullable: true
                   description: |
-                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
-                    `episodesWatched` for new integrations.
+                    English patch field, epoch milliseconds. The deprecated
+                    Spanish key `fechaUltCapVisto` is rejected with 400 unless
+                    `lastWatchedAt` is also present. The `$$date` extended-JSON
+                    wrapper is no longer accepted (SDD-56); sending
+                    `{"lastWatchedAt":{"$$date":...}}` is a 400.
                 days:
                   type: array
                   items:
                     type: string
                   description: |
-                    SDD-55 English wire alias for `dias` (additive; same day-list
-                    shape). Accepted alongside `dias`.
-                dias:
-                  type: array
-                  items:
-                    type: string
-                  description: |
-                    Legacy-Spanish field name, retained un-renamed (ADR-007). Use
-                    `days` for new integrations.
+                    English patch field. The deprecated Spanish key `dias` is
+                    rejected with 400 unless `days` is also present.
                 base:
                   type: integer
                   nullable: true
@@ -601,7 +616,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/StatusOK'
         '400':
-          description: Invalid field value
+          description: |
+            Invalid field value, malformed body, OR a deprecated Spanish patch
+            key (`estado`, `nrocapvisto`, `dias`, `fechaUltCapVisto`) present
+            without its English replacement (SDD-56 hard cutover). Example
+            error message: `field "estado" was renamed to "status"`.
           content:
             application/json:
               schema:

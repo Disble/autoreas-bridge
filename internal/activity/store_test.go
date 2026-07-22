@@ -22,8 +22,8 @@ func TestStoreRecordsAndListsAnimeActivity(t *testing.T) {
 		AnimeName:     "Dungeon Meshi",
 		OccurredAtMs:  1710000000123,
 		CorrelationID: "corr-1",
-		BeforeJSON:    []byte(`{"nrocapvisto":2.5,"estado":0}`),
-		AfterJSON:     []byte(`{"nrocapvisto":3,"estado":0}`),
+		BeforeJSON:    []byte(`{"episodesWatched":2.5,"status":0}`),
+		AfterJSON:     []byte(`{"episodesWatched":3,"status":0}`),
 	})
 	if err != nil {
 		t.Fatalf("record activity: %v", err)
@@ -43,10 +43,10 @@ func TestStoreRecordsAndListsAnimeActivity(t *testing.T) {
 	if row.AnimeID != "anime-1" || row.AnimeName != "Dungeon Meshi" {
 		t.Fatalf("unexpected anime identity: %#v", row)
 	}
-	if string(row.BeforeJSON) != `{"nrocapvisto":2.5,"estado":0}` {
+	if string(row.BeforeJSON) != `{"episodesWatched":2.5,"status":0}` {
 		t.Fatalf("unexpected before json: %s", row.BeforeJSON)
 	}
-	if string(row.AfterJSON) != `{"nrocapvisto":3,"estado":0}` {
+	if string(row.AfterJSON) != `{"episodesWatched":3,"status":0}` {
 		t.Fatalf("unexpected after json: %s", row.AfterJSON)
 	}
 }

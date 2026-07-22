@@ -12,7 +12,7 @@ func TestQueryServiceReadRecordsExposeOnlyEnglishGatewayProjection(t *testing.T)
 	t.Parallel()
 
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "english-read", `{"_id":"english-read","nombre":"English","nrocapvisto":5,"activo":true,"pagina":"https://example.invalid/read","dias":[{"dia":"Ver hoy","orden":4}]}`, 19)
+	seedAnimeSnapshotWithModifiedAt(t, store, "english-read", `{"id":"english-read","name":"English","episodesWatched":5,"active":true,"sourceUrl":"https://example.invalid/read","days":[{"day":"Ver hoy","order":4}]}`, 19)
 	service := anime.NewQueryService(store)
 
 	got, err := service.ListReadRecords(context.Background())

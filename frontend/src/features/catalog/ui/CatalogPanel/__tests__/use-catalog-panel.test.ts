@@ -6,25 +6,25 @@ import { useCatalogPanel } from '../use-catalog-panel';
 
 const animeA: Anime = {
   id: 'anime-a',
-  nombre: 'Alpha',
-  estado: 2,
-  nrocapvisto: 5,
-  totalcap: 12,
-  activo: 1,
-  dias: [],
-  generos: [],
+  name: 'Alpha',
+  status: 2,
+  episodesWatched: 5,
+  totalEpisodes: 12,
+  active: 1,
+  days: [],
+  genres: [],
   hasDownloadPage: true,
   hasFolder: true,
 };
 
 const animeB: Anime = {
   id: 'anime-b',
-  nombre: 'Beta',
-  estado: 0,
-  nrocapvisto: 1,
-  activo: 0,
-  dias: [],
-  generos: [],
+  name: 'Beta',
+  status: 0,
+  episodesWatched: 1,
+  active: 0,
+  days: [],
+  genres: [],
   hasDownloadPage: false,
   hasFolder: true,
 };

@@ -11,5 +11,5 @@ export interface SyncingAnime {
   readonly progressCurrent?: number;
   readonly progressTotal?: number;
   readonly lastChangedAtMs: number;
-  readonly activo: number;
+  readonly active: number;
 }

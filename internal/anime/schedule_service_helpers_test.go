@@ -15,7 +15,7 @@ import (
 func animeIDFromSchedulePayload(t *testing.T, payload string) string {
 	t.Helper()
 	var decoded struct {
-		ID string `json:"_id"`
+		ID string `json:"id"`
 	}
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
 		t.Fatalf("decode anime id from payload: %v", err)
@@ -25,27 +25,27 @@ func animeIDFromSchedulePayload(t *testing.T, payload string) string {
 
 // decodeSchedulePayloadDays decodes day placements from a schedule payload.
 func decodeSchedulePayloadDays(t *testing.T, payload []byte) []struct {
-	Dia   string  `json:"dia"`
-	Orden float64 `json:"orden"`
+	Day   string  `json:"day"`
+	Order float64 `json:"order"`
 } {
 	t.Helper()
 	var decoded struct {
-		Dias []struct {
-			Dia   string  `json:"dia"`
-			Orden float64 `json:"orden"`
-		} `json:"dias"`
+		Days []struct {
+			Day   string  `json:"day"`
+			Order float64 `json:"order"`
+		} `json:"days"`
 	}
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		t.Fatalf("decode schedule payload days: %v", err)
 	}
-	return decoded.Dias
+	return decoded.Days
 }
 
 // assertSchedulePlacement verifies one normalized schedule placement.
 func assertSchedulePlacement(t *testing.T, placementsByAnime map[string][]contracts.MobileAnimeDay, animeID, destination string, order int) {
 	t.Helper()
 	placements := placementsByAnime[animeID]
-	if len(placements) != 1 || placements[0].Dia != destination || placements[0].Orden != order {
+	if len(placements) != 1 || placements[0].Day != destination || placements[0].Order != order {
 		t.Fatalf("expected %s at %s#%d, got %+v", animeID, destination, order, placements)
 	}
 }

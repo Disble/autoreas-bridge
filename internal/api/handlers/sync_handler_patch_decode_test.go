@@ -38,12 +38,13 @@ var pendingOperationPatchCases = []struct {
 	want    AnimePatch
 	wantErr string
 }{
-	{"maps valid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"estado": float64(2), "nrocapvisto": float64(10.5), "fechaUltCapVisto": float64(1710000000123), "dias": []any{"Lunes", "Miercoles"}}}, AnimePatch{Estado: intPtr(2), NroCapVisto: floatPtr(10.5), FechaUltCapVisto: int64Ptr(1710000000123), Dias: []string{"Lunes", "Miercoles"}}, ""},
-	{"round-trips explicit base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5), "base": float64(1710000000123)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(1710000000123)}, ""},
-	{"round-trips explicit zero base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5), "base": float64(0)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)}, ""},
-	{"base omitted decodes to nil", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": float64(10.5)}}, AnimePatch{NroCapVisto: floatPtr(10.5)}, ""},
-	{"rejects missing anime id", contracts.PendingOperation{Operation: "update", Payload: map[string]any{"nrocapvisto": float64(1)}}, AnimePatch{}, "missing anime id"},
-	{"rejects invalid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"nrocapvisto": -1}}, AnimePatch{}, "invalid nrocapvisto"},
+	{"maps valid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"status": float64(2), "episodesWatched": float64(10.5), "lastWatchedAt": float64(1710000000123), "days": []any{"Lunes", "Miercoles"}}}, AnimePatch{Estado: intPtr(2), NroCapVisto: floatPtr(10.5), FechaUltCapVisto: int64Ptr(1710000000123), Dias: []string{"Lunes", "Miercoles"}}, ""},
+	{"round-trips explicit base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"episodesWatched": float64(10.5), "base": float64(1710000000123)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(1710000000123)}, ""},
+	{"round-trips explicit zero base token", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"episodesWatched": float64(10.5), "base": float64(0)}}, AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)}, ""},
+	{"base omitted decodes to nil", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"episodesWatched": float64(10.5)}}, AnimePatch{NroCapVisto: floatPtr(10.5)}, ""},
+	{"rejects missing anime id", contracts.PendingOperation{Operation: "update", Payload: map[string]any{"episodesWatched": float64(1)}}, AnimePatch{}, "missing anime id"},
+	{"rejects invalid payload", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"episodesWatched": -1}}, AnimePatch{}, "invalid nrocapvisto"},
+	{"rejects stale Spanish-only key (SDD-56 hard cutover)", contracts.PendingOperation{AnimeID: "anime-1", Operation: "update", Payload: map[string]any{"estado": float64(1)}}, AnimePatch{}, "renamed"},
 }
 
 // equalAnimePatch compares all fields of two decoded anime patches.

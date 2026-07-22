@@ -106,7 +106,7 @@ type hosterOutcome struct {
 // polling up to config.FilesystemCompletionPollTimeout, exactly like the pre-existing
 // pollCompletion budget.
 func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount int) hosterOutcome {
-	folder := derefOrEmpty(anime.Carpeta)
+	folder := derefOrEmpty(anime.Folder)
 	if s.deps.Counter == nil {
 		return hosterOutcome{kind: hosterOutcomeTimeout}
 	}
@@ -147,7 +147,7 @@ func (s *Service) hosterVerdictIsDead(ctx context.Context, runID string, anime c
 	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
 	if err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_status_query_failed",
-			map[string]any{"hoster": hoster}, "anime %s: JD status query failed for hoster %s: %v", anime.Nombre, hoster, err)
+			map[string]any{"hoster": hoster}, "anime %s: JD status query failed for hoster %s: %v", anime.Name, hoster, err)
 		return false
 	}
 
@@ -157,7 +157,7 @@ func (s *Service) hosterVerdictIsDead(ctx context.Context, runID string, anime c
 
 	if err := s.deps.JD.RemoveByDestination(ctx, s.deps.JDDeviceName, folder); err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_remove_failed",
-			map[string]any{"hoster": hoster}, "anime %s: JD Remove failed for dead hoster %s (continuing): %v", anime.Nombre, hoster, err)
+			map[string]any{"hoster": hoster}, "anime %s: JD Remove failed for dead hoster %s (continuing): %v", anime.Name, hoster, err)
 	}
 
 	s.publish(events.DownloadRunProgressEvent{RunID: runID, CorrelationID: runID})

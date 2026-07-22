@@ -29,10 +29,10 @@ export interface HistoryParamsState {
 }
 
 /** Presentation-ready shape of a single History table row. */
-export type HistoryRowViewModel = Pick<
-  AnimeHistoryEntry,
-  'id' | 'nombre' | 'nrocapvisto' | 'estado'
-> & {
+export type HistoryRowViewModel = Pick<AnimeHistoryEntry, 'id'> & {
+  readonly nombre: AnimeHistoryEntry['name'];
+  readonly nrocapvisto: AnimeHistoryEntry['episodesWatched'];
+  readonly estado: AnimeHistoryEntry['status'];
   readonly rowNumber: number;
   readonly longDateLabel: string;
   readonly weekdayLabel: string;

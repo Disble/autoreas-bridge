@@ -138,11 +138,11 @@ func TestAnimeOverlaysByIDUsesEnglishReadRecords(t *testing.T) {
 }
 
 func TestAnimeWatchedStateUsesEnglishLegacyProjectionWithoutStoreAccess(t *testing.T) {
-	section, progress, ok := animeWatchedState([]byte(`{"_id":"anime-1","nrocapvisto":4,"dias":[{"dia":"Ver hoy","orden":1}]}`))
+	section, progress, ok := animeWatchedState([]byte(`{"id":"anime-1","episodesWatched":4,"days":[{"day":"Ver hoy","order":1}]}`))
 	if !ok || section != "Ver hoy" || progress != 4 {
 		t.Fatalf("animeWatchedState() = (%q, %v, %v), want (Ver hoy, 4, true)", section, progress, ok)
 	}
-	if _, _, ok := animeWatchedState([]byte(`{"_id":`)); ok {
+	if _, _, ok := animeWatchedState([]byte(`{"id":`)); ok {
 		t.Fatal("animeWatchedState malformed payload accepted")
 	}
 }

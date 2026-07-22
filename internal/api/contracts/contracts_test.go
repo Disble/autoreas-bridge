@@ -47,7 +47,7 @@ func TestAnimeEditorRecordRoundTripsThroughJSON(t *testing.T) {
 			Status:     0,
 			Progress:   12.5,
 			Active:     true,
-			Placements: []MobileAnimeDay{{Dia: "Viernes", Orden: 2}},
+			Placements: []MobileAnimeDay{{Day: "Viernes", Order: 2}},
 		},
 		Details: AnimeEditorDetailFields{
 			Studios: AnimeEditorStringListDTO{Kind: AnimeEditorValueKindValue, Values: []string{"Madhouse"}},

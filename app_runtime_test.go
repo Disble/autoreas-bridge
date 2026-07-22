@@ -226,7 +226,7 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 		AnimeID:       "anime-9",
 		ChangeType:    bridgeSync.ChangelogTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"_id":"anime-9","nombre":"Frieren","nrocapvisto":12,"activo":true}`),
+		SnapshotJSON:  []byte(`{"id":"anime-9","name":"Frieren","episodesWatched":12,"active":true}`),
 		ChangedAtMs:   1710000000123,
 	}}}
 	app := &App{syncTrigger: bridgeSync.NewTriggerService(events.NewBus(), store), ctx: context.Background()}
@@ -246,14 +246,14 @@ func TestGetSyncingAnimeItemsDelegatesToSyncTrigger(t *testing.T) {
 func TestGetAnimeDetailReturnsPopulatedDTOForExistingID(t *testing.T) {
 	t.Parallel()
 
-	want := &contracts.MobileAnime{ID: "anime-1", Nombre: "Frieren"}
+	want := &contracts.MobileAnime{ID: "anime-1", Name: "Frieren"}
 	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{mobileAnime: want}}
 
 	got := app.GetAnimeDetail("anime-1")
 	if got == nil {
 		t.Fatal("expected populated detail DTO, got nil")
 	}
-	if got.ID != "anime-1" || got.Nombre != "Frieren" {
+	if got.ID != "anime-1" || got.Name != "Frieren" {
 		t.Fatalf("unexpected detail DTO: %#v", got)
 	}
 }
@@ -281,11 +281,11 @@ func TestGetAnimeDetailReturnsNilWhenAnimeQueryServiceNil(t *testing.T) {
 func TestGetAnimeHistoryReturnsPopulatedResultForServiceWithData(t *testing.T) {
 	t.Parallel()
 
-	want := []contracts.AnimeHistoryItem{{ID: "anime-1", Nombre: "Frieren", NroCapVisto: 12, FechaUltCapVisto: 1700000000000, Estado: 1}}
+	want := []contracts.AnimeHistoryItem{{ID: "anime-1", Name: "Frieren", EpisodesWatched: 12, LastWatchedAt: 1700000000000, Status: 1}}
 	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{history: want}}
 
 	got := app.GetAnimeHistory()
-	if len(got) != 1 || got[0].ID != "anime-1" || got[0].FechaUltCapVisto != 1700000000000 {
+	if len(got) != 1 || got[0].ID != "anime-1" || got[0].LastWatchedAt != 1700000000000 {
 		t.Fatalf("expected populated history result, got %#v", got)
 	}
 }
@@ -323,12 +323,12 @@ func TestGetAnimeDetailViewDelegatesToAnimeQuery(t *testing.T) {
 
 	db := openRuntimeBridgeDB(t)
 	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":2,"totalcap":12,"activo":true}`, 777)
+	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"totalEpisodes":12,"active":true}`, 777)
 	app := &App{ctx: context.Background(), animeQuery: anime.NewQueryService(store)}
 
 	got := app.GetAnimeDetailView("anime-1")
 
-	if got.ID != "anime-1" || got.Nombre != "Frieren" {
+	if got.ID != "anime-1" || got.Name != "Frieren" {
 		t.Fatalf("expected anime detail from query service, got %#v", got)
 	}
 	if got.Progress.Total == nil || *got.Progress.Total != 12 {

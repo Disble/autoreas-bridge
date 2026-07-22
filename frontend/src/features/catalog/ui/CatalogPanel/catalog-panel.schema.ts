@@ -6,14 +6,14 @@ import { z } from 'zod';
  */
 export const animeSchema = z.object({
   id: z.string(),
-  nombre: z.string(),
-  estado: z.number(),
-  nrocapvisto: z.number(),
-  totalcap: z.number().optional(),
-  activo: z.number(),
-  tipo: z.number().optional(),
-  dias: z.array(z.string()).default([]),
-  generos: z.array(z.string()).default([]),
+  name: z.string(),
+  status: z.number(),
+  episodesWatched: z.number(),
+  totalEpisodes: z.number().optional(),
+  active: z.number(),
+  kind: z.number().optional(),
+  days: z.array(z.string()).default([]),
+  genres: z.array(z.string()).default([]),
   hasDownloadPage: z.boolean().default(false),
   hasFolder: z.boolean().default(false),
 });

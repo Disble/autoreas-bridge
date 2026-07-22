@@ -7,7 +7,7 @@ import (
 )
 
 func TestDecodeExposesOnlyEnglishDomainAndCanonicalBytes(t *testing.T) {
-	value, canonical, err := store.Decode([]byte(`{"_id":"anime-1","nombre":"Frieren","pagina":"https://example.test/frieren"}`))
+	value, canonical, err := store.Decode([]byte(`{"id":"anime-1","name":"Frieren","sourceUrl":"https://example.test/frieren"}`))
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

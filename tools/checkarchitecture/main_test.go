@@ -56,7 +56,7 @@ func TestRunHasNoLegacyBoundaryCheck(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "internal/season/legacy_projection.go", `package season
 import wire "autoreas-bridge/internal/anime/store"
-func project(raw wire.LegacyAnimeRaw) string { return raw.Pagina }
+func project(raw wire.LegacyAnimeRaw) string { return raw.SourceURL }
 `)
 
 	if err := run(root); err != nil {

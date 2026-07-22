@@ -16,8 +16,8 @@ func TestListActiveAnimesTodayMatchesStoredSpanishDiaAgainstEnglishTarget(t *tes
 
 	deps := baseDeps(t) // fixedNow is 2026-06-22, a Monday.
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "anime-today", Nombre: "Airs Monday", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: "Lunes", Orden: 0}}},
-		{ID: "anime-other-day", Nombre: "Airs Wednesday", Activo: 1, Dias: []contracts.MobileAnimeDay{{Dia: "Miércoles", Orden: 0}}},
+		{ID: "anime-today", Name: "Airs Monday", Active: 1, Days: []contracts.MobileAnimeDay{{Day: "Lunes", Order: 0}}},
+		{ID: "anime-other-day", Name: "Airs Wednesday", Active: 1, Days: []contracts.MobileAnimeDay{{Day: "Miércoles", Order: 0}}},
 	}}
 
 	svc := NewService(deps)

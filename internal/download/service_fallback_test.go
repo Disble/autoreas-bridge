@@ -31,7 +31,7 @@ func TestEnqueueWithFallbackAdvancesToNextHosterWhenFirstIsDeadWithoutWaitingFor
 	deps.JD = jd
 	s := NewService(deps)
 
-	anime := contracts.MobileAnime{ID: "anime-1", Nombre: "Anime", Carpeta: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
 	_, _ = s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
@@ -51,7 +51,7 @@ func TestEnqueueWithFallbackReturnsHosterDownWhenEveryHosterIsDead(t *testing.T)
 	deps.JD = jd
 	s := NewService(deps)
 
-	anime := contracts.MobileAnime{ID: "anime-1", Nombre: "Anime", Carpeta: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
 	enqueued, failureKind := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
@@ -77,7 +77,7 @@ func TestEnqueueWithFallbackStillAdvancesOnAddAndStartAPIError(t *testing.T) {
 	deps.JD = jd
 	s := NewService(deps)
 
-	anime := contracts.MobileAnime{ID: "anime-1", Nombre: "Anime", Carpeta: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
 	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
@@ -119,7 +119,7 @@ func TestEnqueueWithFallbackShortCircuitsOnFirstHosterDiskSuccess(t *testing.T) 
 	deps.JD = jd
 	s := NewService(deps)
 
-	anime := contracts.MobileAnime{ID: "anime-1", Nombre: "Anime", Carpeta: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
 	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)

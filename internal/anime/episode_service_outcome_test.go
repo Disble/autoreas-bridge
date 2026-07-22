@@ -49,7 +49,7 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := openAnimeServiceTestStore(t)
-			seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":1,"activo":true}`, 1000)
+			seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":1,"active":true}`, 1000)
 			activity := &stubEpisodeActivityRecorder{}
 			service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 				Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{result: test.result}, Activity: activity,
@@ -72,7 +72,7 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 
 func TestEpisodeServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *testing.T) {
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":1,"activo":true}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":1,"active":true}`, 1000)
 	writeErr := errors.New("gateway unavailable")
 	activity := &stubEpisodeActivityRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{

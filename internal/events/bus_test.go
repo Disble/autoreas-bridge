@@ -46,7 +46,7 @@ func TestBusPublishesToMultipleSubscribers(t *testing.T) {
 		second <- event
 	})
 
-	published := AnimeChangedEvent{AnimeID: "abc123", Payload: []byte(`{"nombre":"Bleach"}`)}
+	published := AnimeChangedEvent{AnimeID: "abc123", Payload: []byte(`{"name":"Bleach"}`)}
 	bus.Publish(published)
 
 	assertAnimeChangedEvent(t, <-first, published.AnimeID, string(published.Payload))

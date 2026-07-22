@@ -127,6 +127,13 @@ func initializeBridgeDB(db *sql.DB) error {
 		}
 	}
 
+	// SDD-56: runs once, unconditionally, after every table above is ensured
+	// (fresh-created or pre-existing) and before any handler, gateway, or
+	// gateway.Recover finalization performs its first decode.
+	if err := ensureVocabularyMigration(db); err != nil {
+		return err
+	}
+
 	if err := ensureDefaultHosterPriority(db); err != nil {
 		return err
 	}

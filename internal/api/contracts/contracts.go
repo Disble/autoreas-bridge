@@ -1,55 +1,55 @@
 package contracts
 
-// MobileAnimeDay describes an ordered legacy schedule placement.
+// MobileAnimeDay describes an ordered weekday schedule placement.
 type MobileAnimeDay struct {
-	Dia   string `json:"dia"`
-	Orden int    `json:"orden"`
+	Day   string `json:"day"`
+	Order int    `json:"order"`
 }
 
 // MobileRepeticion is a single repetition-history entry surfaced on
-// MobileAnime.Repetir (Anime Detail spec, "Typed Repetir Field on Legacy
-// Anime Raw"). Fecha* fields are pointers (millis, omitempty) so an absent
-// or null legacy date degrades to a distinguishable "no value" rather than a
-// zero-time sentinel.
+// MobileAnime.Repetitions (Anime Detail spec, "Typed Repetir Field on
+// Legacy Anime Raw"). Date fields are pointers (millis, omitempty) so an
+// absent or null value degrades to a distinguishable "no value" rather than
+// a zero-time sentinel.
 type MobileRepeticion struct {
-	NumRepeticion    int     `json:"numrepeticion"`
-	NroCapVisto      float64 `json:"nrocapvisto"`
-	Estado           int     `json:"estado"`
-	FechaCreacion    *int64  `json:"fechaCreacion,omitempty"`
-	FechaEstreno     *int64  `json:"fechaEstreno,omitempty"`
-	FechaUltCapVisto *int64  `json:"fechaUltCapVisto,omitempty"`
-	FechaEliminacion *int64  `json:"fechaEliminacion,omitempty"`
-	FechaRepeticion  *int64  `json:"fechaRepeticion,omitempty"`
+	NumRepetitions  int     `json:"numRepetitions"`
+	EpisodesWatched float64 `json:"episodesWatched"`
+	Status          int     `json:"status"`
+	CreatedAt       *int64  `json:"createdAt,omitempty"`
+	PremieredAt     *int64  `json:"premieredAt,omitempty"`
+	LastWatchedAt   *int64  `json:"lastWatchedAt,omitempty"`
+	DeletedAt       *int64  `json:"deletedAt,omitempty"`
+	RepeatedAt      *int64  `json:"repeatedAt,omitempty"`
 }
 
 // MobileAnime is the full mobile-facing anime projection.
 type MobileAnime struct {
-	ID               string           `json:"_id"`
-	Nombre           string           `json:"nombre"`
-	Estado           int              `json:"estado"`
-	NroCapVisto      float64          `json:"nrocapvisto"`
-	TotalCap         *int             `json:"totalcap,omitempty"`
-	Activo           int              `json:"activo"`
-	PrimeraVez       int              `json:"primeravez"`
-	Dias             []MobileAnimeDay `json:"dias"`
-	Generos          []string         `json:"generos"`
-	Tipo             *int             `json:"tipo,omitempty"`
-	FechaUltCapVisto *int64           `json:"fechaUltCapVisto,omitempty"`
-	FechaEstreno     *int64           `json:"fechaEstreno,omitempty"`
-	FechaCreacion    *int64           `json:"fechaCreacion,omitempty"`
-	FechaEliminacion *int64           `json:"fechaEliminacion,omitempty"`
-	Portada          *string          `json:"portada,omitempty"`
-	Pagina           *string          `json:"pagina,omitempty"`
-	Carpeta          *string          `json:"carpeta,omitempty"`
-	Estudios         *string          `json:"estudios,omitempty"`
-	Origen           *string          `json:"origen,omitempty"`
-	Duracion         *int             `json:"duracion,omitempty"`
-	// Repetir is the typed repetition-history timeline (Anime Detail spec,
-	// "AnimeDetail DTO and GetAnimeDetail Binding"). omitempty keeps the
-	// majority of records (no repetition history) byte-identical on the
+	ID              string           `json:"id"`
+	Name            string           `json:"name"`
+	Status          int              `json:"status"`
+	EpisodesWatched float64          `json:"episodesWatched"`
+	TotalEpisodes   *int             `json:"totalEpisodes,omitempty"`
+	Active          int              `json:"active"`
+	FirstCycle      int              `json:"firstCycle"`
+	Days            []MobileAnimeDay `json:"days"`
+	Genres          []string         `json:"genres"`
+	Kind            *int             `json:"kind,omitempty"`
+	LastWatchedAt   *int64           `json:"lastWatchedAt,omitempty"`
+	PremieredAt     *int64           `json:"premieredAt,omitempty"`
+	CreatedAt       *int64           `json:"createdAt,omitempty"`
+	DeletedAt       *int64           `json:"deletedAt,omitempty"`
+	Cover           *string          `json:"cover,omitempty"`
+	SourceURL       *string          `json:"sourceUrl,omitempty"`
+	Folder          *string          `json:"folder,omitempty"`
+	Studios         *string          `json:"studios,omitempty"`
+	Origin          *string          `json:"origin,omitempty"`
+	DurationMinutes *int             `json:"durationMinutes,omitempty"`
+	// Repetitions is the typed repetition-history timeline (Anime Detail
+	// spec, "AnimeDetail DTO and GetAnimeDetail Binding"). omitempty keeps
+	// the majority of records (no repetition history) byte-identical on the
 	// mobile feed. Detail-only concern: NOT surfaced on the slim
 	// AnimeListItem.
-	Repetir []MobileRepeticion `json:"repetir,omitempty"`
+	Repetitions []MobileRepeticion `json:"repetitions,omitempty"`
 	// ModifiedAt echoes the bridge-private OCC version token (SDD-30
 	// ADR-30-1/30-5) so the mobile client can round-trip it back as
 	// AnimePatch.Base on its next write. Always present (not a pointer):
@@ -78,50 +78,50 @@ type SyncingAnimeItem struct {
 	ProgressCurrent *float64 `json:"progressCurrent,omitempty"`
 	ProgressTotal   *int     `json:"progressTotal,omitempty"`
 	LastChangedAtMs int64    `json:"lastChangedAtMs"`
-	Activo          int      `json:"activo"`
+	Active          int      `json:"active"`
 }
 
 // AnimeListItem is the slim anime-list read model.
 type AnimeListItem struct {
-	ID          string   `json:"id"`
-	Nombre      string   `json:"nombre"`
-	Estado      int      `json:"estado"`
-	NroCapVisto float64  `json:"nrocapvisto"`
-	TotalCap    *int     `json:"totalcap,omitempty"`
-	Activo      int      `json:"activo"`
-	Tipo        *int     `json:"tipo,omitempty"`
-	Dias        []string `json:"dias"`
-	Generos     []string `json:"generos"`
-	// HasDownloadPage reports whether the legacy `pagina` field is present and
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Status          int      `json:"status"`
+	EpisodesWatched float64  `json:"episodesWatched"`
+	TotalEpisodes   *int     `json:"totalEpisodes,omitempty"`
+	Active          int      `json:"active"`
+	Kind            *int     `json:"kind,omitempty"`
+	Days            []string `json:"days"`
+	Genres          []string `json:"genres"`
+	// HasDownloadPage reports whether the source-URL field is present and
 	// non-empty. Read-only anime-data-quality signal for the desktop AnimePanel
 	// gap indicator (download-orchestration spec "Missing Pagina/Carpeta
 	// Surfaced as Actionable State"). Deliberately does NOT expose the raw URL.
 	HasDownloadPage bool `json:"hasDownloadPage"`
-	// HasFolder reports whether the legacy `carpeta` field is present and
-	// non-empty. Same read-only gap-indicator purpose as HasDownloadPage;
-	// deliberately does NOT expose the raw filesystem path.
+	// HasFolder reports whether the folder field is present and non-empty.
+	// Same read-only gap-indicator purpose as HasDownloadPage; deliberately
+	// does NOT expose the raw filesystem path.
 	HasFolder bool `json:"hasFolder"`
 }
 
 // AnimeHistoryItem is the slim History read-model row (Anime History spec,
 // "History Read Model"): a watch-activity log entry equivalent to Legacy
 // "Historial", distinct from the download-gap-focused AnimeListItem.
-// Membership (a present FechaUltCapVisto) and DESC ordering by it are
+// Membership (a present LastWatchedAt) and DESC ordering by it are
 // enforced server-side by AnimeQueryService.ListAnimeHistory, never in the
 // frontend.
 type AnimeHistoryItem struct {
-	ID          string  `json:"id"`
-	Nombre      string  `json:"nombre"`
-	NroCapVisto float64 `json:"nrocapvisto"`
-	// FechaUltCapVisto is epoch millis, always present by membership (rows
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	EpisodesWatched float64 `json:"episodesWatched"`
+	// LastWatchedAt is epoch millis, always present by membership (rows
 	// without it are excluded, never zero-valued here).
-	FechaUltCapVisto int64 `json:"fechaUltCapVisto"`
-	Estado           int   `json:"estado"`
-	// Tipo and FechaCreacion (epoch millis) are additive projections from the
+	LastWatchedAt int64 `json:"lastWatchedAt"`
+	Status        int   `json:"status"`
+	// Kind and CreatedAt (epoch millis) are additive projections from the
 	// same MobileAnime normalization ListAnimeHistory already uses (sdd-37
-	// D1): nil when absent from the legacy source, never zero-valued.
-	Tipo          *int   `json:"tipo,omitempty"`
-	FechaCreacion *int64 `json:"fechaCreacion,omitempty"`
+	// D1): nil when absent from the source, never zero-valued.
+	Kind      *int   `json:"kind,omitempty"`
+	CreatedAt *int64 `json:"createdAt,omitempty"`
 }
 
 // AnimeDetailProgress contains watched, total, and remaining episode counts.
@@ -141,12 +141,12 @@ type AnimeDetailDates struct {
 
 // AnimeDetailContent contains descriptive metadata for an anime.
 type AnimeDetailContent struct {
-	Tipo     *int     `json:"tipo,omitempty"`
-	Duracion *int     `json:"duracion,omitempty"`
-	Generos  []string `json:"generos"`
-	Studios  *string  `json:"studios,omitempty"`
-	Origen   *string  `json:"origen,omitempty"`
-	Cover    *string  `json:"cover,omitempty"`
+	Kind            *int     `json:"kind,omitempty"`
+	DurationMinutes *int     `json:"durationMinutes,omitempty"`
+	Genres          []string `json:"genres"`
+	Studios         *string  `json:"studios,omitempty"`
+	Origin          *string  `json:"origin,omitempty"`
+	Cover           *string  `json:"cover,omitempty"`
 }
 
 // AnimeDetailDownload contains optional download source metadata.
@@ -158,10 +158,10 @@ type AnimeDetailDownload struct {
 // AnimeDetail is the detailed anime read model.
 type AnimeDetail struct {
 	ID         string              `json:"id"`
-	Nombre     string              `json:"nombre"`
-	Estado     int                 `json:"estado"`
-	Activo     int                 `json:"activo"`
-	PrimeraVez int                 `json:"primeravez"`
+	Name       string              `json:"name"`
+	Status     int                 `json:"status"`
+	Active     int                 `json:"active"`
+	FirstCycle int                 `json:"firstCycle"`
 	Progress   AnimeDetailProgress `json:"progress"`
 	Schedule   []MobileAnimeDay    `json:"schedule"`
 	Dates      AnimeDetailDates    `json:"dates"`
@@ -172,14 +172,14 @@ type AnimeDetail struct {
 
 // EpisodeScheduleItem is an anime scheduled for an episode workflow.
 type EpisodeScheduleItem struct {
-	AnimeID     string  `json:"animeId"`
-	AnimeName   string  `json:"animeName"`
-	Estado      int     `json:"estado"`
-	NroCapVisto float64 `json:"nrocapvisto"`
-	TotalCap    *int    `json:"totalcap,omitempty"`
-	Day         string  `json:"day"`
-	DayOrder    int     `json:"dayOrder"`
-	ModifiedAt  int64   `json:"modified_at"`
+	AnimeID         string  `json:"animeId"`
+	AnimeName       string  `json:"animeName"`
+	Status          int     `json:"status"`
+	EpisodesWatched float64 `json:"episodesWatched"`
+	TotalEpisodes   *int    `json:"totalEpisodes,omitempty"`
+	Day             string  `json:"day"`
+	DayOrder        int     `json:"dayOrder"`
+	ModifiedAt      int64   `json:"modified_at"`
 	// FolderPath/PageURL are the literal carpeta/pagina strings (episodes-
 	// cover-pipeline spec, "EpisodeScheduleItem contract carries cover and
 	// literal path fields"). They REPLACE the former HasPage/HasFolder
@@ -223,17 +223,17 @@ type EpisodeDayCount struct {
 
 // EpisodeCommandResult reports the result of an episode command.
 type EpisodeCommandResult struct {
-	Status        string  `json:"status"`
-	Message       string  `json:"message,omitempty"`
-	AnimeID       string  `json:"animeId,omitempty"`
-	Outcome       string  `json:"outcome,omitempty"`
-	ModifiedAt    int64   `json:"modifiedAt"`
-	ConflictID    string  `json:"conflictId,omitempty"`
-	AnimeName     string  `json:"animeName,omitempty"`
-	Estado        int     `json:"estado,omitempty"`
-	NroCapVisto   float64 `json:"nrocapvisto,omitempty"`
-	OccurredAtMs  int64   `json:"occurredAtMs,omitempty"`
-	CorrelationID string  `json:"correlationId,omitempty"`
+	Status          string  `json:"status"`
+	Message         string  `json:"message,omitempty"`
+	AnimeID         string  `json:"animeId,omitempty"`
+	Outcome         string  `json:"outcome,omitempty"`
+	ModifiedAt      int64   `json:"modifiedAt"`
+	ConflictID      string  `json:"conflictId,omitempty"`
+	AnimeName       string  `json:"animeName,omitempty"`
+	AnimeStatus     int     `json:"animeStatus,omitempty"`
+	EpisodesWatched float64 `json:"episodesWatched,omitempty"`
+	OccurredAtMs    int64   `json:"occurredAtMs,omitempty"`
+	CorrelationID   string  `json:"correlationId,omitempty"`
 }
 
 // AnimeLegacyPullResult summarizes a pull from the legacy source.

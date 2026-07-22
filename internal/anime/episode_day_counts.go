@@ -29,14 +29,14 @@ func (s *EpisodeService) ListEpisodeDayCounts(ctx context.Context) ([]EpisodeDay
 	counts := make(map[string]int)
 	order := make([]string, 0)
 	for _, item := range items {
-		if item.Activo == 0 || item.Estado <= 0 {
+		if item.Active == 0 || item.Status <= 0 {
 			continue
 		}
-		for _, day := range item.Dias {
-			if _, seen := counts[day.Dia]; !seen {
-				order = append(order, day.Dia)
+		for _, day := range item.Days {
+			if _, seen := counts[day.Day]; !seen {
+				order = append(order, day.Day)
 			}
-			counts[day.Dia]++
+			counts[day.Day]++
 		}
 	}
 

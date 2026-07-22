@@ -55,13 +55,13 @@ export function useAnimeDetailMutation(
   const confirmation = useMemo(
     () => confirmationAction === undefined || detail === null || detail === undefined
       ? undefined
-      : toAnimeDetailConfirmation(confirmationAction, detail.nombre),
+      : toAnimeDetailConfirmation(confirmationAction, detail.name),
     [confirmationAction, detail],
   );
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onRequestRepeat = useCallback(() => {
-    if (detail !== null && detail !== undefined && detail.estado > 0) {
+    if (detail !== null && detail !== undefined && detail.status > 0) {
       setMutationState({
         animeId,
         routeGeneration,
@@ -72,7 +72,7 @@ export function useAnimeDetailMutation(
     }
   }, [animeId, detail, routeGeneration]);
   const onRequestRestore = useCallback(() => {
-    if (detail !== null && detail !== undefined && detail.activo === 0) {
+    if (detail !== null && detail !== undefined && detail.active === 0) {
       setMutationState({
         animeId,
         routeGeneration,
@@ -108,7 +108,7 @@ export function useAnimeDetailMutation(
     try {
       return resolveAnimeDetailMutation(
         action,
-        await binding(currentDetail._id, currentDetail.modified_at),
+        await binding(currentDetail.id, currentDetail.modified_at),
       );
     } catch {
       return resolveAnimeDetailMutation(action, {
@@ -129,7 +129,7 @@ export function useAnimeDetailMutation(
     }
 
     try {
-      const refreshedDetail = await source.getAnimeDetail(currentDetail._id);
+      const refreshedDetail = await source.getAnimeDetail(currentDetail.id);
       if (!isActive(animeId, actionRouteGeneration)) {
         return;
       }

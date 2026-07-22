@@ -11,7 +11,7 @@ import (
 func TestLegacyMapperRepeatPreservesNullableAndUnknownFields(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"anime-repeat","nombre":"Repeat","nrocapvisto":12,"estado":1,"activo":false,"primeravez":true,"fechaCreacion":{"$$date":1609459200000},"fechaEstreno":{"$$date":1612137600000},"fechaUltCapVisto":{"$$date":1612224000000},"fechaEliminacion":{"$$date":1612310400000},"repetir":[{"numrepeticion":0,"futureHistory":"keep"}],"totalcap":null,"duracion":null,"portada":{"type":"url","path":""},"future":{"nested":true}}`
+	const payload = `{"id":"anime-repeat","name":"Repeat","episodesWatched":12,"status":1,"active":false,"firstCycle":true,"createdAt":1609459200000,"premieredAt":1612137600000,"lastWatchedAt":1612224000000,"deletedAt":1612310400000,"repetitions":[{"numRepetitions":0,"futureHistory":"keep"}],"totalEpisodes":null,"durationMinutes":null,"cover":{"type":"url","path":""},"future":{"nested":true}}`
 
 	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err != nil {
@@ -38,35 +38,35 @@ func TestLegacyMapperRepeatPreservesNullableAndUnknownFields(t *testing.T) {
 	if err := json.Unmarshal(encoded, &got); err != nil {
 		t.Fatalf("decode repeated wire: %v", err)
 	}
-	assertRawJSONField(t, got, "nrocapvisto", `0`)
-	assertRawJSONField(t, got, "estado", `0`)
-	assertRawJSONField(t, got, "activo", `true`)
-	assertRawJSONField(t, got, "primeravez", `false`)
-	assertRawJSONField(t, got, "fechaCreacion", `{"$$date":1700000000000}`)
-	assertRawJSONField(t, got, "fechaEstreno", `null`)
-	assertRawJSONField(t, got, "fechaUltCapVisto", `null`)
-	assertRawJSONField(t, got, "fechaEliminacion", `null`)
-	assertRawJSONField(t, got, "totalcap", `null`)
-	assertRawJSONField(t, got, "duracion", `null`)
-	assertRawJSONField(t, got, "portada", `{"type":"url","path":""}`)
+	assertRawJSONField(t, got, "episodesWatched", `0`)
+	assertRawJSONField(t, got, "status", `0`)
+	assertRawJSONField(t, got, "active", `true`)
+	assertRawJSONField(t, got, "firstCycle", `false`)
+	assertRawJSONField(t, got, "createdAt", `1700000000000`)
+	assertRawJSONField(t, got, "premieredAt", `null`)
+	assertRawJSONField(t, got, "lastWatchedAt", `null`)
+	assertRawJSONField(t, got, "deletedAt", `null`)
+	assertRawJSONField(t, got, "totalEpisodes", `null`)
+	assertRawJSONField(t, got, "durationMinutes", `null`)
+	assertRawJSONField(t, got, "cover", `{"type":"url","path":""}`)
 	assertRawJSONField(t, got, "future", `{"nested":true}`)
 
 	var repetitions []map[string]json.RawMessage
-	if err := json.Unmarshal(got["repetir"], &repetitions); err != nil {
+	if err := json.Unmarshal(got["repetitions"], &repetitions); err != nil {
 		t.Fatalf("decode repetition history: %v", err)
 	}
 	if len(repetitions) != 2 {
 		t.Fatalf("repetition history length = %d, want 2", len(repetitions))
 	}
 	assertRawJSONField(t, repetitions[0], "futureHistory", `"keep"`)
-	assertRawJSONField(t, repetitions[1], "nrocapvisto", `12`)
-	assertRawJSONField(t, repetitions[1], "estado", `1`)
+	assertRawJSONField(t, repetitions[1], "episodesWatched", `12`)
+	assertRawJSONField(t, repetitions[1], "status", `1`)
 }
 
 func TestLegacyMapperRestoreChangesOnlyActivation(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"anime-restore","nombre":"Restore","nrocapvisto":7.5,"estado":2,"activo":false,"fechaEliminacion":{"$$date":1612310400000},"repetir":[{"numrepeticion":0,"futureHistory":"keep"}],"totalcap":null,"future":"keep"}`
+	const payload = `{"id":"anime-restore","name":"Restore","episodesWatched":7.5,"status":2,"active":false,"deletedAt":1612310400000,"repetitions":[{"numRepetitions":0,"futureHistory":"keep"}],"totalEpisodes":null,"future":"keep"}`
 
 	var wire AnimeRaw
 	if err := json.Unmarshal([]byte(payload), &wire); err != nil {
@@ -96,12 +96,12 @@ func TestLegacyMapperRestoreChangesOnlyActivation(t *testing.T) {
 	if err := json.Unmarshal(encoded, &got); err != nil {
 		t.Fatalf("decode restored wire: %v", err)
 	}
-	assertRawJSONField(t, got, "activo", `true`)
-	assertRawJSONField(t, got, "fechaEliminacion", `null`)
-	assertRawJSONField(t, got, "nrocapvisto", `7.5`)
-	assertRawJSONField(t, got, "estado", `2`)
-	assertRawJSONField(t, got, "repetir", `[{"numrepeticion":0,"futureHistory":"keep"}]`)
-	assertRawJSONField(t, got, "totalcap", `null`)
+	assertRawJSONField(t, got, "active", `true`)
+	assertRawJSONField(t, got, "deletedAt", `null`)
+	assertRawJSONField(t, got, "episodesWatched", `7.5`)
+	assertRawJSONField(t, got, "status", `2`)
+	assertRawJSONField(t, got, "repetitions", `[{"numRepetitions":0,"futureHistory":"keep"}]`)
+	assertRawJSONField(t, got, "totalEpisodes", `null`)
 	assertRawJSONField(t, got, "future", `"keep"`)
 }
 

@@ -31,7 +31,7 @@ func TestMemoryHubBroadcastsAnimeChangedToRegisteredClients(t *testing.T) {
 
 	hub.BroadcastAnimeChanged(context.Background(), events.AnimeChangedEvent{
 		AnimeID: "anime-123",
-		Payload: []byte(`{"nombre":"Bleach"}`),
+		Payload: []byte(`{"name":"Bleach"}`),
 	})
 
 	assertAnimeChangedPayload(t, first.Receive(t), "anime-123")

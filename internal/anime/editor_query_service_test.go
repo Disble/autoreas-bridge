@@ -12,22 +12,22 @@ func TestQueryServiceGetAnimeEditorRecordPreservesLegacyFidelity(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{
-		"_id":"anime-editor",
-		"nombre":"Frieren",
-		"estado":0,
-		"nrocapvisto":12.5,
-		"totalcap":28,
-		"activo":true,
-		"tipo":1,
-		"pagina":"https://anime.example/frieren",
-		"carpeta":"C:/Anime/Frieren",
-		"dias":[{"dia":"Viernes","orden":2}],
-		"fechaEstreno":null,
-		"duracion":24,
-		"origen":"manga",
-		"generos":["Adventure","Drama"],
-		"estudios":["Madhouse","TOHO animation STUDIO"],
-		"portada":{"type":"url","path":"C:/covers/frieren.jpg","future":"keep"},
+		"id":"anime-editor",
+		"name":"Frieren",
+		"status":0,
+		"episodesWatched":12.5,
+		"totalEpisodes":28,
+		"active":true,
+		"kind":1,
+		"sourceUrl":"https://anime.example/frieren",
+		"folder":"C:/Anime/Frieren",
+		"days":[{"day":"Viernes","order":2}],
+		"premieredAt":null,
+		"durationMinutes":24,
+		"origin":"manga",
+		"genres":["Adventure","Drama"],
+		"studios":["Madhouse","TOHO animation STUDIO"],
+		"cover":{"type":"url","path":"C:/covers/frieren.jpg","future":"keep"},
 		"future":{"nested":true}
 	}`, 1711111111000)
 
@@ -56,9 +56,9 @@ func TestQueryServiceGetAnimeEditorRecordPreservesLegacyFidelity(t *testing.T) {
 func TestScheduleQueryServiceGetEditorBoardIncludesActiveAnimeAndSpecialDestinations(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", `{"_id":"anime-a","nombre":"Frieren","estado":0,"nrocapvisto":12.5,"activo":true,"dias":[{"dia":"Viernes","orden":2}],"portada":{"type":"url","path":"C:/covers/frieren.jpg"}}`, 101)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", `{"_id":"anime-b","nombre":"Dandadan","estado":0,"nrocapvisto":1,"activo":true,"dias":[{"dia":"Ver hoy","orden":1}]}`, 202)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-c", `{"_id":"anime-c","nombre":"Inactive","estado":1,"nrocapvisto":24,"activo":false,"dias":[{"dia":"Lunes","orden":1}]}`, 303)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-a", `{"id":"anime-a","name":"Frieren","status":0,"episodesWatched":12.5,"active":true,"days":[{"day":"Viernes","order":2}],"cover":{"type":"url","path":"C:/covers/frieren.jpg"}}`, 101)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-b", `{"id":"anime-b","name":"Dandadan","status":0,"episodesWatched":1,"active":true,"days":[{"day":"Ver hoy","order":1}]}`, 202)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-c", `{"id":"anime-c","name":"Inactive","status":1,"episodesWatched":24,"active":false,"days":[{"day":"Lunes","order":1}]}`, 303)
 
 	service := anime.NewScheduleQueryService(anime.NewQueryService(store))
 	got, err := service.GetEditorBoard(ctx, anime.GetAnimeEditorScheduleBoardQuery{OriginAnimeID: "anime-b"})
@@ -77,7 +77,7 @@ func TestScheduleQueryServiceGetEditorBoardIncludesActiveAnimeAndSpecialDestinat
 	if got.Entries[1].AnimeID != "anime-b" || !got.Entries[1].OriginHighlighted {
 		t.Fatalf("expected origin anime to be highlighted, got %+v", got.Entries[1])
 	}
-	if len(got.Entries[1].Placements) != 1 || got.Entries[1].Placements[0].Dia != "Ver hoy" {
+	if len(got.Entries[1].Placements) != 1 || got.Entries[1].Placements[0].Day != "Ver hoy" {
 		t.Fatalf("expected placement to survive, got %+v", got.Entries[1].Placements)
 	}
 	if got.Entries[0].ModifiedAt == 0 {
@@ -98,13 +98,13 @@ func TestQueryServiceGetAnimeEditorRecordPreservesNullableKinds(t *testing.T) {
 		wantCover  contracts.AnimeEditorValueKind
 	}{
 		{name: "missing", fields: "", wantDate: contracts.AnimeEditorValueKindMissing, wantStudio: contracts.AnimeEditorValueKindMissing, wantGenres: contracts.AnimeEditorValueKindMissing, wantCover: contracts.AnimeEditorValueKindMissing},
-		{name: "null", fields: `,"fechaEstreno":null,"estudios":null,"generos":null,"portada":null`, wantDate: contracts.AnimeEditorValueKindNull, wantStudio: contracts.AnimeEditorValueKindNull, wantGenres: contracts.AnimeEditorValueKindNull, wantCover: contracts.AnimeEditorValueKindNull},
-		{name: "empty arrays and object", fields: `,"fechaEstreno":{"$$date":0},"estudios":[],"generos":[],"portada":{"type":"url","path":""}`, wantDate: contracts.AnimeEditorValueKindValue, wantStudio: contracts.AnimeEditorValueKindValue, wantGenres: contracts.AnimeEditorValueKindValue, wantCover: contracts.AnimeEditorValueKindValue},
+		{name: "null", fields: `,"premieredAt":null,"studios":null,"genres":null,"cover":null`, wantDate: contracts.AnimeEditorValueKindNull, wantStudio: contracts.AnimeEditorValueKindNull, wantGenres: contracts.AnimeEditorValueKindNull, wantCover: contracts.AnimeEditorValueKindNull},
+		{name: "empty arrays and object", fields: `,"premieredAt":0,"studios":[],"genres":[],"cover":{"type":"url","path":""}`, wantDate: contracts.AnimeEditorValueKindValue, wantStudio: contracts.AnimeEditorValueKindValue, wantGenres: contracts.AnimeEditorValueKindValue, wantCover: contracts.AnimeEditorValueKindValue},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := openAnimeServiceTestStore(t)
-			seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":0`+test.fields+`}`, 100)
+			seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":0`+test.fields+`}`, 100)
 			got, err := anime.NewQueryService(store).GetAnimeEditorRecord(context.Background(), "anime-editor")
 			if err != nil {
 				t.Fatalf("get editor record: %v", err)

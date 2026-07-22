@@ -23,10 +23,10 @@ import (
 // This fixture no longer reads that real file at runtime -- it pins the same
 // shape as small, non-identifying synthetic records instead.
 var historyFixtureLines = []string{
-	`{"_id":"history-1","nombre":"History One","nrocapvisto":12,"estado":1,"tipo":0,"fechaCreacion":{"$$date":1000},"fechaUltCapVisto":{"$$date":3000}}`,
-	`{"_id":"history-2","nombre":"History Two","nrocapvisto":5,"estado":2,"fechaUltCapVisto":{"$$date":2000}}`,
-	`{"_id":"history-3","nombre":"History Three","nrocapvisto":8,"estado":1,"tipo":1,"fechaCreacion":{"$$date":1500},"fechaUltCapVisto":{"$$date":1000}}`,
-	`{"_id":"history-4","nombre":"History Four (never watched)","nrocapvisto":0,"estado":0}`,
+	`{"id":"history-1","name":"History One","episodesWatched":12,"status":1,"kind":0,"createdAt":1000,"lastWatchedAt":3000}`,
+	`{"id":"history-2","name":"History Two","episodesWatched":5,"status":2,"lastWatchedAt":2000}`,
+	`{"id":"history-3","name":"History Three","episodesWatched":8,"status":1,"kind":1,"createdAt":1500,"lastWatchedAt":1000}`,
+	`{"id":"history-4","name":"History Four (never watched)","episodesWatched":0,"status":0}`,
 }
 
 // TestQueryServiceListAnimeHistoryMatchesFixtureMembershipAndOrdering
@@ -129,10 +129,10 @@ func summarizeProjectedHistory(items []contracts.AnimeHistoryItem) (int, int) {
 	gotTipoCount := 0
 	gotFechaCreacionCount := 0
 	for _, item := range items {
-		if item.Tipo != nil {
+		if item.Kind != nil {
 			gotTipoCount++
 		}
-		if item.FechaCreacion != nil {
+		if item.CreatedAt != nil {
 			gotFechaCreacionCount++
 		}
 	}
@@ -143,8 +143,8 @@ func summarizeProjectedHistory(items []contracts.AnimeHistoryItem) (int, int) {
 func assertHistoryOrder(t *testing.T, items []contracts.AnimeHistoryItem) {
 	t.Helper()
 	for i := 1; i < len(items); i++ {
-		if items[i-1].FechaUltCapVisto < items[i].FechaUltCapVisto {
-			t.Fatalf("expected non-increasing fechaUltCapVisto ordering at index %d: %d < %d", i, items[i-1].FechaUltCapVisto, items[i].FechaUltCapVisto)
+		if items[i-1].LastWatchedAt < items[i].LastWatchedAt {
+			t.Fatalf("expected non-increasing fechaUltCapVisto ordering at index %d: %d < %d", i, items[i-1].LastWatchedAt, items[i].LastWatchedAt)
 		}
 	}
 }

@@ -31,28 +31,28 @@ func (s *ScheduleQueryService) GetEditorBoard(ctx context.Context, query GetAnim
 	normalizedPlacements := map[string][]contracts.MobileAnimeDay{}
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo != 1 {
+		if item.Active != 1 {
 			continue
 		}
-		normalizedPlacements[item.ID] = cloneMobileDays(item.Dias)
+		normalizedPlacements[item.ID] = cloneMobileDays(item.Days)
 	}
 	normalizedPlacements = normalizeSchedulePlacementsMap(normalizedPlacements)
 	entries := make([]contracts.AnimeScheduleBoardEntry, 0, len(records))
 	var boardModifiedAt int64
 	for _, record := range records {
 		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.Activo != 1 {
+		if item.Active != 1 {
 			continue
 		}
 		entries = append(entries, contracts.AnimeScheduleBoardEntry{
 			AnimeID:           item.ID,
-			Name:              item.Nombre,
+			Name:              item.Name,
 			Active:            true,
 			ModifiedAt:        item.ModifiedAt,
 			Placements:        cloneMobileDays(normalizedPlacements[item.ID]),
-			Status:            item.Estado,
-			Progress:          item.NroCapVisto,
-			Cover:             item.Portada,
+			Status:            item.Status,
+			Progress:          item.EpisodesWatched,
+			Cover:             item.Cover,
 			OriginHighlighted: item.ID == query.OriginAnimeID,
 		})
 		if item.ModifiedAt > boardModifiedAt {

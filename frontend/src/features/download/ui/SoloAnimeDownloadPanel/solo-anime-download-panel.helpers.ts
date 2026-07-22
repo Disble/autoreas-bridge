@@ -37,9 +37,9 @@ export function toSoloAnimeDownloadOption(anime: Anime): SoloAnimeDownloadOption
 
   return {
     id: anime.id,
-    name: anime.nombre,
-    progressLabel: formatSoloAnimeProgress(anime.nrocapvisto, anime.totalcap),
-    canDownload: anime.activo === 1 && gapLabel === undefined,
+    name: anime.name,
+    progressLabel: formatSoloAnimeProgress(anime.episodesWatched, anime.totalEpisodes),
+    canDownload: anime.active === 1 && gapLabel === undefined,
     gapLabel,
   };
 }
@@ -55,8 +55,8 @@ export function getSoloAnimeDownloadOptions(
   const normalizedQuery = query.trim().toLowerCase();
 
   return items
-    .filter((item) => normalizedQuery.length === 0 || item.nombre.toLowerCase().includes(normalizedQuery))
-    .toSorted((a, b) => a.nombre.localeCompare(b.nombre) || a.id.localeCompare(b.id))
+    .filter((item) => normalizedQuery.length === 0 || item.name.toLowerCase().includes(normalizedQuery))
+    .toSorted((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     .slice(0, SOLO_ANIME_DOWNLOAD_MAX_RESULTS)
     .map(toSoloAnimeDownloadOption);
 }

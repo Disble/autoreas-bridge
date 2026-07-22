@@ -6,16 +6,16 @@ import (
 )
 
 var (
-	nullableNumberKeys = []string{"estado", "totalcap", "duracion", "tipo", "orden"}
-	nullableBoolKeys   = []string{"activo", "primeravez"}
-	nullableStringKeys = []string{"pagina", "carpeta", "origen", "dia"}
-	nullableDateKeys   = []string{"fechaEstreno", "fechaUltCapVisto", "fechaCreacion", "fechaEliminacion"}
-	nullableArrayKeys  = []string{"estudios", "generos"}
-	repetitionNumKeys  = []string{"numrepeticion", "nrocapvisto", "estado"}
-	repetitionDateKeys = []string{"fechaCreacion", "fechaEstreno", "fechaUltCapVisto", "fechaEliminacion", "fechaRepeticion"}
+	nullableNumberKeys = []string{"status", "totalEpisodes", "durationMinutes", "kind", "order"}
+	nullableBoolKeys   = []string{"active", "firstCycle"}
+	nullableStringKeys = []string{"sourceUrl", "folder", "origin", "day"}
+	nullableDateKeys   = []string{"premieredAt", "lastWatchedAt", "createdAt", "deletedAt"}
+	nullableArrayKeys  = []string{"studios", "genres"}
+	repetitionNumKeys  = []string{"numRepetitions", "episodesWatched", "status"}
+	repetitionDateKeys = []string{"createdAt", "premieredAt", "lastWatchedAt", "deletedAt", "repeatedAt"}
 )
 
-// validateKnownFields validates all recognized legacy fields.
+// validateKnownFields validates all recognized fields.
 func validateKnownFields(fields map[string]json.RawMessage) error {
 	if err := validateFieldGroup(fields, nullableNumberKeys, validateNullableNumber); err != nil {
 		return err
@@ -87,23 +87,15 @@ func validateNullableString(fields map[string]json.RawMessage, key string) error
 	return nil
 }
 
-// validateNullableDate validates an optional legacy date wrapper.
+// validateNullableDate validates an optional plain epoch-millis date field.
 func validateNullableDate(fields map[string]json.RawMessage, key string) error {
 	value, ok := nonNullField(fields, key)
 	if !ok {
 		return nil
 	}
-	var wrapper map[string]json.RawMessage
-	if err := json.Unmarshal(value, &wrapper); err != nil {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: %w", key, err)
-	}
-	dateValue, ok := wrapper["$$date"]
-	if !ok || len(wrapper) != 1 {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: expected object with only $$date", key)
-	}
 	var date int64
-	if err := json.Unmarshal(dateValue, &date); err != nil {
-		return fmt.Errorf("unmarshal %s: unmarshal legacy date wrapper: %w", key, err)
+	if err := json.Unmarshal(value, &date); err != nil {
+		return fmt.Errorf("unmarshal %s: %w", key, err)
 	}
 	return nil
 }
@@ -125,38 +117,38 @@ func validateNullableArray(fields map[string]json.RawMessage, key string) error 
 	return nil
 }
 
-// validateDays validates the legacy days array.
+// validateDays validates the schedule days array.
 func validateDays(fields map[string]json.RawMessage) error {
-	value, ok := nonNullField(fields, "dias")
+	value, ok := nonNullField(fields, "days")
 	if !ok {
 		return nil
 	}
 	var days []AnimeDay
 	if err := json.Unmarshal(value, &days); err != nil {
-		return fmt.Errorf("unmarshal dias: %w", err)
+		return fmt.Errorf("unmarshal days: %w", err)
 	}
 	return nil
 }
 
-// validateRepetitions validates legacy repetition entries.
+// validateRepetitions validates repetition history entries.
 func validateRepetitions(fields map[string]json.RawMessage) error {
-	value, ok := nonNullField(fields, "repetir")
+	value, ok := nonNullField(fields, "repetitions")
 	if !ok {
 		return nil
 	}
 	var repetitions []map[string]json.RawMessage
 	if err := json.Unmarshal(value, &repetitions); err != nil {
-		return fmt.Errorf("unmarshal repetir: %w", err)
+		return fmt.Errorf("unmarshal repetitions: %w", err)
 	}
 	for index, repetition := range repetitions {
 		for _, key := range repetitionNumKeys {
 			if err := validateNullableNumber(repetition, key); err != nil {
-				return fmt.Errorf("unmarshal repetir[%d]: %w", index, err)
+				return fmt.Errorf("unmarshal repetitions[%d]: %w", index, err)
 			}
 		}
 		for _, key := range repetitionDateKeys {
 			if err := validateNullableDate(repetition, key); err != nil {
-				return fmt.Errorf("unmarshal repetir[%d]: %w", index, err)
+				return fmt.Errorf("unmarshal repetitions[%d]: %w", index, err)
 			}
 		}
 	}

@@ -294,11 +294,11 @@ func TestTriggerAnimeDownloadRunsSelectedAnimeOnly(t *testing.T) {
 		downloadService: service,
 		animeQuery: &stubAnimeQueryService{
 			mobileAnime: &contracts.MobileAnime{
-				ID:      "anime-1",
-				Nombre:  "Frieren",
-				Activo:  1,
-				Pagina:  &page,
-				Carpeta: &folder,
+				ID:        "anime-1",
+				Name:      "Frieren",
+				Active:    1,
+				SourceURL: &page,
+				Folder:    &folder,
 			},
 		},
 	}

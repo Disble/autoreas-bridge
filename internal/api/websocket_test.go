@@ -96,7 +96,7 @@ func TestWebSocketBroadcastsAnimeChangedToConnectedClients(t *testing.T) {
 	readControlMessage(t, conn)
 	hub.BroadcastAnimeChanged(context.Background(), events.AnimeChangedEvent{
 		AnimeID: "anime-123",
-		Payload: []byte(`{"nombre":"Bleach"}`),
+		Payload: []byte(`{"name":"Bleach"}`),
 	})
 
 	var msg realtime.AnimeChangedMessage
@@ -112,7 +112,7 @@ func TestWebSocketBroadcastsAnimeChangedToConnectedClients(t *testing.T) {
 		t.Fatalf("expected anime id %q, got %q", "anime-123", msg.AnimeID)
 	}
 
-	if got, want := strings.TrimSpace(string(msg.Payload)), `{"nombre":"Bleach"}`; got != want {
+	if got, want := strings.TrimSpace(string(msg.Payload)), `{"name":"Bleach"}`; got != want {
 		t.Fatalf("expected payload %s, got %s", want, got)
 	}
 
@@ -214,7 +214,7 @@ func waitForClientCount(t *testing.T, hub *realtime.MemoryHub, want int) {
 func TestWebSocketBroadcastPayloadIsValidJSON(t *testing.T) {
 	t.Parallel()
 
-	payload := realtime.AnimeChangedMessage{Payload: json.RawMessage(`{"nombre":"Bleach"}`)}
+	payload := realtime.AnimeChangedMessage{Payload: json.RawMessage(`{"name":"Bleach"}`)}
 	if !json.Valid(payload.Payload) {
 		t.Fatal("expected payload to remain valid json")
 	}
@@ -254,7 +254,7 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 		"pending_operations": []map[string]any{{
 			"anime_id":   "anime-1",
 			"operation":  "update",
-			"payload":    map[string]any{"nrocapvisto": 664.0, "base": 0},
+			"payload":    map[string]any{"episodesWatched": 664.0, "base": 0},
 			"created_at": 1710000000123,
 		}},
 	}
@@ -266,7 +266,7 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	for time.Now().Before(deadline) {
 		record, err := snapshots.GetSnapshot(context.Background(), "anime-1")
 		if err == nil && record.ModifiedAt != 0 {
-			assertJSONLineEqualForWebSocketTest(t, string(record.CanonicalJSON), `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true,"fechaUltCapVisto":{"$$date":1710000000123}}`)
+			assertJSONLineEqualForWebSocketTest(t, string(record.CanonicalJSON), `{"id":"anime-1","name":"One Piece","episodesWatched":664,"status":2,"totalEpisodes":1200,"active":true,"lastWatchedAt":1710000000123}`)
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
@@ -278,7 +278,7 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 // newWebSocketWriteEnvironment creates database and service test state.
 func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore, *anime.QueryService, *anime.WriteService) {
 	t.Helper()
-	seed := `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`
+	seed := `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
 	if err != nil {
 		t.Fatalf("open bridge db: %v", err)

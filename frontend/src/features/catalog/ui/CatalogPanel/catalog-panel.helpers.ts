@@ -52,14 +52,14 @@ function getAnimeGapLabel(hasDownloadPage: boolean, hasFolder: boolean): string 
  * Converts a runtime Anime DTO into the view model rendered by CatalogPanel.
  */
 export function toAnimeViewModel(anime: Anime): AnimeViewModel {
-  const status = toAnimeStatus(anime.activo);
+  const status = toAnimeStatus(anime.active);
   const gapLabel = getAnimeGapLabel(anime.hasDownloadPage, anime.hasFolder);
 
   return {
     id: anime.id,
-    nombre: anime.nombre,
-    estado: anime.estado,
-    progressLabel: formatAnimeProgress(anime.nrocapvisto, anime.totalcap),
+    nombre: anime.name,
+    estado: anime.status,
+    progressLabel: formatAnimeProgress(anime.episodesWatched, anime.totalEpisodes),
     status,
     statusLabel: status === 'active' ? ANIME_STATUS_ACTIVE_LABEL : ANIME_STATUS_INACTIVE_LABEL,
     hasDownloadPage: anime.hasDownloadPage,
@@ -73,8 +73,8 @@ export function toAnimeViewModel(anime: Anime): AnimeViewModel {
  * Sorts animes by name ascending, using the id as a stable tie-breaker.
  */
 export function sortAnimesByName(a: Anime, b: Anime): number {
-  const nameA = a.nombre.toLowerCase();
-  const nameB = b.nombre.toLowerCase();
+  const nameA = a.name.toLowerCase();
+  const nameB = b.name.toLowerCase();
   if (nameA !== nameB) {
     return nameA < nameB ? -1 : 1;
   }
@@ -108,7 +108,7 @@ function matchesAnimeQuery(item: Anime, query: string): boolean {
     return true;
   }
 
-  return item.nombre.toLowerCase().includes(normalized);
+  return item.name.toLowerCase().includes(normalized);
 }
 
 /**
@@ -119,7 +119,7 @@ function matchesAnimeEstado(item: Anime, value: string): boolean {
     return true;
   }
 
-  return item.estado === Number(value);
+  return item.status === Number(value);
 }
 
 /**
@@ -130,7 +130,7 @@ function matchesAnimeActivo(item: Anime, value: string): boolean {
     return true;
   }
 
-  return item.activo === Number(value);
+  return item.active === Number(value);
 }
 
 /**
@@ -141,7 +141,7 @@ function matchesAnimeTipo(item: Anime, value: string): boolean {
     return true;
   }
 
-  return item.tipo === Number(value);
+  return item.kind === Number(value);
 }
 
 /**
@@ -152,7 +152,7 @@ function matchesAnimeDia(item: Anime, value: string): boolean {
     return true;
   }
 
-  return item.dias.some((dia) => dia.toLowerCase() === value.toLowerCase());
+  return item.days.some((dia) => dia.toLowerCase() === value.toLowerCase());
 }
 
 /**
@@ -165,7 +165,7 @@ function matchesAnimeGeneros(item: Anime, values: readonly string[]): boolean {
 
   const selected = new Set(values.map((value) => value.toLowerCase()));
 
-  return item.generos.some((genero) => selected.has(genero.toLowerCase()));
+  return item.genres.some((genero) => selected.has(genero.toLowerCase()));
 }
 
 /**
@@ -235,7 +235,7 @@ function toDynamicOptions(values: readonly string[]): readonly AnimeFilterOption
  * an "All" option.
  */
 export function getUniqueDiaOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
-  return toDynamicOptions(items.flatMap((item) => item.dias));
+  return toDynamicOptions(items.flatMap((item) => item.days));
 }
 
 /**
@@ -243,7 +243,7 @@ export function getUniqueDiaOptions(items: readonly Anime[]): readonly AnimeFilt
  * Genres use a multi-select, so no "All" option is prepended.
  */
 export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeFilterOption[] {
-  return uniqueSortedStrings(items.flatMap((item) => item.generos)).map((value) => ({
+  return uniqueSortedStrings(items.flatMap((item) => item.genres)).map((value) => ({
     value,
     label: value,
   }));

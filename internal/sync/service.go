@@ -160,17 +160,17 @@ func applyPendingSnapshot(item contracts.SyncingAnimeItem, payload []byte) (cont
 	if err != nil || snapshot == nil {
 		return item, true
 	}
-	if snapshot.Activo == 0 {
+	if snapshot.Active == 0 {
 		return contracts.SyncingAnimeItem{}, false
 	}
-	item.Activo = snapshot.Activo
-	if snapshot.Nombre != "" {
-		item.Title = snapshot.Nombre
+	item.Active = snapshot.Active
+	if snapshot.Name != "" {
+		item.Title = snapshot.Name
 	}
-	progressCurrent := snapshot.NroCapVisto
+	progressCurrent := snapshot.EpisodesWatched
 	item.ProgressCurrent = &progressCurrent
-	if snapshot.TotalCap != nil {
-		progressTotal := *snapshot.TotalCap
+	if snapshot.TotalEpisodes != nil {
+		progressTotal := *snapshot.TotalEpisodes
 		item.ProgressTotal = &progressTotal
 	}
 	return item, true

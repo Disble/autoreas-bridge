@@ -42,7 +42,7 @@ func (s activityAnimeWriteService) PatchAnime(ctx context.Context, id string, pa
 
 // activityPatchOutcome derives the activity snapshot and action for an anime patch.
 func activityPatchOutcome(before contracts.MobileAnime, patch contracts.AnimePatch) (anime.ActivityAnimeSnapshot, string) {
-	after := anime.ActivityAnimeSnapshot{Estado: before.Estado, NroCapVisto: before.NroCapVisto, Activo: before.Activo}
+	after := anime.ActivityAnimeSnapshot{Estado: before.Status, NroCapVisto: before.EpisodesWatched, Activo: before.Active}
 	actionType := ""
 	if patch.Estado != nil {
 		after.Estado, actionType = *patch.Estado, anime.ActivityActionAnimeStateSet
@@ -78,13 +78,13 @@ func (s activityAnimeWriteService) recordPatchActivity(ctx context.Context, id s
 		Source:        source,
 		ActionType:    actionType,
 		AnimeID:       id,
-		AnimeName:     before.Nombre,
+		AnimeName:     before.Name,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: fmt.Sprintf("anime.patch:%s:%d", id, occurredAtMs),
 		Before: anime.ActivityAnimeSnapshot{
-			Estado:      before.Estado,
-			NroCapVisto: before.NroCapVisto,
-			Activo:      before.Activo,
+			Estado:      before.Status,
+			NroCapVisto: before.EpisodesWatched,
+			Activo:      before.Active,
 		},
 		After: after,
 	})

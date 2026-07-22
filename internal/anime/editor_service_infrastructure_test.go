@@ -13,7 +13,7 @@ import (
 func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`, 1000)
 	writer := &stubAnimeWriter{}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewEditorService(store, writer)
@@ -49,7 +49,7 @@ func TestEditorServiceSavePublishesExactlyOnceOnlyAfterAcceptedWrite(t *testing.
 func TestEditorServiceSaveInfrastructureFailureDoesNotPublish(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"_id":"anime-editor","nombre":"Frieren","nrocapvisto":2,"activo":true}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"active":true}`, 1000)
 	failing := &failingFinalizeStore{WriteBaseStore: store.WriteBaseStore(), err: errors.New("disk unavailable")}
 	publisher := &editorRecordingPublisher{}
 	service := anime.NewEditorService(store, &stubAnimeWriter{})

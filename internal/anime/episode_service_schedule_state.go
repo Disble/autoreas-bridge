@@ -17,31 +17,31 @@ func (s *EpisodeService) ListEpisodeSchedule(ctx context.Context, query EpisodeS
 
 	result := make([]EpisodeScheduleItem, 0, len(items))
 	for _, item := range items {
-		if item.Activo == 0 {
+		if item.Active == 0 {
 			continue
 		}
-		day, ok := matchingScheduleDay(item.Dias, query.Day)
+		day, ok := matchingScheduleDay(item.Days, query.Day)
 		if !ok {
 			continue
 		}
-		portada := ""
-		if item.Portada != nil {
-			portada = *item.Portada
+		coverValue := ""
+		if item.Cover != nil {
+			coverValue = *item.Cover
 		}
 		result = append(result, EpisodeScheduleItem{
 			AnimeID:      item.ID,
-			AnimeName:    item.Nombre,
-			Estado:       item.Estado,
-			NroCapVisto:  item.NroCapVisto,
-			TotalCap:     item.TotalCap,
-			Day:          day.Dia,
-			DayOrder:     day.Orden,
+			AnimeName:    item.Name,
+			Estado:       item.Status,
+			NroCapVisto:  item.EpisodesWatched,
+			TotalCap:     item.TotalEpisodes,
+			Day:          day.Day,
+			DayOrder:     day.Order,
 			ModifiedAt:   item.ModifiedAt,
-			FolderPath:   legacyStringValue(item.Carpeta),
-			PageURL:      legacyStringValue(item.Pagina),
-			HasCover:     cover.Classify(portada) != cover.KindAbsent,
-			LastWatched:  item.FechaUltCapVisto,
-			FirstWatched: item.FechaEstreno,
+			FolderPath:   legacyStringValue(item.Folder),
+			PageURL:      legacyStringValue(item.SourceURL),
+			HasCover:     cover.Classify(coverValue) != cover.KindAbsent,
+			LastWatched:  item.LastWatchedAt,
+			FirstWatched: item.PremieredAt,
 		})
 	}
 
@@ -74,17 +74,17 @@ func (s *EpisodeService) SetAnimeState(ctx context.Context, cmd SetAnimeStateCom
 			Source:        source,
 			ActionType:    ActivityActionAnimeStateSet,
 			AnimeID:       cmd.AnimeID,
-			AnimeName:     current.Nombre,
+			AnimeName:     current.Name,
 			OccurredAtMs:  occurredAtMs,
 			CorrelationID: correlationID,
-			Before:        ActivityAnimeSnapshot{Estado: current.Estado, NroCapVisto: current.NroCapVisto, Activo: current.Activo},
-			After:         ActivityAnimeSnapshot{Estado: cmd.Estado, NroCapVisto: current.NroCapVisto, Activo: current.Activo},
+			Before:        ActivityAnimeSnapshot{Estado: current.Status, NroCapVisto: current.EpisodesWatched, Activo: current.Active},
+			After:         ActivityAnimeSnapshot{Estado: cmd.Estado, NroCapVisto: current.EpisodesWatched, Activo: current.Active},
 		}); err != nil {
 			return EpisodeCommandResult{}, err
 		}
 	}
 
-	return episodeCommandResult(patchResult, current.Nombre, cmd.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Name, cmd.Estado, current.EpisodesWatched, occurredAtMs, correlationID), nil
 }
 
 // SetAnimeDays rewrites dias[] without recording a watch-state activity entry.
@@ -98,7 +98,7 @@ func (s *EpisodeService) SetAnimeDays(ctx context.Context, cmd SetAnimeDaysComma
 	if err != nil {
 		return EpisodeCommandResult{}, err
 	}
-	return episodeCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, ""), nil
+	return episodeCommandResult(patchResult, current.Name, current.Status, current.EpisodesWatched, occurredAtMs, ""), nil
 }
 
 // SoftDeleteAnime deactivates one anime and records activity when the write applies.
@@ -127,15 +127,15 @@ func (s *EpisodeService) SoftDeleteAnime(ctx context.Context, cmd SoftDeleteAnim
 			Source:        source,
 			ActionType:    ActivityActionAnimeSoftDeleted,
 			AnimeID:       cmd.AnimeID,
-			AnimeName:     current.Nombre,
+			AnimeName:     current.Name,
 			OccurredAtMs:  occurredAtMs,
 			CorrelationID: correlationID,
-			Before:        ActivityAnimeSnapshot{Estado: current.Estado, NroCapVisto: current.NroCapVisto, Activo: current.Activo},
-			After:         ActivityAnimeSnapshot{Estado: current.Estado, NroCapVisto: current.NroCapVisto, Activo: 0},
+			Before:        ActivityAnimeSnapshot{Estado: current.Status, NroCapVisto: current.EpisodesWatched, Activo: current.Active},
+			After:         ActivityAnimeSnapshot{Estado: current.Status, NroCapVisto: current.EpisodesWatched, Activo: 0},
 		}); err != nil {
 			return EpisodeCommandResult{}, err
 		}
 	}
 
-	return episodeCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Name, current.Status, current.EpisodesWatched, occurredAtMs, correlationID), nil
 }

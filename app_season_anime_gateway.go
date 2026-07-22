@@ -89,7 +89,7 @@ func (g seasonAnimeGateway) SetSelection(ctx context.Context, animeID string, es
 func (g seasonAnimeGateway) SetAnimeSchedule(ctx context.Context, animeID string, dias []seasondomain.Placement) (season.AnimeMutationResult, error) {
 	days := make([]contracts.MobileAnimeDay, 0, len(dias))
 	for _, day := range dias {
-		days = append(days, contracts.MobileAnimeDay{Dia: day.Dia, Orden: day.Orden})
+		days = append(days, contracts.MobileAnimeDay{Day: day.Dia, Order: day.Orden})
 	}
 	result, err := g.writer.PatchAnime(ctx, animeID, contracts.AnimePatch{
 		DiasOrdered:         days,

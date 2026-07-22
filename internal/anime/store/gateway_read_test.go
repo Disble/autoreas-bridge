@@ -8,7 +8,7 @@ import (
 func TestGatewayReadContractsReturnEnglishDomainValues(t *testing.T) {
 	t.Parallel()
 
-	const payload = `{"_id":"read","nombre":"English Read","nrocapvisto":3,"activo":true,"pagina":"https://example.invalid/read","dias":[{"dia":"Ver hoy","orden":2}]}`
+	const payload = `{"id":"read","name":"English Read","episodesWatched":3,"active":true,"sourceUrl":"https://example.invalid/read","days":[{"day":"Ver hoy","order":2}]}`
 	gateway := NewGateway(GatewayConfig{
 		LoadSnapshot: func(context.Context, string) (Snapshot, error) {
 			return Snapshot{AnimeID: "read", CanonicalJSON: []byte(payload), ModifiedAt: 7}, nil

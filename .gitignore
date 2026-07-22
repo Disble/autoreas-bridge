@@ -10,3 +10,6 @@ cmd/poc/.env
 .atl/skill-registry.md
 .atl/.skill-registry.cache.json
 .tools/
+
+# Local-only backups / scratch (never commit)
+.ignore/

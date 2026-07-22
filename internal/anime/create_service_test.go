@@ -41,9 +41,9 @@ func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing
 		t.Fatalf("get snapshot: %v", err)
 	}
 	fields := decodeCreatePayload(t, snapshot.CanonicalJSON)
-	assertCreateJSONField(t, fields, "totalcap", `24`)
-	assertCreateJSONField(t, fields, "duracion", `23`)
-	assertCreateJSONField(t, fields, "portada", `{"type":"url","path":"https://cdn.example.test/canonical.jpg"}`)
+	assertCreateJSONField(t, fields, "totalEpisodes", `24`)
+	assertCreateJSONField(t, fields, "durationMinutes", `23`)
+	assertCreateJSONField(t, fields, "cover", `{"type":"url","path":"https://cdn.example.test/canonical.jpg"}`)
 }
 
 func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t *testing.T) {
@@ -67,9 +67,9 @@ func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t
 		t.Fatalf("get snapshot: %v", err)
 	}
 	fields := decodeCreatePayload(t, snapshot.CanonicalJSON)
-	assertCreateJSONField(t, fields, "totalcap", `null`)
-	assertCreateJSONField(t, fields, "duracion", `null`)
-	assertCreateJSONField(t, fields, "portada", `{"type":"url","path":""}`)
+	assertCreateJSONField(t, fields, "totalEpisodes", `null`)
+	assertCreateJSONField(t, fields, "durationMinutes", `null`)
+	assertCreateJSONField(t, fields, "cover", `{"type":"url","path":""}`)
 }
 
 func TestCreateServiceReturnsMetadataSourceFailureWithoutAppend(t *testing.T) {

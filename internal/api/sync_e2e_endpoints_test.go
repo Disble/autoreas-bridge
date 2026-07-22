@@ -20,7 +20,7 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 		AnimeID:       "anime-1",
 		ChangeType:    events.AnimeChangeTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true}`),
+		SnapshotJSON:  []byte(`{"id":"anime-1","name":"One Piece","episodesWatched":664,"status":2,"totalEpisodes":1200,"active":true}`),
 		ChangedAtMs:   1710000000123,
 	}); err != nil {
 		t.Fatalf("insert pending changelog: %v", err)
@@ -43,8 +43,8 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	if len(changesPayload.Changes) != 1 || changesPayload.Changes[0].Snapshot == nil {
 		t.Fatalf("expected one serialized change with snapshot, got %#v", changesPayload)
 	}
-	if changesPayload.Changes[0].Snapshot.NroCapVisto != 664 {
-		t.Fatalf("expected change snapshot nrocapvisto 664, got %v", changesPayload.Changes[0].Snapshot.NroCapVisto)
+	if changesPayload.Changes[0].Snapshot.EpisodesWatched != 664 {
+		t.Fatalf("expected change snapshot nrocapvisto 664, got %v", changesPayload.Changes[0].Snapshot.EpisodesWatched)
 	}
 
 	postReq := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"device-1","last_changelog_id":0,"pending_operations":[{"anime_id":"anime-1","operation":"cap_plus","payload":{},"created_at":1710000000456},{"anime_id":"anime-1","operation":"cap_minus","payload":{},"created_at":1710000000457}]}`))
@@ -65,7 +65,7 @@ func TestSyncEndpointsHandleCapPlusAndIncrementalChangesWithout500(t *testing.T)
 	if reconcilePayload.LastChangelogID <= 0 {
 		t.Fatalf("expected positive last_changelog_id, got %d", reconcilePayload.LastChangelogID)
 	}
-	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.NroCapVisto != 664 {
+	if reconcilePayload.BridgeChanges[0].Snapshot == nil || reconcilePayload.BridgeChanges[0].Snapshot.EpisodesWatched != 664 {
 		t.Fatalf("expected reconcile bridge change snapshot nrocapvisto 664, got %#v", reconcilePayload.BridgeChanges[0].Snapshot)
 	}
 }
@@ -78,7 +78,7 @@ func TestSyncEndpointsIgnoreMalformedChangelogSnapshotInsteadOfReturning500(t *t
 		AnimeID:       "broken-1",
 		ChangeType:    events.AnimeChangeTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"nombre":"broken"`),
+		SnapshotJSON:  []byte(`{"name":"broken"`),
 		ChangedAtMs:   1710000000122,
 	}); err != nil {
 		t.Fatalf("insert malformed changelog row: %v", err)
@@ -87,7 +87,7 @@ func TestSyncEndpointsIgnoreMalformedChangelogSnapshotInsteadOfReturning500(t *t
 		AnimeID:       "anime-1",
 		ChangeType:    events.AnimeChangeTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"One Piece","nrocapvisto":664,"estado":2,"totalcap":1200,"activo":true}`),
+		SnapshotJSON:  []byte(`{"id":"anime-1","name":"One Piece","episodesWatched":664,"status":2,"totalEpisodes":1200,"active":true}`),
 		ChangedAtMs:   1710000000123,
 	}); err != nil {
 		t.Fatalf("insert good changelog row: %v", err)

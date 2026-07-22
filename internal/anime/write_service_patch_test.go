@@ -13,7 +13,7 @@ import (
 func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Cowboy Bebop","nrocapvisto":2,"estado":2,"totalcap":26,"activo":true,"pagina":"netflix"}`)
+	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Cowboy Bebop","episodesWatched":2,"status":2,"totalEpisodes":26,"active":true,"sourceUrl":"netflix"}`)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
@@ -50,7 +50,7 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":11,"estado":2,"totalcap":12}`)
+	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":11,"status":2,"totalEpisodes":12}`)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000456).UTC() })
@@ -73,7 +73,7 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"One Piece","nrocapvisto":661,"estado":2,"totalcap":1200,"activo":true}`)
+	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000999).UTC() })
@@ -98,7 +98,7 @@ func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing
 func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12}`, 1000)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12}`, 1000)
 
 	writer := &stubAnimeWriter{}
 	service := anime.NewWriteService(store, writer)
@@ -126,7 +126,7 @@ func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T)
 func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t *testing.T) {
 	ctx := context.Background()
 	store := openAnimeServiceTestStore(t)
-	seedAnimeSnapshot(t, store, "anime-1", `{"_id":"anime-1","nombre":"Test","nrocapvisto":2,"estado":2,"totalcap":12,"dias":[{"dia":"Lunes","orden":1}]}`)
+	seedAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Test","episodesWatched":2,"status":2,"totalEpisodes":12,"days":[{"day":"Lunes","order":1}]}`)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })

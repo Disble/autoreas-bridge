@@ -87,7 +87,7 @@ func TestGetAnimeCoverHappyPathReturnsResolvedDataURL(t *testing.T) {
 	resolver := &stubAppCoverResolver{result: cover.Result{IsCover: true, DataURL: "data:image/jpeg;base64,AAA="}}
 	app := &App{
 		ctx:           context.Background(),
-		animeQuery:    &stubAnimeQueryService{mobileAnime: &contracts.MobileAnime{ID: "anime-1", Portada: &portada}},
+		animeQuery:    &stubAnimeQueryService{mobileAnime: &contracts.MobileAnime{ID: "anime-1", Cover: &portada}},
 		coverResolver: resolver,
 	}
 

@@ -19,15 +19,15 @@ import {
 } from '../anime-detail.helpers';
 
 const baseDetail: AnimeDetail = {
-  _id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 2,
-  nrocapvisto: 12,
-  totalcap: 28,
-  activo: 1,
-  primeravez: 1,
-  dias: [],
-  generos: ['Fantasy', 'Adventure'],
+  id: 'anime-1',
+  name: 'Frieren',
+  status: 2,
+  episodesWatched: 12,
+  totalEpisodes: 28,
+  active: 1,
+  firstCycle: 1,
+  days: [],
+  genres: ['Fantasy', 'Adventure'],
   modified_at: 0,
 };
 
@@ -163,15 +163,15 @@ describe('formatAnimeDetailRepetitionDate', () => {
 describe('sortAnimeRepeticionesMostRecentFirst', () => {
   it('sorts entries descending by numrepeticion without mutating the input', () => {
     const entries: readonly AnimeRepeticion[] = [
-      { numrepeticion: 0, nrocapvisto: 12, estado: 1 },
-      { numrepeticion: 2, nrocapvisto: 40, estado: 3 },
-      { numrepeticion: 1, nrocapvisto: 24, estado: 1 },
+      { numRepetitions: 0, episodesWatched: 12, status: 1 },
+      { numRepetitions: 2, episodesWatched: 40, status: 3 },
+      { numRepetitions: 1, episodesWatched: 24, status: 1 },
     ];
 
     const sorted = sortAnimeRepeticionesMostRecentFirst(entries);
 
-    expect(sorted.map((entry) => entry.numrepeticion)).toEqual([2, 1, 0]);
-    expect(entries.map((entry) => entry.numrepeticion)).toEqual([0, 2, 1]);
+    expect(sorted.map((entry) => entry.numRepetitions)).toEqual([2, 1, 0]);
+    expect(entries.map((entry) => entry.numRepetitions)).toEqual([0, 2, 1]);
   });
 });
 
@@ -197,14 +197,14 @@ describe('toAnimeRepeticionViewModel', () => {
   it('maps a fully populated repetition entry', () => {
     const viewModel = toAnimeRepeticionViewModel(
       {
-        numrepeticion: 1,
-        nrocapvisto: 24,
-        estado: 1,
-        fechaCreacion: Date.UTC(2022, 0, 1, 12),
-        fechaEstreno: Date.UTC(2022, 0, 2, 12),
-        fechaUltCapVisto: Date.UTC(2022, 0, 3, 12),
-        fechaEliminacion: Date.UTC(2022, 0, 4, 12),
-        fechaRepeticion: Date.UTC(2023, 5, 1, 12),
+        numRepetitions: 1,
+        episodesWatched: 24,
+        status: 1,
+        createdAt: Date.UTC(2022, 0, 1, 12),
+        premieredAt: Date.UTC(2022, 0, 2, 12),
+        lastWatchedAt: Date.UTC(2022, 0, 3, 12),
+        deletedAt: Date.UTC(2022, 0, 4, 12),
+        repeatedAt: Date.UTC(2023, 5, 1, 12),
       },
       0,
     );
@@ -225,7 +225,7 @@ describe('toAnimeRepeticionViewModel', () => {
 
   it('degrades every absent date to the explicit "No data" fallback', () => {
     const viewModel = toAnimeRepeticionViewModel(
-      { numrepeticion: 2, nrocapvisto: 10, estado: 1 },
+      { numRepetitions: 2, episodesWatched: 10, status: 1 },
       1,
     );
 
@@ -277,22 +277,22 @@ describe('toAnimeDetailViewModel', () => {
   it('maps a fully populated detail', () => {
     const detail: AnimeDetail = {
       ...baseDetail,
-      estado: 0,
-      tipo: 1,
-      activo: 0,
-      totalcap: undefined,
-      duracion: 24,
-      generos: [],
-      portada: 'C:/legacy/portadas/frieren.jpg',
-      pagina: 'https://example.com/frieren',
-      carpeta: 'D:/anime/Frieren',
-      estudios: 'Madhouse',
-      origen: 'Manga',
-      fechaEstreno: Date.UTC(2023, 8, 29, 12),
-      fechaCreacion: Date.UTC(2023, 0, 1, 12),
-      fechaUltCapVisto: Date.UTC(2024, 2, 22, 12),
-      repetir: [
-        { numrepeticion: 1, nrocapvisto: 24, estado: 1, fechaRepeticion: Date.UTC(2022, 0, 1) },
+      status: 0,
+      kind: 1,
+      active: 0,
+      totalEpisodes: undefined,
+      durationMinutes: 24,
+      genres: [],
+      cover: 'C:/legacy/portadas/frieren.jpg',
+      sourceUrl: 'https://example.com/frieren',
+      folder: 'D:/anime/Frieren',
+      studios: 'Madhouse',
+      origin: 'Manga',
+      premieredAt: Date.UTC(2023, 8, 29, 12),
+      createdAt: Date.UTC(2023, 0, 1, 12),
+      lastWatchedAt: Date.UTC(2024, 2, 22, 12),
+      repetitions: [
+        { numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) },
       ],
     };
 
@@ -327,7 +327,7 @@ describe('toAnimeDetailViewModel', () => {
   it.each([[''], ['   '], ['null']])(
     'maps the blank/sentinel portada path %j to an undefined portadaUrl',
     (portada) => {
-      const viewModel = toAnimeDetailViewModel({ ...baseDetail, portada });
+      const viewModel = toAnimeDetailViewModel({ ...baseDetail, cover: portada });
 
       expect(viewModel.portadaUrl).toBeUndefined();
     },
@@ -336,7 +336,7 @@ describe('toAnimeDetailViewModel', () => {
   it('trims a surrounding-whitespace portada path before exposing it to the view', () => {
     const viewModel = toAnimeDetailViewModel({
       ...baseDetail,
-      portada: '  C:/legacy/portadas/frieren.jpg  ',
+      cover: '  C:/legacy/portadas/frieren.jpg  ',
     });
 
     expect(viewModel.portadaUrl).toBe('C:/legacy/portadas/frieren.jpg');
@@ -345,8 +345,8 @@ describe('toAnimeDetailViewModel', () => {
   it('uses studios and origin when present', () => {
     const viewModel = toAnimeDetailViewModel({
       ...baseDetail,
-      estudios: 'Madhouse',
-      origen: 'Manga',
+      studios: 'Madhouse',
+      origin: 'Manga',
     });
 
     expect(viewModel.studios).toBe('Madhouse');
@@ -354,18 +354,18 @@ describe('toAnimeDetailViewModel', () => {
   });
 
   it('reports isFirstWatch false when primeravez is not 1', () => {
-    const viewModel = toAnimeDetailViewModel({ ...baseDetail, primeravez: 0 });
+    const viewModel = toAnimeDetailViewModel({ ...baseDetail, firstCycle: 0 });
 
     expect(viewModel.isFirstWatch).toBe(false);
   });
 
   it.each([
-    { name: 'finished inactive', estado: 1, activo: 0, canRepeat: true, canRestore: true },
-    { name: 'watching active', estado: 0, activo: 1, canRepeat: false, canRestore: false },
-    { name: 'finished active', estado: 2, activo: 1, canRepeat: true, canRestore: false },
-    { name: 'watching inactive', estado: 0, activo: 0, canRepeat: false, canRestore: true },
-  ])('derives Repeat and Restore visibility for $name', ({ estado, activo, canRepeat, canRestore }) => {
-    const viewModel = toAnimeDetailViewModel({ ...baseDetail, estado, activo });
+    { name: 'finished inactive', status: 1, active: 0, canRepeat: true, canRestore: true },
+    { name: 'watching active', status: 0, active: 1, canRepeat: false, canRestore: false },
+    { name: 'finished active', status: 2, active: 1, canRepeat: true, canRestore: false },
+    { name: 'watching inactive', status: 0, active: 0, canRepeat: false, canRestore: true },
+  ])('derives Repeat and Restore visibility for $name', ({ status, active, canRepeat, canRestore }) => {
+    const viewModel = toAnimeDetailViewModel({ ...baseDetail, status, active });
 
     expect(viewModel.canRepeat).toBe(canRepeat);
     expect(viewModel.canRestore).toBe(canRestore);
@@ -379,10 +379,10 @@ describe('toAnimeDetailViewModel', () => {
   it('orders repetitions most-recent-first regardless of the wire order', () => {
     const viewModel = toAnimeDetailViewModel({
       ...baseDetail,
-      repetir: [
-        { numrepeticion: 0, nrocapvisto: 12, estado: 1 },
-        { numrepeticion: 2, nrocapvisto: 40, estado: 3 },
-        { numrepeticion: 1, nrocapvisto: 24, estado: 1 },
+      repetitions: [
+        { numRepetitions: 0, episodesWatched: 12, status: 1 },
+        { numRepetitions: 2, episodesWatched: 40, status: 3 },
+        { numRepetitions: 1, episodesWatched: 24, status: 1 },
       ],
     });
 

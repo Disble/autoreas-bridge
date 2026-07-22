@@ -64,26 +64,26 @@ func (a *App) runAnimeDesktopAction(
 
 	value := valueFn(*current)
 	if value == nil || strings.TrimSpace(*value) == "" {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "anime action value unavailable", AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: "anime action value unavailable", AnimeID: animeID, AnimeName: current.Name}
 	}
 
 	if err := run(a.appContext(), *value); err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Name}
 	}
 
 	occurredAtMs := time.Now().UnixMilli()
 	if err := a.recordDesktopAnimeAction(*current, actionType, occurredAtMs); err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Nombre}
+		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Name}
 	}
 
 	return contracts.EpisodeCommandResult{
-		Status:        "ok",
-		AnimeID:       animeID,
-		AnimeName:     current.Nombre,
-		Estado:        current.Estado,
-		NroCapVisto:   current.NroCapVisto,
-		OccurredAtMs:  occurredAtMs,
-		CorrelationID: fmt.Sprintf("anime.desktop-action:%s:%d", animeID, occurredAtMs),
+		Status:          "ok",
+		AnimeID:         animeID,
+		AnimeName:       current.Name,
+		AnimeStatus:     current.Status,
+		EpisodesWatched: current.EpisodesWatched,
+		OccurredAtMs:    occurredAtMs,
+		CorrelationID:   fmt.Sprintf("anime.desktop-action:%s:%d", animeID, occurredAtMs),
 	}
 }
 
@@ -94,15 +94,15 @@ func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, actionType
 	}
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))}
 	snapshot := anime.ActivityAnimeSnapshot{
-		Estado:      current.Estado,
-		NroCapVisto: current.NroCapVisto,
-		Activo:      current.Activo,
+		Estado:      current.Status,
+		NroCapVisto: current.EpisodesWatched,
+		Activo:      current.Active,
 	}
 	return recorder.RecordActivity(a.appContext(), anime.ActivityRecord{
 		Source:        anime.ActivitySourceDesktop,
 		ActionType:    actionType,
 		AnimeID:       current.ID,
-		AnimeName:     current.Nombre,
+		AnimeName:     current.Name,
 		OccurredAtMs:  occurredAtMs,
 		CorrelationID: fmt.Sprintf("anime.desktop-action:%s:%d", current.ID, occurredAtMs),
 		Before:        snapshot,
@@ -112,10 +112,10 @@ func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, actionType
 
 // pageValue returns the stored anime page URL.
 func pageValue(item contracts.MobileAnime) *string {
-	return item.Pagina
+	return item.SourceURL
 }
 
 // folderValue returns the stored anime folder path.
 func folderValue(item contracts.MobileAnime) *string {
-	return item.Carpeta
+	return item.Folder
 }

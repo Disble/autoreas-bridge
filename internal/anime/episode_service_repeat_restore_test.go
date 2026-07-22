@@ -17,7 +17,7 @@ func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10,"estado":0,"totalcap":28,"activo":false,"fechaEliminacion":{"$$date":1700000000000}}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":0,"totalEpisodes":28,"active":false,"deletedAt":1700000000000}`,
 		1000,
 	)
 
@@ -52,8 +52,8 @@ func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 		t.Fatalf("expected active domain state, got %v", value.Active)
 	}
 	fields := decodeJSONFields(t, snapshot.CanonicalJSON)
-	if string(fields["fechaEliminacion"]) != "null" {
-		t.Fatalf("expected fechaEliminacion null, got %s", fields["fechaEliminacion"])
+	if string(fields["deletedAt"]) != "null" {
+		t.Fatalf("expected deletedAt null, got %s", fields["deletedAt"])
 	}
 	if value.LastWatchedAt != nil {
 		t.Fatalf("expected restore not to stamp last watched time, got %v", value.LastWatchedAt)
@@ -78,7 +78,7 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 		t,
 		store,
 		"anime-1",
-		`{"_id":"anime-1","nombre":"Frieren","nrocapvisto":10.5,"estado":1,"totalcap":28,"activo":false,"primeravez":true,"fechaCreacion":{"$$date":1600000000000},"fechaEstreno":{"$$date":1600000100000},"fechaUltCapVisto":{"$$date":1600000200000},"fechaEliminacion":{"$$date":1600000300000},"repetir":[{"numrepeticion":0,"nrocapvisto":8,"estado":1,"fechaRepeticion":{"$$date":1500000000000}}]}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"totalEpisodes":28,"active":false,"firstCycle":true,"createdAt":1600000000000,"premieredAt":1600000100000,"lastWatchedAt":1600000200000,"deletedAt":1600000300000,"repetitions":[{"numRepetitions":0,"episodesWatched":8,"status":1,"repeatedAt":1500000000000}]}`,
 		1000,
 	)
 
@@ -143,30 +143,30 @@ func decodeRawJSONMap(t *testing.T, payload []byte) map[string]any {
 // assertRepeatPayloadReset verifies that repeat resets progress fields.
 func assertRepeatPayloadReset(t *testing.T, payload map[string]any) {
 	t.Helper()
-	if payload["nrocapvisto"] != float64(0) || payload["estado"] != float64(0) || payload["activo"] != true || payload["primeravez"] != false {
-		t.Fatalf("expected reset progress/state/active/primeravez, got %#v", payload)
+	if payload["episodesWatched"] != float64(0) || payload["status"] != float64(0) || payload["active"] != true || payload["firstCycle"] != false {
+		t.Fatalf("expected reset progress/state/active/firstCycle, got %#v", payload)
 	}
-	if payload["fechaEstreno"] != nil || payload["fechaUltCapVisto"] != nil || payload["fechaEliminacion"] != nil {
+	if payload["premieredAt"] != nil || payload["lastWatchedAt"] != nil || payload["deletedAt"] != nil {
 		t.Fatalf("expected repeat to clear watch/deletion dates, got %#v", payload)
 	}
-	createdAt, ok := payload["fechaCreacion"].(map[string]any)
-	if !ok || createdAt["$$date"] != float64(1710000001111) {
-		t.Fatalf("expected new fechaCreacion stamp, got %#v", payload["fechaCreacion"])
+	createdAt, ok := payload["createdAt"].(float64)
+	if !ok || createdAt != float64(1710000001111) {
+		t.Fatalf("expected new createdAt stamp, got %#v", payload["createdAt"])
 	}
 }
 
 // assertRepeatedCycleSnapshot verifies the stored repeated-cycle snapshot.
 func assertRepeatedCycleSnapshot(t *testing.T, payload map[string]any) {
 	t.Helper()
-	repeats, ok := payload["repetir"].([]any)
+	repeats, ok := payload["repetitions"].([]any)
 	if !ok || len(repeats) != 2 {
-		t.Fatalf("expected two repeat entries, got %#v", payload["repetir"])
+		t.Fatalf("expected two repeat entries, got %#v", payload["repetitions"])
 	}
 	nextRepeat, ok := repeats[1].(map[string]any)
 	if !ok {
 		t.Fatalf("expected repeat entry object, got %#v", repeats[1])
 	}
-	if nextRepeat["numrepeticion"] != float64(1) || nextRepeat["nrocapvisto"] != 10.5 || nextRepeat["estado"] != float64(1) {
+	if nextRepeat["numRepetitions"] != float64(1) || nextRepeat["episodesWatched"] != 10.5 || nextRepeat["status"] != float64(1) {
 		t.Fatalf("expected current cycle snapshot in repeat entry, got %#v", nextRepeat)
 	}
 }

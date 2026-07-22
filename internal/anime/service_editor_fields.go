@@ -77,18 +77,16 @@ func editorNullableTimeFromFields(fields map[string]json.RawMessage, key string)
 	if string(value) == "null" {
 		return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindNull}
 	}
-	var wrapper struct {
-		UnixMilli int64 `json:"$$date"`
-	}
-	if json.Unmarshal(value, &wrapper) != nil {
+	var unixMilli int64
+	if json.Unmarshal(value, &unixMilli) != nil {
 		return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindMissing}
 	}
-	return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindValue, UnixMilli: wrapper.UnixMilli}
+	return contracts.AnimeEditorNullableTimeDTO{Kind: contracts.AnimeEditorValueKindValue, UnixMilli: unixMilli}
 }
 
 // editorCoverFromFields reads cover data from snapshot fields.
 func editorCoverFromFields(fields map[string]json.RawMessage) contracts.AnimeEditorCoverDTO {
-	value, exists := fields["portada"]
+	value, exists := fields["cover"]
 	if !exists {
 		return contracts.AnimeEditorCoverDTO{Kind: contracts.AnimeEditorValueKindMissing}
 	}

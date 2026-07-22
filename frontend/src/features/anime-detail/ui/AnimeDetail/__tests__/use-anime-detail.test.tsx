@@ -10,17 +10,17 @@ import { useAnimeDetail } from '../use-anime-detail';
 const navigateMock = vi.fn();
 
 const populatedDetail: AnimeDetail = {
-  _id: 'anime-1',
-  nombre: 'Frieren',
-  estado: 2,
-  nrocapvisto: 12,
-  totalcap: 28,
-  activo: 1,
-  primeravez: 1,
-  dias: [],
-  generos: ['Fantasy'],
+  id: 'anime-1',
+  name: 'Frieren',
+  status: 2,
+  episodesWatched: 12,
+  totalEpisodes: 28,
+  active: 1,
+  firstCycle: 1,
+  days: [],
+  genres: ['Fantasy'],
   modified_at: 0,
-  repetir: [{ numrepeticion: 1, nrocapvisto: 24, estado: 1, fechaRepeticion: Date.UTC(2022, 0, 1) }],
+  repetitions: [{ numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) }],
 };
 
 function createSource(
@@ -112,7 +112,7 @@ describe('useAnimeDetail', () => {
   });
 
   it('hides the portada placeholder when the detail has a portada, until onPortadaError fires', async () => {
-    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
@@ -127,7 +127,7 @@ describe('useAnimeDetail', () => {
   });
 
   it('resets the portada-error flag when the animeId prop changes', async () => {
-    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
     const { rerender, result } = renderHook(
       ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source),
       { initialProps: { animeId: 'anime-1' } },
@@ -149,7 +149,7 @@ describe('useAnimeDetail', () => {
   });
 
   it('shows the portada placeholder when onPortadaLoad fires with a zero natural width', async () => {
-    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
@@ -163,7 +163,7 @@ describe('useAnimeDetail', () => {
   });
 
   it('keeps the cover image when onPortadaLoad fires with a nonzero natural width', async () => {
-    const source = createSource({ ...populatedDetail, portada: 'C:/legacy/portadas/frieren.jpg' });
+    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
@@ -230,7 +230,7 @@ describe('useAnimeDetail', () => {
   });
 
   it('sends the exact zero detail token for Repeat and refetches AnimeDetail only after applied', async () => {
-    const refreshed = { ...populatedDetail, estado: 0, modified_at: 11 };
+    const refreshed = { ...populatedDetail, status: 0, modified_at: 11 };
     const getAnimeDetail = vi.fn()
       .mockResolvedValueOnce(populatedDetail)
       .mockResolvedValueOnce(refreshed);
@@ -254,8 +254,8 @@ describe('useAnimeDetail', () => {
   });
 
   it('reports a Restore no-op accurately and refetches AnimeDetail only', async () => {
-    const inactive = { ...populatedDetail, activo: 0, modified_at: 41 };
-    const refreshed = { ...inactive, activo: 1 };
+    const inactive = { ...populatedDetail, active: 0, modified_at: 41 };
+    const refreshed = { ...inactive, active: 1 };
     const getAnimeDetail = vi.fn().mockResolvedValueOnce(inactive).mockResolvedValueOnce(refreshed);
     const restoreAnime = vi.fn().mockResolvedValue({ status: 'ok', outcome: 'no_op', modifiedAt: 41 });
     const source = createSource(inactive, { getAnimeDetail, restoreAnime });
@@ -357,7 +357,7 @@ describe('useAnimeDetail', () => {
     },
     {
       label: 'no-op',
-      currentDetail: { ...populatedDetail, activo: 0, modified_at: 41 },
+      currentDetail: { ...populatedDetail, active: 0, modified_at: 41 },
       action: 'restore' as const,
       mutationResult: { status: 'ok', outcome: 'no_op', modifiedAt: 41 },
       expectedTitle: 'Restore not needed',
@@ -402,7 +402,7 @@ describe('useAnimeDetail', () => {
     expect(getAnimeDetail).toHaveBeenCalledTimes(2);
     expect(source.getAnimes).not.toHaveBeenCalled();
     expect(result.current.loadState).toBe('loaded');
-    expect(result.current.detail?.nombre).toBe(currentDetail.nombre);
+    expect(result.current.detail?.nombre).toBe(currentDetail.name);
     expect(result.current.detail?.modifiedAt).toBe(currentDetail.modified_at);
     expect(result.current.feedback).toEqual({
       status: 'warning',

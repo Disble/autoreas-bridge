@@ -211,11 +211,11 @@ func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
 	if err != nil || current == nil {
 		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
 	}
-	portada := ""
-	if current.Portada != nil {
-		portada = *current.Portada
+	cover := ""
+	if current.Cover != nil {
+		cover = *current.Cover
 	}
-	res := a.coverResolver.Resolve(a.appContext(), animeID, portada)
+	res := a.coverResolver.Resolve(a.appContext(), animeID, cover)
 	if !res.IsCover {
 		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
 	}
@@ -343,19 +343,19 @@ func toEpisodeScheduleContracts(items []anime.EpisodeScheduleItem) []contracts.E
 	result := make([]contracts.EpisodeScheduleItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, contracts.EpisodeScheduleItem{
-			AnimeID:      item.AnimeID,
-			AnimeName:    item.AnimeName,
-			Estado:       item.Estado,
-			NroCapVisto:  item.NroCapVisto,
-			TotalCap:     item.TotalCap,
-			Day:          item.Day,
-			DayOrder:     item.DayOrder,
-			ModifiedAt:   item.ModifiedAt,
-			FolderPath:   item.FolderPath,
-			PageURL:      item.PageURL,
-			HasCover:     item.HasCover,
-			LastWatched:  item.LastWatched,
-			FirstWatched: item.FirstWatched,
+			AnimeID:         item.AnimeID,
+			AnimeName:       item.AnimeName,
+			Status:          item.Estado,
+			EpisodesWatched: item.NroCapVisto,
+			TotalEpisodes:   item.TotalCap,
+			Day:             item.Day,
+			DayOrder:        item.DayOrder,
+			ModifiedAt:      item.ModifiedAt,
+			FolderPath:      item.FolderPath,
+			PageURL:         item.PageURL,
+			HasCover:        item.HasCover,
+			LastWatched:     item.LastWatched,
+			FirstWatched:    item.FirstWatched,
 		})
 	}
 	return result
@@ -373,15 +373,15 @@ func toEpisodeDayCountContracts(items []anime.EpisodeDayCount) []contracts.Episo
 // toEpisodeCommandContract maps an episode command result to its API contract.
 func toEpisodeCommandContract(result anime.EpisodeCommandResult) contracts.EpisodeCommandResult {
 	return contracts.EpisodeCommandResult{
-		Status:        "ok",
-		AnimeID:       result.AnimeID,
-		Outcome:       string(result.Outcome),
-		ModifiedAt:    result.ModifiedAt,
-		ConflictID:    result.ConflictID,
-		AnimeName:     result.AnimeName,
-		Estado:        result.Estado,
-		NroCapVisto:   result.NroCapVisto,
-		OccurredAtMs:  result.OccurredAtMs,
-		CorrelationID: result.CorrelationID,
+		Status:          "ok",
+		AnimeID:         result.AnimeID,
+		Outcome:         string(result.Outcome),
+		ModifiedAt:      result.ModifiedAt,
+		ConflictID:      result.ConflictID,
+		AnimeName:       result.AnimeName,
+		AnimeStatus:     result.Estado,
+		EpisodesWatched: result.NroCapVisto,
+		OccurredAtMs:    result.OccurredAtMs,
+		CorrelationID:   result.CorrelationID,
 	}
 }

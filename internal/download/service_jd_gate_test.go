@@ -32,12 +32,12 @@ func TestRunOnceUpToDateAnimeNeverLaunchesJDownloader(t *testing.T) {
 
 	currentFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-current",
-		Nombre:  "Up To Date Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/current/"),
-		Carpeta: ptrStr(currentFolder),
+		ID:        "anime-current",
+		Name:      "Up To Date Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/current/"),
+		Folder:    ptrStr(currentFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{currentFolder: 4}, recursive: map[string]int{currentFolder: 4}})
 	jd := &svcFakeJDClient{}
@@ -77,12 +77,12 @@ func TestRunOnceMissingEpisodeCallsEnsureOnlineExactlyOnce(t *testing.T) {
 
 	freshFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-fresh",
-		Nombre:  "Fresh Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/fresh/"),
-		Carpeta: ptrStr(freshFolder),
+		ID:        "anime-fresh",
+		Name:      "Fresh Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/fresh/"),
+		Folder:    ptrStr(freshFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{freshFolder: 0}, recursive: map[string]int{freshFolder: 1}})
 	jd := &svcFakeJDClient{}
@@ -133,19 +133,19 @@ func TestRunOnceConcurrentMissingEpisodesCallEnsureOnlineExactlyOnce(t *testing.
 	oneFolder := t.TempDir()
 	twoFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-one",
-		Nombre:  "Anime One",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/one/"),
-		Carpeta: ptrStr(oneFolder),
+		ID:        "anime-one",
+		Name:      "Anime One",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/one/"),
+		Folder:    ptrStr(oneFolder),
 	}, {
-		ID:      "anime-two",
-		Nombre:  "Anime Two",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/two/"),
-		Carpeta: ptrStr(twoFolder),
+		ID:        "anime-two",
+		Name:      "Anime Two",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/two/"),
+		Folder:    ptrStr(twoFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{oneFolder: 0, twoFolder: 0},
@@ -174,12 +174,12 @@ func TestRunOnceAllAnimesSkippedNeverLaunchesJDownloader(t *testing.T) {
 	deps := baseDeps(t)
 	dia := todayDiaName(deps.Clock())
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:     "anime-movie",
-		Nombre: "A Movie",
-		Activo: 1,
-		Dias:   []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Tipo:   ptrInt(1),
-		Pagina: ptrStr("https://jkanime.net/movie/"),
+		ID:        "anime-movie",
+		Name:      "A Movie",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		Kind:      ptrInt(1),
+		SourceURL: ptrStr("https://jkanime.net/movie/"),
 		// Carpeta intentionally nil -- EvaluateAnimeForDownload skips movies without a folder.
 	}}}
 	jd := &svcFakeJDClient{}
@@ -225,12 +225,12 @@ func TestRunOnceListingFailureNeverLaunchesJDownloaderAndStaysError(t *testing.T
 	deps.Sites = registry
 
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-broken",
-		Nombre:  "Broken Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/broken/"),
-		Carpeta: ptrStr(t.TempDir()),
+		ID:        "anime-broken",
+		Name:      "Broken Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/broken/"),
+		Folder:    ptrStr(t.TempDir()),
 	}}}
 	jd := &svcFakeJDClient{}
 	deps.JD = jd

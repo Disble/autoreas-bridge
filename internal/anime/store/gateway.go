@@ -88,7 +88,7 @@ func (g *Gateway) Create(ctx context.Context, raw AnimeRaw) (AnimePatchResult, e
 	if err != nil {
 		return AnimePatchResult{}, fmt.Errorf("marshal Legacy create %q: %w", raw.ID, err)
 	}
-	base := []byte(`{"_id":"` + raw.ID + `"}`)
+	base := []byte(`{"id":"` + raw.ID + `"}`)
 	return g.persist(ctx, raw.ID, 0, base, payload)
 }
 
@@ -240,14 +240,14 @@ func (g *Gateway) loadOrCreate(ctx context.Context, animeID string, createIfMiss
 	if err == nil || !createIfMissing || !errors.Is(err, contracts.ErrAnimeNotFound) {
 		return record, raw, value, err
 	}
-	if err := json.Unmarshal([]byte(`{"_id":"`+animeID+`"}`), &raw); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"`+animeID+`"}`), &raw); err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, err
 	}
 	value, err = g.mapper.ToDomain(raw)
 	if err != nil {
 		return Snapshot{}, AnimeRaw{}, domain.Anime{}, err
 	}
-	record = Snapshot{AnimeID: animeID, CanonicalJSON: []byte(`{"_id":"` + animeID + `"}`)}
+	record = Snapshot{AnimeID: animeID, CanonicalJSON: []byte(`{"id":"` + animeID + `"}`)}
 	record.Hash = hashSnapshot(record.CanonicalJSON)
 	return record, raw, value, nil
 }

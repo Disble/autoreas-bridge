@@ -30,12 +30,12 @@ func TestRunOnceCatchesUpSequentialMissingEpisodesForOneAnime(t *testing.T) {
 	registry.Register(source)
 	deps.Sites = registry
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-1",
-		Nombre:  "Catchup Anime",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/catchup/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Catchup Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/catchup/"),
+		Folder:    ptrStr(folder),
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 9})
 	deps.Counter = counter
@@ -87,11 +87,11 @@ func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
 	deps.JD = &recordingCatchupJD{counter: counter}
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Solo Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/solo/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Solo Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/solo/"),
+		Folder:    ptrStr(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -134,11 +134,11 @@ func TestRunAnimeFlattensExistingSubfolderDownloadsBeforeChoosingNextEpisode(t *
 	deps.JD = jd
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Solo Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/solo/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Solo Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/solo/"),
+		Folder:    ptrStr(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -185,11 +185,11 @@ func TestRunAnimeRetriesFlattenUntilDownloadedEpisodeReachesRoot(t *testing.T) {
 	}}
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Solo Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/solo/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Solo Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/solo/"),
+		Folder:    ptrStr(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -230,11 +230,11 @@ func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *tes
 	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Solo Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/solo/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Solo Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/solo/"),
+		Folder:    ptrStr(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -279,11 +279,11 @@ func TestRunAnimeCompletesFromFilesystemWhenJDPackageStateIsNotReliable(t *testi
 	deps.Flattener = &svcFakeFlattener{onFlatten: func(folder string) { counter.Flatten(folder) }}
 
 	anime := contracts.MobileAnime{
-		ID:      "anime-1",
-		Nombre:  "Solo Anime",
-		Activo:  1,
-		Pagina:  ptrStr("https://jkanime.net/solo/"),
-		Carpeta: ptrStr(folder),
+		ID:        "anime-1",
+		Name:      "Solo Anime",
+		Active:    1,
+		SourceURL: ptrStr("https://jkanime.net/solo/"),
+		Folder:    ptrStr(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -326,19 +326,19 @@ func TestRunOnceProcessesMultipleAnimesAndAccumulatesCatchupCounters(t *testing.
 	registry.Register(source)
 	deps.Sites = registry
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:      "anime-a",
-		Nombre:  "Anime A",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/a/"),
-		Carpeta: ptrStr(folderA),
+		ID:        "anime-a",
+		Name:      "Anime A",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/a/"),
+		Folder:    ptrStr(folderA),
 	}, {
-		ID:      "anime-b",
-		Nombre:  "Anime B",
-		Activo:  1,
-		Dias:    []contracts.MobileAnimeDay{{Dia: dia, Orden: 0}},
-		Pagina:  ptrStr("https://jkanime.net/b/"),
-		Carpeta: ptrStr(folderB),
+		ID:        "anime-b",
+		Name:      "Anime B",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/b/"),
+		Folder:    ptrStr(folderB),
 	}}}
 	counter := newCatchupCounter(map[string]int{folderA: 1, folderB: 5})
 	deps.Counter = counter

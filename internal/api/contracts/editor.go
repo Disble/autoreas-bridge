@@ -59,7 +59,7 @@ type AnimeEditorFrequentFields struct {
 	TotalEpisodes AnimeEditorNullableIntDTO    `json:"totalEpisodes"`
 	Active        bool                         `json:"active"`
 	Kind          AnimeEditorNullableIntDTO    `json:"kind"`
-	Page          AnimeEditorNullableStringDTO `json:"page"`
+	Page          AnimeEditorNullableStringDTO `json:"sourceUrl"`
 	Folder        AnimeEditorNullableStringDTO `json:"folder"`
 	Placements    []MobileAnimeDay             `json:"placements"`
 }

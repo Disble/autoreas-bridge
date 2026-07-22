@@ -22,7 +22,7 @@ func TestPatchAnimeHandlerReturnsUnauthorizedWithoutBearer(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"episodesWatched":1}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -48,9 +48,9 @@ func TestPatchAnimeHandlerRejectsInvalidPayloads(t *testing.T) {
 		body    string
 		wantErr string
 	}{
-		{name: "estado above range", body: `{"estado":5}`, wantErr: "invalid estado"},
-		{name: "estado negative", body: `{"estado":-1}`, wantErr: "invalid estado"},
-		{name: "negative nrocapvisto", body: `{"nrocapvisto":-0.5}`, wantErr: "invalid nrocapvisto"},
+		{name: "estado above range", body: `{"status":5}`, wantErr: "invalid estado"},
+		{name: "estado negative", body: `{"status":-1}`, wantErr: "invalid estado"},
+		{name: "negative nrocapvisto", body: `{"episodesWatched":-0.5}`, wantErr: "invalid nrocapvisto"},
 		{name: "malformed json", body: `{`, wantErr: "invalid request body"},
 	}
 
@@ -99,7 +99,7 @@ func TestPatchAnimeHandlerReturnsNotFoundForZombieAnime(t *testing.T) {
 		IsNotFound:   func(err error) bool { return errors.Is(err, errAnimeNotFound) },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/zombie-1", strings.NewReader(`{"nrocapvisto":1}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/zombie-1", strings.NewReader(`{"episodesWatched":1}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -125,7 +125,7 @@ func TestPatchAnimeHandlerReturnsOKForValidPatch(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"estado":2,"nrocapvisto":10.5}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"status":2,"episodesWatched":10.5}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -164,7 +164,7 @@ func TestPatchAnimeHandlerForcesEstadoWhenProgressReachesTotalCap(t *testing.T) 
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":12}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"episodesWatched":12}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -191,7 +191,7 @@ func TestPatchAnimeHandlerAllowsInactiveAnime(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"estado":3}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"status":3}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -217,7 +217,7 @@ func TestPatchAnimeHandlerAcceptsClientTimestampMillis(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1,"fechaUltCapVisto":1893456000000}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"episodesWatched":1,"lastWatchedAt":1893456000000}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -255,7 +255,7 @@ func TestPatchAnimeHandlerRejectsExtendedJsonTimestampObject(t *testing.T) {
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"nrocapvisto":1,"fechaUltCapVisto":{"$$date":1893456000000}}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"episodesWatched":1,"lastWatchedAt":{"$$date":1893456000000}}`))
 	res := httptest.NewRecorder()
 
 	handler.ServeHTTP(res, req)
@@ -282,9 +282,9 @@ func TestPatchAnimeHandlerDecodesBaseToken(t *testing.T) {
 		body     string
 		wantBase *int64
 	}{
-		{name: "explicit positive base", body: `{"nrocapvisto":1,"base":1710000000123}`, wantBase: int64Ptr(1710000000123)},
-		{name: "explicit zero base", body: `{"nrocapvisto":1,"base":0}`, wantBase: int64Ptr(0)},
-		{name: "base omitted entirely", body: `{"nrocapvisto":1}`, wantBase: nil},
+		{name: "explicit positive base", body: `{"episodesWatched":1,"base":1710000000123}`, wantBase: int64Ptr(1710000000123)},
+		{name: "explicit zero base", body: `{"episodesWatched":1,"base":0}`, wantBase: int64Ptr(0)},
+		{name: "base omitted entirely", body: `{"episodesWatched":1}`, wantBase: nil},
 	}
 
 	for _, tt := range tests {

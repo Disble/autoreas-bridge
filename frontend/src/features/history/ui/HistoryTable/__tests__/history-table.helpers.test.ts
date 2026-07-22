@@ -30,10 +30,10 @@ const FIXED_TIMESTAMP = new Date(2026, 5, 30, 12, 12, 0).getTime();
 function entry(overrides: Partial<AnimeHistoryEntry>): AnimeHistoryEntry {
   return {
     id: 'anime-1',
-    nombre: 'Frieren',
-    nrocapvisto: 12,
-    fechaUltCapVisto: FIXED_TIMESTAMP,
-    estado: 0,
+    name: 'Frieren',
+    episodesWatched: 12,
+    lastWatchedAt: FIXED_TIMESTAMP,
+    status: 0,
     ...overrides,
   };
 }
@@ -114,10 +114,10 @@ describe('getHistoryEstadoColor', () => {
 
 describe('filterHistoryEntries', () => {
   const entries = [
-    entry({ id: 'a', nombre: 'Frieren', estado: 0, tipo: 0 }),
-    entry({ id: 'b', nombre: 'Bocchi the Rock', estado: 1, tipo: 1 }),
-    entry({ id: 'c', nombre: 'Zenshuu', estado: 1, tipo: 0 }),
-    entry({ id: 'd', nombre: 'No Tipo', estado: 1, tipo: undefined }),
+    entry({ id: 'a', name: 'Frieren', status: 0, kind: 0 }),
+    entry({ id: 'b', name: 'Bocchi the Rock', status: 1, kind: 1 }),
+    entry({ id: 'c', name: 'Zenshuu', status: 1, kind: 0 }),
+    entry({ id: 'd', name: 'No Tipo', status: 1, kind: undefined }),
   ];
 
   it('returns every entry when the query is empty and both filters are "all"', () => {
@@ -165,7 +165,7 @@ describe('getHistoryTotalPages', () => {
 
 describe('paginateHistoryEntries', () => {
   const entries = Array.from({ length: 25 }, (_, index) =>
-    entry({ id: `anime-${index}`, nombre: `Anime ${index}` }),
+    entry({ id: `anime-${index}`, name: `Anime ${index}` }),
   );
 
   it('slices the first page and assigns row numbers starting at 1', () => {
@@ -196,7 +196,7 @@ describe('paginateHistoryEntries', () => {
 
   it('builds the full row view model from a single entry', () => {
     const [row] = paginateHistoryEntries(
-      [entry({ id: 'anime-0', nombre: 'Anime 0', nrocapvisto: 7, estado: 1, fechaUltCapVisto: FIXED_TIMESTAMP })],
+      [entry({ id: 'anime-0', name: 'Anime 0', episodesWatched: 7, status: 1, lastWatchedAt: FIXED_TIMESTAMP })],
       1,
       10,
     );
@@ -243,10 +243,10 @@ describe('getHistoryPageItems', () => {
 
 describe('sortHistoryEntries', () => {
   const entries = [
-    entry({ id: 'b', nombre: 'Bocchi the Rock', fechaCreacion: 100 }),
-    entry({ id: 'a', nombre: 'Frieren', fechaCreacion: 300 }),
-    entry({ id: 'd', nombre: 'Zenshuu', fechaCreacion: undefined }),
-    entry({ id: 'c', nombre: 'Frieren', fechaCreacion: 200 }),
+    entry({ id: 'b', name: 'Bocchi the Rock', createdAt: 100 }),
+    entry({ id: 'a', name: 'Frieren', createdAt: 300 }),
+    entry({ id: 'd', name: 'Zenshuu', createdAt: undefined }),
+    entry({ id: 'c', name: 'Frieren', createdAt: 200 }),
   ];
 
   it('keeps the input (server) order for the default ult-cap-visto sort', () => {

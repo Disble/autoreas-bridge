@@ -15,8 +15,8 @@ func TestGetSeasonOrderingBoardEmitsCloneForEachWeekday(t *testing.T) {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 	app.animeQuery = &stubAnimeQueryService{mobileAnimes: []contracts.MobileAnime{{
-		ID: "anime-a", Nombre: "Multi Day", Activo: 1, Dias: []contracts.MobileAnimeDay{
-			{Dia: "Lunes", Orden: 2}, {Dia: "Miércoles", Orden: 1},
+		ID: "anime-a", Name: "Multi Day", Active: 1, Days: []contracts.MobileAnimeDay{
+			{Day: "Lunes", Order: 2}, {Day: "Miércoles", Order: 1},
 		},
 	}}}
 
@@ -46,7 +46,7 @@ func TestOrderingBindingsSaveApplyReopen(t *testing.T) {
 		t.Fatalf("CreateSeason: %q", got)
 	}
 
-	if got := app.SaveSeasonOrderingDraft(`{"anime-a":[{"dia":"Domingo","orden":1}]}`); got != "ok" {
+	if got := app.SaveSeasonOrderingDraft(`{"anime-a":[{"day":"Domingo","order":1}]}`); got != "ok" {
 		t.Fatalf("SaveSeasonOrderingDraft: %q", got)
 	}
 

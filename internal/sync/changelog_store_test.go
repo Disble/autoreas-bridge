@@ -19,7 +19,7 @@ func TestSQLiteChangelogStoreInsertsPendingRow(t *testing.T) {
 		AnimeID:       "anime-1",
 		ChangeType:    ChangelogTypeUpdate,
 		ChangedFields: []string{"nrocapvisto"},
-		SnapshotJSON:  []byte(`{"_id":"anime-1","nombre":"Recorder","nrocapvisto":2}`),
+		SnapshotJSON:  []byte(`{"id":"anime-1","name":"Recorder","episodesWatched":2}`),
 		ChangedAtMs:   1710000000123,
 	}
 
@@ -88,7 +88,7 @@ func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 				AnimeID:       fmt.Sprintf("anime-%03d", index),
 				ChangeType:    ChangelogTypeUpdate,
 				ChangedFields: []string{"nrocapvisto"},
-				SnapshotJSON:  []byte(fmt.Sprintf(`{"_id":"anime-%03d","nrocapvisto":%d}`, index, index)),
+				SnapshotJSON:  []byte(fmt.Sprintf(`{"id":"anime-%03d","episodesWatched":%d}`, index, index)),
 				ChangedAtMs:   int64(1710000000000 + index),
 			})
 		}(i)
@@ -120,8 +120,8 @@ func TestSQLiteChangelogStoreListsChangesSinceTimestamp(t *testing.T) {
 	ctx := context.Background()
 
 	entries := []ChangelogEntry{
-		{AnimeID: "anime-1", ChangeType: ChangelogTypeCreate, ChangedFields: []string{"nombre"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100},
-		{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"_id":"anime-2"}`), ChangedAtMs: 200},
+		{AnimeID: "anime-1", ChangeType: ChangelogTypeCreate, ChangedFields: []string{"nombre"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100},
+		{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 200},
 		{AnimeID: "anime-3", ChangeType: ChangelogTypeDelete, ChangedFields: nil, SnapshotJSON: nil, ChangedAtMs: 300},
 	}
 	for _, entry := range entries {
@@ -165,8 +165,8 @@ func TestSQLiteChangelogStoreListsChangesAfterID(t *testing.T) {
 	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
-	first := ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100}
-	second := ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"_id":"anime-2"}`), ChangedAtMs: 200}
+	first := ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}
+	second := ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 200}
 	if err := store.InsertPending(ctx, first); err != nil {
 		t.Fatalf("insert first changelog: %v", err)
 	}
@@ -201,15 +201,15 @@ func TestSQLiteChangelogStoreListsOnlyPendingRowsNewestFirst(t *testing.T) {
 	store := NewChangelogStore(NewSQLiteProvider(db))
 	ctx := context.Background()
 
-	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"_id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
+	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-1", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"estado"}, SnapshotJSON: []byte(`{"id":"anime-1"}`), ChangedAtMs: 100}); err != nil {
 		t.Fatalf("insert first pending changelog: %v", err)
 	}
-	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"_id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
+	if err := store.InsertPending(ctx, ChangelogEntry{AnimeID: "anime-2", ChangeType: ChangelogTypeUpdate, ChangedFields: []string{"nrocapvisto"}, SnapshotJSON: []byte(`{"id":"anime-2"}`), ChangedAtMs: 300}); err != nil {
 		t.Fatalf("insert second pending changelog: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO changelog (anime_id, change_type, changed_fields_json, snapshot_json, status, changed_at_ms)
-		VALUES ('anime-3', 'update', '[]', '{"_id":"anime-3"}', 'applied', 500)
+		VALUES ('anime-3', 'update', '[]', '{"id":"anime-3"}', 'applied', 500)
 	`); err != nil {
 		t.Fatalf("insert applied changelog row: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestSQLiteChangelogStoreUpsertsDeviceAckAndPrunesForActiveDevices(t *testin
 			AnimeID:       fmt.Sprintf("anime-%d", i),
 			ChangeType:    ChangelogTypeUpdate,
 			ChangedFields: []string{"nrocapvisto"},
-			SnapshotJSON:  []byte(fmt.Sprintf(`{"_id":"anime-%d"}`, i)),
+			SnapshotJSON:  []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
 			ChangedAtMs:   int64(100 + i),
 		}); err != nil {
 			t.Fatalf("insert changelog %d: %v", i, err)
@@ -290,7 +290,7 @@ func TestSQLiteChangelogStoreIgnoresStaleDevicesWhenPruning(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		if err := store.InsertPending(ctx, ChangelogEntry{
 			AnimeID:      fmt.Sprintf("anime-%d", i),
-			SnapshotJSON: []byte(fmt.Sprintf(`{"_id":"anime-%d"}`, i)),
+			SnapshotJSON: []byte(fmt.Sprintf(`{"id":"anime-%d"}`, i)),
 			ChangedAtMs:  int64(100 + i),
 		}); err != nil {
 			t.Fatalf("insert changelog %d: %v", i, err)

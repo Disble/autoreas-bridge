@@ -69,16 +69,16 @@ func approvedSeasonAnimeIDs(rows []domain.SeasonAnime, minimumGrade int) map[str
 // populateOrderingBoard fills the ordering board from active anime placements.
 func populateOrderingBoard(board *OrderingBoardDTO, animes []contracts.MobileAnime, approved map[string]bool) {
 	for _, mobileAnime := range animes {
-		if mobileAnime.Activo != 1 {
+		if mobileAnime.Active != 1 {
 			continue
 		}
-		if weekdays := weekdayPlacements(mobileAnime.Dias); len(weekdays) > 0 {
+		if weekdays := weekdayPlacements(mobileAnime.Days); len(weekdays) > 0 {
 			for _, day := range weekdays {
 				board.Grid = append(board.Grid, OrderingCardDTO{
 					AnimeID:    mobileAnime.ID,
-					Name:       mobileAnime.Nombre,
-					Dia:        day.Dia,
-					Orden:      day.Orden,
+					Name:       mobileAnime.Name,
+					Dia:        day.Day,
+					Orden:      day.Order,
 					IsNewcomer: approved[mobileAnime.ID],
 				})
 			}
@@ -86,12 +86,12 @@ func populateOrderingBoard(board *OrderingBoardDTO, animes []contracts.MobileAni
 		}
 		if approved[mobileAnime.ID] {
 			section, order := "", 0
-			if len(mobileAnime.Dias) > 0 {
-				section, order = mobileAnime.Dias[0].Dia, mobileAnime.Dias[0].Orden
+			if len(mobileAnime.Days) > 0 {
+				section, order = mobileAnime.Days[0].Day, mobileAnime.Days[0].Order
 			}
 			board.Rail = append(board.Rail, OrderingCardDTO{
 				AnimeID:    mobileAnime.ID,
-				Name:       mobileAnime.Nombre,
+				Name:       mobileAnime.Name,
 				Section:    section,
 				Orden:      order,
 				IsNewcomer: true,
@@ -100,12 +100,12 @@ func populateOrderingBoard(board *OrderingBoardDTO, animes []contracts.MobileAni
 	}
 }
 
-// weekdayPlacements returns every weekday dias entry (an anime may air on more than
+// weekdayPlacements returns every weekday days entry (an anime may air on more than
 // one day — Legacy multi-day ordering), skipping Estrenos-section entries.
-func weekdayPlacements(dias []contracts.MobileAnimeDay) []contracts.MobileAnimeDay {
-	out := make([]contracts.MobileAnimeDay, 0, len(dias))
-	for _, day := range dias {
-		if _, ok := seasonWeekdays[day.Dia]; ok {
+func weekdayPlacements(days []contracts.MobileAnimeDay) []contracts.MobileAnimeDay {
+	out := make([]contracts.MobileAnimeDay, 0, len(days))
+	for _, day := range days {
+		if _, ok := seasonWeekdays[day.Day]; ok {
 			out = append(out, day)
 		}
 	}

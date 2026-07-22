@@ -83,12 +83,12 @@ func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 	if err := json.Unmarshal(snapshot.CanonicalJSON, &obj); err != nil {
 		t.Fatalf("unmarshal snapshot payload: %v", err)
 	}
-	got, ok := obj["carpeta"]
+	got, ok := obj["folder"]
 	if !ok {
-		t.Fatalf("expected carpeta persisted, payload: %s", snapshot.CanonicalJSON)
+		t.Fatalf("expected folder persisted, payload: %s", snapshot.CanonicalJSON)
 	}
 	if string(got) != `"D:/Anime/Con Carpeta"` {
-		t.Fatalf("carpeta = %s, want %q", got, "D:/Anime/Con Carpeta")
+		t.Fatalf("folder = %s, want %q", got, "D:/Anime/Con Carpeta")
 	}
 }
 

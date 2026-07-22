@@ -36,17 +36,17 @@ func (s *EpisodeService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 			Source:        source,
 			ActionType:    ActivityActionAnimeRestored,
 			AnimeID:       cmd.AnimeID,
-			AnimeName:     current.Nombre,
+			AnimeName:     current.Name,
 			OccurredAtMs:  occurredAtMs,
 			CorrelationID: correlationID,
 			Before: ActivityAnimeSnapshot{
-				Estado:      current.Estado,
-				NroCapVisto: current.NroCapVisto,
-				Activo:      current.Activo,
+				Estado:      current.Status,
+				NroCapVisto: current.EpisodesWatched,
+				Activo:      current.Active,
 			},
 			After: ActivityAnimeSnapshot{
-				Estado:      current.Estado,
-				NroCapVisto: current.NroCapVisto,
+				Estado:      current.Status,
+				NroCapVisto: current.EpisodesWatched,
 				Activo:      1,
 			},
 		}); err != nil {
@@ -54,7 +54,7 @@ func (s *EpisodeService) RestoreAnime(ctx context.Context, cmd RestoreAnimeComma
 		}
 	}
 
-	return episodeCommandResult(patchResult, current.Nombre, current.Estado, current.NroCapVisto, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Name, current.Status, current.EpisodesWatched, occurredAtMs, correlationID), nil
 }
 
 // RepeatAnime marks one anime as repeated and records activity when the write applies.
@@ -84,13 +84,13 @@ func (s *EpisodeService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand
 			Source:        source,
 			ActionType:    ActivityActionAnimeRepeated,
 			AnimeID:       cmd.AnimeID,
-			AnimeName:     current.Nombre,
+			AnimeName:     current.Name,
 			OccurredAtMs:  occurredAtMs,
 			CorrelationID: correlationID,
 			Before: ActivityAnimeSnapshot{
-				Estado:      current.Estado,
-				NroCapVisto: current.NroCapVisto,
-				Activo:      current.Activo,
+				Estado:      current.Status,
+				NroCapVisto: current.EpisodesWatched,
+				Activo:      current.Active,
 			},
 			After: ActivityAnimeSnapshot{
 				Estado:      0,
@@ -102,5 +102,5 @@ func (s *EpisodeService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand
 		}
 	}
 
-	return episodeCommandResult(patchResult, current.Nombre, 0, 0, occurredAtMs, correlationID), nil
+	return episodeCommandResult(patchResult, current.Name, 0, 0, occurredAtMs, correlationID), nil
 }

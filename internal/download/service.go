@@ -207,10 +207,10 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	}
 
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", nil,
-		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Nombre)
+		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	s.notify(ctx, notification.LevelInfo, runID,
-		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Nombre))
+		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name))
 
 	result := s.executeAnimeLive(ctx, runID, &run, anime)
 	s.finishRunLog(runID, &run)
