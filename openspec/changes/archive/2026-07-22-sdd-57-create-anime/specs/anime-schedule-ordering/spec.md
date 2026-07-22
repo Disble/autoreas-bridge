@@ -53,15 +53,7 @@ together.
 
 ### Requirement: Atomic bulk apply with whole-draft conflict rejection
 
-Applying the schedule MUST submit only changed records as one atomic bulk
-operation. In create mode, "changed records" additionally includes the new
-draft animes being created and any existing neighbor cards reflowed by
-mid-insertion; the whole batch (new records plus reflowed neighbors) MUST be
-written atomically. If any authoritative schedule state changed concurrently
-for any affected record — new or existing — the system MUST reject the entire
-batch, MUST perform no partial writes or publications, and MUST reload fresh
-authority before the user can continue. Successful apply MUST keep the editor
-and schedule views aligned with refreshed authority.
+Applying the schedule MUST submit only changed records as one atomic bulk operation. In create mode, "changed records" additionally includes the new draft animes being created and any existing neighbor cards reflowed by mid-insertion; the whole batch (new records plus reflowed neighbors) MUST be written atomically. If any authoritative schedule state changed concurrently for any affected record — new or existing — the system MUST reject the entire batch, MUST perform no partial writes or publications, and MUST reload fresh authority before the user can continue. Successful apply MUST keep the editor and schedule views aligned with refreshed authority.
 (Previously: atomic bulk apply covered only edits to existing persisted
 anime; create-mode batches with drafts and reflowed neighbors were not
 covered.)

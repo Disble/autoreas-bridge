@@ -33,7 +33,16 @@ Provide a dedicated desktop Anime Editor workspace and one reusable ID-driven ed
 
 ### Requirement: Dedicated workspace and reusable deep-link editor
 
-The system MUST provide a dedicated **Anime Editor** section with a watching-first searchable and filterable list, and it MUST reuse the same ID-driven editor when Anime Detail launches **Edit anime**. Catalog MUST remain the complete local collection, History MUST remain a read-only activity log, and Episodes MUST remain the today-progress surface.
+The system MUST provide a dedicated **Anime Editor** section with a
+watching-first searchable and filterable **Library** tab, and it MUST reuse
+the same ID-driven editor when Anime Detail launches **Edit anime**. The
+Anime Editor route MUST also expose a batch-capable **Create** tab beside
+**Library** for adding new animes; the Create tab MUST NOT open as a modal
+layered over the Library workspace. Catalog MUST remain the complete local
+collection, History MUST remain a read-only activity log, and Episodes MUST
+remain the today-progress surface.
+(Previously: Anime Editor exposed only the edit-only Library workspace, with
+no in-Editor path to create new animes.)
 
 #### Scenario: Workspace opens for rapid consecutive edits
 
@@ -48,6 +57,13 @@ The system MUST provide a dedicated **Anime Editor** section with a watching-fir
 - **WHEN** the user chooses **Edit anime**
 - **THEN** Anime Editor opens with anime A selected
 - **AND** the selected anime remains highlighted after a successful save refresh
+
+#### Scenario: Create tab opens without a modal
+
+- **GIVEN** the user is on Anime Editor
+- **WHEN** the user selects the **Create** tab
+- **THEN** the batch create workspace renders in place of the tab content
+- **AND** no modal opens over the Library workspace
 
 ### Requirement: Split-pane editor structure and semantic UI constraints
 

@@ -13,15 +13,33 @@ metadata and MUST return the authoritative version token.
 ### Requirement: Canonical structural state
 
 A create MUST provide `_id`, `nombre`, `nrocapvisto`, `estado`, `activo`,
-`primeravez`, `fechaCreacion`, at least one valid `dias` entry, and `pagina`.
-The bridge MUST reject the create before append when those fields cannot be
-constructed.
+`primeravez`, `fechaCreacion`, at least one placement in `Dias []Placement`,
+and `pagina`. `Dias` MUST be REQUIRED with at least one entry; each entry's
+day MUST be either a weekday or a documented special queue (e.g. `Sin ver`).
+`Section` and `Orden` MUST NOT exist as separate top-level fields — they fold
+into each `Dias` entry. The bridge MUST reject the create before append when
+those fields cannot be constructed or when `Dias` is empty.
+(Previously: create validated a single `dias` entry via separate
+`Section`/`Orden` fields rather than a required `Dias []Placement` list.)
 
 #### Scenario: Structurally invalid create is rejected
 
 - **GIVEN** a create request cannot produce a valid id or schedule entry
 - **WHEN** canonical validation runs
 - **THEN** the bridge returns an error and appends no `animes.dat` line
+
+#### Scenario: Create without any placement is rejected
+
+- **GIVEN** a create request has an empty `Dias` list
+- **WHEN** canonical validation runs
+- **THEN** the bridge returns an error and appends no `animes.dat` line
+
+#### Scenario: Season intake adapts with a default placement
+
+- **GIVEN** season intake creates an anime without an explicit placement
+- **WHEN** the create request is built
+- **THEN** the request includes a default `Sin ver` placement
+- **AND** canonical validation passes using that default
 
 ### Requirement: Honest nullable metadata
 
