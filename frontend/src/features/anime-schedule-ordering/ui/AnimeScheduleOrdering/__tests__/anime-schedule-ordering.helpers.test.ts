@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from '../anime-schedule-ordering.constants';
 import {
+  applyLockedAnimeIds,
   countAnimeScheduleChanges,
   createAnimeScheduleApplyEntries,
   createAnimeScheduleOrderingState,
@@ -8,6 +9,9 @@ import {
   formatStagingWarning,
   getStagedAnimeIds,
   moveAnimeScheduleCard,
+  partitionCreateSubmit,
+  reconcileDraftEntries,
+  seedDraftEntries,
   validateAnimeScheduleDraft,
   withStagingDestination,
 } from '../anime-schedule-ordering.helpers';
@@ -218,5 +222,78 @@ describe('anime-schedule-ordering.helpers', () => {
       { animeId: 'tai-ari', baseModifiedAt: 107, placements: [{ day: 'Visto', order: 4 }] },
       { animeId: 'tenmaku', baseModifiedAt: 108, placements: [{ day: 'Visto', order: 5 }] },
     ]);
+  });
+
+  it('partitions the create submit into new-anime creates and changed existing neighbors', () => {
+    const state = {
+      order: { Lunes: ['__draft__:1#0'], 'Sin ver': ['anime-1#0'] },
+      instances: {
+        'anime-1#0': { key: 'anime-1#0', animeId: 'anime-1', name: 'Frieren', baseModifiedAt: 100, originHighlighted: true, initialOrder: 1 },
+        '__draft__:1#0': { key: '__draft__:1#0', animeId: '__draft__:1', name: 'New Anime', baseModifiedAt: 0, originHighlighted: false },
+      },
+    };
+
+    const result = partitionCreateSubmit(board, state);
+
+    expect(result.creates).toEqual({ '__draft__:1': [{ day: 'Lunes', order: 1 }] });
+    expect(result.changedNeighbors).toEqual([
+      { animeId: 'anime-1', baseModifiedAt: 100, placements: [{ day: 'Sin ver', order: 1 }] },
+    ]);
+  });
+
+  it('seeds one draft entry per row into the staging area with a synthetic id', () => {
+    const seeded = seedDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [
+      { draftId: '__draft__:1', name: 'New Anime One' },
+      { draftId: '__draft__:2', name: 'New Anime Two' },
+    ]);
+
+    expect(seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(2);
+    const seededInstances = seeded.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID].map((key) => seeded.instances[key]);
+    expect(seededInstances.map((instance) => instance.animeId)).toEqual(['__draft__:1', '__draft__:2']);
+    expect(seededInstances.map((instance) => instance.name)).toEqual(['New Anime One', 'New Anime Two']);
+  });
+
+  it('is a no-op when no draft entries are supplied (edit-mode regression)', () => {
+    const state = withStagingDestination(createAnimeScheduleOrderingState(board));
+    expect(seedDraftEntries(state, undefined)).toBe(state);
+    expect(seedDraftEntries(state, [])).toBe(state);
+  });
+
+  it('marks the matching instances as locked without touching others', () => {
+    const state = createAnimeScheduleOrderingState(board);
+    const locked = applyLockedAnimeIds(state, ['anime-1']);
+
+    expect(locked.instances['anime-1#0'].locked).toBe(true);
+  });
+
+  it('is a no-op when no locked ids are supplied (edit-mode regression)', () => {
+    const state = createAnimeScheduleOrderingState(board);
+    expect(applyLockedAnimeIds(state, undefined)).toBe(state);
+    expect(applyLockedAnimeIds(state, [])).toBe(state);
+  });
+
+  it('reconciles draft entries: seeds new rows, renames existing ones, and removes dropped rows', () => {
+    let state = withStagingDestination(createAnimeScheduleOrderingState(board));
+
+    state = reconcileDraftEntries(state, [{ draftId: '__draft__:1', name: 'New anime' }]);
+    expect(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(1);
+
+    state = reconcileDraftEntries(state, [
+      { draftId: '__draft__:1', name: 'Frieren' },
+      { draftId: '__draft__:2', name: 'New anime' },
+    ]);
+    expect(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(2);
+    const names = state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID].map((key) => state.instances[key].name);
+    expect(names).toEqual(['Frieren', 'New anime']);
+
+    state = reconcileDraftEntries(state, [{ draftId: '__draft__:2', name: 'New anime' }]);
+    expect(state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID]).toHaveLength(1);
+    expect(state.instances[state.order[ANIME_SCHEDULE_STAGING_CONTAINER_ID][0]].animeId).toBe('__draft__:2');
+  });
+
+  it('is a no-op when nothing changed (regression against re-render loops)', () => {
+    const state = reconcileDraftEntries(withStagingDestination(createAnimeScheduleOrderingState(board)), [{ draftId: '__draft__:1', name: 'New anime' }]);
+    expect(reconcileDraftEntries(state, [{ draftId: '__draft__:1', name: 'New anime' }])).toBe(state);
+    expect(reconcileDraftEntries(state, undefined)).toBe(state);
   });
 });

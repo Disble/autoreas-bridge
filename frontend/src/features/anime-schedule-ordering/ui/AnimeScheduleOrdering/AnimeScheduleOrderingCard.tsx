@@ -7,14 +7,31 @@ import type { AnimeScheduleOrderingCardProps } from './anime-schedule-ordering.t
 
 /** Renders one draggable anime card plus duplicate/remove actions. */
 export function AnimeScheduleOrderingCard({ instance, containerId, index, canRemove, onDuplicate, onRemove }: Readonly<AnimeScheduleOrderingCardProps>) {
-  const { ref, isDragging } = useSortable({ id: instance.key, index, group: containerId, type: 'item', accept: 'item' });
+  const isLocked = instance.locked === true;
+  const { ref, isDragging } = useSortable({
+    id: instance.key,
+    index,
+    group: containerId,
+    type: 'item',
+    accept: 'item',
+    disabled: isLocked ? { draggable: true } : undefined,
+  });
+
+  let cursorClassName = 'cursor-grab';
+  if (isDragging) {
+    cursorClassName = 'cursor-grabbing opacity-40';
+  } else if (isLocked) {
+    cursorClassName = 'cursor-default';
+  }
 
   return (
     <li
       ref={ref}
+      data-anime-id={instance.animeId}
+      data-locked={isLocked ? 'true' : undefined}
       data-origin-anime={instance.originHighlighted ? instance.animeId : undefined}
-      className={`flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-2 bg-zinc-900 ${instance.originHighlighted ? 'border-accent bg-accent/5' : 'border-border bg-content1'} ${isDragging ? 'cursor-grabbing opacity-40' : 'cursor-grab'}`}
-      style={{ touchAction: 'none' }}
+      className={`flex min-w-0 flex-col gap-2 rounded-lg border px-3 py-2 bg-zinc-900 ${instance.originHighlighted ? 'border-accent bg-accent/5' : 'border-border bg-content1'} ${cursorClassName}`}
+      style={{ touchAction: isLocked ? undefined : 'none' }}
     >
       <div className="flex items-center gap-2">
         <Typography truncate type="body-sm" weight="semibold">{instance.name}</Typography>

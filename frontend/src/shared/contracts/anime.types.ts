@@ -259,3 +259,40 @@ export interface ApplyAnimeScheduleDraftCommand {
   readonly boardModifiedAt: number;
   readonly entries: readonly ApplyAnimeScheduleDraftEntry[];
 }
+
+/** One schedule placement for a batch-create row (weekday or special queue). */
+export interface AnimeCreatePlacement {
+  readonly day: string;
+  readonly order: number;
+}
+
+/** One new-anime row within a batch create command. */
+export interface AnimeCreateItem {
+  readonly name: string;
+  readonly page: string;
+  readonly placements: readonly AnimeCreatePlacement[];
+  readonly folder?: string;
+  readonly kind?: number;
+  readonly premieredAt?: number;
+}
+
+/**
+ * Batch create command for one or more new animes plus any reflowed existing
+ * neighbor placements. Mirrors the generated `AnimeCreateCommandDTO` wire
+ * shape (no `boardModifiedAt`) -- each neighbor already carries its own
+ * `baseModifiedAt` for the whole-batch staleness check.
+ */
+export interface AnimeCreateCommand {
+  readonly creates: readonly AnimeCreateItem[];
+  readonly changedNeighbors: readonly ApplyAnimeScheduleDraftEntry[];
+}
+
+/** Explicit authoritative result returned by a batch anime create call. */
+export interface AnimeCreateResult {
+  readonly outcome: AnimeEditorOutcome;
+  readonly message: string;
+  readonly animeIds?: readonly string[];
+  readonly modifiedAt: number;
+  readonly conflictId?: string;
+  readonly details?: Readonly<Record<string, string>>;
+}

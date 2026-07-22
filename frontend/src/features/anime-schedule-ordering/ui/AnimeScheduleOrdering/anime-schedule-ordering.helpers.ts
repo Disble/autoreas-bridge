@@ -1,7 +1,15 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { ApplyAnimeScheduleDraftEntry, AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
-import { ANIME_SCHEDULE_ORDERING_DUPLICATE_ERROR, ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
-import type { AnimeScheduleDraftPlacement, AnimeScheduleOrderingInstance, AnimeScheduleOrderingState, AnimeScheduleOrderingTestMoveCommand } from './anime-schedule-ordering.types';
+import { ANIME_SCHEDULE_DRAFT_ID_PREFIX, ANIME_SCHEDULE_ORDERING_DUPLICATE_ERROR, ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
+import type {
+  AnimeScheduleDraftPlacement,
+  AnimeScheduleOrderingCreateSubmit,
+  AnimeScheduleOrderingDraftEntry,
+  AnimeScheduleOrderingInstance,
+  AnimeScheduleOrderingProps,
+  AnimeScheduleOrderingState,
+  AnimeScheduleOrderingTestMoveCommand,
+} from './anime-schedule-ordering.types';
 
 function createEmptyOrder(board: AnimeEditorScheduleBoard) {
   const order: Record<string, string[]> = {};
@@ -408,4 +416,165 @@ export function createAnimeScheduleApplyEntries(board: AnimeEditorScheduleBoard,
   }
 
   return changed.toSorted((left, right) => compareApplyEntries(destinationRank, left, right));
+}
+
+/**
+ * Builds the initial (or reset) draft state for the hook: authoritative board
+ * state plus staging, then additive create-mode draft seeding and locked-id
+ * marking. A no-op beyond `withStagingDestination` for edit-mode callers that
+ * pass neither `draftEntries` nor `lockedAnimeIds`.
+ */
+export function buildInitialAnimeScheduleOrderingState(props: Readonly<AnimeScheduleOrderingProps>): AnimeScheduleOrderingState {
+  let state = withStagingDestination(createAnimeScheduleOrderingState(props.board));
+  state = seedDraftEntries(state, props.draftEntries);
+  state = applyLockedAnimeIds(state, props.lockedAnimeIds);
+  return state;
+}
+
+/**
+ * Seeds one synthetic draft card per create-mode row into the staging area so
+ * a batch of new animes can be dragged onto the shared board before they have
+ * a real anime id. A no-op for edit-mode callers that pass no draft entries.
+ */
+export function seedDraftEntries(
+  state: AnimeScheduleOrderingState,
+  draftEntries: readonly AnimeScheduleOrderingDraftEntry[] | undefined,
+): AnimeScheduleOrderingState {
+  if (draftEntries === undefined || draftEntries.length === 0) {
+    return state;
+  }
+
+  const stagingId = state.duplicateAllowedDestinations?.[0] ?? ANIME_SCHEDULE_STAGING_CONTAINER_ID;
+  const instances = { ...state.instances };
+  const stagedKeys = [...(state.order[stagingId] ?? [])];
+
+  for (const draft of draftEntries) {
+    const key = nextKey(instances, draft.draftId);
+    instances[key] = {
+      key,
+      animeId: draft.draftId,
+      name: draft.name,
+      baseModifiedAt: 0,
+      originHighlighted: false,
+    };
+    stagedKeys.push(key);
+  }
+
+  return {
+    order: { ...state.order, [stagingId]: stagedKeys },
+    instances,
+    duplicateAllowedDestinations: state.duplicateAllowedDestinations,
+  };
+}
+
+/**
+ * Reconciles the draft's synthetic `__draft__:` cards against the latest
+ * create-mode `draftEntries` prop: removes cards for drafts no longer
+ * present, renames cards whose row name changed, and seeds newly added rows
+ * -- all without disturbing an already-placed draft's position. Returns the
+ * same state reference when nothing changed, so callers can safely re-run
+ * this on every render without looping.
+ */
+export function reconcileDraftEntries(
+  state: AnimeScheduleOrderingState,
+  draftEntries: readonly AnimeScheduleOrderingDraftEntry[] | undefined,
+): AnimeScheduleOrderingState {
+  if (draftEntries === undefined || draftEntries.length === 0) {
+    return state;
+  }
+
+  const nextEntries = draftEntries;
+  const nextIds = new Set(nextEntries.map((entry) => entry.draftId));
+  const nameByDraftId = new Map(nextEntries.map((entry) => [entry.draftId, entry.name]));
+  const presentDraftIds = new Set(
+    Object.values(state.instances)
+      .map((instance) => instance.animeId)
+      .filter((animeId) => animeId.startsWith(ANIME_SCHEDULE_DRAFT_ID_PREFIX)),
+  );
+
+  let order = state.order;
+  let instances = state.instances;
+
+  const removedIds = [...presentDraftIds].filter((id) => !nextIds.has(id));
+  if (removedIds.length > 0) {
+    const removeSet = new Set(removedIds);
+    const nextInstances = { ...instances };
+    const nextOrder: Record<string, readonly string[]> = {};
+    for (const [destinationId, keys] of Object.entries(order)) {
+      nextOrder[destinationId] = keys.filter((key) => {
+        if (Object.hasOwn(nextInstances, key) && removeSet.has(nextInstances[key].animeId)) {
+          delete nextInstances[key];
+          return false;
+        }
+        return true;
+      });
+    }
+    order = nextOrder;
+    instances = nextInstances;
+  }
+
+  let namesChanged = false;
+  const namedInstances: Record<string, AnimeScheduleOrderingInstance> = {};
+  for (const [key, instance] of Object.entries(instances)) {
+    const nextName = nameByDraftId.get(instance.animeId);
+    if (nextName !== undefined && nextName !== instance.name) {
+      namedInstances[key] = { ...instance, name: nextName };
+      namesChanged = true;
+    } else {
+      namedInstances[key] = instance;
+    }
+  }
+  instances = namedInstances;
+
+  const missingEntries = nextEntries.filter((entry) => !presentDraftIds.has(entry.draftId));
+
+  if (removedIds.length === 0 && !namesChanged && missingEntries.length === 0) {
+    return state;
+  }
+
+  const reconciled = { order, instances, duplicateAllowedDestinations: state.duplicateAllowedDestinations };
+  return missingEntries.length === 0 ? reconciled : seedDraftEntries(reconciled, missingEntries);
+}
+
+/**
+ * Marks existing-neighbor cards drag-disabled for a create-mode caller while
+ * leaving every other instance untouched. A no-op when no ids are supplied,
+ * so edit-mode callers keep their exact prior behavior.
+ */
+export function applyLockedAnimeIds(
+  state: AnimeScheduleOrderingState,
+  lockedAnimeIds: readonly string[] | undefined,
+): AnimeScheduleOrderingState {
+  if (lockedAnimeIds === undefined || lockedAnimeIds.length === 0) {
+    return state;
+  }
+
+  const locked = new Set(lockedAnimeIds);
+  const instances: Record<string, AnimeScheduleOrderingInstance> = {};
+  for (const [key, instance] of Object.entries(state.instances)) {
+    instances[key] = locked.has(instance.animeId) ? { ...instance, locked: true } : instance;
+  }
+
+  return { order: state.order, instances, duplicateAllowedDestinations: state.duplicateAllowedDestinations };
+}
+
+/**
+ * Splits the current draft's placement map into new-anime creates (identified
+ * by the `__draft__:` synthetic-id prefix) and changed-existing-neighbor
+ * entries, reusing `createAnimeScheduleApplyEntries` for the latter so the
+ * same reflow diffing stays the single source of truth.
+ */
+export function partitionCreateSubmit(board: AnimeEditorScheduleBoard, state: AnimeScheduleOrderingState): AnimeScheduleOrderingCreateSubmit {
+  const draft = buildAnimeScheduleDraftPlacements(state);
+  const creates: Record<string, AnimeScheduleDraftPlacement[]> = {};
+  for (const [animeId, placements] of Object.entries(draft)) {
+    if (animeId.startsWith(ANIME_SCHEDULE_DRAFT_ID_PREFIX)) {
+      creates[animeId] = placements;
+    }
+  }
+
+  const changedNeighbors = createAnimeScheduleApplyEntries(board, state)
+    .filter((entry) => !entry.animeId.startsWith(ANIME_SCHEDULE_DRAFT_ID_PREFIX));
+
+  return { creates, changedNeighbors };
 }

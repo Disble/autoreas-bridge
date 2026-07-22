@@ -476,6 +476,72 @@ describe('bridge-runtime-source', () => {
     expect(copyFolderMock).toHaveBeenCalledWith('anime-1');
   });
 
+  it('calls CreateAnime once Go bindings become ready and maps the wire DTO', async () => {
+    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+    const createAnimeMock = vi.fn().mockResolvedValue({
+      outcome: 'applied',
+      message: 'created',
+      animeIds: ['anime-new-1'],
+      modifiedAt: 555,
+    });
+
+    const createPromise = source.createAnime?.({
+      creates: [
+        {
+          name: 'Frieren',
+          page: 'https://example.test/frieren',
+          placements: [{ day: 'Miércoles', order: 1 }],
+          folder: 'D:/Anime/Frieren',
+          kind: 0,
+          premieredAt: 1700000000000,
+        },
+      ],
+      changedNeighbors: [
+        { animeId: 'existing-1', baseModifiedAt: 100, placements: [{ day: 'Miércoles', order: 2 }] },
+      ],
+    });
+
+    window.go = { main: { App: { CreateAnime: createAnimeMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(createPromise).resolves.toEqual({
+      outcome: 'applied',
+      message: 'created',
+      animeIds: ['anime-new-1'],
+      modifiedAt: 555,
+    });
+    expect(createAnimeMock).toHaveBeenCalledWith({
+      creates: [
+        {
+          nombre: 'Frieren',
+          pagina: 'https://example.test/frieren',
+          dias: [{ day: 'Miércoles', order: 1 }],
+          carpeta: 'D:/Anime/Frieren',
+          tipo: 0,
+          fechaEstreno: 1700000000000,
+        },
+      ],
+      changedNeighbors: [
+        { animeId: 'existing-1', baseModifiedAt: 100, placements: [{ day: 'Miércoles', order: 2 }] },
+      ],
+    });
+  });
+
+  it('degrades createAnime to an error outcome when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const source = createBridgeRuntimeSource();
+
+    const createPromise = source.createAnime?.({ creates: [], changedNeighbors: [] });
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(createPromise).resolves.toEqual(
+      expect.objectContaining({ outcome: 'error', message: 'runtime unavailable' }),
+    );
+  });
+
   it('calls TriggerReconcile once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
     const source = createBridgeRuntimeSource();

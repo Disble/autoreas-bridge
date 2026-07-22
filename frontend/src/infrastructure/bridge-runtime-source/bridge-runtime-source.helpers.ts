@@ -3,6 +3,7 @@ import {
   ApplyAnimeEditorSchedule,
   CopyAnimeFolder,
   CopyAnimePage,
+  CreateAnime,
   DeactivateAnime,
   GetAnimeCover,
   GetAnimeDetail,
@@ -33,6 +34,8 @@ import { contracts as wailsContracts } from '../../../wailsjs/go/models';
 import type { main as wailsMain } from '../../../wailsjs/go/models';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type {
+  AnimeCreateCommand,
+  AnimeCreateResult,
   AnimeEditorRecord,
   AnimeEditorRecordResult,
   AnimeEditorSaveResult,
@@ -47,6 +50,7 @@ import {
   BRIDGE_RUNTIME_SOURCE_STATE,
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
+  RUNTIME_UNAVAILABLE_CREATE_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
 } from './bridge-runtime-source.constants';
 import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
@@ -207,6 +211,42 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsMain.SaveAn
   } as unknown as wailsMain.SaveAnimeEditorCommandDTO;
 }
 
+/**
+ * Maps the frontend batch-create command into the generated wire DTO. The
+ * Go-side `AnimeCreateItemDTO`/`contracts.AnimeCreate` still carry legacy
+ * Spanish field names (`nombre`/`pagina`/`carpeta`/`tipo`/`fechaEstreno`) --
+ * this is the retained storage/wire boundary the create-anime slice did not
+ * own or rename in SDD-56/57, so the mapping stays isolated here.
+ */
+function toAnimeCreateDTO(command: AnimeCreateCommand): wailsMain.AnimeCreateCommandDTO {
+  return {
+    creates: command.creates.map((item) => ({
+      nombre: item.name,
+      pagina: item.page,
+      dias: item.placements.map(toWailsSchedulePlacement),
+      carpeta: item.folder,
+      tipo: item.kind,
+      fechaEstreno: item.premieredAt,
+    })),
+    changedNeighbors: command.changedNeighbors.map((entry) => ({
+      animeId: entry.animeId,
+      baseModifiedAt: entry.baseModifiedAt,
+      placements: entry.placements.map(toWailsSchedulePlacement),
+    })),
+  } as unknown as wailsMain.AnimeCreateCommandDTO;
+}
+
+function toAnimeCreateResult(result: wailsContracts.AnimeCreateResult): AnimeCreateResult {
+  return {
+    outcome: toOutcome(result.outcome),
+    message: result.message ?? '',
+    modifiedAt: result.modifiedAt,
+    ...(result.animeIds === undefined ? {} : { animeIds: result.animeIds }),
+    ...(result.conflictId === undefined ? {} : { conflictId: result.conflictId }),
+    ...(result.details === undefined ? {} : { details: result.details }),
+  };
+}
+
 function toApplyAnimeScheduleDraftDTO(command: ApplyAnimeScheduleDraftCommand): wailsMain.ApplyAnimeScheduleDraftCommandDTO {
   return {
     boardModifiedAt: command.boardModifiedAt,
@@ -268,6 +308,9 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     applyAnimeEditorSchedule(command) {
       return invokeGoBinding('ApplyAnimeEditorSchedule', () => ApplyAnimeEditorSchedule(toApplyAnimeScheduleDraftDTO(command)), () => RUNTIME_UNAVAILABLE_EDITOR_RESULT as wailsContracts.AnimeEditorScheduleApplyResult).then(toAnimeEditorScheduleApplyResult);
+    },
+    createAnime(command) {
+      return invokeGoBinding('CreateAnime', () => CreateAnime(toAnimeCreateDTO(command)), () => RUNTIME_UNAVAILABLE_CREATE_RESULT as unknown as wailsContracts.AnimeCreateResult).then(toAnimeCreateResult);
     },
     getAnimeHistory() {
       return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);

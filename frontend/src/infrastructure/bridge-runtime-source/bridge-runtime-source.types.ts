@@ -1,6 +1,8 @@
 import type { contracts } from '../../../wailsjs/go/models';
 import type {
   Anime,
+  AnimeCreateCommand,
+  AnimeCreateResult,
   AnimeDetail,
   AnimeEditorRecordResult,
   AnimeEditorSaveResult,
@@ -27,6 +29,7 @@ export interface BridgeRuntimeSource {
   readonly deactivateAnime?: (animeID: string, baseModifiedAt: number) => Promise<AnimeEditorSaveResult>;
   readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
+  readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
   readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;

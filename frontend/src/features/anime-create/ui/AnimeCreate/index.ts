@@ -1,0 +1,1 @@
+export { AnimeCreate } from './AnimeCreate';

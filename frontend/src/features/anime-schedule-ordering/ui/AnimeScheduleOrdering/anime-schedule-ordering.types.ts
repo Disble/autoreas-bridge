@@ -19,14 +19,32 @@ export interface AnimeScheduleOrderingTestDriverRef {
   current?: AnimeScheduleOrderingTestDriver;
 }
 
+/** One synthetic new-anime row seeded into the board's staging area by a create-mode caller. */
+export interface AnimeScheduleOrderingDraftEntry {
+  readonly draftId: string;
+  readonly name: string;
+}
+
+/** Partitioned submit payload split by the `__draft__:` synthetic-id prefix. */
+export interface AnimeScheduleOrderingCreateSubmit {
+  readonly creates: Readonly<Record<string, readonly AnimeSchedulePlacement[]>>;
+  readonly changedNeighbors: readonly ApplyAnimeScheduleDraftEntry[];
+}
+
 /** Component contract for the shared anime schedule ordering board. */
 export interface AnimeScheduleOrderingProps {
   readonly board: AnimeEditorScheduleBoard;
   readonly feedback?: string;
   readonly isApplying?: boolean;
-  readonly onApply: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<void>;
+  readonly onApply?: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<void>;
   readonly onClose?: () => void;
   readonly testDriverRef?: AnimeScheduleOrderingTestDriverRef;
+  /** Existing anime ids to render drag-disabled (still reflow when a draft inserts above them). */
+  readonly lockedAnimeIds?: readonly string[];
+  /** Create-mode batch rows seeded as draggable staging cards with synthetic ids. */
+  readonly draftEntries?: readonly AnimeScheduleOrderingDraftEntry[];
+  /** Create-mode submit seam: when provided, apply routes through this instead of `onApply`. */
+  readonly onApplyCreateSubmit?: (submit: AnimeScheduleOrderingCreateSubmit) => Promise<void>;
 }
 
 /** One draggable card instance inside the shared schedule draft. */
@@ -37,6 +55,8 @@ export interface AnimeScheduleOrderingInstance {
   readonly baseModifiedAt: number;
   readonly originHighlighted: boolean;
   readonly initialOrder?: number;
+  /** True for cards whose drag is disabled (existing neighbors locked by a create-mode caller). */
+  readonly locked?: boolean;
 }
 
 /** Internal dnd-kit working state for the schedule draft. */

@@ -3,17 +3,18 @@ import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   applyAnimeScheduleOrder,
+  buildInitialAnimeScheduleOrderingState,
   countAnimeScheduleChanges,
   createAnimeScheduleApplyEntries,
-  createAnimeScheduleOrderingState,
   duplicateAnimeScheduleCard,
   getInstancesInDestination,
   getStagedAnimeIds,
   moveAnimeScheduleCard,
+  partitionCreateSubmit,
+  reconcileDraftEntries,
   removeAnimeScheduleCard,
   shouldBlockDuplicateHover,
   validateAnimeScheduleDraft,
-  withStagingDestination,
 } from './anime-schedule-ordering.helpers';
 import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
 import type { AnimeScheduleOrderingProps, AnimeScheduleOrderingState, AnimeScheduleOrderingViewModel } from './anime-schedule-ordering.types';
@@ -26,7 +27,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   // 1. Refs
 
   // 2. State
-  const [state, setState] = useState<AnimeScheduleOrderingState>(() => withStagingDestination(createAnimeScheduleOrderingState(props.board)));
+  const [state, setState] = useState<AnimeScheduleOrderingState>(() => buildInitialAnimeScheduleOrderingState(props));
 
   // 3. Context/3rd Party Hooks
 
@@ -59,21 +60,29 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
     setState((current) => removeAnimeScheduleCard(current, key));
   }, []);
   const onReset = useCallback(() => {
-    setState(withStagingDestination(createAnimeScheduleOrderingState(props.board)));
-  }, [props.board]);
+    setState(buildInitialAnimeScheduleOrderingState(props));
+  }, [props]);
   const onApply = useCallback(async () => {
     if (validationMessage !== undefined) {
       return;
     }
-    await props.onApply(createAnimeScheduleApplyEntries(props.board, state));
+    if (props.onApplyCreateSubmit !== undefined) {
+      await props.onApplyCreateSubmit(partitionCreateSubmit(props.board, state));
+      return;
+    }
+    await props.onApply?.(createAnimeScheduleApplyEntries(props.board, state));
   }, [props, state, validationMessage]);
   const canRemove = useCallback((animeId: string) => Object.values(state.instances).filter((instance) => instance.animeId === animeId).length > 1, [state.instances]);
   const getOverlayName = useCallback((id: string | number) => state.instances[String(id)]?.name ?? '', [state.instances]);
 
   // 7. Effects
   useEffect(() => {
-    setState(withStagingDestination(createAnimeScheduleOrderingState(props.board)));
+    setState(buildInitialAnimeScheduleOrderingState(props));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.board]);
+  useEffect(() => {
+    setState((current) => reconcileDraftEntries(current, props.draftEntries));
+  }, [props.draftEntries]);
   useEffect(() => {
     const testDriverRef = props.testDriverRef;
     if (testDriverRef === undefined) {

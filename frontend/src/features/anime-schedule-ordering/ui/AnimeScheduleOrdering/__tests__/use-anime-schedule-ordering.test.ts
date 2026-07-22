@@ -68,4 +68,53 @@ describe('useAnimeScheduleOrdering', () => {
     expect(result.current.changeCount).toBe(1);
     expect(result.current.specialColumns[0]?.cards.map((card) => card.animeId)).toEqual(['anime-1']);
   });
+
+  it('seeds create-mode draft rows into the staging area', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({
+      board,
+      onApply: vi.fn(),
+      draftEntries: [{ draftId: '__draft__:1', name: 'New Anime' }],
+    }));
+
+    expect(result.current.stagingCards.map((card) => card.animeId)).toEqual(['__draft__:1']);
+  });
+
+  it('renders existing cards locked when lockedAnimeIds is supplied, without affecting other cards', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn(), lockedAnimeIds: ['anime-1'] }));
+
+    expect(result.current.weekdayColumns[0]?.cards[0]?.locked).toBe(true);
+  });
+
+  it('behaves identically for edit-mode callers passing no drafts or locked ids (regression)', () => {
+    const { result } = renderHook(() => useAnimeScheduleOrdering({ board, onApply: vi.fn() }));
+
+    expect(result.current.stagingCards).toEqual([]);
+    expect(result.current.weekdayColumns[0]?.cards[0]?.locked).toBeUndefined();
+  });
+
+  it('routes apply through onApplyCreateSubmit when provided, splitting drafts from changed neighbors', async () => {
+    const onApplyCreateSubmit = vi.fn().mockResolvedValue(undefined);
+    const onApply = vi.fn().mockResolvedValue(undefined);
+    const testDriverRef: AnimeScheduleOrderingTestDriverRef = {};
+
+    const { result } = renderHook(() => useAnimeScheduleOrdering({
+      board,
+      onApply,
+      onApplyCreateSubmit,
+      testDriverRef,
+      draftEntries: [{ draftId: '__draft__:1', name: 'New Anime' }],
+    }));
+
+    act(() => testDriverRef.current?.moveAnime({ animeId: '__draft__:1', destinationId: 'Sin ver', order: 1 }));
+
+    await act(async () => {
+      await result.current.onApply();
+    });
+
+    expect(onApply).not.toHaveBeenCalled();
+    expect(onApplyCreateSubmit).toHaveBeenCalledWith({
+      creates: { '__draft__:1': [{ day: 'Sin ver', order: 1 }] },
+      changedNeighbors: [],
+    });
+  });
 });

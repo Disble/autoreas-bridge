@@ -34,6 +34,17 @@ if (typeof window !== 'undefined') {
         value: ResizeObserverMock,
     });
 
+    // jsdom does not implement the Web Animations API; HeroUI's Tabs indicator
+    // calls `element.getAnimations()` during its layout-effect transition, which
+    // otherwise throws and aborts the whole render in every Tabs-based test.
+    if (typeof Element.prototype.getAnimations !== 'function') {
+        Object.defineProperty(Element.prototype, 'getAnimations', {
+            writable: true,
+            configurable: true,
+            value: () => [],
+        });
+    }
+
     if (typeof window.matchMedia !== 'function') {
         Object.defineProperty(window, 'matchMedia', {
             writable: true,

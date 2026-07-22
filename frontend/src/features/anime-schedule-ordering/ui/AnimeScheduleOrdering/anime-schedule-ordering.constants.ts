@@ -14,3 +14,5 @@ export const ANIME_SCHEDULE_STAGING_EMPTY_MESSAGE = 'Wildcard space — park ani
 export const ANIME_SCHEDULE_STAGING_HELP_MESSAGE = 'A parking lot for rearranging. While an anime is parked here nothing has changed — the board only counts changes when you drop it on a day or queue. Apply ignores parked animes: they keep their current placement.';
 /** Accessible label for the staging area help button. */
 export const ANIME_SCHEDULE_STAGING_HELP_LABEL = 'About the staging area';
+/** Prefix for synthetic anime ids seeded by a create-mode batch draft. */
+export const ANIME_SCHEDULE_DRAFT_ID_PREFIX = '__draft__:';

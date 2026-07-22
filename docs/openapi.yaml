@@ -31,6 +31,12 @@ info:
     full breaking-change migration notice and name map; deploy is lockstep-gated on the
     `autoreas-mobile` English client shipping first.
 
+    2026-07-22 — SDD-57 API consumer impact: NO WIRE CHANGE. Added a batch
+    "Create anime" capability (Editor-only, Legacy "Agregar" replacement) as a
+    new Wails desktop binding `App.CreateAnime`, not an HTTP/WebSocket surface.
+    `POST /api/animes` remains excluded and still returns 405 — mobile clients
+    are unaffected and require no update.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
