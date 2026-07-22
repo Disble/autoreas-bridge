@@ -79,7 +79,8 @@ func (a *App) configureRealtimeHub(ctx context.Context) {
 // configureAnimeApplicationServices constructs the anime application services.
 func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	snapshotStore := bridgeSync.NewAnimeSnapshotStore(a.bridgeDB)
-	a.animeQuery = anime.NewQueryService(snapshotStore)
+	animeQuery := anime.NewQueryService(snapshotStore)
+	a.animeQuery = animeQuery
 	a.animeEditorQuery = anime.NewQueryService(snapshotStore)
 	// cover.NewDefaultResolver never fails construction (a cache-root
 	// resolution error degrades to a no-op cache internally), so this wiring
@@ -94,7 +95,10 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	a.animeWrite.SetDeps(deps)
 	a.animeEditorWrite.SetDeps(deps)
 	a.animeEditorScheduleWrite.SetDeps(deps)
-	a.animeCreate = anime.NewCreateService(a.animeWrite, nil)
+	create := anime.NewCreateService(a.animeWrite, nil)
+	create.SetQuery(animeQuery)
+	a.animeCreate = create
+	a.animeCreateBatch = create
 	return conflictService
 }
 

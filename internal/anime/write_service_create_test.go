@@ -20,10 +20,9 @@ func TestWriteServiceCreateAnimeWritesAValidSinVerRecord(t *testing.T) {
 	service.SetIDGen(func() string { return "seasonanime01" })
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{
-		Nombre:  "Dr. Stone: Science Future Part 3",
-		Pagina:  "https://jkanime.net/dr-stone-science-future-part-3/",
-		Section: "Sin ver",
-		Orden:   4,
+		Nombre: "Dr. Stone: Science Future Part 3",
+		Pagina: "https://jkanime.net/dr-stone-science-future-part-3/",
+		Dias:   []api.Placement{{Day: "Sin ver", Order: 4}},
 	})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)
@@ -68,8 +67,7 @@ func TestWriteServiceCreateAnimeWritesCarpeta(t *testing.T) {
 	if _, err := service.CreateAnime(ctx, api.AnimeCreate{
 		Nombre:  "Con Carpeta",
 		Pagina:  "https://jkanime.net/con-carpeta/",
-		Section: "Sin ver",
-		Orden:   1,
+		Dias:    []api.Placement{{Day: "Sin ver", Order: 1}},
 		Carpeta: "D:/Anime/Con Carpeta",
 	}); err != nil {
 		t.Fatalf("CreateAnime: %v", err)
@@ -98,7 +96,7 @@ func TestWriteServiceCreateAnimeGeneratesIDWhenBlank(t *testing.T) {
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetIDGen(func() string { return "generated-id" })
 
-	id, err := service.CreateAnime(ctx, api.AnimeCreate{Nombre: "X", Pagina: "p", Section: "Sin ver", Orden: 1})
+	id, err := service.CreateAnime(ctx, api.AnimeCreate{Nombre: "X", Pagina: "p", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)
 	}
@@ -116,27 +114,32 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 	}{
 		{
 			name: "generated id is empty", newID: "",
-			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Section: "Sin ver", Orden: 1},
+			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
 			wantErr: "id",
 		},
 		{
 			name: "title is blank", newID: "anime-title",
-			create:  api.AnimeCreate{Nombre: "  ", Pagina: "https://example.test/a", Section: "Sin ver", Orden: 1},
+			create:  api.AnimeCreate{Nombre: "  ", Pagina: "https://example.test/a", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
 			wantErr: "title",
 		},
 		{
 			name: "source page is blank", newID: "anime-page",
-			create:  api.AnimeCreate{Nombre: "Valid", Pagina: " ", Section: "Sin ver", Orden: 1},
+			create:  api.AnimeCreate{Nombre: "Valid", Pagina: " ", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
 			wantErr: "source",
 		},
 		{
 			name: "schedule day is blank", newID: "anime-day",
-			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Section: " ", Orden: 1},
+			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Dias: []api.Placement{{Day: " ", Order: 1}}},
 			wantErr: "schedule",
 		},
 		{
 			name: "schedule order is not positive", newID: "anime-order",
-			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Section: "Sin ver", Orden: 0},
+			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Dias: []api.Placement{{Day: "Sin ver", Order: 0}}},
+			wantErr: "schedule",
+		},
+		{
+			name: "no placement provided", newID: "anime-empty-dias",
+			create:  api.AnimeCreate{Nombre: "Valid", Pagina: "https://example.test/a", Dias: nil},
 			wantErr: "schedule",
 		},
 	}
@@ -173,7 +176,7 @@ func TestWriteServiceCreateAnimeCanonicalReturnsAuthoritativeToken(t *testing.T)
 	service.SetIDGen(func() string { return "canonical-token" })
 
 	result, err := service.CreateCanonicalAnime(context.Background(), api.AnimeCreate{
-		Nombre: "Canonical", Pagina: "https://example.test/canonical", Section: "Sin ver", Orden: 1,
+		Nombre: "Canonical", Pagina: "https://example.test/canonical", Dias: []api.Placement{{Day: "Sin ver", Order: 1}},
 	}, anime.CreateMetadata{})
 	if err != nil {
 		t.Fatalf("CreateCanonicalAnime: %v", err)

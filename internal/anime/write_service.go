@@ -119,22 +119,61 @@ func (s *WriteService) CreateCanonicalAnime(
 	create contracts.AnimeCreate,
 	metadata CreateMetadata,
 ) (PatchResult, error) {
+	_, raw, err := s.buildCanonicalCreate(create, metadata)
+	if err != nil {
+		return PatchResult{}, err
+	}
+	result, err := s.gateway().Create(ctx, raw)
+	return fromLegacyPatchResult(result), err
+}
+
+// BuildCreateOperation builds a batch operation for one new anime without
+// persisting it, so callers can combine several creates (and any reflowed
+// neighbor operations) into a single atomic ApplyBatch call.
+func (s *WriteService) BuildCreateOperation(create contracts.AnimeCreate, metadata CreateMetadata) (store.BatchOperation, string, error) {
+	id, raw, err := s.buildCanonicalCreate(create, metadata)
+	if err != nil {
+		return store.BatchOperation{}, "", err
+	}
+	desired, err := raw.MarshalJSON()
+	if err != nil {
+		return store.BatchOperation{}, "", err
+	}
+	base := []byte(`{"id":"` + id + `"}`)
+	baseSnapshot := store.Snapshot{AnimeID: id, CanonicalJSON: base, Hash: HashSnapshot(base)}
+	return store.BatchOperation{AnimeID: id, Base: baseSnapshot, Desired: desired}, id, nil
+}
+
+// ApplyBatch persists a coordinated set of batch operations atomically.
+func (s *WriteService) ApplyBatch(ctx context.Context, operations []store.BatchOperation) (PatchResult, error) {
+	result, err := s.gateway().ApplyBatch(ctx, operations)
+	return fromLegacyPatchResult(result), err
+}
+
+// buildCanonicalCreate resolves the create id and builds the canonical raw
+// payload shared by single creates and batch create operations.
+func (s *WriteService) buildCanonicalCreate(create contracts.AnimeCreate, metadata CreateMetadata) (string, store.AnimeRaw, error) {
 	id := create.ID
 	if id == "" {
 		id = s.newID()
 	}
 	raw, err := store.NewCanonicalCreate(store.CanonicalCreateInput{
 		ID: id, Title: create.Nombre, SourceURL: create.Pagina,
-		Section: create.Section, Order: create.Orden, CreatedAt: s.nowFunc(),
+		Days: placementsToCanonicalDays(create.Dias), CreatedAt: s.nowFunc(),
 		Folder: create.Carpeta, Type: create.Tipo, PremieredAtMs: create.FechaEstreno,
 		TotalEpisodes: metadata.AnnouncedTotal, DurationMinutes: metadata.DurationMinutes,
 		CoverURL: metadata.CoverURL,
 	})
-	if err != nil {
-		return PatchResult{}, err
+	return id, raw, err
+}
+
+// placementsToCanonicalDays converts contract placements into canonical store days.
+func placementsToCanonicalDays(placements []contracts.Placement) []store.AnimeDay {
+	days := make([]store.AnimeDay, 0, len(placements))
+	for _, placement := range placements {
+		days = append(days, store.AnimeDay{Day: placement.Day, Order: float64(placement.Order)})
 	}
-	result, err := s.gateway().Create(ctx, raw)
-	return fromLegacyPatchResult(result), err
+	return days
 }
 
 // PatchAnime applies one canonical anime patch by id.

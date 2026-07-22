@@ -30,6 +30,10 @@ export function CopyAnimePage(arg1) {
   return window['go']['main']['App']['CopyAnimePage'](arg1);
 }
 
+export function CreateAnime(arg1) {
+  return window['go']['main']['App']['CreateAnime'](arg1);
+}
+
 export function CreateSeason(arg1) {
   return window['go']['main']['App']['CreateSeason'](arg1);
 }

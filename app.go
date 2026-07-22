@@ -83,6 +83,7 @@ type App struct {
 	settingsStore            appSettingsStore
 	animeWrite               *anime.WriteService
 	animeCreate              anime.Creator
+	animeCreateBatch         anime.BatchCreator
 	seasonScheduler          schedule.Scheduler
 	openURL                  func(ctx context.Context, url string)
 	openFolder               func(path string) error

@@ -18,6 +18,8 @@ export function CopyAnimeFolder(arg1:string):Promise<contracts.EpisodeCommandRes
 
 export function CopyAnimePage(arg1:string):Promise<contracts.EpisodeCommandResult>;
 
+export function CreateAnime(arg1:main.AnimeCreateCommandDTO):Promise<contracts.AnimeCreateResult>;
+
 export function CreateSeason(arg1:string):Promise<string>;
 
 export function CreateSeasonAnimes(arg1:Array<string>,arg2:Record<string, string>):Promise<string>;

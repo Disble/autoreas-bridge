@@ -32,6 +32,13 @@ type Creator interface {
 	CreateAnime(context.Context, contracts.AnimeCreate) (PatchResult, error)
 }
 
+// BatchCreator is the application-facing atomic batch Create port: it
+// persists one or more new animes plus any reflowed existing neighbor
+// placements in a single atomic transaction.
+type BatchCreator interface {
+	CreateBatch(context.Context, []contracts.AnimeCreate, []ApplyAnimeScheduleDraftEntry) (contracts.AnimeCreateResult, error)
+}
+
 // NewQueryService builds a read-model query service over the shared snapshot store.
 func NewQueryService(store snapshotLookup) *QueryService {
 	return &QueryService{store: store}

@@ -24,7 +24,7 @@ func TestCreateServiceUsesAuthoritativeMetadataAndReturnsCurrentToken(t *testing
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
-		Nombre: "Metadata Anime", Pagina: "https://example.test/metadata", Section: "Sin ver", Orden: 2,
+		Nombre: "Metadata Anime", Pagina: "https://example.test/metadata", Dias: []api.Placement{{Day: "Sin ver", Order: 2}},
 	})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)
@@ -53,7 +53,7 @@ func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
-		Nombre: "Still Airing", Pagina: "https://example.test/still-airing", Section: "Sin ver", Orden: 1,
+		Nombre: "Still Airing", Pagina: "https://example.test/still-airing", Dias: []api.Placement{{Day: "Sin ver", Order: 1}},
 	})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)
@@ -82,7 +82,7 @@ func TestCreateServiceReturnsMetadataSourceFailureWithoutAppend(t *testing.T) {
 	service := anime.NewCreateService(write, provider)
 
 	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
-		Nombre: "Source Failure", Pagina: "https://example.test/source-failure", Section: "Sin ver", Orden: 1,
+		Nombre: "Source Failure", Pagina: "https://example.test/source-failure", Dias: []api.Placement{{Day: "Sin ver", Order: 1}},
 	})
 	if !errors.Is(err, sourceErr) {
 		t.Fatalf("CreateAnime error = %v, want metadata source error", err)

@@ -13,8 +13,7 @@ type CanonicalCreateInput struct {
 	ID              string
 	Title           string
 	SourceURL       string
-	Section         string
-	Order           int
+	Days            []AnimeDay
 	CreatedAt       time.Time
 	Folder          string
 	Type            *int
@@ -36,8 +35,13 @@ func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 	if strings.TrimSpace(input.SourceURL) == "" {
 		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing source page")
 	}
-	if strings.TrimSpace(input.Section) == "" || input.Order <= 0 {
+	if len(input.Days) == 0 {
 		return AnimeRaw{}, fmt.Errorf("canonical anime create: invalid schedule entry")
+	}
+	for _, day := range input.Days {
+		if strings.TrimSpace(day.Day) == "" || day.Order <= 0 {
+			return AnimeRaw{}, fmt.Errorf("canonical anime create: invalid schedule entry")
+		}
 	}
 	if input.CreatedAt.IsZero() {
 		return AnimeRaw{}, fmt.Errorf("canonical anime create: missing creation time")
@@ -55,7 +59,7 @@ func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 		"active":          true,
 		"firstCycle":      true,
 		"createdAt":       input.CreatedAt.UTC().UnixMilli(),
-		"days":            []map[string]any{{"day": input.Section, "order": input.Order}},
+		"days":            canonicalCreateDays(input.Days),
 		"sourceUrl":       input.SourceURL,
 		"totalEpisodes":   input.TotalEpisodes,
 		"durationMinutes": input.DurationMinutes,
@@ -80,4 +84,13 @@ func NewCanonicalCreate(input CanonicalCreateInput) (AnimeRaw, error) {
 		return AnimeRaw{}, fmt.Errorf("build canonical anime create: %w", err)
 	}
 	return raw, nil
+}
+
+// canonicalCreateDays converts validated placements into the canonical days shape.
+func canonicalCreateDays(days []AnimeDay) []map[string]any {
+	result := make([]map[string]any, 0, len(days))
+	for _, day := range days {
+		result = append(result, map[string]any{"day": day.Day, "order": day.Order})
+	}
+	return result
 }

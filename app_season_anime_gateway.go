@@ -58,8 +58,7 @@ func (g seasonAnimeGateway) CreateAnime(ctx context.Context, in season.AnimeCrea
 	result, err := g.creator.CreateAnime(ctx, contracts.AnimeCreate{
 		Nombre:  in.Nombre,
 		Pagina:  in.Pagina,
-		Section: in.Section,
-		Orden:   order,
+		Dias:    []contracts.Placement{{Day: in.Section, Order: order}},
 		Carpeta: in.Carpeta,
 		Tipo:    in.Tipo,
 	})

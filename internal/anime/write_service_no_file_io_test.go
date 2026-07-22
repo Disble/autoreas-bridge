@@ -26,7 +26,7 @@ func TestWriteServiceCreateAnimeFinalizesToSnapshotStoreWithZeroFileIO(t *testin
 	service.SetIDGen(func() string { return "zero-file-io-anime" })
 
 	id, err := service.CreateAnime(ctx, api.AnimeCreate{
-		Nombre: "Zero File IO", Pagina: "https://example.test/zero-file-io", Section: "Sin ver", Orden: 1,
+		Nombre: "Zero File IO", Pagina: "https://example.test/zero-file-io", Dias: []api.Placement{{Day: "Sin ver", Order: 1}},
 	})
 	if err != nil {
 		t.Fatalf("CreateAnime: %v", err)

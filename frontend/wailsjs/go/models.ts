@@ -14,6 +14,28 @@ export namespace contracts {
 	        this.source = source["source"];
 	    }
 	}
+	export class AnimeCreateResult {
+	    outcome: string;
+	    message?: string;
+	    animeIds?: string[];
+	    modifiedAt: number;
+	    conflictId?: string;
+	    details?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.outcome = source["outcome"];
+	        this.message = source["message"];
+	        this.animeIds = source["animeIds"];
+	        this.modifiedAt = source["modifiedAt"];
+	        this.conflictId = source["conflictId"];
+	        this.details = source["details"];
+	    }
+	}
 	export class AnimeDetailDownload {
 	    page?: string;
 	    folder?: string;
@@ -1136,6 +1158,129 @@ export namespace logger {
 }
 
 export namespace main {
+	
+	export class AnimeCreateNeighborDTO {
+	    animeId: string;
+	    baseModifiedAt: number;
+	    placements: contracts.MobileAnimeDay[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreateNeighborDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.animeId = source["animeId"];
+	        this.baseModifiedAt = source["baseModifiedAt"];
+	        this.placements = this.convertValues(source["placements"], contracts.MobileAnimeDay);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AnimeCreatePlacementDTO {
+	    day: string;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreatePlacementDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.order = source["order"];
+	    }
+	}
+	export class AnimeCreateItemDTO {
+	    nombre: string;
+	    pagina: string;
+	    dias: AnimeCreatePlacementDTO[];
+	    carpeta?: string;
+	    tipo?: number;
+	    fechaEstreno?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreateItemDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nombre = source["nombre"];
+	        this.pagina = source["pagina"];
+	        this.dias = this.convertValues(source["dias"], AnimeCreatePlacementDTO);
+	        this.carpeta = source["carpeta"];
+	        this.tipo = source["tipo"];
+	        this.fechaEstreno = source["fechaEstreno"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AnimeCreateCommandDTO {
+	    creates: AnimeCreateItemDTO[];
+	    changedNeighbors: AnimeCreateNeighborDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreateCommandDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.creates = this.convertValues(source["creates"], AnimeCreateItemDTO);
+	        this.changedNeighbors = this.convertValues(source["changedNeighbors"], AnimeCreateNeighborDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	export class AnimeEditorCoverPatchDTO {
 	    present: boolean;

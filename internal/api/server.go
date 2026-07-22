@@ -21,6 +21,12 @@ type AnimePatch = contracts.AnimePatch
 // AnimeCreate aliases the API create contract consumed by transport adapters.
 type AnimeCreate = contracts.AnimeCreate
 
+// Placement aliases the API schedule-placement contract used by creates.
+type Placement = contracts.Placement
+
+// AnimeCreateResult aliases the API create-result contract consumed by transport adapters.
+type AnimeCreateResult = contracts.AnimeCreateResult
+
 // EffectiveAnime aliases the effective anime read model exposed by query services.
 type EffectiveAnime = contracts.EffectiveAnime
 

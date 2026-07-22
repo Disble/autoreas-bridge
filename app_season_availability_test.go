@@ -180,6 +180,10 @@ func TestSeasonAnimeGatewayCreatePreservesAuthoritativeResult(t *testing.T) {
 	if creator.lastCreate.Tipo == nil || *creator.lastCreate.Tipo != 0 {
 		t.Fatalf("CreateAnime must forward tipo=0, got %#v", creator.lastCreate.Tipo)
 	}
+	wantDias := []contracts.Placement{{Day: "Sin ver", Order: 1}}
+	if len(creator.lastCreate.Dias) != 1 || creator.lastCreate.Dias[0] != wantDias[0] {
+		t.Fatalf("CreateAnime must build Dias from the season default placement, got %#v", creator.lastCreate.Dias)
+	}
 }
 
 func TestSeasonAnimeGatewayFindActiveByPagina(t *testing.T) {

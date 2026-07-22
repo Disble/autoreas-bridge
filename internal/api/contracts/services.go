@@ -46,16 +46,32 @@ type AnimePatchResult struct {
 	ConflictID string            `json:"conflictId,omitempty"`
 }
 
+// Placement is one schedule destination assignment: a weekday or a special
+// queue (e.g. "Sin ver"), plus its order within that destination.
+type Placement struct {
+	Day   string `json:"day"`
+	Order int    `json:"order"`
+}
+
 // AnimeCreate is the input for creating a brand-new anime.
 type AnimeCreate struct {
-	ID           string `json:"id,omitempty"`
-	Nombre       string `json:"nombre"`
-	Pagina       string `json:"pagina"`
-	Section      string `json:"section"`
-	Orden        int    `json:"orden"`
-	Carpeta      string `json:"carpeta,omitempty"`
-	Tipo         *int   `json:"tipo,omitempty"`
-	FechaEstreno *int64 `json:"fechaEstreno,omitempty"`
+	ID           string      `json:"id,omitempty"`
+	Nombre       string      `json:"nombre"`
+	Pagina       string      `json:"pagina"`
+	Dias         []Placement `json:"dias"`
+	Carpeta      string      `json:"carpeta,omitempty"`
+	Tipo         *int        `json:"tipo,omitempty"`
+	FechaEstreno *int64      `json:"fechaEstreno,omitempty"`
+}
+
+// AnimeCreateResult is the authoritative result of a batch anime create.
+type AnimeCreateResult struct {
+	Outcome    AnimePatchOutcome `json:"outcome"`
+	Message    string            `json:"message,omitempty"`
+	AnimeIDs   []string          `json:"animeIds,omitempty"`
+	ModifiedAt int64             `json:"modifiedAt"`
+	ConflictID string            `json:"conflictId,omitempty"`
+	Details    map[string]string `json:"details,omitempty"`
 }
 
 // EffectiveAnime is the minimal effective-state record used by write paths.
