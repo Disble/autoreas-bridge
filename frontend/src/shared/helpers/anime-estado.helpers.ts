@@ -1,5 +1,5 @@
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../constants/anime-estado.constants';
-import type { AnimeEstadoStatus } from './anime-estado.helpers.types';
+import type { AnimeScheduleMembership } from './anime-estado.helpers.types';
 
 /**
  * Returns the canonical label for an anime `estado`, falling back to the raw
@@ -10,12 +10,16 @@ export function getAnimeEstadoLabel(estado: number): string {
 }
 
 /**
- * Returns true when the anime is currently being watched: `active === 1` and
- * `status === 0` (Viendo). Centralizes the feature-local "watching" predicate
- * so future estado vocabulary changes are a one-module edit.
+ * Returns true when the anime appears on the Daily schedule board: it is active
+ * in the catalog (`active === 1`) and has at least one scheduled weekday. This
+ * mirrors the Go `ListEpisodeSchedule` read model, which shows every active
+ * anime with a matching day regardless of `status` — so a paused (En pausa)
+ * anime that is still scheduled belongs here, unlike the narrower
+ * `isWatchingAnime` (Viendo-only). It is the "active for consumption" predicate
+ * behind the editor's "Watching now" rail.
  */
-export function isWatchingAnime(anime: AnimeEstadoStatus): boolean {
-  return anime.active === 1 && anime.status === 0;
+export function isScheduledAnime(anime: AnimeScheduleMembership): boolean {
+  return anime.active === 1 && anime.days.length > 0;
 }
 
 /**

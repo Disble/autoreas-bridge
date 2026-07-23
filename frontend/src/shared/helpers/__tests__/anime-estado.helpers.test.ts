@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAnimeEstadoLabel, isWatchingAnime, isValidAnimeEstado } from '../anime-estado.helpers';
+import { getAnimeEstadoLabel, isScheduledAnime, isValidAnimeEstado } from '../anime-estado.helpers';
 
 describe('getAnimeEstadoLabel', () => {
   it.each([
@@ -16,17 +16,21 @@ describe('getAnimeEstadoLabel', () => {
   });
 });
 
-describe('isWatchingAnime', () => {
-  it('returns true when active is 1 and status is 0 (Viendo)', () => {
-    expect(isWatchingAnime({ active: 1, status: 0 })).toBe(true);
+describe('isScheduledAnime', () => {
+  it('includes a paused (En pausa) anime that is active and scheduled — the Daily-board set', () => {
+    expect(isScheduledAnime({ active: 1, days: ['Domingo'] })).toBe(true);
   });
 
-  it('returns false when active is 0 even if status is 0', () => {
-    expect(isWatchingAnime({ active: 0, status: 0 })).toBe(false);
+  it('includes an active Viendo anime with a scheduled day', () => {
+    expect(isScheduledAnime({ active: 1, days: ['Lunes', 'Jueves'] })).toBe(true);
   });
 
-  it('returns false when status is not 0 (Finalizado) even if active', () => {
-    expect(isWatchingAnime({ active: 1, status: 1 })).toBe(false);
+  it('excludes an active anime with no scheduled day (never reaches the Daily board)', () => {
+    expect(isScheduledAnime({ active: 1, days: [] })).toBe(false);
+  });
+
+  it('excludes an inactive (soft-deleted) anime even if it still has days', () => {
+    expect(isScheduledAnime({ active: 0, days: ['Domingo'] })).toBe(false);
   });
 });
 

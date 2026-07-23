@@ -128,13 +128,25 @@ describe('anime-editor-workspace.helpers', () => {
     expect(validateAnimeEditorDraft({ ...createAnimeEditorDraft(record), kind: '2' })).toBeUndefined();
   });
 
-  it('sorts watching anime first in the left rail', () => {
+  it('sorts scheduled (Daily-board) anime first in the "All anime" rail regardless of status', () => {
     const items = createAnimeEditorListItems([
-      { id: 'b', name: 'B', status: 2, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
-      { id: 'a', name: 'A', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
-    ], 'all', '', 'a');
+      { id: 'z', name: 'Zeta', status: 0, episodesWatched: 1, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'p', name: 'Paused', status: 3, episodesWatched: 1, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false },
+    ], 'all', '', 'p');
 
-    expect(items[0]).toMatchObject({ animeId: 'a', selected: true });
+    // The paused-but-scheduled anime bubbles above the unscheduled Viendo one.
+    expect(items[0]).toMatchObject({ animeId: 'p', selected: true });
+    expect(items[1]).toMatchObject({ animeId: 'z' });
+  });
+
+  it('shows a paused-but-scheduled anime under "Watching now" and hides unscheduled ones', () => {
+    const items = createAnimeEditorListItems([
+      { id: 'rezero', name: 'ReZero', status: 3, episodesWatched: 11, active: 1, days: ['Domingo'], genres: [], hasDownloadPage: false, hasFolder: false },
+      { id: 'oshi', name: 'Oshi No Ko', status: 1, episodesWatched: 24, active: 1, days: [], genres: [], hasDownloadPage: false, hasFolder: false },
+    ], 'watching', '', undefined);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ animeId: 'rezero' });
   });
 
   it('normalizes runtime feedback messages to a safe string', () => {

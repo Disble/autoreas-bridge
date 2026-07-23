@@ -1,10 +1,10 @@
 /**
- * Minimal read-only shape needed by estado helpers that operate on any
- * record carrying `status` and `active`. Lives in its own types file so the
- * helpers module stays free of inline interfaces per the strict-colocation
- * rule.
+ * Minimal read-only shape for the Daily-schedule membership predicate: an anime
+ * belongs to the Daily board when it is active and carries at least one
+ * scheduled weekday. Lives here so the predicate can operate on any record that
+ * exposes `active` plus its `days` placements without importing the full DTO.
  */
-export interface AnimeEstadoStatus {
-  readonly status: number;
+export interface AnimeScheduleMembership {
   readonly active: number;
+  readonly days: readonly string[];
 }

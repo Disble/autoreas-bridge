@@ -19,9 +19,15 @@ export const ANIME_EDITOR_DEFAULT_DRAFT: AnimeEditorDraft = {
   coverPath: '',
 };
 
-/** Toggle metadata for the left-rail watching-first filter. */
+/**
+ * Toggle metadata for the left-rail filter. "Watching now" is the set of animes
+ * active for consumption — the same animes that appear on the Daily schedule
+ * board (active + at least one scheduled day), not only Viendo. The `id` stays
+ * `watching` for route/state compatibility; only the label reflects the wider
+ * meaning.
+ */
 export const ANIME_EDITOR_FILTER_OPTIONS = [
-  { id: 'watching', label: 'Watching first' },
+  { id: 'watching', label: 'Watching now' },
   { id: 'all', label: 'All anime' },
 ] as const;
 

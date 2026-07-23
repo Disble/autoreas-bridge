@@ -45,6 +45,7 @@ function createSource() {
     getAnimeEditorRecord: vi.fn().mockImplementation(async (animeId: string) => ({ outcome: 'applied', message: 'loaded', record: record(animeId, animeId === 'anime-1' ? 'Frieren' : 'Apothecary Diaries') })),
     saveAnimeEditor: vi.fn().mockResolvedValue(mutation('applied', record('anime-1', 'Saved', 101))),
     deactivateAnime: vi.fn().mockResolvedValue(mutation('applied', record('anime-1', 'Frieren', 101))),
+    restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', message: 'restored', modifiedAt: 101 }),
     getAnimeEditorScheduleBoard: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'loaded', board: { originAnimeId: 'anime-1', boardModifiedAt: 100, destinations: [], entries: [] } }),
     applyAnimeEditorSchedule: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'applied', modifiedAt: 101, board: { originAnimeId: 'anime-1', boardModifiedAt: 101, destinations: [], entries: [] } }),
   };

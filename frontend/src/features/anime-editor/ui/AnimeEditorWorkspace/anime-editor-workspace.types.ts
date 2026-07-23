@@ -127,6 +127,7 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly loadRecord: (animeId: string) => Promise<void>;
   readonly saveRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly deactivateRecord: () => Promise<AnimeEditorSaveResult | undefined>;
+  readonly activateRecord: () => Promise<{ readonly status: string } | undefined>;
   readonly discardRecord: () => void;
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;

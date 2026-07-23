@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { mockSource } = vi.hoisted(() => {
   function makeAnime(id: string, name: string) {
-    return { id, name, status: 0, active: 1, episodesWatched: 1 };
+    return { id, name, status: 0, active: 1, episodesWatched: 1, days: ['Lunes'] };
   }
   function makeRecord(id: string, name: string) {
     return {

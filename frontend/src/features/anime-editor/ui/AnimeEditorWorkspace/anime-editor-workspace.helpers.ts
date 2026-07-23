@@ -1,5 +1,5 @@
 import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
-import { isWatchingAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
+import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
@@ -201,14 +201,21 @@ export function createAnimeEditorSaveCommand(record: AnimeEditorRecord, draft: A
   return { animeId: record.animeId, baseModifiedAt: record.modifiedAt, patch: patch as unknown as SaveAnimeEditorCommand['patch'] };
 }
 
-/** Filters and sorts the editor rail with currently watching anime first. */
+/**
+ * Filters and sorts the editor rail with the "Watching now" (active for
+ * consumption) animes first. Membership matches the Daily schedule board via
+ * `isScheduledAnime` (active + at least one scheduled day) so a paused anime the
+ * user still sees in Daily is included, not just Viendo. The "Watching now"
+ * filter restricts to that set; "All anime" keeps everything but still bubbles
+ * the scheduled ones to the top.
+ */
 export function createAnimeEditorListItems(animes: readonly Anime[], filter: AnimeEditorFilter, query: string, selectedAnimeId?: string): readonly AnimeEditorListItemViewModel[] {
   const normalizedQuery = query.trim().toLowerCase();
   return animes
-    .filter((anime) => (filter === 'all' || isWatchingAnime(anime)) && (normalizedQuery.length === 0 || anime.name.toLowerCase().includes(normalizedQuery)))
+    .filter((anime) => (filter === 'all' || isScheduledAnime(anime)) && (normalizedQuery.length === 0 || anime.name.toLowerCase().includes(normalizedQuery)))
     .toSorted((left, right) => {
-      const watchingDifference = Number(!isWatchingAnime(left)) - Number(!isWatchingAnime(right));
-      return watchingDifference === 0 ? left.name.localeCompare(right.name) : watchingDifference;
+      const scheduledDifference = Number(!isScheduledAnime(left)) - Number(!isScheduledAnime(right));
+      return scheduledDifference === 0 ? left.name.localeCompare(right.name) : scheduledDifference;
     })
     .map((anime) => ({ id: anime.id, animeId: anime.id, nombre: anime.name, subtitle: `${anime.episodesWatched} watched`, selected: anime.id === selectedAnimeId }));
 }

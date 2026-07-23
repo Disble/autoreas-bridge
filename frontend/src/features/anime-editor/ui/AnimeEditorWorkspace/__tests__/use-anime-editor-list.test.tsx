@@ -6,7 +6,7 @@ import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bri
 import { useAnimeEditorList } from '../use-anime-editor-list';
 
 function makeAnime(id: string, name: string) {
-  return { id, name, status: 0, active: 1, episodesWatched: 1 } as unknown as never;
+  return { id, name, status: 0, active: 1, episodesWatched: 1, days: [] } as unknown as never;
 }
 
 function createSource(): AnimeEditorRuntimeSource {

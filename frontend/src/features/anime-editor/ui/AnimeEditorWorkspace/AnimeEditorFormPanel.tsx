@@ -139,7 +139,11 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
       </div>
 
       <footer className="border-t border-divider bg-content1 px-5 py-3 shadow-[0_-8px_20px_-12px_rgba(0,0,0,0.6)]"><div className="flex flex-wrap items-center gap-3">
-        <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={viewModel.onRequestDeactivate}>Deactivate anime</Button>
+        {record?.frequent.active === false ? (
+          <Button className="text-success hover:text-success" isDisabled={viewModel.isSaving} variant="tertiary" onPress={() => void viewModel.onActivate()}>Activate anime</Button>
+        ) : (
+          <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={viewModel.onRequestDeactivate}>Deactivate anime</Button>
+        )}
         <Button className="ml-auto" isDisabled={!viewModel.isDirty || viewModel.isSaving} variant="tertiary" onPress={viewModel.onDiscardChanges}>Discard changes</Button>
         <Button isDisabled={!viewModel.canSave || viewModel.isSaving} isPending={viewModel.isSaving} variant="primary" onPress={() => void viewModel.onSave()}>Save</Button>
       </div></footer>

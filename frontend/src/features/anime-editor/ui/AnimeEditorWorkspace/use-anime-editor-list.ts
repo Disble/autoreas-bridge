@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import type { Anime } from '../../../../shared/contracts/anime.types';
-import { isWatchingAnime } from '../../../../shared/helpers/anime-estado.helpers';
+import { isScheduledAnime } from '../../../../shared/helpers/anime-estado.helpers';
 import { createAnimeEditorListItems } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFilter, UseAnimeEditorListOptions } from './anime-editor-workspace.types';
 
@@ -34,7 +34,7 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
     try {
       const loaded = await options.source.getAnimes();
       setItems(loaded);
-      setSelectedAnimeId((current) => current ?? loaded.find((anime) => isWatchingAnime(anime))?.id ?? loaded[0]?.id);
+      setSelectedAnimeId((current) => current ?? loaded.find((anime) => isScheduledAnime(anime))?.id ?? loaded[0]?.id);
     } finally {
       setIsLoadingList(false);
     }

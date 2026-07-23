@@ -10,6 +10,7 @@ function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditor
     getAnimeEditorRecord: vi.fn(),
     saveAnimeEditor: vi.fn(),
     deactivateAnime: vi.fn(),
+    restoreAnime: vi.fn(),
     getAnimeEditorScheduleBoard: vi.fn(),
     applyAnimeEditorSchedule: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),

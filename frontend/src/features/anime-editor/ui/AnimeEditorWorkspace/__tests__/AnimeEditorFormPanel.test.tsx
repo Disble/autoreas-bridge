@@ -16,7 +16,7 @@ function createViewModel(overrides: Partial<AnimeEditorWorkspaceViewModel> = {})
     isScheduleModalOpen: false, scheduleBoard: undefined, feedback: undefined, validationMessage: undefined, scheduleFeedback: undefined,
     isDetailsOpen: false, isGuardOpen: false, canSave: false,
     onQueryChange: vi.fn(), onFilterChange: vi.fn(), onSelectAnime: vi.fn(), onDraftChange: vi.fn(),
-    onToggleDetails: vi.fn(), onDiscardChanges: vi.fn(), onPickFolder: vi.fn(), onSave: vi.fn(), onDeactivate: vi.fn(),
+    onToggleDetails: vi.fn(), onDiscardChanges: vi.fn(), onPickFolder: vi.fn(), onSave: vi.fn(), onDeactivate: vi.fn(), onActivate: vi.fn(),
     onOpenSchedule: vi.fn(), onCloseSchedule: vi.fn(), onApplySchedule: vi.fn(),
     onStayWithCurrentEditor: vi.fn(), onDiscardAndContinue: vi.fn(), onSaveAndContinue: vi.fn(),
     ...overrides,
@@ -80,6 +80,29 @@ describe('AnimeEditorFormPanel spurious-dirty guard', () => {
 
     expect(onRequestDeactivate).toHaveBeenCalledTimes(1);
     expect(onDeactivate).not.toHaveBeenCalled();
+  });
+
+  it('shows Activate (not Deactivate) for an already-deactivated anime', () => {
+    const inactiveRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, active: false } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
+    const viewModel = createViewModel({ selectedRecord: inactiveRecord });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+
+    expect(screen.getByRole('button', { name: 'Activate anime' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Deactivate anime' })).not.toBeInTheDocument();
+  });
+
+  it('activates directly (no confirmation) for a deactivated anime', () => {
+    const onActivate = vi.fn();
+    const onRequestDeactivate = vi.fn();
+    const inactiveRecord = { ...createViewModel().selectedRecord, frequent: { ...createViewModel().selectedRecord!.frequent, active: false } } as AnimeEditorWorkspaceViewModel['selectedRecord'];
+    const viewModel = createViewModel({ selectedRecord: inactiveRecord, onActivate, onRequestDeactivate });
+
+    render(<AnimeEditorFormPanel viewModel={viewModel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Activate anime' }));
+
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onRequestDeactivate).not.toHaveBeenCalled();
   });
 
   it('keeps the custom status chip options while changing status through the local select', () => {

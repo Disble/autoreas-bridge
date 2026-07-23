@@ -57,6 +57,7 @@ export interface AnimeEditorRuntimeSource {
   readonly getAnimeEditorRecord: NonNullable<BridgeRuntimeSource['getAnimeEditorRecord']>;
   readonly saveAnimeEditor: NonNullable<BridgeRuntimeSource['saveAnimeEditor']>;
   readonly deactivateAnime: NonNullable<BridgeRuntimeSource['deactivateAnime']>;
+  readonly restoreAnime: NonNullable<BridgeRuntimeSource['restoreAnime']>;
   readonly getAnimeEditorScheduleBoard: NonNullable<BridgeRuntimeSource['getAnimeEditorScheduleBoard']>;
   readonly applyAnimeEditorSchedule: NonNullable<BridgeRuntimeSource['applyAnimeEditorSchedule']>;
   readonly pickFolder: NonNullable<BridgeRuntimeSource['pickFolder']>;

@@ -6,7 +6,7 @@ import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bri
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 
 function makeAnime(id: string, name: string) {
-  return { id, name, status: 0, active: 1, episodesWatched: 1 } as unknown as never;
+  return { id, name, status: 0, active: 1, episodesWatched: 1, days: [] } as unknown as never;
 }
 
 function makeRecord(id: string) {
