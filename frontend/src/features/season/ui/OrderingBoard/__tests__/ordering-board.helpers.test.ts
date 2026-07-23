@@ -1,11 +1,12 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OrderingBoard, OrderingCard } from '../../../../../infrastructure/season-source';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source';
 import { RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
   applyOrder,
   buildDraft,
+  buildOrderingCardMeta,
   cardCounts,
   countChanges,
   duplicate,
@@ -256,5 +257,43 @@ describe('countChanges + scheduledCount', () => {
     const duplicated = duplicate(initialWorkingState(loaded), 'z');
 
     expect(countChanges(loaded, duplicated)).toBe(0);
+  });
+});
+
+function animeRow(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
+  return {
+    id: 'row-1',
+    rawName: 'A',
+    matchStatus: 'matched',
+    matchedSlug: 'a',
+    candidates: [],
+    availability: 'created',
+    availableEpisodes: 0,
+    animeId: 'a',
+    section: 'Visto',
+    sectionOrder: 0,
+    grade: 5,
+    gradeSource: 'manual',
+    skipGrading: false,
+    consideration: 'none',
+    ...overrides,
+  };
+}
+
+describe('buildOrderingCardMeta', () => {
+  it('keys grade + desktop-action affordances by animeId', () => {
+    const meta = buildOrderingCardMeta([
+      animeRow({ animeId: 'a', grade: 6, pageUrl: 'https://x', folderPath: 'D:/a' }),
+      animeRow({ id: 'row-2', animeId: 'b', grade: 4, pageUrl: '', folderPath: '' }),
+    ]);
+
+    expect(meta['a']).toEqual({ grade: 6, hasPage: true, hasFolder: true, pageUrl: 'https://x', folderPath: 'D:/a' });
+    expect(meta['b']).toEqual({ grade: 4, hasPage: false, hasFolder: false, pageUrl: '', folderPath: '' });
+  });
+
+  it('skips rows without an animeId', () => {
+    const meta = buildOrderingCardMeta([animeRow({ animeId: '' })]);
+
+    expect(meta).toEqual({});
   });
 });

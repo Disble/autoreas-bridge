@@ -19,6 +19,7 @@ export function OrderingBoard() {
   const {
     rail,
     columns,
+    meta,
     instances,
     counts,
     changeCount,
@@ -33,6 +34,10 @@ export function OrderingBoard() {
     onReset,
     onReopen,
     onCloseSeason,
+    onOpenPage,
+    onCopyPage,
+    onOpenFolder,
+    onCopyFolder,
   } =
     useOrderingBoard();
 
@@ -89,8 +94,13 @@ export function OrderingBoard() {
                         index={index}
                         readOnly={readOnly}
                         canRemove={canRemove(instance.animeId)}
+                        meta={meta[instance.animeId]}
                         onDuplicate={() => duplicate(instance.animeId)}
                         onRemove={() => removeCard(instance.key)}
+                        onOpenPage={onOpenPage}
+                        onCopyPage={onCopyPage}
+                        onOpenFolder={onOpenFolder}
+                        onCopyFolder={onCopyFolder}
                       />
                     ))}
                   </ul>
@@ -127,8 +137,13 @@ export function OrderingBoard() {
                             index={index}
                             readOnly={readOnly}
                             canRemove={canRemove(instance.animeId)}
+                            meta={meta[instance.animeId]}
                             onDuplicate={() => duplicate(instance.animeId)}
                             onRemove={() => removeCard(instance.key)}
+                            onOpenPage={onOpenPage}
+                            onCopyPage={onCopyPage}
+                            onOpenFolder={onOpenFolder}
+                            onCopyFolder={onCopyFolder}
                           />
                         ))}
                       </ul>

@@ -1,5 +1,5 @@
 import type { DragOverEvent } from '@dnd-kit/react';
-import type { OrderingBoard, OrderingCard } from '../../../../infrastructure/season-source';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../infrastructure/season-source';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import {
   applyAnimeScheduleOrder,
@@ -12,7 +12,7 @@ import {
   validateAnimeScheduleDraft,
 } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
 import { RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
-import type { DraftPlacement, OrderingInstance, WorkingState } from './ordering-board.types';
+import type { DraftPlacement, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
 
 function cardsByAnime(board: OrderingBoard) {
   const cards = [...board.rail, ...board.grid];
@@ -59,6 +59,32 @@ export function initialWorkingState(board: OrderingBoard): WorkingState {
     instances[key] = { ...instance, isPendingDuplicate: false, section: card.section, orden: card.orden, isNewcomer: card.isNewcomer };
   }
   return { order: shared.order, instances, duplicateAllowedDestinations: [RAIL_CONTAINER_ID] };
+}
+
+/**
+ * Joins the season selection rows into a per-anime lookup of grade and
+ * desktop-action affordances, keyed by `animeId`. Ordering cards carry only an
+ * `animeId`, so the board reads grade/page/folder from this map rather than the
+ * ordering read model. Rows without an `animeId` (uncreated candidates) are
+ * skipped.
+ */
+export function buildOrderingCardMeta(rows: readonly SeasonAnimeRow[]): Record<string, OrderingCardMeta> {
+  const meta: Record<string, OrderingCardMeta> = {};
+  for (const row of rows) {
+    if (row.animeId === '') {
+      continue;
+    }
+    const pageUrl = row.pageUrl ?? '';
+    const folderPath = row.folderPath ?? '';
+    meta[row.animeId] = {
+      grade: row.grade,
+      pageUrl,
+      folderPath,
+      hasPage: pageUrl !== '',
+      hasFolder: folderPath !== '',
+    };
+  }
+  return meta;
 }
 
 /** Resolves one Season destination through the shared ordered collection. */

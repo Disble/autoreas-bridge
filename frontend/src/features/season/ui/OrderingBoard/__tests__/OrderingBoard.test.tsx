@@ -19,6 +19,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     rail: [],
     isPastSeason: false,
     columns: {},
+    meta: {},
     instances: {},
     counts: {},
     changeCount: 0,
@@ -32,6 +33,10 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     onReset: vi.fn(),
     onReopen: vi.fn(),
     onCloseSeason: vi.fn(),
+    onOpenPage: vi.fn(),
+    onCopyPage: vi.fn(),
+    onOpenFolder: vi.fn(),
+    onCopyFolder: vi.fn(),
     ...overrides,
   };
   mockedUseOrderingBoard.mockReturnValue(value);
@@ -69,6 +74,25 @@ describe('OrderingBoard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate To Place to another day' }));
     expect(duplicate).toHaveBeenCalledWith('r');
+  });
+
+  it('shows the grade and page/folder actions on a card when meta is present', () => {
+    const onOpenPage = vi.fn();
+    const onOpenFolder = vi.fn();
+    mockHook({
+      rail: [card({ key: 'r#0', animeId: 'r', name: 'To Place' })],
+      counts: { r: 1 },
+      meta: { r: { grade: 6, hasPage: true, hasFolder: true, pageUrl: 'https://x', folderPath: 'D:/a' } },
+      onOpenPage,
+      onOpenFolder,
+    });
+    render(<OrderingBoard />);
+
+    expect(screen.getByText('6')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Open page for To Place/ }));
+    expect(onOpenPage).toHaveBeenCalledWith('r');
+    fireEvent.click(screen.getByRole('button', { name: /Open folder for To Place/ }));
+    expect(onOpenFolder).toHaveBeenCalledWith('r');
   });
 
   it('renders multiple approved-rail duplicates for the same anime', () => {

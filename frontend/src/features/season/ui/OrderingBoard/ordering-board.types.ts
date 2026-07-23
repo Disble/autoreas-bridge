@@ -20,6 +20,20 @@ export interface OrderingInstance extends AnimeScheduleOrderingInstance {
 }
 
 /**
+ * Per-anime metadata joined onto ordering cards from the season selection model:
+ * the approval grade plus the desktop-action affordances (source page / download
+ * folder). Keyed by `animeId`, so every clone of the same anime shows the same
+ * grade and actions.
+ */
+export interface OrderingCardMeta {
+  readonly grade: number;
+  readonly hasPage: boolean;
+  readonly hasFolder: boolean;
+  readonly pageUrl: string;
+  readonly folderPath: string;
+}
+
+/**
  * The board's working state: per-container ordered instance keys (the shape `move`
  * from @dnd-kit/helpers reorders) plus the instance lookup by key.
  */
@@ -38,9 +52,15 @@ export interface OrderingItemProps {
   readonly readOnly: boolean;
   /** False disables Delete — the anime's last card can never be removed. */
   readonly canRemove: boolean;
+  /** Grade + desktop-action metadata for this card's anime; absent when unavailable. */
+  readonly meta?: OrderingCardMeta;
   /** Present on weekday clones: stages a logical copy to drag onto another day. */
   readonly onDuplicate?: () => void;
   readonly onRemove: () => void;
+  readonly onOpenPage: (animeId: string) => void;
+  readonly onCopyPage: (animeId: string) => void;
+  readonly onOpenFolder: (animeId: string) => void;
+  readonly onCopyFolder: (animeId: string) => void;
 }
 
 /** Props for a droppable column (a weekday, or the rail) that accepts dropped cards. */

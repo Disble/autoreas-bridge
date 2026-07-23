@@ -1,9 +1,11 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ApplyScheduleResult, OrderingBoard, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
+import { runDesktopAction } from '../SelectionBoard/selection-board.helpers';
 import {
   EMPTY_ORDERING_BOARD,
   ORDERING_AUTOSAVE_DEBOUNCE_MS,
@@ -13,6 +15,7 @@ import {
 } from './ordering-board.constants';
 import {
   applyOrder,
+  buildOrderingCardMeta,
   cardCounts,
   countChanges,
   duplicate as applyDuplicate,
@@ -41,8 +44,11 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   // 3. Context/3rd Party Hooks
   const closeSeason = useSeasonStore((store) => store.closeSeason);
   const isPastSeason = useSeasonStore((store) => store.readOnly);
+  const seasonAnimes = useSeasonStore((store) => store.seasonAnimes);
+  const ensureAnimesLoaded = useSeasonStore((store) => store.ensureAnimesLoaded);
 
   // 5. Derived State (useMemo)
+  const meta = useMemo(() => buildOrderingCardMeta(seasonAnimes), [seasonAnimes]);
   const rail = useMemo(() => instancesIn(state, RAIL_CONTAINER_ID), [state]);
   const columns = useMemo(() => {
     const grouped: Record<string, ReturnType<typeof instancesIn>> = {};
@@ -99,11 +105,20 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   const onCloseSeason = useCallback(() => {
     void closeSeason(source);
   }, [closeSeason, source]);
+  const onOpenPage = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
+  const onCopyPage = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
+  const onOpenFolder = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);
+  const onCopyFolder = useCallback((animeId: string) => void runDesktopAction(bridgeRuntimeSource.copyAnimeFolder, animeId, 'Folder path copied to clipboard'), []);
 
   // 7. Effects
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Grade + desktop actions come from the season selection rows; load them once.
+  useEffect(() => {
+    void ensureAnimesLoaded(source);
+  }, [ensureAnimesLoaded, source]);
 
   // Debounced autosave of the working draft (skipped while applied/read-only).
   useEffect(() => {
@@ -119,6 +134,7 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
   return {
     rail,
     columns,
+    meta,
     instances: state.instances,
     counts,
     changeCount,
@@ -133,5 +149,9 @@ export function useOrderingBoard(source: SeasonSource = seasonSource) {
     onReset,
     onReopen,
     onCloseSeason,
+    onOpenPage,
+    onCopyPage,
+    onOpenFolder,
+    onCopyFolder,
   };
 }

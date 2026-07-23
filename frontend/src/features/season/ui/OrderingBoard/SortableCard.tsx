@@ -1,8 +1,9 @@
 import copyIcon from '@iconify-icons/solar/copy-bold-duotone';
 import trashIcon from '@iconify-icons/solar/trash-bin-2-bold-duotone';
 import { useSortable } from '@dnd-kit/react/sortable';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Chip, Tooltip } from '@heroui/react';
 import { Icon } from '@iconify/react';
+import { AnimeDesktopActions } from '../../../../shared/ui/AnimeDesktopActions';
 import type { OrderingItemProps } from './ordering-board.types';
 
 /**
@@ -18,8 +19,13 @@ export function SortableCard({
   index,
   readOnly,
   canRemove,
+  meta,
   onDuplicate,
   onRemove,
+  onOpenPage,
+  onCopyPage,
+  onOpenFolder,
+  onCopyFolder,
 }: Readonly<OrderingItemProps>) {
   const { ref, isDragging } = useSortable({
     id: instance.key,
@@ -45,9 +51,30 @@ export function SortableCard({
     >
       <div className="flex min-w-0 items-center gap-1 text-xs text-foreground">
         {instance.isNewcomer && <span className="size-1.5 shrink-0 rounded-full bg-success" />}
-        <span className="truncate">{instance.name}</span>
+        <span className="min-w-0 flex-1 truncate">{instance.name}</span>
+        {meta !== undefined && meta.grade >= 1 && (
+          <Chip aria-label={`Approval grade ${meta.grade}`} className="shrink-0" size="sm" variant="soft">
+            {meta.grade}
+          </Chip>
+        )}
       </div>
       <div className="flex items-center gap-1">
+        {meta !== undefined && (
+          <span onPointerDown={(event) => event.stopPropagation()} className="flex items-center gap-1">
+            <AnimeDesktopActions
+              animeId={instance.animeId}
+              name={instance.name}
+              hasPage={meta.hasPage}
+              hasFolder={meta.hasFolder}
+              pageUrl={meta.pageUrl}
+              folderPath={meta.folderPath}
+              onOpenPage={onOpenPage}
+              onCopyPage={onCopyPage}
+              onOpenFolder={onOpenFolder}
+              onCopyFolder={onCopyFolder}
+            />
+          </span>
+        )}
         {onDuplicate !== undefined && (
           <Tooltip delay={0}>
             <Button
