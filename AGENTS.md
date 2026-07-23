@@ -57,6 +57,7 @@
 ## Pre-commit Gate
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
+- **The gate is SLOW by design — budget for it.** A full pre-commit run takes ~90 seconds and can exceed 2 minutes on a cold cache (golangci-lint, `go vet`/coverage, frontend typecheck/lint/test/Fallow, filesize all run serially). When you run `git commit`, use a generous command timeout (≥ 5 minutes / 300000 ms) so the commit is not killed mid-hook. A killed commit leaves changes staged but unrecorded — re-run `git commit` (do not `--no-verify`) to complete it.
 - The gate is intentionally **complete**, not partial: frontend Fallow audit + lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
 - Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
