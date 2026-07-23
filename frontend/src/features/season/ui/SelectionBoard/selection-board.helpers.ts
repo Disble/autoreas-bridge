@@ -73,6 +73,23 @@ export function quotaStatus(approved: number, slots: number): QuotaStatus {
   return approved === slots ? 'at' : 'under';
 }
 
+/** formatConfirmSuccess builds the success toast copy for an applied reconciliation. */
+export function formatConfirmSuccess(approved: number, rejected: number): string {
+  return `Reconciliation applied — ${approved} approved, ${rejected} rejected.`;
+}
+
+/**
+ * formatSelectionConfirmedLabel builds the persistent header label showing whether
+ * the current selection has ever been confirmed, and when. `undefined`/`0` means the
+ * milestone was never stamped for this season.
+ */
+export function formatSelectionConfirmedLabel(confirmedAtMs?: number): string {
+  if (confirmedAtMs === undefined || confirmedAtMs === 0) {
+    return 'Not confirmed yet';
+  }
+  return `Confirmed ${new Date(confirmedAtMs).toLocaleString()}`;
+}
+
 /** getVerdictLabel maps a verdict token to its English display label. */
 export function getVerdictLabel(verdict: Verdict): string {
   return verdict === 'approved' ? 'Approved' : 'Rejected';

@@ -20,6 +20,9 @@ export const CONSIDERATION_OPTIONS: readonly ConsiderationOption[] = [
 /** Empty-state message when no candidate has been created yet. */
 export const SELECTION_EMPTY_MESSAGE = 'No created candidates yet — the selection table fills as animes are created.';
 
+/** Fallback error toast message when confirming the selection fails without a specific status. */
+export const SELECTION_CONFIRM_ERROR_MESSAGE = 'Failed to apply reconciliation.';
+
 /** Default minimum approval grade (mirror of the Go domain), used before the snapshot loads. */
 export const DEFAULT_MIN_APPROVAL_GRADE = 4;
 /** Default slot cap, used before the snapshot loads. */

@@ -5,12 +5,32 @@ import { CONSIDERATION_OPTIONS } from '../selection-board.constants';
 import {
   countApproved,
   decideVerdict,
+  formatConfirmSuccess,
+  formatSelectionConfirmedLabel,
   getConsiderationLabel,
   getVerdictLabel,
   quotaStatus,
   runDesktopAction,
   toSelectionRows,
 } from '../selection-board.helpers';
+
+describe('formatConfirmSuccess', () => {
+  it('builds the applied-reconciliation copy from the counts', () => {
+    expect(formatConfirmSuccess(9, 10)).toBe('Reconciliation applied — 9 approved, 10 rejected.');
+  });
+});
+
+describe('formatSelectionConfirmedLabel', () => {
+  it('reports "Not confirmed yet" when the milestone was never stamped', () => {
+    expect(formatSelectionConfirmedLabel(undefined)).toBe('Not confirmed yet');
+    expect(formatSelectionConfirmedLabel(0)).toBe('Not confirmed yet');
+  });
+
+  it('reports a localized "Confirmed <time>" label when the milestone exists', () => {
+    const ms = 1_753_000_000_000;
+    expect(formatSelectionConfirmedLabel(ms)).toBe(`Confirmed ${new Date(ms).toLocaleString()}`);
+  });
+});
 
 // TWIN of the Go golden suite (internal/season/domain/decision_test.go). The SAME
 // rows must yield the SAME verdicts in both languages — drift-proof by design.

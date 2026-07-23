@@ -6,7 +6,7 @@ import {
   MIN_GRADE,
   SELECTION_EMPTY_MESSAGE,
 } from './selection-board.constants';
-import { getConsiderationLabel, getVerdictLabel } from './selection-board.helpers';
+import { formatSelectionConfirmedLabel, getConsiderationLabel, getVerdictLabel } from './selection-board.helpers';
 import { useSelectionBoard } from './use-selection-board';
 
 /**
@@ -24,6 +24,7 @@ export function SelectionBoard() {
     rows,
     approvedCount,
     quota,
+    selectionConfirmedAt,
     errorMessage,
     onSetMinApprovalGrade,
     onSetSlots,
@@ -106,6 +107,10 @@ export function SelectionBoard() {
               {approvedCount} / {slots} approved
             </Chip>
 
+            <Chip color={selectionConfirmedAt ? 'success' : 'default'} variant="soft">
+              {formatSelectionConfirmedLabel(selectionConfirmedAt)}
+            </Chip>
+
             {!readOnly && (
               <div className="ml-auto">
                 <Modal>
@@ -129,7 +134,7 @@ export function SelectionBoard() {
                               Over quota ({approvedCount} / {slots}). Resolve with “Insufficient quota” before confirming.
                             </p>
                           )}
-                          <Button className="mt-4" variant="primary" onPress={() => void onConfirm()}>
+                          <Button className="mt-4" slot="close" variant="primary" onPress={() => void onConfirm()}>
                             Apply reconciliation
                           </Button>
                         </Modal.Body>

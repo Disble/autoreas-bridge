@@ -27,6 +27,7 @@ function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
     rows: [],
     approvedCount: 0,
     quota: 'under',
+    selectionConfirmedAt: undefined,
     errorMessage: undefined,
     onSetMinApprovalGrade: vi.fn(),
     onSetSlots: vi.fn(),
@@ -74,6 +75,19 @@ describe('SelectionBoard', () => {
     mockHook({ rows: [selRow()], approvedCount: 1 });
     render(<SelectionBoard />);
     expect(screen.getByRole('button', { name: 'Confirm selection' })).toBeInTheDocument();
+  });
+
+  it('shows "Not confirmed yet" when the selection was never confirmed', () => {
+    mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: undefined });
+    render(<SelectionBoard />);
+    expect(screen.getByText('Not confirmed yet')).toBeInTheDocument();
+  });
+
+  it('shows the persistent confirmed-at label when the milestone exists', () => {
+    const ms = 1_753_000_000_000;
+    mockHook({ rows: [selRow()], approvedCount: 1, selectionConfirmedAt: ms });
+    render(<SelectionBoard />);
+    expect(screen.getByText(`Confirmed ${new Date(ms).toLocaleString()}`)).toBeInTheDocument();
   });
 
   it('bumps the minimum approval grade', () => {

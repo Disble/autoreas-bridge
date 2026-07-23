@@ -1,10 +1,11 @@
+import { toast } from '@heroui/react';
 import { useCallback, useEffect, useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { seasonSource } from '../../../../infrastructure/season-source/season-source.helpers';
 import type { ConfirmSelectionResult, SeasonSource } from '../../../../infrastructure/season-source/season-source.types';
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
-import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS } from './selection-board.constants';
-import { countApproved, quotaStatus, runDesktopAction, toSelectionRows } from './selection-board.helpers';
+import { DEFAULT_MIN_APPROVAL_GRADE, DEFAULT_SLOTS, SELECTION_CONFIRM_ERROR_MESSAGE } from './selection-board.constants';
+import { countApproved, formatConfirmSuccess, quotaStatus, runDesktopAction, toSelectionRows } from './selection-board.helpers';
 
 /**
  * useSelectionBoard drives the Excel-replacement decision board: it derives live
@@ -28,6 +29,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
   // 5. Derived State (useMemo)
   const minApprovalGrade = season?.minApprovalGrade ?? DEFAULT_MIN_APPROVAL_GRADE;
   const slots = season?.slots ?? DEFAULT_SLOTS;
+  const selectionConfirmedAt = season?.selectionConfirmedAt;
   const rows = useMemo(() => toSelectionRows(seasonAnimes, minApprovalGrade), [seasonAnimes, minApprovalGrade]);
   const approvedCount = useMemo(() => countApproved(seasonAnimes, minApprovalGrade), [seasonAnimes, minApprovalGrade]);
   const quota = useMemo(() => quotaStatus(approvedCount, slots), [approvedCount, slots]);
@@ -42,7 +44,15 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     (rowId: string, consideration: string) => void setConsideration(source, rowId, consideration),
     [setConsideration, source],
   );
-  const onConfirm = useCallback((): Promise<ConfirmSelectionResult> => confirmSelection(source), [confirmSelection, source]);
+  const onConfirm = useCallback(async (): Promise<ConfirmSelectionResult> => {
+    const result = await confirmSelection(source);
+    if (result.status === 'ok') {
+      toast.success(formatConfirmSuccess(result.approved, result.rejected));
+    } else {
+      toast.danger(result.status || SELECTION_CONFIRM_ERROR_MESSAGE);
+    }
+    return result;
+  }, [confirmSelection, source]);
   const onOpenPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimePage, animeId), []);
   const onCopyPage = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.copyAnimePage, animeId, 'Page URL copied to clipboard'), []);
   const onOpenFolder = useCallback((animeId: string) => runDesktopAction(bridgeRuntimeSource.openAnimeFolder, animeId), []);
@@ -62,6 +72,7 @@ export function useSelectionBoard(source: SeasonSource = seasonSource) {
     rows,
     approvedCount,
     quota,
+    selectionConfirmedAt,
     errorMessage,
     onSetMinApprovalGrade,
     onSetSlots,

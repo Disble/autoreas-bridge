@@ -125,6 +125,14 @@ describe('useSelectionBoard', () => {
     expect(result.current.rows[0].verdict).toBe('approved'); // grouped approved-first
   });
 
+  it('exposes the selection-confirmed milestone from the season snapshot', async () => {
+    const source = createSource({
+      getSeason: vi.fn().mockResolvedValue({ id: 's1', name: 'Julio 2026', minApprovalGrade: 4, slots: 12, status: 'open', createdAt: 0, selectionConfirmedAt: 1_753_000_000_000 }),
+    });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await waitFor(() => expect(result.current.selectionConfirmedAt).toBe(1_753_000_000_000));
+  });
+
   it('onSetConsideration delegates to the store', async () => {
     const source = createSource();
     const { result } = renderHook(() => useSelectionBoard(source));
@@ -155,5 +163,29 @@ describe('useSelectionBoard', () => {
     });
     expect(source.confirmSelection).toHaveBeenCalled();
     expect(confirmResult?.status).toBe('ok');
+  });
+
+  it('onConfirm shows a success toast with the applied counts', async () => {
+    const source = createSource({
+      confirmSelection: vi.fn().mockResolvedValue({ status: 'ok', approved: 9, rejected: 10, quotaExceeded: false }),
+    });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await act(async () => {
+      await result.current.onConfirm();
+    });
+    expect(toastMock.success).toHaveBeenCalledWith('Reconciliation applied — 9 approved, 10 rejected.');
+    expect(toastMock.danger).not.toHaveBeenCalled();
+  });
+
+  it('onConfirm shows a danger toast when confirmation fails', async () => {
+    const source = createSource({
+      confirmSelection: vi.fn().mockResolvedValue({ status: 'quota exceeded', approved: 13, rejected: 0, quotaExceeded: true }),
+    });
+    const { result } = renderHook(() => useSelectionBoard(source));
+    await act(async () => {
+      await result.current.onConfirm();
+    });
+    expect(toastMock.danger).toHaveBeenCalledWith('quota exceeded');
+    expect(toastMock.success).not.toHaveBeenCalled();
   });
 });
