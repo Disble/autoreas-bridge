@@ -151,20 +151,46 @@ func (s *WriteService) ApplyBatch(ctx context.Context, operations []store.BatchO
 }
 
 // buildCanonicalCreate resolves the create id and builds the canonical raw
-// payload shared by single creates and batch create operations.
+// payload shared by single creates and batch create operations. User-provided
+// create fields always win; metadata (the season/source provider) only fills
+// in gaps the user left nil/empty.
 func (s *WriteService) buildCanonicalCreate(create contracts.AnimeCreate, metadata CreateMetadata) (string, store.AnimeRaw, error) {
 	id := create.ID
 	if id == "" {
 		id = s.newID()
 	}
+	totalEpisodes := create.TotalEpisodes
+	if totalEpisodes == nil {
+		totalEpisodes = metadata.AnnouncedTotal
+	}
+	durationMinutes := create.DurationMinutes
+	if durationMinutes == nil {
+		durationMinutes = metadata.DurationMinutes
+	}
+	coverType, coverPath := resolveCreateCover(create.Cover, metadata.CoverURL)
 	raw, err := store.NewCanonicalCreate(store.CanonicalCreateInput{
 		ID: id, Title: create.Nombre, SourceURL: create.Pagina,
 		Days: placementsToCanonicalDays(create.Dias), CreatedAt: s.nowFunc(),
-		Folder: create.Carpeta, Type: create.Tipo, PremieredAtMs: create.FechaEstreno,
-		TotalEpisodes: metadata.AnnouncedTotal, DurationMinutes: metadata.DurationMinutes,
-		CoverURL: metadata.CoverURL,
+		Folder: create.Carpeta, Type: create.Tipo,
+		EpisodesWatched: create.EpisodesWatched,
+		TotalEpisodes:   totalEpisodes,
+		DurationMinutes: durationMinutes,
+		Origin:          create.Origin,
+		Genres:          create.Genres,
+		Studios:         create.Studios,
+		CoverType:       coverType,
+		CoverPath:       coverPath,
 	})
 	return id, raw, err
+}
+
+// resolveCreateCover picks the user-provided create cover when present,
+// falling back to the metadata-discovered cover URL (typed "url") otherwise.
+func resolveCreateCover(cover *contracts.AnimeCreateCover, metadataCoverURL string) (string, string) {
+	if cover != nil {
+		return cover.Type, cover.Path
+	}
+	return "url", metadataCoverURL
 }
 
 // placementsToCanonicalDays converts contract placements into canonical store days.

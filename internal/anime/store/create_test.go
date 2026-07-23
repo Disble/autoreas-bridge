@@ -70,3 +70,88 @@ func TestNewCanonicalCreateRejectsEmptyDays(t *testing.T) {
 		t.Fatal("expected an error for a create with no placements")
 	}
 }
+
+// TestNewCanonicalCreateEmitsOptionalUserFields covers sdd-57's follow-up:
+// episodesWatched, origin, genres, studios, and an explicit cover all land in
+// the canonical snapshot using the same keys the editor save uses, and no
+// premieredAt field is ever emitted at create (premiere is an auto lifecycle
+// field, stamped only when the first episode is watched).
+func TestNewCanonicalCreateEmitsOptionalUserFields(t *testing.T) {
+	watched := 3
+	raw, err := store.NewCanonicalCreate(store.CanonicalCreateInput{
+		ID: "full-optional-anime", Title: "Full Optional", SourceURL: "https://example.test/full-optional",
+		Days:            []store.AnimeDay{{Day: "Sin ver", Order: 1}},
+		CreatedAt:       time.UnixMilli(1_700_000_000_000).UTC(),
+		EpisodesWatched: &watched,
+		Origin:          "Japan",
+		Genres:          []string{"Action", "Drama"},
+		Studios:         []string{"MAPPA"},
+		CoverType:       "local",
+		CoverPath:       "C:/covers/full-optional.jpg",
+	})
+	if err != nil {
+		t.Fatalf("NewCanonicalCreate: %v", err)
+	}
+
+	payload, err := raw.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatalf("unmarshal canonical payload: %v", err)
+	}
+
+	assertRawField(t, fields, "episodesWatched", `3`)
+	assertRawField(t, fields, "origin", `"Japan"`)
+	assertRawField(t, fields, "genres", `["Action","Drama"]`)
+	assertRawField(t, fields, "studios", `["MAPPA"]`)
+	assertRawField(t, fields, "cover", `{"type":"local","path":"C:/covers/full-optional.jpg"}`)
+	if _, ok := fields["premieredAt"]; ok {
+		t.Fatalf("unexpected premieredAt field at create: %s", payload)
+	}
+}
+
+// TestNewCanonicalCreateDefaultsEpisodesWatchedAndOmitsUnsetOptionalFields
+// covers the nil-optional-fields path: episodesWatched defaults to 0, and
+// origin/genres/studios stay entirely absent (not empty) when unset, matching
+// the editor codec's "missing" vs "value" discrimination.
+func TestNewCanonicalCreateDefaultsEpisodesWatchedAndOmitsUnsetOptionalFields(t *testing.T) {
+	raw, err := store.NewCanonicalCreate(store.CanonicalCreateInput{
+		ID: "bare-anime", Title: "Bare", SourceURL: "https://example.test/bare",
+		Days:      []store.AnimeDay{{Day: "Sin ver", Order: 1}},
+		CreatedAt: time.UnixMilli(1_700_000_000_000).UTC(),
+	})
+	if err != nil {
+		t.Fatalf("NewCanonicalCreate: %v", err)
+	}
+
+	payload, err := raw.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatalf("unmarshal canonical payload: %v", err)
+	}
+
+	assertRawField(t, fields, "episodesWatched", `0`)
+	assertRawField(t, fields, "cover", `{"type":"url","path":""}`)
+	for _, key := range []string{"origin", "genres", "studios", "premieredAt"} {
+		if _, ok := fields[key]; ok {
+			t.Fatalf("unexpected field %q present when unset: %s", key, payload)
+		}
+	}
+}
+
+// assertRawField verifies one field in a decoded canonical payload.
+func assertRawField(t *testing.T, fields map[string]json.RawMessage, key, want string) {
+	t.Helper()
+	got, ok := fields[key]
+	if !ok {
+		t.Fatalf("missing field %q in %v", key, fields)
+	}
+	if string(got) != want {
+		t.Fatalf("field %q = %s, want %s", key, got, want)
+	}
+}

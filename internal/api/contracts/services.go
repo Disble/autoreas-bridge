@@ -53,15 +53,29 @@ type Placement struct {
 	Order int    `json:"order"`
 }
 
-// AnimeCreate is the input for creating a brand-new anime.
+// AnimeCreate is the input for creating a brand-new anime. Premiere date is
+// never user-provided here: it is an auto lifecycle field set only when the
+// first episode is watched (see episode_service.go), never at create time.
 type AnimeCreate struct {
-	ID           string      `json:"id,omitempty"`
-	Nombre       string      `json:"nombre"`
-	Pagina       string      `json:"pagina"`
-	Dias         []Placement `json:"dias"`
-	Carpeta      string      `json:"carpeta,omitempty"`
-	Tipo         *int        `json:"tipo,omitempty"`
-	FechaEstreno *int64      `json:"fechaEstreno,omitempty"`
+	ID              string            `json:"id,omitempty"`
+	Nombre          string            `json:"nombre"`
+	Pagina          string            `json:"pagina"`
+	Dias            []Placement       `json:"dias"`
+	Carpeta         string            `json:"carpeta,omitempty"`
+	Tipo            *int              `json:"tipo,omitempty"`
+	EpisodesWatched *int              `json:"episodesWatched,omitempty"`
+	TotalEpisodes   *int              `json:"totalEpisodes,omitempty"`
+	DurationMinutes *int              `json:"durationMinutes,omitempty"`
+	Origin          string            `json:"origin,omitempty"`
+	Genres          []string          `json:"genres,omitempty"`
+	Studios         []string          `json:"studios,omitempty"`
+	Cover           *AnimeCreateCover `json:"cover,omitempty"`
+}
+
+// AnimeCreateCover is the optional user-provided cover for a manual anime create.
+type AnimeCreateCover struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
 }
 
 // AnimeCreateResult is the authoritative result of a batch anime create.

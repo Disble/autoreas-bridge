@@ -1193,6 +1193,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class AnimeCreateCoverDTO {
+	    type: string;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnimeCreateCoverDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.path = source["path"];
+	    }
+	}
 	export class AnimeCreatePlacementDTO {
 	    day: string;
 	    order: number;
@@ -1213,7 +1227,13 @@ export namespace main {
 	    dias: AnimeCreatePlacementDTO[];
 	    carpeta?: string;
 	    tipo?: number;
-	    fechaEstreno?: number;
+	    episodesWatched?: number;
+	    totalEpisodes?: number;
+	    durationMinutes?: number;
+	    origin?: string;
+	    genres?: string[];
+	    studios?: string[];
+	    cover?: AnimeCreateCoverDTO;
 	
 	    static createFrom(source: any = {}) {
 	        return new AnimeCreateItemDTO(source);
@@ -1226,7 +1246,13 @@ export namespace main {
 	        this.dias = this.convertValues(source["dias"], AnimeCreatePlacementDTO);
 	        this.carpeta = source["carpeta"];
 	        this.tipo = source["tipo"];
-	        this.fechaEstreno = source["fechaEstreno"];
+	        this.episodesWatched = source["episodesWatched"];
+	        this.totalEpisodes = source["totalEpisodes"];
+	        this.durationMinutes = source["durationMinutes"];
+	        this.origin = source["origin"];
+	        this.genres = source["genres"];
+	        this.studios = source["studios"];
+	        this.cover = this.convertValues(source["cover"], AnimeCreateCoverDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1279,6 +1305,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	
 	

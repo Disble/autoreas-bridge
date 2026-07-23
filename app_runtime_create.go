@@ -13,14 +13,28 @@ type AnimeCreatePlacementDTO struct {
 	Order int    `json:"order"`
 }
 
-// AnimeCreateItemDTO is one wire batch-create row.
+// AnimeCreateCoverDTO is the optional wire cover payload for a batch-create row.
+type AnimeCreateCoverDTO struct {
+	Type string `json:"type"`
+	Path string `json:"path"`
+}
+
+// AnimeCreateItemDTO is one wire batch-create row. Premiere date is never
+// user-provided here: it is an auto lifecycle field set only when the first
+// episode is watched, never at create time.
 type AnimeCreateItemDTO struct {
-	Nombre       string                    `json:"nombre"`
-	Pagina       string                    `json:"pagina"`
-	Dias         []AnimeCreatePlacementDTO `json:"dias"`
-	Carpeta      string                    `json:"carpeta,omitempty"`
-	Tipo         *int                      `json:"tipo,omitempty"`
-	FechaEstreno *int64                    `json:"fechaEstreno,omitempty"`
+	Nombre          string                    `json:"nombre"`
+	Pagina          string                    `json:"pagina"`
+	Dias            []AnimeCreatePlacementDTO `json:"dias"`
+	Carpeta         string                    `json:"carpeta,omitempty"`
+	Tipo            *int                      `json:"tipo,omitempty"`
+	EpisodesWatched *int                      `json:"episodesWatched,omitempty"`
+	TotalEpisodes   *int                      `json:"totalEpisodes,omitempty"`
+	DurationMinutes *int                      `json:"durationMinutes,omitempty"`
+	Origin          string                    `json:"origin,omitempty"`
+	Genres          []string                  `json:"genres,omitempty"`
+	Studios         []string                  `json:"studios,omitempty"`
+	Cover           *AnimeCreateCoverDTO      `json:"cover,omitempty"`
 }
 
 // AnimeCreateNeighborDTO is one reflowed existing-neighbor entry for a batch create.
@@ -61,10 +75,25 @@ func (d AnimeCreateCommandDTO) toCreates() []contracts.AnimeCreate {
 		}
 		creates = append(creates, contracts.AnimeCreate{
 			Nombre: item.Nombre, Pagina: item.Pagina, Dias: dias,
-			Carpeta: item.Carpeta, Tipo: item.Tipo, FechaEstreno: item.FechaEstreno,
+			Carpeta: item.Carpeta, Tipo: item.Tipo,
+			EpisodesWatched: item.EpisodesWatched,
+			TotalEpisodes:   item.TotalEpisodes,
+			DurationMinutes: item.DurationMinutes,
+			Origin:          item.Origin,
+			Genres:          item.Genres,
+			Studios:         item.Studios,
+			Cover:           item.toContractCover(),
 		})
 	}
 	return creates
+}
+
+// toContractCover maps the wire cover DTO into the contract cover, when present.
+func (d AnimeCreateItemDTO) toContractCover() *contracts.AnimeCreateCover {
+	if d.Cover == nil {
+		return nil
+	}
+	return &contracts.AnimeCreateCover{Type: d.Cover.Type, Path: d.Cover.Path}
 }
 
 // toNeighbors maps the wire batch-create command into schedule draft entries

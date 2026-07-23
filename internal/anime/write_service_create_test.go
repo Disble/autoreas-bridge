@@ -167,6 +167,65 @@ func TestWriteServiceCreateAnimeRejectsInvalidCanonicalStructureBeforeOwnershipO
 	}
 }
 
+// TestWriteServiceCreateAnimeAppliesUserOptionalFieldsAndNeverSetsPremiere
+// covers sdd-57's follow-up: every user-editable optional field the edit form
+// supports also lands on create using the same canonical keys, and premiere
+// is never set at create (it is an auto lifecycle field, stamped only when
+// the first episode is watched).
+func TestWriteServiceCreateAnimeAppliesUserOptionalFieldsAndNeverSetsPremiere(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	service := anime.NewWriteService(store, &stubAnimeWriter{})
+	service.SetIDGen(func() string { return "user-optional-fields" })
+
+	watched, total, duration := 5, 24, 23
+	if _, err := service.CreateAnime(ctx, api.AnimeCreate{
+		Nombre: "User Optional Fields", Pagina: "https://example.test/user-optional",
+		Dias:            []api.Placement{{Day: "Sin ver", Order: 1}},
+		EpisodesWatched: &watched,
+		TotalEpisodes:   &total,
+		DurationMinutes: &duration,
+		Origin:          "Japan",
+		Genres:          []string{"Action"},
+		Studios:         []string{"MAPPA"},
+		Cover:           &api.AnimeCreateCover{Type: "local", Path: "C:/covers/user-optional.jpg"},
+	}); err != nil {
+		t.Fatalf("CreateAnime: %v", err)
+	}
+
+	snapshot, err := store.GetSnapshot(ctx, "user-optional-fields")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(snapshot.CanonicalJSON, &fields); err != nil {
+		t.Fatalf("unmarshal snapshot payload: %v", err)
+	}
+
+	assertWriteServiceJSONField(t, fields, "episodesWatched", `5`)
+	assertWriteServiceJSONField(t, fields, "totalEpisodes", `24`)
+	assertWriteServiceJSONField(t, fields, "durationMinutes", `23`)
+	assertWriteServiceJSONField(t, fields, "origin", `"Japan"`)
+	assertWriteServiceJSONField(t, fields, "genres", `["Action"]`)
+	assertWriteServiceJSONField(t, fields, "studios", `["MAPPA"]`)
+	assertWriteServiceJSONField(t, fields, "cover", `{"type":"local","path":"C:/covers/user-optional.jpg"}`)
+	if _, ok := fields["premieredAt"]; ok {
+		t.Fatalf("unexpected premieredAt persisted at create: %s", snapshot.CanonicalJSON)
+	}
+}
+
+// assertWriteServiceJSONField verifies one field in a decoded snapshot payload.
+func assertWriteServiceJSONField(t *testing.T, fields map[string]json.RawMessage, key, want string) {
+	t.Helper()
+	got, ok := fields[key]
+	if !ok {
+		t.Fatalf("missing field %q in %v", key, fields)
+	}
+	if string(got) != want {
+		t.Fatalf("field %q = %s, want %s", key, got, want)
+	}
+}
+
 func TestWriteServiceCreateAnimeCanonicalReturnsAuthoritativeToken(t *testing.T) {
 	const modifiedAt = int64(1_700_000_000_123)
 	writer := &stubAnimeWriter{}

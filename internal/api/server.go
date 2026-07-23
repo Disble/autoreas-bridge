@@ -24,6 +24,9 @@ type AnimeCreate = contracts.AnimeCreate
 // Placement aliases the API schedule-placement contract used by creates.
 type Placement = contracts.Placement
 
+// AnimeCreateCover aliases the API create-cover contract used by creates.
+type AnimeCreateCover = contracts.AnimeCreateCover
+
 // AnimeCreateResult aliases the API create-result contract consumed by transport adapters.
 type AnimeCreateResult = contracts.AnimeCreateResult
 

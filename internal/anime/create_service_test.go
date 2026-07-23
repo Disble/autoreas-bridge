@@ -72,6 +72,44 @@ func TestCreateServiceKeepsUnknownMetadataNullAndNeverUsesLatestEpisodeAsTotal(t
 	assertCreateJSONField(t, fields, "cover", `{"type":"url","path":""}`)
 }
 
+// TestCreateServiceUserProvidedFieldsWinOverMetadata covers the precedence
+// rule: when both the user (AnimeCreate) and CreateMetadata (season's
+// provider) supply a value, the user-provided value wins.
+func TestCreateServiceUserProvidedFieldsWinOverMetadata(t *testing.T) {
+	metadataTotal, metadataDuration := 99, 88
+	provider := &stubCreateMetadataProvider{metadata: anime.CreateMetadata{
+		AnnouncedTotal:  &metadataTotal,
+		DurationMinutes: &metadataDuration,
+		CoverURL:        "https://cdn.example.test/metadata-cover.jpg",
+	}}
+	store, write := configuredCreateWriteService(t, "precedence-anime", 1_700_000_001_000)
+	service := anime.NewCreateService(write, provider)
+
+	userTotal, userDuration := 10, 20
+	result, err := service.CreateAnime(context.Background(), api.AnimeCreate{
+		Nombre: "Precedence Anime", Pagina: "https://example.test/precedence",
+		Dias:            []api.Placement{{Day: "Sin ver", Order: 1}},
+		TotalEpisodes:   &userTotal,
+		DurationMinutes: &userDuration,
+		Cover:           &api.AnimeCreateCover{Type: "local", Path: "C:/covers/precedence.jpg"},
+	})
+	if err != nil {
+		t.Fatalf("CreateAnime: %v", err)
+	}
+	if result.AnimeID != "precedence-anime" {
+		t.Fatalf("result = %+v, want id precedence-anime", result)
+	}
+
+	snapshot, err := store.GetSnapshot(context.Background(), "precedence-anime")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	fields := decodeCreatePayload(t, snapshot.CanonicalJSON)
+	assertCreateJSONField(t, fields, "totalEpisodes", `10`)
+	assertCreateJSONField(t, fields, "durationMinutes", `20`)
+	assertCreateJSONField(t, fields, "cover", `{"type":"local","path":"C:/covers/precedence.jpg"}`)
+}
+
 func TestCreateServiceReturnsMetadataSourceFailureWithoutAppend(t *testing.T) {
 	sourceErr := errors.New("metadata source unavailable")
 	provider := &stubCreateMetadataProvider{err: sourceErr}
