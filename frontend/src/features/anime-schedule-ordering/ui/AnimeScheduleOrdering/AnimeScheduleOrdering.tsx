@@ -23,16 +23,21 @@ import { useAnimeScheduleOrdering } from './use-anime-schedule-ordering';
  */
 export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps>) {
   const { weekdayColumns, specialColumns, stagingCards, stagedAnimeCount, changeCount, validationMessage, onDragOver, onDuplicate, onRemove, onReset, onApply, canRemove, getOverlayName } = useAnimeScheduleOrdering(props);
+  const isCreate = props.draftEntries !== undefined;
 
   return (
     <DragDropProvider onDragOver={onDragOver}>
       <section className="flex h-full flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <Typography type="h4">{ANIME_SCHEDULE_ORDERING_MODAL_TITLE}</Typography>
-            <Typography color="muted" type="body-sm">Edit the full active-anime draft across weekdays and special queues.</Typography>
+            <Typography type="h4">{isCreate ? 'Place your new anime' : ANIME_SCHEDULE_ORDERING_MODAL_TITLE}</Typography>
+            <Typography color="muted" type="body-sm">
+              {isCreate
+                ? 'Drag each new title onto its day and position. Existing animes are shown locked, for reference.'
+                : 'Edit the full active-anime draft across weekdays and special queues.'}
+            </Typography>
           </div>
-          {props.onClose !== undefined && <Button variant="tertiary" onPress={props.onClose}>Close</Button>}
+          {props.onClose !== undefined && <Button variant="tertiary" onPress={props.onClose}>{isCreate ? 'Cancel' : 'Close'}</Button>}
         </div>
 
         {props.feedback !== undefined && (
@@ -145,7 +150,7 @@ export function AnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps
           <Typography color="muted" type="body-sm">{changeCount} schedule changes</Typography>
           <Button isDisabled={changeCount === 0 || props.isApplying === true} variant="tertiary" onPress={onReset}>Reset</Button>
           <Button className="ml-auto" isDisabled={changeCount === 0 || validationMessage !== undefined || props.isApplying === true} isPending={props.isApplying === true} variant="primary" onPress={() => void onApply()}>
-            Apply schedule
+            {isCreate ? 'Create anime' : 'Apply schedule'}
           </Button>
         </div>
       </section>

@@ -21,7 +21,7 @@ export function AnimeScheduleOrderingCard({ instance, containerId, index, canRem
   if (isDragging) {
     cursorClassName = 'cursor-grabbing opacity-40';
   } else if (isLocked) {
-    cursorClassName = 'cursor-default';
+    cursorClassName = 'cursor-default opacity-60';
   }
 
   return (
@@ -37,20 +37,22 @@ export function AnimeScheduleOrderingCard({ instance, containerId, index, canRem
         <Typography truncate type="body-sm" weight="semibold">{instance.name}</Typography>
         {instance.originHighlighted && <Chip color="accent" size="sm" variant="soft">Origin</Chip>}
       </div>
-      <div className="flex items-center gap-1">
-        <Tooltip delay={0}>
-          <Button aria-label={`Duplicate ${instance.name}`} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onDuplicate}>
-            <Icon className="size-4" icon={copyIcon} />
-          </Button>
-          <Tooltip.Content showArrow><Tooltip.Arrow />Duplicate</Tooltip.Content>
-        </Tooltip>
-        <Tooltip delay={0}>
-          <Button aria-label={`Remove ${instance.name}`} isDisabled={!canRemove} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onRemove}>
-            <Icon className="size-4" icon={trashIcon} />
-          </Button>
-          <Tooltip.Content showArrow><Tooltip.Arrow />{canRemove ? 'Remove' : 'An anime must stay scheduled at least once'}</Tooltip.Content>
-        </Tooltip>
-      </div>
+      {!isLocked && (
+        <div className="flex items-center gap-1">
+          <Tooltip delay={0}>
+            <Button aria-label={`Duplicate ${instance.name}`} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onDuplicate}>
+              <Icon className="size-4" icon={copyIcon} />
+            </Button>
+            <Tooltip.Content showArrow><Tooltip.Arrow />Duplicate</Tooltip.Content>
+          </Tooltip>
+          <Tooltip delay={0}>
+            <Button aria-label={`Remove ${instance.name}`} isDisabled={!canRemove} isIconOnly size="sm" variant="tertiary" onPointerDown={(event) => event.stopPropagation()} onPress={onRemove}>
+              <Icon className="size-4" icon={trashIcon} />
+            </Button>
+            <Tooltip.Content showArrow><Tooltip.Arrow />{canRemove ? 'Remove' : 'An anime must stay scheduled at least once'}</Tooltip.Content>
+          </Tooltip>
+        </div>
+      )}
     </li>
   );
 }

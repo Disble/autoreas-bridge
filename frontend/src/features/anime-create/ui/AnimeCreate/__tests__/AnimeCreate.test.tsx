@@ -11,6 +11,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source', () => ({
   },
 }));
 
+vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
+  preferencesSource: { getDownloadsRoot: vi.fn().mockResolvedValue('D:\\Anime') },
+}));
+
 const boardResult = {
   outcome: 'applied',
   message: 'loaded',
@@ -23,45 +27,64 @@ describe('AnimeCreate', () => {
     vi.clearAllMocks();
   });
 
-  it('renders one row and the shared schedule board once loaded', async () => {
+  it('renders the compact form and keeps placement gated until a row has a name and page', async () => {
     vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
     render(<AnimeCreate />);
 
-    expect(screen.getByText('Create anime')).toBeInTheDocument();
-    expect(screen.getByLabelText('Anime 1 name')).toBeInTheDocument();
-
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Anime schedule' })).toBeInTheDocument());
+    expect(screen.getByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Download page')).toBeInTheDocument();
+    // The board is not dumped inline — it lives behind the placement action.
+    expect(screen.queryByRole('heading', { name: 'Place your new anime' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Place on schedule…' })).toBeDisabled();
   });
 
-  it('keeps the single deferred submit disabled while the seeded draft is still parked, unplaced', async () => {
+  it('shows the entered title in the card header instead of the row number', () => {
     vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
     render(<AnimeCreate />);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Anime schedule' })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Tengen Toppa Gurren Lagann' } });
 
-    fireEvent.change(screen.getByLabelText('Anime 1 name'), { target: { value: 'Frieren' } });
-    fireEvent.change(screen.getByLabelText('Page'), { target: { value: 'https://example.test/frieren' } });
+    expect(screen.getByText('Tengen Toppa Gurren Lagann')).toBeInTheDocument();
+  });
 
-    expect(screen.getByText('Frieren')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply schedule' })).toBeDisabled();
+  it('opens the create-scoped board only after the row is filled, keeping create disabled while the draft is unplaced', async () => {
+    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+
+    render(<AnimeCreate />);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Frieren' } });
+    fireEvent.change(screen.getByLabelText('Download page'), { target: { value: 'https://example.test/frieren' } });
+
+    const placeButton = screen.getByRole('button', { name: 'Place on schedule…' });
+    await waitFor(() => expect(placeButton).toBeEnabled());
+    fireEvent.click(placeButton);
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Place your new anime' })).toBeInTheDocument());
+    expect(screen.getAllByText('Frieren').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Create anime' })).toBeDisabled();
     expect(bridgeRuntimeSource.createAnime).not.toHaveBeenCalled();
   });
 
-  it('adds and removes rows, seeding one draft card per row into the staging area', async () => {
+  it('removes an empty row directly, but confirms before removing one with data', () => {
     vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
 
     render(<AnimeCreate />);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Anime schedule' })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Add another anime' }));
+    expect(screen.getAllByLabelText('Name')).toHaveLength(2);
 
-    expect(screen.getByLabelText('Anime 1 name')).toBeInTheDocument();
-    expect(screen.getByLabelText('Anime 2 name')).toBeInTheDocument();
-    expect(screen.getAllByText('New anime')).toHaveLength(2);
+    // An empty row removes with no confirmation.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    expect(screen.getAllByLabelText('Name')).toHaveLength(1);
+    expect(screen.queryByText('Remove this anime?')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove row' })[0]);
-
-    expect(screen.queryByLabelText('Anime 2 name')).not.toBeInTheDocument();
+    // A row with entered data asks for confirmation and stays until confirmed.
+    fireEvent.click(screen.getByRole('button', { name: 'Add another anime' }));
+    fireEvent.change(screen.getAllByLabelText('Name')[0], { target: { value: 'Frieren' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    expect(screen.getByText('Remove this anime?')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Name')).toHaveLength(2);
   });
 });

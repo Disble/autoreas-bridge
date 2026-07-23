@@ -7,7 +7,7 @@ export function AnimeEditorRoute() {
   return (
     <section className="flex min-h-screen flex-col gap-4">
       <Tabs defaultSelectedKey="library">
-        <Tabs.ListContainer>
+        <Tabs.ListContainer className="w-fit">
           <Tabs.List aria-label="Anime editor">
             <Tabs.Tab id="library">
               Library

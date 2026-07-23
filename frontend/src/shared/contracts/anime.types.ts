@@ -266,14 +266,30 @@ export interface AnimeCreatePlacement {
   readonly order: number;
 }
 
-/** One new-anime row within a batch create command. */
+/** External vs on-disk cover source for a new anime, mirroring the editor cover. */
+export interface AnimeCreateCover {
+  readonly type: string;
+  readonly path: string;
+}
+
+/**
+ * One new-anime row within a batch create command. Optional metadata mirrors the
+ * editor's editable fields; premiere date is deliberately absent because it is an
+ * auto lifecycle field (set when the first episode is watched), never user input.
+ */
 export interface AnimeCreateItem {
   readonly name: string;
   readonly page: string;
   readonly placements: readonly AnimeCreatePlacement[];
   readonly folder?: string;
   readonly kind?: number;
-  readonly premieredAt?: number;
+  readonly episodesWatched?: number;
+  readonly totalEpisodes?: number;
+  readonly durationMinutes?: number;
+  readonly origin?: string;
+  readonly genres?: readonly string[];
+  readonly studios?: readonly string[];
+  readonly cover?: AnimeCreateCover;
 }
 
 /**

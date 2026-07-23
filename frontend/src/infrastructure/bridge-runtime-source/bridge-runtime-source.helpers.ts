@@ -214,9 +214,10 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsMain.SaveAn
 /**
  * Maps the frontend batch-create command into the generated wire DTO. The
  * Go-side `AnimeCreateItemDTO`/`contracts.AnimeCreate` still carry legacy
- * Spanish field names (`nombre`/`pagina`/`carpeta`/`tipo`/`fechaEstreno`) --
+ * Spanish field names (`nombre`/`pagina`/`carpeta`/`tipo`) for the core row --
  * this is the retained storage/wire boundary the create-anime slice did not
- * own or rename in SDD-56/57, so the mapping stays isolated here.
+ * own or rename in SDD-56/57, so the mapping stays isolated here. Optional
+ * metadata already uses English keys.
  */
 function toAnimeCreateDTO(command: AnimeCreateCommand): wailsMain.AnimeCreateCommandDTO {
   return {
@@ -226,7 +227,13 @@ function toAnimeCreateDTO(command: AnimeCreateCommand): wailsMain.AnimeCreateCom
       dias: item.placements.map(toWailsSchedulePlacement),
       carpeta: item.folder,
       tipo: item.kind,
-      fechaEstreno: item.premieredAt,
+      episodesWatched: item.episodesWatched,
+      totalEpisodes: item.totalEpisodes,
+      durationMinutes: item.durationMinutes,
+      origin: item.origin,
+      genres: item.genres,
+      studios: item.studios,
+      cover: item.cover,
     })),
     changedNeighbors: command.changedNeighbors.map((entry) => ({
       animeId: entry.animeId,

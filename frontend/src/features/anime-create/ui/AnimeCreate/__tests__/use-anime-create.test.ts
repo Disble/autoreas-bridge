@@ -11,6 +11,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source', () => ({
   },
 }));
 
+vi.mock('../../../../../infrastructure/preferences-source/preferences-source.helpers', () => ({
+  preferencesSource: { getDownloadsRoot: vi.fn().mockResolvedValue('') },
+}));
+
 const emptyBoardResult = {
   outcome: 'applied',
   message: 'loaded',
@@ -102,7 +106,7 @@ describe('useAnimeCreate', () => {
 
     expect(bridgeRuntimeSource.createAnime).toHaveBeenCalledTimes(1);
     expect(bridgeRuntimeSource.createAnime).toHaveBeenCalledWith({
-      creates: [{ name: 'Frieren', page: 'https://example.test/frieren', placements: [{ day: 'Lunes', order: 1 }] }],
+      creates: [{ name: 'Frieren', page: 'https://example.test/frieren', placements: [{ day: 'Lunes', order: 1 }], kind: 0 }],
       changedNeighbors: [],
     });
     expect(result.current.rows).toHaveLength(1);

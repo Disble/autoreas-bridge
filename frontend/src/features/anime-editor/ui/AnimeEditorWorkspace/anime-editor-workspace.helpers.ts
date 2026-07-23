@@ -1,5 +1,6 @@
 import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCommand } from '../../../../shared/contracts/anime.types';
 import { isWatchingAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
+import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
@@ -147,6 +148,9 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
   }
   if (draft.kind.trim().length === 0) {
     return 'Type is required.';
+  }
+  if (draft.page.trim().length > 0 && !isValidDownloadPageUrl(draft.page)) {
+    return 'Download page must be a valid http(s) URL.';
   }
   return undefined;
 }
