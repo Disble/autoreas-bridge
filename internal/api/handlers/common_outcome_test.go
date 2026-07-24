@@ -85,7 +85,7 @@ func TestAdaptAnimePatchWriterPreservesStableErrorOnlyTransportContract(t *testi
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			adapter := AdaptAnimePatchWriter(stubOutcomePatchWriter{result: test.result, err: test.err})
-			err := adapter(context.Background(), "anime-1", AnimePatch{})
+			_, err := adapter(context.Background(), "anime-1", AnimePatch{})
 			if test.wantErr != nil && !errors.Is(err, test.wantErr) {
 				t.Fatalf("adapter error = %v, want %v", err, test.wantErr)
 			}

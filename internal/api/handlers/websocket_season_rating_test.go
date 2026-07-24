@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"testing"
+
+	"autoreas-bridge/internal/device"
 )
 
 func TestWebSocketDispatchesSeasonRating(t *testing.T) {
@@ -17,7 +19,7 @@ func TestWebSocketDispatchesSeasonRating(t *testing.T) {
 	}
 	payload := []byte(`{"type":"season_rating","anime_id":"anime-a","grade":4,"rated_at":1751500000000}`)
 
-	if err := handleIncomingWebSocketMessage(context.Background(), "dev-1", payload, config); err != nil {
+	if err := handleIncomingWebSocketMessage(context.Background(), device.PairedDevice{DeviceID: "dev-1"}, payload, config, nil); err != nil {
 		t.Fatalf("handleIncomingWebSocketMessage: %v", err)
 	}
 	if gotID != "anime-a" || gotNota != 4 || gotRatedAt != 1751500000000 {
@@ -35,7 +37,7 @@ func TestWebSocketSeasonRatingDoesNotTriggerReconcile(t *testing.T) {
 	}
 	payload := []byte(`{"type":"season_rating","anime_id":"anime-a","grade":4,"rated_at":1}`)
 
-	if err := handleIncomingWebSocketMessage(context.Background(), "dev-1", payload, config); err != nil {
+	if err := handleIncomingWebSocketMessage(context.Background(), device.PairedDevice{DeviceID: "dev-1"}, payload, config, nil); err != nil {
 		t.Fatalf("handleIncomingWebSocketMessage: %v", err)
 	}
 	if reconcileCalls != 0 {
@@ -50,7 +52,7 @@ func TestWebSocketReconcileStillWorksWithoutRatingRecorder(t *testing.T) {
 	}
 	payload := []byte(`{"type":"reconcile"}`)
 
-	if err := handleIncomingWebSocketMessage(context.Background(), "dev-1", payload, config); err != nil {
+	if err := handleIncomingWebSocketMessage(context.Background(), device.PairedDevice{DeviceID: "dev-1"}, payload, config, nil); err != nil {
 		t.Fatalf("handleIncomingWebSocketMessage: %v", err)
 	}
 	if reconcileCalls != 1 {

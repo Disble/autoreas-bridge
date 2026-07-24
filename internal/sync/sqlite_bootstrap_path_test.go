@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -119,5 +120,34 @@ func TestBootstrapBridgeDBReturnsPathInErrorContext(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), fmt.Sprintf("%q", dbPath)) {
 		t.Fatalf("expected error %q to contain quoted db path %q", err.Error(), dbPath)
+	}
+}
+
+func TestResolveExistingBridgeDBPathRequiresPreexistingFile(t *testing.T) {
+	t.Parallel()
+
+	baseDir := filepath.Join(t.TempDir(), "Roaming")
+	bootstrap := SQLiteBootstrap{
+		userConfigDir: func() (string, error) { return baseDir, nil },
+	}
+
+	if _, err := bootstrap.ResolveExistingBridgeDBPath(); err == nil {
+		t.Fatal("expected missing bridge db path to fail closed")
+	}
+
+	dbPath := filepath.Join(baseDir, "Autoreas", "data", "bridge.db")
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		t.Fatalf("mkdir db dir: %v", err)
+	}
+	if err := os.WriteFile(dbPath, []byte(""), 0o644); err != nil {
+		t.Fatalf("seed bridge db: %v", err)
+	}
+
+	got, err := bootstrap.ResolveExistingBridgeDBPath()
+	if err != nil {
+		t.Fatalf("resolve existing bridge db path: %v", err)
+	}
+	if got != dbPath {
+		t.Fatalf("expected path %q, got %q", dbPath, got)
 	}
 }

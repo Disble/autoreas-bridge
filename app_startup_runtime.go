@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
@@ -162,7 +163,16 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		RealtimeHub:            a.realtimeHub,
 		Logger:                 a.sharedLogger,
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),
+		Capture:                a.capture,
 	})
+}
+
+// capture enqueues one observability record when the capture queue is available.
+func (a *App) capture(record mobilecapture.CaptureRecord) bool {
+	if a.captureQueue == nil {
+		return false
+	}
+	return a.captureQueue.TryEnqueue(record)
 }
 
 // onPairingTokenConsumed returns the callback emitted after device pairing.

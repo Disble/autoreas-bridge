@@ -4,18 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/realtime"
-	bridgeSync "autoreas-bridge/internal/sync"
 	"github.com/gorilla/websocket"
 )
 
@@ -156,61 +153,6 @@ func TestWebSocketReconnectDoesNotLeakClients(t *testing.T) {
 	waitForClientCount(t, hub, 0)
 }
 
-// newWebsocketTestServer creates a websocket test server and its cleanup function.
-func newWebsocketTestServer(t *testing.T, config Config) (*realtime.MemoryHub, string, func()) {
-	t.Helper()
-
-	hub, ok := config.RealtimeHub.(*realtime.MemoryHub)
-	if !ok {
-		t.Fatal("expected realtime memory hub in test config")
-	}
-	handler := NewHandler(config)
-	server := httptest.NewServer(handler)
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
-
-	return hub, wsURL, func() {
-		server.Close()
-		if err := hub.Close(); err != nil {
-			t.Errorf("close realtime hub: %v", err)
-		}
-	}
-}
-
-// closeWebsocket closes a websocket and reports failures through the test.
-func closeWebsocket(t *testing.T, conn *websocket.Conn) {
-	t.Helper()
-	if err := conn.Close(); err != nil {
-		t.Errorf("close websocket: %v", err)
-	}
-}
-
-// readControlMessage reads the initial control message from a websocket.
-func readControlMessage(t *testing.T, conn *websocket.Conn) realtime.ControlMessage {
-	t.Helper()
-
-	_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-	var msg realtime.ControlMessage
-	if err := conn.ReadJSON(&msg); err != nil {
-		t.Fatalf("read control message: %v", err)
-	}
-	return msg
-}
-
-// waitForClientCount waits for the realtime hub to reach the expected count.
-func waitForClientCount(t *testing.T, hub *realtime.MemoryHub, want int) {
-	t.Helper()
-
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if hub.ClientCount() == want {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	t.Fatalf("expected client count %d, got %d", want, hub.ClientCount())
-}
-
 func TestWebSocketBroadcastPayloadIsValidJSON(t *testing.T) {
 	t.Parallel()
 
@@ -275,75 +217,144 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 	t.Fatal("expected websocket reconcile message to finalize the updated anime snapshot")
 }
 
-// newWebSocketWriteEnvironment creates database and service test state.
-func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore, *anime.QueryService, *anime.WriteService) {
-	t.Helper()
-	seed := `{"id":"anime-1","name":"One Piece","episodesWatched":661,"status":2,"totalEpisodes":1200,"active":true}`
-	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
-	if err != nil {
-		t.Fatalf("open bridge db: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("close bridge db: %v", err)
-		}
-	})
-	store := bridgeSync.NewAnimeSnapshotStore(db)
-	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
-	bus := events.NewBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
-	writer.StartAsync(ctx)
-	t.Cleanup(func() { cancel(); writer.Wait() })
-	write := anime.NewWriteService(store, writer)
-	write.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
-	return store, anime.NewQueryService(store), write
-}
+func TestWSReconcileAcceptedCapture(t *testing.T) {
+	t.Parallel()
 
-type websocketWarningLogger struct{}
-
-func (websocketWarningLogger) Warnf(string, ...any) {}
-
-// assertJSONLineEqualForWebSocketTest compares two JSON lines structurally.
-func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) {
-	t.Helper()
-	var gotValue any
-	if err := json.Unmarshal([]byte(got), &gotValue); err != nil {
-		t.Fatalf("unmarshal got line: %v", err)
-	}
-	var wantValue any
-	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
-		t.Fatalf("unmarshal want line: %v", err)
-	}
-	if !deepEqualJSON(gotValue, wantValue) {
-		t.Fatalf("expected line %s, got %s", want, got)
-	}
-}
-
-// deepEqualJSON compares JSON-compatible values by their encoded representation.
-func deepEqualJSON(got any, want any) bool {
-	left, err := json.Marshal(got)
-	if err != nil {
-		return false
-	}
-	right, err := json.Marshal(want)
-	if err != nil {
-		return false
-	}
-	return string(left) == string(right)
-}
-
-// seedWebSocketAnimeSnapshot stores the baseline used by websocket write tests.
-func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
-	t.Helper()
-	records := map[string]anime.SnapshotRecord{
-		animeID: {
-			AnimeID:       animeID,
-			CanonicalJSON: []byte(payload),
-			Hash:          anime.HashSnapshot([]byte(payload)),
+	captures := []mobilecapture.CaptureRecord{}
+	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
+		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
+		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		AnimeWrite:    stubWebSocketAnimeWrite{},
+		SyncTrigger:   stubSyncService{},
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captures = append(captures, record)
+			return true
 		},
+	})
+	defer cleanup()
+
+	conn := dialWebSocketWithToken(t, wsURL, "good-token")
+	defer closeWebsocket(t, conn)
+	readControlMessage(t, conn)
+	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
+		t.Fatalf("write websocket reconcile: %v", err)
 	}
-	if err := store.ReplaceBaseline(context.Background(), records, nil); err != nil {
-		t.Fatalf("seed anime snapshot: %v", err)
+	waitForCaptureCount(t, &captures, 1)
+	if captures[0].Outcome != "accepted" || captures[0].Device.DeviceID != "device-1" {
+		t.Fatalf("unexpected accepted capture %#v", captures[0])
+	}
+}
+
+func TestWSReconcileRejectedCapture(t *testing.T) {
+	t.Parallel()
+
+	captures := []mobilecapture.CaptureRecord{}
+	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
+		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
+		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		AnimeWrite:    stubWebSocketAnimeWrite{err: context.DeadlineExceeded},
+		SyncTrigger:   stubSyncService{},
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captures = append(captures, record)
+			return true
+		},
+	})
+	defer cleanup()
+
+	conn := dialWebSocketWithToken(t, wsURL, "good-token")
+	defer closeWebsocket(t, conn)
+	readControlMessage(t, conn)
+	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
+		t.Fatalf("write websocket reconcile: %v", err)
+	}
+	waitForCaptureCount(t, &captures, 1)
+	if captures[0].Outcome != "rejected" {
+		t.Fatalf("unexpected rejected capture %#v", captures[0])
+	}
+}
+
+func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
+	t.Parallel()
+
+	captures := []mobilecapture.CaptureRecord{}
+	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
+		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
+		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		AnimeWrite:    stubWebSocketAnimeWrite{err: context.DeadlineExceeded},
+		SyncTrigger:   stubSyncService{},
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captures = append(captures, record)
+			return true
+		},
+	})
+	defer cleanup()
+
+	conn := dialWebSocketWithToken(t, wsURL, "good-token")
+	defer closeWebsocket(t, conn)
+	readControlMessage(t, conn)
+	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
+		t.Fatalf("write websocket reconcile: %v", err)
+	}
+	waitForCaptureCount(t, &captures, 1)
+	if captures[0].Outcome != "rejected" {
+		t.Fatalf("unexpected outcome %#v", captures[0])
+	}
+	if captures[0].DurationMS == nil {
+		t.Fatal("expected duration_ms to be captured")
+	}
+	if captures[0].ResponseBody == nil {
+		t.Fatal("expected response body to be captured for a rejected ws reconcile")
+	}
+}
+
+func TestWSNonReconcileNoCapture(t *testing.T) {
+	t.Parallel()
+
+	captures := []mobilecapture.CaptureRecord{}
+	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
+		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
+		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captures = append(captures, record)
+			return true
+		},
+	})
+	defer cleanup()
+
+	conn := dialWebSocketWithToken(t, wsURL, "good-token")
+	defer closeWebsocket(t, conn)
+	readControlMessage(t, conn)
+	if err := conn.WriteJSON(map[string]any{"type": "noop"}); err != nil {
+		t.Fatalf("write websocket noop: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if len(captures) != 0 {
+		t.Fatalf("expected no capture for non-reconcile traffic, got %#v", captures)
+	}
+}
+
+func TestWSMalformedNoCapture(t *testing.T) {
+	t.Parallel()
+
+	captures := []mobilecapture.CaptureRecord{}
+	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
+		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
+		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captures = append(captures, record)
+			return true
+		},
+	})
+	defer cleanup()
+
+	conn := dialWebSocketWithToken(t, wsURL, "good-token")
+	defer closeWebsocket(t, conn)
+	readControlMessage(t, conn)
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(`{`)); err != nil {
+		t.Fatalf("write malformed websocket message: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if len(captures) != 0 {
+		t.Fatalf("expected no capture for malformed websocket payload, got %#v", captures)
 	}
 }

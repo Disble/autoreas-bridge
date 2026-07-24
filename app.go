@@ -17,6 +17,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -29,6 +30,7 @@ import (
 type App struct {
 	ctx                      context.Context
 	bridgeDB                 *sql.DB
+	bridgeDBCloser           interface{ Close() error }
 	startupErr               error
 	sharedLogger             *sharedlogger.FanoutLogger
 	memLogger                *sharedlogger.MemLogger
@@ -43,6 +45,7 @@ type App struct {
 	newNotifier              func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub           func(ctx context.Context) realtime.Hub
 	newHTTPServer            func(config api.Config) api.Server
+	newCaptureQueue          func(db *sql.DB) captureQueue
 	newTrayManager           func() tray.Manager
 	newTracerBulletRunner    func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink      func() tracerbullet.TraceSink
@@ -57,6 +60,7 @@ type App struct {
 	syncChangelogRecorder    changelogRecorder
 	realtimeHub              realtime.Hub
 	httpServer               api.Server
+	captureQueue             captureQueue
 	trayManager              tray.Manager
 	tracerBulletRunner       tracerBulletRunner
 	catchUpContext           context.Context
@@ -124,6 +128,11 @@ type changelogRecorder interface {
 	Err() error
 }
 
+type captureQueue interface {
+	TryEnqueue(record mobilecapture.CaptureRecord) bool
+	Stop(ctx context.Context) mobilecapture.QueueStopResult
+}
+
 type episodeCommandService interface {
 	ListEpisodeSchedule(ctx context.Context, query anime.EpisodeScheduleQuery) ([]anime.EpisodeScheduleItem, error)
 	AdjustWatchedEpisodes(ctx context.Context, cmd anime.AdjustWatchedEpisodesCommand) (anime.EpisodeCommandResult, error)
@@ -180,6 +189,7 @@ func (a *App) startup(ctx context.Context) {
 // initializeBridgeDatabase initializes the bridge database during startup.
 func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
 	a.bridgeDB, a.startupErr = a.bootstrapBridgeDB()
+	a.bridgeDBCloser = a.bridgeDB
 	return a.startupErr == nil
 }
 
@@ -279,10 +289,15 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.syncChangelogRecorder != nil {
 		a.syncChangelogRecorder.Stop()
 	}
+	if a.captureQueue != nil {
+		_ = a.captureQueue.Stop(ctx)
+	}
 	if a.animeUpdateWriter != nil {
 		a.animeUpdateWriter.Wait()
 	}
-	if a.bridgeDB != nil {
+	if a.bridgeDBCloser != nil {
+		_ = a.bridgeDBCloser.Close()
+	} else if a.bridgeDB != nil {
 		_ = a.bridgeDB.Close()
 	}
 	a.ctx = ctx

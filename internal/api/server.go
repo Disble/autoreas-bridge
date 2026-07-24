@@ -57,6 +57,9 @@ type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
 // ActiveSeasonSnapshotFunc aliases the active-season snapshot query signature.
 type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
 
+// CaptureFunc aliases the mobile-capture queue seam.
+type CaptureFunc = apiHandlers.CaptureFunc
+
 // ErrAnimeNotFound reports that the requested anime does not exist.
 var ErrAnimeNotFound = contracts.ErrAnimeNotFound
 
@@ -75,6 +78,7 @@ type Config struct {
 	RealtimeHub            realtime.Hub
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()
+	Capture                CaptureFunc
 }
 
 // Server exposes the lifecycle of the bridge HTTP server.

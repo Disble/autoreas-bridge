@@ -14,6 +14,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -312,5 +313,26 @@ func TestAppStartupSubscribesRealtimeHubToAnimeChangedEvents(t *testing.T) {
 		}
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("expected anime changed event to be forwarded to realtime hub")
+	}
+}
+
+func TestAppStartupWiresCaptureQueueIntoHTTPServerAfterBridgeDBBootstrap(t *testing.T) {
+	t.Parallel()
+
+	server := &stubAppHTTPServer{}
+	app := newAppTestApp(t)
+	app.newCaptureQueue = func(*sql.DB) captureQueue { return &stubCaptureQueue{} }
+	app.newHTTPServer = func(config api.Config) api.Server {
+		if config.Capture == nil {
+			t.Fatal("expected startup to wire capture queue into http server config")
+		}
+		config.Capture(mobilecapture.NewCaptureRecord("patch", "device-1"))
+		return server
+	}
+
+	app.startup(context.Background())
+
+	if app.captureQueue == nil {
+		t.Fatal("expected startup to retain the capture queue")
 	}
 }

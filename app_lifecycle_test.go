@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api"
@@ -321,5 +322,22 @@ func TestAppStartupPairingTokenConsumedCallbackIsSafeWithNilNotifier(t *testing.
 	}
 	if app.startupErr != nil {
 		t.Fatalf("expected startupErr nil, got %v", app.startupErr)
+	}
+}
+
+func TestAppShutdownFlushesCaptureQueueBeforeAnimeWriterAndDBClose(t *testing.T) {
+	t.Parallel()
+
+	order := []string{}
+	writer := &stubAppUpdateWriter{onWait: func() { order = append(order, "anime-writer") }}
+	queue := &stubCaptureQueue{onStop: func() { order = append(order, "capture") }}
+	db := &recordingLifecycleDB{onClose: func() { order = append(order, "db") }}
+	app := &App{httpServer: &stubAppHTTPServer{onShutdown: func() { order = append(order, "http") }}, syncChangelogRecorder: &stubAppChangelogRecorder{onStop: func() { order = append(order, "changelog") }}, captureQueue: queue, animeUpdateWriter: writer, bridgeDBCloser: db}
+
+	app.shutdown(context.Background())
+
+	got := strings.Join(order, ",")
+	if got != "http,changelog,capture,anime-writer,db" {
+		t.Fatalf("expected shutdown order http,changelog,capture,anime-writer,db, got %s", got)
 	}
 }

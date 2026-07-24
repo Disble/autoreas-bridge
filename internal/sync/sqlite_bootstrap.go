@@ -57,6 +57,28 @@ func (b SQLiteBootstrap) ResolveBridgeDBPath() (string, error) {
 	return filepath.Join(dataDir, bridgeDBName), nil
 }
 
+// ResolveExistingBridgeDBPath resolves the platform-safe bridge DB path without creating directories and requires the file to exist.
+func (b SQLiteBootstrap) ResolveExistingBridgeDBPath() (string, error) {
+	userConfigDir := b.userConfigDir
+	if userConfigDir == nil {
+		userConfigDir = os.UserConfigDir
+	}
+	baseDir, err := userConfigDir()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(baseDir, bridgeDataDirName, bridgeDataSubdir, bridgeDBName)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("bridge db missing at %q: %w", path, err)
+	}
+	return path, nil
+}
+
+// ResolveExistingBridgeDBPath resolves the bridge DB path only when it already exists.
+func ResolveExistingBridgeDBPath() (string, error) {
+	return SQLiteBootstrap{}.ResolveExistingBridgeDBPath()
+}
+
 // ResolveBridgeDBPath resolves the platform-standard bridge.db path, creating the
 // Autoreas/data directory if necessary.
 func ResolveBridgeDBPath() (string, error) {
@@ -138,6 +160,21 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
+	if err := ensureMobileRequestCaptureMetadata(db); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureMobileRequestCaptureMetadata seeds the mobile capture schema version metadata row.
+func ensureMobileRequestCaptureMetadata(db *sql.DB) error {
+	if _, err := db.Exec(`
+		INSERT INTO mobile_request_capture_metadata (key, value) VALUES ('mobile_request_capture_schema_version', '2')
+		ON CONFLICT(key) DO UPDATE SET value = '2'
+	`); err != nil {
+		return fmt.Errorf("seed mobile request capture metadata: %w", err)
+	}
 	return nil
 }
 

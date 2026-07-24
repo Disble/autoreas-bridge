@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
 // SyncHandlerConfig wires the dependencies required by the sync reconcile handler.
@@ -18,44 +21,61 @@ type SyncHandlerConfig struct {
 	TriggerReconcile   TriggerReconcileFunc
 	ListChangesAfterID ListChangesAfterIDFunc
 	AcknowledgeDevice  AcknowledgeDeviceFunc
+	Capture            CaptureFunc
 }
 
 // NewSyncHandler builds the POST /api/sync/reconcile transport adapter.
 func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pairedDeviceID, ok := authenticateSyncRequest(w, r, config.Authenticate)
+		start := time.Now()
+		wrapper := &capturingResponseWriter{ResponseWriter: w}
+		w = wrapper
+		requestHeader := r.Header
+		captureWithTelemetry := func(record mobilecapture.CaptureRecord) {
+			enqueueSyncCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
+		}
+
+		pairedDevice, ok := authenticateSyncRequest(w, r, config.Authenticate)
 		if !ok {
 			return
 		}
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		}
 		req, ok := decodeReconcileRequest(w, r)
 		if !ok {
+			captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", ReconcileRequest{}, "malformed", captureIntPtr(http.StatusBadRequest), "invalid_request_body", nil, nil))
 			return
 		}
 		appliedOperations, ok := applyReconcileOperations(w, r.Context(), req.PendingOperations, config.ApplyPendingPatch)
 		if !ok {
+			captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", req, "rejected", captureIntPtr(responseStatus(w)), "apply_pending_failed", operationRefsFromAppliedOperations(appliedOperations), nil))
 			return
 		}
 		if !triggerReconcile(w, r.Context(), config.TriggerReconcile) {
+			captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", req, "rejected", captureIntPtr(responseStatus(w)), "trigger_reconcile_failed", operationRefsFromAppliedOperations(appliedOperations), nil))
 			return
 		}
-		if !acknowledgeReconcileDevice(w, r.Context(), req, pairedDeviceID, config.AcknowledgeDevice) {
+		if !acknowledgeReconcileDevice(w, r.Context(), req, pairedDevice.DeviceID, config.AcknowledgeDevice) {
+			captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", req, "rejected", captureIntPtr(responseStatus(w)), "acknowledge_device_failed", operationRefsFromAppliedOperations(appliedOperations), nil))
 			return
 		}
 		changes, lastID, ok := listReconcileChanges(w, r.Context(), req.LastChangelogID, config.ListChangesAfterID)
 		if !ok {
+			captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", req, "rejected", captureIntPtr(responseStatus(w)), "list_changes_failed", operationRefsFromAppliedOperations(appliedOperations), nil))
 			return
 		}
 		writeJSON(w, http.StatusAccepted, ReconcileResponse{Status: "accepted", LastChangelogID: lastID, AppliedOperations: appliedOperations, BridgeChanges: changes, Conflicts: []any{}})
+		captureWithTelemetry(mobilecapture.BuildReconcileCaptureRecord(pairedDevice, "reconcile", "/api/sync/reconcile", "http", req, "accepted", captureIntPtr(http.StatusAccepted), "", operationRefsFromAppliedOperations(appliedOperations), changelogIDsFromChanges(changes)))
 	})
 }
 
 // authenticateSyncRequest authenticates a sync request and returns its device ID.
-func authenticateSyncRequest(w http.ResponseWriter, r *http.Request, authenticate AuthenticateFunc) (string, bool) {
+func authenticateSyncRequest(w http.ResponseWriter, r *http.Request, authenticate AuthenticateFunc) (device.PairedDevice, bool) {
 	if authenticate == nil {
-		return "", true
+		return device.PairedDevice{}, true
 	}
-	paired, ok := authenticate(w, r)
-	return paired.DeviceID, ok
+	return authenticate(w, r)
 }
 
 // decodeReconcileRequest decodes a reconcile request body and reports malformed input.
@@ -79,7 +99,7 @@ func applyReconcileOperations(w http.ResponseWriter, ctx context.Context, operat
 	}
 	status, message := pendingOperationErrorResponse(err)
 	writeJSONError(w, status, message)
-	return nil, false
+	return results, false
 }
 
 // pendingOperationErrorResponse maps a pending-operation error to HTTP details.
@@ -108,9 +128,6 @@ func triggerReconcile(w http.ResponseWriter, ctx context.Context, trigger Trigge
 // acknowledgeReconcileDevice records the client's changelog position when possible.
 func acknowledgeReconcileDevice(w http.ResponseWriter, ctx context.Context, req ReconcileRequest, pairedID string, acknowledge AcknowledgeDeviceFunc) bool {
 	deviceID := pairedID
-	if deviceID == "" {
-		deviceID = strings.TrimSpace(req.DeviceID)
-	}
 	if deviceID == "" || acknowledge == nil {
 		return true
 	}
@@ -149,13 +166,48 @@ func applyPendingOperations(ctx context.Context, operations []contracts.PendingO
 		if applyPendingPatch == nil {
 			return nil, pendingPatchUnavailableError{}
 		}
-		if err := applyPendingPatch(ctx, operation.AnimeID, patch); err != nil {
-			return nil, err
+		result, err := applyPendingPatch(ctx, operation.AnimeID, patch)
+		if err != nil {
+			return results, err
 		}
-		results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: true})
+		results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: err == nil && result.Outcome != contracts.AnimePatchOutcomeConflict})
 	}
 	return results, nil
 }
+
+// enqueueSyncCapture enqueues a reconcile observability record when capture is configured.
+func enqueueSyncCapture(capture CaptureFunc, record mobilecapture.CaptureRecord) {
+	if capture != nil {
+		capture(record)
+	}
+}
+
+// operationRefsFromAppliedOperations converts applied operations into correlation refs.
+func operationRefsFromAppliedOperations(applied []contracts.AppliedOperation) []mobilecapture.OperationRef {
+	refs := make([]mobilecapture.OperationRef, 0, len(applied))
+	for _, operation := range applied {
+		outcome := "skipped"
+		if operation.Applied {
+			outcome = "applied"
+		}
+		refs = append(refs, mobilecapture.OperationRef{AnimeID: operation.AnimeID, Operation: operation.Operation, Outcome: outcome})
+	}
+	return refs
+}
+
+// changelogIDsFromChanges extracts positive changelog IDs from bridge changes.
+func changelogIDsFromChanges(changes []AnimeChange) []int64 {
+	ids := make([]int64, 0, len(changes))
+	for _, change := range changes {
+		if change.ID > 0 {
+			ids = append(ids, change.ID)
+		}
+	}
+	return ids
+}
+
+// captureIntPtr returns a pointer to the provided integer value.
+func captureIntPtr(value int) *int { return &value }
 
 type invalidPendingOperationError struct{ err error }
 

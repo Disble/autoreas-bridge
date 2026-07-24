@@ -10,7 +10,7 @@ import (
 )
 
 var incompleteTaskPattern = regexp.MustCompile(`(?m)^\s*- \[ \]`)
-var verdictPattern = regexp.MustCompile(`(?ms)^### Verdict\s*\r?\n\s*([A-Z ]+)`)
+var verdictPattern = regexp.MustCompile(`(?ms)^### Verdict\s*\r?\n\s*(?:\*\*)?([A-Z ]+)(?:\*\*)?`)
 
 func main() {
 	root, err := os.Getwd()

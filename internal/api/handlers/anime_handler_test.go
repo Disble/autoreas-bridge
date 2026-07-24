@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"autoreas-bridge/internal/device"
 )
 
 func TestPatchAnimeHandlerReturnsUnauthorizedWithoutBearer(t *testing.T) {
@@ -323,50 +320,4 @@ func TestPatchAnimeHandlerDecodesBaseToken(t *testing.T) {
 			}
 		})
 	}
-}
-
-var errAnimeNotFound = errors.New("anime not found")
-
-type animeHandlerStubs struct {
-	effectiveAnime *EffectiveAnime
-	queryErr       error
-	patchErr       error
-	patchedID      string
-	patchedPatch   AnimePatch
-	queryCalls     int
-	patchCalls     int
-}
-
-// newAnimeHandlerStubs creates the anime handler test dependencies.
-func newAnimeHandlerStubs() *animeHandlerStubs {
-	return &animeHandlerStubs{}
-}
-
-// authenticate returns a test authentication function with the requested result.
-func (s *animeHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
-	return func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
-		if !authorized {
-			writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
-			return device.PairedDevice{}, false
-		}
-
-		return device.PairedDevice{DeviceID: "device-1"}, true
-	}
-}
-
-// queryAnime returns the configured anime and records the query call.
-func (s *animeHandlerStubs) queryAnime(context.Context, string) (*EffectiveAnime, error) {
-	s.queryCalls++
-	if s.queryErr != nil {
-		return nil, s.queryErr
-	}
-	return s.effectiveAnime, nil
-}
-
-// patchAnime records a patch request and returns its configured error.
-func (s *animeHandlerStubs) patchAnime(_ context.Context, id string, patch AnimePatch) error {
-	s.patchCalls++
-	s.patchedID = id
-	s.patchedPatch = patch
-	return s.patchErr
 }

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/api/contracts"
 )
 
 func TestSyncHandlerReturnsUnauthorizedWithoutBearer(t *testing.T) {
@@ -145,6 +145,96 @@ func TestSyncHandlerReturnsServerErrorWhenDeviceAckFails(t *testing.T) {
 	}
 }
 
+func TestReconcileAcceptedCapture(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{
+		Authenticate:      stubs.authenticate(true),
+		ApplyPendingPatch: stubs.patchAnime,
+		Capture:           stubs.capture,
+		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
+			return []AnimeChange{{ID: 9, RecordID: "anime-1", ChangeType: "update", Timestamp: 123}}, 9, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"spoofed","last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3},"created_at":1710000000123}]}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d, got %d", http.StatusAccepted, res.Code)
+	}
+	if len(stubs.captures) != 1 {
+		t.Fatalf("expected one capture, got %#v", stubs.captures)
+	}
+	if stubs.captures[0].Outcome != "accepted" {
+		t.Fatalf("expected accepted capture, got %#v", stubs.captures[0])
+	}
+	if stubs.captures[0].Device.DeviceID != "device-1" {
+		t.Fatalf("expected trusted device id, got %#v", stubs.captures[0].Device)
+	}
+}
+
+func TestReconcileRejectedCapture(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{
+		Authenticate: stubs.authenticate(true),
+		ApplyPendingPatch: func(_ context.Context, id string, _ AnimePatch) (contracts.AnimePatchResult, error) {
+			if id == "anime-1" {
+				return contracts.AnimePatchResult{Outcome: contracts.AnimePatchOutcomeApplied}, nil
+			}
+			return contracts.AnimePatchResult{}, errors.New("boom")
+		},
+		Capture: stubs.capture,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3}},{"anime_id":"anime-2","operation":"update","payload":{"episodesWatched":4}}]}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
+	}
+	if len(stubs.captures) != 1 || stubs.captures[0].Outcome != "rejected" {
+		t.Fatalf("expected rejected capture, got %#v", stubs.captures)
+	}
+	if refs := stubs.captures[0].Correlations.OperationRefs; len(refs) != 1 || refs[0].AnimeID != "anime-1" {
+		t.Fatalf("expected successful partial operation reference, got %#v", refs)
+	}
+}
+
+func TestReconcileRejectsOversizedBodyWithoutOversizedCapture(t *testing.T) {
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true), Capture: stubs.capture})
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"pending_operations":[],"padding":"`+strings.Repeat("x", 1<<20)+`"}`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusBadRequest || len(stubs.captures) != 1 || len(stubs.captures[0].Payload) > 2 {
+		t.Fatalf("expected bounded malformed capture, status=%d captures=%#v", res.Code, stubs.captures)
+	}
+}
+
+func TestReconcileMalformedCapture(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true), Capture: stubs.capture})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{`))
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
+	}
+	if len(stubs.captures) != 1 || stubs.captures[0].Outcome != "malformed" {
+		t.Fatalf("expected malformed capture, got %#v", stubs.captures)
+	}
+}
+
 func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) {
 	t.Parallel()
 
@@ -157,10 +247,10 @@ func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) 
 			stubs.triggerCalls++
 			return nil
 		},
-		ApplyPendingPatch: func(_ context.Context, id string, patch AnimePatch) error {
+		ApplyPendingPatch: func(_ context.Context, id string, patch AnimePatch) (contracts.AnimePatchResult, error) {
 			patchedID = id
 			patchedPatch = patch
-			return nil
+			return contracts.AnimePatchResult{AnimeID: id, Outcome: contracts.AnimePatchOutcomeApplied, ModifiedAt: 1000}, nil
 		},
 	})
 
@@ -209,9 +299,9 @@ func TestSyncHandlerReturnsBadRequestWhenPendingOperationIsInvalid(t *testing.T)
 			stubs.triggerCalls++
 			return nil
 		},
-		ApplyPendingPatch: func(context.Context, string, AnimePatch) error {
+		ApplyPendingPatch: func(context.Context, string, AnimePatch) (contracts.AnimePatchResult, error) {
 			t.Fatal("did not expect pending patch application")
-			return nil
+			return contracts.AnimePatchResult{}, nil
 		},
 	})
 
@@ -238,8 +328,8 @@ func TestSyncHandlerReturnsServerErrorWhenApplyingPendingOperationFails(t *testi
 			stubs.triggerCalls++
 			return nil
 		},
-		ApplyPendingPatch: func(context.Context, string, AnimePatch) error {
-			return errors.New("append failed")
+		ApplyPendingPatch: func(context.Context, string, AnimePatch) (contracts.AnimePatchResult, error) {
+			return contracts.AnimePatchResult{}, errors.New("append failed")
 		},
 	})
 
@@ -267,9 +357,9 @@ func TestSyncHandlerIgnoresNonUpdatePendingOperations(t *testing.T) {
 			stubs.triggerCalls++
 			return nil
 		},
-		ApplyPendingPatch: func(context.Context, string, AnimePatch) error {
+		ApplyPendingPatch: func(context.Context, string, AnimePatch) (contracts.AnimePatchResult, error) {
 			called = true
-			return nil
+			return contracts.AnimePatchResult{Outcome: contracts.AnimePatchOutcomeApplied, ModifiedAt: 1000}, nil
 		},
 		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
 			return []AnimeChange{{RecordID: "anime-1", ChangeType: "update", Timestamp: 123}}, 1, nil
@@ -298,21 +388,5 @@ func TestSyncHandlerIgnoresNonUpdatePendingOperations(t *testing.T) {
 	applied := payload.AppliedOperations[0]
 	if applied.AnimeID != "anime-1" || applied.Operation != "delete" || applied.Applied {
 		t.Fatalf("expected unapplied delete marker, got %#v", applied)
-	}
-}
-
-type syncHandlerStubs struct {
-	triggerCalls int
-}
-
-// authenticate returns a test authentication function with the requested result.
-func (s *syncHandlerStubs) authenticate(authorized bool) AuthenticateFunc {
-	return func(w http.ResponseWriter, r *http.Request) (device.PairedDevice, bool) {
-		if !authorized {
-			writeJSONError(w, http.StatusUnauthorized, "missing bearer token")
-			return device.PairedDevice{}, false
-		}
-
-		return device.PairedDevice{DeviceID: "device-1"}, true
 	}
 }

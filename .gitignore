@@ -13,3 +13,5 @@ cmd/poc/.env
 
 # Local-only backups / scratch (never commit)
 .ignore/
+opencode.json
+.mcp.json

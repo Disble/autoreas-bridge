@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
 // PatchAnimeConfig wires the dependencies required by the PATCH /api/animes handler.
@@ -16,6 +19,7 @@ type PatchAnimeConfig struct {
 	Authenticate AuthenticateFunc
 	QueryAnime   QueryAnimeFunc
 	PatchAnime   PatchAnimeFunc
+	Capture      CaptureFunc
 	IsNotFound   func(error) bool
 }
 
@@ -28,7 +32,13 @@ func NewPatchAnimeHandler(config PatchAnimeConfig) http.Handler {
 
 // handlePatchAnime coordinates authentication, decoding, and anime patching.
 func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeConfig) {
-	if !authenticatePatchRequest(w, r, config.Authenticate) {
+	start := time.Now()
+	wrapper := &capturingResponseWriter{ResponseWriter: w}
+	w = wrapper
+	requestHeader := r.Header
+
+	device, ok := authenticatePatchRequest(w, r, config.Authenticate)
+	if !ok {
 		return
 	}
 	animeID, ok := patchAnimeID(w, r)
@@ -37,26 +47,37 @@ func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeC
 	}
 	patch, ok := requestAnimePatch(w, r)
 	if !ok {
+		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, AnimePatch{}, "malformed", http.StatusBadRequest, "invalid_request_body")
+		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
 		return
 	}
 	effectiveAnime, ok := queryPatchAnime(w, r, animeID, config)
 	if !ok {
+		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "rejected", responseStatus(w), "anime_not_found")
+		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
 		return
 	}
 	patch = domain.ApplyCompletionStateMachine(patch, effectiveAnime.TotalCap)
-	if !applyAnimeRequestPatch(w, r, animeID, patch, config) {
+	result, ok := applyAnimeRequestPatch(w, r, animeID, patch, config)
+	if !ok {
+		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "rejected", responseStatus(w), patchCaptureErrorCode(result, config.IsNotFound))
+		if result.ConflictID != "" {
+			record.Correlations.ConflictIDs = []string{result.ConflictID}
+		}
+		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "accepted", http.StatusOK, "")
+	enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
 }
 
 // authenticatePatchRequest authenticates a patch request when configured.
-func authenticatePatchRequest(w http.ResponseWriter, r *http.Request, authenticate AuthenticateFunc) bool {
+func authenticatePatchRequest(w http.ResponseWriter, r *http.Request, authenticate AuthenticateFunc) (device.PairedDevice, bool) {
 	if authenticate == nil {
-		return true
+		return device.PairedDevice{}, true
 	}
-	_, ok := authenticate(w, r)
-	return ok
+	return authenticate(w, r)
 }
 
 // patchAnimeID extracts and validates the anime identifier from the request path.
@@ -90,13 +111,29 @@ func queryPatchAnime(w http.ResponseWriter, r *http.Request, id string, config P
 }
 
 // applyAnimeRequestPatch applies the decoded patch and maps its errors to HTTP.
-func applyAnimeRequestPatch(w http.ResponseWriter, r *http.Request, id string, patch AnimePatch, config PatchAnimeConfig) bool {
-	err := config.PatchAnime(r.Context(), id, patch)
+func applyAnimeRequestPatch(w http.ResponseWriter, r *http.Request, id string, patch AnimePatch, config PatchAnimeConfig) (contracts.AnimePatchResult, bool) {
+	result, err := config.PatchAnime(r.Context(), id, patch)
 	if err == nil {
-		return true
+		return result, true
 	}
 	writePatchAnimeError(w, err, config.IsNotFound, "patch anime failed")
-	return false
+	return result, false
+}
+
+// enqueuePatchCapture enqueues a PATCH observability record when capture is configured.
+func enqueuePatchCapture(capture CaptureFunc, record mobilecapture.CaptureRecord) {
+	if capture != nil {
+		capture(record)
+	}
+}
+
+// patchCaptureErrorCode maps a patch outcome to the capture error code.
+func patchCaptureErrorCode(result contracts.AnimePatchResult, isNotFound func(error) bool) string {
+	if result.Outcome == contracts.AnimePatchOutcomeConflict {
+		return "patch_conflict"
+	}
+	_ = isNotFound
+	return "patch_rejected"
 }
 
 // writePatchAnimeError maps patch failures to their HTTP response.

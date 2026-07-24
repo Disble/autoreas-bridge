@@ -40,6 +40,7 @@ func NewHandler(config Config) http.Handler {
 func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConfig {
 	patchConfig := apiHandlers.PatchAnimeConfig{
 		Authenticate: h.authenticate,
+		Capture:      config.Capture,
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
 			return config.AnimeQuery.GetEffectiveAnime(ctx, id)
 		},
@@ -53,7 +54,7 @@ func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConf
 
 // buildSyncHandlerConfig assembles dependencies for the sync handler.
 func buildSyncHandlerConfig(h *Handler, config Config) apiHandlers.SyncHandlerConfig {
-	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
+	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate, Capture: config.Capture}
 	if config.AnimeWrite != nil {
 		syncConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 	}
@@ -123,6 +124,7 @@ func registerWebSocketRoute(mux *http.ServeMux, h *Handler, config Config) {
 func buildWebSocketHandlerConfig(h *Handler, config Config) apiHandlers.WebSocketHandlerConfig {
 	wsConfig := apiHandlers.WebSocketHandlerConfig{
 		Authenticate:       h.authenticateWebSocket,
+		Capture:            config.Capture,
 		RecordSeasonRating: config.RecordSeasonRating,
 		Hub:                config.RealtimeHub,
 		Logger:             config.Logger,

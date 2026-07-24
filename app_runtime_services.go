@@ -19,6 +19,7 @@ import (
 
 // configureRuntimeServices wires and starts the bridge runtime services.
 func (a *App) configureRuntimeServices(ctx context.Context) {
+	a.configureCaptureQueue()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
@@ -29,6 +30,14 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	}
 	a.wireEpisodeServiceWithWriter(a.animeWrite)
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
+}
+
+// configureCaptureQueue wires the mobile-capture observability queue when dependencies are present.
+func (a *App) configureCaptureQueue() {
+	if a.captureQueue != nil || a.bridgeDB == nil || a.newCaptureQueue == nil {
+		return
+	}
+	a.captureQueue = a.newCaptureQueue(a.bridgeDB)
 }
 
 // startSyncChangelogRecorder starts recording sync events from the event bus.

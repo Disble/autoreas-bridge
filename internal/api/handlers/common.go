@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
 // AnimePatch aliases the write contract consumed by handler adapters.
@@ -57,7 +58,10 @@ type ListMobileAnimesFunc func(ctx context.Context) ([]MobileAnime, error)
 type GetMobileAnimeFunc func(ctx context.Context, id string) (*MobileAnime, error)
 
 // PatchAnimeFunc applies one anime patch through the write seam.
-type PatchAnimeFunc func(ctx context.Context, id string, patch AnimePatch) error
+type PatchAnimeFunc func(ctx context.Context, id string, patch AnimePatch) (contracts.AnimePatchResult, error)
+
+// CaptureFunc enqueues one sanitized observability record.
+type CaptureFunc func(record mobilecapture.CaptureRecord) bool
 
 // TriggerReconcileFunc requests bridge-wide reconcile fan-out.
 type TriggerReconcileFunc func(ctx context.Context) error
@@ -92,18 +96,18 @@ var ErrAnimePatchConflict = errors.New("anime patch conflict")
 // AdaptAnimePatchWriter keeps the established HTTP/mobile error-only seam while
 // refusing to downgrade a semantic conflict into transport success.
 func AdaptAnimePatchWriter(writer contracts.AnimeWriteService) PatchAnimeFunc {
-	return func(ctx context.Context, id string, patch AnimePatch) error {
+	return func(ctx context.Context, id string, patch AnimePatch) (contracts.AnimePatchResult, error) {
 		result, err := writer.PatchAnime(ctx, id, patch)
 		if err != nil {
-			return err
+			return contracts.AnimePatchResult{}, err
 		}
 		switch result.Outcome {
 		case contracts.AnimePatchOutcomeApplied, contracts.AnimePatchOutcomeNoOp:
-			return nil
+			return result, nil
 		case contracts.AnimePatchOutcomeConflict:
-			return fmt.Errorf("%w: anime=%s modifiedAt=%d conflictId=%s", ErrAnimePatchConflict, result.AnimeID, result.ModifiedAt, result.ConflictID)
+			return result, fmt.Errorf("%w: anime=%s modifiedAt=%d conflictId=%s", ErrAnimePatchConflict, result.AnimeID, result.ModifiedAt, result.ConflictID)
 		default:
-			return fmt.Errorf("unexpected anime patch outcome %q", result.Outcome)
+			return result, fmt.Errorf("unexpected anime patch outcome %q", result.Outcome)
 		}
 	}
 }

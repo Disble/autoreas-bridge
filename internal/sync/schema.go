@@ -126,6 +126,53 @@ const (
 	animeChangedOutboxPendingIndexDDL = `
 		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
 		ON anime_changed_outbox (status, created_at_ms, event_id)`
+
+	mobileRequestCapturesDDL = `
+		CREATE TABLE IF NOT EXISTS mobile_request_captures (
+			request_id TEXT PRIMARY KEY,
+			captured_at_ms INTEGER NOT NULL,
+			kind TEXT NOT NULL,
+			route TEXT NOT NULL,
+			transport TEXT NOT NULL,
+			device_id TEXT NOT NULL,
+			device_name TEXT NOT NULL,
+			outcome TEXT NOT NULL,
+			anime_id TEXT,
+			http_status INTEGER,
+			payload_json TEXT NOT NULL,
+			correlation_json TEXT NOT NULL,
+			error_code TEXT NOT NULL DEFAULT '',
+			response_body TEXT,
+			request_headers TEXT,
+			response_headers TEXT,
+			duration_ms INTEGER
+		)`
+
+	mobileRequestCapturesTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_time
+		ON mobile_request_captures (captured_at_ms DESC, request_id DESC)`
+
+	mobileRequestCapturesDeviceTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_device_time
+		ON mobile_request_captures (device_id, captured_at_ms DESC, request_id DESC)`
+
+	mobileRequestCapturesAnimeTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_anime_time
+		ON mobile_request_captures (anime_id, captured_at_ms DESC, request_id DESC)`
+
+	mobileRequestCapturesRouteTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_route_time
+		ON mobile_request_captures (route, captured_at_ms DESC, request_id DESC)`
+
+	mobileRequestCapturesStatusTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_status_time
+		ON mobile_request_captures (http_status, captured_at_ms DESC, request_id DESC)`
+
+	mobileRequestCaptureMetadataDDL = `
+		CREATE TABLE IF NOT EXISTS mobile_request_capture_metadata (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`
 )
 
 // containsSchemaColumn reports whether columns contains want.

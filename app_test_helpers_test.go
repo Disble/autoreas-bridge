@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
@@ -36,6 +37,7 @@ func newAppTestApp(t *testing.T) *App {
 		newDeviceService: func(device.Store) device.AuthService { return stubAppDeviceService{} },
 		newDownloadStore: func(*sql.DB) download.Store { return &fakeAppDownloadStore{} },
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
+		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
 	}
 }
 
@@ -96,6 +98,7 @@ type stubTracerBulletRunner struct{ started bool }
 type stubAppUpdateWriter struct {
 	started    bool
 	waitCalled bool
+	onWait     func()
 }
 
 type stubAppChangelogStore struct{}
@@ -103,9 +106,10 @@ type stubAppChangelogStore struct{}
 type stubAppDeviceStore struct{}
 
 type stubAppHTTPServer struct {
-	started  bool
-	stopped  bool
-	startErr error
+	started    bool
+	stopped    bool
+	startErr   error
+	onShutdown func()
 }
 
 type stubAppRealtimeHub struct {
@@ -118,7 +122,31 @@ type stubAppDeviceService struct{}
 
 type stubAppNotifier struct{}
 
+type stubCaptureQueue struct {
+	onStop func()
+}
+
+type recordingLifecycleDB struct {
+	onClose func()
+}
+
 func (*stubAppNotifier) Notify(context.Context, notification.Notification) error { return nil }
+
+func (s *stubCaptureQueue) TryEnqueue(mobilecapture.CaptureRecord) bool { return true }
+
+func (s *stubCaptureQueue) Stop(context.Context) mobilecapture.QueueStopResult {
+	if s.onStop != nil {
+		s.onStop()
+	}
+	return mobilecapture.QueueStopResult{}
+}
+
+func (s *recordingLifecycleDB) Close() error {
+	if s.onClose != nil {
+		s.onClose()
+	}
+	return nil
+}
 
 // stubAnimeQueryService is a minimal contracts.AnimeQueryService double for
 // app_runtime_test.go's GetAnimeDetail cases. Only GetMobileAnime is
@@ -278,10 +306,16 @@ func (stubAppDeviceService) ListDevices(context.Context) ([]contracts.DeviceInfo
 }
 func (stubAppDeviceService) RevokeDevice(context.Context, string) error { return nil }
 
-func (s *stubAppHTTPServer) Start() error                   { s.started = true; return s.startErr }
-func (s *stubAppHTTPServer) Shutdown(context.Context) error { s.stopped = true; return nil }
-func (*stubAppHTTPServer) Addr() string                     { return "127.0.0.1:0" }
-func (*stubAppHTTPServer) EffectiveAddress() string         { return "192.168.1.50:8080" }
+func (s *stubAppHTTPServer) Start() error { s.started = true; return s.startErr }
+func (s *stubAppHTTPServer) Shutdown(context.Context) error {
+	s.stopped = true
+	if s.onShutdown != nil {
+		s.onShutdown()
+	}
+	return nil
+}
+func (*stubAppHTTPServer) Addr() string             { return "127.0.0.1:0" }
+func (*stubAppHTTPServer) EffectiveAddress() string { return "192.168.1.50:8080" }
 
 func (*stubAppRealtimeHub) Register(context.Context, realtime.Client) error { return nil }
 func (*stubAppRealtimeHub) Unregister(string)                               {}
@@ -303,18 +337,29 @@ func (*stubAppRealtimeHub) Close() error { return nil }
 type stubAppChangelogRecorder struct {
 	started bool
 	stopped bool
+	onStop  func()
 }
 
 func (s *stubAppUpdateWriter) StartAsync(context.Context) { s.started = true }
-func (s *stubAppUpdateWriter) Wait()                      { s.waitCalled = true }
-func (s *stubAppUpdateWriter) Err() error                 { return nil }
+func (s *stubAppUpdateWriter) Wait() {
+	s.waitCalled = true
+	if s.onWait != nil {
+		s.onWait()
+	}
+}
+func (s *stubAppUpdateWriter) Err() error { return nil }
 func (s *stubAppUpdateWriter) RequestWrite(context.Context, string, []byte) error {
 	return nil
 }
 
 func (s *stubAppChangelogRecorder) Start(context.Context) { s.started = true }
-func (s *stubAppChangelogRecorder) Stop()                 { s.stopped = true }
-func (s *stubAppChangelogRecorder) Err() error            { return nil }
+func (s *stubAppChangelogRecorder) Stop() {
+	s.stopped = true
+	if s.onStop != nil {
+		s.onStop()
+	}
+}
+func (s *stubAppChangelogRecorder) Err() error { return nil }
 
 func (s *stubTracerBulletRunner) Start() { s.started = true }
 
