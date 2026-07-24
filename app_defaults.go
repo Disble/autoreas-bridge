@@ -118,6 +118,9 @@ func (a *App) ensureSyncRuntimeDependencies() {
 			return mobilecapture.NewQueue(mobilecapture.NewStore(db, mobilecapture.StoreConfig{}), mobilecapture.QueueConfig{})
 		}
 	}
+	if a.newCaptureReader == nil {
+		a.newCaptureReader = mobilecapture.NewReader
+	}
 	if a.newTrayManager == nil {
 		a.newTrayManager = func() tray.Manager {
 			return nil

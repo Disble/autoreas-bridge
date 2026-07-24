@@ -685,6 +685,256 @@ export namespace contracts {
 	}
 	
 	
+	export class CaptureOperationRef {
+	    animeId: string;
+	    operation: string;
+	    outcome: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureOperationRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.animeId = source["animeId"];
+	        this.operation = source["operation"];
+	        this.outcome = source["outcome"];
+	    }
+	}
+	export class CaptureCorrelations {
+	    changelogIds?: number[];
+	    operationRefs: CaptureOperationRef[];
+	    conflictIds?: string[];
+	    activityIds?: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureCorrelations(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changelogIds = source["changelogIds"];
+	        this.operationRefs = this.convertValues(source["operationRefs"], CaptureOperationRef);
+	        this.conflictIds = source["conflictIds"];
+	        this.activityIds = source["activityIds"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CaptureDetail {
+	    requestId: string;
+	    capturedAtMs: number;
+	    kind: string;
+	    route: string;
+	    transport: string;
+	    outcome: string;
+	    errorCode?: string;
+	    httpStatus?: number;
+	    durationMs?: number;
+	    animeId?: string;
+	    payload: Record<string, any>;
+	    responseBody?: string;
+	    requestHeaders?: Record<string, string>;
+	    responseHeaders?: Record<string, string>;
+	    correlations: CaptureCorrelations;
+	    deviceId: string;
+	    deviceName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requestId = source["requestId"];
+	        this.capturedAtMs = source["capturedAtMs"];
+	        this.kind = source["kind"];
+	        this.route = source["route"];
+	        this.transport = source["transport"];
+	        this.outcome = source["outcome"];
+	        this.errorCode = source["errorCode"];
+	        this.httpStatus = source["httpStatus"];
+	        this.durationMs = source["durationMs"];
+	        this.animeId = source["animeId"];
+	        this.payload = source["payload"];
+	        this.responseBody = source["responseBody"];
+	        this.requestHeaders = source["requestHeaders"];
+	        this.responseHeaders = source["responseHeaders"];
+	        this.correlations = this.convertValues(source["correlations"], CaptureCorrelations);
+	        this.deviceId = source["deviceId"];
+	        this.deviceName = source["deviceName"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CaptureDetailResult {
+	    found: boolean;
+	    item: CaptureDetail;
+	    degraded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureDetailResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.found = source["found"];
+	        this.item = this.convertValues(source["item"], CaptureDetail);
+	        this.degraded = source["degraded"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class CaptureRow {
+	    requestId: string;
+	    capturedAtMs: number;
+	    kind: string;
+	    route: string;
+	    transport: string;
+	    outcome: string;
+	    errorCode?: string;
+	    httpStatus?: number;
+	    durationMs?: number;
+	    animeId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.requestId = source["requestId"];
+	        this.capturedAtMs = source["capturedAtMs"];
+	        this.kind = source["kind"];
+	        this.route = source["route"];
+	        this.transport = source["transport"];
+	        this.outcome = source["outcome"];
+	        this.errorCode = source["errorCode"];
+	        this.httpStatus = source["httpStatus"];
+	        this.durationMs = source["durationMs"];
+	        this.animeId = source["animeId"];
+	    }
+	}
+	export class CapturePage {
+	    items: CaptureRow[];
+	    nextCursor?: string;
+	    appliedLimit: number;
+	    malformedRowsSkipped: number;
+	    warningCount: number;
+	    degraded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CapturePage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], CaptureRow);
+	        this.nextCursor = source["nextCursor"];
+	        this.appliedLimit = source["appliedLimit"];
+	        this.malformedRowsSkipped = source["malformedRowsSkipped"];
+	        this.warningCount = source["warningCount"];
+	        this.degraded = source["degraded"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CaptureQuery {
+	    Limit: number;
+	    Cursor: string;
+	    Route: string;
+	    Outcome: string;
+	    Kind: string;
+	    AnimeID: string;
+	    ErrorCode: string;
+	    HTTPStatus?: number;
+	    StartMS?: number;
+	    EndMS?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CaptureQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Limit = source["Limit"];
+	        this.Cursor = source["Cursor"];
+	        this.Route = source["Route"];
+	        this.Outcome = source["Outcome"];
+	        this.Kind = source["Kind"];
+	        this.AnimeID = source["AnimeID"];
+	        this.ErrorCode = source["ErrorCode"];
+	        this.HTTPStatus = source["HTTPStatus"];
+	        this.StartMS = source["StartMS"];
+	        this.EndMS = source["EndMS"];
+	    }
+	}
+	
 	export class DeviceInfo {
 	    device_id: string;
 	    device_name: string;

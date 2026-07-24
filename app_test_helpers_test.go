@@ -38,6 +38,7 @@ func newAppTestApp(t *testing.T) *App {
 		newDownloadStore: func(*sql.DB) download.Store { return &fakeAppDownloadStore{} },
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
+		newCaptureReader: func(*sql.DB) *mobilecapture.Reader { return nil },
 	}
 }
 

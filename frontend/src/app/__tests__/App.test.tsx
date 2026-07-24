@@ -43,6 +43,9 @@ describe('App routing', () => {
     it.each([
       ['/episodes', 'Today'],
       ['/dashboard', 'Today'],
+      // /network redirects to Activity, which is now the real TransactionPanel
+      // (not the event log NetworkPanel.tsx renders -- NetworkRoute.tsx is
+      // pre-existing dead/unrouted drift, see design.md).
       ['/network', 'Activity'],
       ['/status', 'Activity'],
       ['/pairing', 'Devices'],
@@ -148,6 +151,16 @@ describe('App routing', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
   });
 
+  it('renders the events route directly', async () => {
+    render(
+      <MemoryRouter initialEntries={['/events']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Events' })).toBeInTheDocument();
+  });
+
   it('renders the season route directly', async () => {
     render(
       <MemoryRouter initialEntries={['/season']}>
@@ -180,7 +193,7 @@ describe('App routing', () => {
   });
 
   describe('grouped rail navigation', () => {
-    it('renders exactly 9 nav items across 3 groups in the documented order', async () => {
+    it('renders exactly 10 nav items across 3 groups in the documented order', async () => {
       render(
         <MemoryRouter initialEntries={['/today']}>
           <App />
@@ -189,7 +202,7 @@ describe('App routing', () => {
 
       const nav = await screen.findByRole('navigation', { name: 'Bridge primary navigation' });
 
-      expect(within(nav).getAllByRole('link')).toHaveLength(9);
+      expect(within(nav).getAllByRole('link')).toHaveLength(10);
       expect(APP_LAYOUT_NAV_GROUPS).toHaveLength(3);
       expect(APP_LAYOUT_NAV_GROUPS[0]?.items.map((item) => item.label)).toEqual([
         'Today',
@@ -200,14 +213,14 @@ describe('App routing', () => {
         'Season',
       ]);
       expect(APP_LAYOUT_NAV_GROUPS[1]?.items.map((item) => item.label)).toEqual(['Devices']);
-      expect(APP_LAYOUT_NAV_GROUPS[2]?.items.map((item) => item.label)).toEqual(['Activity', 'Settings']);
+      expect(APP_LAYOUT_NAV_GROUPS[2]?.items.map((item) => item.label)).toEqual(['Activity', 'Events', 'Settings']);
       expect(APP_LAYOUT_NAV_GROUPS[2]?.pinned).toBe(true);
     });
 
-    it('flattens to 9 items preserving group order for the mobile tab bar', () => {
+    it('flattens to 10 items preserving group order for the mobile tab bar', () => {
       const flat = flattenNavItems(APP_LAYOUT_NAV_GROUPS);
 
-      expect(flat).toHaveLength(9);
+      expect(flat).toHaveLength(10);
       expect(flat.map((item) => item.label)).toEqual([
         'Today',
         'Downloads',
@@ -217,6 +230,7 @@ describe('App routing', () => {
         'Season',
         'Devices',
         'Activity',
+        'Events',
         'Settings',
       ]);
     });
@@ -232,6 +246,7 @@ describe('App routing', () => {
       ['/season', 'Season'],
       ['/devices', 'Devices'],
       ['/activity', 'Activity'],
+      ['/events', 'Events'],
       ['/settings', 'Settings'],
     ])('the %s page h1 equals its nav label %s', async (path, label) => {
       render(

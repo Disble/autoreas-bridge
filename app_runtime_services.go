@@ -20,6 +20,7 @@ import (
 // configureRuntimeServices wires and starts the bridge runtime services.
 func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureQueue()
+	a.configureCaptureReader()
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
@@ -38,6 +39,18 @@ func (a *App) configureCaptureQueue() {
 		return
 	}
 	a.captureQueue = a.newCaptureQueue(a.bridgeDB)
+}
+
+// configureCaptureReader wires the in-process capture read path
+// (ListCaptureTransactions/GetCaptureTransaction) once, over the app's own
+// bridgeDB handle -- never a second SQLite connection (design.md "Read
+// handle"). Guarded like configureCaptureQueue: nil-safe when bridgeDB is
+// absent, and a no-op once a reader already exists.
+func (a *App) configureCaptureReader() {
+	if a.captureReader != nil || a.bridgeDB == nil || a.newCaptureReader == nil {
+		return
+	}
+	a.captureReader = a.newCaptureReader(a.bridgeDB)
 }
 
 // startSyncChangelogRecorder starts recording sync events from the event bus.

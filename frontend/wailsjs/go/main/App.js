@@ -82,6 +82,10 @@ export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
 }
 
+export function GetCaptureTransaction(arg1) {
+  return window['go']['main']['App']['GetCaptureTransaction'](arg1);
+}
+
 export function GetConnectedDevices() {
   return window['go']['main']['App']['GetConnectedDevices']();
 }
@@ -156,6 +160,10 @@ export function GetSyncingAnimeItems() {
 
 export function ImportSeasonIntake(arg1) {
   return window['go']['main']['App']['ImportSeasonIntake'](arg1);
+}
+
+export function ListCaptureTransactions(arg1) {
+  return window['go']['main']['App']['ListCaptureTransactions'](arg1);
 }
 
 export function ListDownloadRuns() {

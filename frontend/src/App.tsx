@@ -5,6 +5,7 @@ import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
 import { AnimeEditorRoute } from './app/routes/AnimeEditorRoute';
 import { CatalogRoute } from './app/routes/CatalogRoute';
 import { DevicesRoute } from './app/routes/DevicesRoute';
+import { EventsRoute } from './app/routes/EventsRoute';
 import { HistoryRoute } from './app/routes/HistoryRoute';
 import { EpisodesRoute } from './app/routes/EpisodesRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
@@ -29,6 +30,7 @@ function App() {
                 <Route path="/devices" element={<DevicesRoute />} />
                 <Route path="/pairing" element={<Navigate replace to="/devices" />} />
                 <Route path="/activity" element={<ActivityRoute />} />
+                <Route path="/events" element={<EventsRoute />} />
                 <Route path="/network" element={<Navigate replace to="/activity" />} />
                 <Route path="/status" element={<Navigate replace to="/activity" />} />
                 <Route path="/season" element={<SeasonRoute />} />

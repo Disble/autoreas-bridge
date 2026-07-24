@@ -44,6 +44,8 @@ export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
 export function GetBridgeStatus():Promise<string>;
 
+export function GetCaptureTransaction(arg1:string):Promise<contracts.CaptureDetailResult>;
+
 export function GetConnectedDevices():Promise<Array<contracts.DeviceInfo>>;
 
 export function GetDownloadConfig():Promise<contracts.DownloadConfig>;
@@ -81,6 +83,8 @@ export function GetSeasonOrderingBoard():Promise<main.OrderingBoardDTO>;
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
 
 export function ImportSeasonIntake(arg1:string):Promise<string>;
+
+export function ListCaptureTransactions(arg1:contracts.CaptureQuery):Promise<contracts.CapturePage>;
 
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 

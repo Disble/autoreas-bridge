@@ -46,6 +46,7 @@ type App struct {
 	newRealtimeHub           func(ctx context.Context) realtime.Hub
 	newHTTPServer            func(config api.Config) api.Server
 	newCaptureQueue          func(db *sql.DB) captureQueue
+	newCaptureReader         func(db *sql.DB) *mobilecapture.Reader
 	newTrayManager           func() tray.Manager
 	newTracerBulletRunner    func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink      func() tracerbullet.TraceSink
@@ -61,6 +62,7 @@ type App struct {
 	realtimeHub              realtime.Hub
 	httpServer               api.Server
 	captureQueue             captureQueue
+	captureReader            *mobilecapture.Reader
 	trayManager              tray.Manager
 	tracerBulletRunner       tracerBulletRunner
 	catchUpContext           context.Context
