@@ -10,8 +10,10 @@ function row(overrides: Partial<TransactionRowViewModel> = {}): TransactionRowVi
     methodKind: 'patch',
     route: '/api/animes/anime-1',
     outcome: 'accepted',
+    outcomeColor: 'success',
     statusLabel: '200',
     statusColor: 'success',
+    hasHttpStatus: true,
     durationLabel: '42ms',
     timeLabel: '10:30:45',
     isPending: false,
@@ -51,5 +53,37 @@ describe('TransactionTable', () => {
     screen.getByText('/api/animes/anime-1').closest('tr')?.click();
 
     expect(onSelect).toHaveBeenCalledWith('req-1');
+  });
+
+  it('renders a rejected outcome pill distinguishable from an accepted one', () => {
+    render(
+      <TransactionTable
+        isLoading={false}
+        onSelect={vi.fn()}
+        rows={[row({ id: 'req-1', outcome: 'accepted', outcomeColor: 'success' }), row({ id: 'req-2', outcome: 'rejected', outcomeColor: 'danger' })]}
+        selectedId={null}
+      />,
+    );
+
+    const acceptedChip = screen.getByText('accepted').closest('[data-slot="chip"]');
+    const rejectedChip = screen.getByText('rejected').closest('[data-slot="chip"]');
+
+    expect(acceptedChip).toHaveClass('chip--success');
+    expect(rejectedChip).toHaveClass('chip--danger');
+  });
+
+  it('renders no status chip and the neutral absence marker for a statusless row, and never fabricates 0 or 200', () => {
+    render(
+      <TransactionTable
+        isLoading={false}
+        onSelect={vi.fn()}
+        rows={[row({ id: 'req-live', outcome: 'pending', outcomeColor: 'accent', hasHttpStatus: false, statusLabel: '–' })]}
+        selectedId={null}
+      />,
+    );
+
+    expect(screen.queryByText('200')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.getByText('–')).toBeInTheDocument();
   });
 });

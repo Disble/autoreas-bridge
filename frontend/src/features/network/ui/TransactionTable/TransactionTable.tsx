@@ -1,5 +1,9 @@
 import { Chip, Table } from '@heroui/react';
-import { TRANSACTION_EMPTY_STATE_MESSAGE, TRANSACTION_LOADING_STATE_MESSAGE } from '../TransactionPanel/transaction-panel.constants';
+import {
+  TRANSACTION_EMPTY_LABEL,
+  TRANSACTION_EMPTY_STATE_MESSAGE,
+  TRANSACTION_LOADING_STATE_MESSAGE,
+} from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionTableProps } from '../TransactionPanel/transaction-panel.types';
 
 /**
@@ -57,12 +61,18 @@ export function TransactionTable({ rows, selectedId, onSelect, isLoading }: Read
                     </span>
                   </Table.Cell>
                   <Table.Cell>
-                    <span className="text-[11px] text-default-500">{row.outcome}</span>
+                    <Chip color={row.outcomeColor} size="sm" variant="soft">
+                      {row.outcome}
+                    </Chip>
                   </Table.Cell>
                   <Table.Cell>
-                    <Chip color={row.statusColor} size="sm" variant="soft">
-                      {row.statusLabel}
-                    </Chip>
+                    {row.hasHttpStatus ? (
+                      <Chip color={row.statusColor} size="sm" variant="soft">
+                        {row.statusLabel}
+                      </Chip>
+                    ) : (
+                      <span className="text-[11px] text-default-400">{TRANSACTION_EMPTY_LABEL}</span>
+                    )}
                   </Table.Cell>
                   <Table.Cell>
                     <span className="font-mono text-[11px] text-default-500">{row.durationLabel}</span>

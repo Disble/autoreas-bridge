@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
-import { TRANSACTION_EMPTY_LABEL, TRANSACTION_NOT_CAPTURED_LABEL } from '../transaction-panel.constants';
-import { getTransactionStatusColor, toTransactionDetail, toTransactionRow } from '../transaction-panel.helpers';
+import { CAPTURE_REDACTION_MARKER, TRANSACTION_EMPTY_LABEL } from '../transaction-panel.constants';
+import {
+  getTransactionOutcomeColor,
+  getTransactionStatusColor,
+  toTransactionBody,
+  toTransactionDetail,
+  toTransactionRow,
+} from '../transaction-panel.helpers';
 
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   return {
@@ -35,7 +41,7 @@ describe('getTransactionStatusColor', () => {
     expect(getTransactionStatusColor(304)).toBe('default');
   });
 
-  it('maps 4xx to warning', () => {
+  it('maps 4xx to warning (client error, distinguished from a bridge/server 5xx failure)', () => {
     expect(getTransactionStatusColor(404)).toBe('warning');
   });
 
@@ -43,8 +49,114 @@ describe('getTransactionStatusColor', () => {
     expect(getTransactionStatusColor(503)).toBe('danger');
   });
 
+  it('maps an out-of-range status class to default without throwing', () => {
+    expect(getTransactionStatusColor(100)).toBe('default');
+    expect(getTransactionStatusColor(999)).toBe('default');
+  });
+
   it('maps an absent status to default', () => {
     expect(getTransactionStatusColor(undefined)).toBe('default');
+  });
+});
+
+describe('getTransactionOutcomeColor', () => {
+  it('maps accepted and pushed to success', () => {
+    expect(getTransactionOutcomeColor('accepted')).toBe('success');
+    expect(getTransactionOutcomeColor('pushed')).toBe('success');
+  });
+
+  it('maps rejected to danger', () => {
+    expect(getTransactionOutcomeColor('rejected')).toBe('danger');
+  });
+
+  it('maps malformed to warning, distinct from rejected', () => {
+    expect(getTransactionOutcomeColor('malformed')).toBe('warning');
+    expect(getTransactionOutcomeColor('malformed')).not.toBe(getTransactionOutcomeColor('rejected'));
+  });
+
+  it('maps pending and opened to accent', () => {
+    expect(getTransactionOutcomeColor('pending')).toBe('accent');
+    expect(getTransactionOutcomeColor('opened')).toBe('accent');
+  });
+
+  it('maps closed to default', () => {
+    expect(getTransactionOutcomeColor('closed')).toBe('default');
+  });
+
+  it('maps an unknown outcome to default without throwing', () => {
+    expect(() => getTransactionOutcomeColor('quarantined')).not.toThrow();
+    expect(getTransactionOutcomeColor('quarantined')).toBe('default');
+  });
+});
+
+describe('toTransactionBody', () => {
+  it('pins the redaction marker to the exact backend literal', () => {
+    expect(CAPTURE_REDACTION_MARKER).toBe('{"error":"response body redacted"}');
+  });
+
+  it('renders a captured response body verbatim', () => {
+    const viewModel = toTransactionBody({ kind: 'response', raw: '{"ok":true}' });
+
+    expect(viewModel).toEqual({ state: 'captured', raw: '{"ok":true}' });
+  });
+
+  it('marks an absent response body as not-captured with the expected-for-2xx notice', () => {
+    const viewModel = toTransactionBody({ kind: 'response', raw: undefined });
+
+    expect(viewModel.state).toBe('not-captured');
+    expect(viewModel.raw).toBe('');
+    expect(viewModel.notice).toBeTruthy();
+  });
+
+  it('marks a body equal to the redaction marker as redacted, naming all three causes and never "truncated"', () => {
+    const viewModel = toTransactionBody({ kind: 'response', raw: CAPTURE_REDACTION_MARKER });
+
+    expect(viewModel.state).toBe('redacted');
+    expect(viewModel.notice).toBeTruthy();
+    expect(viewModel.notice?.toLowerCase()).not.toContain('truncated');
+  });
+
+  it('marks an empty request payload as not-captured with a no-payload notice', () => {
+    const viewModel = toTransactionBody({ kind: 'request', payload: {} });
+
+    expect(viewModel.state).toBe('not-captured');
+    expect(viewModel.notice).toBeTruthy();
+  });
+
+  it('renders a populated request payload as its compact serialization', () => {
+    const payload = { status: 1, note: 'ok' };
+    const viewModel = toTransactionBody({ kind: 'request', payload });
+
+    expect(viewModel).toEqual({ state: 'captured', raw: JSON.stringify(payload) });
+  });
+});
+
+describe('toTransactionRow / toTransactionDetail — hasHttpStatus and outcomeColor', () => {
+  it('reports hasHttpStatus true when httpStatus is present', () => {
+    expect(toTransactionRow(row({ httpStatus: 200 })).hasHttpStatus).toBe(true);
+  });
+
+  it('reports hasHttpStatus false for a pending row with no httpStatus', () => {
+    expect(toTransactionRow(row({ outcome: 'pending', httpStatus: undefined })).hasHttpStatus).toBe(false);
+  });
+
+  it('reports hasHttpStatus false for a ws_broadcast/pushed row with no httpStatus', () => {
+    expect(toTransactionRow(row({ kind: 'ws_broadcast', outcome: 'pushed', httpStatus: undefined })).hasHttpStatus).toBe(false);
+  });
+
+  it('carries outcomeColor on every row', () => {
+    expect(toTransactionRow(row({ outcome: 'rejected' })).outcomeColor).toBe('danger');
+  });
+
+  it('resolves the same statusColor/outcomeColor for the table row and the detail of the same transaction', () => {
+    const captureRow = row({ outcome: 'rejected', httpStatus: 404 });
+    const captureDetail = detail({ outcome: 'rejected', httpStatus: 404 });
+
+    const rowViewModel = toTransactionRow(captureRow);
+    const detailViewModel = toTransactionDetail(captureDetail);
+
+    expect(detailViewModel.statusColor).toBe(rowViewModel.statusColor);
+    expect(detailViewModel.outcomeColor).toBe(rowViewModel.outcomeColor);
   });
 });
 
@@ -102,15 +214,15 @@ describe('toTransactionDetail', () => {
     expect(viewModel.requestId).toBe('req-1');
     expect(viewModel.requestHeaders).toEqual([{ label: 'content-type', value: 'application/json' }]);
     expect(viewModel.responseHeaders).toEqual([{ label: 'x-request-id', value: 'req-1' }]);
-    expect(viewModel.responseBody).toBe('{"ok":true}');
+    expect(viewModel.responseBody).toEqual({ state: 'captured', raw: '{"ok":true}' });
     expect(viewModel.correlations).toEqual([{ label: 'anime-1 · patch', value: 'accepted' }]);
-    expect(viewModel.requestPayload).toContain('"status": 1');
+    expect(viewModel.requestPayload).toEqual({ state: 'captured', raw: JSON.stringify({ status: 1 }) });
   });
 
-  it('falls back to "Not captured" for absent response body and empty headers/correlations', () => {
+  it('falls back to explicit not-captured bodies for an absent response body and empty headers/correlations', () => {
     const viewModel = toTransactionDetail(detail({ responseBody: undefined, requestHeaders: undefined, responseHeaders: undefined }));
 
-    expect(viewModel.responseBody).toBe(TRANSACTION_NOT_CAPTURED_LABEL);
+    expect(viewModel.responseBody.state).toBe('not-captured');
     expect(viewModel.requestHeaders).toEqual([]);
     expect(viewModel.responseHeaders).toEqual([]);
     expect(viewModel.correlations).toEqual([]);

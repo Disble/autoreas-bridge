@@ -1,8 +1,16 @@
 import type { CaptureDetail, CaptureRow } from '../../../../shared/contracts/capture.types';
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
-import { TRANSACTION_EMPTY_LABEL, TRANSACTION_NOT_CAPTURED_LABEL } from './transaction-panel.constants';
+import {
+  CAPTURE_REDACTION_MARKER,
+  TRANSACTION_EMPTY_LABEL,
+  TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE,
+  TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE,
+  TRANSACTION_RESPONSE_REDACTED_NOTICE,
+} from './transaction-panel.constants';
 import type {
   HeroChipColor,
+  TransactionBodySource,
+  TransactionBodyViewModel,
   TransactionDetailFieldRow,
   TransactionDetailViewModel,
   TransactionRowViewModel,
@@ -40,9 +48,66 @@ export function getTransactionStatusColor(httpStatus: number | undefined): HeroC
   }
 }
 
+/**
+ * Maps a capture outcome to the project's semantic HeroUI chip color over
+ * the real capture vocabulary (design.md "Outcome vocabulary — the
+ * evidence", grepped from `sync_handler.go` / `anime_handler.go` /
+ * `websocket_handler.go` / `realtime/hub_capture.go`). There is no `stale`
+ * outcome — that token belongs to a different entity (device-sync status)
+ * and MUST NOT be mixed in here. Any value outside the known vocabulary
+ * renders with the neutral/default token rather than being dropped or
+ * hidden.
+ */
+export function getTransactionOutcomeColor(outcome: string): HeroChipColor {
+  switch (outcome) {
+    case 'accepted':
+    case 'pushed':
+      return 'success';
+    case 'rejected':
+      return 'danger';
+    case 'malformed':
+      return 'warning';
+    case 'pending':
+    case 'opened':
+      return 'accent';
+    case 'closed':
+      return 'default';
+    default:
+      return 'default';
+  }
+}
+
 /** Formats the STATUS column, or the Null Object em-dash when absent. */
 function formatTransactionStatusLabel(httpStatus: number | undefined): string {
   return httpStatus === undefined ? TRANSACTION_EMPTY_LABEL : String(httpStatus);
+}
+
+/**
+ * Builds a body/payload pane's view-model, distinguishing captured, never-
+ * captured, and upstream-redacted content rather than conflating them into
+ * one placeholder string (design.md "Truncation honesty"). A response body
+ * equal to `CAPTURE_REDACTION_MARKER` is rendered as redacted, never as the
+ * origin's real response; the notice never claims truncation because the
+ * capture pipeline records no truncation signal.
+ */
+export function toTransactionBody(source: Readonly<TransactionBodySource>): TransactionBodyViewModel {
+  if (source.kind === 'request') {
+    if (Object.keys(source.payload).length === 0) {
+      return { state: 'not-captured', raw: '', notice: TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE };
+    }
+
+    return { state: 'captured', raw: JSON.stringify(source.payload) };
+  }
+
+  if (source.raw === undefined) {
+    return { state: 'not-captured', raw: '', notice: TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE };
+  }
+
+  if (source.raw === CAPTURE_REDACTION_MARKER) {
+    return { state: 'redacted', raw: source.raw, notice: TRANSACTION_RESPONSE_REDACTED_NOTICE };
+  }
+
+  return { state: 'captured', raw: source.raw };
 }
 
 /** Formats the DURATION column in milliseconds, or the Null Object em-dash when absent. */
@@ -65,8 +130,10 @@ export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.n
     methodKind: row.kind,
     route: row.route,
     outcome: row.outcome,
+    outcomeColor: getTransactionOutcomeColor(row.outcome),
     statusLabel: formatTransactionStatusLabel(row.httpStatus),
     statusColor: getTransactionStatusColor(row.httpStatus),
+    hasHttpStatus: row.httpStatus !== undefined,
     durationLabel: formatTransactionDuration(isPending ? Math.max(now - row.capturedAtMs, 0) : row.durationMs),
     timeLabel: formatCaptureTime(row.capturedAtMs),
     isPending,
@@ -117,8 +184,10 @@ export function toTransactionDetail(detail: Readonly<CaptureDetail>): Transactio
     methodKind: detail.kind,
     route: detail.route,
     outcome: detail.outcome,
+    outcomeColor: getTransactionOutcomeColor(detail.outcome),
     statusLabel: formatTransactionStatusLabel(detail.httpStatus),
     statusColor: getTransactionStatusColor(detail.httpStatus),
+    hasHttpStatus: detail.httpStatus !== undefined,
     durationLabel: formatTransactionDuration(detail.durationMs),
     timeLabel: formatCaptureTime(detail.capturedAtMs),
     deviceName: detail.deviceName,
@@ -126,8 +195,8 @@ export function toTransactionDetail(detail: Readonly<CaptureDetail>): Transactio
     generalFields: toGeneralFields(detail),
     requestHeaders: toHeaderRows(detail.requestHeaders),
     responseHeaders: toHeaderRows(detail.responseHeaders),
-    requestPayload: JSON.stringify(detail.payload, null, 2),
-    responseBody: detail.responseBody ?? TRANSACTION_NOT_CAPTURED_LABEL,
+    requestPayload: toTransactionBody({ kind: 'request', payload: detail.payload }),
+    responseBody: toTransactionBody({ kind: 'response', raw: detail.responseBody }),
     correlations: toCorrelationRows(detail),
   };
 }

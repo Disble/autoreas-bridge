@@ -1,5 +1,5 @@
 import { Card, Chip, CloseButton, Tabs } from '@heroui/react';
-import { TRANSACTION_DETAIL_TAB_LABELS } from '../TransactionPanel/transaction-panel.constants';
+import { TRANSACTION_DETAIL_TAB_LABELS, TRANSACTION_EMPTY_LABEL } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionDetailProps } from '../TransactionPanel/transaction-panel.types';
 import { TransactionDetailGeneral } from './TransactionDetailGeneral';
 import { TransactionDetailRequest } from './TransactionDetailRequest';
@@ -21,8 +21,22 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
     );
   }
 
-  const { methodKind, route, outcome, statusLabel, statusColor, timeLabel, generalFields, requestHeaders, requestPayload, responseHeaders, responseBody, correlations } =
-    detail;
+  const {
+    methodKind,
+    route,
+    outcome,
+    outcomeColor,
+    statusLabel,
+    statusColor,
+    hasHttpStatus,
+    timeLabel,
+    generalFields,
+    requestHeaders,
+    requestPayload,
+    responseHeaders,
+    responseBody,
+    correlations,
+  } = detail;
 
   return (
     <Card>
@@ -35,10 +49,16 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
             <CloseButton aria-label="Close detail inspector" className="shrink-0" onPress={onClose} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Chip color={statusColor} size="sm" variant="soft">
-              {statusLabel}
+            <Chip color={outcomeColor} size="sm" variant="soft">
+              {outcome}
             </Chip>
-            <span className="text-xs text-default-500">{outcome}</span>
+            {hasHttpStatus ? (
+              <Chip color={statusColor} size="sm" variant="soft">
+                {statusLabel}
+              </Chip>
+            ) : (
+              <span className="text-xs text-default-400">{TRANSACTION_EMPTY_LABEL}</span>
+            )}
             <span className="font-mono text-xs text-default-500">{timeLabel}</span>
           </div>
         </header>

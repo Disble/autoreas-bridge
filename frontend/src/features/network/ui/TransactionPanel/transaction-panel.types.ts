@@ -2,6 +2,7 @@ import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-ru
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source';
 import type { CaptureRow } from '../../../../shared/contracts/capture.types';
 import type { TransactionStatusClassFilter } from '../../../../shared/store/transaction-store';
+import type { CodeBlockState } from '../../../../shared/ui/CodeBlock';
 
 /** HeroUI Chip color tokens supported by the project's design system. */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
@@ -11,14 +12,33 @@ export type TransactionDetailTab = 'general' | 'request' | 'response';
 
 export type { CaptureRow };
 
+/** Presentation-ready shape of one inspectable body/payload pane (request payload or response body). */
+export interface TransactionBodyViewModel {
+  readonly raw: string;
+  readonly state: CodeBlockState;
+  readonly notice?: string;
+}
+
+/**
+ * Discriminated input for `toTransactionBody`: a response body arrives as a
+ * possibly-absent string, while a request payload arrives as the already-
+ * parsed `CaptureDetail.payload` object — there is no server-verbatim
+ * string for it, so its "raw" form is defined as its compact serialization.
+ */
+export type TransactionBodySource =
+  | { readonly kind: 'response'; readonly raw: string | undefined }
+  | { readonly kind: 'request'; readonly payload: Readonly<Record<string, unknown>> };
+
 /** Presentation-ready shape of a single transaction row. */
 export interface TransactionRowViewModel {
   readonly id: string;
   readonly methodKind: string;
   readonly route: string;
   readonly outcome: string;
+  readonly outcomeColor: HeroChipColor;
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
+  readonly hasHttpStatus: boolean;
   readonly durationLabel: string;
   readonly timeLabel: string;
   readonly isPending: boolean;
@@ -36,8 +56,10 @@ export interface TransactionDetailViewModel {
   readonly methodKind: string;
   readonly route: string;
   readonly outcome: string;
+  readonly outcomeColor: HeroChipColor;
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
+  readonly hasHttpStatus: boolean;
   readonly durationLabel: string;
   readonly timeLabel: string;
   readonly deviceName: string;
@@ -45,8 +67,8 @@ export interface TransactionDetailViewModel {
   readonly generalFields: readonly TransactionDetailFieldRow[];
   readonly requestHeaders: readonly TransactionDetailFieldRow[];
   readonly responseHeaders: readonly TransactionDetailFieldRow[];
-  readonly requestPayload: string;
-  readonly responseBody: string;
+  readonly requestPayload: TransactionBodyViewModel;
+  readonly responseBody: TransactionBodyViewModel;
   readonly correlations: readonly TransactionDetailFieldRow[];
 }
 

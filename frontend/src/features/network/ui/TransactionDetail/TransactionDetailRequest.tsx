@@ -1,10 +1,18 @@
-import type { TransactionDetailFieldRow } from '../TransactionPanel/transaction-panel.types';
+import { CodeBlock } from '../../../../shared/ui/CodeBlock';
+import type { TransactionBodyViewModel, TransactionDetailFieldRow } from '../TransactionPanel/transaction-panel.types';
 
-/** Dumb Request-tab pane: request headers plus the JSON request payload. */
+/**
+ * Dumb Request-tab pane: request headers plus the request payload, rendered
+ * through the shared `CodeBlock` primitive. `CaptureDetail.payload` arrives
+ * already parsed as an object, so there is no server-verbatim request
+ * string — the payload's "raw" form is its compact `JSON.stringify`
+ * (`transaction-panel.helpers.ts#toTransactionBody`), not the original wire
+ * bytes.
+ */
 export function TransactionDetailRequest({
   headers,
   payload,
-}: Readonly<{ headers: readonly TransactionDetailFieldRow[]; payload: string }>) {
+}: Readonly<{ headers: readonly TransactionDetailFieldRow[]; payload: TransactionBodyViewModel }>) {
   return (
     <div className="flex flex-col gap-3 py-2">
       <div className="flex flex-col gap-1">
@@ -19,10 +27,7 @@ export function TransactionDetailRequest({
         </dl>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-default-500">Payload</span>
-        <pre className="max-h-64 overflow-auto rounded-md bg-content2/40 p-2 font-mono text-xs text-foreground">{payload}</pre>
-      </div>
+      <CodeBlock label="Payload" notice={payload.notice} raw={payload.raw} state={payload.state} />
     </div>
   );
 }
