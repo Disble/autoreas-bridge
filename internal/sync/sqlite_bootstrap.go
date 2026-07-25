@@ -140,6 +140,15 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
+	// Renames any previously-named capture tables in place. MUST run before
+	// the EnsureTableSchema loop below: EnsureTableSchema never calls a
+	// table's Migrate hook for a table it just created, so a Migrate hook on
+	// requestCapturesTable() would silently create an empty request_captures
+	// and orphan every row already stored under the previous name.
+	if err := ensureRequestCaptureTableRename(db); err != nil {
+		return err
+	}
+
 	tables := append(schemaTables(), dbschema.SchemaTables()...)
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
@@ -160,20 +169,20 @@ func initializeBridgeDB(db *sql.DB) error {
 		return err
 	}
 
-	if err := ensureMobileRequestCaptureMetadata(db); err != nil {
+	if err := ensureRequestCaptureMetadata(db); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ensureMobileRequestCaptureMetadata seeds the mobile capture schema version metadata row.
-func ensureMobileRequestCaptureMetadata(db *sql.DB) error {
+// ensureRequestCaptureMetadata seeds the request capture schema version metadata row.
+func ensureRequestCaptureMetadata(db *sql.DB) error {
 	if _, err := db.Exec(`
-		INSERT INTO mobile_request_capture_metadata (key, value) VALUES ('mobile_request_capture_schema_version', '2')
-		ON CONFLICT(key) DO UPDATE SET value = '2'
+		INSERT INTO request_capture_metadata (key, value) VALUES ('request_capture_schema_version', '3')
+		ON CONFLICT(key) DO UPDATE SET value = '3'
 	`); err != nil {
-		return fmt.Errorf("seed mobile request capture metadata: %w", err)
+		return fmt.Errorf("seed request capture metadata: %w", err)
 	}
 	return nil
 }

@@ -17,7 +17,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -46,7 +46,7 @@ type App struct {
 	newRealtimeHub           func(ctx context.Context) realtime.Hub
 	newHTTPServer            func(config api.Config) api.Server
 	newCaptureQueue          func(db *sql.DB) captureQueue
-	newCaptureReader         func(db *sql.DB) *mobilecapture.Reader
+	newCaptureReader         func(db *sql.DB) *requestcapture.Reader
 	newTrayManager           func() tray.Manager
 	newTracerBulletRunner    func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink      func() tracerbullet.TraceSink
@@ -62,7 +62,7 @@ type App struct {
 	realtimeHub              realtime.Hub
 	httpServer               api.Server
 	captureQueue             captureQueue
-	captureReader            *mobilecapture.Reader
+	captureReader            *requestcapture.Reader
 	trayManager              tray.Manager
 	tracerBulletRunner       tracerBulletRunner
 	catchUpContext           context.Context
@@ -131,8 +131,8 @@ type changelogRecorder interface {
 }
 
 type captureQueue interface {
-	TryEnqueue(record mobilecapture.CaptureRecord) bool
-	Stop(ctx context.Context) mobilecapture.QueueStopResult
+	TryEnqueue(record requestcapture.CaptureRecord) bool
+	Stop(ctx context.Context) requestcapture.QueueStopResult
 }
 
 type episodeCommandService interface {

@@ -9,7 +9,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // AnimePatch aliases the write contract consumed by handler adapters.
@@ -61,7 +61,7 @@ type GetMobileAnimeFunc func(ctx context.Context, id string) (*MobileAnime, erro
 type PatchAnimeFunc func(ctx context.Context, id string, patch AnimePatch) (contracts.AnimePatchResult, error)
 
 // CaptureFunc enqueues one sanitized observability record.
-type CaptureFunc func(record mobilecapture.CaptureRecord) bool
+type CaptureFunc func(record requestcapture.CaptureRecord) bool
 
 // TriggerReconcileFunc requests bridge-wide reconcile fan-out.
 type TriggerReconcileFunc func(ctx context.Context) error

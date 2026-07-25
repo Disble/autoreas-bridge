@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 // captureAppTestDB opens a real bridge schema in a temp file so
-// mobilecapture.NewReader can probe pragma_table_info against it, mirroring
-// internal/observability/mobilecapture's own test fixtures.
+// requestcapture.NewReader can probe pragma_table_info against it, mirroring
+// internal/observability/requestcapture's own test fixtures.
 func captureAppTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := bridgeSync.OpenBridgeDB(filepath.Join(t.TempDir(), "bridge.db"))
@@ -27,7 +27,7 @@ func captureAppTestDB(t *testing.T) *sql.DB {
 func seedCaptureRow(t *testing.T, db *sql.DB, requestID string, capturedAtMS int64) {
 	t.Helper()
 	_, err := db.Exec(`
-		INSERT INTO mobile_request_captures (
+		INSERT INTO request_captures (
 			request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome,
 			anime_id, http_status, payload_json, correlation_json, error_code
 		) VALUES (?, ?, 'patch', '/api/animes/anime-1', 'http', 'device-1', 'Phone', 'accepted',
@@ -44,7 +44,7 @@ func TestListCaptureTransactionsMapsFiltersAndPage(t *testing.T) {
 	seedCaptureRow(t, db, "req-1", 100)
 	seedCaptureRow(t, db, "req-2", 200)
 
-	app := &App{bridgeDB: db, captureReader: mobilecapture.NewReader(db)}
+	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
 	page := app.ListCaptureTransactions(contracts.CaptureQuery{Limit: 10})
 
 	if page.Degraded {
@@ -82,7 +82,7 @@ func TestListCaptureTransactionsMissingOptionalColumnsOmitsFields(t *testing.T) 
 	db := captureAppTestDB(t)
 	seedCaptureRow(t, db, "req-1", 100)
 
-	app := &App{bridgeDB: db, captureReader: mobilecapture.NewReader(db)}
+	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
 	page := app.ListCaptureTransactions(contracts.CaptureQuery{Limit: 10})
 
 	if len(page.Items) != 1 {
@@ -98,7 +98,7 @@ func TestGetCaptureTransactionFound(t *testing.T) {
 	db := captureAppTestDB(t)
 	seedCaptureRow(t, db, "req-1", 100)
 
-	app := &App{bridgeDB: db, captureReader: mobilecapture.NewReader(db)}
+	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
 	result := app.GetCaptureTransaction("req-1")
 
 	if !result.Found {
@@ -120,7 +120,7 @@ func TestGetCaptureTransactionNotFound(t *testing.T) {
 	db := captureAppTestDB(t)
 	seedCaptureRow(t, db, "req-1", 100)
 
-	app := &App{bridgeDB: db, captureReader: mobilecapture.NewReader(db)}
+	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
 	result := app.GetCaptureTransaction("req-missing")
 
 	if result.Found {
@@ -147,7 +147,7 @@ func TestGetCaptureTransactionNilBridgeDBReturnsDegraded(t *testing.T) {
 func TestConfigureCaptureReaderIsNilSafeAndBuildsOnce(t *testing.T) {
 	t.Parallel()
 	db := captureAppTestDB(t)
-	app := &App{bridgeDB: db, newCaptureReader: mobilecapture.NewReader}
+	app := &App{bridgeDB: db, newCaptureReader: requestcapture.NewReader}
 
 	app.configureCaptureReader()
 	if app.captureReader == nil {

@@ -15,7 +15,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
@@ -38,7 +38,7 @@ func newAppTestApp(t *testing.T) *App {
 		newDownloadStore: func(*sql.DB) download.Store { return &fakeAppDownloadStore{} },
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
-		newCaptureReader: func(*sql.DB) *mobilecapture.Reader { return nil },
+		newCaptureReader: func(*sql.DB) *requestcapture.Reader { return nil },
 	}
 }
 
@@ -133,13 +133,13 @@ type recordingLifecycleDB struct {
 
 func (*stubAppNotifier) Notify(context.Context, notification.Notification) error { return nil }
 
-func (s *stubCaptureQueue) TryEnqueue(mobilecapture.CaptureRecord) bool { return true }
+func (s *stubCaptureQueue) TryEnqueue(requestcapture.CaptureRecord) bool { return true }
 
-func (s *stubCaptureQueue) Stop(context.Context) mobilecapture.QueueStopResult {
+func (s *stubCaptureQueue) Stop(context.Context) requestcapture.QueueStopResult {
 	if s.onStop != nil {
 		s.onStop()
 	}
-	return mobilecapture.QueueStopResult{}
+	return requestcapture.QueueStopResult{}
 }
 
 func (s *recordingLifecycleDB) Close() error {

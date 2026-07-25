@@ -44,8 +44,10 @@ info:
     surface:
       - The `http.request` structured log line (emitted per HTTP request by
         the former `RequestLoggingMiddleware`) is REMOVED. Request/response
-        telemetry now lives exclusively in the `mobile_request_captures`
-        SQLite table via a transport-level capture middleware, not in logs.
+        telemetry now lives exclusively in the `request_captures` SQLite
+        table (renamed from `mobile_request_captures` by
+        capture-nomenclature-rename below) via a transport-level capture
+        middleware, not in logs.
       - Every `/api/*` request and every inbound WebSocket `reconcile`
         message now writes a "pending" arrival row the moment it is received,
         which is later upserted (same `request_id`, never duplicated) to a
@@ -62,6 +64,30 @@ info:
         is a desktop-app-internal (Wails) event, not an HTTP/WS wire
         surface — mobile clients over `/api`/`/ws` are unaffected and
         require no update.
+
+    2026-07-25 — capture-nomenclature-rename API consumer impact: NO REST/WS
+    wire change (no HTTP path, request/response field, or WebSocket message
+    shape changed). This renames the capture/MCP surface to match what it
+    actually captures (all `/api/*` traffic and hub/WS events, not only
+    mobile traffic), plus one on-disk table rename:
+      - BREAKING for MCP clients only: the read-only `autoreas-request-mcp`
+        sidecar (renamed from `autoreas-mobile-request-mcp`) now registers
+        exactly `search_requests`, `get_request_context`,
+        `resolve_request_context`, `summary_requests` — the previous names
+        `search_mobile_requests`, `get_mobile_request_context`,
+        `resolve_mobile_request_context`, `summary_mobile_requests` are
+        REMOVED with NO ALIASES and are rejected as unsupported. Any local
+        MCP client registration must point at the rebuilt
+        `autoreas-request-mcp` binary (`.mcp.json` updated in this change).
+      - The capture tables are renamed in place (existing rows preserved):
+        `mobile_request_captures` → `request_captures`,
+        `mobile_request_capture_metadata` → `request_capture_metadata`.
+        The stored capture schema version is bumped `2` → `3`. The read path
+        (in-process and the MCP sidecar) tolerates both table generations
+        and schema versions `{1,2,3}`, so an un-migrated database still
+        opens and serves.
+      - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
+        mobile clients require no update.
 
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
@@ -88,7 +114,8 @@ x-websocket:
     2026-07-24 — capture-middleware-realtime: connection lifecycle
     (register/unregister) and every outbound broadcast are now captured at
     the realtime hub seam (`ws_connect`/`ws_disconnect`/`ws_broadcast`
-    kinds, outcome `opened`/`closed`/`pushed`) into `mobile_request_captures`
+    kinds, outcome `opened`/`closed`/`pushed`) into `request_captures`
+    (renamed from `mobile_request_captures` by capture-nomenclature-rename)
     and surfaced live to the bridge desktop app via the `capture.transaction`
     Wails runtime event. No wire-message shape changed.
 

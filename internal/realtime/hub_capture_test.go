@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/events"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 func TestMemoryHubRegisterCapturesWSConnectOpened(t *testing.T) {
@@ -135,7 +135,7 @@ func TestMemoryHubCaptureNeverBlocksBroadcastFanOut(t *testing.T) {
 	t.Parallel()
 
 	blocked := make(chan struct{})
-	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 1, ClientBuffer: 1, Capture: func(mobilecapture.CaptureRecord) bool {
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{BroadcastBuffer: 1, ClientBuffer: 1, Capture: func(requestcapture.CaptureRecord) bool {
 		<-blocked
 		return true
 	}})
@@ -157,7 +157,7 @@ func TestMemoryHubCaptureNeverBlocksBroadcastFanOut(t *testing.T) {
 // recordingCaptureSink records every capture row a hub seam enqueues.
 type recordingCaptureSink struct {
 	mu      sync.Mutex
-	records []mobilecapture.CaptureRecord
+	records []requestcapture.CaptureRecord
 }
 
 // newRecordingCaptureSink builds an empty recordingCaptureSink.
@@ -165,8 +165,8 @@ func newRecordingCaptureSink() *recordingCaptureSink {
 	return &recordingCaptureSink{}
 }
 
-// capture implements mobilecapture.CaptureFunc, appending record.
-func (s *recordingCaptureSink) capture(record mobilecapture.CaptureRecord) bool {
+// capture implements requestcapture.CaptureFunc, appending record.
+func (s *recordingCaptureSink) capture(record requestcapture.CaptureRecord) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.records = append(s.records, record)
@@ -174,13 +174,13 @@ func (s *recordingCaptureSink) capture(record mobilecapture.CaptureRecord) bool 
 }
 
 // wait polls until at least want records were captured, then returns a copy.
-func (s *recordingCaptureSink) wait(t *testing.T, want int) []mobilecapture.CaptureRecord {
+func (s *recordingCaptureSink) wait(t *testing.T, want int) []requestcapture.CaptureRecord {
 	t.Helper()
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		s.mu.Lock()
 		if len(s.records) >= want {
-			out := append([]mobilecapture.CaptureRecord(nil), s.records...)
+			out := append([]requestcapture.CaptureRecord(nil), s.records...)
 			s.mu.Unlock()
 			return out
 		}

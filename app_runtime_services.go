@@ -33,7 +33,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.startHTTPServer(deviceService, a.newMobileAnimeWriteService(), conflictService, changelogStore)
 }
 
-// configureCaptureQueue wires the mobile-capture observability queue when dependencies are present.
+// configureCaptureQueue wires the request-capture observability queue when dependencies are present.
 func (a *App) configureCaptureQueue() {
 	if a.captureQueue != nil || a.bridgeDB == nil || a.newCaptureQueue == nil {
 		return

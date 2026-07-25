@@ -14,7 +14,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
@@ -326,7 +326,7 @@ func TestAppStartupWiresCaptureQueueIntoHTTPServerAfterBridgeDBBootstrap(t *test
 		if config.Capture == nil {
 			t.Fatal("expected startup to wire capture queue into http server config")
 		}
-		config.Capture(mobilecapture.NewCaptureRecord("patch", "device-1"))
+		config.Capture(requestcapture.NewCaptureRecord("patch", "device-1"))
 		return server
 	}
 

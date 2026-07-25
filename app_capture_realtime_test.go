@@ -9,7 +9,7 @@ import (
 
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
@@ -27,7 +27,7 @@ func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 	app.bootstrapBridgeDB = func() (*sql.DB, error) { return bridgeSync.OpenBridgeDB(dbPath) }
 	app.newCaptureQueue = nil // exercise the real default OnPersist wiring
 
-	var captureFn func(mobilecapture.CaptureRecord) bool
+	var captureFn func(requestcapture.CaptureRecord) bool
 	app.newHTTPServer = func(config api.Config) api.Server {
 		captureFn = config.Capture
 		return &stubAppHTTPServer{}
@@ -48,7 +48,7 @@ func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 	if captureFn == nil {
 		t.Fatal("expected startup to wire a capture func into the http server config")
 	}
-	if !captureFn(mobilecapture.NewCaptureRecord("patch", "device-1")) {
+	if !captureFn(requestcapture.NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected the capture record to be accepted by the queue")
 	}
 

@@ -57,7 +57,7 @@ type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
 // ActiveSeasonSnapshotFunc aliases the active-season snapshot query signature.
 type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
 
-// CaptureFunc aliases the mobile-capture queue seam.
+// CaptureFunc aliases the request-capture queue seam.
 type CaptureFunc = apiHandlers.CaptureFunc
 
 // ErrAnimeNotFound reports that the requested anime does not exist.

@@ -13,7 +13,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/events"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"github.com/gorilla/websocket"
@@ -87,7 +87,7 @@ func waitForClientCount(t *testing.T, hub *realtime.MemoryHub, want int) {
 }
 
 // waitForCaptureCount waits until the captures slice reaches the expected length.
-func waitForCaptureCount(t *testing.T, captures *[]mobilecapture.CaptureRecord, want int) {
+func waitForCaptureCount(t *testing.T, captures *[]requestcapture.CaptureRecord, want int) {
 	t.Helper()
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for time.Now().Before(deadline) {

@@ -272,29 +272,29 @@ func TestEnsureAnimeSnapshotsSchemaIsIdempotentWhenAlreadyMigrated(t *testing.T)
 	}
 }
 
-func TestBootstrapBridgeDBCreatesMobileRequestCaptureTables(t *testing.T) {
+func TestBootstrapBridgeDBCreatesRequestCaptureTables(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	for _, table := range []string{"mobile_request_captures", "mobile_request_capture_metadata"} {
+	for _, table := range []string{"request_captures", "request_capture_metadata"} {
 		if !tableExists(t, db, table) {
 			t.Fatalf("expected %s table to exist after bootstrap", table)
 		}
 	}
 
-	columns := readTableColumns(t, db, "mobile_request_captures")
+	columns := readTableColumns(t, db, "request_captures")
 	for _, required := range []string{"request_id", "captured_at_ms", "kind", "route", "transport", "device_id", "device_name", "outcome", "anime_id", "http_status", "payload_json", "correlation_json", "error_code"} {
 		if !containsString(columns, required) {
-			t.Fatalf("expected mobile_request_captures to contain column %q, got %#v", required, columns)
+			t.Fatalf("expected request_captures to contain column %q, got %#v", required, columns)
 		}
 	}
 
 	var version string
-	if err := db.QueryRow(`SELECT value FROM mobile_request_capture_metadata WHERE key = 'mobile_request_capture_schema_version'`).Scan(&version); err != nil {
+	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read capture schema version: %v", err)
 	}
-	if version != "2" {
-		t.Fatalf("expected capture schema version 2, got %q", version)
+	if version != "3" {
+		t.Fatalf("expected capture schema version 3, got %q", version)
 	}
 }
 
@@ -302,24 +302,24 @@ func TestCaptureAdditiveColumnsPresent(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	columns := readTableColumns(t, db, "mobile_request_captures")
+	columns := readTableColumns(t, db, "request_captures")
 	for _, required := range []string{"response_body", "request_headers", "response_headers", "duration_ms"} {
 		if !containsString(columns, required) {
-			t.Fatalf("expected mobile_request_captures to contain additive column %q, got %#v", required, columns)
+			t.Fatalf("expected request_captures to contain additive column %q, got %#v", required, columns)
 		}
 	}
 }
 
-func TestCaptureSchemaVersionTwo(t *testing.T) {
+func TestCaptureSchemaVersionThree(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
 	var version string
-	if err := db.QueryRow(`SELECT value FROM mobile_request_capture_metadata WHERE key = 'mobile_request_capture_schema_version'`).Scan(&version); err != nil {
+	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read capture schema version: %v", err)
 	}
-	if version != "2" {
-		t.Fatalf("expected capture schema version 2, got %q", version)
+	if version != "3" {
+		t.Fatalf("expected capture schema version 3, got %q", version)
 	}
 }
 
@@ -327,7 +327,7 @@ func TestCaptureRouteStatusIndexesExist(t *testing.T) {
 	t.Parallel()
 
 	db := openTestBridgeDB(t)
-	for _, index := range []string{"idx_mobile_request_captures_route_time", "idx_mobile_request_captures_status_time"} {
+	for _, index := range []string{"idx_request_captures_route_time", "idx_request_captures_status_time"} {
 		var name string
 		err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&name)
 		if err != nil {
@@ -345,14 +345,14 @@ func TestCaptureAdditiveColumnsMigrationIsIdempotent(t *testing.T) {
 		t.Fatalf("first bootstrap: %v", err)
 	}
 	defer closeTestDB(t, first)
-	before := readTableColumns(t, first, "mobile_request_captures")
+	before := readTableColumns(t, first, "request_captures")
 
 	second, err := bootstrap.BootstrapBridgeDB()
 	if err != nil {
 		t.Fatalf("second bootstrap: %v", err)
 	}
 	defer closeTestDB(t, second)
-	after := readTableColumns(t, second, "mobile_request_captures")
+	after := readTableColumns(t, second, "request_captures")
 
 	if len(before) != len(after) {
 		t.Fatalf("expected additive columns migration to be idempotent, before=%#v after=%#v", before, after)

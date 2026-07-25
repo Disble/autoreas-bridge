@@ -2,7 +2,7 @@ package main
 
 import (
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // ListCaptureTransactions is the Wails-bound read of captured HTTP
@@ -38,11 +38,11 @@ func (a *App) GetCaptureTransaction(requestID string) contracts.CaptureDetailRes
 }
 
 // toSearchParams maps a CaptureQuery into the reader's SearchParams/SearchFilters shape.
-func toSearchParams(query contracts.CaptureQuery) mobilecapture.SearchParams {
-	return mobilecapture.SearchParams{
+func toSearchParams(query contracts.CaptureQuery) requestcapture.SearchParams {
+	return requestcapture.SearchParams{
 		Limit:  query.Limit,
 		Cursor: query.Cursor,
-		Filters: mobilecapture.SearchFilters{
+		Filters: requestcapture.SearchFilters{
 			Route:      query.Route,
 			HTTPStatus: query.HTTPStatus,
 			Outcome:    query.Outcome,
@@ -56,7 +56,7 @@ func toSearchParams(query contracts.CaptureQuery) mobilecapture.SearchParams {
 }
 
 // toCapturePage maps a reader SearchPage into the bound CapturePage DTO.
-func toCapturePage(page mobilecapture.SearchPage) contracts.CapturePage {
+func toCapturePage(page requestcapture.SearchPage) contracts.CapturePage {
 	items := make([]contracts.CaptureRow, 0, len(page.Items))
 	for _, record := range page.Items {
 		items = append(items, toCaptureRow(record))
@@ -71,7 +71,7 @@ func toCapturePage(page mobilecapture.SearchPage) contracts.CapturePage {
 }
 
 // toCaptureRow maps one reader CaptureRecord into the list-row DTO.
-func toCaptureRow(record mobilecapture.CaptureRecord) contracts.CaptureRow {
+func toCaptureRow(record requestcapture.CaptureRecord) contracts.CaptureRow {
 	return contracts.CaptureRow{
 		RequestID:    record.RequestID,
 		CapturedAtMS: record.CapturedAtMS,
@@ -87,7 +87,7 @@ func toCaptureRow(record mobilecapture.CaptureRecord) contracts.CaptureRow {
 }
 
 // toCaptureDetail maps one reader CaptureRecord into the full detail DTO.
-func toCaptureDetail(record mobilecapture.CaptureRecord) contracts.CaptureDetail {
+func toCaptureDetail(record requestcapture.CaptureRecord) contracts.CaptureDetail {
 	return contracts.CaptureDetail{
 		CaptureRow:      toCaptureRow(record),
 		Payload:         record.Payload,
@@ -102,8 +102,8 @@ func toCaptureDetail(record mobilecapture.CaptureRecord) contracts.CaptureDetail
 
 // toCaptureCorrelations maps the reader's Correlations into the contracts
 // mirror type (see internal/api/contracts/capture.go doc comment for why
-// contracts cannot import mobilecapture directly).
-func toCaptureCorrelations(correlations mobilecapture.Correlations) contracts.CaptureCorrelations {
+// contracts cannot import requestcapture directly).
+func toCaptureCorrelations(correlations requestcapture.Correlations) contracts.CaptureCorrelations {
 	refs := make([]contracts.CaptureOperationRef, 0, len(correlations.OperationRefs))
 	for _, ref := range correlations.OperationRefs {
 		refs = append(refs, contracts.CaptureOperationRef{

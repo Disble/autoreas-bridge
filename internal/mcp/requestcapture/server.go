@@ -1,0 +1,48 @@
+package requestcapture
+
+import (
+	"context"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// Server is the MCP sidecar that exposes request-capture query tools.
+type Server struct {
+	reader Reader
+	tools  []string
+	mcp    *mcp.Server
+}
+
+// NewServer builds the MCP sidecar server with the three read-only capture tools.
+func NewServer(reader Reader) *Server {
+	server := &Server{reader: reader, tools: []string{"resolve_request_context", "search_requests", "get_request_context", "summary_requests"}}
+	sdk := mcp.NewServer(&mcp.Implementation{Name: "autoreas-request-mcp", Version: "v1.0.0"}, nil)
+	mcp.AddTool(sdk, &mcp.Tool{Name: "search_requests", Description: "Search captured bridge requests"}, func(ctx context.Context, req *mcp.CallToolRequest, input SearchRequestsInput) (*mcp.CallToolResult, SearchRequestsResult, error) {
+		result, err := searchRequests(ctx, reader, input)
+		return nil, result, err
+	})
+	mcp.AddTool(sdk, &mcp.Tool{Name: "resolve_request_context", Description: "Resolve an imprecise captured-request reference"}, func(ctx context.Context, req *mcp.CallToolRequest, input ResolveRequestContextInput) (*mcp.CallToolResult, ResolveRequestContextResult, error) {
+		result, err := resolveRequestContext(ctx, reader, input)
+		return nil, result, err
+	})
+	mcp.AddTool(sdk, &mcp.Tool{Name: "get_request_context", Description: "Get one exact captured request"}, func(ctx context.Context, req *mcp.CallToolRequest, input GetRequestContextInput) (*mcp.CallToolResult, GetRequestContextResult, error) {
+		result, err := getRequestContext(ctx, reader, input)
+		return nil, result, err
+	})
+	mcp.AddTool(sdk, &mcp.Tool{Name: "summary_requests", Description: "Aggregate captured requests into per-route/status/outcome counts and bounded error samples"}, func(ctx context.Context, req *mcp.CallToolRequest, input SummaryRequestsInput) (*mcp.CallToolResult, SummaryRequestsResult, error) {
+		result, err := summaryRequests(ctx, reader, input)
+		return nil, result, err
+	})
+	server.mcp = sdk
+	return server
+}
+
+// ToolNames returns the names of the registered MCP tools.
+func (s *Server) ToolNames() []string {
+	return append([]string(nil), s.tools...)
+}
+
+// Run serves the MCP sidecar over stdio until the context is canceled.
+func (s *Server) Run(ctx context.Context) error {
+	return s.mcp.Run(ctx, &mcp.StdioTransport{})
+}

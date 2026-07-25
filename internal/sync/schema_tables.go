@@ -20,8 +20,8 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
 		animeWriteOperationsTable(),
 		indexedCreateOnlyTable("anime_changed_outbox", animeChangedOutboxDDL, animeChangedOutboxPendingIndexDDL),
-		mobileRequestCapturesTable(),
-		createOnlyTable("mobile_request_capture_metadata", mobileRequestCaptureMetadataDDL),
+		requestCapturesTable(),
+		createOnlyTable("request_capture_metadata", requestCaptureMetadataDDL),
 		createOnlyTable("schema_migration_markers", schemaMigrationMarkersDDL),
 		// animeSnapshotsTable is last: its Migrate hook drives the SDD-56
 		// cross-table vocabulary migration (ensureVocabularyMigration), which
@@ -142,39 +142,39 @@ func animeWriteOperationsTable() persistence.TableSchema {
 	}
 }
 
-// mobileRequestCapturesTable builds the mobile request capture table descriptor.
-func mobileRequestCapturesTable() persistence.TableSchema {
+// requestCapturesTable builds the request capture table descriptor.
+func requestCapturesTable() persistence.TableSchema {
 	return persistence.TableSchema{
-		Name:      "mobile_request_captures",
-		CreateDDL: mobileRequestCapturesDDL,
+		Name:      "request_captures",
+		CreateDDL: requestCapturesDDL,
 		Indexes: []string{
-			mobileRequestCapturesTimeIndexDDL,
-			mobileRequestCapturesDeviceTimeIndexDDL,
-			mobileRequestCapturesAnimeTimeIndexDDL,
-			mobileRequestCapturesRouteTimeIndexDDL,
-			mobileRequestCapturesStatusTimeIndexDDL,
+			requestCapturesTimeIndexDDL,
+			requestCapturesDeviceTimeIndexDDL,
+			requestCapturesAnimeTimeIndexDDL,
+			requestCapturesRouteTimeIndexDDL,
+			requestCapturesStatusTimeIndexDDL,
 		},
-		Migrate: migrateMobileRequestCapturesSchema,
+		Migrate: migrateRequestCapturesSchema,
 	}
 }
 
-// migrateMobileRequestCapturesSchema adds the additive response/header/duration
+// migrateRequestCapturesSchema adds the additive response/header/duration
 // telemetry columns (nullable, ADD COLUMN only -- non-destructive).
-func migrateMobileRequestCapturesSchema(db *sql.DB, cols []string) error {
+func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 	for _, column := range []struct {
 		name string
 		ddl  string
 	}{
-		{name: "response_body", ddl: `ALTER TABLE mobile_request_captures ADD COLUMN response_body TEXT`},
-		{name: "request_headers", ddl: `ALTER TABLE mobile_request_captures ADD COLUMN request_headers TEXT`},
-		{name: "response_headers", ddl: `ALTER TABLE mobile_request_captures ADD COLUMN response_headers TEXT`},
-		{name: "duration_ms", ddl: `ALTER TABLE mobile_request_captures ADD COLUMN duration_ms INTEGER`},
+		{name: "response_body", ddl: `ALTER TABLE request_captures ADD COLUMN response_body TEXT`},
+		{name: "request_headers", ddl: `ALTER TABLE request_captures ADD COLUMN request_headers TEXT`},
+		{name: "response_headers", ddl: `ALTER TABLE request_captures ADD COLUMN response_headers TEXT`},
+		{name: "duration_ms", ddl: `ALTER TABLE request_captures ADD COLUMN duration_ms INTEGER`},
 	} {
 		if containsSchemaColumn(cols, column.name) {
 			continue
 		}
 		if _, err := db.Exec(column.ddl); err != nil {
-			return fmt.Errorf("add mobile_request_captures %s: %w", column.name, err)
+			return fmt.Errorf("add request_captures %s: %w", column.name, err)
 		}
 	}
 	return nil

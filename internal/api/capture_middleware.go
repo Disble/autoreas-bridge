@@ -9,7 +9,7 @@ import (
 	"time"
 
 	apiHandlers "autoreas-bridge/internal/api/handlers"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"github.com/google/uuid"
 )
 
@@ -41,7 +41,7 @@ type CaptureMiddlewareDeps struct {
 // For each request it mints one request id, enqueues a pending arrival row
 // before next runs, then -- in a defer that also fires on a handler panic --
 // enqueues a terminal row built from transport facts merged with whatever
-// mobilecapture.Enrich(ctx) the handler contributed. /ws is skipped: the
+// requestcapture.Enrich(ctx) the handler contributed. /ws is skipped: the
 // WebSocket pump and MemoryHub own that transport's capture.
 func CaptureMiddleware(next http.Handler, deps CaptureMiddlewareDeps) http.Handler {
 	clock := deps.Clock
@@ -64,10 +64,10 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 	requestID := uuid.NewString()
 	startedAt := clock()
 	kind := captureKind(r.Method, r.URL.Path)
-	capture(mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, r.URL.Path, "http"))
+	capture(requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, r.URL.Path, "http"))
 
 	writer := &capturingResponseWriter{ResponseWriter: w}
-	ctx, enr := mobilecapture.NewEnrichmentContext(r.Context())
+	ctx, enr := requestcapture.NewEnrichmentContext(r.Context())
 	requestHeaders := r.Header
 
 	defer func() {
@@ -83,21 +83,21 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 
 // buildTerminalCaptureRecord assembles the terminal capture row from
 // transport facts (status, duration, headers, bounded body) merged with
-// whatever semantic facts the handler contributed via mobilecapture.Enrich.
+// whatever semantic facts the handler contributed via requestcapture.Enrich.
 // panicked reports whether next panicked, which decides the status recorded
 // for a handler that never wrote one.
-func buildTerminalCaptureRecord(requestID string, startedAt time.Time, kind, route string, writer *capturingResponseWriter, requestHeaders http.Header, enr *mobilecapture.CaptureEnrichment, panicked bool) mobilecapture.CaptureRecord {
-	transport := mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, route, "http")
+func buildTerminalCaptureRecord(requestID string, startedAt time.Time, kind, route string, writer *capturingResponseWriter, requestHeaders http.Header, enr *requestcapture.CaptureEnrichment, panicked bool) requestcapture.CaptureRecord {
+	transport := requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, route, "http")
 	status := resolveCapturedStatus(writer.status, panicked)
 	transport.HTTPStatus = &status
 	duration := time.Since(startedAt).Milliseconds()
 	transport.DurationMS = &duration
-	transport.RequestHeaders = mobilecapture.SanitizeHeaders(requestHeaders)
-	transport.ResponseHeaders = mobilecapture.SanitizeHeaders(writer.Header())
+	transport.RequestHeaders = requestcapture.SanitizeHeaders(requestHeaders)
+	transport.ResponseHeaders = requestcapture.SanitizeHeaders(writer.Header())
 	if status >= http.StatusBadRequest && len(writer.body) > 0 {
-		transport.ResponseBody = mobilecapture.SanitizeResponseBody(writer.body)
+		transport.ResponseBody = requestcapture.SanitizeResponseBody(writer.body)
 	}
-	return mobilecapture.MergeEnrichment(transport, enr)
+	return requestcapture.MergeEnrichment(transport, enr)
 }
 
 // resolveCapturedStatus reports the status to persist. A handler that wrote a

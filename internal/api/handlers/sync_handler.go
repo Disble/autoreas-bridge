@@ -10,7 +10,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // SyncHandlerConfig wires the dependencies required by the sync reconcile handler.
@@ -25,11 +25,11 @@ type SyncHandlerConfig struct {
 // NewSyncHandler builds the POST /api/sync/reconcile transport adapter. It is
 // transport-free: request timing, status, headers, and body capture belong
 // to the CaptureMiddleware wrapping this handler (internal/api). Each exit
-// point contributes semantic facts via mobilecapture.Enrich(r.Context()) --
+// point contributes semantic facts via requestcapture.Enrich(r.Context()) --
 // the middleware's terminal defer merges them onto the transport record.
 func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		enr := mobilecapture.Enrich(r.Context())
+		enr := requestcapture.Enrich(r.Context())
 
 		pairedDevice, ok := authenticateSyncRequest(w, r, config.Authenticate)
 		if !ok {
@@ -41,7 +41,7 @@ func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 		}
 		req, ok := decodeReconcileRequest(w, r)
 		if !ok {
-			enr.SetOutcome("malformed").SetErrorCode("invalid_request_body").SetPayload(mobilecapture.ReconcilePayload(ReconcileRequest{}))
+			enr.SetOutcome("malformed").SetErrorCode("invalid_request_body").SetPayload(requestcapture.ReconcilePayload(ReconcileRequest{}))
 			return
 		}
 		appliedOperations, ok := applyReconcileOperations(w, r.Context(), req.PendingOperations, config.ApplyPendingPatch)
@@ -63,15 +63,15 @@ func NewSyncHandler(config SyncHandlerConfig) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusAccepted, ReconcileResponse{Status: "accepted", LastChangelogID: lastID, AppliedOperations: appliedOperations, BridgeChanges: changes, Conflicts: []any{}})
-		enr.SetOutcome("accepted").SetPayload(mobilecapture.ReconcilePayload(req)).SetOperationRefs(operationRefsFromAppliedOperations(appliedOperations)).AddChangelogIDs(changelogIDsFromChanges(changes)...)
+		enr.SetOutcome("accepted").SetPayload(requestcapture.ReconcilePayload(req)).SetOperationRefs(operationRefsFromAppliedOperations(appliedOperations)).AddChangelogIDs(changelogIDsFromChanges(changes)...)
 	})
 }
 
 // enrichReconcileRejection records a rejected reconcile outcome with its
 // error code, sanitized payload, and applied-operation correlations -- the
 // shape shared by the four post-decode rejection exits.
-func enrichReconcileRejection(enr *mobilecapture.CaptureEnrichment, req ReconcileRequest, errorCode string, appliedOperations []contracts.AppliedOperation) {
-	enr.SetOutcome("rejected").SetErrorCode(errorCode).SetPayload(mobilecapture.ReconcilePayload(req)).SetOperationRefs(operationRefsFromAppliedOperations(appliedOperations))
+func enrichReconcileRejection(enr *requestcapture.CaptureEnrichment, req ReconcileRequest, errorCode string, appliedOperations []contracts.AppliedOperation) {
+	enr.SetOutcome("rejected").SetErrorCode(errorCode).SetPayload(requestcapture.ReconcilePayload(req)).SetOperationRefs(operationRefsFromAppliedOperations(appliedOperations))
 }
 
 // authenticateSyncRequest authenticates a sync request and returns its device ID.
@@ -180,14 +180,14 @@ func applyPendingOperations(ctx context.Context, operations []contracts.PendingO
 }
 
 // operationRefsFromAppliedOperations converts applied operations into correlation refs.
-func operationRefsFromAppliedOperations(applied []contracts.AppliedOperation) []mobilecapture.OperationRef {
-	refs := make([]mobilecapture.OperationRef, 0, len(applied))
+func operationRefsFromAppliedOperations(applied []contracts.AppliedOperation) []requestcapture.OperationRef {
+	refs := make([]requestcapture.OperationRef, 0, len(applied))
 	for _, operation := range applied {
 		outcome := "skipped"
 		if operation.Applied {
 			outcome = "applied"
 		}
-		refs = append(refs, mobilecapture.OperationRef{AnimeID: operation.AnimeID, Operation: operation.Operation, Outcome: outcome})
+		refs = append(refs, requestcapture.OperationRef{AnimeID: operation.AnimeID, Operation: operation.Operation, Outcome: outcome})
 	}
 	return refs
 }

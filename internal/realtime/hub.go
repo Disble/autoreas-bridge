@@ -9,7 +9,7 @@ import (
 
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 const defaultSendTimeout = 100 * time.Millisecond
@@ -39,7 +39,7 @@ type MemoryHubConfig struct {
 	// Capture enqueues one observability row per connection lifecycle event
 	// and outbound broadcast (see hub_capture.go). Nil disables hub capture
 	// entirely -- every capture call above is a safe no-op without it.
-	Capture mobilecapture.CaptureFunc
+	Capture requestcapture.CaptureFunc
 }
 
 // MemoryHub is an in-memory Hub implementation.
@@ -54,7 +54,7 @@ type MemoryHub struct {
 	sendTimeout     time.Duration
 	broadcastClosed chan struct{}
 	logger          sharedlogger.Logger
-	capture         mobilecapture.CaptureFunc
+	capture         requestcapture.CaptureFunc
 }
 
 type clientState struct {

@@ -11,7 +11,7 @@ import (
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"github.com/gorilla/websocket"
 )
@@ -220,13 +220,13 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 func TestWSReconcileAcceptedCapture(t *testing.T) {
 	t.Parallel()
 
-	captures := []mobilecapture.CaptureRecord{}
+	captures := []requestcapture.CaptureRecord{}
 	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
 		AnimeWrite:    stubWebSocketAnimeWrite{},
 		SyncTrigger:   stubSyncService{},
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captures = append(captures, record)
 			return true
 		},
@@ -254,13 +254,13 @@ func TestWSReconcileAcceptedCapture(t *testing.T) {
 func TestWSReconcileRejectedCapture(t *testing.T) {
 	t.Parallel()
 
-	captures := []mobilecapture.CaptureRecord{}
+	captures := []requestcapture.CaptureRecord{}
 	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
 		AnimeWrite:    stubWebSocketAnimeWrite{err: context.DeadlineExceeded},
 		SyncTrigger:   stubSyncService{},
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captures = append(captures, record)
 			return true
 		},
@@ -282,13 +282,13 @@ func TestWSReconcileRejectedCapture(t *testing.T) {
 func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
 	t.Parallel()
 
-	captures := []mobilecapture.CaptureRecord{}
+	captures := []requestcapture.CaptureRecord{}
 	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
 		AnimeWrite:    stubWebSocketAnimeWrite{err: context.DeadlineExceeded},
 		SyncTrigger:   stubSyncService{},
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captures = append(captures, record)
 			return true
 		},
@@ -316,11 +316,11 @@ func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
 func TestWSNonReconcileNoCapture(t *testing.T) {
 	t.Parallel()
 
-	captures := []mobilecapture.CaptureRecord{}
+	captures := []requestcapture.CaptureRecord{}
 	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captures = append(captures, record)
 			return true
 		},
@@ -342,11 +342,11 @@ func TestWSNonReconcileNoCapture(t *testing.T) {
 func TestWSMalformedNoCapture(t *testing.T) {
 	t.Parallel()
 
-	captures := []mobilecapture.CaptureRecord{}
+	captures := []requestcapture.CaptureRecord{}
 	_, wsURL, cleanup := newWebsocketTestServer(t, Config{
 		DeviceService: stubDeviceService{authenticated: device.PairedDevice{DeviceID: "device-1", Name: "Phone", AuthToken: "good-token"}},
 		RealtimeHub:   realtime.NewMemoryHub(context.Background(), realtime.MemoryHubConfig{}),
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captures = append(captures, record)
 			return true
 		},

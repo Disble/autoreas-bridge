@@ -10,7 +10,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // Transport-level telemetry (duration_ms, response headers/body, http_status)
@@ -18,7 +18,7 @@ import (
 // TestCaptureMiddlewareCapturesResponseBodyOnNon2xx and
 // TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID in
 // internal/api/capture_middleware_test.go. This file only asserts the
-// semantic facts handlePatchAnime contributes via mobilecapture.Enrich.
+// semantic facts handlePatchAnime contributes via requestcapture.Enrich.
 
 func TestPatchAcceptedCapture(t *testing.T) {
 	t.Parallel()
@@ -77,7 +77,7 @@ func TestPatchConflictCapturePreservesAuthoritativeID(t *testing.T) {
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if ids := record.Correlations.ConflictIDs; len(ids) != 1 || ids[0] != "conflict-7" {
 		t.Fatalf("expected authoritative conflict id, got %#v", ids)
 	}
@@ -108,9 +108,9 @@ func TestPatchMalformedCapture(t *testing.T) {
 // context, mirroring how CaptureMiddleware installs one in production, and
 // returns the holder handlePatchAnime will mutate so the test can inspect it
 // after ServeHTTP returns.
-func enrichedPatchRequest(method, path, body string) (*http.Request, *mobilecapture.CaptureEnrichment) {
+func enrichedPatchRequest(method, path, body string) (*http.Request, *requestcapture.CaptureEnrichment) {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	ctx, enr := mobilecapture.NewEnrichmentContext(req.Context())
+	ctx, enr := requestcapture.NewEnrichmentContext(req.Context())
 	return req.WithContext(ctx), enr
 }
 
@@ -171,9 +171,9 @@ func (s *animeHandlerStubs) patchAnime(_ context.Context, id string, patch Anime
 // record and verifies the semantic facts handlePatchAnime contributed match
 // expectations, returning the merged record for further assertions (e.g.
 // Payload). wantErrorCode "" asserts an empty error code.
-func assertPatchCapture(t *testing.T, enr *mobilecapture.CaptureEnrichment, wantOutcome, wantErrorCode, wantAnimeID string) mobilecapture.CaptureRecord {
+func assertPatchCapture(t *testing.T, enr *requestcapture.CaptureEnrichment, wantOutcome, wantErrorCode, wantAnimeID string) requestcapture.CaptureRecord {
 	t.Helper()
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if record.Outcome != wantOutcome {
 		t.Fatalf("expected outcome %q, got %#v", wantOutcome, record)
 	}

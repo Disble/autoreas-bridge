@@ -127,8 +127,8 @@ const (
 		CREATE INDEX IF NOT EXISTS idx_anime_changed_outbox_pending
 		ON anime_changed_outbox (status, created_at_ms, event_id)`
 
-	mobileRequestCapturesDDL = `
-		CREATE TABLE IF NOT EXISTS mobile_request_captures (
+	requestCapturesDDL = `
+		CREATE TABLE IF NOT EXISTS request_captures (
 			request_id TEXT PRIMARY KEY,
 			captured_at_ms INTEGER NOT NULL,
 			kind TEXT NOT NULL,
@@ -148,28 +148,28 @@ const (
 			duration_ms INTEGER
 		)`
 
-	mobileRequestCapturesTimeIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_time
-		ON mobile_request_captures (captured_at_ms DESC, request_id DESC)`
+	requestCapturesTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_time
+		ON request_captures (captured_at_ms DESC, request_id DESC)`
 
-	mobileRequestCapturesDeviceTimeIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_device_time
-		ON mobile_request_captures (device_id, captured_at_ms DESC, request_id DESC)`
+	requestCapturesDeviceTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_device_time
+		ON request_captures (device_id, captured_at_ms DESC, request_id DESC)`
 
-	mobileRequestCapturesAnimeTimeIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_anime_time
-		ON mobile_request_captures (anime_id, captured_at_ms DESC, request_id DESC)`
+	requestCapturesAnimeTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_anime_time
+		ON request_captures (anime_id, captured_at_ms DESC, request_id DESC)`
 
-	mobileRequestCapturesRouteTimeIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_route_time
-		ON mobile_request_captures (route, captured_at_ms DESC, request_id DESC)`
+	requestCapturesRouteTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_route_time
+		ON request_captures (route, captured_at_ms DESC, request_id DESC)`
 
-	mobileRequestCapturesStatusTimeIndexDDL = `
-		CREATE INDEX IF NOT EXISTS idx_mobile_request_captures_status_time
-		ON mobile_request_captures (http_status, captured_at_ms DESC, request_id DESC)`
+	requestCapturesStatusTimeIndexDDL = `
+		CREATE INDEX IF NOT EXISTS idx_request_captures_status_time
+		ON request_captures (http_status, captured_at_ms DESC, request_id DESC)`
 
-	mobileRequestCaptureMetadataDDL = `
-		CREATE TABLE IF NOT EXISTS mobile_request_capture_metadata (
+	requestCaptureMetadataDDL = `
+		CREATE TABLE IF NOT EXISTS request_capture_metadata (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)`

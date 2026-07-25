@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID guards
@@ -18,14 +18,14 @@ import (
 func TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mobilecapture.Enrich(r.Context()).SetOutcome("accepted")
+		requestcapture.Enrich(r.Context()).SetOutcome("accepted")
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
@@ -58,8 +58,8 @@ func TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID(t *test
 func TestCaptureMiddlewareRecordsTwoHundredWhenHandlerWritesNoStatus(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}
@@ -86,8 +86,8 @@ func TestCaptureMiddlewareRecordsTwoHundredWhenHandlerWritesNoStatus(t *testing.
 func TestCaptureMiddlewarePanicEnqueuesTransportOnlyTerminalThenRepanics(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}
@@ -120,8 +120,8 @@ func TestCaptureMiddlewarePanicEnqueuesTransportOnlyTerminalThenRepanics(t *test
 func TestCaptureMiddlewareSkipsWebSocketRoute(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}
@@ -154,7 +154,7 @@ func TestCaptureMiddlewarePreservesHijackerForWebSocketUpgrade(t *testing.T) {
 		sawHijacker = true
 		_, _, _ = hj.Hijack()
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: func(mobilecapture.CaptureRecord) bool { return true }})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: func(requestcapture.CaptureRecord) bool { return true }})
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
 	base := &hijackableResponseWriter{ResponseWriter: httptest.NewRecorder()}
@@ -174,8 +174,8 @@ func TestCaptureMiddlewarePreservesHijackerForWebSocketUpgrade(t *testing.T) {
 func TestCaptureMiddlewareCapturesResponseBodyOnNon2xx(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}
@@ -207,8 +207,8 @@ func TestCaptureMiddlewareCapturesResponseBodyOnNon2xx(t *testing.T) {
 func TestCaptureMiddlewareUsesInjectedClock(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
-	capture := func(record mobilecapture.CaptureRecord) bool {
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
 		captured = append(captured, record)
 		return true
 	}

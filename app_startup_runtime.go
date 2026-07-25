@@ -13,7 +13,7 @@ import (
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
@@ -168,7 +168,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 }
 
 // capture enqueues one observability record when the capture queue is available.
-func (a *App) capture(record mobilecapture.CaptureRecord) bool {
+func (a *App) capture(record requestcapture.CaptureRecord) bool {
 	if a.captureQueue == nil {
 		return false
 	}
@@ -182,13 +182,13 @@ func (a *App) capture(record mobilecapture.CaptureRecord) bool {
 const captureTransactionEventName = "capture.transaction"
 
 // emitCaptureTransaction streams one persisted capture row to the frontend
-// over the Wails runtime event bus. Wired as mobilecapture.QueueConfig.OnPersist:
+// over the Wails runtime event bus. Wired as requestcapture.QueueConfig.OnPersist:
 // it fires exactly once per record, from the queue's single serialized drain
 // goroutine, only after Store.UpsertCapture has actually persisted it -- the
 // one choke point where emitting "what actually persisted" is guaranteed.
 // Nil-safe before ctx/emitFn are wired (e.g. during startup or in tests that
 // never call a.startup).
-func (a *App) emitCaptureTransaction(record mobilecapture.CaptureRecord) {
+func (a *App) emitCaptureTransaction(record requestcapture.CaptureRecord) {
 	if a.ctx == nil || a.emitFn == nil {
 		return
 	}

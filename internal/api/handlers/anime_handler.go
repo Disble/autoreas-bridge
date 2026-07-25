@@ -10,7 +10,7 @@ import (
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // PatchAnimeConfig wires the dependencies required by the PATCH /api/animes handler.
@@ -31,10 +31,10 @@ func NewPatchAnimeHandler(config PatchAnimeConfig) http.Handler {
 // handlePatchAnime coordinates authentication, decoding, and anime patching.
 // It is transport-free: request timing, status, headers, and body capture
 // belong to the CaptureMiddleware wrapping this handler (internal/api). Each
-// exit point contributes semantic facts via mobilecapture.Enrich(r.Context())
+// exit point contributes semantic facts via requestcapture.Enrich(r.Context())
 // -- the middleware's terminal defer merges them onto the transport record.
 func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeConfig) {
-	enr := mobilecapture.Enrich(r.Context())
+	enr := requestcapture.Enrich(r.Context())
 
 	device, ok := authenticatePatchRequest(w, r, config.Authenticate)
 	if !ok {
@@ -59,14 +59,14 @@ func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeC
 	patch = domain.ApplyCompletionStateMachine(patch, effectiveAnime.TotalCap)
 	result, ok := applyAnimeRequestPatch(w, r, animeID, patch, config)
 	if !ok {
-		enr.SetOutcome("rejected").SetErrorCode(patchCaptureErrorCode(result, config.IsNotFound)).SetPayload(mobilecapture.PatchPayload(patch))
+		enr.SetOutcome("rejected").SetErrorCode(patchCaptureErrorCode(result, config.IsNotFound)).SetPayload(requestcapture.PatchPayload(patch))
 		if result.ConflictID != "" {
 			enr.AddConflictID(result.ConflictID)
 		}
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	enr.SetOutcome("accepted").SetPayload(mobilecapture.PatchPayload(patch))
+	enr.SetOutcome("accepted").SetPayload(requestcapture.PatchPayload(patch))
 }
 
 // authenticatePatchRequest authenticates a patch request when configured.

@@ -13,7 +13,7 @@ import (
 // TestCaptureMiddlewareCapturesResponseBodyOnNon2xx in
 // internal/api/capture_middleware_test.go. NewSyncHandler no longer takes a
 // Capture dependency at all: it only contributes semantic facts to
-// mobilecapture.Enrich(r.Context()), so there is nothing left for a
+// requestcapture.Enrich(r.Context()), so there is nothing left for a
 // capture-write-failure test to exercise at this layer.
 
 // syncHandlerStubs provides test dependencies for the sync handler.

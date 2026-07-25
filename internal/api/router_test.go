@@ -9,7 +9,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 // TestNewHandlerCaptureMiddlewareWrapsAPIRoutesButNotWebSocket guards the
@@ -18,10 +18,10 @@ import (
 func TestNewHandlerCaptureMiddlewareWrapsAPIRoutesButNotWebSocket(t *testing.T) {
 	t.Parallel()
 
-	var captured []mobilecapture.CaptureRecord
+	var captured []requestcapture.CaptureRecord
 	handler := NewHandler(Config{
 		DeviceService: stubDeviceService{},
-		Capture: func(record mobilecapture.CaptureRecord) bool {
+		Capture: func(record requestcapture.CaptureRecord) bool {
 			captured = append(captured, record)
 			return true
 		},

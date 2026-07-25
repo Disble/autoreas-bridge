@@ -12,7 +12,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -27,7 +27,7 @@ func wsRejectResponseBody(errorCode string) *string {
 	if err != nil {
 		return nil
 	}
-	return mobilecapture.SanitizeResponseBody(payload)
+	return requestcapture.SanitizeResponseBody(payload)
 }
 
 // WebSocketHandlerConfig wires the dependencies required by the realtime socket adapter.
@@ -65,7 +65,7 @@ func handleWebSocketConnection(w http.ResponseWriter, r *http.Request, config We
 	if !ok {
 		return
 	}
-	connHeaders := mobilecapture.SanitizeHeaders(r.Header)
+	connHeaders := requestcapture.SanitizeHeaders(r.Header)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -151,7 +151,7 @@ func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDev
 func captureWebSocketMessage(ctx context.Context, device device.PairedDevice, message incomingWebSocketMessage, config WebSocketHandlerConfig, connHeaders map[string]string) error {
 	requestID := uuid.NewString()
 	startedAt := time.Now()
-	enqueueWebSocketCapture(config.Capture, mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket"))
+	enqueueWebSocketCapture(config.Capture, requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket"))
 
 	outcome := applyReconcileMessage(ctx, device, message, config)
 
@@ -166,7 +166,7 @@ func captureWebSocketMessage(ctx context.Context, device device.PairedDevice, me
 type wsMessageOutcome struct {
 	outcome      string
 	errorCode    string
-	correlations mobilecapture.Correlations
+	correlations requestcapture.Correlations
 	err          error
 }
 
@@ -191,7 +191,7 @@ func applyReconcileMessage(ctx context.Context, device device.PairedDevice, mess
 	}
 	return wsMessageOutcome{
 		outcome:      "accepted",
-		correlations: mobilecapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
+		correlations: requestcapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
 	}
 }
 
@@ -201,7 +201,7 @@ func rejectedWSOutcome(errorCode string, results []contracts.AppliedOperation, e
 	return wsMessageOutcome{
 		outcome:      "rejected",
 		errorCode:    errorCode,
-		correlations: mobilecapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
+		correlations: requestcapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
 		err:          err,
 	}
 }
@@ -211,15 +211,15 @@ func rejectedWSOutcome(errorCode string, results []contracts.AppliedOperation, e
 // merged with device identity, elapsed duration, sanitized connection
 // headers, the reconcile payload projection, and the outcome/error_code/
 // correlations applyReconcileMessage reported.
-func buildWSTerminalCaptureRecord(requestID string, startedAt time.Time, message incomingWebSocketMessage, device device.PairedDevice, outcome wsMessageOutcome, connHeaders map[string]string) mobilecapture.CaptureRecord {
-	record := mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket")
+func buildWSTerminalCaptureRecord(requestID string, startedAt time.Time, message incomingWebSocketMessage, device device.PairedDevice, outcome wsMessageOutcome, connHeaders map[string]string) requestcapture.CaptureRecord {
+	record := requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket")
 	duration := time.Since(startedAt).Milliseconds()
 	record.DurationMS = &duration
 	record.RequestHeaders = connHeaders
-	record.Device = mobilecapture.DeviceIdentity{DeviceID: device.DeviceID, Name: device.Name}
+	record.Device = requestcapture.DeviceIdentity{DeviceID: device.DeviceID, Name: device.Name}
 	record.Outcome = outcome.outcome
 	record.ErrorCode = outcome.errorCode
-	record.Payload = mobilecapture.ReconcilePayload(message.ReconcileRequest)
+	record.Payload = requestcapture.ReconcilePayload(message.ReconcileRequest)
 	record.Correlations = outcome.correlations
 	if outcome.errorCode != "" {
 		record.ResponseBody = wsRejectResponseBody(outcome.errorCode)
@@ -228,7 +228,7 @@ func buildWSTerminalCaptureRecord(requestID string, startedAt time.Time, message
 }
 
 // enqueueWebSocketCapture enqueues a WebSocket observability record when capture is configured.
-func enqueueWebSocketCapture(capture CaptureFunc, record mobilecapture.CaptureRecord) {
+func enqueueWebSocketCapture(capture CaptureFunc, record requestcapture.CaptureRecord) {
 	if capture != nil {
 		capture(record)
 	}

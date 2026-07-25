@@ -1,0 +1,24 @@
+// Command autoreas-request-mcp runs the read-only MCP sidecar for captured bridge requests.
+package main
+
+import (
+	"context"
+	"log"
+
+	server "autoreas-bridge/internal/mcp/requestcapture"
+)
+
+func main() {
+	path, err := server.ResolveBridgeDBPath()
+	if err != nil {
+		log.Fatal(err)
+	}
+	reader, err := server.OpenReader(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() { _ = reader.Close() }()
+	if err := server.NewServer(reader).Run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}

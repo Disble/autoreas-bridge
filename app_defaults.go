@@ -14,7 +14,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
 	"autoreas-bridge/internal/season"
@@ -115,11 +115,11 @@ func (a *App) ensureSyncRuntimeDependencies() {
 	}
 	if a.newCaptureQueue == nil {
 		a.newCaptureQueue = func(db *sql.DB) captureQueue {
-			return mobilecapture.NewQueue(mobilecapture.NewStore(db, mobilecapture.StoreConfig{}), mobilecapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
+			return requestcapture.NewQueue(requestcapture.NewStore(db, requestcapture.StoreConfig{}), requestcapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
 		}
 	}
 	if a.newCaptureReader == nil {
-		a.newCaptureReader = mobilecapture.NewReader
+		a.newCaptureReader = requestcapture.NewReader
 	}
 	if a.newTrayManager == nil {
 		a.newTrayManager = func() tray.Manager {

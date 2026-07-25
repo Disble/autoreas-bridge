@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
-	"autoreas-bridge/internal/observability/mobilecapture"
+	"autoreas-bridge/internal/observability/requestcapture"
 )
 
 func TestSyncHandlerReturnsUnauthorizedWithoutBearer(t *testing.T) {
@@ -165,7 +165,7 @@ func TestReconcileAcceptedCapture(t *testing.T) {
 	if res.Code != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, res.Code)
 	}
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if record.Outcome != "accepted" {
 		t.Fatalf("expected accepted capture, got %#v", record)
 	}
@@ -195,7 +195,7 @@ func TestReconcileRejectedCapture(t *testing.T) {
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
 	}
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if record.Outcome != "rejected" || record.ErrorCode != "apply_pending_failed" {
 		t.Fatalf("expected rejected/apply_pending_failed capture, got %#v", record)
 	}
@@ -210,7 +210,7 @@ func TestReconcileRejectsOversizedBodyWithoutOversizedCapture(t *testing.T) {
 	req, enr := enrichedReconcileRequest(`{"pending_operations":[],"padding":"` + strings.Repeat("x", 1<<20) + `"}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if res.Code != http.StatusBadRequest || len(record.Payload) > 2 {
 		t.Fatalf("expected bounded malformed capture, status=%d payload=%#v", res.Code, record.Payload)
 	}
@@ -229,7 +229,7 @@ func TestReconcileMalformedCapture(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	record := requestcapture.MergeEnrichment(requestcapture.CaptureRecord{}, enr)
 	if record.Outcome != "malformed" {
 		t.Fatalf("expected malformed capture, got %#v", record)
 	}
@@ -239,9 +239,9 @@ func TestReconcileMalformedCapture(t *testing.T) {
 // its own enrichment context, mirroring how CaptureMiddleware installs one in
 // production, and returns the holder NewSyncHandler will mutate so the test
 // can inspect it after ServeHTTP returns.
-func enrichedReconcileRequest(body string) (*http.Request, *mobilecapture.CaptureEnrichment) {
+func enrichedReconcileRequest(body string) (*http.Request, *requestcapture.CaptureEnrichment) {
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
-	ctx, enr := mobilecapture.NewEnrichmentContext(req.Context())
+	ctx, enr := requestcapture.NewEnrichmentContext(req.Context())
 	return req.WithContext(ctx), enr
 }
 

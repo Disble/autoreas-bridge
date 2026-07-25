@@ -1,15 +1,15 @@
 package contracts
 
-// Note: this package cannot import internal/observability/mobilecapture --
-// mobilecapture/sanitizer.go already imports contracts (BuildPatchCaptureRecord/
-// BuildReconcileCaptureRecord), so CaptureCorrelations/CaptureOperationRef below
-// are a local, English mirror of mobilecapture.Correlations/OperationRef
-// (deliberate drift from design.md's `mobilecapture.Correlations` field type;
-// app_captures.go maps the reader's type into this one at the binding boundary).
+// Note: this package cannot import internal/observability/requestcapture --
+// requestcapture/sanitizer.go already imports contracts, so
+// CaptureCorrelations/CaptureOperationRef below are a local, English mirror
+// of requestcapture.Correlations/OperationRef (deliberate drift from
+// design.md's `requestcapture.Correlations` field type; app_captures.go maps
+// the reader's type into this one at the binding boundary).
 
 // CaptureQuery is the in-process query DTO for ListCaptureTransactions
 // (design.md "Bound surface"): a page request plus the optional filters
-// mobilecapture.SearchFilters already supports. A zero value carries no
+// requestcapture.SearchFilters already supports. A zero value carries no
 // filters and the reader's default page size.
 type CaptureQuery struct {
 	Limit      int
@@ -52,15 +52,15 @@ type CapturePage struct {
 	Degraded             bool         `json:"degraded"`
 }
 
-// CaptureOperationRef mirrors mobilecapture.OperationRef (see the package
-// doc comment above for why this package cannot import mobilecapture).
+// CaptureOperationRef mirrors requestcapture.OperationRef (see the package
+// doc comment above for why this package cannot import requestcapture).
 type CaptureOperationRef struct {
 	AnimeID   string `json:"animeId"`
 	Operation string `json:"operation"`
 	Outcome   string `json:"outcome"`
 }
 
-// CaptureCorrelations mirrors mobilecapture.Correlations (see the package
+// CaptureCorrelations mirrors requestcapture.Correlations (see the package
 // doc comment above).
 type CaptureCorrelations struct {
 	ChangelogIDs  []int64               `json:"changelogIds,omitempty"`
