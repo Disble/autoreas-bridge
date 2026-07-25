@@ -21,6 +21,7 @@ type Handler struct {
 	seasonRatings          http.Handler
 	activeSeason           http.Handler
 	mux                    *http.ServeMux
+	captureMux             http.Handler
 	config                 Config
 	onPairingTokenConsumed func()
 }
@@ -33,6 +34,7 @@ func NewHandler(config Config) http.Handler {
 	h.seasonRatings = buildSeasonRatingHandler(h, config)
 	h.activeSeason = buildActiveSeasonHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
+	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture})
 	return h
 }
 
@@ -40,7 +42,6 @@ func NewHandler(config Config) http.Handler {
 func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConfig {
 	patchConfig := apiHandlers.PatchAnimeConfig{
 		Authenticate: h.authenticate,
-		Capture:      config.Capture,
 		QueryAnime: func(ctx context.Context, id string) (*apiHandlers.EffectiveAnime, error) {
 			return config.AnimeQuery.GetEffectiveAnime(ctx, id)
 		},
@@ -54,7 +55,7 @@ func buildPatchAnimeConfig(h *Handler, config Config) apiHandlers.PatchAnimeConf
 
 // buildSyncHandlerConfig assembles dependencies for the sync handler.
 func buildSyncHandlerConfig(h *Handler, config Config) apiHandlers.SyncHandlerConfig {
-	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate, Capture: config.Capture}
+	syncConfig := apiHandlers.SyncHandlerConfig{Authenticate: h.authenticate}
 	if config.AnimeWrite != nil {
 		syncConfig.ApplyPendingPatch = apiHandlers.AdaptAnimePatchWriter(config.AnimeWrite)
 	}
@@ -142,7 +143,7 @@ func buildWebSocketHandlerConfig(h *Handler, config Config) apiHandlers.WebSocke
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mux.ServeHTTP(w, r)
+	h.captureMux.ServeHTTP(w, r)
 }
 
 // handlePairDevice handles requests that pair a new device with the bridge.

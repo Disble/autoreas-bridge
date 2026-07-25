@@ -239,9 +239,15 @@ func TestWSReconcileAcceptedCapture(t *testing.T) {
 	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
 		t.Fatalf("write websocket reconcile: %v", err)
 	}
-	waitForCaptureCount(t, &captures, 1)
-	if captures[0].Outcome != "accepted" || captures[0].Device.DeviceID != "device-1" {
-		t.Fatalf("unexpected accepted capture %#v", captures[0])
+	waitForCaptureCount(t, &captures, 2)
+	if captures[0].Outcome != "pending" {
+		t.Fatalf("expected a pending arrival row, got %#v", captures[0])
+	}
+	if captures[1].Outcome != "accepted" || captures[1].Device.DeviceID != "device-1" {
+		t.Fatalf("unexpected accepted capture %#v", captures[1])
+	}
+	if captures[0].RequestID != captures[1].RequestID {
+		t.Fatalf("expected arrival and terminal to share one request id, got %q vs %q", captures[0].RequestID, captures[1].RequestID)
 	}
 }
 
@@ -267,9 +273,9 @@ func TestWSReconcileRejectedCapture(t *testing.T) {
 	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
 		t.Fatalf("write websocket reconcile: %v", err)
 	}
-	waitForCaptureCount(t, &captures, 1)
-	if captures[0].Outcome != "rejected" {
-		t.Fatalf("unexpected rejected capture %#v", captures[0])
+	waitForCaptureCount(t, &captures, 2)
+	if captures[1].Outcome != "rejected" {
+		t.Fatalf("unexpected rejected capture %#v", captures[1])
 	}
 }
 
@@ -295,14 +301,14 @@ func TestWSReconcileCapturesResponseBodyOnReject(t *testing.T) {
 	if err := conn.WriteJSON(map[string]any{"type": "reconcile", "last_changelog_id": 7, "pending_operations": []map[string]any{{"anime_id": "anime-1", "operation": "update", "payload": map[string]any{"episodesWatched": 3}, "created_at": 1710000000123}}}); err != nil {
 		t.Fatalf("write websocket reconcile: %v", err)
 	}
-	waitForCaptureCount(t, &captures, 1)
-	if captures[0].Outcome != "rejected" {
-		t.Fatalf("unexpected outcome %#v", captures[0])
+	waitForCaptureCount(t, &captures, 2)
+	if captures[1].Outcome != "rejected" {
+		t.Fatalf("unexpected outcome %#v", captures[1])
 	}
-	if captures[0].DurationMS == nil {
+	if captures[1].DurationMS == nil {
 		t.Fatal("expected duration_ms to be captured")
 	}
-	if captures[0].ResponseBody == nil {
+	if captures[1].ResponseBody == nil {
 		t.Fatal("expected response body to be captured for a rejected ws reconcile")
 	}
 }

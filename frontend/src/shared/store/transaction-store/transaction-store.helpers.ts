@@ -61,6 +61,34 @@ export function matchesTransactionQuery(row: Readonly<CaptureRow>, query: string
 }
 
 /**
+ * Merges a batch of pushed rows (from the `capture.transaction` runtime
+ * event) into the existing buffer, keyed by `requestId`: an unseen row is
+ * prepended (newest-first, DevTools-Network order); a row that already
+ * exists (e.g. an arrival row later completing) is updated in place at its
+ * current position instead of moving, so neither the caller's selection nor
+ * its scroll position shift. Never creates a duplicate row for the same
+ * `requestId`.
+ */
+export function upsertTransactionRows(
+  existing: readonly CaptureRow[],
+  incoming: readonly CaptureRow[],
+): readonly CaptureRow[] {
+  let next = existing;
+
+  for (const row of incoming) {
+    const index = next.findIndex((item) => item.requestId === row.requestId);
+    next = index === -1 ? [row, ...next] : next.map((item, itemIndex) => (itemIndex === index ? row : item));
+  }
+
+  return next;
+}
+
+/** Reports whether any row in the buffer is still in its pending (in-flight) state. */
+export function selectHasPendingTransactions(items: readonly CaptureRow[]): boolean {
+  return items.some((item) => item.outcome === 'pending');
+}
+
+/**
  * Filters the current page buffer by the client-only concerns
  * (`statusClass`, free-text `query`) not already narrowed server-side.
  */
@@ -104,6 +132,7 @@ export const transactionStore = createStore<TransactionStoreState>()((set) => ({
       items: mergeTransactionPage(state.items, items, mode),
       nextCursor,
     })),
+  upsertRows: (rows) => set((state) => ({ items: upsertTransactionRows(state.items, rows) })),
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),
   select: (id) => set({ selectedId: id, selectedDetail: null }),
   setSelectedDetail: (detail) => set({ selectedDetail: detail }),

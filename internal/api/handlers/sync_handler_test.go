@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
 func TestSyncHandlerReturnsUnauthorizedWithoutBearer(t *testing.T) {
@@ -152,27 +153,24 @@ func TestReconcileAcceptedCapture(t *testing.T) {
 	handler := NewSyncHandler(SyncHandlerConfig{
 		Authenticate:      stubs.authenticate(true),
 		ApplyPendingPatch: stubs.patchAnime,
-		Capture:           stubs.capture,
 		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
 			return []AnimeChange{{ID: 9, RecordID: "anime-1", ChangeType: "update", Timestamp: 123}}, 9, nil
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"device_id":"spoofed","last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3},"created_at":1710000000123}]}`))
+	req, enr := enrichedReconcileRequest(`{"device_id":"spoofed","last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3},"created_at":1710000000123}]}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, res.Code)
 	}
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	if record.Outcome != "accepted" {
+		t.Fatalf("expected accepted capture, got %#v", record)
 	}
-	if stubs.captures[0].Outcome != "accepted" {
-		t.Fatalf("expected accepted capture, got %#v", stubs.captures[0])
-	}
-	if stubs.captures[0].Device.DeviceID != "device-1" {
-		t.Fatalf("expected trusted device id, got %#v", stubs.captures[0].Device)
+	if record.Device.DeviceID != "device-1" {
+		t.Fatalf("expected trusted device id, got %#v", record.Device)
 	}
 }
 
@@ -188,32 +186,33 @@ func TestReconcileRejectedCapture(t *testing.T) {
 			}
 			return contracts.AnimePatchResult{}, errors.New("boom")
 		},
-		Capture: stubs.capture,
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3}},{"anime_id":"anime-2","operation":"update","payload":{"episodesWatched":4}}]}`))
+	req, enr := enrichedReconcileRequest(`{"last_changelog_id":8,"pending_operations":[{"anime_id":"anime-1","operation":"update","payload":{"episodesWatched":3}},{"anime_id":"anime-2","operation":"update","payload":{"episodesWatched":4}}]}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
 	}
-	if len(stubs.captures) != 1 || stubs.captures[0].Outcome != "rejected" {
-		t.Fatalf("expected rejected capture, got %#v", stubs.captures)
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	if record.Outcome != "rejected" || record.ErrorCode != "apply_pending_failed" {
+		t.Fatalf("expected rejected/apply_pending_failed capture, got %#v", record)
 	}
-	if refs := stubs.captures[0].Correlations.OperationRefs; len(refs) != 1 || refs[0].AnimeID != "anime-1" {
+	if refs := record.Correlations.OperationRefs; len(refs) != 1 || refs[0].AnimeID != "anime-1" {
 		t.Fatalf("expected successful partial operation reference, got %#v", refs)
 	}
 }
 
 func TestReconcileRejectsOversizedBodyWithoutOversizedCapture(t *testing.T) {
 	stubs := &syncHandlerStubs{}
-	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true), Capture: stubs.capture})
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{"pending_operations":[],"padding":"`+strings.Repeat("x", 1<<20)+`"}`))
+	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true)})
+	req, enr := enrichedReconcileRequest(`{"pending_operations":[],"padding":"` + strings.Repeat("x", 1<<20) + `"}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
-	if res.Code != http.StatusBadRequest || len(stubs.captures) != 1 || len(stubs.captures[0].Payload) > 2 {
-		t.Fatalf("expected bounded malformed capture, status=%d captures=%#v", res.Code, stubs.captures)
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	if res.Code != http.StatusBadRequest || len(record.Payload) > 2 {
+		t.Fatalf("expected bounded malformed capture, status=%d payload=%#v", res.Code, record.Payload)
 	}
 }
 
@@ -221,18 +220,29 @@ func TestReconcileMalformedCapture(t *testing.T) {
 	t.Parallel()
 
 	stubs := &syncHandlerStubs{}
-	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true), Capture: stubs.capture})
+	handler := NewSyncHandler(SyncHandlerConfig{Authenticate: stubs.authenticate(true)})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(`{`))
+	req, enr := enrichedReconcileRequest(`{`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if len(stubs.captures) != 1 || stubs.captures[0].Outcome != "malformed" {
-		t.Fatalf("expected malformed capture, got %#v", stubs.captures)
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	if record.Outcome != "malformed" {
+		t.Fatalf("expected malformed capture, got %#v", record)
 	}
+}
+
+// enrichedReconcileRequest builds a POST /api/sync/reconcile request carrying
+// its own enrichment context, mirroring how CaptureMiddleware installs one in
+// production, and returns the holder NewSyncHandler will mutate so the test
+// can inspect it after ServeHTTP returns.
+func enrichedReconcileRequest(body string) (*http.Request, *mobilecapture.CaptureEnrichment) {
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
+	ctx, enr := mobilecapture.NewEnrichmentContext(req.Context())
+	return req.WithContext(ctx), enr
 }
 
 func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) {

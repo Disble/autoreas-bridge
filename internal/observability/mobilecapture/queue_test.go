@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -99,13 +100,79 @@ func TestQueueConcurrentStopRejectsEnqueueAndDrainsAcceptedWork(t *testing.T) {
 	}
 }
 
+func TestQueueOnPersistFiresOncePerPersistedRecordAfterStoreWrite(t *testing.T) {
+	t.Parallel()
+
+	store := &blockingQueueStore{release: make(chan struct{})}
+	close(store.release) // let the store write complete immediately
+
+	var (
+		mu        sync.Mutex
+		persisted []CaptureRecord
+	)
+	queue := NewQueue(store, QueueConfig{Capacity: 4, OnPersist: func(record CaptureRecord) {
+		mu.Lock()
+		defer mu.Unlock()
+		persisted = append(persisted, record)
+	}})
+
+	record := NewCaptureRecord("patch", "device-1")
+	record.RequestID = "req-onpersist"
+	if ok := queue.TryEnqueue(record); !ok {
+		t.Fatal("expected enqueue to succeed")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if result := queue.Stop(ctx); result.UnfinishedItems != 0 {
+		t.Fatalf("expected clean drain, got %#v", result)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(persisted) != 1 || persisted[0].RequestID != "req-onpersist" {
+		t.Fatalf("expected OnPersist to fire exactly once with the persisted record, got %#v", persisted)
+	}
+}
+
+func TestQueueOnPersistDoesNotFireOnStoreWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	store := &blockingQueueStore{release: make(chan struct{}), insertErr: errors.New("write failed")}
+	close(store.release)
+
+	var (
+		mu        sync.Mutex
+		persisted []CaptureRecord
+	)
+	queue := NewQueue(store, QueueConfig{Capacity: 1, OnPersist: func(record CaptureRecord) {
+		mu.Lock()
+		defer mu.Unlock()
+		persisted = append(persisted, record)
+	}})
+
+	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-1")); !ok {
+		t.Fatal("expected enqueue to succeed")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	queue.Stop(ctx)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(persisted) != 0 {
+		t.Fatalf("expected OnPersist not to fire after a failed store write, got %#v", persisted)
+	}
+}
+
 type blockingQueueStore struct {
 	records   []CaptureRecord
 	release   chan struct{}
 	insertErr error
 }
 
-func (s *blockingQueueStore) InsertCapture(ctx context.Context, record CaptureRecord) error {
+func (s *blockingQueueStore) UpsertCapture(ctx context.Context, record CaptureRecord) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

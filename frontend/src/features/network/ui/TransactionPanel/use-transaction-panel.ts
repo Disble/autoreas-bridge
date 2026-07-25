@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
+import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import { captureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import { selectVisibleTransactionRows, toBackendCaptureFilters } from '../../../../shared/store/transaction-store/transaction-store.helpers';
+import { useElapsedClock } from '../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock';
+import {
+  selectHasPendingTransactions,
+  selectVisibleTransactionRows,
+  toBackendCaptureFilters,
+} from '../../../../shared/store/transaction-store/transaction-store.helpers';
 import { useTransactionStore } from '../../../../shared/store/transaction-store/use-transaction-store';
 import type { TransactionStatusClassFilter } from '../../../../shared/store/transaction-store/transaction-store.types';
 import { DEFAULT_TRANSACTION_PAGE_LIMIT } from './transaction-panel.constants';
@@ -12,13 +19,16 @@ import type { TransactionDetailTab } from './transaction-panel.types';
  * useTransactionPanel wires the shared transaction store into the
  * TransactionPanel feature: it loads the first page on mount, reloads
  * (replace) whenever a server-relevant filter (route/outcome/kind) changes,
- * loads the selected row's detail, and resets the detail tab on every new
- * selection. All async I/O happens here; the dumb table/filter/detail
- * components only render the derived rows/state this hook returns.
+ * loads the selected row's detail, resets the detail tab on every new
+ * selection, and subscribes to the `capture.transaction` runtime push so
+ * arrival/terminal rows merge into the buffer live without losing the
+ * current selection. All async I/O happens here; the dumb table/filter/
+ * detail components only render the derived rows/state this hook returns.
  */
 export function useTransactionPanel(
   source: CaptureTransactionSource = captureTransactionSource,
   limit: number = DEFAULT_TRANSACTION_PAGE_LIMIT,
+  runtimeSource: CaptureRuntimeSource = captureRuntimeSource,
 ) {
   // 1. Refs
   const previousSelectedIdRef = useRef<string | null>(null);
@@ -34,6 +44,7 @@ export function useTransactionPanel(
   const degraded = useTransactionStore((state) => state.degraded);
   const isLoading = useTransactionStore((state) => state.isLoading);
   const setPage = useTransactionStore((state) => state.setPage);
+  const upsertRows = useTransactionStore((state) => state.upsertRows);
   const setFilters = useTransactionStore((state) => state.setFilters);
   const select = useTransactionStore((state) => state.select);
   const setSelectedDetail = useTransactionStore((state) => state.setSelectedDetail);
@@ -43,9 +54,11 @@ export function useTransactionPanel(
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
+  const hasPending = useMemo(() => selectHasPendingTransactions(items), [items]);
+  const now = useElapsedClock(hasPending);
   const rows = useMemo(
-    () => selectVisibleTransactionRows(items, filters).map(toTransactionRow),
-    [items, filters],
+    () => selectVisibleTransactionRows(items, filters).map((row) => toTransactionRow(row, now)),
+    [items, filters, now],
   );
   const detailViewModel = useMemo(
     () => (selectedDetail === null ? null : toTransactionDetail(selectedDetail)),
@@ -114,6 +127,12 @@ export function useTransactionPanel(
       setDetailTab('general');
     }
   }, [selectedId]);
+
+  useEffect(() => {
+    return runtimeSource.subscribeCaptureTransactions((row) => {
+      upsertRows([row]);
+    });
+  }, [runtimeSource, upsertRows]);
 
   return {
     rows,

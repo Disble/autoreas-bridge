@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
 const defaultSendTimeout = 100 * time.Millisecond
@@ -35,6 +36,10 @@ type MemoryHubConfig struct {
 	ClientBuffer    int
 	SendTimeout     time.Duration
 	Logger          sharedlogger.Logger
+	// Capture enqueues one observability row per connection lifecycle event
+	// and outbound broadcast (see hub_capture.go). Nil disables hub capture
+	// entirely -- every capture call above is a safe no-op without it.
+	Capture mobilecapture.CaptureFunc
 }
 
 // MemoryHub is an in-memory Hub implementation.
@@ -49,6 +54,7 @@ type MemoryHub struct {
 	sendTimeout     time.Duration
 	broadcastClosed chan struct{}
 	logger          sharedlogger.Logger
+	capture         mobilecapture.CaptureFunc
 }
 
 type clientState struct {
@@ -84,6 +90,7 @@ func NewMemoryHub(parent context.Context, config MemoryHubConfig) *MemoryHub {
 		sendTimeout:     config.SendTimeout,
 		broadcastClosed: make(chan struct{}),
 		logger:          config.Logger,
+		capture:         config.Capture,
 	}
 
 	go hub.run()
@@ -126,6 +133,7 @@ func (h *MemoryHub) Register(ctx context.Context, client Client) error {
 			Metadata:  map[string]any{"clientCount": clientCount},
 		}, "registered client %s", client.ID())
 	}
+	captureHubConnect(h.capture, client.ID())
 	return h.enqueueClientMessage(state, mustJSON(ControlMessage{
 		Type:   MessageTypeSyncRequired,
 		Reason: SyncReasonConnectionGapAssumed,
@@ -150,6 +158,7 @@ func (h *MemoryHub) Unregister(clientID string) {
 				Metadata:  map[string]any{"clientCount": clientCount},
 			}, "unregistered client %s", clientID)
 		}
+		captureHubDisconnect(h.capture, clientID)
 		h.unregisterState(state)
 	}
 }
@@ -169,6 +178,8 @@ func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeC
 		}, "broadcast anime.changed for %s", event.AnimeID)
 	}
 	message := buildAnimeEventMessage(event)
+	animeID := event.AnimeID
+	captureHubBroadcast(h.capture, &animeID, map[string]any{"anime_id": event.AnimeID, "change_type": event.ChangeType})
 
 	select {
 	case h.broadcasts <- message:
@@ -192,6 +203,7 @@ func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bo
 		Type:       MessageTypePreferencesChanged,
 		SeasonMode: seasonMode,
 	})
+	captureHubBroadcast(h.capture, nil, map[string]any{"season_mode": seasonMode})
 
 	select {
 	case h.broadcasts <- message:
@@ -216,6 +228,7 @@ func (h *MemoryHub) BroadcastSeasonChanged(_ context.Context, seasonID, status s
 		SeasonID: seasonID,
 		Status:   status,
 	})
+	captureHubBroadcast(h.capture, nil, map[string]any{"season_id": seasonID, "status": status})
 
 	select {
 	case h.broadcasts <- message:

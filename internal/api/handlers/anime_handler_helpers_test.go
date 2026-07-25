@@ -13,6 +13,13 @@ import (
 	"autoreas-bridge/internal/observability/mobilecapture"
 )
 
+// Transport-level telemetry (duration_ms, response headers/body, http_status)
+// now belongs entirely to internal/api's CaptureMiddleware -- see
+// TestCaptureMiddlewareCapturesResponseBodyOnNon2xx and
+// TestCaptureMiddlewareEnqueuesArrivalThenTerminalSharingOneRequestID in
+// internal/api/capture_middleware_test.go. This file only asserts the
+// semantic facts handlePatchAnime contributes via mobilecapture.Enrich.
+
 func TestPatchAcceptedCapture(t *testing.T) {
 	t.Parallel()
 
@@ -22,23 +29,19 @@ func TestPatchAcceptedCapture(t *testing.T) {
 		Authenticate: stubs.authenticate(true),
 		QueryAnime:   stubs.queryAnime,
 		PatchAnime:   stubs.patchAnime,
-		Capture:      stubs.capture,
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"status":2,"episodesWatched":10.5}`))
+	req, enr := enrichedPatchRequest(http.MethodPatch, "/api/animes/anime-1", `{"status":2,"episodesWatched":10.5}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, res.Code)
 	}
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
-	}
-	assertPatchCapture(t, stubs.captures[0], "accepted", http.StatusOK, "anime-1")
-	if _, ok := stubs.captures[0].Payload["episodesWatched"]; !ok {
-		t.Fatalf("expected sanitized episodesWatched payload, got %#v", stubs.captures[0].Payload)
+	record := assertPatchCapture(t, enr, "accepted", "", "anime-1")
+	if _, ok := record.Payload["episodesWatched"]; !ok {
+		t.Fatalf("expected sanitized episodesWatched payload, got %#v", record.Payload)
 	}
 }
 
@@ -51,21 +54,17 @@ func TestPatchRejectedCapture(t *testing.T) {
 		Authenticate: stubs.authenticate(true),
 		QueryAnime:   stubs.queryAnime,
 		PatchAnime:   stubs.patchAnime,
-		Capture:      stubs.capture,
 		IsNotFound:   func(err error) bool { return errors.Is(err, errAnimeNotFound) },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-404", strings.NewReader(`{"status":2}`))
+	req, enr := enrichedPatchRequest(http.MethodPatch, "/api/animes/anime-404", `{"status":2}`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected status %d, got %d", http.StatusNotFound, res.Code)
 	}
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
-	}
-	assertPatchCapture(t, stubs.captures[0], "rejected", http.StatusNotFound, "anime-404")
+	assertPatchCapture(t, enr, "rejected", "anime_not_found", "anime-404")
 }
 
 func TestPatchConflictCapturePreservesAuthoritativeID(t *testing.T) {
@@ -73,10 +72,13 @@ func TestPatchConflictCapturePreservesAuthoritativeID(t *testing.T) {
 	stubs.effectiveAnime = &EffectiveAnime{ID: "anime-1"}
 	stubs.patchResult = contracts.AnimePatchResult{Outcome: contracts.AnimePatchOutcomeConflict, ConflictID: "conflict-7"}
 	stubs.patchErr = ErrAnimePatchConflict
-	handler := NewPatchAnimeHandler(PatchAnimeConfig{Authenticate: stubs.authenticate(true), QueryAnime: stubs.queryAnime, PatchAnime: stubs.patchAnime, Capture: stubs.capture})
+	handler := NewPatchAnimeHandler(PatchAnimeConfig{Authenticate: stubs.authenticate(true), QueryAnime: stubs.queryAnime, PatchAnime: stubs.patchAnime})
+	req, enr := enrichedPatchRequest(http.MethodPatch, "/api/animes/anime-1", `{"status":2}`)
 	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"status":2}`)))
-	if ids := stubs.captures[0].Correlations.ConflictIDs; len(ids) != 1 || ids[0] != "conflict-7" {
+	handler.ServeHTTP(res, req)
+
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
+	if ids := record.Correlations.ConflictIDs; len(ids) != 1 || ids[0] != "conflict-7" {
 		t.Fatalf("expected authoritative conflict id, got %#v", ids)
 	}
 }
@@ -89,82 +91,27 @@ func TestPatchMalformedCapture(t *testing.T) {
 		Authenticate: stubs.authenticate(true),
 		QueryAnime:   stubs.queryAnime,
 		PatchAnime:   stubs.patchAnime,
-		Capture:      stubs.capture,
 		IsNotFound:   func(error) bool { return false },
 	})
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{`))
+	req, enr := enrichedPatchRequest(http.MethodPatch, "/api/animes/anime-1", `{`)
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
-	}
-	assertPatchCapture(t, stubs.captures[0], "malformed", http.StatusBadRequest, "anime-1")
+	assertPatchCapture(t, enr, "malformed", "invalid_request_body", "anime-1")
 }
 
-func TestPatchCapturesDurationAndErrorBody(t *testing.T) {
-	t.Parallel()
-
-	stubs := newAnimeHandlerStubs()
-	stubs.queryErr = errAnimeNotFound
-	handler := NewPatchAnimeHandler(PatchAnimeConfig{
-		Authenticate: stubs.authenticate(true),
-		QueryAnime:   stubs.queryAnime,
-		PatchAnime:   stubs.patchAnime,
-		Capture:      stubs.capture,
-		IsNotFound:   func(err error) bool { return errors.Is(err, errAnimeNotFound) },
-	})
-
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-404", strings.NewReader(`{"status":2}`))
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
-	}
-	record := stubs.captures[0]
-	if record.DurationMS == nil {
-		t.Fatal("expected duration_ms to be captured")
-	}
-	if record.ResponseBody == nil {
-		t.Fatal("expected response body to be captured for a rejected request")
-	}
-	if !strings.Contains(*record.ResponseBody, "anime not found") {
-		t.Fatalf("expected sanitized error message, got %s", *record.ResponseBody)
-	}
-}
-
-func TestPatchAcceptedOmitsResponseBody(t *testing.T) {
-	t.Parallel()
-
-	stubs := newAnimeHandlerStubs()
-	stubs.effectiveAnime = &EffectiveAnime{ID: "anime-1"}
-	handler := NewPatchAnimeHandler(PatchAnimeConfig{
-		Authenticate: stubs.authenticate(true),
-		QueryAnime:   stubs.queryAnime,
-		PatchAnime:   stubs.patchAnime,
-		Capture:      stubs.capture,
-		IsNotFound:   func(error) bool { return false },
-	})
-
-	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(`{"status":2}`))
-	res := httptest.NewRecorder()
-	handler.ServeHTTP(res, req)
-
-	if len(stubs.captures) != 1 {
-		t.Fatalf("expected one capture, got %#v", stubs.captures)
-	}
-	record := stubs.captures[0]
-	if record.DurationMS == nil {
-		t.Fatal("expected duration_ms to be captured even on success")
-	}
-	if record.ResponseBody != nil {
-		t.Fatalf("expected accepted response to omit response body, got %#v", *record.ResponseBody)
-	}
+// enrichedPatchRequest builds a PATCH request carrying its own enrichment
+// context, mirroring how CaptureMiddleware installs one in production, and
+// returns the holder handlePatchAnime will mutate so the test can inspect it
+// after ServeHTTP returns.
+func enrichedPatchRequest(method, path, body string) (*http.Request, *mobilecapture.CaptureEnrichment) {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	ctx, enr := mobilecapture.NewEnrichmentContext(req.Context())
+	return req.WithContext(ctx), enr
 }
 
 // errAnimeNotFound is the stub error used by patch anime tests.
@@ -180,7 +127,6 @@ type animeHandlerStubs struct {
 	patchedPatch   AnimePatch
 	queryCalls     int
 	patchCalls     int
-	captures       []mobilecapture.CaptureRecord
 }
 
 // newAnimeHandlerStubs creates the anime handler test dependencies.
@@ -221,20 +167,18 @@ func (s *animeHandlerStubs) patchAnime(_ context.Context, id string, patch Anime
 	return result, s.patchErr
 }
 
-// capture records the capture record for later assertions.
-func (s *animeHandlerStubs) capture(record mobilecapture.CaptureRecord) bool {
-	s.captures = append(s.captures, record)
-	return true
-}
-
-// assertPatchCapture verifies a captured PATCH record matches expectations.
-func assertPatchCapture(t *testing.T, record mobilecapture.CaptureRecord, wantOutcome string, wantStatus int, wantAnimeID string) {
+// assertPatchCapture merges the enrichment holder onto an empty transport
+// record and verifies the semantic facts handlePatchAnime contributed match
+// expectations, returning the merged record for further assertions (e.g.
+// Payload). wantErrorCode "" asserts an empty error code.
+func assertPatchCapture(t *testing.T, enr *mobilecapture.CaptureEnrichment, wantOutcome, wantErrorCode, wantAnimeID string) mobilecapture.CaptureRecord {
 	t.Helper()
+	record := mobilecapture.MergeEnrichment(mobilecapture.CaptureRecord{}, enr)
 	if record.Outcome != wantOutcome {
 		t.Fatalf("expected outcome %q, got %#v", wantOutcome, record)
 	}
-	if record.HTTPStatus == nil || *record.HTTPStatus != wantStatus {
-		t.Fatalf("expected http status %d, got %#v", wantStatus, record.HTTPStatus)
+	if record.ErrorCode != wantErrorCode {
+		t.Fatalf("expected error code %q, got %#v", wantErrorCode, record)
 	}
 	if record.AnimeID == nil || *record.AnimeID != wantAnimeID {
 		t.Fatalf("expected anime id %q, got %#v", wantAnimeID, record.AnimeID)
@@ -242,4 +186,5 @@ func assertPatchCapture(t *testing.T, record mobilecapture.CaptureRecord, wantOu
 	if record.Device.DeviceID != "device-1" {
 		t.Fatalf("expected trusted device id, got %#v", record.Device)
 	}
+	return record
 }

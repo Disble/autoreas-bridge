@@ -1,4 +1,5 @@
 import { Alert } from '@heroui/react';
+import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
 import { captureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import { TransactionDetail } from '../TransactionDetail/TransactionDetail';
 import { TransactionFilterBar } from '../TransactionFilterBar/TransactionFilterBar';
@@ -11,9 +12,14 @@ import { useTransactionPanel } from './use-transaction-panel';
  * TransactionPanel is the DevTools-Network-style master/detail container
  * over captured HTTP transactions: a filter toolbar + dense table on the
  * left, the selected transaction's tabbed inspector on the right. All data
- * flows from `useTransactionPanel`; this component only renders.
+ * flows from `useTransactionPanel`, including the live `capture.transaction`
+ * push subscription; this component only renders.
  */
-export function TransactionPanel({ source = captureTransactionSource, limit }: Readonly<TransactionPanelProps>) {
+export function TransactionPanel({
+  source = captureTransactionSource,
+  limit,
+  runtimeSource = captureRuntimeSource,
+}: Readonly<TransactionPanelProps>) {
   const {
     rows,
     selectedId,
@@ -34,7 +40,7 @@ export function TransactionPanel({ source = captureTransactionSource, limit }: R
     onStatusClassChange,
     onQueryChange,
     onDetailTabChange,
-  } = useTransactionPanel(source, limit);
+  } = useTransactionPanel(source, limit, runtimeSource);
 
   return (
     <div className="flex flex-col gap-4">

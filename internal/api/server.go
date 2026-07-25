@@ -108,13 +108,9 @@ func NewServer(config Config) Server {
 	}
 
 	handler := NewHandler(config)
-	wrappedHandler := http.Handler(handler)
-	if config.Logger != nil {
-		wrappedHandler = RequestLoggingMiddleware(handler, config.Logger)
-	}
 	return &HTTPServer{
 		addr:                 addr,
-		handler:              wrappedHandler,
+		handler:              handler,
 		resolveEffectiveHost: resolveEffectiveHost,
 		logger:               config.Logger,
 	}

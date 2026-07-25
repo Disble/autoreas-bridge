@@ -22,7 +22,7 @@ func TestRetentionPrunesOldestAuxiliaryRowsOnly(t *testing.T) {
 		record.CapturedAtMS = int64(index)
 		animeID := "anime-1"
 		record.AnimeID = &animeID
-		if err := store.InsertCapture(context.Background(), record); err != nil {
+		if err := store.UpsertCapture(context.Background(), record); err != nil {
 			t.Fatalf("insert capture %d: %v", index, err)
 		}
 	}
@@ -76,7 +76,7 @@ func TestSearchCursorPaginatesEqualTimestampsWithoutDuplicates(t *testing.T) {
 	}{{"req-z", 9}, {"req-a", 10}, {"req-b", 10}, {"req-c", 10}} {
 		record := NewCaptureRecord("patch", "device")
 		record.RequestID, record.CapturedAtMS = item.id, item.at
-		if err := store.InsertCapture(context.Background(), record); err != nil {
+		if err := store.UpsertCapture(context.Background(), record); err != nil {
 			t.Fatalf("insert %s: %v", item.id, err)
 		}
 	}
@@ -98,7 +98,7 @@ func TestSearchCursorPaginatesEqualTimestampsWithoutDuplicates(t *testing.T) {
 	}
 }
 
-func TestInsertCaptureWritesTelemetryColumns(t *testing.T) {
+func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
@@ -114,7 +114,7 @@ func TestInsertCaptureWritesTelemetryColumns(t *testing.T) {
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
 
-	if err := store.InsertCapture(context.Background(), record); err != nil {
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert capture: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestInsertCaptureWritesTelemetryColumns(t *testing.T) {
 	}
 }
 
-func TestInsertCaptureNullTelemetryTolerated(t *testing.T) {
+func TestUpsertCaptureNullTelemetryTolerated(t *testing.T) {
 	t.Parallel()
 
 	db := openCaptureTestDB(t)
@@ -155,7 +155,7 @@ func TestInsertCaptureNullTelemetryTolerated(t *testing.T) {
 	record.RequestID = "req-no-telemetry"
 	record.CapturedAtMS = 1
 
-	if err := store.InsertCapture(context.Background(), record); err != nil {
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert capture: %v", err)
 	}
 
@@ -174,6 +174,83 @@ func TestInsertCaptureNullTelemetryTolerated(t *testing.T) {
 	}
 	if gotDuration.Valid || gotResponseBody.Valid || gotRequestHeaders.Valid || gotResponseHeaders.Valid {
 		t.Fatalf("expected all telemetry columns null, got duration=%#v body=%#v reqHeaders=%#v respHeaders=%#v", gotDuration, gotResponseBody, gotRequestHeaders, gotResponseHeaders)
+	}
+}
+
+func TestUpsertCapturePreservesArrivalCapturedAtMSOnTerminalUpdate(t *testing.T) {
+	t.Parallel()
+
+	db := openCaptureTestDB(t)
+	store := NewStore(db, StoreConfig{})
+
+	arrival := BuildTransportCaptureRecord("req-upsert", 100, "patch", "/api/animes/anime-1", "http")
+	if err := store.UpsertCapture(context.Background(), arrival); err != nil {
+		t.Fatalf("upsert arrival: %v", err)
+	}
+
+	terminal := arrival
+	terminal.CapturedAtMS = 999 // must NOT overwrite the arrival's captured_at_ms
+	terminal.Outcome = "accepted"
+	status := 200
+	terminal.HTTPStatus = &status
+	duration := int64(42)
+	terminal.DurationMS = &duration
+	animeID := "anime-1"
+	terminal.AnimeID = &animeID
+	if err := store.UpsertCapture(context.Background(), terminal); err != nil {
+		t.Fatalf("upsert terminal: %v", err)
+	}
+
+	if got := countRows(t, db, "mobile_request_captures"); got != 1 {
+		t.Fatalf("expected exactly one row after arrival+terminal upsert, got %d", got)
+	}
+
+	var (
+		gotCapturedAtMS int64
+		gotOutcome      string
+		gotHTTPStatus   sql.NullInt64
+		gotDuration     sql.NullInt64
+		gotAnimeID      sql.NullString
+	)
+	err := db.QueryRow(`
+		SELECT captured_at_ms, outcome, http_status, duration_ms, anime_id
+		FROM mobile_request_captures WHERE request_id = ?
+	`, "req-upsert").Scan(&gotCapturedAtMS, &gotOutcome, &gotHTTPStatus, &gotDuration, &gotAnimeID)
+	if err != nil {
+		t.Fatalf("read upserted row: %v", err)
+	}
+	if gotCapturedAtMS != 100 {
+		t.Fatalf("expected captured_at_ms to stay at the arrival value 100, got %d", gotCapturedAtMS)
+	}
+	if gotOutcome != "accepted" {
+		t.Fatalf("expected terminal outcome accepted, got %q", gotOutcome)
+	}
+	if !gotHTTPStatus.Valid || gotHTTPStatus.Int64 != 200 {
+		t.Fatalf("expected http_status 200, got %#v", gotHTTPStatus)
+	}
+	if !gotDuration.Valid || gotDuration.Int64 != 42 {
+		t.Fatalf("expected duration_ms 42, got %#v", gotDuration)
+	}
+	if !gotAnimeID.Valid || gotAnimeID.String != "anime-1" {
+		t.Fatalf("expected anime_id anime-1, got %#v", gotAnimeID)
+	}
+}
+
+func TestUpsertCaptureInsertsLoneTerminalWithoutPriorArrival(t *testing.T) {
+	t.Parallel()
+
+	db := openCaptureTestDB(t)
+	store := NewStore(db, StoreConfig{})
+
+	record := NewCaptureRecord("patch", "device-1")
+	record.RequestID = "req-lone-terminal"
+	record.CapturedAtMS = 55
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
+		t.Fatalf("upsert lone terminal: %v", err)
+	}
+
+	if got := countRows(t, db, "mobile_request_captures"); got != 1 {
+		t.Fatalf("expected exactly one row for a lone terminal upsert, got %d", got)
 	}
 }
 

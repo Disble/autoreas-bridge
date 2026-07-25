@@ -175,6 +175,26 @@ func (a *App) capture(record mobilecapture.CaptureRecord) bool {
 	return a.captureQueue.TryEnqueue(record)
 }
 
+// captureTransactionEventName is the Wails runtime event streaming each
+// persisted capture row to the frontend Network/Activity view in real time
+// (design.md "Emit choke point"), mirroring the committed
+// download-runtime-source event bridge.
+const captureTransactionEventName = "capture.transaction"
+
+// emitCaptureTransaction streams one persisted capture row to the frontend
+// over the Wails runtime event bus. Wired as mobilecapture.QueueConfig.OnPersist:
+// it fires exactly once per record, from the queue's single serialized drain
+// goroutine, only after Store.UpsertCapture has actually persisted it -- the
+// one choke point where emitting "what actually persisted" is guaranteed.
+// Nil-safe before ctx/emitFn are wired (e.g. during startup or in tests that
+// never call a.startup).
+func (a *App) emitCaptureTransaction(record mobilecapture.CaptureRecord) {
+	if a.ctx == nil || a.emitFn == nil {
+		return
+	}
+	a.emitFn(a.ctx, captureTransactionEventName, toCaptureRow(record))
+}
+
 // onPairingTokenConsumed returns the callback emitted after device pairing.
 func (a *App) onPairingTokenConsumed() func() {
 	return func() {

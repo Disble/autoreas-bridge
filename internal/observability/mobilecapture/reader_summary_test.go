@@ -42,7 +42,7 @@ func TestSummaryLatestErrorSamplesBounded(t *testing.T) {
 		record.Outcome = "rejected"
 		record.ErrorCode = "anime_not_found"
 		record.HTTPStatus = intRef(404)
-		if err := store.InsertCapture(context.Background(), record); err != nil {
+		if err := store.UpsertCapture(context.Background(), record); err != nil {
 			t.Fatalf("seed error sample %d: %v", index, err)
 		}
 	}

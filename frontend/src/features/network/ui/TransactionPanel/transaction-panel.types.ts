@@ -1,3 +1,4 @@
+import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source';
 import type { CaptureRow } from '../../../../shared/contracts/capture.types';
 import type { TransactionStatusClassFilter } from '../../../../shared/store/transaction-store';
@@ -20,6 +21,7 @@ export interface TransactionRowViewModel {
   readonly statusColor: HeroChipColor;
   readonly durationLabel: string;
   readonly timeLabel: string;
+  readonly isPending: boolean;
 }
 
 /** One label/value line in a detail section. */
@@ -52,6 +54,7 @@ export interface TransactionDetailViewModel {
 export interface TransactionPanelProps {
   readonly source?: CaptureTransactionSource;
   readonly limit?: number;
+  readonly runtimeSource?: CaptureRuntimeSource;
 }
 
 /** Props for the dumb TransactionTable presentational component. */

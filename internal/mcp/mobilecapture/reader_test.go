@@ -69,21 +69,21 @@ func TestResolveStatusAndRouteComponents(t *testing.T) {
 	older := obs.NewCaptureRecord("reconcile", "device-1")
 	older.RequestID, older.CapturedAtMS, older.Route = "req-old-reconcile-400", 100, "/api/sync/reconcile"
 	older.HTTPStatus = intRefMCP(400)
-	if err := store.InsertCapture(context.Background(), older); err != nil {
+	if err := store.UpsertCapture(context.Background(), older); err != nil {
 		t.Fatal(err)
 	}
 
 	newer := obs.NewCaptureRecord("reconcile", "device-1")
 	newer.RequestID, newer.CapturedAtMS, newer.Route = "req-new-reconcile-400", 200, "/api/sync/reconcile"
 	newer.HTTPStatus = intRefMCP(400)
-	if err := store.InsertCapture(context.Background(), newer); err != nil {
+	if err := store.UpsertCapture(context.Background(), newer); err != nil {
 		t.Fatal(err)
 	}
 
 	other := obs.NewCaptureRecord("patch", "device-1")
 	other.RequestID, other.CapturedAtMS, other.Route = "req-patch-400", 300, "/api/animes/anime-1"
 	other.HTTPStatus = intRefMCP(400)
-	if err := store.InsertCapture(context.Background(), other); err != nil {
+	if err := store.UpsertCapture(context.Background(), other); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,14 +115,14 @@ func TestResolveAnimeScopedReference(t *testing.T) {
 	scoped := obs.NewCaptureRecord("reconcile", "device-1")
 	scoped.RequestID, scoped.CapturedAtMS, scoped.Route = "req-anime-scoped", 100, "/api/sync/reconcile"
 	scoped.Correlations.OperationRefs = []obs.OperationRef{{AnimeID: "anime-42", Operation: "update", Outcome: "applied"}}
-	if err := store.InsertCapture(context.Background(), scoped); err != nil {
+	if err := store.UpsertCapture(context.Background(), scoped); err != nil {
 		t.Fatal(err)
 	}
 
 	unrelated := obs.NewCaptureRecord("reconcile", "device-1")
 	unrelated.RequestID, unrelated.CapturedAtMS, unrelated.Route = "req-anime-other", 200, "/api/sync/reconcile"
 	unrelated.Correlations.OperationRefs = []obs.OperationRef{{AnimeID: "anime-99", Operation: "update", Outcome: "applied"}}
-	if err := store.InsertCapture(context.Background(), unrelated); err != nil {
+	if err := store.UpsertCapture(context.Background(), unrelated); err != nil {
 		t.Fatal(err)
 	}
 

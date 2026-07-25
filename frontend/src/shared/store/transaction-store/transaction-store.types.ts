@@ -31,6 +31,7 @@ export interface TransactionStoreState {
   readonly degraded: boolean;
   readonly isLoading: boolean;
   readonly setPage: (items: readonly CaptureRow[], nextCursor: string | null, mode: TransactionPageMode) => void;
+  readonly upsertRows: (rows: readonly CaptureRow[]) => void;
   readonly setFilters: (filters: Partial<TransactionStoreFilters>) => void;
   readonly select: (id: string | null) => void;
   readonly setSelectedDetail: (detail: CaptureDetail | null) => void;

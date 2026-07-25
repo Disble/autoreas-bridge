@@ -14,6 +14,7 @@ function row(overrides: Partial<TransactionRowViewModel> = {}): TransactionRowVi
     statusColor: 'success',
     durationLabel: '42ms',
     timeLabel: '10:30:45',
+    isPending: false,
     ...overrides,
   };
 }

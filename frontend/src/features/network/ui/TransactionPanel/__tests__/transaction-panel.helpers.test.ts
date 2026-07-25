@@ -71,6 +71,20 @@ describe('toTransactionRow', () => {
   it('carries the requestId as the row id', () => {
     expect(toTransactionRow(row({ requestId: 'req-9' })).id).toBe('req-9');
   });
+
+  it('marks a pending row as pending and shows a live-ticking elapsed duration instead of the empty label', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined }), 1750);
+
+    expect(viewModel.isPending).toBe(true);
+    expect(viewModel.durationLabel).toBe('750ms');
+  });
+
+  it('marks a terminal row as not pending', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'accepted', durationMs: 42 }));
+
+    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.durationLabel).toBe('42ms');
+  });
 });
 
 describe('toTransactionDetail', () => {

@@ -48,18 +48,72 @@ func marshalNullableHeaders(headers map[string]string) (*string, error) {
 	return &result, nil
 }
 
-// InsertCapture stores one sanitized capture and prunes older rows by count.
-func (s *SQLiteStore) InsertCapture(ctx context.Context, record CaptureRecord) error {
-	if s.db == nil {
-		return unavailableError("capture store unavailable")
-	}
+// captureInsertArgs bundles the marshaled, ready-to-bind arguments UpsertCapture
+// binds to the capture row's columns.
+type captureInsertArgs struct {
+	payloadJSON         string
+	correlationJSON     string
+	requestHeadersJSON  *string
+	responseHeadersJSON *string
+}
+
+// buildCaptureInsertArgs JSON-marshals the record's structured fields into
+// the bind arguments common to both the insert-only and upsert write paths.
+func buildCaptureInsertArgs(record CaptureRecord) (captureInsertArgs, error) {
 	payloadJSON, err := json.Marshal(record.Payload)
 	if err != nil {
-		return fmt.Errorf("marshal capture payload: %w", err)
+		return captureInsertArgs{}, fmt.Errorf("marshal capture payload: %w", err)
 	}
 	correlationJSON, err := json.Marshal(record.Correlations)
 	if err != nil {
-		return fmt.Errorf("marshal capture correlations: %w", err)
+		return captureInsertArgs{}, fmt.Errorf("marshal capture correlations: %w", err)
+	}
+	requestHeadersJSON, err := marshalNullableHeaders(record.RequestHeaders)
+	if err != nil {
+		return captureInsertArgs{}, fmt.Errorf("marshal capture request headers: %w", err)
+	}
+	responseHeadersJSON, err := marshalNullableHeaders(record.ResponseHeaders)
+	if err != nil {
+		return captureInsertArgs{}, fmt.Errorf("marshal capture response headers: %w", err)
+	}
+	return captureInsertArgs{
+		payloadJSON:         string(payloadJSON),
+		correlationJSON:     string(correlationJSON),
+		requestHeadersJSON:  requestHeadersJSON,
+		responseHeadersJSON: responseHeadersJSON,
+	}, nil
+}
+
+// pruneOldestBeyondRetention deletes the oldest capture rows past the
+// configured retention limit, called every pruneEvery successful write.
+func (s *SQLiteStore) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
+	s.successful++
+	if s.successful%s.pruneEvery != 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		DELETE FROM mobile_request_captures
+		WHERE request_id IN (
+			SELECT request_id FROM mobile_request_captures
+			ORDER BY captured_at_ms DESC, request_id DESC
+			LIMIT -1 OFFSET ?
+		)
+	`, s.retentionLimit)
+	return err
+}
+
+// UpsertCapture stores one capture, inserting it on first write (e.g. an
+// arrival row) and updating every semantic/telemetry column in place on a
+// later write sharing the same request_id (e.g. the terminal write following
+// an arrival). captured_at_ms is deliberately excluded from the UPDATE
+// clause so the arrival timestamp survives as the row's clock origin.
+func (s *SQLiteStore) UpsertCapture(ctx context.Context, record CaptureRecord) error {
+	if s.db == nil {
+		return unavailableError("capture store unavailable")
+	}
+	args, err := buildCaptureInsertArgs(record)
+	if err != nil {
+		return err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -70,37 +124,35 @@ func (s *SQLiteStore) InsertCapture(ctx context.Context, record CaptureRecord) e
 			_ = tx.Rollback()
 		}
 	}()
-	requestHeadersJSON, err := marshalNullableHeaders(record.RequestHeaders)
-	if err != nil {
-		return fmt.Errorf("marshal capture request headers: %w", err)
-	}
-	responseHeadersJSON, err := marshalNullableHeaders(record.ResponseHeaders)
-	if err != nil {
-		return fmt.Errorf("marshal capture response headers: %w", err)
-	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO mobile_request_captures (
 			request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome,
 			anime_id, http_status, payload_json, correlation_json, error_code,
 			response_body, request_headers, response_headers, duration_ms
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, record.RequestID, record.CapturedAtMS, record.Kind, record.Route, record.Transport, record.Device.DeviceID, record.Device.Name, record.Outcome, record.AnimeID, record.HTTPStatus, string(payloadJSON), string(correlationJSON), record.ErrorCode,
-		record.ResponseBody, requestHeadersJSON, responseHeadersJSON, record.DurationMS)
+		ON CONFLICT(request_id) DO UPDATE SET
+			kind = excluded.kind,
+			route = excluded.route,
+			transport = excluded.transport,
+			device_id = excluded.device_id,
+			device_name = excluded.device_name,
+			outcome = excluded.outcome,
+			anime_id = excluded.anime_id,
+			http_status = excluded.http_status,
+			payload_json = excluded.payload_json,
+			correlation_json = excluded.correlation_json,
+			error_code = excluded.error_code,
+			response_body = excluded.response_body,
+			request_headers = excluded.request_headers,
+			response_headers = excluded.response_headers,
+			duration_ms = excluded.duration_ms
+	`, record.RequestID, record.CapturedAtMS, record.Kind, record.Route, record.Transport, record.Device.DeviceID, record.Device.Name, record.Outcome, record.AnimeID, record.HTTPStatus, args.payloadJSON, args.correlationJSON, record.ErrorCode,
+		record.ResponseBody, args.requestHeadersJSON, args.responseHeadersJSON, record.DurationMS)
 	if err != nil {
 		return err
 	}
-	s.successful++
-	if s.successful%s.pruneEvery == 0 {
-		if _, err = tx.ExecContext(ctx, `
-			DELETE FROM mobile_request_captures
-			WHERE request_id IN (
-				SELECT request_id FROM mobile_request_captures
-				ORDER BY captured_at_ms DESC, request_id DESC
-				LIMIT -1 OFFSET ?
-			)
-		`, s.retentionLimit); err != nil {
-			return err
-		}
+	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

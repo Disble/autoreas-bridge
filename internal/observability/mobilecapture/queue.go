@@ -8,28 +8,35 @@ import (
 	"time"
 )
 
-// Store writes sanitized captures.
+// Store writes sanitized captures, inserting an arrival row or updating it
+// to its terminal state on a later write sharing the same request_id.
 type Store interface {
-	InsertCapture(ctx context.Context, record CaptureRecord) error
+	UpsertCapture(ctx context.Context, record CaptureRecord) error
 }
 
 // QueueConfig defines bounded queue behavior.
 type QueueConfig struct {
 	Capacity int
+	// OnPersist fires exactly once per record, after Store.UpsertCapture
+	// succeeds for it, from the single serialized drain goroutine. Nil is a
+	// safe no-op. Used to emit the real-time "capture.transaction" event from
+	// the one choke point where a record is known to have actually persisted.
+	OnPersist func(CaptureRecord)
 }
 
 // Queue is the non-blocking capture worker.
 type Queue struct {
-	store    Store
-	ch       chan CaptureRecord
-	stopped  chan struct{}
-	stopOnce sync.Once
-	mu       sync.Mutex
-	stopping bool
-	err      atomic.Pointer[error]
-	dropped  atomic.Int64
-	queued   atomic.Int64
-	dequeued atomic.Int64
+	store     Store
+	onPersist func(CaptureRecord)
+	ch        chan CaptureRecord
+	stopped   chan struct{}
+	stopOnce  sync.Once
+	mu        sync.Mutex
+	stopping  bool
+	err       atomic.Pointer[error]
+	dropped   atomic.Int64
+	queued    atomic.Int64
+	dequeued  atomic.Int64
 }
 
 // NewQueue starts a bounded capture worker.
@@ -39,9 +46,10 @@ func NewQueue(store Store, config QueueConfig) *Queue {
 		capacity = 256
 	}
 	queue := &Queue{
-		store:   store,
-		ch:      make(chan CaptureRecord, capacity),
-		stopped: make(chan struct{}),
+		store:     store,
+		onPersist: config.OnPersist,
+		ch:        make(chan CaptureRecord, capacity),
+		stopped:   make(chan struct{}),
 	}
 	go queue.run()
 	return queue
@@ -51,14 +59,25 @@ func NewQueue(store Store, config QueueConfig) *Queue {
 func (q *Queue) run() {
 	defer close(q.stopped)
 	for record := range q.ch {
-		if q.store != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := q.store.InsertCapture(ctx, record); err != nil {
-				q.setErr(err)
-			}
-			cancel()
-		}
+		q.persist(record)
 		q.dequeued.Add(1)
+	}
+}
+
+// persist writes one record to the store and, only on success, notifies
+// OnPersist from this single serialized drain goroutine.
+func (q *Queue) persist(record CaptureRecord) {
+	if q.store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := q.store.UpsertCapture(ctx, record); err != nil {
+		q.setErr(err)
+		return
+	}
+	if q.onPersist != nil {
+		q.onPersist(record)
 	}
 }
 

@@ -109,7 +109,7 @@ func TestGetExposesPersistedReconcileChangelogIDs(t *testing.T) {
 	record := obs.NewCaptureRecord("reconcile", "device-1")
 	record.RequestID = "req-reconcile"
 	record.Correlations.ChangelogIDs = []int64{41, 42}
-	if err := obs.NewStore(db, obs.StoreConfig{}).InsertCapture(context.Background(), record); err != nil {
+	if err := obs.NewStore(db, obs.StoreConfig{}).UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("persist capture: %v", err)
 	}
 	result, err := getMobileRequestContext(context.Background(), &sqliteReader{r: obs.NewReader(db)}, GetMobileRequestContextInput{RequestID: record.RequestID})
@@ -147,7 +147,7 @@ func TestResolveTraversesAndRanksAllCorrelationFields(t *testing.T) {
 		if i < len(rankNames) {
 			r.Device.Name = rankNames[i]
 		}
-		if err := store.InsertCapture(context.Background(), r); err != nil {
+		if err := store.UpsertCapture(context.Background(), r); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -158,7 +158,7 @@ func TestResolveTraversesAndRanksAllCorrelationFields(t *testing.T) {
 	target.Correlations.ChangelogIDs = []int64{4242}
 	target.Correlations.OperationRefs = []obs.OperationRef{{AnimeID: "op-anime", Operation: "PATCH", Outcome: "applied"}}
 	target.Correlations.ConflictIDs, target.Correlations.ActivityIDs = []string{"conflict-key"}, []int64{8181}
-	if err := store.InsertCapture(context.Background(), target); err != nil {
+	if err := store.UpsertCapture(context.Background(), target); err != nil {
 		t.Fatal(err)
 	}
 	reader := &sqliteReader{r: obs.NewReader(db)}

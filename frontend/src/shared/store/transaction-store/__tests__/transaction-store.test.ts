@@ -6,9 +6,11 @@ import {
   matchesTransactionQuery,
   mergeTransactionPage,
   resetTransactionStore,
+  selectHasPendingTransactions,
   selectVisibleTransactionRows,
   toBackendCaptureFilters,
   transactionStore,
+  upsertTransactionRows,
 } from '../transaction-store.helpers';
 import type { CaptureRow } from '../../../contracts/capture.types';
 
@@ -91,6 +93,50 @@ describe('transaction-store.helpers', () => {
     });
   });
 
+  describe('upsertTransactionRows', () => {
+    it('prepends an unseen row without disturbing existing order', () => {
+      const existing = [row({ requestId: 'req-1' }), row({ requestId: 'req-2' })];
+      const incoming = [row({ requestId: 'req-3' })];
+
+      expect(upsertTransactionRows(existing, incoming).map((item) => item.requestId)).toEqual(['req-3', 'req-1', 'req-2']);
+    });
+
+    it('updates a pending row to its terminal state in place, preserving position', () => {
+      const pending = row({ requestId: 'req-1', outcome: 'pending', durationMs: undefined, httpStatus: undefined });
+      const other = row({ requestId: 'req-2' });
+      const existing = [other, pending];
+      const terminal = row({ requestId: 'req-1', outcome: 'accepted', durationMs: 12, httpStatus: 200 });
+
+      const result = upsertTransactionRows(existing, [terminal]);
+
+      expect(result.map((item) => item.requestId)).toEqual(['req-2', 'req-1']);
+      expect(result[1]).toEqual(terminal);
+    });
+
+    it('never creates a duplicate row for the same requestId', () => {
+      const existing = [row({ requestId: 'req-1', outcome: 'pending' })];
+      const terminal = row({ requestId: 'req-1', outcome: 'accepted' });
+
+      const result = upsertTransactionRows(existing, [terminal]);
+
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('selectHasPendingTransactions', () => {
+    it('reports true when at least one row is pending', () => {
+      expect(selectHasPendingTransactions([row({ outcome: 'accepted' }), row({ requestId: 'req-2', outcome: 'pending' })])).toBe(true);
+    });
+
+    it('reports false when no row is pending', () => {
+      expect(selectHasPendingTransactions([row({ outcome: 'accepted' })])).toBe(false);
+    });
+
+    it('reports false for an empty item list', () => {
+      expect(selectHasPendingTransactions([])).toBe(false);
+    });
+  });
+
   describe('toBackendCaptureFilters', () => {
     it('maps route/outcome/kind and cursor/limit, omitting client-only filters', () => {
       const filters = { ...DEFAULT_TRANSACTION_FILTERS, route: '/api/animes/anime-1', outcome: 'accepted', kind: 'patch' };
@@ -146,6 +192,27 @@ describe('transactionStore', () => {
     const state = getTransactionStoreState();
     expect(state.items.map((item) => item.requestId)).toEqual(['req-1', 'req-2']);
     expect(state.nextCursor).toBe('cursor-2');
+  });
+
+  it('upsertRows prepends a new row and preserves the current selection', () => {
+    transactionStore.getState().setPage([row({ requestId: 'req-1' })], 'cursor-1', 'replace');
+    transactionStore.getState().select('req-1');
+
+    transactionStore.getState().upsertRows([row({ requestId: 'req-2', outcome: 'pending' })]);
+
+    const state = getTransactionStoreState();
+    expect(state.items.map((item) => item.requestId)).toEqual(['req-2', 'req-1']);
+    expect(state.selectedId).toBe('req-1');
+  });
+
+  it('upsertRows transitions a pending row to terminal in place without duplicating it', () => {
+    transactionStore.getState().setPage([row({ requestId: 'req-1', outcome: 'pending' })], null, 'replace');
+
+    transactionStore.getState().upsertRows([row({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 10 })]);
+
+    const state = getTransactionStoreState();
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0].outcome).toBe('accepted');
   });
 
   it('setFilters merges a partial filter update', () => {

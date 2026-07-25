@@ -5,9 +5,11 @@ export {
   matchesTransactionQuery,
   mergeTransactionPage,
   resetTransactionStore,
+  selectHasPendingTransactions,
   selectVisibleTransactionRows,
   toBackendCaptureFilters,
   transactionStore,
+  upsertTransactionRows,
 } from './transaction-store.helpers';
 export { DEFAULT_TRANSACTION_FILTERS } from './transaction-store.constants';
 export type {

@@ -14,6 +14,7 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/mobilecapture"
 	"autoreas-bridge/internal/realtime"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -115,16 +116,17 @@ type incomingWebSocketMessage struct {
 	RatedAt int64  `json:"rated_at"`
 }
 
-// handleIncomingWebSocketMessage decodes and processes one client message.
+// handleIncomingWebSocketMessage decodes and dispatches one client message.
+// Capture only ever brackets a reconcile message (isIncomingReconcileMessage):
+// season_rating is fire-and-forget (no ack, no reconcile -- confirmation
+// reaches clients via the season_changed broadcast) and any other frame type
+// is a silent no-op, both uncaptured.
 func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDevice, payload []byte, config WebSocketHandlerConfig, connHeaders map[string]string) error {
-	start := time.Now()
 	var message incomingWebSocketMessage
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return nil
 	}
 
-	// A season_rating message is fire-and-forget: no ack, no reconcile; the
-	// confirmation reaches clients via the season_changed broadcast.
 	if message.Type == "season_rating" {
 		if config.RecordSeasonRating == nil {
 			return nil
@@ -137,38 +139,92 @@ func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDev
 		return nil
 	}
 
-	captureWSTelemetry := func(record mobilecapture.CaptureRecord, errorCode string) mobilecapture.CaptureRecord {
-		duration := time.Since(start).Milliseconds()
-		telemetry := mobilecapture.Telemetry{DurationMS: &duration, RequestHeaders: connHeaders}
-		if errorCode != "" {
-			telemetry.ResponseBody = wsRejectResponseBody(errorCode)
-		}
-		return record.WithTelemetry(telemetry)
-	}
+	return captureWebSocketMessage(ctx, device, message, config, connHeaders)
+}
 
+// captureWebSocketMessage brackets one reconcile message with capture: it
+// mints the request id once, enqueues a pending arrival row, runs the pure
+// reconcile business logic (applyReconcileMessage), then enqueues the
+// terminal row sharing the same request id (Store.UpsertCapture upserts it
+// in place). Mirrors the HTTP capture middleware's arrival→terminal shape
+// for the WS transport, which has no middleware layer of its own.
+func captureWebSocketMessage(ctx context.Context, device device.PairedDevice, message incomingWebSocketMessage, config WebSocketHandlerConfig, connHeaders map[string]string) error {
+	requestID := uuid.NewString()
+	startedAt := time.Now()
+	enqueueWebSocketCapture(config.Capture, mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket"))
+
+	outcome := applyReconcileMessage(ctx, device, message, config)
+
+	enqueueWebSocketCapture(config.Capture, buildWSTerminalCaptureRecord(requestID, startedAt, message, device, outcome, connHeaders))
+	return outcome.err
+}
+
+// wsMessageOutcome is the structured result of processing one incoming
+// reconcile message: the semantic facts captureWebSocketMessage needs to
+// build the terminal capture row, decoupled from capture concerns so
+// applyReconcileMessage stays pure business logic.
+type wsMessageOutcome struct {
+	outcome      string
+	errorCode    string
+	correlations mobilecapture.Correlations
+	err          error
+}
+
+// applyReconcileMessage applies one reconcile message's pending operations,
+// acknowledges the device, and triggers a reconcile fan-out, reporting the
+// structured outcome. It performs no capture enqueue -- that is
+// captureWebSocketMessage's sole responsibility.
+func applyReconcileMessage(ctx context.Context, device device.PairedDevice, message incomingWebSocketMessage, config WebSocketHandlerConfig) wsMessageOutcome {
 	results, err := applyPendingOperations(ctx, message.PendingOperations, config.ApplyPendingPatch)
 	if err != nil {
-		record := captureWSTelemetry(mobilecapture.BuildReconcileCaptureRecord(device, "ws_reconcile", "/ws", "websocket", message.ReconcileRequest, "rejected", nil, "apply_pending_failed", operationRefsFromAppliedOperations(results), nil), "apply_pending_failed")
-		enqueueWebSocketCapture(config.Capture, record)
-		return err
+		return rejectedWSOutcome("apply_pending_failed", results, err)
 	}
 	if config.AcknowledgeDevice != nil {
 		if err := config.AcknowledgeDevice(ctx, device.DeviceID, message.LastChangelogID); err != nil {
-			record := captureWSTelemetry(mobilecapture.BuildReconcileCaptureRecord(device, "ws_reconcile", "/ws", "websocket", message.ReconcileRequest, "rejected", nil, "acknowledge_device_failed", operationRefsFromAppliedOperations(results), nil), "acknowledge_device_failed")
-			enqueueWebSocketCapture(config.Capture, record)
-			return err
+			return rejectedWSOutcome("acknowledge_device_failed", results, err)
 		}
 	}
 	if config.TriggerReconcile != nil {
 		if err := config.TriggerReconcile(ctx); err != nil {
-			record := captureWSTelemetry(mobilecapture.BuildReconcileCaptureRecord(device, "ws_reconcile", "/ws", "websocket", message.ReconcileRequest, "rejected", nil, "trigger_reconcile_failed", operationRefsFromAppliedOperations(results), nil), "trigger_reconcile_failed")
-			enqueueWebSocketCapture(config.Capture, record)
-			return err
+			return rejectedWSOutcome("trigger_reconcile_failed", results, err)
 		}
 	}
-	record := captureWSTelemetry(mobilecapture.BuildReconcileCaptureRecord(device, "ws_reconcile", "/ws", "websocket", message.ReconcileRequest, "accepted", nil, "", operationRefsFromAppliedOperations(results), nil), "")
-	enqueueWebSocketCapture(config.Capture, record)
-	return nil
+	return wsMessageOutcome{
+		outcome:      "accepted",
+		correlations: mobilecapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
+	}
+}
+
+// rejectedWSOutcome builds the rejected wsMessageOutcome shared by every
+// applyReconcileMessage failure branch.
+func rejectedWSOutcome(errorCode string, results []contracts.AppliedOperation, err error) wsMessageOutcome {
+	return wsMessageOutcome{
+		outcome:      "rejected",
+		errorCode:    errorCode,
+		correlations: mobilecapture.Correlations{OperationRefs: operationRefsFromAppliedOperations(results)},
+		err:          err,
+	}
+}
+
+// buildWSTerminalCaptureRecord assembles the terminal WS reconcile capture
+// row: the same transport-only shape as the arrival row (same request id),
+// merged with device identity, elapsed duration, sanitized connection
+// headers, the reconcile payload projection, and the outcome/error_code/
+// correlations applyReconcileMessage reported.
+func buildWSTerminalCaptureRecord(requestID string, startedAt time.Time, message incomingWebSocketMessage, device device.PairedDevice, outcome wsMessageOutcome, connHeaders map[string]string) mobilecapture.CaptureRecord {
+	record := mobilecapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket")
+	duration := time.Since(startedAt).Milliseconds()
+	record.DurationMS = &duration
+	record.RequestHeaders = connHeaders
+	record.Device = mobilecapture.DeviceIdentity{DeviceID: device.DeviceID, Name: device.Name}
+	record.Outcome = outcome.outcome
+	record.ErrorCode = outcome.errorCode
+	record.Payload = mobilecapture.ReconcilePayload(message.ReconcileRequest)
+	record.Correlations = outcome.correlations
+	if outcome.errorCode != "" {
+		record.ResponseBody = wsRejectResponseBody(outcome.errorCode)
+	}
+	return record
 }
 
 // enqueueWebSocketCapture enqueues a WebSocket observability record when capture is configured.

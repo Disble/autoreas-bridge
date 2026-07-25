@@ -9,7 +9,35 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
+	"autoreas-bridge/internal/observability/mobilecapture"
 )
+
+// TestNewHandlerCaptureMiddlewareWrapsAPIRoutesButNotWebSocket guards the
+// router-level wiring: CaptureMiddleware must capture ordinary /api/*
+// traffic but skip /ws (owned by the WS/hub capture seams).
+func TestNewHandlerCaptureMiddlewareWrapsAPIRoutesButNotWebSocket(t *testing.T) {
+	t.Parallel()
+
+	var captured []mobilecapture.CaptureRecord
+	handler := NewHandler(Config{
+		DeviceService: stubDeviceService{},
+		Capture: func(record mobilecapture.CaptureRecord) bool {
+			captured = append(captured, record)
+			return true
+		},
+	})
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", nil))
+	if len(captured) == 0 {
+		t.Fatal("expected /api/* traffic to be captured")
+	}
+
+	captured = nil
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/ws", nil))
+	if len(captured) != 0 {
+		t.Fatalf("expected /ws to be skipped by the router-wired capture middleware, got %#v", captured)
+	}
+}
 
 func TestPatchAnimeWithoutTokenReturnsUnauthorized(t *testing.T) {
 	t.Parallel()

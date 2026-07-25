@@ -9,6 +9,12 @@ const (
 	maxSearchLimit        = 100
 )
 
+// CaptureFunc enqueues one sanitized observability record, reporting whether
+// it was accepted. Shared by every capture site (HTTP middleware, WS pump
+// decorator, realtime hub sink) so none of them need to depend on a concrete
+// queue type -- only this narrow function shape.
+type CaptureFunc func(record CaptureRecord) bool
+
 // CaptureRecord is one sanitized captured mobile request.
 type CaptureRecord struct {
 	RequestID       string

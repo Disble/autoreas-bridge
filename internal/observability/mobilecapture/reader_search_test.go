@@ -141,7 +141,7 @@ func TestGetExposesTelemetryWhenCaptured(t *testing.T) {
 	record.ResponseBody = &body
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
-	if err := store.InsertCapture(context.Background(), record); err != nil {
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
@@ -175,7 +175,7 @@ func TestGetOmitsMissingOptionalFields(t *testing.T) {
 	record := NewCaptureRecord("patch", "device")
 	record.RequestID = "req-no-telemetry-get"
 	record.CapturedAtMS = 5
-	if err := store.InsertCapture(context.Background(), record); err != nil {
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
@@ -204,7 +204,7 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	patch404.ErrorCode = "anime_not_found"
 	patch404.AnimeID = stringRef("anime-1")
 	patch404.HTTPStatus = intRef(404)
-	if err := store.InsertCapture(context.Background(), patch404); err != nil {
+	if err := store.UpsertCapture(context.Background(), patch404); err != nil {
 		t.Fatalf("seed patch404: %v", err)
 	}
 
@@ -215,7 +215,7 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	reconcile400.Outcome = "rejected"
 	reconcile400.ErrorCode = "apply_pending_failed"
 	reconcile400.HTTPStatus = intRef(400)
-	if err := store.InsertCapture(context.Background(), reconcile400); err != nil {
+	if err := store.UpsertCapture(context.Background(), reconcile400); err != nil {
 		t.Fatalf("seed reconcile400: %v", err)
 	}
 
@@ -226,7 +226,7 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	reconcileAccepted.Outcome = "accepted"
 	reconcileAccepted.HTTPStatus = intRef(202)
 	reconcileAccepted.Correlations = Correlations{ChangelogIDs: []int64{77}, OperationRefs: []OperationRef{}}
-	if err := store.InsertCapture(context.Background(), reconcileAccepted); err != nil {
+	if err := store.UpsertCapture(context.Background(), reconcileAccepted); err != nil {
 		t.Fatalf("seed reconcileAccepted: %v", err)
 	}
 }

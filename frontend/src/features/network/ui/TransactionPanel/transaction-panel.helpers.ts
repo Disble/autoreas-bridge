@@ -52,9 +52,14 @@ function formatTransactionDuration(durationMs: number | undefined): string {
 
 /**
  * Maps one captured transaction row (DTO) into the table's per-row
- * view-model.
+ * view-model. A pending (in-flight) row shows a live-ticking elapsed
+ * duration (`now - capturedAtMs`) instead of the empty label, driven by the
+ * caller's shared elapsed clock (`now`, defaults to the render time so
+ * non-live callers keep working unchanged).
  */
-export function toTransactionRow(row: Readonly<CaptureRow>): TransactionRowViewModel {
+export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.now()): TransactionRowViewModel {
+  const isPending = row.outcome === 'pending';
+
   return {
     id: row.requestId,
     methodKind: row.kind,
@@ -62,8 +67,9 @@ export function toTransactionRow(row: Readonly<CaptureRow>): TransactionRowViewM
     outcome: row.outcome,
     statusLabel: formatTransactionStatusLabel(row.httpStatus),
     statusColor: getTransactionStatusColor(row.httpStatus),
-    durationLabel: formatTransactionDuration(row.durationMs),
+    durationLabel: formatTransactionDuration(isPending ? Math.max(now - row.capturedAtMs, 0) : row.durationMs),
     timeLabel: formatCaptureTime(row.capturedAtMs),
+    isPending,
   };
 }
 

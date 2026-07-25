@@ -37,6 +37,32 @@ info:
     `POST /api/animes` remains excluded and still returns 405 — mobile clients
     are unaffected and require no update.
 
+    2026-07-24 — capture-middleware-realtime API consumer impact: NO REST/WS
+    wire change (no HTTP path, request/response field, or WebSocket message
+    shape changed). This is a bridge-internal observability rework, announced
+    here per project convention since it touches the request/WS-adjacent
+    surface:
+      - The `http.request` structured log line (emitted per HTTP request by
+        the former `RequestLoggingMiddleware`) is REMOVED. Request/response
+        telemetry now lives exclusively in the `mobile_request_captures`
+        SQLite table via a transport-level capture middleware, not in logs.
+      - Every `/api/*` request and every inbound WebSocket `reconcile`
+        message now writes a "pending" arrival row the moment it is received,
+        which is later upserted (same `request_id`, never duplicated) to a
+        terminal row once the request/message finishes. Hub connection
+        lifecycle (`ws_connect`/`ws_disconnect`) and outbound broadcasts
+        (`ws_broadcast`) are captured the same way, one-way (no HTTP
+        status/duration).
+      - The bridge desktop app now emits a new Wails runtime event,
+        `capture.transaction`, once per persisted capture row (arrival or
+        terminal), carrying the same English camelCase `CaptureRow` shape
+        already used by `ListCaptureTransactions`/`GetCaptureTransaction`
+        (`requestId`, `capturedAtMs`, `kind`, `route`, `transport`,
+        `outcome`, `errorCode`, `httpStatus`, `durationMs`, `animeId`). This
+        is a desktop-app-internal (Wails) event, not an HTTP/WS wire
+        surface — mobile clients over `/api`/`/ws` are unaffected and
+        require no update.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -58,6 +84,13 @@ x-websocket:
     101: Upgrade success
     401: Authentication failure
     503: Hub unavailable
+  observability: |
+    2026-07-24 — capture-middleware-realtime: connection lifecycle
+    (register/unregister) and every outbound broadcast are now captured at
+    the realtime hub seam (`ws_connect`/`ws_disconnect`/`ws_broadcast`
+    kinds, outcome `opened`/`closed`/`pushed`) into `mobile_request_captures`
+    and surfaced live to the bridge desktop app via the `capture.transaction`
+    Wails runtime event. No wire-message shape changed.
 
 components:
   securitySchemes:

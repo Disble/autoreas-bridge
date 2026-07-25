@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/api/contracts"
@@ -19,7 +18,6 @@ type PatchAnimeConfig struct {
 	Authenticate AuthenticateFunc
 	QueryAnime   QueryAnimeFunc
 	PatchAnime   PatchAnimeFunc
-	Capture      CaptureFunc
 	IsNotFound   func(error) bool
 }
 
@@ -31,45 +29,44 @@ func NewPatchAnimeHandler(config PatchAnimeConfig) http.Handler {
 }
 
 // handlePatchAnime coordinates authentication, decoding, and anime patching.
+// It is transport-free: request timing, status, headers, and body capture
+// belong to the CaptureMiddleware wrapping this handler (internal/api). Each
+// exit point contributes semantic facts via mobilecapture.Enrich(r.Context())
+// -- the middleware's terminal defer merges them onto the transport record.
 func handlePatchAnime(w http.ResponseWriter, r *http.Request, config PatchAnimeConfig) {
-	start := time.Now()
-	wrapper := &capturingResponseWriter{ResponseWriter: w}
-	w = wrapper
-	requestHeader := r.Header
+	enr := mobilecapture.Enrich(r.Context())
 
 	device, ok := authenticatePatchRequest(w, r, config.Authenticate)
 	if !ok {
 		return
 	}
+	enr.SetDevice(device)
 	animeID, ok := patchAnimeID(w, r)
 	if !ok {
 		return
 	}
+	enr.SetAnimeID(animeID)
 	patch, ok := requestAnimePatch(w, r)
 	if !ok {
-		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, AnimePatch{}, "malformed", http.StatusBadRequest, "invalid_request_body")
-		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
+		enr.SetOutcome("malformed").SetErrorCode("invalid_request_body")
 		return
 	}
 	effectiveAnime, ok := queryPatchAnime(w, r, animeID, config)
 	if !ok {
-		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "rejected", responseStatus(w), "anime_not_found")
-		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
+		enr.SetOutcome("rejected").SetErrorCode("anime_not_found")
 		return
 	}
 	patch = domain.ApplyCompletionStateMachine(patch, effectiveAnime.TotalCap)
 	result, ok := applyAnimeRequestPatch(w, r, animeID, patch, config)
 	if !ok {
-		record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "rejected", responseStatus(w), patchCaptureErrorCode(result, config.IsNotFound))
+		enr.SetOutcome("rejected").SetErrorCode(patchCaptureErrorCode(result, config.IsNotFound)).SetPayload(mobilecapture.PatchPayload(patch))
 		if result.ConflictID != "" {
-			record.Correlations.ConflictIDs = []string{result.ConflictID}
+			enr.AddConflictID(result.ConflictID)
 		}
-		enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-	record := mobilecapture.BuildPatchCaptureRecord(device, animeID, patch, "accepted", http.StatusOK, "")
-	enqueuePatchCapture(config.Capture, record.WithTelemetry(buildTelemetry(start, wrapper, requestHeader)))
+	enr.SetOutcome("accepted").SetPayload(mobilecapture.PatchPayload(patch))
 }
 
 // authenticatePatchRequest authenticates a patch request when configured.
@@ -118,13 +115,6 @@ func applyAnimeRequestPatch(w http.ResponseWriter, r *http.Request, id string, p
 	}
 	writePatchAnimeError(w, err, config.IsNotFound, "patch anime failed")
 	return result, false
-}
-
-// enqueuePatchCapture enqueues a PATCH observability record when capture is configured.
-func enqueuePatchCapture(capture CaptureFunc, record mobilecapture.CaptureRecord) {
-	if capture != nil {
-		capture(record)
-	}
 }
 
 // patchCaptureErrorCode maps a patch outcome to the capture error code.

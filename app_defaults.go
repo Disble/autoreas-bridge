@@ -105,7 +105,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 	}
 	if a.newRealtimeHub == nil {
 		a.newRealtimeHub = func(ctx context.Context) realtime.Hub {
-			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: a.sharedLogger})
+			return realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{Logger: a.sharedLogger, Capture: a.capture})
 		}
 	}
 	if a.newHTTPServer == nil {
@@ -115,7 +115,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 	}
 	if a.newCaptureQueue == nil {
 		a.newCaptureQueue = func(db *sql.DB) captureQueue {
-			return mobilecapture.NewQueue(mobilecapture.NewStore(db, mobilecapture.StoreConfig{}), mobilecapture.QueueConfig{})
+			return mobilecapture.NewQueue(mobilecapture.NewStore(db, mobilecapture.StoreConfig{}), mobilecapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
 		}
 	}
 	if a.newCaptureReader == nil {
