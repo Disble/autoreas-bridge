@@ -27,7 +27,7 @@ export const NETWORK_DOMAIN_FILTER_OPTIONS: readonly NetworkDomainFilterOption[]
 ];
 
 /** Copy shown when the store has no rows yet and the source is healthy. */
-export const NETWORK_EMPTY_STATE_MESSAGE = 'No requests captured yet.';
+export const NETWORK_EMPTY_STATE_MESSAGE = 'No runtime events captured yet.';
 
 /** Copy shown while the initial replay fetch has not resolved. */
 export const NETWORK_LOADING_STATE_MESSAGE = 'Loading recent requests…';
@@ -36,10 +36,10 @@ export const NETWORK_LOADING_STATE_MESSAGE = 'Loading recent requests…';
 export const NETWORK_CAPTURE_UNAVAILABLE_MESSAGE = 'Live request capture is unavailable in this environment.';
 
 /** Copy shown in the detail panel when no row is selected. */
-export const NETWORK_DETAIL_EMPTY_MESSAGE = 'Select a request to inspect its details.';
+export const NETWORK_DETAIL_EMPTY_MESSAGE = 'Select an event to inspect its details.';
 
 /** Placeholder shown in the NetworkFilterBar free-text input. */
-export const NETWORK_FILTER_PLACEHOLDER = 'Filter by message, domain or path…';
+export const NETWORK_FILTER_PLACEHOLDER = 'Filter by event, message, or domain…';
 
 /** Tab strip labels for the DevTools-style detail inspector (`NetworkDetail`). */
 export const NETWORK_DETAIL_TAB_LABELS = {
@@ -55,4 +55,3 @@ export const NETWORK_LEVEL_ACCENT_BORDER_CLASS: Readonly<Record<string, string>>
   error: 'border-l-danger',
   debug: 'border-l-accent',
 };
-

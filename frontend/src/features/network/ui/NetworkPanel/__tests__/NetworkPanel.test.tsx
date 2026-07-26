@@ -28,12 +28,12 @@ describe('NetworkPanel', () => {
     resetNetworkStore();
   });
 
-  it('renders the empty state when there are no rows', async () => {
+  it('renders the empty state when there are no runtime events rows', async () => {
     const source = createFakeSource();
 
     render(<NetworkPanel source={source} />);
 
-    expect(await screen.findByText('No requests captured yet.')).toBeInTheDocument();
+    expect(await screen.findByText('No runtime events captured yet.')).toBeInTheDocument();
   });
 
   it('renders a domain event row with its message, level, and domain (not a fabricated HTTP status)', async () => {
@@ -47,7 +47,7 @@ describe('NetworkPanel', () => {
     expect(await screen.findByText('publishing anime.changed for tracer-bullet-anime')).toBeInTheDocument();
   });
 
-  it('renders an http.request entry as METHOD + path with a real status', async () => {
+  it('renders an http.request entry as METHOD + path with its real duration while the runtime-event table omits the old Status column', async () => {
     const recent = [
       entry({ timestamp: 't1', eventType: 'http.request', durationMs: 82, metadata: { method: 'GET', path: '/api/status', status: 200 } }),
     ];
@@ -56,11 +56,11 @@ describe('NetworkPanel', () => {
     render(<NetworkPanel source={source} />);
 
     expect(await screen.findByText('GET /api/status')).toBeInTheDocument();
-    expect(screen.getByText('200')).toBeInTheDocument();
     expect(screen.getByText('82ms')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
   });
 
-  it('shows the detail empty prompt before any row is selected', async () => {
+  it('shows the detail empty prompt before any event is selected', async () => {
     const recent = [entry({ timestamp: 't1', message: 'syncing catalogue' })];
     const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
 
@@ -68,7 +68,7 @@ describe('NetworkPanel', () => {
 
     await screen.findByText('syncing catalogue');
 
-    expect(screen.getByText('Select a request to inspect its details.')).toBeInTheDocument();
+    expect(screen.getByText('Select an event to inspect its details.')).toBeInTheDocument();
   });
 
   it('renders the selected entry detail (General tab) after a row is clicked', async () => {
@@ -81,7 +81,7 @@ describe('NetworkPanel', () => {
     row.closest('tr')?.click();
 
     expect(await screen.findByRole('tab', { name: 'General' })).toBeInTheDocument();
-    expect(screen.queryByText('Select a request to inspect its details.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Select an event to inspect its details.')).not.toBeInTheDocument();
   });
 
   it('shows the bottom status bar with entry, error, and shown counts', async () => {
@@ -112,7 +112,19 @@ describe('NetworkPanel', () => {
     const closeButton = await screen.findByRole('button', { name: 'Close detail inspector' });
     closeButton.click();
 
-    expect(await screen.findByText('Select a request to inspect its details.')).toBeInTheDocument();
+    expect(await screen.findByText('Select an event to inspect its details.')).toBeInTheDocument();
+  });
+
+  it('uses event terminology and removes the meaningless Status column from the runtime-event table', async () => {
+    const recent = [entry({ timestamp: 't1', domain: 'sync', message: 'syncing catalogue' })];
+    const source = createFakeSource({ getRecentLogs: vi.fn().mockResolvedValue(recent) });
+
+    render(<NetworkPanel source={source} />);
+
+    await screen.findByText('syncing catalogue');
+
+    expect(screen.getByRole('searchbox', { name: 'Filter runtime events' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
   });
 
   it('the Trace tab is absent when the selected entry has no correlationId', async () => {

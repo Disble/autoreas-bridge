@@ -2,11 +2,10 @@ package requestcapture
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 )
 
-func TestSanitizeHeadersDropsAuthAndCookies(t *testing.T) {
+func TestSanitizeHeadersPreservesActualHeaderValuesForLocalDebugging(t *testing.T) {
 	t.Parallel()
 
 	header := http.Header{}
@@ -15,19 +14,28 @@ func TestSanitizeHeadersDropsAuthAndCookies(t *testing.T) {
 	header.Set("Set-Cookie", "session=abc123")
 	header.Set("Proxy-Authorization", "Basic xyz")
 	header.Set("Content-Type", "application/json")
+	header.Add("X-Multi", "first")
+	header.Add("X-Multi", "second")
 
 	sanitized := SanitizeHeaders(header)
-	for _, forbidden := range []string{"Authorization", "Cookie", "Set-Cookie", "Proxy-Authorization"} {
-		if _, ok := sanitized[forbidden]; ok {
-			t.Fatalf("expected %q to be excluded, got %#v", forbidden, sanitized)
+	for key, want := range map[string]string{
+		"Authorization":       "Bearer secret-token",
+		"Cookie":              "session=abc123",
+		"Set-Cookie":          "session=abc123",
+		"Proxy-Authorization": "Basic xyz",
+		"Content-Type":        "application/json",
+		"X-Multi":             "first, second",
+	} {
+		if got := sanitized[key]; got != want {
+			t.Fatalf("expected %q=%q, got %#v", key, want, sanitized)
 		}
 	}
-	if got := sanitized["Content-Type"]; got != "application/json" {
-		t.Fatalf("expected Content-Type to be kept, got %#v", sanitized)
+	if len(sanitized) != 6 {
+		t.Fatalf("expected all headers preserved, got %#v", sanitized)
 	}
 }
 
-func TestSanitizeHeadersKeepsSyncVersion(t *testing.T) {
+func TestSanitizeHeadersKeepsSingleValuesVerbatim(t *testing.T) {
 	t.Parallel()
 
 	header := http.Header{}
@@ -37,7 +45,6 @@ func TestSanitizeHeadersKeepsSyncVersion(t *testing.T) {
 	header.Set("X-Api-Version", "v1")
 	header.Set("Accept", "application/json")
 	header.Set("Content-Length", "42")
-	header.Set("X-Unlisted-Header", "should-be-dropped")
 
 	sanitized := SanitizeHeaders(header)
 	for key, want := range map[string]string{
@@ -52,54 +59,43 @@ func TestSanitizeHeadersKeepsSyncVersion(t *testing.T) {
 			t.Fatalf("expected %q=%q, got %#v", key, want, sanitized)
 		}
 	}
-	if _, ok := sanitized["X-Unlisted-Header"]; ok {
-		t.Fatalf("expected unlisted header excluded, got %#v", sanitized)
-	}
 }
 
-func TestSanitizeResponseBodyKeepsErrorMessageBounded(t *testing.T) {
+func TestSanitizeResponseBodyPreservesSuccessfulJSONExactly(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"error":"anime not found","status":404,"message":"not found","conflict":false,"code":"anime_not_found","kept_grade":5,"secret":"leak-me"}`)
+	raw := []byte(`{"ok":true,"items":[1,2,3]}`)
 	sanitized := SanitizeResponseBody(raw)
 	if sanitized == nil {
-		t.Fatal("expected sanitized body, got nil")
+		t.Fatal("expected captured body, got nil")
 	}
-	if strings.Contains(*sanitized, "secret") || strings.Contains(*sanitized, "leak-me") {
-		t.Fatalf("expected unsanctioned key excluded, got %s", *sanitized)
-	}
-	for _, want := range []string{"anime not found", "404", "not found", "anime_not_found"} {
-		if !strings.Contains(*sanitized, want) {
-			t.Fatalf("expected sanctioned content %q present, got %s", want, *sanitized)
-		}
-	}
-	if len(*sanitized) > 2048 {
-		t.Fatalf("expected sanitized body bounded to 2KB, got %d bytes", len(*sanitized))
+	if *sanitized != string(raw) {
+		t.Fatalf("expected exact response body %q, got %q", string(raw), *sanitized)
 	}
 }
 
-func TestSanitizeResponseBodyRedactsNonJSON(t *testing.T) {
+func TestSanitizeResponseBodyPreservesErrorJSONExactly(t *testing.T) {
 	t.Parallel()
 
-	sanitized := SanitizeResponseBody([]byte("not json at all"))
+	raw := []byte(`{"error":"anime not found","status":404,"message":"not found","secret":"leak-me"}`)
+	sanitized := SanitizeResponseBody(raw)
 	if sanitized == nil {
-		t.Fatal("expected a redaction marker, got nil")
+		t.Fatal("expected captured body, got nil")
 	}
-	if strings.Contains(*sanitized, "not json at all") {
-		t.Fatalf("expected raw non-JSON body not echoed, got %s", *sanitized)
+	if *sanitized != string(raw) {
+		t.Fatalf("expected exact error body %q, got %q", string(raw), *sanitized)
 	}
+}
 
-	oversized := make([]byte, 4096)
-	for i := range oversized {
-		oversized[i] = 'a'
+func TestSanitizeResponseBodyPreservesNonJSONExactly(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte("not json at all")
+	sanitized := SanitizeResponseBody(raw)
+	if sanitized == nil {
+		t.Fatal("expected captured body, got nil")
 	}
-	oversizedJSON := append([]byte(`{"error":"`), oversized...)
-	oversizedJSON = append(oversizedJSON, []byte(`"}`)...)
-	sanitizedOversized := SanitizeResponseBody(oversizedJSON)
-	if sanitizedOversized == nil {
-		t.Fatal("expected a redaction marker for oversized body, got nil")
-	}
-	if len(*sanitizedOversized) > 2048 {
-		t.Fatalf("expected redaction marker bounded, got %d bytes", len(*sanitizedOversized))
+	if *sanitized != string(raw) {
+		t.Fatalf("expected exact non-JSON body %q, got %q", string(raw), *sanitized)
 	}
 }

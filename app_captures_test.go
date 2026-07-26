@@ -97,6 +97,10 @@ func TestGetCaptureTransactionFound(t *testing.T) {
 	t.Parallel()
 	db := captureAppTestDB(t)
 	seedCaptureRow(t, db, "req-1", 100)
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
+	if _, err := db.Exec(`UPDATE request_captures SET request_body = ?, request_body_state = ?, response_body_state = ? WHERE request_id = ?`, requestBody, requestcapture.CaptureStateOmittedTooLarge, requestcapture.CaptureStateTruncated, "req-1"); err != nil {
+		t.Fatalf("seed request body: %v", err)
+	}
 
 	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
 	result := app.GetCaptureTransaction("req-1")
@@ -112,6 +116,15 @@ func TestGetCaptureTransactionFound(t *testing.T) {
 	}
 	if result.Item.Payload == nil {
 		t.Fatal("expected a non-nil Payload map")
+	}
+	if result.Item.RequestBody == nil || *result.Item.RequestBody != requestBody {
+		t.Fatalf("expected exact request body %q, got %#v", requestBody, result.Item.RequestBody)
+	}
+	if result.Item.RequestBodyState != requestcapture.CaptureStateOmittedTooLarge {
+		t.Fatalf("expected request body state to round-trip, got %q", result.Item.RequestBodyState)
+	}
+	if result.Item.ResponseBodyState != requestcapture.CaptureStateTruncated {
+		t.Fatalf("expected response body state to round-trip, got %q", result.Item.ResponseBodyState)
 	}
 }
 

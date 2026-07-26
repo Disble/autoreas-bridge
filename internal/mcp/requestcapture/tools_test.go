@@ -121,6 +121,22 @@ func TestGetExposesPersistedReconcileChangelogIDs(t *testing.T) {
 	}
 }
 
+func TestGetExposesExactRequestBody(t *testing.T) {
+	t.Parallel()
+
+	item := obs.NewCaptureRecord("patch", "device-1")
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
+	item.RequestBody = &requestBody
+
+	result, err := getRequestContext(context.Background(), stubToolReader{get: obs.GetResult{Found: true, Item: item}}, GetRequestContextInput{RequestID: "req-1"})
+	if err != nil {
+		t.Fatalf("get request context: %v", err)
+	}
+	if result.Item.RequestBody == nil || *result.Item.RequestBody != requestBody {
+		t.Fatalf("expected exact MCP-visible request body %q, got %#v", requestBody, result.Item.RequestBody)
+	}
+}
+
 func TestResolveAmbiguousReference(t *testing.T) {
 	t.Parallel()
 

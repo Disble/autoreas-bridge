@@ -198,4 +198,44 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
     expect(getTransactionStoreState().selectedId).toBe('req-1');
   });
+
+  it('refreshes the selected detail when the selected request transitions from pending to terminal via a runtime upsert', async () => {
+    const source = createFakeSource({
+      listTransactions: vi.fn().mockResolvedValue({
+        items: [row({ requestId: 'req-1', outcome: 'pending' })],
+        appliedLimit: 25,
+        malformedRowsSkipped: 0,
+        warningCount: 0,
+        degraded: false,
+      }),
+      getTransaction: vi
+        .fn()
+        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'pending' }), degraded: false })
+        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }), degraded: false }),
+    });
+    let pushRow: ((row: CaptureRow) => void) | undefined;
+    const runtimeSource = createFakeRuntimeSource({
+      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
+        pushRow = listener;
+        return () => undefined;
+      }),
+    });
+
+    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+    act(() => {
+      result.current.onSelect('req-1');
+    });
+
+    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('pending'));
+
+    act(() => {
+      pushRow?.(row({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }));
+    });
+
+    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('accepted'));
+    expect(source.getTransaction).toHaveBeenCalledTimes(2);
+  });
 });

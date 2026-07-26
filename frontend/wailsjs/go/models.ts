@@ -749,7 +749,10 @@ export namespace contracts {
 	    durationMs?: number;
 	    animeId?: string;
 	    payload: Record<string, any>;
+	    requestBody?: string;
+	    requestBodyState?: string;
 	    responseBody?: string;
+	    responseBodyState?: string;
 	    requestHeaders?: Record<string, string>;
 	    responseHeaders?: Record<string, string>;
 	    correlations: CaptureCorrelations;
@@ -773,7 +776,10 @@ export namespace contracts {
 	        this.durationMs = source["durationMs"];
 	        this.animeId = source["animeId"];
 	        this.payload = source["payload"];
+	        this.requestBody = source["requestBody"];
+	        this.requestBodyState = source["requestBodyState"];
 	        this.responseBody = source["responseBody"];
+	        this.responseBodyState = source["responseBodyState"];
 	        this.requestHeaders = source["requestHeaders"];
 	        this.responseHeaders = source["responseHeaders"];
 	        this.correlations = this.convertValues(source["correlations"], CaptureCorrelations);

@@ -107,8 +107,8 @@ func TestCaptureMiddlewarePanicEnqueuesTransportOnlyTerminalThenRepanics(t *test
 			t.Fatalf("expected arrival + one transport-only terminal, got %d: %#v", len(captured), captured)
 		}
 		terminal := captured[1]
-		if terminal.Outcome != "pending" {
-			t.Fatalf("expected a transport-only terminal (outcome stays pending, no enrichment contributed), got %q", terminal.Outcome)
+		if terminal.Outcome != "completed" {
+			t.Fatalf("expected a transport-only terminal outcome of completed, got %q", terminal.Outcome)
 		}
 	}()
 	handler.ServeHTTP(httptest.NewRecorder(), req)
@@ -168,10 +168,47 @@ func TestCaptureMiddlewarePreservesHijackerForWebSocketUpgrade(t *testing.T) {
 	}
 }
 
-// TestCaptureMiddlewareCapturesResponseBodyOnNon2xx guards the bounded
-// response-body capture clause: a non-2xx response's body must be captured
-// (sanitized) on the terminal row.
-func TestCaptureMiddlewareCapturesResponseBodyOnNon2xx(t *testing.T) {
+// TestCaptureMiddlewareCapturesSuccessfulResponseBodyExactly guards the hotfix
+// contract: successful HTTP responses with a body must persist that body
+// exactly, not a sanitized projection and not an empty response placeholder.
+func TestCaptureMiddlewareCapturesSuccessfulResponseBodyExactly(t *testing.T) {
+	t.Parallel()
+
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
+		captured = append(captured, record)
+		return true
+	}
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true,"items":[1,2,3]}`))
+	})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/animes", nil)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if len(captured) != 2 {
+		t.Fatalf("expected arrival + terminal, got %d: %#v", len(captured), captured)
+	}
+	terminal := captured[1]
+	if terminal.HTTPStatus == nil || *terminal.HTTPStatus != http.StatusOK {
+		t.Fatalf("expected terminal http status 200, got %#v", terminal.HTTPStatus)
+	}
+	if terminal.ResponseBody == nil {
+		t.Fatal("expected the successful response body to be captured")
+	}
+	if *terminal.ResponseBody != `{"ok":true,"items":[1,2,3]}` {
+		t.Fatalf("expected exact successful response body, got %#v", terminal.ResponseBody)
+	}
+}
+
+// TestCaptureMiddlewareCapturesErrorResponseBodyExactly guards that error
+// responses keep their exact body too; the old status>=400 sanitizer path must
+// not rewrite or redact the content.
+func TestCaptureMiddlewareCapturesErrorResponseBodyExactly(t *testing.T) {
 	t.Parallel()
 
 	var captured []requestcapture.CaptureRecord
@@ -183,22 +220,44 @@ func TestCaptureMiddlewareCapturesResponseBodyOnNon2xx(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`{"error":"anime not found"}`))
+		_, _ = w.Write([]byte(`{"error":"anime not found","status":404}`))
 	})
 	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/animes/missing", nil)
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
-	if len(captured) != 2 {
-		t.Fatalf("expected arrival + terminal, got %d: %#v", len(captured), captured)
-	}
 	terminal := captured[1]
-	if terminal.HTTPStatus == nil || *terminal.HTTPStatus != http.StatusNotFound {
-		t.Fatalf("expected terminal http status 404, got %#v", terminal.HTTPStatus)
-	}
 	if terminal.ResponseBody == nil {
-		t.Fatal("expected the sanitized response body to be captured on a non-2xx terminal")
+		t.Fatal("expected the error response body to be captured")
+	}
+	if *terminal.ResponseBody != `{"error":"anime not found","status":404}` {
+		t.Fatalf("expected exact error response body, got %#v", terminal.ResponseBody)
+	}
+}
+
+// TestCaptureMiddlewareLeavesEmptyResponseBodyAbsent guards honest emptiness:
+// a bodyless success such as 204 must stay empty/nil, not a fabricated marker.
+func TestCaptureMiddlewareLeavesEmptyResponseBodyAbsent(t *testing.T) {
+	t.Parallel()
+
+	var captured []requestcapture.CaptureRecord
+	capture := func(record requestcapture.CaptureRecord) bool {
+		captured = append(captured, record)
+		return true
+	}
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/animes/empty", nil)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	terminal := captured[1]
+	if terminal.ResponseBody != nil {
+		t.Fatalf("expected empty response body to stay absent, got %#v", terminal.ResponseBody)
 	}
 }
 

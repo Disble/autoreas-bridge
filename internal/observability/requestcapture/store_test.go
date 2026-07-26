@@ -3,11 +3,8 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	bridgeSync "autoreas-bridge/internal/sync"
 )
 
 func TestRetentionPrunesOldestAuxiliaryRowsOnly(t *testing.T) {
@@ -108,9 +105,13 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 	record.RequestID = "req-telemetry"
 	record.CapturedAtMS = 1
 	duration := int64(42)
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
 	body := `{"error":"anime not found"}`
 	record.DurationMS = &duration
+	record.RequestBody = &requestBody
+	record.RequestBodyState = CaptureStateOmittedTooLarge
 	record.ResponseBody = &body
+	record.ResponseBodyState = CaptureStateTruncated
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
 
@@ -118,31 +119,15 @@ func TestUpsertCaptureWritesTelemetryColumns(t *testing.T) {
 		t.Fatalf("insert capture: %v", err)
 	}
 
-	var (
-		gotDuration        sql.NullInt64
-		gotResponseBody    sql.NullString
-		gotRequestHeaders  sql.NullString
-		gotResponseHeaders sql.NullString
-	)
-	err := db.QueryRow(`
-		SELECT duration_ms, response_body, request_headers, response_headers
-		FROM request_captures WHERE request_id = ?
-	`, record.RequestID).Scan(&gotDuration, &gotResponseBody, &gotRequestHeaders, &gotResponseHeaders)
-	if err != nil {
-		t.Fatalf("read telemetry columns: %v", err)
-	}
-	if !gotDuration.Valid || gotDuration.Int64 != 42 {
-		t.Fatalf("expected duration_ms 42, got %#v", gotDuration)
-	}
-	if !gotResponseBody.Valid || gotResponseBody.String != body {
-		t.Fatalf("expected response_body %q, got %#v", body, gotResponseBody)
-	}
-	if !gotRequestHeaders.Valid || !strings.Contains(gotRequestHeaders.String, "application/json") {
-		t.Fatalf("expected request_headers to contain content-type, got %#v", gotRequestHeaders)
-	}
-	if !gotResponseHeaders.Valid || !strings.Contains(gotResponseHeaders.String, "application/json") {
-		t.Fatalf("expected response_headers to contain content-type, got %#v", gotResponseHeaders)
-	}
+	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{
+		duration:        sql.NullInt64{Int64: 42, Valid: true},
+		requestBody:     sql.NullString{String: requestBody, Valid: true},
+		requestState:    sql.NullString{String: CaptureStateOmittedTooLarge, Valid: true},
+		responseBody:    sql.NullString{String: body, Valid: true},
+		responseState:   sql.NullString{String: CaptureStateTruncated, Valid: true},
+		requestHeaders:  sql.NullString{String: "application/json", Valid: true},
+		responseHeaders: sql.NullString{String: "application/json", Valid: true},
+	})
 }
 
 func TestUpsertCaptureNullTelemetryTolerated(t *testing.T) {
@@ -159,22 +144,10 @@ func TestUpsertCaptureNullTelemetryTolerated(t *testing.T) {
 		t.Fatalf("insert capture: %v", err)
 	}
 
-	var (
-		gotDuration        sql.NullInt64
-		gotResponseBody    sql.NullString
-		gotRequestHeaders  sql.NullString
-		gotResponseHeaders sql.NullString
-	)
-	err := db.QueryRow(`
-		SELECT duration_ms, response_body, request_headers, response_headers
-		FROM request_captures WHERE request_id = ?
-	`, record.RequestID).Scan(&gotDuration, &gotResponseBody, &gotRequestHeaders, &gotResponseHeaders)
-	if err != nil {
-		t.Fatalf("read telemetry columns: %v", err)
-	}
-	if gotDuration.Valid || gotResponseBody.Valid || gotRequestHeaders.Valid || gotResponseHeaders.Valid {
-		t.Fatalf("expected all telemetry columns null, got duration=%#v body=%#v reqHeaders=%#v respHeaders=%#v", gotDuration, gotResponseBody, gotRequestHeaders, gotResponseHeaders)
-	}
+	assertTelemetryRow(t, readTelemetryRow(t, db, record.RequestID), telemetryRow{
+		requestState:  sql.NullString{String: "", Valid: true},
+		responseState: sql.NullString{String: "", Valid: true},
+	})
 }
 
 func TestUpsertCapturePreservesArrivalCapturedAtMSOnTerminalUpdate(t *testing.T) {
@@ -252,56 +225,4 @@ func TestUpsertCaptureInsertsLoneTerminalWithoutPriorArrival(t *testing.T) {
 	if got := countRows(t, db, "request_captures"); got != 1 {
 		t.Fatalf("expected exactly one row for a lone terminal upsert, got %d", got)
 	}
-}
-
-// openCaptureTestDB creates a temporary initialized bridge database for store tests.
-func openCaptureTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	db, err := bridgeSync.OpenBridgeDB(captureDBPath(t))
-	if err != nil {
-		t.Fatalf("open bridge db: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	return db
-}
-
-// requestID returns a deterministic request ID for the given index.
-func requestID(index int) string { return "req-" + string(rune('0'+index)) }
-
-// readCaptureIDs returns all request IDs from the captures table ordered by captured_at_ms.
-func readCaptureIDs(t *testing.T, db *sql.DB) []string {
-	t.Helper()
-	rows, err := db.Query(`SELECT request_id FROM request_captures ORDER BY captured_at_ms ASC`)
-	if err != nil {
-		t.Fatalf("query request ids: %v", err)
-	}
-	defer func() { _ = rows.Close() }()
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			t.Fatalf("scan request id: %v", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate request ids: %v", err)
-	}
-	return ids
-}
-
-// countRows returns the number of rows in the provided table.
-func countRows(t *testing.T, db *sql.DB, table string) int {
-	t.Helper()
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&count); err != nil {
-		t.Fatalf("count rows for %s: %v", table, err)
-	}
-	return count
-}
-
-// captureDBPath returns a temporary bridge database path for capture tests.
-func captureDBPath(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(t.TempDir(), "bridge.db")
 }

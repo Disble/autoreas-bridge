@@ -2,12 +2,10 @@ import { CodeBlock } from '../../../../shared/ui/CodeBlock';
 import type { TransactionBodyViewModel, TransactionDetailFieldRow } from '../TransactionPanel/transaction-panel.types';
 
 /**
- * Dumb Request-tab pane: request headers plus the request payload, rendered
- * through the shared `CodeBlock` primitive. `CaptureDetail.payload` arrives
- * already parsed as an object, so there is no server-verbatim request
- * string — the payload's "raw" form is its compact `JSON.stringify`
- * (`transaction-panel.helpers.ts#toTransactionBody`), not the original wire
- * bytes.
+ * Dumb Request-tab pane: request headers plus the exact captured request body,
+ * rendered through the shared `CodeBlock` primitive. `CaptureDetail.payload`
+ * still exists for semantic/domain consumers, while this pane reads only the
+ * dedicated raw `requestBody` field mapped by `toTransactionBody`.
  */
 export function TransactionDetailRequest({
   headers,

@@ -89,14 +89,17 @@ func toCaptureRow(record requestcapture.CaptureRecord) contracts.CaptureRow {
 // toCaptureDetail maps one reader CaptureRecord into the full detail DTO.
 func toCaptureDetail(record requestcapture.CaptureRecord) contracts.CaptureDetail {
 	return contracts.CaptureDetail{
-		CaptureRow:      toCaptureRow(record),
-		Payload:         record.Payload,
-		ResponseBody:    record.ResponseBody,
-		RequestHeaders:  record.RequestHeaders,
-		ResponseHeaders: record.ResponseHeaders,
-		Correlations:    toCaptureCorrelations(record.Correlations),
-		DeviceID:        record.Device.DeviceID,
-		DeviceName:      record.Device.Name,
+		CaptureRow:        toCaptureRow(record),
+		Payload:           record.Payload,
+		RequestBody:       record.RequestBody,
+		RequestBodyState:  record.RequestBodyState,
+		ResponseBody:      record.ResponseBody,
+		ResponseBodyState: record.ResponseBodyState,
+		RequestHeaders:    record.RequestHeaders,
+		ResponseHeaders:   record.ResponseHeaders,
+		Correlations:      toCaptureCorrelations(record.Correlations),
+		DeviceID:          record.Device.DeviceID,
+		DeviceName:        record.Device.Name,
 	}
 }
 

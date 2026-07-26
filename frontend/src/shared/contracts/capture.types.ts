@@ -62,7 +62,10 @@ export interface CaptureCorrelations {
 /** One full transaction detail: the list row plus body/header/correlation data. */
 export interface CaptureDetail extends CaptureRow {
   readonly payload: Readonly<Record<string, unknown>>;
+  readonly requestBody?: string;
+  readonly requestBodyState?: string;
   readonly responseBody?: string;
+  readonly responseBodyState?: string;
   readonly requestHeaders?: Readonly<Record<string, string>>;
   readonly responseHeaders?: Readonly<Record<string, string>>;
   readonly correlations: CaptureCorrelations;

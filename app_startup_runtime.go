@@ -164,6 +164,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		Logger:                 a.sharedLogger,
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),
 		Capture:                a.capture,
+		PersistTerminal:        a.persistCaptureTerminal,
 	})
 }
 
@@ -173,6 +174,22 @@ func (a *App) capture(record requestcapture.CaptureRecord) bool {
 		return false
 	}
 	return a.captureQueue.TryEnqueue(record)
+}
+
+// persistCaptureTerminal repairs an accepted-arrival / dropped-terminal split
+// by upserting the terminal row directly through a short, finite store write.
+func (a *App) persistCaptureTerminal(record requestcapture.CaptureRecord) {
+	if a.captureStore == nil {
+		if a.bridgeDB == nil || a.newCaptureStore == nil {
+			return
+		}
+		a.captureStore = a.newCaptureStore(a.bridgeDB)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	if err := a.captureStore.UpsertCapture(ctx, record); err != nil && a.sharedLogger != nil {
+		a.sharedLogger.Warnf("api", "failed terminal capture recovery for %s: %v", record.RequestID, err)
+	}
 }
 
 // captureTransactionEventName is the Wails runtime event streaming each

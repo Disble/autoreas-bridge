@@ -7,10 +7,10 @@ import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
 export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef }: Readonly<NetworkTableProps>) {
   return (
     <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]" data-network-scroll ref={scrollRef}>
-      <Table aria-label="Network log entries" variant="secondary">
+      <Table aria-label="Runtime events" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
-            aria-label="Network log entries"
+            aria-label="Runtime events"
             className="w-full table-fixed"
             onSelectionChange={(keys) => {
               if (keys === 'all') {
@@ -29,8 +29,7 @@ export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef 
               </Table.Column>
               <Table.Column className="w-[120px]">Domain</Table.Column>
               <Table.Column className="w-[104px]">Level</Table.Column>
-              <Table.Column>Message</Table.Column>
-              <Table.Column className="w-[88px]">Status</Table.Column>
+              <Table.Column>Event</Table.Column>
               <Table.Column className="w-[104px]">Duration</Table.Column>
             </Table.Header>
             <Table.Body renderEmptyState={() => (
@@ -56,9 +55,6 @@ export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef 
                     <span className="block truncate text-foreground" title={row.message}>
                       {row.message}
                     </span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-[11px] text-default-500">{row.statusLabel}</span>
                   </Table.Cell>
                   <Table.Cell>
                     <span className="font-mono text-[11px] text-default-500">{row.durationLabel}</span>

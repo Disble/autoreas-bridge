@@ -20,7 +20,7 @@ function detail(overrides: Partial<TransactionDetailViewModel> = {}): Transactio
     generalFields: [{ label: 'requestId', value: 'req-1' }],
     requestHeaders: [{ label: 'content-type', value: 'application/json' }],
     responseHeaders: [],
-    requestPayload: { state: 'captured', raw: '{}' },
+    requestPayload: { state: 'not-captured', notice: 'This request did not include a body.', raw: '' },
     responseBody: { state: 'not-captured', notice: 'Not captured for this transaction.', raw: '' },
     correlations: [],
     ...overrides,
@@ -68,23 +68,23 @@ describe('TransactionDetail', () => {
     expect(screen.getByText('Not captured for this transaction.')).toBeInTheDocument();
   });
 
-  it('renders the redaction notice in the Response tab for a redacted body', () => {
+  it('renders the explicit truncation notice in the Response tab for a bounded captured prefix', () => {
     render(
       <TransactionDetail
-        detail={detail({ responseBody: { state: 'redacted', notice: 'Redacted by the capture pipeline.', raw: '{"error":"response body redacted"}' } })}
+        detail={detail({ responseBody: { state: 'redacted', notice: 'Showing the first 65536 bytes only. The response exceeded the capture safety budget.', raw: '{"partial":true}' } })}
         detailTab="response"
         onClose={vi.fn()}
         onDetailTabChange={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('Redacted by the capture pipeline.')).toBeInTheDocument();
+    expect(screen.getByText('Showing the first 65536 bytes only. The response exceeded the capture safety budget.')).toBeInTheDocument();
   });
 
-  it('renders the Pretty/Raw toggle in the Request tab for a JSON payload', () => {
+  it('renders the Pretty/Raw toggle in the Request tab for an exact captured JSON request body', () => {
     render(
       <TransactionDetail
-        detail={detail({ requestPayload: { state: 'captured', raw: '{"a":1}' } })}
+        detail={detail({ requestPayload: { state: 'captured', raw: '{"name":"x","nested":{"n":1}}' } })}
         detailTab="request"
         onClose={vi.fn()}
         onDetailTabChange={vi.fn()}
@@ -92,6 +92,12 @@ describe('TransactionDetail', () => {
     );
 
     expect(screen.getAllByRole('radio')).toHaveLength(2);
+  });
+
+  it('shows the no-request-body notice honestly for a request without a body', () => {
+    render(<TransactionDetail detail={detail()} detailTab="request" onClose={vi.fn()} onDetailTabChange={vi.fn()} />);
+
+    expect(screen.getByText('This request did not include a body.')).toBeInTheDocument();
   });
 
   it('calls onClose when the close control is pressed', () => {

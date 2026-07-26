@@ -293,8 +293,8 @@ func TestBootstrapBridgeDBCreatesRequestCaptureTables(t *testing.T) {
 	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read capture schema version: %v", err)
 	}
-	if version != "3" {
-		t.Fatalf("expected capture schema version 3, got %q", version)
+	if version != "5" {
+		t.Fatalf("expected capture schema version 5, got %q", version)
 	}
 }
 
@@ -303,7 +303,7 @@ func TestCaptureAdditiveColumnsPresent(t *testing.T) {
 
 	db := openTestBridgeDB(t)
 	columns := readTableColumns(t, db, "request_captures")
-	for _, required := range []string{"response_body", "request_headers", "response_headers", "duration_ms"} {
+	for _, required := range []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms"} {
 		if !containsString(columns, required) {
 			t.Fatalf("expected request_captures to contain additive column %q, got %#v", required, columns)
 		}
@@ -318,8 +318,8 @@ func TestCaptureSchemaVersionThree(t *testing.T) {
 	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read capture schema version: %v", err)
 	}
-	if version != "3" {
-		t.Fatalf("expected capture schema version 3, got %q", version)
+	if version != "5" {
+		t.Fatalf("expected capture schema version 5, got %q", version)
 	}
 }
 

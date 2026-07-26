@@ -74,13 +74,16 @@ type CaptureCorrelations struct {
 // device identity.
 type CaptureDetail struct {
 	CaptureRow
-	Payload         map[string]any      `json:"payload"`
-	ResponseBody    *string             `json:"responseBody,omitempty"`
-	RequestHeaders  map[string]string   `json:"requestHeaders,omitempty"`
-	ResponseHeaders map[string]string   `json:"responseHeaders,omitempty"`
-	Correlations    CaptureCorrelations `json:"correlations"`
-	DeviceID        string              `json:"deviceId"`
-	DeviceName      string              `json:"deviceName"`
+	Payload           map[string]any      `json:"payload"`
+	RequestBody       *string             `json:"requestBody,omitempty"`
+	RequestBodyState  string              `json:"requestBodyState,omitempty"`
+	ResponseBody      *string             `json:"responseBody,omitempty"`
+	ResponseBodyState string              `json:"responseBodyState,omitempty"`
+	RequestHeaders    map[string]string   `json:"requestHeaders,omitempty"`
+	ResponseHeaders   map[string]string   `json:"responseHeaders,omitempty"`
+	Correlations      CaptureCorrelations `json:"correlations"`
+	DeviceID          string              `json:"deviceId"`
+	DeviceName        string              `json:"deviceName"`
 }
 
 // CaptureDetailResult is the GetCaptureTransaction result envelope: Found

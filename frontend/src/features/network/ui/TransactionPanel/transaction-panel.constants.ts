@@ -10,39 +10,34 @@ export const TRANSACTION_EMPTY_LABEL = '–';
 export const TRANSACTION_NOT_CAPTURED_LABEL = 'Not captured';
 
 /**
- * The exact literal the capture pipeline writes over a response body it
- * could not sanitize safely (source of truth:
- * `internal/observability/requestcapture/telemetry.go`'s
- * `redactedResponseBodyMarker`). Detected by exact equality only.
- */
-export const CAPTURE_REDACTION_MARKER = '{"error":"response body redacted"}';
-
-/**
- * Notice shown for a response pane with no captured body. Response bodies
- * are only captured for error responses (`status >= 400`), so a 2xx
- * transaction legitimately has none — this reads as expected, not a fault.
+ * Notice shown for a response pane with no captured body. A bodyless response
+ * such as 204 is genuinely empty; this notice avoids implying anything was
+ * silently discarded.
  */
 export const TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE =
-  'No response body was captured for this transaction. Response bodies are only captured for error responses (status 400 and above); a successful (2xx) transaction has none by design.';
+  'This response did not include a body.';
 
 /**
  * Notice shown when a response body equals `CAPTURE_REDACTION_MARKER`. The
- * capture pipeline records no truncation signal, so the notice names every
- * possible cause instead of guessing one — it MUST NOT say "truncated".
+ * hotfix now preserves exact bodies, so this marker is legacy/degraded data.
  */
-export const TRANSACTION_RESPONSE_REDACTED_NOTICE =
-  'This response body was redacted by the capture pipeline. This can happen when the body is not JSON, when the sanitized result exceeds 2 KB, or when the raw capture was cut at its 4096-byte cap — the pipeline records no signal for which cause applied.';
+/** Notice shown when pre-auth request capture skipped a declared oversized body. */
+export const TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE =
+  'Body capture was skipped before authentication because the declared request body exceeded the 65536-byte safety budget.';
+
+/** Notice shown when pre-auth request capture skipped an unknown-length body. */
+export const TRANSACTION_REQUEST_BODY_OMITTED_STREAMING_NOTICE =
+  'Body capture was skipped before authentication because the request body size was not declared.';
+
+/** Notice shown when only the first 65536 response-body bytes were retained. */
+export const TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE =
+  'Showing the first 65536 bytes only. The response exceeded the capture safety budget.';
 
 /** Notice shown for a request pane whose captured payload carries no fields. */
-export const TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE = 'No request payload was captured for this transaction.';
+export const TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE = 'This request did not include a body.';
 
-/**
- * Standing note on the captured body panes: the captured content is a
- * key-allowlisted projection of the real wire body, not a verbatim copy —
- * this pane never claims completeness.
- */
-export const TRANSACTION_BODY_PROJECTION_NOTE =
-  'Captured bodies are a sanitized, key-allowlisted projection of the real wire body, not a verbatim copy.';
+/** Standing note on the captured body panes: the body shown is the captured wire content. */
+export const TRANSACTION_BODY_PROJECTION_NOTE = 'Showing the captured body exactly as recorded.';
 
 /** Free-text filter input placeholder. */
 export const TRANSACTION_FILTER_PLACEHOLDER = 'Filter by route, kind, outcome, or error code';

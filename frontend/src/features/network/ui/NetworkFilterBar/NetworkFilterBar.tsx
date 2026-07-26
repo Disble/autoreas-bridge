@@ -20,7 +20,7 @@ export function NetworkFilterBar({
 }: Readonly<NetworkFilterBarProps>) {
   return (
     <div className="flex flex-col gap-2.5">
-      <SearchField aria-label="Filter network entries" fullWidth onChange={onQueryChange} value={query} variant="secondary">
+      <SearchField aria-label="Filter runtime events" fullWidth onChange={onQueryChange} value={query} variant="secondary">
         <SearchField.Group>
           <SearchField.SearchIcon />
           <SearchField.Input placeholder={NETWORK_FILTER_PLACEHOLDER} />

@@ -142,7 +142,10 @@ const (
 			payload_json TEXT NOT NULL,
 			correlation_json TEXT NOT NULL,
 			error_code TEXT NOT NULL DEFAULT '',
+			request_body TEXT,
+			request_body_state TEXT NOT NULL DEFAULT '',
 			response_body TEXT,
+			response_body_state TEXT NOT NULL DEFAULT '',
 			request_headers TEXT,
 			response_headers TEXT,
 			duration_ms INTEGER

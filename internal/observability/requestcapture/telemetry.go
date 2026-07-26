@@ -1,25 +1,22 @@
 package requestcapture
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 )
 
-const (
-	maxSanitizedResponseBodyBytes = 2048
-	redactedResponseBodyMarker    = `{"error":"response body redacted"}`
-)
-
-// SanitizerConfig defines the default-deny allowlists used to sanitize captured
-// telemetry before persistence. Zero-value falls back to the safe bridge defaults.
+// SanitizerConfig defines the legacy sanitizer configuration surface retained so
+// existing call sites and tests keep compiling. The hotfix now preserves actual
+// headers and bodies for local debugging, so these fields are no longer applied
+// by SanitizeHeaders/SanitizeResponseBody.
 type SanitizerConfig struct {
 	AllowedHeaders    map[string]bool
 	AllowedBodyKeys   map[string]bool
 	MaxResponseBodyKB int
 }
 
-// defaultSanitizerConfig returns the bridge-owned default-deny sanitizer policy.
+// defaultSanitizerConfig returns the legacy default-deny policy metadata. The
+// hotfix preserves exact telemetry, so the returned values are informational.
 func defaultSanitizerConfig() SanitizerConfig {
 	return SanitizerConfig{
 		AllowedHeaders: map[string]bool{
@@ -53,24 +50,23 @@ type Telemetry struct {
 	ResponseHeaders map[string]string
 }
 
-// SanitizeHeaders projects an http.Header through the default-deny allowlist.
-// Authorization, Cookie, Set-Cookie, Proxy-Authorization, and any header absent
-// from the allowlist are never emitted.
+// SanitizeHeaders preserves the exact header values captured for local
+// debugging, joining repeated values with `, ` under the conventional header
+// casing so the persisted map stays faithful to the wire while fitting the
+// existing `map[string]string` contract.
 func SanitizeHeaders(header http.Header) map[string]string {
 	return sanitizeHeadersWithConfig(header, defaultSanitizerConfig())
 }
 
-// sanitizeHeadersWithConfig applies an explicit sanitizer configuration.
+// sanitizeHeadersWithConfig preserves exact header values. The config parameter
+// is retained only for API compatibility with existing tests/callers.
 func sanitizeHeadersWithConfig(header http.Header, config SanitizerConfig) map[string]string {
 	sanitized := map[string]string{}
 	for name, values := range header {
 		if len(values) == 0 {
 			continue
 		}
-		if !config.AllowedHeaders[strings.ToLower(name)] {
-			continue
-		}
-		sanitized[canonicalHeaderName(name)] = values[0]
+		sanitized[canonicalHeaderName(name)] = strings.Join(values, ", ")
 	}
 	return sanitized
 }
@@ -80,43 +76,20 @@ func canonicalHeaderName(name string) string {
 	return http.CanonicalHeaderKey(name)
 }
 
-// SanitizeResponseBody parses raw as JSON, keeps only sanctioned keys, and
-// bounds the re-marshaled result to <=2KB. Non-JSON or oversized input
-// collapses to a redaction marker; it never echoes raw payloads or headers.
+// SanitizeResponseBody preserves the exact captured response body so Activity can
+// behave like a real Network inspector. Empty bodies stay absent via the caller
+// passing nil/zero-length inputs.
 func SanitizeResponseBody(raw []byte) *string {
 	return sanitizeResponseBodyWithConfig(raw, defaultSanitizerConfig())
 }
 
-// sanitizeResponseBodyWithConfig applies an explicit sanitizer configuration.
+// sanitizeResponseBodyWithConfig preserves the exact captured body. The config
+// parameter is retained only for API compatibility with existing tests/callers.
 func sanitizeResponseBodyWithConfig(raw []byte, config SanitizerConfig) *string {
-	maxBytes := maxSanitizedResponseBodyBytes
-	if config.MaxResponseBodyKB > 0 {
-		maxBytes = config.MaxResponseBodyKB * 1024
+	if len(raw) == 0 {
+		return nil
 	}
-
-	var parsed map[string]any
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		marker := redactedResponseBodyMarker
-		return &marker
-	}
-
-	sanctioned := map[string]any{}
-	for key, value := range parsed {
-		if config.AllowedBodyKeys[key] {
-			sanctioned[key] = value
-		}
-	}
-
-	encoded, err := json.Marshal(sanctioned)
-	if err != nil {
-		marker := redactedResponseBodyMarker
-		return &marker
-	}
-	if len(encoded) > maxBytes {
-		marker := redactedResponseBodyMarker
-		return &marker
-	}
-	result := string(encoded)
+	result := string(raw)
 	return &result
 }
 

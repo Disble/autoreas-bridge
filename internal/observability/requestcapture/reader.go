@@ -22,7 +22,7 @@ var captureBaseColumns = []string{
 
 // optionalCaptureColumns are the additive (version-2) telemetry columns. Order
 // matters: it is the fixed order appended to captureBaseColumns whenever present.
-var optionalCaptureColumns = []string{"response_body", "request_headers", "response_headers", "duration_ms"}
+var optionalCaptureColumns = []string{"request_body", "request_body_state", "response_body", "response_body_state", "request_headers", "response_headers", "duration_ms"}
 
 // captureTables names the capture objects for one schema generation. The
 // table/key names are interpolated directly into SQL strings because SQLite
@@ -80,17 +80,26 @@ func captureTableExists(db *sql.DB, name string) (bool, error) {
 // optionalColumns records which additive telemetry columns exist on the open
 // capture table, detected once at Reader construction.
 type optionalColumns struct {
-	responseBody    bool
-	requestHeaders  bool
-	responseHeaders bool
-	durationMS      bool
+	requestBody       bool
+	requestBodyState  bool
+	responseBody      bool
+	responseBodyState bool
+	requestHeaders    bool
+	responseHeaders   bool
+	durationMS        bool
 }
 
 // present reports whether the named optional column was detected.
 func (o optionalColumns) present(name string) bool {
 	switch name {
+	case "request_body":
+		return o.requestBody
+	case "request_body_state":
+		return o.requestBodyState
 	case "response_body":
 		return o.responseBody
+	case "response_body_state":
+		return o.responseBodyState
 	case "request_headers":
 		return o.requestHeaders
 	case "response_headers":
@@ -171,10 +180,13 @@ func detectOptionalColumns(db *sql.DB, tables captureTables) optionalColumns {
 		return optionalColumns{}
 	}
 	return optionalColumns{
-		responseBody:    present["response_body"],
-		requestHeaders:  present["request_headers"],
-		responseHeaders: present["response_headers"],
-		durationMS:      present["duration_ms"],
+		requestBody:       present["request_body"],
+		requestBodyState:  present["request_body_state"],
+		responseBody:      present["response_body"],
+		responseBodyState: present["response_body_state"],
+		requestHeaders:    present["request_headers"],
+		responseHeaders:   present["response_headers"],
+		durationMS:        present["duration_ms"],
 	}
 }
 
@@ -219,12 +231,13 @@ func OpenReadOnlyDB(path string) (*ReadOnlyDB, error) {
 // isSupportedCaptureSchemaVersion reports whether the reader can tolerate the
 // stored capture schema version. Version 1 predates the additive
 // response/header/duration telemetry columns; version 2 adds them; version 3
-// is the transport-neutral table rename (Capture / MCP Nomenclature Rename) --
-// no column shape change, so it is readable exactly like version 2. All three
+// is the transport-neutral table rename (Capture / MCP Nomenclature Rename);
+// version 4 adds raw request_body; version 5 adds explicit request/response
+// body capture-state markers. All supported generations
 // are readable -- optional columns are detected and projected dynamically.
 func isSupportedCaptureSchemaVersion(version string) bool {
 	switch version {
-	case "1", "2", "3":
+	case "1", "2", "3", "4", "5":
 		return true
 	default:
 		return false
@@ -274,14 +287,17 @@ func decodeSearchCursor(value string) (searchCursor, error) {
 // captureRowScan holds the scan targets for one capture row: the fixed base
 // columns plus whichever optional telemetry columns are present.
 type captureRowScan struct {
-	payloadJSON     string
-	correlationJSON string
-	animeID         sql.NullString
-	httpStatus      sql.NullInt64
-	responseBody    sql.NullString
-	requestHeaders  sql.NullString
-	responseHeaders sql.NullString
-	durationMS      sql.NullInt64
+	payloadJSON       string
+	correlationJSON   string
+	animeID           sql.NullString
+	httpStatus        sql.NullInt64
+	responseBody      sql.NullString
+	requestBody       sql.NullString
+	requestBodyState  sql.NullString
+	responseBodyState sql.NullString
+	requestHeaders    sql.NullString
+	responseHeaders   sql.NullString
+	durationMS        sql.NullInt64
 }
 
 // buildCaptureScanDest builds the ordered Scan() destination slice for one
@@ -295,8 +311,14 @@ func buildCaptureScanDest(record *CaptureRecord, scan *captureRowScan, columns [
 	}
 	for _, column := range columns[len(captureBaseColumns):] {
 		switch column {
+		case "request_body":
+			dest = append(dest, &scan.requestBody)
+		case "request_body_state":
+			dest = append(dest, &scan.requestBodyState)
 		case "response_body":
 			dest = append(dest, &scan.responseBody)
+		case "response_body_state":
+			dest = append(dest, &scan.responseBodyState)
 		case "request_headers":
 			dest = append(dest, &scan.requestHeaders)
 		case "response_headers":
@@ -328,9 +350,19 @@ func applyCaptureCoreFields(record *CaptureRecord, scan captureRowScan) error {
 // applyOptionalCaptureFields decodes the additive (version-2) telemetry
 // columns from scan into record, ignoring any that are absent or malformed.
 func applyOptionalCaptureFields(record *CaptureRecord, scan captureRowScan) {
+	if scan.requestBody.Valid {
+		value := scan.requestBody.String
+		record.RequestBody = &value
+	}
+	if scan.requestBodyState.Valid {
+		record.RequestBodyState = scan.requestBodyState.String
+	}
 	if scan.responseBody.Valid {
 		value := scan.responseBody.String
 		record.ResponseBody = &value
+	}
+	if scan.responseBodyState.Valid {
+		record.ResponseBodyState = scan.responseBodyState.String
 	}
 	if scan.requestHeaders.Valid {
 		var headers map[string]string

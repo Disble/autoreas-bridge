@@ -2,7 +2,6 @@ import activityIcon from '@iconify-icons/solar/pulse-bold-duotone';
 import catalogIcon from '@iconify-icons/solar/calendar-bold-duotone';
 import devicesIcon from '@iconify-icons/solar/devices-bold-duotone';
 import downloadIcon from '@iconify-icons/solar/download-bold-duotone';
-import eventsIcon from '@iconify-icons/solar/notes-bold-duotone';
 import historyIcon from '@iconify-icons/solar/history-bold-duotone';
 import optionsIcon from '@iconify-icons/solar/settings-bold-duotone';
 import penIcon from '@iconify-icons/solar/pen-new-square-bold-duotone';
@@ -39,7 +38,6 @@ export const APP_LAYOUT_NAV_GROUPS: readonly NavGroup[] = [
     pinned: true,
     items: [
       { to: '/activity', label: 'Activity', icon: activityIcon },
-      { to: '/events', label: 'Events', icon: eventsIcon },
       { to: '/settings', label: 'Settings', icon: optionsIcon },
     ],
   },

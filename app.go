@@ -45,6 +45,7 @@ type App struct {
 	newNotifier              func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub           func(ctx context.Context) realtime.Hub
 	newHTTPServer            func(config api.Config) api.Server
+	newCaptureStore          func(db *sql.DB) requestcapture.Store
 	newCaptureQueue          func(db *sql.DB) captureQueue
 	newCaptureReader         func(db *sql.DB) *requestcapture.Reader
 	newTrayManager           func() tray.Manager
@@ -63,6 +64,7 @@ type App struct {
 	httpServer               api.Server
 	captureQueue             captureQueue
 	captureReader            *requestcapture.Reader
+	captureStore             requestcapture.Store
 	trayManager              tray.Manager
 	tracerBulletRunner       tracerBulletRunner
 	catchUpContext           context.Context

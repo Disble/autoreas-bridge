@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
-import { CAPTURE_REDACTION_MARKER, TRANSACTION_EMPTY_LABEL } from '../transaction-panel.constants';
+import {
+  TRANSACTION_EMPTY_LABEL,
+  TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE,
+  TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE,
+} from '../transaction-panel.constants';
 import {
   getTransactionOutcomeColor,
   getTransactionStatusColor,
@@ -41,8 +45,8 @@ describe('getTransactionStatusColor', () => {
     expect(getTransactionStatusColor(304)).toBe('default');
   });
 
-  it('maps 4xx to warning (client error, distinguished from a bridge/server 5xx failure)', () => {
-    expect(getTransactionStatusColor(404)).toBe('warning');
+  it('maps 4xx to danger', () => {
+    expect(getTransactionStatusColor(404)).toBe('danger');
   });
 
   it('maps 5xx to danger', () => {
@@ -90,10 +94,6 @@ describe('getTransactionOutcomeColor', () => {
 });
 
 describe('toTransactionBody', () => {
-  it('pins the redaction marker to the exact backend literal', () => {
-    expect(CAPTURE_REDACTION_MARKER).toBe('{"error":"response body redacted"}');
-  });
-
   it('renders a captured response body verbatim', () => {
     const viewModel = toTransactionBody({ kind: 'response', raw: '{"ok":true}' });
 
@@ -108,26 +108,32 @@ describe('toTransactionBody', () => {
     expect(viewModel.notice).toBeTruthy();
   });
 
-  it('marks a body equal to the redaction marker as redacted, naming all three causes and never "truncated"', () => {
-    const viewModel = toTransactionBody({ kind: 'response', raw: CAPTURE_REDACTION_MARKER });
+  it('renders an explicit truncated response-body notice instead of pretending the captured prefix is exact', () => {
+    const viewModel = toTransactionBody({ kind: 'response', raw: '{"prefix":true}', captureState: 'truncated' });
 
     expect(viewModel.state).toBe('redacted');
-    expect(viewModel.notice).toBeTruthy();
-    expect(viewModel.notice?.toLowerCase()).not.toContain('truncated');
+    expect(viewModel.notice).toBe(TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE);
   });
 
-  it('marks an empty request payload as not-captured with a no-payload notice', () => {
-    const viewModel = toTransactionBody({ kind: 'request', payload: {} });
+  it('marks an absent request body as not-captured with a no-request-body notice', () => {
+    const viewModel = toTransactionBody({ kind: 'request', raw: undefined });
 
     expect(viewModel.state).toBe('not-captured');
     expect(viewModel.notice).toBeTruthy();
   });
 
-  it('renders a populated request payload as its compact serialization', () => {
-    const payload = { status: 1, note: 'ok' };
-    const viewModel = toTransactionBody({ kind: 'request', payload });
+  it('renders a populated raw request body exactly as captured', () => {
+    const requestBody = '{"name":"x","nested":{"n":1},"secret":"keep-me"}';
+    const viewModel = toTransactionBody({ kind: 'request', raw: requestBody });
 
-    expect(viewModel).toEqual({ state: 'captured', raw: JSON.stringify(payload) });
+    expect(viewModel).toEqual({ state: 'captured', raw: requestBody });
+  });
+
+  it('renders an explicit oversized-request notice when the backend omitted pre-auth body capture', () => {
+    const viewModel = toTransactionBody({ kind: 'request', raw: undefined, captureState: 'omitted_too_large' });
+
+    expect(viewModel.state).toBe('redacted');
+    expect(viewModel.notice).toBe(TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE);
   });
 });
 
@@ -184,11 +190,27 @@ describe('toTransactionRow', () => {
     expect(toTransactionRow(row({ requestId: 'req-9' })).id).toBe('req-9');
   });
 
-  it('marks a pending row as pending and shows a live-ticking elapsed duration instead of the empty label', () => {
-    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined }), 1750);
+  it('marks a genuinely in-flight row as pending and shows a live-ticking elapsed duration instead of the empty label', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined, httpStatus: undefined }), 1750);
 
     expect(viewModel.isPending).toBe(true);
     expect(viewModel.durationLabel).toBe('750ms');
+  });
+
+  it('treats a pending+200 row with a persisted duration as terminal, preserving the stored duration instead of using live elapsed time', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 200, durationMs: 86, capturedAtMs: 1000 }), 5000000);
+
+    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.outcome).toBe('completed');
+    expect(viewModel.durationLabel).toBe('86ms');
+  });
+
+  it('treats a terminal 404 as completed and stops the live duration ticker', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 404, durationMs: 69, capturedAtMs: 1000 }), 5000000);
+
+    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.outcome).toBe('completed');
+    expect(viewModel.durationLabel).toBe('69ms');
   });
 
   it('marks a terminal row as not pending', () => {
@@ -207,6 +229,7 @@ describe('toTransactionDetail', () => {
         requestHeaders: { 'content-type': 'application/json' },
         responseHeaders: { 'x-request-id': 'req-1' },
         responseBody: '{"ok":true}',
+        responseBodyState: 'truncated',
         correlations: { operationRefs: [{ animeId: 'anime-1', operation: 'patch', outcome: 'accepted' }] },
       }),
     );
@@ -214,9 +237,22 @@ describe('toTransactionDetail', () => {
     expect(viewModel.requestId).toBe('req-1');
     expect(viewModel.requestHeaders).toEqual([{ label: 'content-type', value: 'application/json' }]);
     expect(viewModel.responseHeaders).toEqual([{ label: 'x-request-id', value: 'req-1' }]);
-    expect(viewModel.responseBody).toEqual({ state: 'captured', raw: '{"ok":true}' });
+    expect(viewModel.responseBody).toEqual({ state: 'redacted', raw: '{"ok":true}', notice: TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE });
     expect(viewModel.correlations).toEqual([{ label: 'anime-1 · patch', value: 'accepted' }]);
-    expect(viewModel.requestPayload).toEqual({ state: 'captured', raw: JSON.stringify({ status: 1 }) });
+    expect(viewModel.requestPayload).toEqual({ state: 'not-captured', raw: '', notice: 'This request did not include a body.' });
+  });
+
+  it('prefers an exact raw request body over the semantic payload map when present', () => {
+    const requestBody = '{"name":"x","nested":{"n":1},"secret":"keep-me"}';
+    const viewModel = toTransactionDetail(detail({ requestBody, payload: { status: 1 } }));
+
+    expect(viewModel.requestPayload).toEqual({ state: 'captured', raw: requestBody });
+  });
+
+  it('surfaces an explicit omitted-too-large request-body state in the detail inspector', () => {
+    const viewModel = toTransactionDetail(detail({ requestBody: undefined, requestBodyState: 'omitted_too_large' }));
+
+    expect(viewModel.requestPayload).toEqual({ state: 'redacted', raw: '', notice: TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE });
   });
 
   it('falls back to explicit not-captured bodies for an absent response body and empty headers/correlations', () => {

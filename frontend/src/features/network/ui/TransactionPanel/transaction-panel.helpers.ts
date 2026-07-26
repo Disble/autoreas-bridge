@@ -1,11 +1,12 @@
 import type { CaptureDetail, CaptureRow } from '../../../../shared/contracts/capture.types';
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 import {
-  CAPTURE_REDACTION_MARKER,
   TRANSACTION_EMPTY_LABEL,
   TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE,
+  TRANSACTION_REQUEST_BODY_OMITTED_STREAMING_NOTICE,
+  TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE,
   TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE,
-  TRANSACTION_RESPONSE_REDACTED_NOTICE,
+  TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE,
 } from './transaction-panel.constants';
 import type {
   HeroChipColor,
@@ -26,8 +27,7 @@ function formatCaptureTime(capturedAtMs: number): string {
 
 /**
  * Maps an HTTP status code to the project's semantic HeroUI chip color by
- * status class (design.md "statusColor(class 2xx/3xx/4xx/5xx -> success/
- * default/warning/danger)"). An absent status renders as neutral (default).
+ * status class. An absent status renders as neutral (default).
  */
 export function getTransactionStatusColor(httpStatus: number | undefined): HeroChipColor {
   if (httpStatus === undefined) {
@@ -40,7 +40,7 @@ export function getTransactionStatusColor(httpStatus: number | undefined): HeroC
     case 2:
       return 'success';
     case 4:
-      return 'warning';
+      return 'danger';
     case 5:
       return 'danger';
     default:
@@ -84,27 +84,33 @@ function formatTransactionStatusLabel(httpStatus: number | undefined): string {
 
 /**
  * Builds a body/payload pane's view-model, distinguishing captured, never-
- * captured, and upstream-redacted content rather than conflating them into
- * one placeholder string (design.md "Truncation honesty"). A response body
- * equal to `CAPTURE_REDACTION_MARKER` is rendered as redacted, never as the
- * origin's real response; the notice never claims truncation because the
- * capture pipeline records no truncation signal.
+ * captured, omitted, and truncated content rather than conflating them into
+ * one placeholder string. Any non-empty captureState is rendered with an
+ * explicit notice so Activity never presents an incomplete body as exact.
  */
 export function toTransactionBody(source: Readonly<TransactionBodySource>): TransactionBodyViewModel {
   if (source.kind === 'request') {
-    if (Object.keys(source.payload).length === 0) {
+    if (source.captureState === 'omitted_too_large') {
+      return { state: 'redacted', raw: '', notice: TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE };
+    }
+
+    if (source.captureState === 'omitted_streaming') {
+      return { state: 'redacted', raw: '', notice: TRANSACTION_REQUEST_BODY_OMITTED_STREAMING_NOTICE };
+    }
+
+    if (source.raw === undefined || source.raw === '') {
       return { state: 'not-captured', raw: '', notice: TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE };
     }
 
-    return { state: 'captured', raw: JSON.stringify(source.payload) };
+    return { state: 'captured', raw: source.raw };
   }
 
   if (source.raw === undefined) {
     return { state: 'not-captured', raw: '', notice: TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE };
   }
 
-  if (source.raw === CAPTURE_REDACTION_MARKER) {
-    return { state: 'redacted', raw: source.raw, notice: TRANSACTION_RESPONSE_REDACTED_NOTICE };
+  if (source.captureState === 'truncated') {
+    return { state: 'redacted', raw: source.raw, notice: TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE };
   }
 
   return { state: 'captured', raw: source.raw };
@@ -115,6 +121,24 @@ function formatTransactionDuration(durationMs: number | undefined): string {
   return durationMs === undefined ? TRANSACTION_EMPTY_LABEL : `${durationMs}ms`;
 }
 
+/** Resolves whether a row is truly in flight, excluding terminal captures that still carry a legacy pending outcome token. */
+function isInFlightCapture(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): boolean {
+  return outcome === 'pending' && httpStatus === undefined && durationMs === undefined;
+}
+
+/** Normalizes a transport-only terminal capture so completed HTTP rows never keep the legacy pending label. */
+function normalizeTransactionOutcome(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): string {
+  if (isInFlightCapture(outcome, httpStatus, durationMs)) {
+    return outcome;
+  }
+
+  if (outcome === 'pending') {
+    return 'completed';
+  }
+
+  return outcome;
+}
+
 /**
  * Maps one captured transaction row (DTO) into the table's per-row
  * view-model. A pending (in-flight) row shows a live-ticking elapsed
@@ -123,14 +147,15 @@ function formatTransactionDuration(durationMs: number | undefined): string {
  * non-live callers keep working unchanged).
  */
 export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.now()): TransactionRowViewModel {
-  const isPending = row.outcome === 'pending';
+  const isPending = isInFlightCapture(row.outcome, row.httpStatus, row.durationMs);
+  const outcome = normalizeTransactionOutcome(row.outcome, row.httpStatus, row.durationMs);
 
   return {
     id: row.requestId,
     methodKind: row.kind,
     route: row.route,
-    outcome: row.outcome,
-    outcomeColor: getTransactionOutcomeColor(row.outcome),
+    outcome,
+    outcomeColor: getTransactionOutcomeColor(outcome),
     statusLabel: formatTransactionStatusLabel(row.httpStatus),
     statusColor: getTransactionStatusColor(row.httpStatus),
     hasHttpStatus: row.httpStatus !== undefined,
@@ -176,15 +201,17 @@ function toCorrelationRows(detail: Readonly<CaptureDetail>): readonly Transactio
  * Maps one captured transaction detail (DTO) into the inspector's tabbed
  * view-model: General fields, Request headers/payload, Response
  * body/headers, and correlations. Missing optional telemetry falls back to
- * "Not captured" rather than a blank or fabricated value.
+ * explicit absent-body notices rather than a blank or fabricated value.
  */
 export function toTransactionDetail(detail: Readonly<CaptureDetail>): TransactionDetailViewModel {
+  const outcome = normalizeTransactionOutcome(detail.outcome, detail.httpStatus, detail.durationMs);
+
   return {
     requestId: detail.requestId,
     methodKind: detail.kind,
     route: detail.route,
-    outcome: detail.outcome,
-    outcomeColor: getTransactionOutcomeColor(detail.outcome),
+    outcome,
+    outcomeColor: getTransactionOutcomeColor(outcome),
     statusLabel: formatTransactionStatusLabel(detail.httpStatus),
     statusColor: getTransactionStatusColor(detail.httpStatus),
     hasHttpStatus: detail.httpStatus !== undefined,
@@ -195,8 +222,8 @@ export function toTransactionDetail(detail: Readonly<CaptureDetail>): Transactio
     generalFields: toGeneralFields(detail),
     requestHeaders: toHeaderRows(detail.requestHeaders),
     responseHeaders: toHeaderRows(detail.responseHeaders),
-    requestPayload: toTransactionBody({ kind: 'request', payload: detail.payload }),
-    responseBody: toTransactionBody({ kind: 'response', raw: detail.responseBody }),
+    requestPayload: toTransactionBody({ kind: 'request', raw: detail.requestBody, captureState: detail.requestBodyState }),
+    responseBody: toTransactionBody({ kind: 'response', raw: detail.responseBody, captureState: detail.responseBodyState }),
     correlations: toCorrelationRows(detail),
   };
 }

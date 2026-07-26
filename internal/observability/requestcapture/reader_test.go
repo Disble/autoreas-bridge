@@ -105,18 +105,18 @@ func TestOpenReadOnlyDBFailsClosedWhenNeitherGenerationExists(t *testing.T) {
 	assertRequestCaptureErrorCode(t, err, "schema_mismatch")
 }
 
-// TestIsSupportedCaptureSchemaVersionAcceptsAllThreeGenerations asserts the
+// TestIsSupportedCaptureSchemaVersionAcceptsAllFourGenerations asserts the
 // reader tolerates every stored schema version produced by this or an older
 // release and rejects anything else.
-func TestIsSupportedCaptureSchemaVersionAcceptsAllThreeGenerations(t *testing.T) {
+func TestIsSupportedCaptureSchemaVersionAcceptsAllFourGenerations(t *testing.T) {
 	t.Parallel()
 
-	for _, version := range []string{"1", "2", "3"} {
+	for _, version := range []string{"1", "2", "3", "4", "5"} {
 		if !isSupportedCaptureSchemaVersion(version) {
 			t.Fatalf("expected version %q to be supported", version)
 		}
 	}
-	for _, version := range []string{"", "4", "99"} {
+	for _, version := range []string{"", "99"} {
 		if isSupportedCaptureSchemaVersion(version) {
 			t.Fatalf("expected version %q to be rejected", version)
 		}

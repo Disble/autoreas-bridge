@@ -1,5 +1,5 @@
 import { BridgeStatusCard } from '../../features/dashboard/ui/BridgeStatusCard/BridgeStatusCard';
-import { TransactionPanel } from '../../features/network/ui/TransactionPanel/TransactionPanel';
+import { ActivityView } from '../../features/network/ui/ActivityView/ActivityView';
 
 /**
  * ActivityRoute merges the bridge health strip with the real captured
@@ -7,7 +7,7 @@ import { TransactionPanel } from '../../features/network/ui/TransactionPanel/Tra
  * `EventsRoute` for the relocated `NetworkPanel` log). This is the
  * relocated destination for the removed Status route.
  */
-export function ActivityRoute() {
+export function ActivityRoute({ initialTab = 'transactions' }: Readonly<{ initialTab?: 'transactions' | 'runtime-events' }>) {
   return (
     <div className="flex flex-col gap-4">
       <header className="space-y-1">
@@ -18,7 +18,7 @@ export function ActivityRoute() {
         <BridgeStatusCard />
       </div>
       <div className="min-w-0">
-        <TransactionPanel />
+        <ActivityView initialTab={initialTab} />
       </div>
     </div>
   );

@@ -53,12 +53,17 @@ describe('capture.types', () => {
       transport: 'http',
       outcome: 'accepted',
       payload: { status: 1 },
+      requestBody: '{"name":"x","nested":{"n":1}}',
+      requestBodyState: 'omitted_too_large',
+      responseBodyState: 'truncated',
       correlations: { operationRefs: [] },
       deviceId: 'device-1',
       deviceName: 'Phone',
     };
 
     expect(detail.correlations.operationRefs).toEqual([]);
+    expect(detail.requestBody).toContain('nested');
+    expect(detail.responseBodyState).toBe('truncated');
   });
 
   it('accepts a CaptureDetailResult not-found shape', () => {

@@ -34,7 +34,7 @@ func NewHandler(config Config) http.Handler {
 	h.seasonRatings = buildSeasonRatingHandler(h, config)
 	h.activeSeason = buildActiveSeasonHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
-	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture})
+	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
 	return h
 }
 

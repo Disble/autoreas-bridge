@@ -179,8 +179,8 @@ func initializeBridgeDB(db *sql.DB) error {
 // ensureRequestCaptureMetadata seeds the request capture schema version metadata row.
 func ensureRequestCaptureMetadata(db *sql.DB) error {
 	if _, err := db.Exec(`
-		INSERT INTO request_capture_metadata (key, value) VALUES ('request_capture_schema_version', '3')
-		ON CONFLICT(key) DO UPDATE SET value = '3'
+		INSERT INTO request_capture_metadata (key, value) VALUES ('request_capture_schema_version', '5')
+		ON CONFLICT(key) DO UPDATE SET value = '5'
 	`); err != nil {
 		return fmt.Errorf("seed request capture metadata: %w", err)
 	}

@@ -7,6 +7,19 @@ const (
 	defaultPruneEvery     = 100
 	defaultSearchLimit    = 25
 	maxSearchLimit        = 100
+	// MaxCapturedBodyBytes bounds any single captured request/response body so
+	// heap, queue, and SQLite growth stay finite under abuse while ordinary JSON
+	// traffic below this budget still preserves every byte exactly.
+	MaxCapturedBodyBytes = 64 * 1024
+	// CaptureStateTruncated marks a body stored only up to MaxCapturedBodyBytes.
+	CaptureStateTruncated = "truncated"
+	// CaptureStateOmittedTooLarge marks a request body skipped pre-auth because
+	// its declared size exceeded MaxCapturedBodyBytes.
+	CaptureStateOmittedTooLarge = "omitted_too_large"
+	// CaptureStateOmittedStreaming marks a request body skipped pre-auth because
+	// its size was not declared, so reading it before auth would stream
+	// unboundedly.
+	CaptureStateOmittedStreaming = "omitted_streaming"
 )
 
 // CaptureFunc enqueues one sanitized observability record, reporting whether
@@ -17,22 +30,25 @@ type CaptureFunc func(record CaptureRecord) bool
 
 // CaptureRecord is one sanitized captured request.
 type CaptureRecord struct {
-	RequestID       string
-	CapturedAtMS    int64
-	Kind            string
-	Route           string
-	Transport       string
-	Device          DeviceIdentity
-	Outcome         string
-	AnimeID         *string
-	HTTPStatus      *int
-	Payload         map[string]any
-	Correlations    Correlations
-	ErrorCode       string
-	ResponseBody    *string           `json:"response_body,omitempty"`
-	RequestHeaders  map[string]string `json:"request_headers,omitempty"`
-	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
-	DurationMS      *int64            `json:"duration_ms,omitempty"`
+	RequestID         string
+	CapturedAtMS      int64
+	Kind              string
+	Route             string
+	Transport         string
+	Device            DeviceIdentity
+	Outcome           string
+	AnimeID           *string
+	HTTPStatus        *int
+	Payload           map[string]any
+	Correlations      Correlations
+	ErrorCode         string
+	RequestBody       *string           `json:"request_body,omitempty"`
+	RequestBodyState  string            `json:"request_body_state,omitempty"`
+	ResponseBody      *string           `json:"response_body,omitempty"`
+	ResponseBodyState string            `json:"response_body_state,omitempty"`
+	RequestHeaders    map[string]string `json:"request_headers,omitempty"`
+	ResponseHeaders   map[string]string `json:"response_headers,omitempty"`
+	DurationMS        *int64            `json:"duration_ms,omitempty"`
 }
 
 // DeviceIdentity is the trusted authenticated device projection.

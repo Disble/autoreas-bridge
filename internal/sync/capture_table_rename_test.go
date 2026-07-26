@@ -163,8 +163,8 @@ func TestCaptureTableRenamePreservesExistingRows(t *testing.T) {
 	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read renamed schema version: %v", err)
 	}
-	if version != "3" {
-		t.Fatalf("expected schema version 3 after rename, got %q", version)
+	if version != "5" {
+		t.Fatalf("expected schema version 5 after rename, got %q", version)
 	}
 	var staleKeyCount int
 	if err := db.QueryRow(`SELECT count(*) FROM request_capture_metadata WHERE key = 'mobile_request_capture_schema_version'`).Scan(&staleKeyCount); err != nil {
@@ -176,7 +176,7 @@ func TestCaptureTableRenamePreservesExistingRows(t *testing.T) {
 }
 
 // TestCaptureTableRenameFreshInstallSkipsRename asserts a brand-new database
-// gets the current-generation tables directly, at version 3, with no
+// gets the current-generation tables directly, at version 4, with no
 // previously-named object ever created.
 func TestCaptureTableRenameFreshInstallSkipsRename(t *testing.T) {
 	t.Parallel()
@@ -200,8 +200,8 @@ func TestCaptureTableRenameFreshInstallSkipsRename(t *testing.T) {
 	if err := db.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read fresh schema version: %v", err)
 	}
-	if version != "3" {
-		t.Fatalf("expected fresh schema version 3, got %q", version)
+	if version != "5" {
+		t.Fatalf("expected fresh schema version 5, got %q", version)
 	}
 }
 
@@ -270,8 +270,8 @@ func TestCaptureTableRenameIsIdempotent(t *testing.T) {
 	if err := second.QueryRow(`SELECT value FROM request_capture_metadata WHERE key = 'request_capture_schema_version'`).Scan(&version); err != nil {
 		t.Fatalf("read schema version: %v", err)
 	}
-	if version != "3" {
-		t.Fatalf("expected schema version to remain 3, got %q", version)
+	if version != "5" {
+		t.Fatalf("expected schema version to remain 5, got %q", version)
 	}
 }
 

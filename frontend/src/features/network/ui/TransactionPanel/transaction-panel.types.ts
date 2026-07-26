@@ -20,14 +20,14 @@ export interface TransactionBodyViewModel {
 }
 
 /**
- * Discriminated input for `toTransactionBody`: a response body arrives as a
- * possibly-absent string, while a request payload arrives as the already-
- * parsed `CaptureDetail.payload` object — there is no server-verbatim
- * string for it, so its "raw" form is defined as its compact serialization.
+ * Discriminated input for `toTransactionBody`: request and response bodies
+ * both arrive as optional raw strings. The semantic payload map remains on the
+ * DTO for domain/correlation consumers, but raw request-body display must read
+ * from the dedicated wire-faithful requestBody field.
  */
 export type TransactionBodySource =
-  | { readonly kind: 'response'; readonly raw: string | undefined }
-  | { readonly kind: 'request'; readonly payload: Readonly<Record<string, unknown>> };
+  | { readonly kind: 'response'; readonly raw: string | undefined; readonly captureState?: string }
+  | { readonly kind: 'request'; readonly raw: string | undefined; readonly captureState?: string };
 
 /** Presentation-ready shape of a single transaction row. */
 export interface TransactionRowViewModel {

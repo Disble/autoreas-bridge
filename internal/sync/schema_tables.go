@@ -158,14 +158,18 @@ func requestCapturesTable() persistence.TableSchema {
 	}
 }
 
-// migrateRequestCapturesSchema adds the additive response/header/duration
-// telemetry columns (nullable, ADD COLUMN only -- non-destructive).
+// migrateRequestCapturesSchema adds the additive request/response/header/duration
+// telemetry columns plus explicit body-capture-state markers (ADD COLUMN only
+// -- non-destructive).
 func migrateRequestCapturesSchema(db *sql.DB, cols []string) error {
 	for _, column := range []struct {
 		name string
 		ddl  string
 	}{
+		{name: "request_body", ddl: `ALTER TABLE request_captures ADD COLUMN request_body TEXT`},
+		{name: "request_body_state", ddl: `ALTER TABLE request_captures ADD COLUMN request_body_state TEXT NOT NULL DEFAULT ''`},
 		{name: "response_body", ddl: `ALTER TABLE request_captures ADD COLUMN response_body TEXT`},
+		{name: "response_body_state", ddl: `ALTER TABLE request_captures ADD COLUMN response_body_state TEXT NOT NULL DEFAULT ''`},
 		{name: "request_headers", ddl: `ALTER TABLE request_captures ADD COLUMN request_headers TEXT`},
 		{name: "response_headers", ddl: `ALTER TABLE request_captures ADD COLUMN response_headers TEXT`},
 		{name: "duration_ms", ddl: `ALTER TABLE request_captures ADD COLUMN duration_ms INTEGER`},

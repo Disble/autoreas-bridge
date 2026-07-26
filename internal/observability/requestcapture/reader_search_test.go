@@ -122,7 +122,7 @@ func TestSearchToleratesMissingOptionalColumns(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].RequestID != "req-legacy" {
 		t.Fatalf("expected legacy row returned, got %#v", page.Items)
 	}
-	if page.Items[0].DurationMS != nil || page.Items[0].ResponseBody != nil {
+	if page.Items[0].DurationMS != nil || page.Items[0].RequestBody != nil || page.Items[0].ResponseBody != nil {
 		t.Fatalf("expected optional telemetry fields nil on legacy schema, got %#v", page.Items[0])
 	}
 }
@@ -136,9 +136,13 @@ func TestGetExposesTelemetryWhenCaptured(t *testing.T) {
 	record.RequestID = "req-with-telemetry"
 	record.CapturedAtMS = 5
 	duration := int64(123)
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
 	body := `{"error":"failed"}`
 	record.DurationMS = &duration
+	record.RequestBody = &requestBody
+	record.RequestBodyState = CaptureStateOmittedTooLarge
 	record.ResponseBody = &body
+	record.ResponseBodyState = CaptureStateTruncated
 	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
 	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
 	if err := store.UpsertCapture(context.Background(), record); err != nil {
@@ -156,8 +160,17 @@ func TestGetExposesTelemetryWhenCaptured(t *testing.T) {
 	if result.Item.DurationMS == nil || *result.Item.DurationMS != 123 {
 		t.Fatalf("expected duration_ms 123, got %#v", result.Item.DurationMS)
 	}
+	if result.Item.RequestBody == nil || *result.Item.RequestBody != requestBody {
+		t.Fatalf("expected request body %q, got %#v", requestBody, result.Item.RequestBody)
+	}
+	if result.Item.RequestBodyState != CaptureStateOmittedTooLarge {
+		t.Fatalf("expected request body state %q, got %q", CaptureStateOmittedTooLarge, result.Item.RequestBodyState)
+	}
 	if result.Item.ResponseBody == nil || *result.Item.ResponseBody != body {
 		t.Fatalf("expected response body %q, got %#v", body, result.Item.ResponseBody)
+	}
+	if result.Item.ResponseBodyState != CaptureStateTruncated {
+		t.Fatalf("expected response body state %q, got %q", CaptureStateTruncated, result.Item.ResponseBodyState)
 	}
 	if result.Item.RequestHeaders["Content-Type"] != "application/json" {
 		t.Fatalf("expected request headers exposed, got %#v", result.Item.RequestHeaders)
@@ -187,7 +200,7 @@ func TestGetOmitsMissingOptionalFields(t *testing.T) {
 	if !result.Found {
 		t.Fatal("expected record found")
 	}
-	if result.Item.DurationMS != nil || result.Item.ResponseBody != nil || result.Item.RequestHeaders != nil || result.Item.ResponseHeaders != nil {
+	if result.Item.DurationMS != nil || result.Item.RequestBody != nil || result.Item.ResponseBody != nil || result.Item.RequestHeaders != nil || result.Item.ResponseHeaders != nil {
 		t.Fatalf("expected optional telemetry fields nil, got %#v", result.Item)
 	}
 }

@@ -131,8 +131,13 @@ export function useTransactionPanel(
   useEffect(() => {
     return runtimeSource.subscribeCaptureTransactions((row) => {
       upsertRows([row]);
+      if (selectedId === row.requestId && row.outcome !== 'pending') {
+        void source.getTransaction(row.requestId).then((result) => {
+          setSelectedDetail(result.found ? result.item : null);
+        });
+      }
     });
-  }, [runtimeSource, upsertRows]);
+  }, [runtimeSource, selectedId, setSelectedDetail, source, upsertRows]);
 
   return {
     rows,

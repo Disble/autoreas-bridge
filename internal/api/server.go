@@ -12,6 +12,7 @@ import (
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 )
 
@@ -79,6 +80,7 @@ type Config struct {
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()
 	Capture                CaptureFunc
+	PersistTerminal        func(requestcapture.CaptureRecord)
 }
 
 // Server exposes the lifecycle of the bridge HTTP server.

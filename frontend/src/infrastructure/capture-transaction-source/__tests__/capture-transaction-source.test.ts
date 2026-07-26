@@ -83,17 +83,18 @@ describe('capture-transaction-source', () => {
     const source = createCaptureTransactionSource();
     const getMock = vi.fn().mockResolvedValue({
       found: true,
-      item: {
-        requestId: 'req-1',
-        capturedAtMs: 1000,
-        kind: 'patch',
-        route: '/api/animes/anime-1',
-        transport: 'http',
-        outcome: 'accepted',
-        payload: {},
-        correlations: { operationRefs: [] },
-        deviceId: 'device-1',
-        deviceName: 'Phone',
+        item: {
+          requestId: 'req-1',
+          capturedAtMs: 1000,
+          kind: 'patch',
+          route: '/api/animes/anime-1',
+          transport: 'http',
+          outcome: 'accepted',
+          payload: {},
+          requestBody: '{"name":"x","nested":{"n":1}}',
+          correlations: { operationRefs: [] },
+          deviceId: 'device-1',
+          deviceName: 'Phone',
       },
       degraded: false,
     });

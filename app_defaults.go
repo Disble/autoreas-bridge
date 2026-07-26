@@ -113,14 +113,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 			return api.NewServer(config)
 		}
 	}
-	if a.newCaptureQueue == nil {
-		a.newCaptureQueue = func(db *sql.DB) captureQueue {
-			return requestcapture.NewQueue(requestcapture.NewStore(db, requestcapture.StoreConfig{}), requestcapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
-		}
-	}
-	if a.newCaptureReader == nil {
-		a.newCaptureReader = requestcapture.NewReader
-	}
+	a.ensureCaptureRuntimeDependencies()
 	if a.newTrayManager == nil {
 		a.newTrayManager = func() tray.Manager {
 			return nil
@@ -135,6 +128,24 @@ func (a *App) ensureSyncRuntimeDependencies() {
 		a.newTracerBulletSink = func() tracerbullet.TraceSink {
 			return tracerbullet.NewStdoutSink()
 		}
+	}
+}
+
+// ensureCaptureRuntimeDependencies fills the request-capture runtime seams used
+// by the queue/reader/fallback store wiring.
+func (a *App) ensureCaptureRuntimeDependencies() {
+	if a.newCaptureStore == nil {
+		a.newCaptureStore = func(db *sql.DB) requestcapture.Store {
+			return requestcapture.NewStore(db, requestcapture.StoreConfig{})
+		}
+	}
+	if a.newCaptureQueue == nil {
+		a.newCaptureQueue = func(db *sql.DB) captureQueue {
+			return requestcapture.NewQueue(a.newCaptureStore(db), requestcapture.QueueConfig{OnPersist: a.emitCaptureTransaction})
+		}
+	}
+	if a.newCaptureReader == nil {
+		a.newCaptureReader = requestcapture.NewReader
 	}
 }
 
