@@ -42,11 +42,6 @@ linters:
           - funlen
           - dupl
           - revive
-      # Pre-existing debt: classifyJDStatus is complex jdownloader status
-      # mapping that will be decomposed in a dedicated hoster-watch change.
-      - path: service_hoster_watch\.go
-        linters:
-          - gocognit
 
   settings:
     dupl:
