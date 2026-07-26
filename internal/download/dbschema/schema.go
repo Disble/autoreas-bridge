@@ -38,14 +38,18 @@ const (
 
 	downloadScheduleConfigDDL = `
 		CREATE TABLE IF NOT EXISTS download_schedule_config (
-			id               INTEGER PRIMARY KEY CHECK (id = 1),
-			mode             TEXT    NOT NULL DEFAULT 'in_process',
-			daily_time_hhmm  TEXT,
-			enabled          INTEGER NOT NULL DEFAULT 0,
-			last_run_at_ms   INTEGER,
-			last_run_status  TEXT,
-			next_run_at_ms   INTEGER,
-			enabled_weekdays INTEGER
+			id                            INTEGER PRIMARY KEY CHECK (id = 1),
+			mode                          TEXT    NOT NULL DEFAULT 'in_process',
+			daily_time_hhmm               TEXT,
+			enabled                       INTEGER NOT NULL DEFAULT 0,
+			last_run_at_ms                INTEGER,
+			last_run_status               TEXT,
+			next_run_at_ms                INTEGER,
+			enabled_weekdays              INTEGER,
+			last_settled_local_date       TEXT    NOT NULL DEFAULT '',
+			last_settlement_reason        TEXT    NOT NULL DEFAULT '',
+			last_missed_attempt_local_date TEXT   NOT NULL DEFAULT '',
+			last_missed_attempt_status    TEXT    NOT NULL DEFAULT ''
 		)`
 
 	downloadRunsDDL = `
@@ -94,15 +98,32 @@ func SchemaTables() []persistence.TableSchema {
 			},
 		},
 		{
-			// download_schedule_config: additive ALTER adds enabled_weekdays when absent.
-			// Legacy rows read back enabled_weekdays=NULL, which the store layer maps to
-			// 127 (all days enabled) preserving today's every-day firing behavior.
+			// download_schedule_config: additive ALTER adds weekday restrictions plus the
+			// startup-missed settlement/attempt ledger when absent. Legacy rows read back
+			// enabled_weekdays=NULL, which the store layer maps to 127 (all days enabled)
+			// preserving today's every-day firing behavior.
 			Name:      "download_schedule_config",
 			CreateDDL: downloadScheduleConfigDDL,
 			ColumnAdds: []persistence.ColumnMigration{
 				{
 					Column:   "enabled_weekdays",
 					AlterDDL: `ALTER TABLE download_schedule_config ADD COLUMN enabled_weekdays INTEGER`,
+				},
+				{
+					Column:   "last_settled_local_date",
+					AlterDDL: `ALTER TABLE download_schedule_config ADD COLUMN last_settled_local_date TEXT NOT NULL DEFAULT ''`,
+				},
+				{
+					Column:   "last_settlement_reason",
+					AlterDDL: `ALTER TABLE download_schedule_config ADD COLUMN last_settlement_reason TEXT NOT NULL DEFAULT ''`,
+				},
+				{
+					Column:   "last_missed_attempt_local_date",
+					AlterDDL: `ALTER TABLE download_schedule_config ADD COLUMN last_missed_attempt_local_date TEXT NOT NULL DEFAULT ''`,
+				},
+				{
+					Column:   "last_missed_attempt_status",
+					AlterDDL: `ALTER TABLE download_schedule_config ADD COLUMN last_missed_attempt_status TEXT NOT NULL DEFAULT ''`,
 				},
 			},
 		},

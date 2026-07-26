@@ -274,6 +274,22 @@ func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
 	return "ok"
 }
 
+// RunMissedScheduleNow executes the startup-missed selected date under the scheduler's run guard.
+func (a *App) RunMissedScheduleNow(localDate string) contracts.ScheduleMissedActionResult {
+	if a.downloadScheduler == nil {
+		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
+	}
+	return toContractsMissedActionResult(a.downloadScheduler.ResolveMissedStartupDate(a.downloadCtx(), localDate, schedule.MissedStartupActionRunNow))
+}
+
+// IgnoreMissedSchedule settles the startup-missed selected date without rewriting actual run facts.
+func (a *App) IgnoreMissedSchedule(localDate string) contracts.ScheduleMissedActionResult {
+	if a.downloadScheduler == nil {
+		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
+	}
+	return toContractsMissedActionResult(a.downloadScheduler.ResolveMissedStartupDate(a.downloadCtx(), localDate, schedule.MissedStartupActionIgnore))
+}
+
 // TriggerDownloadCheck asks the scheduler to run an immediate out-of-band download check.
 // Returns "ok" on success, a descriptive string if the scheduler is unavailable, or surfaces
 // schedule.ErrRunInProgress's message when a run (scheduled or manual) is already active
@@ -359,6 +375,18 @@ func (a *App) toContractsScheduleConfig(cfg download.ScheduleConfig) contracts.S
 	if a.downloadScheduler != nil {
 		running = a.downloadScheduler.Status(a.downloadCtx()).Running
 	}
+	var missedNotice *contracts.ScheduleMissedNotice
+	if notice := schedule.EvaluateStartupMissedSelectedDay(schedule.StartupMissedSelectedDayInput{
+		Now:              a.currentTime(),
+		ProcessStartedAt: a.processStartedAt,
+		Config:           cfg,
+	}); notice != nil {
+		missedNotice = &contracts.ScheduleMissedNotice{
+			LocalDate:     notice.LocalDate,
+			DueAtMs:       notice.DueAtMs,
+			AttemptStatus: notice.AttemptStatus,
+		}
+	}
 	return contracts.ScheduleConfig{
 		Mode:            cfg.Mode,
 		DailyTimeHHMM:   cfg.DailyTimeHHMM,
@@ -368,5 +396,18 @@ func (a *App) toContractsScheduleConfig(cfg download.ScheduleConfig) contracts.S
 		NextRunAtMs:     cfg.NextRunAtMs,
 		Running:         running,
 		EnabledWeekdays: int(cfg.EnabledWeekdays),
+		MissedNotice:    missedNotice,
+	}
+}
+
+// toContractsMissedActionResult maps a scheduler missed-startup action result to the
+// contracts DTOs used by the Wails binding surface.
+func toContractsMissedActionResult(result schedule.MissedStartupActionResult) contracts.ScheduleMissedActionResult {
+	return contracts.ScheduleMissedActionResult{
+		Kind:             string(result.Kind),
+		LocalDate:        result.LocalDate,
+		TerminalStatus:   result.TerminalStatus,
+		SettlementReason: string(result.SettlementReason),
+		Message:          result.Message,
 	}
 }

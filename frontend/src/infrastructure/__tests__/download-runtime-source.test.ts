@@ -42,8 +42,29 @@ describe('download-runtime-source', () => {
         nextRunAtMs: 0,
         running: false,
         enabledWeekdays: 127,
+        missedNotice: undefined,
       },
       hosterPriority: [],
+    });
+  });
+
+  it('degrades missed-notice actions to descriptive error results when the runtime is unavailable', async () => {
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const source = createDownloadRuntimeSource();
+
+    const runPromise = source.runMissedScheduleNow('2026-07-26');
+    const ignorePromise = source.ignoreMissedSchedule('2026-07-26');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(runPromise).resolves.toEqual({
+      kind: 'error',
+      localDate: '2026-07-26',
+      message: 'runtime unavailable',
+    });
+    await expect(ignorePromise).resolves.toEqual({
+      kind: 'error',
+      localDate: '2026-07-26',
+      message: 'runtime unavailable',
     });
   });
 
@@ -183,16 +204,25 @@ describe('download-runtime-source', () => {
 
   it('preserves status, schedule, and run payloads returned by live Wails bindings', async () => {
     const jdStatus = { connected: true, status: 'online' };
-    const scheduleConfig = { enabled: true, mode: 'daily', dailyTimeHHMM: '03:00' };
+    const scheduleConfig = {
+      enabled: true,
+      mode: 'daily',
+      dailyTimeHHMM: '03:00',
+      missedNotice: { localDate: '2026-07-26', dueAtMs: 1_722_027_600_000, attemptStatus: 'partial' },
+    };
     const downloadRuns = [{ id: 'run-1', status: 'finished' }];
     const getJDStatusMock = vi.fn().mockResolvedValue(jdStatus);
     const getScheduleConfigMock = vi.fn().mockResolvedValue(scheduleConfig);
     const listDownloadRunsMock = vi.fn().mockResolvedValue(downloadRuns);
+    const runMissedScheduleNowMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' });
+    const ignoreMissedScheduleMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' });
     window.go = {
       main: {
         App: {
           GetJDStatus: getJDStatusMock,
           GetScheduleConfig: getScheduleConfigMock,
+          RunMissedScheduleNow: runMissedScheduleNowMock,
+          IgnoreMissedSchedule: ignoreMissedScheduleMock,
           ListDownloadRuns: listDownloadRunsMock,
         },
       },
@@ -203,9 +233,13 @@ describe('download-runtime-source', () => {
 
     await expect(source.getJDStatus()).resolves.toEqual(jdStatus);
     await expect(source.getScheduleConfig()).resolves.toEqual(scheduleConfig);
+    await expect(source.runMissedScheduleNow('2026-07-26')).resolves.toEqual({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' });
+    await expect(source.ignoreMissedSchedule('2026-07-26')).resolves.toEqual({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' });
     await expect(source.listDownloadRuns()).resolves.toEqual(downloadRuns);
     expect(getJDStatusMock).toHaveBeenCalledTimes(1);
     expect(getScheduleConfigMock).toHaveBeenCalledTimes(1);
+    expect(runMissedScheduleNowMock).toHaveBeenCalledWith('2026-07-26');
+    expect(ignoreMissedScheduleMock).toHaveBeenCalledWith('2026-07-26');
     expect(listDownloadRunsMock).toHaveBeenCalledTimes(1);
   });
 

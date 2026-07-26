@@ -99,6 +99,7 @@ type App struct {
 	pickFile                 func(ctx context.Context, title string) (string, error)
 	copyText                 func(ctx context.Context, value string) error
 	nowTime                  func() time.Time
+	processStartedAt         time.Time
 }
 
 const observabilityEventName = "observability.log"
@@ -170,6 +171,9 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.processStartedAt.IsZero() {
+		a.processStartedAt = a.currentTime()
+	}
 	a.ensureRuntimeDependencies()
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)

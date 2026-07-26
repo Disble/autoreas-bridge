@@ -174,14 +174,31 @@ type JDConfigInput struct {
 
 // ScheduleConfig is the UI-facing twin of the persisted download schedule.
 type ScheduleConfig struct {
-	Mode            string `json:"mode"`
-	DailyTimeHHMM   string `json:"dailyTimeHHMM"`
-	Enabled         bool   `json:"enabled"`
-	LastRunAtMs     int64  `json:"lastRunAtMs"`
-	LastRunStatus   string `json:"lastRunStatus"`
-	NextRunAtMs     int64  `json:"nextRunAtMs"`
-	Running         bool   `json:"running"`
-	EnabledWeekdays int    `json:"enabledWeekdays"`
+	Mode            string                `json:"mode"`
+	DailyTimeHHMM   string                `json:"dailyTimeHHMM"`
+	Enabled         bool                  `json:"enabled"`
+	LastRunAtMs     int64                 `json:"lastRunAtMs"`
+	LastRunStatus   string                `json:"lastRunStatus"`
+	NextRunAtMs     int64                 `json:"nextRunAtMs"`
+	Running         bool                  `json:"running"`
+	EnabledWeekdays int                   `json:"enabledWeekdays"`
+	MissedNotice    *ScheduleMissedNotice `json:"missedNotice,omitempty"`
+}
+
+// ScheduleMissedNotice is the startup-only actionable missed selected-day notice overlay.
+type ScheduleMissedNotice struct {
+	LocalDate     string `json:"localDate"`
+	DueAtMs       int64  `json:"dueAtMs"`
+	AttemptStatus string `json:"attemptStatus,omitempty"`
+}
+
+// ScheduleMissedActionResult is the authoritative Run now / Ignore outcome.
+type ScheduleMissedActionResult struct {
+	Kind             string `json:"kind"`
+	LocalDate        string `json:"localDate"`
+	TerminalStatus   string `json:"terminalStatus,omitempty"`
+	SettlementReason string `json:"settlementReason,omitempty"`
+	Message          string `json:"message,omitempty"`
 }
 
 // ManualLink is a persisted manual-download fallback bundle.

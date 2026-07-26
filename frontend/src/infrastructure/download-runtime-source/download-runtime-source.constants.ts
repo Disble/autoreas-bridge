@@ -1,4 +1,4 @@
-import type { DownloadConfig, JDStatus, ScheduleConfig } from '../../shared/contracts/download.types';
+import type { DownloadConfig, JDStatus, ScheduleConfig, ScheduleMissedActionResult } from '../../shared/contracts/download.types';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
 
 /** Event names that indicate the download run history became stale. */
@@ -25,7 +25,17 @@ export const EMPTY_SCHEDULE_CONFIG: ScheduleConfig = {
   nextRunAtMs: 0,
   running: false,
   enabledWeekdays: 127,
+  missedNotice: undefined,
 };
+
+/** Safe degraded missed-notice action result returned when Wails is unavailable. */
+export function createRuntimeUnavailableMissedActionResult(localDate: string): ScheduleMissedActionResult {
+  return {
+    kind: 'error',
+    localDate,
+    message: 'runtime unavailable',
+  };
+}
 
 /** Safe degraded download config returned when Wails is unavailable. */
 export const EMPTY_DOWNLOAD_CONFIG: DownloadConfig = {

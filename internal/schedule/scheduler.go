@@ -54,10 +54,11 @@ const (
 )
 
 type scheduler struct {
-	store ConfigStore
-	clock Clock
-	run   RunFunc
-	log   logger.Logger
+	store            ConfigStore
+	clock            Clock
+	run              RunFunc
+	log              logger.Logger
+	processStartedAt time.Time
 
 	idleInterval      time.Duration
 	shutdownDrainWait time.Duration
@@ -70,10 +71,11 @@ type scheduler struct {
 	loopDone  chan struct{}
 	stopOnce  sync.Once
 
-	mu          sync.Mutex
-	loopCancel  context.CancelFunc
-	runCancel   context.CancelFunc
-	runDoneChan chan struct{}
+	mu                     sync.Mutex
+	loopCancel             context.CancelFunc
+	runCancel              context.CancelFunc
+	runDoneChan            chan struct{}
+	claimedMissedLocalDate string
 }
 
 // NotifyConfigChanged wakes the scheduler loop so a just-saved schedule is re-read immediately
@@ -312,12 +314,20 @@ func (s *scheduler) fireScheduledTick(ctx context.Context) {
 		return
 	}
 	startedAt := s.clock.Now()
+	occurrenceLocalDate := localDateISO(startedAt)
 	// Run synchronously within the tick: the loop re-arms its timer on the NEXT iteration
 	// after the run finishes, which is correct for a daily cadence (there is no benefit to
 	// racing the next day's boundary against an in-flight run, and it keeps the guard's
 	// happens-before relationship with the loop simple and race-free).
 	status, err := s.executeRun(runCtx, doneChan, "scheduled")
 	s.markScheduledRun(ctx, startedAt, status, err)
+	if err == nil && status == download.RunStatusOK {
+		_, _ = s.store.ApplyScheduleSettlement(ctx, download.ScheduleSettlementRequest{
+			LocalDate:   occurrenceLocalDate,
+			Reason:      download.ScheduleSettlementScheduled,
+			NextRunAtMs: s.currentNextRunAtMs(ctx),
+		})
+	}
 }
 
 // markScheduledRun records the result of a scheduled run.
@@ -348,6 +358,15 @@ func (s *scheduler) logf(format string, args ...any) {
 		return
 	}
 	s.log.Warnf("download", format, args...)
+}
+
+// currentNextRunAtMs reads the stored schedule config and returns the persisted next-run timestamp.
+func (s *scheduler) currentNextRunAtMs(ctx context.Context) int64 {
+	cfg, err := s.store.GetScheduleConfig(ctx)
+	if err != nil {
+		return 0
+	}
+	return cfg.NextRunAtMs
 }
 
 var _ Scheduler = (*scheduler)(nil)

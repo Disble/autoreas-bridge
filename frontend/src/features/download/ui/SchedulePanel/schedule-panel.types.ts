@@ -12,6 +12,13 @@ export interface WeekdayOption {
   readonly bit: number;
 }
 
+/** Read-only view model for the startup-only missed selected-day notice alert. */
+export interface ScheduleMissedNoticeViewModel {
+  readonly localDate: string;
+  readonly dueLabel: string;
+  readonly attemptStatus?: string;
+}
+
 /** View model rendered by `SchedulePanel`, derived from `ScheduleConfig` and preferences. */
 export type SchedulePanelViewModel = Pick<
   ScheduleConfig,
@@ -25,6 +32,7 @@ export type SchedulePanelViewModel = Pick<
   readonly willNeverRun: boolean;
   /** True when season mode is active — each run downloads the "Ver hoy" set. */
   readonly seasonModeActive: boolean;
+  readonly missedNotice?: ScheduleMissedNoticeViewModel;
 };
 
 /** The user-editable subset of `ScheduleConfig` the form can change. */

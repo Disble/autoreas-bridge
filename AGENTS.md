@@ -127,6 +127,7 @@
 
 | Skill | Trigger |
 | --- | --- |
+| `app-notification-pipeline` | Adding a toast notification source, notification actions/buttons, or debugging toast visibility |
 | `bridge-testing` | Parser, watcher, SQLite, sync, HTTP, event bus tests |
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |

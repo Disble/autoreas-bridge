@@ -31,6 +31,8 @@ type Clock interface {
 type ConfigStore interface {
 	GetScheduleConfig(ctx context.Context) (download.ScheduleConfig, error)
 	MarkScheduleRun(ctx context.Context, lastAtMs int64, status string, nextAtMs int64) error
+	ApplyScheduleSettlement(ctx context.Context, req download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error)
+	RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error
 }
 
 // RunFunc is the injected run-callback seam (design.md §3.9). Phase 6 wires the real
@@ -50,13 +52,51 @@ type Status struct {
 	Running       bool
 }
 
+// MissedStartupAction names the scheduler-owned startup-missed notice action.
+type MissedStartupAction string
+
+const (
+	// MissedStartupActionRunNow performs a real download run for the missed selected date.
+	MissedStartupActionRunNow MissedStartupAction = "run_now"
+	// MissedStartupActionIgnore settles the missed date without running a download.
+	MissedStartupActionIgnore MissedStartupAction = "ignore"
+)
+
+// MissedStartupActionKind classifies the authoritative action result.
+type MissedStartupActionKind string
+
+const (
+	// MissedStartupActionSettled indicates the action settled the missed date successfully.
+	MissedStartupActionSettled MissedStartupActionKind = "settled"
+	// MissedStartupActionAlreadyResolved indicates the missed date was already settled before the action.
+	MissedStartupActionAlreadyResolved MissedStartupActionKind = "already_resolved"
+	// MissedStartupActionRunInProgress indicates a Run now is in progress and the caller should wait.
+	MissedStartupActionRunInProgress MissedStartupActionKind = "run_in_progress"
+	// MissedStartupActionNotAvailable indicates the missed-notice action is not currently eligible.
+	MissedStartupActionNotAvailable MissedStartupActionKind = "not_available"
+	// MissedStartupActionUnresolvedTerminal indicates a Run now completed but did not settle the date.
+	MissedStartupActionUnresolvedTerminal MissedStartupActionKind = "unresolved_terminal"
+	// MissedStartupActionError indicates an internal error prevented the action from executing.
+	MissedStartupActionError MissedStartupActionKind = "error"
+)
+
+// MissedStartupActionResult is the scheduler-owned missed-notice action outcome.
+type MissedStartupActionResult struct {
+	Kind             MissedStartupActionKind
+	LocalDate        string
+	TerminalStatus   string
+	SettlementReason download.ScheduleSettlementReason
+	Message          string
+}
+
 // Deps are the constructor seams for Scheduler. Every field is an interface or func so the
 // whole scheduler is testable without real time or a real download (PR4a brief).
 type Deps struct {
-	Store ConfigStore
-	Clock Clock
-	Run   RunFunc
-	Log   logger.Logger
+	Store            ConfigStore
+	Clock            Clock
+	Run              RunFunc
+	Log              logger.Logger
+	ProcessStartedAt time.Time
 
 	// IdleInterval overrides defaultIdleInterval (re-check cadence while disabled).
 	IdleInterval time.Duration
@@ -72,6 +112,7 @@ type Scheduler interface {
 	Stop()
 	NotifyConfigChanged()
 	TriggerNow(ctx context.Context, trigger string) error
+	ResolveMissedStartupDate(ctx context.Context, localDate string, action MissedStartupAction) MissedStartupActionResult
 	Status(ctx context.Context) Status
 }
 
@@ -82,6 +123,7 @@ func NewScheduler(deps Deps) Scheduler {
 		clock:             deps.Clock,
 		run:               deps.Run,
 		log:               deps.Log,
+		processStartedAt:  deps.ProcessStartedAt,
 		idleInterval:      deps.IdleInterval,
 		shutdownDrainWait: deps.ShutdownDrainWait,
 		maxRunDuration:    deps.MaxRunDuration,

@@ -40,6 +40,26 @@ export type JDConfigInput = Pick<
  * ScheduleConfig mirrors `contracts.ScheduleConfig` (Go): the scheduler's
  * persisted cadence plus live next/last-run/running status.
  */
+/** Startup-only missed selected-day notice surfaced separately from factual run fields. */
+export interface ScheduleMissedNotice {
+  readonly localDate: string;
+  readonly dueAtMs: number;
+  readonly attemptStatus?: string;
+}
+
+/** Scheduler-owned Run now / Ignore action result for a startup missed notice. */
+export interface ScheduleMissedActionResult {
+  readonly kind: string;
+  readonly localDate: string;
+  readonly terminalStatus?: string;
+  readonly settlementReason?: string;
+  readonly message?: string;
+}
+
+/**
+ * ScheduleConfig mirrors `contracts.ScheduleConfig` (Go): the scheduler's
+ * persisted cadence plus live next/last-run/running status.
+ */
 export interface ScheduleConfig {
   readonly mode: string;
   readonly dailyTimeHHMM: string;
@@ -50,6 +70,7 @@ export interface ScheduleConfig {
   readonly running: boolean;
   /** 7-bit weekday mask (bit0=Sunday..bit6=Saturday; all-days=127) restricting which days fire. */
   readonly enabledWeekdays: number;
+  readonly missedNotice?: ScheduleMissedNotice;
 }
 
 /**

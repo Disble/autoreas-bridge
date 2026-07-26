@@ -24,7 +24,6 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   const hasLoaded = useDownloadRuntimeStore((state) => state.runHistoryHasLoaded);
   const errorMessage = useDownloadRuntimeStore((state) => state.runHistoryErrorMessage);
   const selectedRunId = useDownloadRuntimeStore((state) => state.selectedRunId);
-  const refreshRunHistory = useDownloadRuntimeStore((state) => state.refreshRunHistory);
   const storeSelectRun = useDownloadRuntimeStore((state) => state.selectRun);
 
   // 4. Queries/Mutations
@@ -44,10 +43,6 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   useEffect(() => {
     connectDownloadRuntimeStore(source);
   }, [source]);
-
-  useEffect(() => {
-    void refreshRunHistory(source);
-  }, [refreshRunHistory, source]);
 
   useEffect(() => {
     setVisibleCount((currentVisibleCount) =>

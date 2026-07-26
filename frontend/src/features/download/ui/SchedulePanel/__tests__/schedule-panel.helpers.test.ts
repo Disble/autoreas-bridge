@@ -17,11 +17,12 @@ const baseConfig: ScheduleConfig = {
   nextRunAtMs: 1_700_086_400_000,
   running: false,
   enabledWeekdays: 127,
+  missedNotice: undefined,
 };
 
 describe('toSchedulePanelViewModel', () => {
   it('maps enabled/dailyTimeHHMM/running through unchanged', () => {
-    const viewModel = toSchedulePanelViewModel(baseConfig);
+    const viewModel = toSchedulePanelViewModel(baseConfig, undefined);
 
     expect(viewModel.enabled).toBe(true);
     expect(viewModel.dailyTimeHHMM).toBe('03:30');
@@ -29,56 +30,98 @@ describe('toSchedulePanelViewModel', () => {
   });
 
   it('formats lastRunAtMs as a locale date-time string', () => {
-    const viewModel = toSchedulePanelViewModel(baseConfig);
+    const viewModel = toSchedulePanelViewModel(baseConfig, undefined);
 
     expect(viewModel.lastRunLabel).toBe(new Date(1_700_000_000_000).toLocaleString());
   });
 
   it('computes the next-run label from the enabled config, not from the persisted timestamp', () => {
     const now = new Date(2024, 0, 1, 12, 0, 0); // Mon noon; baseConfig runs 03:30 every day
-    const viewModel = toSchedulePanelViewModel(baseConfig, now);
+    const viewModel = toSchedulePanelViewModel(baseConfig, undefined, now);
 
     const expected = new Date(2024, 0, 2, 3, 30, 0, 0); // 03:30 already passed Mon -> Tue
     expect(viewModel.nextRunLabel).toBe(expected.toLocaleString());
   });
 
   it('renders "Never" for lastRunLabel when lastRunAtMs is 0', () => {
-    const viewModel = toSchedulePanelViewModel({ ...baseConfig, lastRunAtMs: 0 });
+    const viewModel = toSchedulePanelViewModel({ ...baseConfig, lastRunAtMs: 0 }, undefined);
 
     expect(viewModel.lastRunLabel).toBe('Never');
   });
 
   it('renders "Not scheduled" for nextRunLabel when disabled', () => {
-    const viewModel = toSchedulePanelViewModel({ ...baseConfig, enabled: false, nextRunAtMs: 0 });
+    const viewModel = toSchedulePanelViewModel({ ...baseConfig, enabled: false, nextRunAtMs: 0 }, undefined);
 
     expect(viewModel.nextRunLabel).toBe('Not scheduled');
   });
 
   it('renders "Not scheduled" for nextRunLabel when the enabled time is invalid', () => {
-    const viewModel = toSchedulePanelViewModel({ ...baseConfig, dailyTimeHHMM: '99:99' });
+    const viewModel = toSchedulePanelViewModel({ ...baseConfig, dailyTimeHHMM: '99:99' }, undefined);
 
     expect(viewModel.nextRunLabel).toBe('Not scheduled');
   });
 
   it('passes lastRunStatus through unchanged', () => {
-    const viewModel = toSchedulePanelViewModel(baseConfig);
+    const viewModel = toSchedulePanelViewModel(baseConfig, undefined);
 
     expect(viewModel.lastRunStatus).toBe('ok');
   });
 
   it('exposes the enabled weekdays and their ToggleButton ids', () => {
-    const viewModel = toSchedulePanelViewModel({ ...baseConfig, enabledWeekdays: 0b0011000 }); // Wed(3)+Thu(4)
+    const viewModel = toSchedulePanelViewModel({ ...baseConfig, enabledWeekdays: 0b0011000 }, undefined); // Wed(3)+Thu(4)
 
     expect(viewModel.enabledWeekdays).toBe(0b0011000);
     expect(viewModel.selectedWeekdayValues).toEqual(['3', '4']);
   });
 
   it('flags willNeverRun when enabled with no weekdays selected', () => {
-    expect(toSchedulePanelViewModel({ ...baseConfig, enabled: true, enabledWeekdays: 0 }).willNeverRun).toBe(true);
+    expect(toSchedulePanelViewModel({ ...baseConfig, enabled: true, enabledWeekdays: 0 }, undefined).willNeverRun).toBe(true);
+  });
+
+  it('maps the startup-only missed notice into a readable panel view model', () => {
+    const now = new Date(2026, 6, 26, 22, 0, 0);
+    const missedNotice = {
+      localDate: '2026-07-26',
+      dueAtMs: new Date(2026, 6, 26, 21, 0, 0).getTime(),
+      attemptStatus: 'partial',
+    };
+    const viewModel = toSchedulePanelViewModel(
+      {
+        ...baseConfig,
+        missedNotice,
+      },
+      missedNotice,
+      now,
+    );
+
+    expect(viewModel.missedNotice).toEqual({
+      localDate: '2026-07-26',
+      dueLabel: new Date(2026, 6, 26, 21, 0, 0).toLocaleString(),
+      attemptStatus: 'partial',
+    });
+  });
+
+  it('can override the missed notice so the panel mirrors the shared controller state', () => {
+    const now = new Date(2026, 6, 26, 22, 0, 0);
+    const configMissedNotice = {
+      localDate: '2026-07-26',
+      dueAtMs: new Date(2026, 6, 26, 21, 0, 0).getTime(),
+      attemptStatus: 'partial',
+    };
+    const viewModel = toSchedulePanelViewModel(
+      {
+        ...baseConfig,
+        missedNotice: configMissedNotice,
+      },
+      undefined,
+      now,
+    );
+
+    expect(viewModel.missedNotice).toBeUndefined();
   });
 
   it('does not flag willNeverRun when disabled even with no weekdays', () => {
-    expect(toSchedulePanelViewModel({ ...baseConfig, enabled: false, enabledWeekdays: 0 }).willNeverRun).toBe(false);
+    expect(toSchedulePanelViewModel({ ...baseConfig, enabled: false, enabledWeekdays: 0 }, undefined).willNeverRun).toBe(false);
   });
 });
 
@@ -148,6 +191,19 @@ describe('toScheduleSaveRequest', () => {
       nextRunAtMs: 1_700_086_400_000,
       running: false,
       enabledWeekdays: 96,
+      missedNotice: undefined,
     });
+  });
+
+  it('preserves the current missedNotice overlay because only the backend can settle it', () => {
+    const request = toScheduleSaveRequest(
+      {
+        ...baseConfig,
+        missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000, attemptStatus: 'partial' },
+      },
+      { enabled: false, dailyTimeHHMM: '04:00', enabledWeekdays: 96 },
+    );
+
+    expect(request.missedNotice).toEqual({ localDate: '2026-07-26', dueAtMs: 1_721_000_000_000, attemptStatus: 'partial' });
   });
 });

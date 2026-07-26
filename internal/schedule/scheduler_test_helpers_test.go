@@ -98,8 +98,9 @@ func (c *fakeClock) timerCount() int {
 
 // fakeConfigStore is an in-memory ConfigReader/ConfigWriter fake (no SQLite dependency).
 type fakeConfigStore struct {
-	mu  sync.Mutex
-	cfg download.ScheduleConfig
+	mu                 sync.Mutex
+	cfg                download.ScheduleConfig
+	settlementRequests []download.ScheduleSettlementRequest
 }
 
 func (s *fakeConfigStore) GetScheduleConfig(_ context.Context) (download.ScheduleConfig, error) {
@@ -114,6 +115,38 @@ func (s *fakeConfigStore) MarkScheduleRun(_ context.Context, lastAtMs int64, sta
 	s.cfg.LastRunAtMs = lastAtMs
 	s.cfg.LastRunStatus = status
 	s.cfg.NextRunAtMs = nextAtMs
+	return nil
+}
+
+func (s *fakeConfigStore) ApplyScheduleSettlement(_ context.Context, req download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settlementRequests = append(s.settlementRequests, req)
+	if s.cfg.LastSettledLocalDate > req.LocalDate {
+		return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementObsolete}, nil
+	}
+	if s.cfg.LastSettledLocalDate == req.LocalDate {
+		return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementIdempotent}, nil
+	}
+	s.cfg.LastSettledLocalDate = req.LocalDate
+	s.cfg.LastSettlementReason = req.Reason
+	s.cfg.NextRunAtMs = req.NextRunAtMs
+	s.cfg.LastMissedAttemptDate = ""
+	s.cfg.LastMissedAttemptStatus = ""
+	if req.SuccessfulRunAtMs != nil {
+		s.cfg.LastRunAtMs = *req.SuccessfulRunAtMs
+	}
+	if req.SuccessfulStatus != "" {
+		s.cfg.LastRunStatus = req.SuccessfulStatus
+	}
+	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
+}
+
+func (s *fakeConfigStore) RecordMissedStartupAttempt(_ context.Context, localDate string, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cfg.LastMissedAttemptDate = localDate
+	s.cfg.LastMissedAttemptStatus = status
 	return nil
 }
 

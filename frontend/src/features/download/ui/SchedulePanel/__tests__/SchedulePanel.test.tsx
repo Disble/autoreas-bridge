@@ -21,6 +21,7 @@ const baseViewModel: SchedulePanelViewModel = {
   selectedWeekdayValues: ['1', '2', '3', '4', '5', '6', '0'],
   willNeverRun: false,
   seasonModeActive: false,
+  missedNotice: undefined,
 };
 
 type HookReturn = ReturnType<typeof useSchedulePanel>;
@@ -37,6 +38,10 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     setDailyTimeDraft: vi.fn(),
     commitDailyTime: vi.fn(),
     setWeekdays: vi.fn(),
+    runMissedScheduleNow: vi.fn(),
+    ignoreMissedSchedule: vi.fn(),
+    isResolvingMissedAction: false,
+    missedActionMessage: undefined,
     ...overrides,
   });
 }
@@ -162,6 +167,61 @@ describe('SchedulePanel', () => {
     render(<SchedulePanel />);
 
     expect(screen.getByText(/no days selected/i)).toBeInTheDocument();
+  });
+
+  it('renders the missed selected-day notice with Run now and Ignore controls', () => {
+    mockHook({
+      viewModel: {
+        ...baseViewModel,
+        missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: 'partial' },
+      },
+    });
+
+    render(<SchedulePanel />);
+
+    expect(screen.getByText(/missed selected day/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ignore' })).toBeInTheDocument();
+    expect(screen.getByText(/partial/i)).toBeInTheDocument();
+  });
+
+  it('calls runMissedScheduleNow when the Run now action is pressed', () => {
+    const runMissedScheduleNow = vi.fn().mockReturnValue({ catch: vi.fn() });
+    mockHook({
+      runMissedScheduleNow,
+      viewModel: { ...baseViewModel, missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: undefined } },
+    });
+
+    render(<SchedulePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run now' }));
+
+    expect(runMissedScheduleNow).toHaveBeenCalledWith('2026-07-26');
+  });
+
+  it('calls ignoreMissedSchedule when the Ignore action is pressed', () => {
+    const ignoreMissedSchedule = vi.fn().mockReturnValue({ catch: vi.fn() });
+    mockHook({
+      ignoreMissedSchedule,
+      viewModel: { ...baseViewModel, missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: undefined } },
+    });
+
+    render(<SchedulePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ignore' }));
+
+    expect(ignoreMissedSchedule).toHaveBeenCalledWith('2026-07-26');
+  });
+
+  it('renders a missed-action message when the hook reports one', () => {
+    mockHook({
+      missedActionMessage: 'Run now finished with partial. The notice remains active.',
+      viewModel: { ...baseViewModel, missedNotice: { localDate: '2026-07-26', dueLabel: '7/26/2026, 9:00:00 PM', attemptStatus: 'partial' } },
+    });
+
+    render(<SchedulePanel />);
+
+    expect(screen.getByText('Run now finished with partial. The notice remains active.')).toBeInTheDocument();
   });
 
   it('shows a save error message when saveErrorMessage is set', () => {

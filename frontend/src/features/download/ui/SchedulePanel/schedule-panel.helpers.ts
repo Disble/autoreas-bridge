@@ -1,6 +1,6 @@
-import type { ScheduleConfig } from '../../../../shared/contracts/download.types';
+import type { ScheduleConfig, ScheduleMissedNotice } from '../../../../shared/contracts/download.types';
 import { ALL_WEEKDAYS_MASK, WEEKDAY_OPTIONS } from './schedule-panel.constants';
-import type { SchedulePanelViewModel, ScheduleSaveEdits } from './schedule-panel.types';
+import type { ScheduleMissedNoticeViewModel, SchedulePanelViewModel, ScheduleSaveEdits } from './schedule-panel.types';
 
 /**
  * Maps a 7-bit weekday mask (bit i = `time.Weekday(i)`, Sunday=0..Saturday=6)
@@ -66,6 +66,19 @@ export function computeNextRunAtMs(now: Date, dailyTimeHHMM: string, enabledWeek
   return null;
 }
 
+/** Maps a missed-notice DTO to the panel's dumb-UI view model. */
+function toMissedNoticeViewModel(notice: ScheduleMissedNotice | undefined): ScheduleMissedNoticeViewModel | undefined {
+  if (notice === undefined) {
+    return undefined;
+  }
+
+  return {
+    localDate: notice.localDate,
+    dueLabel: new Date(notice.dueAtMs).toLocaleString(),
+    attemptStatus: notice.attemptStatus,
+  };
+}
+
 /**
  * Derives the "Next run" label: a live preview computed from the current
  * (enabled) config so the user sees their schedule take effect immediately,
@@ -90,6 +103,7 @@ function toNextRunLabel(config: ScheduleConfig, now: Date): string {
  */
 export function toSchedulePanelViewModel(
   config: ScheduleConfig,
+  missedNotice: ScheduleMissedNotice | undefined,
   now: Date = new Date(),
 ): Omit<SchedulePanelViewModel, 'seasonModeActive'> {
   return {
@@ -102,6 +116,7 @@ export function toSchedulePanelViewModel(
     enabledWeekdays: config.enabledWeekdays,
     selectedWeekdayValues: maskToWeekdayValues(config.enabledWeekdays),
     willNeverRun: config.enabled && config.enabledWeekdays === 0,
+    missedNotice: toMissedNoticeViewModel(missedNotice),
   };
 }
 
@@ -117,3 +132,5 @@ export function toScheduleSaveRequest(current: ScheduleConfig, edits: ScheduleSa
     ...edits,
   };
 }
+
+

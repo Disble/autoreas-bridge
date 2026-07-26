@@ -16,6 +16,7 @@ const baseConfig: ScheduleConfig = {
   nextRunAtMs: 1_700_086_400_000,
   running: false,
   enabledWeekdays: 127,
+  missedNotice: undefined,
 };
 
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -28,6 +29,8 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
+    runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' }),
+    ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' }),
     listDownloadRuns: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
@@ -259,5 +262,63 @@ describe('useSchedulePanel', () => {
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
     await waitFor(() => expect(result.current.viewModel.seasonModeActive).toBe(false));
+  });
+
+  it('runMissedScheduleNow delegates to the runtime source and refreshes the schedule overlay', async () => {
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...baseConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
+        .mockResolvedValueOnce({ ...baseConfig, missedNotice: undefined }),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await act(async () => {
+      await result.current.runMissedScheduleNow('2026-07-26');
+    });
+
+    expect(source.runMissedScheduleNow).toHaveBeenCalledWith('2026-07-26');
+    expect(result.current.viewModel.missedNotice).toBeUndefined();
+  });
+
+  it('ignoreMissedSchedule delegates to the runtime source and refreshes the schedule overlay', async () => {
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...baseConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
+        .mockResolvedValueOnce({ ...baseConfig, missedNotice: undefined }),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await act(async () => {
+      await result.current.ignoreMissedSchedule('2026-07-26');
+    });
+
+    expect(source.ignoreMissedSchedule).toHaveBeenCalledWith('2026-07-26');
+    expect(result.current.viewModel.missedNotice).toBeUndefined();
+  });
+
+  it('keeps the notice visible and surfaces a message when Run now returns an unresolved terminal result', async () => {
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...baseConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
+        .mockResolvedValueOnce({
+          ...baseConfig,
+          missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000, attemptStatus: 'partial' },
+        }),
+      runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'unresolved_terminal', localDate: '2026-07-26', terminalStatus: 'partial' }),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    await act(async () => {
+      await result.current.runMissedScheduleNow('2026-07-26');
+    });
+
+    expect(result.current.viewModel.missedNotice?.attemptStatus).toBe('partial');
+    expect(result.current.missedActionMessage).toContain('partial');
   });
 });

@@ -10,6 +10,11 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
   scheduleConfig: EMPTY_SCHEDULE_CONFIG,
   scheduleHasLoaded: false,
   scheduleErrorMessage: undefined,
+  hiddenMissedNoticeDate: undefined,
+  activeMissedFailureDate: undefined,
+  shownMissedFailureDates: [],
+  missedNoticeActionMessage: undefined,
+  missedNoticeIsResolving: false,
   runHistory: [],
   runHistoryHasLoaded: false,
   runHistoryErrorMessage: undefined,
@@ -37,6 +42,22 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
       });
     }
   },
+  hideMissedNoticeDecision: (localDate) => set({ hiddenMissedNoticeDate: localDate }),
+  restoreMissedNoticeDecision: () => set({ hiddenMissedNoticeDate: undefined }),
+  showMissedScheduleFailure: (localDate) =>
+    set((state) => {
+      if (state.shownMissedFailureDates.includes(localDate)) {
+        return state.activeMissedFailureDate === localDate ? state : {};
+      }
+
+      return {
+        activeMissedFailureDate: localDate,
+        shownMissedFailureDates: [...state.shownMissedFailureDates, localDate],
+      };
+    }),
+  clearMissedScheduleFailure: () => set({ activeMissedFailureDate: undefined }),
+  setMissedNoticeActionMessage: (message) => set({ missedNoticeActionMessage: message }),
+  setMissedNoticeResolving: (isResolving) => set({ missedNoticeIsResolving: isResolving }),
   selectRun: (selectedRunId) => set({ selectedRunId }),
 }));
 
@@ -71,6 +92,16 @@ export function connectDownloadRuntimeStore(source: DownloadRuntimeSource = down
     }
   });
 
+  const state = getDownloadRuntimeStoreState();
+
+  if (!state.scheduleHasLoaded) {
+    void state.refreshSchedule(source);
+  }
+
+  if (!state.runHistoryHasLoaded) {
+    void state.refreshRunHistory(source);
+  }
+
   DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = () => {
     unsubscribe();
     DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = null;
@@ -92,6 +123,11 @@ export function resetDownloadRuntimeStore(): void {
     scheduleConfig: EMPTY_SCHEDULE_CONFIG,
     scheduleHasLoaded: false,
     scheduleErrorMessage: undefined,
+    hiddenMissedNoticeDate: undefined,
+    activeMissedFailureDate: undefined,
+    shownMissedFailureDates: [],
+    missedNoticeActionMessage: undefined,
+    missedNoticeIsResolving: false,
     runHistory: [],
     runHistoryHasLoaded: false,
     runHistoryErrorMessage: undefined,

@@ -17,6 +17,7 @@ const scheduleConfig: ScheduleConfig = {
   nextRunAtMs: 1_700_086_400_000,
   running: false,
   enabledWeekdays: 127,
+  missedNotice: undefined,
 };
 
 const runHistory: readonly DownloadRunView[] = [
@@ -46,6 +47,8 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
+    runMissedScheduleNow: vi.fn(),
+    ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn().mockResolvedValue(runHistory),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
@@ -64,6 +67,31 @@ describe('download-runtime-store', () => {
     expect(state.runHistoryHasLoaded).toBe(false);
     expect(state.runHistory).toEqual([]);
     expect(state.selectedRunId).toBeUndefined();
+    expect(state.hiddenMissedNoticeDate).toBeUndefined();
+    expect(state.activeMissedFailureDate).toBeUndefined();
+    expect(state.shownMissedFailureDates).toEqual([]);
+  });
+
+  it('restores a hidden missed-notice decision date when the controller clears it', () => {
+    const state = getDownloadRuntimeStoreState();
+
+    state.hideMissedNoticeDecision('2026-07-26');
+    expect(getDownloadRuntimeStoreState().hiddenMissedNoticeDate).toBe('2026-07-26');
+
+    getDownloadRuntimeStoreState().restoreMissedNoticeDecision();
+
+    expect(getDownloadRuntimeStoreState().hiddenMissedNoticeDate).toBeUndefined();
+  });
+
+  it('deduplicates the shown global failure dates per renderer session', () => {
+    const state = getDownloadRuntimeStoreState();
+
+    state.showMissedScheduleFailure('2026-07-26');
+    state.showMissedScheduleFailure('2026-07-26');
+    state.showMissedScheduleFailure('2026-07-27');
+
+    expect(getDownloadRuntimeStoreState().activeMissedFailureDate).toBe('2026-07-27');
+    expect(getDownloadRuntimeStoreState().shownMissedFailureDates).toEqual(['2026-07-26', '2026-07-27']);
   });
 
   it('refreshSchedule stores the latest schedule snapshot', async () => {
@@ -96,10 +124,26 @@ describe('download-runtime-store', () => {
     disconnectA();
   });
 
+  it('connectDownloadRuntimeStore refreshes the schedule and run history on first connection', async () => {
+    const source = createSource();
+
+    connectDownloadRuntimeStore(source);
+
+    await vi.waitFor(() => expect(getDownloadRuntimeStoreState().scheduleHasLoaded).toBe(true));
+    await vi.waitFor(() => expect(getDownloadRuntimeStoreState().runHistoryHasLoaded).toBe(true));
+
+    expect(source.getScheduleConfig).toHaveBeenCalledTimes(1);
+    expect(source.listDownloadRuns).toHaveBeenCalledTimes(1);
+  });
+
   it('run lifecycle events refresh only loaded read-models', async () => {
     let listener: (() => void) | undefined;
     const nextRuns = [{ ...runHistory[0], runId: 'run-2' }] as const;
     const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...scheduleConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
+        .mockResolvedValueOnce({ ...scheduleConfig, missedNotice: { localDate: '2026-07-27', dueAtMs: 1_721_086_400_000 } }),
       listDownloadRuns: vi.fn().mockResolvedValueOnce(runHistory).mockResolvedValueOnce(nextRuns),
       subscribeRunEvents: vi.fn().mockImplementation((nextListener: () => void) => {
         listener = nextListener;
@@ -107,12 +151,13 @@ describe('download-runtime-store', () => {
       }),
     });
 
-    connectDownloadRuntimeStore(source);
+    await getDownloadRuntimeStoreState().refreshSchedule(source);
     await getDownloadRuntimeStoreState().refreshRunHistory(source);
+    connectDownloadRuntimeStore(source);
     listener?.();
 
     await vi.waitFor(() => expect(getDownloadRuntimeStoreState().runHistory[0]?.runId).toBe('run-2'));
-    expect(source.getScheduleConfig).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(getDownloadRuntimeStoreState().scheduleConfig.missedNotice?.localDate).toBe('2026-07-27'));
   });
 
   it('resetDownloadRuntimeStore disconnects and clears state', () => {
@@ -126,5 +171,6 @@ describe('download-runtime-store', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
     expect(getDownloadRuntimeStoreState().selectedRunId).toBeUndefined();
     expect(getDownloadRuntimeStoreState().runHistory).toEqual([]);
+    expect(getDownloadRuntimeStoreState().shownMissedFailureDates).toEqual([]);
   });
 });

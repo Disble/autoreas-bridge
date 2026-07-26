@@ -267,8 +267,9 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)
 	}
 	a.downloadScheduler = a.newDownloadScheduler(schedule.Deps{
-		Store: a.downloadStore,
-		Clock: schedule.NewRealClock(),
+		Store:            a.downloadStore,
+		Clock:            schedule.NewRealClock(),
+		ProcessStartedAt: a.processStartedAt,
 		Run: func(runCtx context.Context, trigger string) (string, error) {
 			if a.downloadService == nil {
 				return "", nil

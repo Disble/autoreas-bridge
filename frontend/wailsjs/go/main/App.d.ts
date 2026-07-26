@@ -82,6 +82,8 @@ export function GetSeasonOrderingBoard():Promise<main.OrderingBoardDTO>;
 
 export function GetSyncingAnimeItems():Promise<Array<contracts.SyncingAnimeItem>>;
 
+export function IgnoreMissedSchedule(arg1:string):Promise<contracts.ScheduleMissedActionResult>;
+
 export function ImportSeasonIntake(arg1:string):Promise<string>;
 
 export function ListCaptureTransactions(arg1:contracts.CaptureQuery):Promise<contracts.CapturePage>;
@@ -109,6 +111,8 @@ export function RepeatAnime(arg1:string,arg2:number):Promise<contracts.EpisodeCo
 export function ResolveSeasonMatch(arg1:string,arg2:string):Promise<string>;
 
 export function RestoreAnime(arg1:string,arg2:number):Promise<contracts.EpisodeCommandResult>;
+
+export function RunMissedScheduleNow(arg1:string):Promise<contracts.ScheduleMissedActionResult>;
 
 export function RunSeasonMatching():Promise<string>;
 

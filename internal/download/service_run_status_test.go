@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/sites"
-	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
 )
 
@@ -271,19 +269,13 @@ func TestRunOnceNotifiesWhenRunStarts(t *testing.T) {
 	}
 }
 
-func TestRunOnceMarksScheduledLastRunBeforeFinishedEvent(t *testing.T) {
+func TestRunOnceLeavesScheduleBookkeepingToTheScheduler(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
 	store := deps.Store.(*svcFakeDownloadStore)
 	store.scheduleCfg.NextRunAtMs = 1_800_000_000_000
 	deps.Animes = &svcFakeAnimeQuery{}
-
-	finishedSeen := make(chan ScheduleConfig, 1)
-	deps.Bus.Subscribe(events.EventNameDownloadRunFinished, func(events.Event) {
-		cfg, _ := store.GetScheduleConfig(context.Background())
-		finishedSeen <- cfg
-	})
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
 	if err != nil {
@@ -293,15 +285,14 @@ func TestRunOnceMarksScheduledLastRunBeforeFinishedEvent(t *testing.T) {
 		t.Fatalf("expected run status %q, got %q", RunStatusNoAnimesToday, result.Status)
 	}
 
-	select {
-	case cfg := <-finishedSeen:
-		if cfg.LastRunAtMs != deps.Clock().UnixMilli() || cfg.LastRunStatus != RunStatusNoAnimesToday {
-			t.Fatalf("schedule config at finished event = %#v, want last run marked with status %q", cfg, RunStatusNoAnimesToday)
-		}
-		if cfg.NextRunAtMs != 1_800_000_000_000 {
-			t.Fatalf("next run changed to %d, want preserved value", cfg.NextRunAtMs)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for download.run_finished event")
+	cfg, err := store.GetScheduleConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GetScheduleConfig: %v", err)
+	}
+	if cfg.LastRunAtMs != 0 || cfg.LastRunStatus != "" {
+		t.Fatalf("RunOnce must leave schedule bookkeeping to the scheduler wrapper, got %#v", cfg)
+	}
+	if cfg.NextRunAtMs != 1_800_000_000_000 {
+		t.Fatalf("next run changed to %d, want preserved value", cfg.NextRunAtMs)
 	}
 }

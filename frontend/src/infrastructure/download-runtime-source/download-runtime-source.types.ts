@@ -5,6 +5,7 @@ import type {
   JDConfigInput,
   JDStatus,
   ScheduleConfig,
+  ScheduleMissedActionResult,
 } from '../../shared/contracts/download.types';
 
 /**
@@ -19,6 +20,8 @@ export interface DownloadRuntimeSource {
   readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<string>;
   readonly triggerDownloadCheck: () => Promise<string>;
   readonly triggerAnimeDownload: (animeID: string) => Promise<string>;
+  readonly runMissedScheduleNow: (localDate: string) => Promise<ScheduleMissedActionResult>;
+  readonly ignoreMissedSchedule: (localDate: string) => Promise<ScheduleMissedActionResult>;
   readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
   readonly subscribeRunEvents: (listener: () => void) => () => void;
 }

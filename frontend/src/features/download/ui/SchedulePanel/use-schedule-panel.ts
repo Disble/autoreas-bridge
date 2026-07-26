@@ -3,7 +3,7 @@ import { downloadRuntimeSource } from '../../../../infrastructure/download-runti
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
-import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
 import { toSchedulePanelViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
@@ -27,6 +27,7 @@ export function useSchedulePanel(
   const [dailyTimeEdit, setDailyTimeEdit] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
+  const missedScheduleNotice = useMissedScheduleNotice(source);
   const config = useDownloadRuntimeStore((state) => state.scheduleConfig);
   const hasLoaded = useDownloadRuntimeStore((state) => state.scheduleHasLoaded);
   const loadErrorMessage = useDownloadRuntimeStore((state) => state.scheduleErrorMessage);
@@ -99,16 +100,7 @@ export function useSchedulePanel(
       save({ enabled: config.enabled, dailyTimeHHMM: config.dailyTimeHHMM, enabledWeekdays }),
     [config.dailyTimeHHMM, config.enabled, save],
   );
-
   // 7. Effects
-  useEffect(() => {
-    connectDownloadRuntimeStore(source);
-  }, [source]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
   useEffect(() => {
     void refreshPreferences(prefSource);
   }, [refreshPreferences, prefSource]);
@@ -123,14 +115,18 @@ export function useSchedulePanel(
 
   return {
     status,
-    viewModel: { ...toSchedulePanelViewModel(config), seasonModeActive: seasonMode },
+    viewModel: { ...toSchedulePanelViewModel(config, missedScheduleNotice.decisionNotice), seasonModeActive: seasonMode },
     dailyTimeDraft,
     isSaving,
     saveErrorMessage,
+    isResolvingMissedAction: missedScheduleNotice.isResolving,
+    missedActionMessage: missedScheduleNotice.actionMessage,
     setEnabled,
     setDailyTime,
     setDailyTimeDraft,
     commitDailyTime,
     setWeekdays,
+    runMissedScheduleNow: missedScheduleNotice.runNow,
+    ignoreMissedSchedule: missedScheduleNotice.ignore,
   };
 }

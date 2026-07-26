@@ -26,13 +26,51 @@ type JDConfig struct {
 // download-schedule-weekdays design "Weekday encoding"). A legacy/absent value is read back as
 // 127 by the store layer (NULL -> all days enabled), never by this struct's zero value.
 type ScheduleConfig struct {
-	Mode            string
-	DailyTimeHHMM   string
-	Enabled         bool
-	LastRunAtMs     int64
-	LastRunStatus   string
-	NextRunAtMs     int64
-	EnabledWeekdays byte
+	Mode                    string
+	DailyTimeHHMM           string
+	Enabled                 bool
+	LastRunAtMs             int64
+	LastRunStatus           string
+	NextRunAtMs             int64
+	EnabledWeekdays         byte
+	LastSettledLocalDate    string
+	LastSettlementReason    ScheduleSettlementReason
+	LastMissedAttemptDate   string
+	LastMissedAttemptStatus string
+}
+
+// ScheduleSettlementReason records how a selected local date became settled.
+type ScheduleSettlementReason string
+
+// Supported schedule settlement reasons.
+const (
+	ScheduleSettlementScheduled ScheduleSettlementReason = "scheduled"
+	ScheduleSettlementRunNow    ScheduleSettlementReason = "run_now"
+	ScheduleSettlementIgnored   ScheduleSettlementReason = "ignored"
+)
+
+// ScheduleSettlementOutcome classifies the monotonic settlement transaction result.
+type ScheduleSettlementOutcome string
+
+// Supported settlement outcomes.
+const (
+	ScheduleSettlementApplied    ScheduleSettlementOutcome = "applied"
+	ScheduleSettlementIdempotent ScheduleSettlementOutcome = "idempotent"
+	ScheduleSettlementObsolete   ScheduleSettlementOutcome = "obsolete"
+)
+
+// ScheduleSettlementRequest is the atomic write used by Ignore and successful Run now.
+type ScheduleSettlementRequest struct {
+	LocalDate         string
+	Reason            ScheduleSettlementReason
+	NextRunAtMs       int64
+	SuccessfulRunAtMs *int64
+	SuccessfulStatus  string
+}
+
+// ScheduleSettlementResult reports whether a settlement write advanced the ledger.
+type ScheduleSettlementResult struct {
+	Outcome ScheduleSettlementOutcome
 }
 
 // ManualLink is the typed shape persisted to download_runs.manual_links_json when a run
@@ -100,6 +138,8 @@ type Store interface {
 	GetScheduleConfig(ctx context.Context) (ScheduleConfig, error)
 	SetScheduleConfig(ctx context.Context, cfg ScheduleConfig) error
 	MarkScheduleRun(ctx context.Context, lastAtMs int64, status string, nextAtMs int64) error
+	ApplyScheduleSettlement(ctx context.Context, req ScheduleSettlementRequest) (ScheduleSettlementResult, error)
+	RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error
 
 	// Runs (download_runs).
 	// OpenRun writes the row at run start with the CONCRETE provisional status "running" and

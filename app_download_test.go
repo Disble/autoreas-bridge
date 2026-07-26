@@ -243,6 +243,107 @@ func TestGetScheduleConfigMapsEnabledWeekdaysFromDomainStore(t *testing.T) {
 	}
 }
 
+func TestGetScheduleConfigSurfacesProcessStartAwareMissedNotice(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 7, 26, 21, 30, 0, 0, time.UTC)
+	store := &fakeAppDownloadStore{
+		scheduleConfig: download.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "21:00", Enabled: true, EnabledWeekdays: 1 << time.Sunday},
+	}
+	app := &App{
+		ctx:              context.Background(),
+		downloadStore:    store,
+		nowTime:          func() time.Time { return fixedNow },
+		processStartedAt: time.Date(2026, 7, 26, 21, 5, 0, 0, time.UTC),
+	}
+
+	got := app.GetScheduleConfig()
+	if got.MissedNotice == nil {
+		t.Fatal("expected missed notice to be surfaced")
+	}
+	if got.MissedNotice.LocalDate != "2026-07-26" {
+		t.Fatalf("missed notice local date = %q, want 2026-07-26", got.MissedNotice.LocalDate)
+	}
+}
+
+func TestGetScheduleConfigTreatsCurrentSuccessfulRunFactsAsResolvedDuringUpgrade(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 7, 26, 22, 0, 0, 0, time.UTC)
+	store := &fakeAppDownloadStore{
+		scheduleConfig: download.ScheduleConfig{
+			Mode:            "in_process",
+			DailyTimeHHMM:   "21:00",
+			Enabled:         true,
+			EnabledWeekdays: 1 << time.Sunday,
+			LastRunAtMs:     time.Date(2026, 7, 26, 21, 10, 0, 0, time.UTC).UnixMilli(),
+			LastRunStatus:   download.RunStatusOK,
+		},
+	}
+	app := &App{
+		ctx:              context.Background(),
+		downloadStore:    store,
+		nowTime:          func() time.Time { return fixedNow },
+		processStartedAt: time.Date(2026, 7, 26, 21, 30, 0, 0, time.UTC),
+	}
+
+	got := app.GetScheduleConfig()
+	if got.MissedNotice != nil {
+		t.Fatalf("expected upgrade-safe successful run facts to suppress a false notice, got %#v", got.MissedNotice)
+	}
+}
+
+func TestGetDownloadConfigSharesTheMissedNoticeOverlay(t *testing.T) {
+	t.Parallel()
+
+	fixedNow := time.Date(2026, 7, 26, 21, 30, 0, 0, time.UTC)
+	store := &fakeAppDownloadStore{
+		jdConfig:       download.JDConfig{Email: "user@example.com"},
+		scheduleConfig: download.ScheduleConfig{Mode: "in_process", DailyTimeHHMM: "21:00", Enabled: true, EnabledWeekdays: 1 << time.Sunday},
+	}
+	app := &App{
+		ctx:              context.Background(),
+		downloadStore:    store,
+		nowTime:          func() time.Time { return fixedNow },
+		processStartedAt: time.Date(2026, 7, 26, 21, 5, 0, 0, time.UTC),
+	}
+
+	got := app.GetDownloadConfig()
+	if got.Schedule.MissedNotice == nil || got.Schedule.MissedNotice.LocalDate != "2026-07-26" {
+		t.Fatalf("expected GetDownloadConfig to reuse the missed-notice overlay, got %#v", got.Schedule.MissedNotice)
+	}
+}
+
+func TestRunMissedScheduleNowDelegatesToSchedulerOwnedAction(t *testing.T) {
+	t.Parallel()
+
+	sched := &fakeAppScheduler{resolveMissedResult: schedule.MissedStartupActionResult{Kind: schedule.MissedStartupActionSettled, LocalDate: "2026-07-26", TerminalStatus: download.RunStatusOK, SettlementReason: download.ScheduleSettlementRunNow}}
+	app := &App{ctx: context.Background(), downloadScheduler: sched}
+
+	got := app.RunMissedScheduleNow("2026-07-26")
+	if got.Kind != string(schedule.MissedStartupActionSettled) || got.TerminalStatus != download.RunStatusOK {
+		t.Fatalf("unexpected RunMissedScheduleNow result %#v", got)
+	}
+	if len(sched.resolveMissedCalls) != 1 || sched.resolveMissedCalls[0] != "run_now:2026-07-26" {
+		t.Fatalf("expected scheduler-owned Run now call, got %#v", sched.resolveMissedCalls)
+	}
+}
+
+func TestIgnoreMissedScheduleDelegatesToSchedulerOwnedAction(t *testing.T) {
+	t.Parallel()
+
+	sched := &fakeAppScheduler{resolveMissedResult: schedule.MissedStartupActionResult{Kind: schedule.MissedStartupActionSettled, LocalDate: "2026-07-26", SettlementReason: download.ScheduleSettlementIgnored}}
+	app := &App{ctx: context.Background(), downloadScheduler: sched}
+
+	got := app.IgnoreMissedSchedule("2026-07-26")
+	if got.Kind != string(schedule.MissedStartupActionSettled) || got.SettlementReason != string(download.ScheduleSettlementIgnored) {
+		t.Fatalf("unexpected IgnoreMissedSchedule result %#v", got)
+	}
+	if len(sched.resolveMissedCalls) != 1 || sched.resolveMissedCalls[0] != "ignore:2026-07-26" {
+		t.Fatalf("expected scheduler-owned Ignore call, got %#v", sched.resolveMissedCalls)
+	}
+}
+
 func TestTriggerDownloadCheckDelegatesToScheduler(t *testing.T) {
 	t.Parallel()
 

@@ -324,6 +324,37 @@ func (s *svcFakeDownloadStore) MarkScheduleRun(ctx context.Context, lastAtMs int
 	return nil
 }
 
+func (s *svcFakeDownloadStore) ApplyScheduleSettlement(ctx context.Context, req ScheduleSettlementRequest) (ScheduleSettlementResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.scheduleCfg.LastSettledLocalDate > req.LocalDate {
+		return ScheduleSettlementResult{Outcome: ScheduleSettlementObsolete}, nil
+	}
+	if s.scheduleCfg.LastSettledLocalDate == req.LocalDate {
+		return ScheduleSettlementResult{Outcome: ScheduleSettlementIdempotent}, nil
+	}
+	s.scheduleCfg.LastSettledLocalDate = req.LocalDate
+	s.scheduleCfg.LastSettlementReason = req.Reason
+	s.scheduleCfg.NextRunAtMs = req.NextRunAtMs
+	s.scheduleCfg.LastMissedAttemptDate = ""
+	s.scheduleCfg.LastMissedAttemptStatus = ""
+	if req.SuccessfulRunAtMs != nil {
+		s.scheduleCfg.LastRunAtMs = *req.SuccessfulRunAtMs
+	}
+	if req.SuccessfulStatus != "" {
+		s.scheduleCfg.LastRunStatus = req.SuccessfulStatus
+	}
+	return ScheduleSettlementResult{Outcome: ScheduleSettlementApplied}, nil
+}
+
+func (s *svcFakeDownloadStore) RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.scheduleCfg.LastMissedAttemptDate = localDate
+	s.scheduleCfg.LastMissedAttemptStatus = status
+	return nil
+}
+
 func (s *svcFakeDownloadStore) OpenRun(ctx context.Context, run Run) error {
 	if s.openRunErr != nil {
 		return s.openRunErr

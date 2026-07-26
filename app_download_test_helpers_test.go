@@ -64,6 +64,14 @@ func (f *fakeAppDownloadStore) MarkScheduleRun(context.Context, int64, string, i
 	return nil
 }
 
+func (f *fakeAppDownloadStore) ApplyScheduleSettlement(context.Context, download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error) {
+	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
+}
+
+func (f *fakeAppDownloadStore) RecordMissedStartupAttempt(context.Context, string, string) error {
+	return nil
+}
+
 func (f *fakeAppDownloadStore) OpenRun(_ context.Context, run download.Run) error {
 	f.openedRuns = append(f.openedRuns, run)
 	return nil
@@ -96,6 +104,8 @@ type fakeAppScheduler struct {
 	notifyConfigChangedCalls int
 	triggerNowErr            error
 	status                   schedule.Status
+	resolveMissedResult      schedule.MissedStartupActionResult
+	resolveMissedCalls       []string
 }
 
 func (f *fakeAppScheduler) Start(context.Context) {}
@@ -111,6 +121,14 @@ func (f *fakeAppScheduler) TriggerNow(context.Context, string) error {
 
 func (f *fakeAppScheduler) Status(context.Context) schedule.Status {
 	return f.status
+}
+
+func (f *fakeAppScheduler) ResolveMissedStartupDate(_ context.Context, localDate string, action schedule.MissedStartupAction) schedule.MissedStartupActionResult {
+	f.resolveMissedCalls = append(f.resolveMissedCalls, string(action)+":"+localDate)
+	if f.resolveMissedResult.LocalDate == "" {
+		f.resolveMissedResult.LocalDate = localDate
+	}
+	return f.resolveMissedResult
 }
 
 var _ schedule.Scheduler = (*fakeAppScheduler)(nil)

@@ -180,7 +180,6 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 		"Download run started", fmt.Sprintf("Download check started (%s).", trigger))
 
 	result := s.execute(ctx, runID, startedAt, trigger, &run)
-	s.markScheduledRun(ctx, trigger, startedAt, &run)
 	s.finishRunLog(runID, &run)
 
 	return result, nil

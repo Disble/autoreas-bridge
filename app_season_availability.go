@@ -81,6 +81,14 @@ func (s *seasonScheduleStore) MarkScheduleRun(_ context.Context, lastAtMs int64,
 	return nil
 }
 
+func (s *seasonScheduleStore) ApplyScheduleSettlement(_ context.Context, req download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error) {
+	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
+}
+
+func (s *seasonScheduleStore) RecordMissedStartupAttempt(_ context.Context, localDate string, status string) error {
+	return nil
+}
+
 // readRecordLister returns the anime query service's record-listing capability.
 func (a *App) readRecordLister() (animeReadRecordLister, bool) {
 	query, ok := a.animeQuery.(animeReadRecordLister)

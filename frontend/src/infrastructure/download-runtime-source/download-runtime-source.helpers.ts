@@ -2,7 +2,9 @@ import {
   GetDownloadConfig,
   GetJDStatus,
   GetScheduleConfig,
+  IgnoreMissedSchedule,
   ListDownloadRuns,
+  RunMissedScheduleNow,
   SetHosterPriority,
   SetJDConfig,
   SetScheduleConfig,
@@ -16,6 +18,7 @@ import {
   EMPTY_DOWNLOAD_CONFIG,
   EMPTY_JD_STATUS,
   EMPTY_SCHEDULE_CONFIG,
+  createRuntimeUnavailableMissedActionResult,
 } from './download-runtime-source.constants';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
@@ -56,7 +59,7 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
       return invokeGoBinding('GetScheduleConfig', GetScheduleConfig, () => EMPTY_SCHEDULE_CONFIG);
     },
     setScheduleConfig(config) {
-      return invokeGoBinding('SetScheduleConfig', () => SetScheduleConfig(config), () => 'runtime unavailable');
+      return invokeGoBinding('SetScheduleConfig', () => SetScheduleConfig(config as never), () => 'runtime unavailable');
     },
     setHosterPriority(site, items) {
       return invokeGoBinding('SetHosterPriority', () => SetHosterPriority(site, [...items]), () => 'runtime unavailable');
@@ -66,6 +69,12 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     },
     triggerAnimeDownload(animeID) {
       return invokeGoBinding('TriggerAnimeDownload', () => TriggerAnimeDownload(animeID), () => 'runtime unavailable');
+    },
+    runMissedScheduleNow(localDate) {
+      return invokeGoBinding('RunMissedScheduleNow', () => RunMissedScheduleNow(localDate), () => createRuntimeUnavailableMissedActionResult(localDate));
+    },
+    ignoreMissedSchedule(localDate) {
+      return invokeGoBinding('IgnoreMissedSchedule', () => IgnoreMissedSchedule(localDate), () => createRuntimeUnavailableMissedActionResult(localDate));
     },
     listDownloadRuns() {
       return invokeGoBinding('ListDownloadRuns', ListDownloadRuns, () => []);

@@ -2,7 +2,6 @@ package download
 
 import (
 	"context"
-	"time"
 
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/logger"
@@ -33,23 +32,6 @@ func (s *Service) recordProgress(ctx context.Context, run *Run) {
 		return
 	}
 	s.publish(events.DownloadRunProgressEvent{RunID: run.RunID, CorrelationID: run.RunID})
-}
-
-// markScheduledRun records scheduler metadata after a scheduled run finishes.
-func (s *Service) markScheduledRun(ctx context.Context, trigger string, startedAt time.Time, run *Run) {
-	if trigger != "scheduled" || s.deps.Store == nil {
-		return
-	}
-
-	nextRunAtMs := int64(0)
-	if cfg, err := s.deps.Store.GetScheduleConfig(ctx); err == nil {
-		nextRunAtMs = cfg.NextRunAtMs
-	}
-
-	if err := s.deps.Store.MarkScheduleRun(ctx, startedAt.UnixMilli(), run.Status, nextRunAtMs); err != nil {
-		s.logf(logger.LevelWarn, run.RunID, "", "download.schedule_mark_failed", nil,
-			"failed to mark scheduled run %s: %v", run.RunID, err)
-	}
 }
 
 // publish fans a download.* domain event out to the Bus (design.md §8 "Download Events on the

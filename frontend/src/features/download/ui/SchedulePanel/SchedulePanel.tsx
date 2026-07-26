@@ -1,4 +1,4 @@
-import { Alert, Card, Chip, Input, Label, Skeleton, Switch, TextField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
+import { Alert, Button, Card, Chip, Input, Label, Skeleton, Switch, TextField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import { useSchedulePanel } from './use-schedule-panel';
 import { SEASON_MODE_BANNER_DESCRIPTION, SEASON_MODE_BANNER_TITLE, WEEKDAY_OPTIONS } from './schedule-panel.constants';
 import { weekdayValuesToMask } from './schedule-panel.helpers';
@@ -17,10 +17,14 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
     dailyTimeDraft,
     isSaving,
     saveErrorMessage,
+    isResolvingMissedAction,
+    missedActionMessage,
     setEnabled,
     setDailyTimeDraft,
     commitDailyTime,
     setWeekdays,
+    runMissedScheduleNow,
+    ignoreMissedSchedule,
   } = useSchedulePanel();
 
   if (status === 'loading') {
@@ -50,6 +54,45 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
         {saveErrorMessage !== undefined && (
           <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
             {saveErrorMessage}
+          </p>
+        )}
+
+        {viewModel.missedNotice !== undefined && (
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Missed selected day</Alert.Title>
+              <Alert.Description>
+                The app started after the scheduled boundary for {viewModel.missedNotice.localDate}. Due time: {viewModel.missedNotice.dueLabel}.
+                {viewModel.missedNotice.attemptStatus !== undefined ? ` Last Run now result: ${viewModel.missedNotice.attemptStatus}.` : ''}
+              </Alert.Description>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  isDisabled={isResolvingMissedAction}
+                  variant="primary"
+                  onPress={() => {
+                    runMissedScheduleNow(viewModel.missedNotice!.localDate).catch(() => undefined);
+                  }}
+                >
+                  Run now
+                </Button>
+                <Button
+                  isDisabled={isResolvingMissedAction}
+                  variant="secondary"
+                  onPress={() => {
+                    ignoreMissedSchedule(viewModel.missedNotice!.localDate).catch(() => undefined);
+                  }}
+                >
+                  Ignore
+                </Button>
+              </div>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        {missedActionMessage !== undefined && (
+          <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning" role="alert">
+            {missedActionMessage}
           </p>
         )}
 

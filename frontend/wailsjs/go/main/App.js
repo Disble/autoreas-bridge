@@ -158,6 +158,10 @@ export function GetSyncingAnimeItems() {
   return window['go']['main']['App']['GetSyncingAnimeItems']();
 }
 
+export function IgnoreMissedSchedule(arg1) {
+  return window['go']['main']['App']['IgnoreMissedSchedule'](arg1);
+}
+
 export function ImportSeasonIntake(arg1) {
   return window['go']['main']['App']['ImportSeasonIntake'](arg1);
 }
@@ -212,6 +216,10 @@ export function ResolveSeasonMatch(arg1, arg2) {
 
 export function RestoreAnime(arg1, arg2) {
   return window['go']['main']['App']['RestoreAnime'](arg1, arg2);
+}
+
+export function RunMissedScheduleNow(arg1) {
+  return window['go']['main']['App']['RunMissedScheduleNow'](arg1);
 }
 
 export function RunSeasonMatching() {
