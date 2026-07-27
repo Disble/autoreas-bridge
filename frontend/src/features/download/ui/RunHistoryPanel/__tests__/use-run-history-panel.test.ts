@@ -15,6 +15,7 @@ function createRun(index: number, overrides: Partial<DownloadRunView> = {}): Dow
     episodesFound: index % 3,
     episodesDownloaded: index % 4,
     episodesFailed: index % 2,
+    episodesDownloading: Math.max(0, (index % 3) - (index % 4) - (index % 2)),
     skippedCount: index % 5,
     upToDateCount: index % 6,
     jdAvailable: true,

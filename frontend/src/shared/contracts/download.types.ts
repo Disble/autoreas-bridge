@@ -108,6 +108,7 @@ export interface DownloadRunView {
   readonly episodesFound: number;
   readonly episodesDownloaded: number;
   readonly episodesFailed: number;
+  readonly episodesDownloading: number;
   readonly skippedCount: number;
   /** Subset of `animesChecked` that needed no download (nothing new online, or season already complete on disk). */
   readonly upToDateCount: number;

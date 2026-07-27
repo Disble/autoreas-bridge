@@ -28,3 +28,11 @@ export interface RunHistoryPanelViewModel {
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
 }
+
+/** Props for the `RunProgressBar` episode-segments visualisation. */
+export interface RunProgressBarProps {
+  readonly episodesFound: number;
+  readonly episodesDownloaded: number;
+  readonly episodesDownloading: number;
+  readonly episodesFailed: number;
+}

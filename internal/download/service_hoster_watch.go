@@ -2,7 +2,9 @@ package download
 
 import (
 	"context"
-	"strings"
+	"io/fs"
+	"path/filepath"
+	"time"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/config"
@@ -27,19 +29,14 @@ const (
 
 // classifyJDStatus resolves a DestinationStatus to exactly one hosterVerdict (download-sites spec
 // "JD Status Classification by Destination Folder"). It uses ONLY the structured signals
-// (Availability-derived counts, the Finished/Running/Skipped booleans, StatusIconKey) -- it MUST
-// NEVER string-match a free-form Status field, which this neutral struct does not even carry.
+// (Availability-derived counts, the Finished/Running/Skipped booleans) -- it MUST NEVER
+// string-match a free-form Status field, which this neutral struct does not even carry.
 func classifyJDStatus(st jdownloader.DestinationStatus) hosterVerdict {
 	if !st.Matched {
-		// Nothing has crawled/enqueued for this destination yet -- "not yet observed", never a
-		// false dead (download-sites spec "No matching package yet defaults to downloading").
 		return verdictDownloading
 	}
 
 	if st.CrawlOnlineCount > 0 {
-		// Any ONLINE crawl link outvotes a stale OFFLINE package on the same destination --
-		// self-heals a failed Remove() on a fresh retry (design.md "dead = crawl OFFLINE-only OR
-		// download error triad").
 		return verdictDownloading
 	}
 
@@ -49,14 +46,14 @@ func classifyJDStatus(st jdownloader.DestinationStatus) hosterVerdict {
 		}
 	}
 
-	if st.CrawlOfflineCount > 0 {
-		return verdictDead
+	for _, pkg := range st.PackageSignals {
+		if pkg.RunningObserved && pkg.Running {
+			return verdictDownloading
+		}
 	}
 
-	for _, link := range st.Links {
-		if !link.Finished && !link.Running && !link.Skipped && isErrorStatusIconKey(link.StatusIconKey) {
-			return verdictDead
-		}
+	if st.CrawlOfflineCount > 0 {
+		return verdictDead
 	}
 
 	for _, link := range st.Links {
@@ -66,19 +63,6 @@ func classifyJDStatus(st jdownloader.DestinationStatus) hosterVerdict {
 	}
 
 	return verdictDownloading
-}
-
-// isErrorStatusIconKey recognizes JD's error-family StatusIconKey values by substring rather than
-// an exhaustive literal set, since the exact live-device key vocabulary is an open confirmation
-// item (design.md "Open Questions"). An unrecognized key is safe-by-default: it falls through to
-// verdictDownloading, bounded by the existing filesystem completion timeout rather than a false
-// verdictDead.
-func isErrorStatusIconKey(key string) bool {
-	if key == "" {
-		return false
-	}
-	lower := strings.ToLower(key)
-	return strings.Contains(lower, "error") || strings.Contains(lower, "offline") || strings.Contains(lower, "warning")
 }
 
 // hosterOutcomeKind is awaitHosterOutcome's terminal result.
@@ -96,70 +80,201 @@ type hosterOutcome struct {
 	kind hosterOutcomeKind
 }
 
-// awaitHosterOutcome is the unified 5s watch loop for one hoster attempt (design.md "Loop
-// restructure -- poll moves inside enqueueWithFallback"). Per tick: (1) disk baseline check,
-// absorbing pollCompletion's exact success semantics unchanged (recursive-count-triggers-Flatten,
-// then a baseline recheck); (2) a JD status poll classified via classifyJDStatus -- on
-// verdictDead, the matched package is removed (best-effort, Warn-logged on failure, never
-// aborting) and a fallback outcome is returned; (3) deadline/ctx cancellation yields a timeout
-// outcome. A verdictDownloading (including "unmatched") NEVER triggers fallback -- it simply keeps
-// polling up to config.FilesystemCompletionPollTimeout, exactly like the pre-existing
-// pollCompletion budget.
-func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount int) hosterOutcome {
+// hasPartFilesRecursive reports whether any file ending in ".part" exists under root, which is
+// filesystem evidence that JDownloader has begun a download transfer.
+func hasPartFilesRecursive(root string) bool {
+	found := false
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && len(d.Name()) > 5 && d.Name()[len(d.Name())-5:] == ".part" {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+// detectDownloadStartPhase waits for filesystem evidence that JDownloader has begun a download
+// transfer (FASE 1 of awaitHosterOutcome). Sleeps 20s for JD to begin, then checks for .part
+// files up to 3 times at 20s intervals (60s total grace). Tests skip this via
+// DetectStartPhaseDisabled=true.
+func (s *Service) detectDownloadStartPhase(ctx context.Context, runID, animeID, folder string, episode int) (bool, *hosterOutcome) {
+	if s.deps.DetectStartPhaseDisabled {
+		return true, nil
+	}
+
+	pf := s.deps.HasPartFiles
+	if pf == nil {
+		pf = hasPartFilesRecursive
+	}
+
+	s.deps.PollSleep(20 * time.Second)
+
+	for i := 0; i < 3; i++ {
+		if pf(folder) {
+			s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: animeID, Episode: episode, CorrelationID: runID})
+			return true, nil
+		}
+
+		if i < 2 {
+			s.deps.PollSleep(20 * time.Second)
+		}
+	}
+
+	return false, &hosterOutcome{kind: hosterOutcomeDead}
+}
+
+// jdPreCheckIsDead queries JD once before the 60s grace to check whether CrawlOfflineCount
+// already confirms the hoster is dead. If so a Remove+progress event fires and the caller
+// can immediately fall back without waiting. Returns true when the hoster was confirmed dead.
+func (s *Service) jdPreCheckIsDead(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string) bool {
+	if s.deps.JD == nil {
+		return false
+	}
+	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
+	if err != nil {
+		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_status_query_failed",
+			map[string]any{"hoster": hoster}, "anime %s: JD pre-check query failed for hoster %s: %v", anime.Name, hoster, err)
+		return false
+	}
+	if classifyJDStatus(status) != verdictDead {
+		return false
+	}
+	s.jdRemove(ctx, runID, anime, hoster, folder)
+	return true
+}
+
+// hasPositiveJDSignal reports whether JD has a confirmed-alive signal for a destination:
+// crawl OnlineCount > 0, or any package/link is Running. Used after FASE 1's 60s grace to
+// avoid false-dead verdicts when JD is simply slow to start the transfer (e.g. fallback hosters
+// whose links are still being crawled).
+func hasPositiveJDSignal(st jdownloader.DestinationStatus) bool {
+	if st.CrawlOnlineCount > 0 {
+		return true
+	}
+	for _, pkg := range st.PackageSignals {
+		if pkg.RunningObserved && pkg.Running {
+			return true
+		}
+	}
+	for _, link := range st.Links {
+		if link.Running {
+			return true
+		}
+	}
+	return false
+}
+
+// awaitHosterOutcome watches one hoster attempt through four assessments
+// (docs/design/download-watcher-unified-phases.md):
+//
+//	PRE-CHECK: one JD API call — CrawlOfflineCount > 0 means immediate DEAD, no 60s wait.
+//	FASE 1:    60s filesystem-only grace (.part + video checks).
+//	FASE 1B:   after 60s of no filesystem evidence, one more JD API call:
+//	           - DEAD (OfflineCount > 0)     → fallback
+//	           - ALIVE (OnlineCount/Running) → DownloadEpisodeDownloadingEvent → FASE 2
+//	           - UNKNOWN (no clear signal)   → firstHoster DEAD, fallback TIMEOUT
+//	FASE 2:    downloading → completed (filesystem-only 15s tick, 30 min safety cap).
+//
+// JD API is called at most twice per hoster attempt; FASE 2 never calls it.
+func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount int, episode int, isFirstHoster bool) hosterOutcome {
 	folder := derefOrEmpty(anime.Folder)
 	if s.deps.Counter == nil {
 		return hosterOutcome{kind: hosterOutcomeTimeout}
 	}
 
+	if s.downloadedEpisodeBaseline(folder) > baselineCount {
+		return hosterOutcome{kind: hosterOutcomeSuccess}
+	}
+
+	// ────────────────── PRE-CHECK ──────────────────
+	if s.jdPreCheckIsDead(ctx, runID, anime, hoster, folder) {
+		return hosterOutcome{kind: hosterOutcomeDead}
+	}
+
+	// ────────────────── FASE 1 ──────────────────
+	started, _ := s.detectDownloadStartPhase(ctx, runID, anime.ID, folder, episode)
+	if !started {
+		proceed, outcome := s.evaluateJDAfterGrace(ctx, runID, anime, hoster, folder, episode, isFirstHoster)
+		if !proceed {
+			return outcome
+		}
+	}
+
+	// ────────────────── FASE 2 ──────────────────
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
-		if s.downloadedEpisodeRecursive(folder) > baselineCount && s.deps.Flattener != nil {
-			_, _ = s.deps.Flattener.Flatten(ctx, folder)
-		}
 		if s.downloadedEpisodeBaseline(folder) > baselineCount {
 			return hosterOutcome{kind: hosterOutcomeSuccess}
 		}
 
-		if s.hosterVerdictIsDead(ctx, runID, anime, hoster, folder) {
-			return hosterOutcome{kind: hosterOutcomeDead}
+		if s.deps.Flattener != nil && s.downloadedEpisodeRecursive(folder) > baselineCount {
+			_, _ = s.deps.Flattener.Flatten(ctx, folder)
 		}
 
-		if s.deps.Clock().After(deadline) {
-			return hosterOutcome{kind: hosterOutcomeTimeout}
-		}
-		if ctx.Err() != nil {
+		if s.deps.Clock().After(deadline) || ctx.Err() != nil {
 			return hosterOutcome{kind: hosterOutcomeTimeout}
 		}
 		s.deps.PollSleep(config.FilesystemCompletionPollInterval)
 	}
 }
 
-// hosterVerdictIsDead polls JD status for folder, classifies it, and -- on verdictDead -- removes
-// the matched package (best-effort) and publishes a fallback-transition event on the existing Bus
-// (download-orchestration spec "Fallback and Failure Transitions Surface in Real Time"). A nil JD
-// dependency degrades to "never dead" rather than panicking (enqueueWithFallback already refuses
-// to run at all when JD is nil, so this is defense-in-depth, not a live production path).
-func (s *Service) hosterVerdictIsDead(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string) bool {
+// evaluateJDAfterGrace runs FASE 1B: after 60s without filesystem evidence, queries JD once more to
+// determine whether the hoster is definitively dead (proceed=false, outcome=Dead), unknown
+// (proceed=false, outcome=Timeout), or alive (proceed=true). When alive the Downloading event is
+// published and the caller proceeds to FASE 2.
+func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string, episode int, isFirstHoster bool) (bool, hosterOutcome) {
+	s.logf(logger.LevelWarn, runID, anime.ID, "download.detect_start_failed",
+		map[string]any{"failureKind": FailureKindHosterDown, "hoster": hoster},
+		"anime %s: hoster %s has no .part evidence after 60s, checking JD", anime.Name, hoster)
+
 	if s.deps.JD == nil {
-		return false
+		if isFirstHoster {
+			return false, hosterOutcome{kind: hosterOutcomeDead}
+		}
+		return false, hosterOutcome{kind: hosterOutcomeTimeout}
 	}
 
 	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
 	if err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_status_query_failed",
-			map[string]any{"hoster": hoster}, "anime %s: JD status query failed for hoster %s: %v", anime.Name, hoster, err)
-		return false
+			map[string]any{"hoster": hoster}, "anime %s: JD post-grace query failed for hoster %s: %v", anime.Name, hoster, err)
+		if isFirstHoster {
+			s.jdRemove(ctx, runID, anime, hoster, folder)
+			return false, hosterOutcome{kind: hosterOutcomeDead}
+		}
+		return false, hosterOutcome{kind: hosterOutcomeTimeout}
 	}
 
-	if classifyJDStatus(status) != verdictDead {
-		return false
+	if classifyJDStatus(status) == verdictDead {
+		s.jdRemove(ctx, runID, anime, hoster, folder)
+		return false, hosterOutcome{kind: hosterOutcomeDead}
 	}
 
+	if hasPositiveJDSignal(status) {
+		s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: anime.ID, Episode: episode, CorrelationID: runID})
+		return true, hosterOutcome{}
+	}
+
+	if isFirstHoster {
+		s.jdRemove(ctx, runID, anime, hoster, folder)
+		return false, hosterOutcome{kind: hosterOutcomeDead}
+	}
+	return false, hosterOutcome{kind: hosterOutcomeTimeout}
+}
+
+// jdRemove removes JD packages for a destination and publishes a progress event. Best-effort:
+// a failing Remove is Warn-logged and execution continues.
+func (s *Service) jdRemove(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string) {
+	if s.deps.JD == nil {
+		return
+	}
 	if err := s.deps.JD.RemoveByDestination(ctx, s.deps.JDDeviceName, folder); err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_remove_failed",
 			map[string]any{"hoster": hoster}, "anime %s: JD Remove failed for dead hoster %s (continuing): %v", anime.Name, hoster, err)
 	}
-
 	s.publish(events.DownloadRunProgressEvent{RunID: runID, CorrelationID: runID})
-	return true
 }

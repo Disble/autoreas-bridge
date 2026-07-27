@@ -1132,6 +1132,7 @@ export namespace contracts {
 	    episodesFound: number;
 	    episodesDownloaded: number;
 	    episodesFailed: number;
+	    episodesDownloading: number;
 	    skippedCount: number;
 	    upToDateCount: number;
 	    jdAvailable: boolean;
@@ -1153,6 +1154,7 @@ export namespace contracts {
 	        this.episodesFound = source["episodesFound"];
 	        this.episodesDownloaded = source["episodesDownloaded"];
 	        this.episodesFailed = source["episodesFailed"];
+	        this.episodesDownloading = source["episodesDownloading"];
 	        this.skippedCount = source["skippedCount"];
 	        this.upToDateCount = source["upToDateCount"];
 	        this.jdAvailable = source["jdAvailable"];

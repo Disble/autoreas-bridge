@@ -39,6 +39,14 @@ func boolValue(b *bool) bool {
 	return *b
 }
 
+// observedBool preserves whether JD actually sent a boolean pointer.
+func observedBool(b *bool) (bool, bool) {
+	if b == nil {
+		return false, false
+	}
+	return *b, true
+}
+
 // stringValue returns a string pointer value or an empty string when nil.
 func stringValue(s *string) string {
 	if s == nil {
@@ -50,8 +58,8 @@ func stringValue(s *string) string {
 // PackageStatusByDestination aggregates neutral JD signals for every crawl/download package whose
 // SaveTo normalizes-equal to destination (design.md "Correlate strictly by normalized
 // SaveTo == Carpeta"). It queries LinkGrabber().Packages() for crawl-stage availability counts and
-// Downloader().Packages()+Downloader().Links() for download-stage link signals, never leaking JD
-// library types past the DestinationStatus/LinkSignal boundary.
+// Downloader().Packages()+Downloader().Links() for download-stage package/link signals, never
+// leaking JD library types past the DestinationStatus/PackageSignal/LinkSignal boundary.
 func (a *myJDAdapter) PackageStatusByDestination(ctx context.Context, deviceName, destination string) (DestinationStatus, error) {
 	device, err := a.client.Device(deviceName)
 	if err != nil {
@@ -113,9 +121,18 @@ func matchedDownloadPackages(device jd.Device, destination string, status *Desti
 			continue
 		}
 		status.Matched = true
+		finished, finishedObserved := observedBool(pkg.Finished)
+		running, runningObserved := observedBool(pkg.Running)
+		status.PackageSignals = append(status.PackageSignals, PackageSignal{
+			Finished:         finished,
+			Running:          running,
+			FinishedObserved: finishedObserved,
+			RunningObserved:  runningObserved,
+			StatusIconKey:    stringValue(pkg.StatusIconKey),
+		})
 		if pkg.Uuid != nil {
 			matchedDownloadUUIDs[*pkg.Uuid] = true
-			runningByUUID[*pkg.Uuid] = boolValue(pkg.Running)
+			runningByUUID[*pkg.Uuid] = running
 		}
 	}
 	return matchedDownloadUUIDs, runningByUUID, nil

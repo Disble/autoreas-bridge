@@ -155,7 +155,7 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	}
 
 	ordered := s.orderHosters(source.Descriptor().Name, links)
-	enqueued, failureKind := s.enqueueWithFallback(ctx, runID, anime, ordered)
+	enqueued, failureKind := s.enqueueWithFallback(ctx, runID, anime, ordered, nextEpisode)
 	if !enqueued {
 		s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": failureKind}, "anime %s: episode %d failed on every hoster", anime.Name, nextEpisode)
 		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
@@ -290,7 +290,7 @@ func (s *Service) downloadedEpisodeRecursive(folder string) int {
 // verdicts classify as hoster_down (download-sites spec "JD-reported dead hoster on every
 // fallback entry is classified as hoster_down"); a genuine timeout on the last hoster classifies
 // as slow_or_timeout.
-func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime contracts.MobileAnime, ordered []hosterLink) (bool, string) {
+func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime contracts.MobileAnime, ordered []hosterLink, episode int) (bool, string) {
 	if s.deps.JD == nil {
 		return false, FailureKindHosterDown
 	}
@@ -299,7 +299,7 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 	baselineCount := s.downloadedEpisodeBaseline(folder)
 
 	lastFailureKind := FailureKindHosterDown
-	for _, hl := range ordered {
+	for i, hl := range ordered {
 		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,
@@ -314,7 +314,7 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 			continue
 		}
 
-		switch outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount); outcome.kind {
+		switch outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0); outcome.kind {
 		case hosterOutcomeSuccess:
 			return true, ""
 		case hosterOutcomeDead:

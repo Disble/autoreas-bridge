@@ -30,6 +30,15 @@ type LinkSignal struct {
 	StatusIconKey              string
 }
 
+// PackageSignal is a neutral, structured view of a single JD download package. It carries only
+// the fields the classifier needs from github.com/rkosegi/jdownloader-go's DownloadPackage
+// surface, again excluding the localized free-form Status text.
+type PackageSignal struct {
+	Finished, Running                 bool
+	FinishedObserved, RunningObserved bool
+	StatusIconKey                     string
+}
+
 // DestinationStatus is the aggregated, neutral JD status for every crawl/download package whose
 // SaveTo normalizes-equal to a destination folder (design.md "Correlate strictly by normalized
 // SaveTo == Carpeta"). Matched=false means nothing has crawled/enqueued for that folder yet --
@@ -37,6 +46,7 @@ type LinkSignal struct {
 type DestinationStatus struct {
 	Matched                             bool
 	CrawlOnlineCount, CrawlOfflineCount int
+	PackageSignals                      []PackageSignal
 	Links                               []LinkSignal
 }
 

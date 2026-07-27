@@ -210,18 +210,19 @@ type ManualLink struct {
 
 // DownloadRunView is the UI-facing twin of a persisted download run.
 type DownloadRunView struct {
-	RunID              string       `json:"runId"`
-	StartedAtMs        int64        `json:"startedAtMs"`
-	FinishedAtMs       *int64       `json:"finishedAtMs,omitempty"`
-	Trigger            string       `json:"trigger"`
-	AnimesChecked      int          `json:"animesChecked"`
-	EpisodesFound      int          `json:"episodesFound"`
-	EpisodesDownloaded int          `json:"episodesDownloaded"`
-	EpisodesFailed     int          `json:"episodesFailed"`
-	SkippedCount       int          `json:"skippedCount"`
-	UpToDateCount      int          `json:"upToDateCount"`
-	JDAvailable        bool         `json:"jdAvailable"`
-	Status             string       `json:"status"`
-	ErrorSummary       string       `json:"errorSummary,omitempty"`
-	ManualLinks        []ManualLink `json:"manualLinks,omitempty"`
+	RunID               string       `json:"runId"`
+	StartedAtMs         int64        `json:"startedAtMs"`
+	FinishedAtMs        *int64       `json:"finishedAtMs,omitempty"`
+	Trigger             string       `json:"trigger"`
+	AnimesChecked       int          `json:"animesChecked"`
+	EpisodesFound       int          `json:"episodesFound"`
+	EpisodesDownloaded  int          `json:"episodesDownloaded"`
+	EpisodesFailed      int          `json:"episodesFailed"`
+	EpisodesDownloading int          `json:"episodesDownloading"`
+	SkippedCount        int          `json:"skippedCount"`
+	UpToDateCount       int          `json:"upToDateCount"`
+	JDAvailable         bool         `json:"jdAvailable"`
+	Status              string       `json:"status"`
+	ErrorSummary        string       `json:"errorSummary,omitempty"`
+	ManualLinks         []ManualLink `json:"manualLinks,omitempty"`
 }

@@ -76,6 +76,79 @@ func TestPackageStatusByDestinationPopulatesLinkSignalsFromMatchedDownloadPackag
 	}
 }
 
+func TestPackageStatusByDestinationForwardsMatchedPackageErrorSignalsOnlyForDestination(t *testing.T) {
+	t.Parallel()
+
+	lg := &fakeLinkGrabber{}
+	dl := &fakeDownloader{
+		packages: []jd.DownloadPackage{
+			{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(42), Running: boolPtr(false), Finished: boolPtr(false), StatusIconKey: strPtr("error_file_not_found")},
+			{SaveTo: strPtr(`C:\anime\Other`), Uuid: int64Ptr(99), Running: boolPtr(false), Finished: boolPtr(false), StatusIconKey: strPtr("error_other_destination")},
+		},
+	}
+	device := &fakeDevice{lg: lg, dl: dl}
+	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
+	adapter := newWithClient(fake)
+
+	status, err := adapter.PackageStatusByDestination(context.Background(), "MyPC", "C:/anime/Show")
+	if err != nil {
+		t.Fatalf("PackageStatusByDestination: %v", err)
+	}
+	if !status.Matched {
+		t.Fatal("expected Matched=true")
+	}
+	if len(status.PackageSignals) != 1 {
+		t.Fatalf("expected only one matched package signal, got %#v", status.PackageSignals)
+	}
+	if status.PackageSignals[0].StatusIconKey != "error_file_not_found" {
+		t.Fatalf("expected matched package StatusIconKey to be forwarded, got %#v", status.PackageSignals[0])
+	}
+}
+
+func TestPackageStatusByDestinationPreservesUnknownPackageStateForMatchedErrorSignals(t *testing.T) {
+	t.Parallel()
+
+	lg := &fakeLinkGrabber{}
+	dl := &fakeDownloader{
+		packages: []jd.DownloadPackage{
+			{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(42), StatusIconKey: strPtr("error_file_not_found")},
+		},
+	}
+	device := &fakeDevice{lg: lg, dl: dl}
+	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
+	adapter := newWithClient(fake)
+
+	status, err := adapter.PackageStatusByDestination(context.Background(), "MyPC", "C:/anime/Show")
+	if err != nil {
+		t.Fatalf("PackageStatusByDestination: %v", err)
+	}
+	if !status.Matched {
+		t.Fatal("expected Matched=true")
+	}
+	if status.CrawlOnlineCount != 0 || status.CrawlOfflineCount != 0 {
+		t.Fatalf("expected zero crawl counts, got %#v", status)
+	}
+	if len(status.Links) != 0 {
+		t.Fatalf("expected no link signals for package-only evidence, got %#v", status.Links)
+	}
+	if len(status.PackageSignals) != 1 {
+		t.Fatalf("expected one matched package signal, got %#v", status.PackageSignals)
+	}
+	got := status.PackageSignals[0]
+	if got.RunningObserved {
+		t.Fatalf("expected RunningObserved=false when JD omits the Running pointer, got %#v", got)
+	}
+	if got.FinishedObserved {
+		t.Fatalf("expected FinishedObserved=false when JD omits the Finished pointer, got %#v", got)
+	}
+	if got.StatusIconKey != "error_file_not_found" {
+		t.Fatalf("expected matched package StatusIconKey to be forwarded, got %#v", got)
+	}
+	if got.Running || got.Finished {
+		t.Fatalf("expected omitted booleans to remain false-valued payload fields, got %#v", got)
+	}
+}
+
 func TestPackageStatusByDestinationReportsUnmatchedWhenNoSaveToEquals(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +167,9 @@ func TestPackageStatusByDestinationReportsUnmatchedWhenNoSaveToEquals(t *testing
 	}
 	if status.CrawlOnlineCount != 0 || status.CrawlOfflineCount != 0 || len(status.Links) != 0 {
 		t.Fatalf("expected zero counts and no links when unmatched, got %#v", status)
+	}
+	if len(status.PackageSignals) != 0 {
+		t.Fatalf("expected no package signals when unmatched, got %#v", status.PackageSignals)
 	}
 }
 

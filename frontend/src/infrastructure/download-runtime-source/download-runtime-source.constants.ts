@@ -2,7 +2,17 @@ import type { DownloadConfig, JDStatus, ScheduleConfig, ScheduleMissedActionResu
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
 
 /** Event names that indicate the download run history became stale. */
-export const DOWNLOAD_RUN_EVENT_NAMES = ['download.run_started', 'download.run_progress', 'download.run_finished'] as const;
+export const DOWNLOAD_RUN_EVENT_NAMES = [
+  'download.run_started',
+  'download.run_progress',
+  'download.run_finished',
+  'download.episode_available',
+  'download.episode_downloaded',
+  'download.failed',
+  'download.skipped',
+  'download.jd_status',
+  'download.episode_downloading',
+] as const;
 
 /** Safe degraded JD status returned when Wails is unavailable. */
 export const EMPTY_JD_STATUS: JDStatus = {

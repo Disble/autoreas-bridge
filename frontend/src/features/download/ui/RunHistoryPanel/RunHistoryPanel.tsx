@@ -1,6 +1,7 @@
 import { Button, Chip, EmptyState, Skeleton } from '@heroui/react';
 import { useRunHistoryPanel } from './use-run-history-panel';
 import type { RunHistoryPanelProps, RunHistoryRowViewModel } from './run-history-panel.types';
+import { RunProgressBar } from './RunProgressBar';
 
 /**
  * RunHistoryPanel renders the master/detail download run history view: a
@@ -83,20 +84,35 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
                 <Chip.Label>{viewModel.selectedRun.status}</Chip.Label>
               </Chip>
             </div>
-            <dl className="grid grid-cols-2 gap-2 text-muted">
-              <dt>Animes checked</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.animesChecked}</dd>
-              <dt>Episodes found</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.episodesFound}</dd>
-              <dt>Episodes downloaded</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.episodesDownloaded}</dd>
-              <dt>Episodes failed</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.episodesFailed}</dd>
-              <dt>Up to date</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.upToDateCount}</dd>
+
+            <span className="-mb-1 text-xs font-medium text-muted">Animes</span>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted">
+              <dt>Checked</dt>
+              <dd className="text-right text-foreground">{viewModel.selectedRun.animesChecked}</dd>
               <dt>Skipped</dt>
-              <dd className="text-foreground">{viewModel.selectedRun.skippedCount}</dd>
+              <dd className="text-right text-default-500">{viewModel.selectedRun.skippedCount}</dd>
+              <dt>Up to date</dt>
+              <dd className="text-right text-secondary">{viewModel.selectedRun.upToDateCount}</dd>
             </dl>
+
+            <span className="-mb-1 text-xs font-medium text-muted">Episodes</span>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted">
+              <dt>Found</dt>
+              <dd className="text-right font-medium text-warning">{viewModel.selectedRun.episodesFound}</dd>
+              <dt>Downloading</dt>
+              <dd className="text-right font-medium text-primary">{viewModel.selectedRun.episodesDownloading}</dd>
+              <dt>Downloaded</dt>
+              <dd className="text-right font-medium text-success">{viewModel.selectedRun.episodesDownloaded}</dd>
+              <dt>Failed</dt>
+              <dd className="text-right font-medium text-danger">{viewModel.selectedRun.episodesFailed}</dd>
+            </dl>
+
+            <RunProgressBar
+              episodesFound={viewModel.selectedRun.episodesFound}
+              episodesDownloaded={viewModel.selectedRun.episodesDownloaded}
+              episodesDownloading={viewModel.selectedRun.episodesDownloading}
+              episodesFailed={viewModel.selectedRun.episodesFailed}
+            />
 
             {viewModel.selectedRun.errorSummary !== undefined && (
               <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-danger">

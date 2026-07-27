@@ -88,6 +88,14 @@ type ServiceDeps struct {
 	// like every other ServiceDeps seam — so download never imports the preferences context
 	// (no cross-context coupling, ADR-5).
 	SeasonMode func(ctx context.Context) bool
+
+	// DetectStartPhaseDisabled skips the detect-download-start phase. Tests set to true to
+	// avoid the 60s filesystem-evidence grace period.
+	DetectStartPhaseDisabled bool
+	// HasPartFiles reports whether .part files exist under root (evidence that JD started a
+	// download). Deployed default: hasPartFilesRecursive. Tests override with a deterministic
+	// func.
+	HasPartFiles func(root string) bool
 }
 
 // RunResult is the summary RunOnce returns to its caller (the scheduler's RunFunc closure, or a
@@ -118,6 +126,9 @@ func NewService(deps ServiceDeps) *Service {
 	}
 	if deps.SeasonMode == nil {
 		deps.SeasonMode = func(context.Context) bool { return false }
+	}
+	if deps.HasPartFiles == nil {
+		deps.HasPartFiles = hasPartFilesRecursive
 	}
 	return &Service{deps: deps}
 }

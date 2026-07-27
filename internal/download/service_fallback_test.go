@@ -34,7 +34,7 @@ func TestEnqueueWithFallbackAdvancesToNextHosterWhenFirstIsDeadWithoutWaitingFor
 	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
-	_, _ = s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
+	_, _ = s.enqueueWithFallback(context.Background(), "run-1", anime, ordered, 1)
 
 	if len(jd.attemptedHosters) != 2 || jd.attemptedHosters[0] != "Mediafire" || jd.attemptedHosters[1] != "Mega" {
 		t.Fatalf("expected dead Mediafire to advance immediately to Mega, got %v", jd.attemptedHosters)
@@ -54,7 +54,7 @@ func TestEnqueueWithFallbackReturnsHosterDownWhenEveryHosterIsDead(t *testing.T)
 	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
-	enqueued, failureKind := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
+	enqueued, failureKind := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered, 1)
 
 	if enqueued {
 		t.Fatal("expected enqueueWithFallback to report failure once every hoster is dead")
@@ -80,7 +80,7 @@ func TestEnqueueWithFallbackStillAdvancesOnAddAndStartAPIError(t *testing.T) {
 	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
-	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
+	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered, 1)
 
 	if !enqueued {
 		t.Fatal("expected the 2nd hoster's disk-confirmed success to report enqueued=true")
@@ -122,7 +122,7 @@ func TestEnqueueWithFallbackShortCircuitsOnFirstHosterDiskSuccess(t *testing.T) 
 	anime := contracts.MobileAnime{ID: "anime-1", Name: "Anime", Folder: ptrStr(folder)}
 	ordered := []hosterLink{{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}}, {hoster: "Mega", links: []string{"http://mega.example/1"}}}
 
-	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered)
+	enqueued, _ := s.enqueueWithFallback(context.Background(), "run-1", anime, ordered, 1)
 
 	if !enqueued {
 		t.Fatal("expected the first hoster's immediate disk success to report enqueued=true")

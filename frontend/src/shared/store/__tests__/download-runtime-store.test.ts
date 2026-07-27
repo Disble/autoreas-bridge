@@ -30,6 +30,7 @@ const runHistory: readonly DownloadRunView[] = [
     episodesFound: 2,
     episodesDownloaded: 2,
     episodesFailed: 0,
+    episodesDownloading: 0,
     skippedCount: 1,
     upToDateCount: 0,
     jdAvailable: true,

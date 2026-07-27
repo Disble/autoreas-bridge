@@ -62,19 +62,20 @@ func baseDeps(t *testing.T) ServiceDeps {
 	fixedNow := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 	counter := &svcFakeCounter{atRoot: map[string]int{}, recursive: map[string]int{}}
 	return ServiceDeps{
-		Animes:    &svcFakeAnimeQuery{},
-		Sites:     NewStaticRegistry(),
-		Hosters:   &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}},
-		JD:        &svcFakeJDClient{},
-		Counter:   counter,
-		Flattener: &svcFakeFlattener{onFlatten: counter.Flatten},
-		Store:     newsvcFakeDownloadStore(),
-		Notifier:  &svcFakeNotifier{},
-		Bus:       events.NewBus(),
-		Logger:    sharedlogger.NewFanoutLogger(),
-		Clock:     func() time.Time { return fixedNow },
-		NewRunID:  func() string { return "run-fixed" },
-		PollSleep: func(time.Duration) {},
+		Animes:                   &svcFakeAnimeQuery{},
+		Sites:                    NewStaticRegistry(),
+		Hosters:                  &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}}},
+		JD:                       &svcFakeJDClient{},
+		Counter:                  counter,
+		Flattener:                &svcFakeFlattener{onFlatten: counter.Flatten},
+		Store:                    newsvcFakeDownloadStore(),
+		Notifier:                 &svcFakeNotifier{},
+		Bus:                      events.NewBus(),
+		Logger:                   sharedlogger.NewFanoutLogger(),
+		Clock:                    func() time.Time { return fixedNow },
+		NewRunID:                 func() string { return "run-fixed" },
+		PollSleep:                func(time.Duration) {},
+		DetectStartPhaseDisabled: true,
 	}
 }
 

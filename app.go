@@ -109,6 +109,12 @@ var downloadRuntimeEventNames = [...]string{
 	events.EventNameDownloadRunStarted,
 	events.EventNameDownloadRunProgress,
 	events.EventNameDownloadRunFinished,
+	events.EventNameDownloadEpisodeAvailable,
+	events.EventNameDownloadEpisodeDownloaded,
+	events.EventNameDownloadFailed,
+	events.EventNameDownloadSkipped,
+	events.EventNameDownloadJDStatus,
+	events.EventNameDownloadEpisodeDownloading,
 }
 
 type tracerBulletRunner interface {

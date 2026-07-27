@@ -39,6 +39,9 @@ const (
 	EventNameDownloadSkipped = "download.skipped"
 	// EventNameDownloadJDStatus identifies JDownloader status events.
 	EventNameDownloadJDStatus = "download.jd_status"
+	// EventNameDownloadEpisodeDownloading identifies filesystem evidence that a download
+	// has started transferring (a .part file was observed under the anime folder).
+	EventNameDownloadEpisodeDownloading = "download.episode_downloading"
 )
 
 // Event is the base contract for all bridge bus events.
@@ -198,6 +201,20 @@ type DownloadSkippedEvent struct {
 // Name returns the bus event name for DownloadSkippedEvent.
 func (e DownloadSkippedEvent) Name() string {
 	return EventNameDownloadSkipped
+}
+
+// DownloadEpisodeDownloadingEvent is published when filesystem evidence (a .part file)
+// confirms a download has started transferring (design §X).
+type DownloadEpisodeDownloadingEvent struct {
+	RunID         string
+	AnimeID       string
+	Episode       int
+	CorrelationID string
+}
+
+// Name returns the bus event name for DownloadEpisodeDownloadingEvent.
+func (e DownloadEpisodeDownloadingEvent) Name() string {
+	return EventNameDownloadEpisodeDownloading
 }
 
 // DownloadJDStatusEvent is published when the JDownloader liveness gate (ListDevices via

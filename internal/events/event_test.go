@@ -10,25 +10,27 @@ func TestDownloadEventConstantsMatchObservabilitySpecNames(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"EventNameDownloadRunStarted":        EventNameDownloadRunStarted,
-		"EventNameDownloadRunProgress":       EventNameDownloadRunProgress,
-		"EventNameDownloadRunFinished":       EventNameDownloadRunFinished,
-		"EventNameDownloadEpisodeAvailable":  EventNameDownloadEpisodeAvailable,
-		"EventNameDownloadEpisodeDownloaded": EventNameDownloadEpisodeDownloaded,
-		"EventNameDownloadFailed":            EventNameDownloadFailed,
-		"EventNameDownloadSkipped":           EventNameDownloadSkipped,
-		"EventNameDownloadJDStatus":          EventNameDownloadJDStatus,
+		"EventNameDownloadRunStarted":         EventNameDownloadRunStarted,
+		"EventNameDownloadRunProgress":        EventNameDownloadRunProgress,
+		"EventNameDownloadRunFinished":        EventNameDownloadRunFinished,
+		"EventNameDownloadEpisodeAvailable":   EventNameDownloadEpisodeAvailable,
+		"EventNameDownloadEpisodeDownloaded":  EventNameDownloadEpisodeDownloaded,
+		"EventNameDownloadFailed":             EventNameDownloadFailed,
+		"EventNameDownloadSkipped":            EventNameDownloadSkipped,
+		"EventNameDownloadJDStatus":           EventNameDownloadJDStatus,
+		"EventNameDownloadEpisodeDownloading": EventNameDownloadEpisodeDownloading,
 	}
 
 	want := map[string]string{
-		"EventNameDownloadRunStarted":        "download.run_started",
-		"EventNameDownloadRunProgress":       "download.run_progress",
-		"EventNameDownloadRunFinished":       "download.run_finished",
-		"EventNameDownloadEpisodeAvailable":  "download.episode_available",
-		"EventNameDownloadEpisodeDownloaded": "download.episode_downloaded",
-		"EventNameDownloadFailed":            "download.failed",
-		"EventNameDownloadSkipped":           "download.skipped",
-		"EventNameDownloadJDStatus":          "download.jd_status",
+		"EventNameDownloadRunStarted":         "download.run_started",
+		"EventNameDownloadRunProgress":        "download.run_progress",
+		"EventNameDownloadRunFinished":        "download.run_finished",
+		"EventNameDownloadEpisodeAvailable":   "download.episode_available",
+		"EventNameDownloadEpisodeDownloaded":  "download.episode_downloaded",
+		"EventNameDownloadFailed":             "download.failed",
+		"EventNameDownloadSkipped":            "download.skipped",
+		"EventNameDownloadJDStatus":           "download.jd_status",
+		"EventNameDownloadEpisodeDownloading": "download.episode_downloading",
 	}
 
 	for name, got := range cases {
@@ -83,5 +85,19 @@ func TestDownloadSkippedEventSatisfiesEventInterface(t *testing.T) {
 	}
 	if e.Name() != EventNameDownloadSkipped {
 		t.Errorf("Name() = %q, want %q", e.Name(), EventNameDownloadSkipped)
+	}
+}
+
+func TestDownloadEpisodeDownloadingEventSatisfiesEventInterface(t *testing.T) {
+	t.Parallel()
+
+	var e Event = DownloadEpisodeDownloadingEvent{
+		RunID:         "run-1",
+		AnimeID:       "anime-1",
+		Episode:       5,
+		CorrelationID: "run-1",
+	}
+	if e.Name() != EventNameDownloadEpisodeDownloading {
+		t.Errorf("Name() = %q, want %q", e.Name(), EventNameDownloadEpisodeDownloading)
 	}
 }
