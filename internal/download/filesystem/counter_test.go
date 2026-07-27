@@ -239,3 +239,24 @@ func TestFlattenSurfacesErrorOnMoveFailureRatherThanSilentlySwallowingIt(t *test
 		t.Fatal("expected Flatten to surface an error when a move fails, got nil")
 	}
 }
+
+func TestFlattenRemovesEmptySubdirectoryEvenWhenNoFilesWereMoved(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Pack1"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	flattener := NewFlattener()
+	moved, err := flattener.Flatten(context.Background(), root)
+	if err != nil {
+		t.Fatalf("Flatten: %v", err)
+	}
+	if moved != 0 {
+		t.Fatalf("expected moved=0, got %d", moved)
+	}
+	if _, err := os.Stat(filepath.Join(root, "Pack1")); !os.IsNotExist(err) {
+		t.Fatalf("expected empty Pack1 to be removed, stat err: %v", err)
+	}
+}

@@ -72,14 +72,11 @@ func flattenDirectoryEntry(folder string, entry os.DirEntry) (int, []error) {
 		return 0, []error{fmt.Errorf("flatten: read subdir %s: %w", subDir, err)}
 	}
 	moved, errs := flattenOneSubdir(subDir, folder, subEntries)
-	return moved, append(errs, removeEmptyFlattenedDirectory(subDir, moved)...)
+	return moved, append(errs, removeEmptyFlattenedDirectory(subDir)...)
 }
 
 // removeEmptyFlattenedDirectory removes a child directory emptied by flattening.
-func removeEmptyFlattenedDirectory(subDir string, moved int) []error {
-	if moved == 0 {
-		return nil
-	}
+func removeEmptyFlattenedDirectory(subDir string) []error {
 	remaining, err := os.ReadDir(subDir)
 	if err != nil || len(remaining) != 0 {
 		return nil
