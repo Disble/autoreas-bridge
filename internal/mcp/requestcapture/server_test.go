@@ -37,9 +37,6 @@ func TestToolNamesReturnsExactlyFourBareNames(t *testing.T) {
 	server := NewServer(nullReader{})
 	got := server.ToolNames()
 	want := []string{"resolve_request_context", "search_requests", "get_request_context", "summary_requests"}
-	if len(got) != len(want) {
-		t.Fatalf("expected %d tool names, got %d: %#v", len(want), len(got), got)
-	}
 	for i, name := range want {
 		if got[i] != name {
 			t.Fatalf("expected tool %d to be %q, got %q (full: %#v)", i, name, got[i], got)
@@ -50,6 +47,45 @@ func TestToolNamesReturnsExactlyFourBareNames(t *testing.T) {
 			if name == forbidden {
 				t.Fatalf("expected previously-registered tool %q to not be registered, got %#v", forbidden, got)
 			}
+		}
+	}
+}
+
+// TestSidecarExposesExactlySevenTools asserts the sidecar registers exactly
+// the seven named tools: the four pre-existing request-capture tools plus
+// the three new runtime-event tools.
+func TestSidecarExposesExactlySevenTools(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(nullReader{})
+	got := server.ToolNames()
+	want := []string{
+		"resolve_request_context", "search_requests", "get_request_context", "summary_requests",
+		"search_events", "get_correlation_timeline", "summary_events",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d tool names, got %d: %#v", len(want), len(got), got)
+	}
+	for i, name := range want {
+		if got[i] != name {
+			t.Fatalf("expected tool %d to be %q, got %q (full: %#v)", i, name, got[i], got)
+		}
+	}
+}
+
+// TestEachToolNameAppearsExactlyOnce asserts no tool name is duplicated,
+// renamed, or aliased across the seven-tool surface.
+func TestEachToolNameAppearsExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	server := NewServer(nullReader{})
+	seen := map[string]int{}
+	for _, name := range server.ToolNames() {
+		seen[name]++
+	}
+	for name, count := range seen {
+		if count != 1 {
+			t.Fatalf("expected tool %q to appear exactly once, appeared %d times", name, count)
 		}
 	}
 }

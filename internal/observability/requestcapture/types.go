@@ -1,6 +1,6 @@
 package requestcapture
 
-import "net/http"
+import "autoreas-bridge/internal/observability/obserr"
 
 const (
 	defaultRetentionLimit = 5000
@@ -117,34 +117,29 @@ type GetResult struct {
 	WarningCount         int
 }
 
-// Error is the structured request-capture failure envelope.
-type Error struct {
-	Code       string
-	Message    string
-	Retryable  bool
-	HTTPStatus int
-}
-
-func (e Error) Error() string { return e.Message }
+// Error is the structured request-capture failure envelope, aliased from the
+// shared obserr package so every observability tool (capture and runtime
+// event) emits the same error schema.
+type Error = obserr.Error
 
 // unavailableError creates a retryable error for missing or unreachable resources.
 func unavailableError(message string) Error {
-	return Error{Code: "unavailable", Message: message, Retryable: true, HTTPStatus: http.StatusServiceUnavailable}
+	return obserr.Unavailable(message)
 }
 
 // schemaMismatchError creates a non-retryable error for schema/version mismatches.
 func schemaMismatchError(message string) Error {
-	return Error{Code: "schema_mismatch", Message: message, Retryable: false, HTTPStatus: http.StatusFailedDependency}
+	return obserr.SchemaMismatch(message)
 }
 
 // invalidParamsError creates a non-retryable error for bad tool parameters.
 func invalidParamsError(message string) Error {
-	return Error{Code: "invalid_params", Message: message, Retryable: false, HTTPStatus: http.StatusBadRequest}
+	return obserr.InvalidParams(message)
 }
 
 // unsupportedError creates a non-retryable error for unsupported tool requests.
 func unsupportedError(message string) Error {
-	return Error{Code: "unsupported", Message: message, Retryable: false, HTTPStatus: http.StatusMethodNotAllowed}
+	return obserr.Unsupported(message)
 }
 
 // QueueStopResult reports drain leftovers after Stop.
@@ -194,10 +189,14 @@ func (c *Correlations) Normalize() {
 	}
 }
 
-// ValidateToolName rejects any non-read-only tool name.
+// ValidateToolName rejects any non-read-only tool name. It gates the
+// sidecar's whole tool surface: the four request-capture tools plus the
+// three runtime-event tools added by the MCP runtime-event read change. No
+// alias name is accepted for any tool.
 func ValidateToolName(name string) error {
 	switch name {
-	case "resolve_request_context", "search_requests", "get_request_context", "summary_requests":
+	case "resolve_request_context", "search_requests", "get_request_context", "summary_requests",
+		"search_events", "get_correlation_timeline", "summary_events":
 		return nil
 	default:
 		return unsupportedError("unsupported request capture tool")

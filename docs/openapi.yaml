@@ -89,6 +89,37 @@ info:
       - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
         mobile clients require no update.
 
+    2026-07-29 — mcp-runtime-events-read API consumer impact: NO REST/WS wire
+    change (no HTTP path, request/response field, or WebSocket message shape
+    changed). The sidecar's MCP tool schema is a separate, non-HTTP contract;
+    this note documents it here per project convention only.
+      - Adds a persisted runtime-event log (`runtime_events` SQLite table,
+        additive, distinct from `activity_log` and `request_captures`) fed
+        non-blockingly from the shared logger, with a bounded row cap and a
+        write-count-cadence prune. `debug`-level entries are dropped by
+        default; configurable via the `app_settings` key
+        `observability.events.persist_debug` (`"true"`/`"false"`, default
+        OFF/unset).
+      - The read-only `autoreas-request-mcp` sidecar's bounded tool surface
+        grows from four to exactly seven tools: the four existing
+        `resolve_request_context`, `search_requests`, `get_request_context`,
+        `summary_requests` are unchanged, plus three new read-only tools —
+        `search_events`, `summary_events`, `get_correlation_timeline` — over
+        the new runtime-event log. No alias name is introduced for any tool.
+      - `search_events` accepts an `EventFilters` shape distinct from the
+        capture `SearchFilters`: `domain`, `level`, `event_type`,
+        `correlation_id`, `entity_id`, free `text` (matches message/domain/
+        event_type only, never `metadata_json`), `start_ms`/`end_ms`. Returns
+        the same `applied_limit`/`next_cursor`/`malformed_rows_skipped`/
+        `warning_count` newest-first page contract as `search_requests`.
+      - `get_correlation_timeline` resolves one `correlation_id` into the
+        matching captured request(s) plus matching persisted events in one
+        call; a sidecar pointed at a bridge database that predates this
+        change degrades to `events_available: false` with capture-side
+        matches still returned, rather than failing.
+      - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
+        mobile clients require no update.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

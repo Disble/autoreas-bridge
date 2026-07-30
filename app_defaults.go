@@ -14,6 +14,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
@@ -235,10 +236,26 @@ func (a *App) ensureRuntimeObservability() {
 			},
 		})
 	}
+	if a.eventSink == nil {
+		a.eventSink = eventlog.NewSink(eventlog.SinkConfig{})
+	}
 	if a.sharedLogger == nil {
-		a.sharedLogger = sharedlogger.NewFanoutLogger(sharedlogger.NewStdoutLogger(nil), a.memLogger)
+		// The one NewFanoutLogger call site that changes: the event sink is
+		// registered as a fourth fan-out target, constructed here (before
+		// bridgeDB exists) with its queue nil -- WriteEntry drops and counts
+		// via Sink.UnboundDrops() until configureEventLogQueue binds the
+		// queue after bootstrap. This is the accepted early-boot gap.
+		a.sharedLogger = sharedlogger.NewFanoutLoggerWithSinks(
+			[]sharedlogger.Logger{sharedlogger.NewStdoutLogger(nil), a.memLogger},
+			a.eventSink,
+		)
 	}
 	if a.eventBus == nil {
 		a.eventBus = events.NewInstrumentedBus(events.NewBus(), a.sharedLogger)
+	}
+	if a.newEventQueue == nil {
+		a.newEventQueue = func(db *sql.DB) eventLogQueue {
+			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{})
+		}
 	}
 }

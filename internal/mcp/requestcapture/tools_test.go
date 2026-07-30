@@ -11,19 +11,27 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
-func TestSidecarFourToolsOnly(t *testing.T) {
+// TestSidecarSevenToolsOnly asserts the bounded tool surface: the four
+// original request-capture tools plus the three runtime-event tools added by
+// the MCP runtime-event read change, and nothing else. Supersedes the
+// original four-tool assertion now that the mobile-request-mcp delta amends
+// the bounded surface to seven.
+func TestSidecarSevenToolsOnly(t *testing.T) {
 	t.Parallel()
 
 	server := NewServer(stubToolReader{})
 	got := server.ToolNames()
-	if len(got) != 4 {
-		t.Fatalf("expected exactly 4 tools, got %#v", got)
+	if len(got) != 7 {
+		t.Fatalf("expected exactly 7 tools, got %#v", got)
 	}
 	want := map[string]bool{
-		"resolve_request_context": true,
-		"search_requests":         true,
-		"get_request_context":     true,
-		"summary_requests":        true,
+		"resolve_request_context":  true,
+		"search_requests":          true,
+		"get_request_context":      true,
+		"summary_requests":         true,
+		"search_events":            true,
+		"get_correlation_timeline": true,
+		"summary_events":           true,
 	}
 	for _, name := range got {
 		if !want[name] {

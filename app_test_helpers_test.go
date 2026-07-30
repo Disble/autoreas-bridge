@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -39,6 +40,7 @@ func newAppTestApp(t *testing.T) *App {
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
 		newCaptureReader: func(*sql.DB) *requestcapture.Reader { return nil },
+		newEventQueue:    func(*sql.DB) eventLogQueue { return &stubEventLogQueue{} },
 	}
 }
 
@@ -125,6 +127,22 @@ type stubAppNotifier struct{}
 
 type stubCaptureQueue struct {
 	onStop func()
+}
+
+// stubEventLogQueue is an eventLogQueue test double that never touches
+// SQLite, mirroring stubCaptureQueue -- newAppTestApp's default so tests
+// exercising startup/shutdown paths that don't care about event
+// persistence never accidentally drive the real eventlog.Queue against a
+// bare, unopened *sql.DB{}.
+type stubEventLogQueue struct {
+	onStop func()
+}
+
+func (s *stubEventLogQueue) Stop(context.Context) eventlog.QueueStopResult {
+	if s.onStop != nil {
+		s.onStop()
+	}
+	return eventlog.QueueStopResult{}
 }
 
 type recordingLifecycleDB struct {

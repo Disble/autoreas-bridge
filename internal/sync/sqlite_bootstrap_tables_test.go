@@ -336,6 +336,65 @@ func TestCaptureRouteStatusIndexesExist(t *testing.T) {
 	}
 }
 
+func TestBootstrapCreatesRuntimeEventsTable(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	if !tableExists(t, db, "runtime_events") {
+		t.Fatal("expected runtime_events table to exist after bootstrap")
+	}
+
+	columns := readTableColumns(t, db, "runtime_events")
+	for _, required := range []string{
+		"id", "occurred_at_ms", "domain", "level", "message",
+		"correlation_id", "entity_id", "event_type", "duration_ms", "metadata_json",
+	} {
+		if !containsString(columns, required) {
+			t.Fatalf("expected runtime_events to contain column %q, got %#v", required, columns)
+		}
+	}
+}
+
+func TestBootstrapCreatesRuntimeEventIndexes(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	for _, index := range []string{
+		"idx_runtime_events_time",
+		"idx_runtime_events_correlation",
+		"idx_runtime_events_domain_level",
+	} {
+		var name string
+		err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&name)
+		if err != nil {
+			t.Fatalf("expected index %q to exist: %v", index, err)
+		}
+	}
+}
+
+func TestBootstrapRuntimeEventsIdempotentAcrossTwoOpens(t *testing.T) {
+	t.Parallel()
+
+	bootstrap := newTestBootstrap(t)
+	first, err := bootstrap.BootstrapBridgeDB()
+	if err != nil {
+		t.Fatalf("first bootstrap bridge db: %v", err)
+	}
+	defer closeTestDB(t, first)
+	if !tableExists(t, first, "runtime_events") {
+		t.Fatal("expected runtime_events table after first bootstrap")
+	}
+
+	second, err := bootstrap.BootstrapBridgeDB()
+	if err != nil {
+		t.Fatalf("second bootstrap bridge db: %v", err)
+	}
+	defer closeTestDB(t, second)
+	if !tableExists(t, second, "runtime_events") {
+		t.Fatal("expected runtime_events table to still exist after second bootstrap")
+	}
+}
+
 func TestCaptureAdditiveColumnsMigrationIsIdempotent(t *testing.T) {
 	t.Parallel()
 

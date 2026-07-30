@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/activity"
 	downloadconfig "autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/dbschema"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
 	_ "modernc.org/sqlite"
@@ -152,6 +153,7 @@ func initializeBridgeDB(db *sql.DB) error {
 	tables := append(schemaTables(), dbschema.SchemaTables()...)
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
+	tables = append(tables, eventlog.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
 			return err

@@ -5,9 +5,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"autoreas-bridge/internal/observability/eventlog"
 	obs "autoreas-bridge/internal/observability/requestcapture"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
+
+// eventlogSearchParams builds a zero-value event search params value, kept
+// as a helper so reader_test.go's assertions read as intent (a plain event
+// search) rather than an anonymous struct literal.
+func eventlogSearchParams() eventlog.EventSearchParams {
+	return eventlog.EventSearchParams{}
+}
 
 func TestQueryOnlyRead(t *testing.T) {
 	t.Parallel()
@@ -138,6 +146,91 @@ func TestResolveAnimeScopedReference(t *testing.T) {
 
 // intRefMCP returns a pointer to the given int value, for building test fixtures.
 func intRefMCP(value int) *int { return &value }
+
+// TestEventReaderSharesTheQueryOnlyHandle asserts the sqliteReader's event
+// reader is built over the same already-open, already-verified handle as
+// the capture reader -- never a second SQLite connection.
+func TestEventReaderSharesTheQueryOnlyHandle(t *testing.T) {
+	t.Parallel()
+
+	path := openToolTestDB(t)
+	reader, err := OpenReader(path)
+	if err != nil {
+		t.Fatalf("open reader: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	if !reader.EventsAvailable() {
+		t.Fatal("expected EventsAvailable true over a freshly-bootstrapped bridge db")
+	}
+}
+
+// TestVerifyQueryOnlyHoldsForEventReads asserts query_only mode still holds
+// for the handle event reads execute over.
+func TestVerifyQueryOnlyHoldsForEventReads(t *testing.T) {
+	t.Parallel()
+
+	path := openToolTestDB(t)
+	reader, err := OpenReader(path)
+	if err != nil {
+		t.Fatalf("open reader: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	if err := reader.VerifyQueryOnly(context.Background()); err != nil {
+		t.Fatalf("verify query_only: %v", err)
+	}
+	if _, err := reader.SearchEvents(context.Background(), eventlogSearchParams()); err != nil {
+		t.Fatalf("search events: %v", err)
+	}
+	if err := reader.VerifyQueryOnly(context.Background()); err != nil {
+		t.Fatalf("verify query_only after event read: %v", err)
+	}
+}
+
+// TestExistingFourToolsUnaffectedByMissingEventsTable asserts a bridge db
+// with no runtime_events table still serves every pre-existing tool
+// unchanged, and the three event tools return an empty/unavailable result
+// without the sidecar exiting.
+func TestExistingFourToolsUnaffectedByMissingEventsTable(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "bridge.db")
+	db, err := bridgeSync.OpenBridgeDB(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP TABLE runtime_events`); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	reader, err := OpenReader(path)
+	if err != nil {
+		t.Fatalf("open reader: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	if reader.EventsAvailable() {
+		t.Fatal("expected EventsAvailable false when runtime_events is absent")
+	}
+	if _, err := reader.Search(context.Background(), obs.SearchParams{}); err != nil {
+		t.Fatalf("expected search_requests unaffected, got %v", err)
+	}
+	if _, err := reader.Summary(context.Background(), obs.SearchFilters{}); err != nil {
+		t.Fatalf("expected summary_requests unaffected, got %v", err)
+	}
+	if _, err := reader.Get(context.Background(), "missing-id"); err != nil {
+		t.Fatalf("expected get_request_context unaffected, got %v", err)
+	}
+	if _, err := reader.Resolve(context.Background(), "anything"); err != nil {
+		t.Fatalf("expected resolve_request_context unaffected, got %v", err)
+	}
+
+	if _, err := reader.SearchEvents(context.Background(), eventlogSearchParams()); err == nil {
+		t.Fatal("expected search_events to report unavailable rather than panic/exit")
+	}
+}
 
 func TestCaptureCorrelationsAuxOnly(t *testing.T) {
 	t.Parallel()

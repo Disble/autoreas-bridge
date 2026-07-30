@@ -17,6 +17,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"autoreas-bridge/internal/schedule"
@@ -65,6 +66,9 @@ type App struct {
 	captureQueue             captureQueue
 	captureReader            *requestcapture.Reader
 	captureStore             requestcapture.Store
+	eventSink                *eventlog.Sink
+	newEventQueue            func(db *sql.DB) eventLogQueue
+	eventQueue               eventLogQueue
 	trayManager              tray.Manager
 	tracerBulletRunner       tracerBulletRunner
 	catchUpContext           context.Context
@@ -142,6 +146,15 @@ type changelogRecorder interface {
 type captureQueue interface {
 	TryEnqueue(record requestcapture.CaptureRecord) bool
 	Stop(ctx context.Context) requestcapture.QueueStopResult
+}
+
+// eventLogQueue is the narrow shutdown-time seam for the runtime-event
+// persistence queue. *eventlog.Queue satisfies this via its existing Stop
+// method; a.eventSink.Bind is still called with the concrete *eventlog.Queue
+// (Sink's atomic.Pointer[Queue] binding needs the concrete type), so this
+// interface exists only for test-double injection at the App layer.
+type eventLogQueue interface {
+	Stop(ctx context.Context) eventlog.QueueStopResult
 }
 
 type episodeCommandService interface {
@@ -305,6 +318,15 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.captureQueue != nil {
 		_ = a.captureQueue.Stop(ctx)
+	}
+	// Unbind before Stop: the sink's atomic.Pointer swap takes the nil
+	// branch on the logging goroutine and never contends the queue's
+	// stop mutex during shutdown.
+	if a.eventSink != nil {
+		a.eventSink.Unbind()
+	}
+	if a.eventQueue != nil {
+		_ = a.eventQueue.Stop(ctx)
 	}
 	if a.animeUpdateWriter != nil {
 		a.animeUpdateWriter.Wait()

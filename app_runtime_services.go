@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -21,6 +22,7 @@ import (
 func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureQueue()
 	a.configureCaptureReader()
+	a.configureEventLogQueue(ctx)
 	a.prepareAnimeRuntime(ctx)
 	a.startSyncChangelogRecorder()
 	deviceService, changelogStore := a.configureBridgeDeviceServices(ctx)
@@ -51,6 +53,47 @@ func (a *App) configureCaptureReader() {
 		return
 	}
 	a.captureReader = a.newCaptureReader(a.bridgeDB)
+}
+
+// eventPersistDebugSettingKey is the app_settings key controlling whether
+// debug-level runtime events are persisted (default OFF -- see
+// eventlog.SinkConfig's PersistDebug documentation).
+const eventPersistDebugSettingKey = "observability.events.persist_debug"
+
+// configureEventLogQueue wires the runtime-event persistence queue once
+// bridgeDB is bootstrapped: reads the debug-persistence policy from
+// app_settings, builds the store + queue via the injectable newEventQueue
+// seam, and binds the already-constructed sink to it. Guarded like
+// configureCaptureQueue: nil-safe when bridgeDB is absent, a no-op once a
+// queue already exists.
+func (a *App) configureEventLogQueue(ctx context.Context) {
+	if a.eventQueue != nil || a.bridgeDB == nil || a.newEventQueue == nil || a.eventSink == nil {
+		return
+	}
+	persistDebug := a.readEventPersistDebugSetting(ctx)
+	queue := a.newEventQueue(a.bridgeDB)
+	a.eventQueue = queue
+	if realQueue, ok := queue.(*eventlog.Queue); ok {
+		a.eventSink.Bind(realQueue, persistDebug)
+	}
+}
+
+// readEventPersistDebugSetting reads the debug-persistence policy from
+// app_settings, defaulting to false (OFF) when unset, on any read error, or
+// when bridgeDB is not a genuinely usable handle (some unit tests wire a
+// bare, unopened *sql.DB{} that panics on any query rather than erroring;
+// the recover keeps this best-effort read from ever failing startup).
+func (a *App) readEventPersistDebugSetting(ctx context.Context) (persistDebug bool) {
+	defer func() {
+		if recover() != nil {
+			persistDebug = false
+		}
+	}()
+	value, err := settings.NewSQLiteStore(a.bridgeDB).Get(ctx, eventPersistDebugSettingKey)
+	if err != nil {
+		return false
+	}
+	return value == "true"
 }
 
 // startSyncChangelogRecorder starts recording sync events from the event bus.
