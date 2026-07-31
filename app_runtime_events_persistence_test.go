@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"autoreas-bridge/internal/observability/eventlog"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 // TestLoggedEventSurvivesBridgeRestart asserts an event logged and persisted
@@ -161,16 +161,22 @@ func snapshotTableRowCounts(t *testing.T, db *sql.DB) map[string]int {
 	return counts
 }
 
-// TestEventSinkCountsEarlyBootDropsBeforeQueueBinding asserts the accepted
-// early-boot gap is observable and counted: log lines emitted between logger
-// construction and configureEventLogQueue (tray setup, tracer bullet start)
-// drop and are counted via Sink.UnboundDrops() rather than silently lost.
-func TestEventSinkCountsEarlyBootDropsBeforeQueueBinding(t *testing.T) {
+// TestEarlyBootEventsSurviveUntilQueueBinding is the regression test for
+// docs/mcp-event-visibility-report.md. Startup emits the whole tracer-bullet
+// flow at app.go:199, while the only Sink.Bind call is reached at app.go:208
+// via configureRuntimeServices -> configureEventLogQueue. Those entries used
+// to drop, so runtime_events (the MCP sidecar's only source) disagreed with
+// the in-memory feed the UI reads and the flow was invisible to the MCP.
+//
+// This asserts the opposite of the behaviour it replaces: the early-boot
+// window is now buffered and flushed by Bind, not counted as loss.
+func TestEarlyBootEventsSurviveUntilQueueBinding(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
 	app := newAppTestApp(t)
 	app.bootstrapBridgeDB = func() (*sql.DB, error) { return bridgeSync.OpenBridgeDB(dbPath) }
+	app.newEventQueue = nil // use the real eventlog queue, not newAppTestApp's stub
 	app.startup(context.Background())
 	defer app.shutdown(context.Background())
 	if app.startupErr != nil {
@@ -180,8 +186,21 @@ func TestEventSinkCountsEarlyBootDropsBeforeQueueBinding(t *testing.T) {
 	if app.eventSink == nil {
 		t.Fatal("expected startup to construct the event sink")
 	}
-	if app.eventSink.UnboundDrops() == 0 {
-		t.Fatal("expected at least one early-boot drop before the queue was bound (tracer bullet logs before bootstrap)")
+	if got := app.eventSink.UnboundDrops(); got != 0 {
+		t.Fatalf("expected the early-boot window to be buffered rather than dropped, got %d drops", got)
+	}
+
+	// "tracer bullet ready" is emitted at app.go:199, before the database is
+	// even bootstrapped -- the deepest point inside the old drop window.
+	waitForRuntimeEventRow(t, app.bridgeDB, "tracer bullet ready")
+
+	reader := eventlog.NewReader(app.bridgeDB)
+	page, err := reader.Search(context.Background(), eventlog.EventSearchParams{Filters: eventlog.EventFilters{Domain: "system"}})
+	if err != nil {
+		t.Fatalf("search events: %v", err)
+	}
+	if len(page.Items) == 0 {
+		t.Fatal("expected the pre-bind system-domain event to be queryable, which is what the MCP sidecar reads")
 	}
 }
 
@@ -215,13 +234,9 @@ func TestEventPersistDebugSettingRoundTripsAndDefaultsOff(t *testing.T) {
 // message appears, avoiding a fixed sleep for the async sink/queue drain.
 func waitForRuntimeEventRow(t *testing.T, db *sql.DB, message string) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	async.Eventually(t, func() bool {
 		var count int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM runtime_events WHERE message = ?`, message).Scan(&count); err == nil && count > 0 {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for runtime_events row with message %q", message)
+		err := db.QueryRow(`SELECT COUNT(*) FROM runtime_events WHERE message = ?`, message).Scan(&count)
+		return err == nil && count > 0
+	}, "timed out waiting for runtime_events row with message %q", message)
 }

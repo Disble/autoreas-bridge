@@ -2,6 +2,8 @@ package eventlog
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -192,8 +194,36 @@ func TestSearchUnmatchedFiltersReturnEmptyPageWithValidPagination(t *testing.T) 
 	if len(page.Items) != 0 {
 		t.Fatalf("expected empty items, got %#v", page.Items)
 	}
+	// A nil slice marshals to JSON null, which violates the MCP tool's
+	// declared output schema ("want array"). An empty match must serialize
+	// as [], so Items has to be non-nil even when nothing matched.
+	if page.Items == nil {
+		t.Fatal("expected non-nil empty Items so an empty page marshals as [] rather than null")
+	}
 	if page.AppliedLimit != defaultSearchLimit {
 		t.Fatalf("expected valid pagination metadata (applied limit), got %d", page.AppliedLimit)
+	}
+}
+
+// TestSearchEmptyPageMarshalsAsEmptyArray asserts the wire shape directly:
+// the zero-match page must encode items as [], never null, because the MCP
+// sidecar validates its response against a schema requiring an array.
+func TestSearchEmptyPageMarshalsAsEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	reader := NewReader(db)
+	page, err := reader.Search(context.Background(), EventSearchParams{Filters: EventFilters{Domain: "nonexistent"}})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	encoded, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("marshal page: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"items":[]`) {
+		t.Fatalf("expected items to encode as [], got %s", encoded)
 	}
 }
 

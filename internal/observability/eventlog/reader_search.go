@@ -86,7 +86,10 @@ type eventRowScanner interface {
 // to scan as skipped warnings rather than failing the whole query, and setting
 // the next cursor only when the limit+1 probe row proves a further page exists.
 func scanEventSearchPage(rows eventRowScanner, limit int) EventSearchPage {
-	page := EventSearchPage{AppliedLimit: limit}
+	// Items starts as a non-nil empty slice: a nil slice marshals to JSON
+	// null, and the MCP tool's declared output schema requires an array, so
+	// a zero-match page must encode as [] rather than failing validation.
+	page := EventSearchPage{AppliedLimit: limit, Items: []EventRecord{}}
 	for rows.Next() {
 		record, scanErr := scanEventRow(rows)
 		if scanErr != nil {

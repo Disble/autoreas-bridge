@@ -50,9 +50,16 @@ func nullableDuration(durationMS int64) *int64 {
 // pruneOldestBeyondRetention deletes the oldest event rows past the
 // configured row cap, called every pruneEvery successful write so pruning
 // cost scales with event traffic instead of wall-clock time.
+//
+// The write counter is per-process and starts at zero, so cadence alone
+// would never prune in a session that persists fewer than pruneEvery events
+// -- the common case for a desktop app with short sessions, which would let
+// the table grow past its cap across restarts and stay there. The first
+// write of every process therefore prunes unconditionally, which bounds the
+// table at startup regardless of how short the preceding sessions were.
 func (s *SQLiteStore) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
 	s.successful++
-	if s.successful%s.pruneEvery != 0 {
+	if s.successful > 1 && s.successful%s.pruneEvery != 0 {
 		return nil
 	}
 	_, err := tx.ExecContext(ctx, `

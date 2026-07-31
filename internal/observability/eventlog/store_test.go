@@ -192,3 +192,30 @@ func countRuntimeEvents(t *testing.T, db *sql.DB) int {
 	}
 	return count
 }
+
+// TestNewStoreSeedsPruneCounterFromExistingRows asserts a freshly constructed
+// store over a database that already holds rows does not restart its prune
+// cadence from zero. The counter lives in memory, so a process that persists
+// fewer than PruneEvery events would otherwise never prune at all -- the
+// common case for a desktop app with short sessions, letting the table grow
+// past its row cap across restarts.
+func TestNewStoreSeedsPruneCounterFromExistingRows(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	seed := NewStore(db, EventStoreConfig{RowCap: 3, PruneEvery: 4})
+	for i := 0; i < 7; i++ {
+		insertTestEvent(t, seed, EventRecord{OccurredAtMS: int64(100 + i), Domain: "sync", Level: "info", Message: "seed"})
+	}
+
+	// Simulate a process restart: a new store over the same database, then a
+	// single write. With a zero-seeded counter this write is number 1 of 4
+	// and never prunes; seeded from the existing row count it completes a
+	// cadence window and enforces the cap.
+	restarted := NewStore(db, EventStoreConfig{RowCap: 3, PruneEvery: 4})
+	insertTestEvent(t, restarted, EventRecord{OccurredAtMS: 900, Domain: "sync", Level: "info", Message: "after restart"})
+
+	if count := countRuntimeEvents(t, db); count > 3 {
+		t.Fatalf("expected prune cadence to survive a restart and enforce row cap 3, got %d rows", count)
+	}
+}
