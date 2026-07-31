@@ -3,8 +3,10 @@ import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types
 import {
   HISTORY_TABLE_ESTADO_ALL_VALUE,
   HISTORY_TABLE_ESTADO_OPTIONS,
+  HISTORY_TABLE_DAYS_PER_MONTH,
   HISTORY_TABLE_LONG_DATE_FORMATTER,
   HISTORY_TABLE_MILLIS_PER_DAY,
+  HISTORY_TABLE_MONTHS_PER_YEAR,
   HISTORY_TABLE_SORT_FECHA_CREACION_VALUE,
   HISTORY_TABLE_SORT_NOMBRE_VALUE,
   HISTORY_TABLE_SORT_OPTIONS,
@@ -51,9 +53,25 @@ function startOfLocalDay(millis: number): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
+/** Counts completed calendar months between two local calendar days. */
+function getCalendarMonthDiff(millis: number, now: number): number {
+  const date = new Date(millis);
+  const current = new Date(now);
+  let monthDiff =
+    (current.getFullYear() - date.getFullYear()) * HISTORY_TABLE_MONTHS_PER_YEAR +
+    current.getMonth() -
+    date.getMonth();
+
+  if (current.getDate() < date.getDate()) {
+    monthDiff -= 1;
+  }
+
+  return Math.max(0, monthDiff);
+}
+
 /**
- * Formats epoch millis as a relative recency label (e.g. "Today",
- * "Yesterday", "2 days ago"), aiding fast scanning per the "History
+ * Formats epoch millis as a relative recency label (e.g. "Today", "2 days
+ * ago", "1 year 2 months ago"), aiding fast scanning per the "History
  * Timestamps Read Well" spec. `now` defaults to the current time and is
  * overridable for deterministic tests.
  */
@@ -66,7 +84,35 @@ export function formatHistoryRelativeRecency(millis: number, now: number = Date.
   if (dayDiff === 1) {
     return 'Yesterday';
   }
-  return `${dayDiff} days ago`;
+
+  if (dayDiff < HISTORY_TABLE_DAYS_PER_MONTH) {
+    return `${dayDiff} days ago`;
+  }
+
+  const monthDiff = Math.max(
+    1,
+    getCalendarMonthDiff(startOfLocalDay(millis), startOfLocalDay(now)),
+  );
+  const years = Math.floor(monthDiff / HISTORY_TABLE_MONTHS_PER_YEAR);
+  const months = monthDiff % HISTORY_TABLE_MONTHS_PER_YEAR;
+
+  if (years > 0) {
+    const yearLabel = years === 1 ? '1 year' : `${years} years`;
+    let monthLabel = '';
+
+    if (months === 1) {
+      monthLabel = ' 1 month';
+    }
+
+    // Stryker disable next-line EqualityOperator: months === 1 is handled above, making >= 1 equivalent here.
+    if (months > 1) {
+      monthLabel = ` ${months} months`;
+    }
+
+    return `${yearLabel}${monthLabel} ago`;
+  }
+
+  return `${monthDiff} month${monthDiff === 1 ? '' : 's'} ago`;
 }
 
 /**

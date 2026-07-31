@@ -7,6 +7,12 @@ export const HISTORY_TABLE_PAGE_SIZE = 10;
 /** Milliseconds in one calendar day for History recency calculations. */
 export const HISTORY_TABLE_MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
+/** Approximation used to switch recency labels from days to calendar months. */
+export const HISTORY_TABLE_DAYS_PER_MONTH = 30;
+
+/** Number of calendar months in a year for recency labels. */
+export const HISTORY_TABLE_MONTHS_PER_YEAR = 12;
+
 /** Shared long-date formatter hoisted once for History row rendering. */
 export const HISTORY_TABLE_LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',

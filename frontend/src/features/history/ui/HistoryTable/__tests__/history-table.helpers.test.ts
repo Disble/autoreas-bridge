@@ -80,6 +80,22 @@ describe('formatHistoryRelativeRecency', () => {
 
     expect(formatHistoryRelativeRecency(FIXED_TIMESTAMP, now)).toBe('2 days ago');
   });
+
+  it.each([
+    [new Date(2026, 5, 1, 8, 0, 0).getTime(), '29 days ago'],
+    [new Date(2026, 4, 31, 8, 0, 0).getTime(), '1 month ago'],
+    [new Date(2026, 2, 31, 8, 0, 0).getTime(), '2 months ago'],
+    [new Date(2025, 6, 30, 8, 0, 0).getTime(), '11 months ago'],
+    [new Date(2025, 5, 30, 8, 0, 0).getTime(), '1 year ago'],
+    [new Date(2025, 4, 30, 8, 0, 0).getTime(), '1 year 1 month ago'],
+    [new Date(2025, 3, 30, 8, 0, 0).getTime(), '1 year 2 months ago'],
+    [new Date(2024, 5, 30, 8, 0, 0).getTime(), '2 years ago'],
+    [new Date(2017, 11, 30, 8, 0, 0).getTime(), '8 years 6 months ago'],
+  ])('formats long-running recency as %s', (millis, expected) => {
+    const now = new Date(2026, 5, 30, 20, 0, 0).getTime();
+
+    expect(formatHistoryRelativeRecency(millis, now)).toBe(expected);
+  });
 });
 
 describe('getHistoryEstadoLabel', () => {
