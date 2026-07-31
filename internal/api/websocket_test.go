@@ -14,6 +14,8 @@ import (
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
 	"github.com/gorilla/websocket"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestWebSocketWithoutBearerReturnsUnauthorized(t *testing.T) {
@@ -204,17 +206,16 @@ func TestWebSocketIncomingReconcileMessageWritesAnimeData(t *testing.T) {
 		t.Fatalf("write websocket message: %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	async.Eventually(t, func() bool {
 		record, err := snapshots.GetSnapshot(context.Background(), "anime-1")
-		if err == nil && record.ModifiedAt != 0 {
-			assertJSONLineEqualForWebSocketTest(t, string(record.CanonicalJSON), `{"id":"anime-1","name":"One Piece","episodesWatched":664,"status":2,"totalEpisodes":1200,"active":true,"lastWatchedAt":1710000000123}`)
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+		return err == nil && record.ModifiedAt != 0
+	}, "expected websocket reconcile message to finalize the updated anime snapshot")
 
-	t.Fatal("expected websocket reconcile message to finalize the updated anime snapshot")
+	record, err := snapshots.GetSnapshot(context.Background(), "anime-1")
+	if err != nil {
+		t.Fatalf("get finalized snapshot: %v", err)
+	}
+	assertJSONLineEqualForWebSocketTest(t, string(record.CanonicalJSON), `{"id":"anime-1","name":"One Piece","episodesWatched":664,"status":2,"totalEpisodes":1200,"active":true,"lastWatchedAt":1710000000123}`)
 }
 
 func TestWSReconcileAcceptedCapture(t *testing.T) {

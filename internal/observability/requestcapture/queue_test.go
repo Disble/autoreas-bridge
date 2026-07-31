@@ -3,10 +3,11 @@ package requestcapture
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
@@ -42,6 +43,15 @@ func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 
 func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	t.Parallel()
+
+	// Skipped under -short: this test spends 5s waiting out Stop's internal
+	// deadline, which is ~80% of the package's test time. tools/mutationstaged
+	// runs -short because it re-runs this suite once per mutant, and a mutant
+	// that only this test would catch is one whose effect is a hang -- which
+	// surfaces as a timeout anyway.
+	if testing.Short() {
+		t.Skip("skipping the 5s shutdown-deadline wait under -short")
+	}
 
 	store := &blockingQueueStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 2})
@@ -80,15 +90,11 @@ func TestQueueConcurrentStopRejectsEnqueueAndDrainsAcceptedWork(t *testing.T) {
 			queue.Stop(context.Background())
 			close(stopDone)
 		}()
-		for {
+		async.AwaitState(t, func() bool {
 			queue.mu.Lock()
-			stopping := queue.stopping
-			queue.mu.Unlock()
-			if stopping {
-				break
-			}
-			runtime.Gosched()
-		}
+			defer queue.mu.Unlock()
+			return queue.stopping
+		}, "iteration %d: queue never entered the stopping state", iteration)
 		if queue.TryEnqueue(NewCaptureRecord("patch", "late")) {
 			t.Fatal("expected enqueue to be rejected after stopping starts")
 		}

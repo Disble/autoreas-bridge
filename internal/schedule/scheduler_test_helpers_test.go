@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/download"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 // fakeTimer is a controllable timer the test drives manually via fire(). It satisfies the
@@ -159,25 +161,13 @@ const allWeekdaysMask byte = 127
 // it without sleeping on the FAKE clock (which only the scheduler advances logically).
 func waitForTimer(t *testing.T, clock *fakeClock) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if clock.lastTimer() != nil {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatal("timed out waiting for scheduler to create a timer")
+	async.Eventually(t, func() bool { return clock.lastTimer() != nil },
+		"timed out waiting for scheduler to create a timer")
 }
 
 // waitForTimerCount waits until the fake clock creates the expected timers.
 func waitForTimerCount(t *testing.T, clock *fakeClock, want int) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if clock.timerCount() >= want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for scheduler to create timer #%d", want)
+	async.Eventually(t, func() bool { return clock.timerCount() >= want },
+		"timed out waiting for scheduler to create timer #%d", want)
 }

@@ -8,6 +8,8 @@ import (
 
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/observability/requestcapture"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestMemoryHubRegisterCapturesWSConnectOpened(t *testing.T) {
@@ -176,17 +178,12 @@ func (s *recordingCaptureSink) capture(record requestcapture.CaptureRecord) bool
 // wait polls until at least want records were captured, then returns a copy.
 func (s *recordingCaptureSink) wait(t *testing.T, want int) []requestcapture.CaptureRecord {
 	t.Helper()
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
+	async.Eventually(t, func() bool {
 		s.mu.Lock()
-		if len(s.records) >= want {
-			out := append([]requestcapture.CaptureRecord(nil), s.records...)
-			s.mu.Unlock()
-			return out
-		}
-		s.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("expected at least %d captured records, got %d", want, len(s.records))
-	return nil
+		defer s.mu.Unlock()
+		return len(s.records) >= want
+	}, "expected at least %d captured records", want)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]requestcapture.CaptureRecord(nil), s.records...)
 }

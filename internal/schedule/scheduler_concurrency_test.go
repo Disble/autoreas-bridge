@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/download"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
@@ -83,13 +85,8 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 		_ = sched.TriggerNow(context.Background(), "manual")
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && !sched.Status(context.Background()).Running {
-		time.Sleep(time.Millisecond)
-	}
-	if !sched.Status(context.Background()).Running {
-		t.Fatal("timed out waiting for the first manual run to acquire the guard")
-	}
+	async.Eventually(t, func() bool { return sched.Status(context.Background()).Running },
+		"timed out waiting for the first manual run to acquire the guard")
 
 	err := sched.TriggerNow(context.Background(), "manual")
 	if !errors.Is(err, ErrRunInProgress) {
@@ -210,13 +207,8 @@ func TestRunExceedingMaxDurationReleasesTheConcurrentRunGuard(t *testing.T) {
 		t.Fatalf("unexpected error starting the wedged run: %v", err)
 	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && sched.Status(context.Background()).Running {
-		time.Sleep(time.Millisecond)
-	}
-	if sched.Status(context.Background()).Running {
-		t.Fatal("running guard was never released after the run exceeded MaxRunDuration")
-	}
+	async.Eventually(t, func() bool { return !sched.Status(context.Background()).Running },
+		"running guard was never released after the run exceeded MaxRunDuration")
 
 	if err := sched.TriggerNow(context.Background(), "manual"); err != nil {
 		t.Fatalf("TriggerNow after guard release = %v, want nil (guard must not be held forever)", err)

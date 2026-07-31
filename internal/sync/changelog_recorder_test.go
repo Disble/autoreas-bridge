@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
@@ -150,14 +151,5 @@ func (s *stubChangelogStore) InsertPending(_ context.Context, event ChangelogEnt
 // eventuallySync waits for an asynchronous sync condition to become true.
 func eventuallySync(t *testing.T, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(300 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !condition() {
-		t.Fatal("condition not satisfied before timeout")
-	}
+	async.Eventually(t, condition, "condition not satisfied before timeout")
 }

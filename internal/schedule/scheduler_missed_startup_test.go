@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/download"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestResolveMissedStartupDateRunNowSettlesOnExplicitSuccess(t *testing.T) {
@@ -114,13 +116,8 @@ func TestResolveMissedStartupDateReturnsRunInProgressWhenAnotherRunOwnsTheGuard(
 		_ = sched.ResolveMissedStartupDate(context.Background(), "2026-07-26", MissedStartupActionRunNow)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && !sched.Status(context.Background()).Running {
-		time.Sleep(time.Millisecond)
-	}
-	if !sched.Status(context.Background()).Running {
-		t.Fatal("timed out waiting for the first Run now to acquire the guard")
-	}
+	async.Eventually(t, func() bool { return sched.Status(context.Background()).Running },
+		"timed out waiting for the first Run now to acquire the guard")
 
 	result := sched.ResolveMissedStartupDate(context.Background(), "2026-07-26", MissedStartupActionRunNow)
 	if result.Kind != MissedStartupActionRunInProgress {
@@ -171,13 +168,9 @@ func TestFireScheduledTickCapturesOccurrenceLocalDateBeforeCompletionAndRespects
 	clock.set(time.Date(2026, 7, 26, 23, 59, 0, 0, time.UTC))
 	clock.lastTimer().fire(clock.Now())
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if store.cfg.LastRunAtMs == time.Date(2026, 7, 26, 23, 59, 0, 0, time.UTC).UnixMilli() {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	async.Eventually(t, func() bool {
+		return store.cfg.LastRunAtMs == time.Date(2026, 7, 26, 23, 59, 0, 0, time.UTC).UnixMilli()
+	}, "timed out waiting for the scheduled run to record its last-run timestamp")
 
 	if len(store.settlementRequests) == 0 {
 		t.Fatal("expected scheduled success to attempt a settlement")

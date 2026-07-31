@@ -17,6 +17,8 @@ import (
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"github.com/gorilla/websocket"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 // newWebsocketTestServer creates a websocket test server and its cleanup function.
@@ -74,29 +76,15 @@ func readControlMessage(t *testing.T, conn *websocket.Conn) realtime.ControlMess
 // waitForClientCount waits for the realtime hub to reach the expected count.
 func waitForClientCount(t *testing.T, hub *realtime.MemoryHub, want int) {
 	t.Helper()
-
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if hub.ClientCount() == want {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	t.Fatalf("expected client count %d, got %d", want, hub.ClientCount())
+	async.Eventually(t, func() bool { return hub.ClientCount() == want },
+		"expected client count %d, got %d", want, hub.ClientCount())
 }
 
 // waitForCaptureCount waits until the captures slice reaches the expected length.
 func waitForCaptureCount(t *testing.T, captures *[]requestcapture.CaptureRecord, want int) {
 	t.Helper()
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if len(*captures) == want {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("expected %d captures, got %#v", want, *captures)
+	async.Eventually(t, func() bool { return len(*captures) == want },
+		"expected %d captures, got %#v", want, *captures)
 }
 
 // newWebSocketWriteEnvironment creates database and service test state.

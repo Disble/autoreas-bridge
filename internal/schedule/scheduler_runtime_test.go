@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/download"
+
+	"autoreas-bridge/internal/testsupport/async"
 )
 
 func TestSchedulerDoesNotInvokeRunCallbackWhenScheduleDisabled(t *testing.T) {
@@ -162,24 +164,13 @@ func TestScheduledTickMarksLastRunAfterCompletion(t *testing.T) {
 	clock.set(firedAt)
 	clock.lastTimer().fire(clock.Now())
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
+	async.Eventually(t, func() bool {
 		store.mu.Lock()
-		lastRunAtMs := store.cfg.LastRunAtMs
-		lastRunStatus := store.cfg.LastRunStatus
-		nextRunAtMs := store.cfg.NextRunAtMs
-		store.mu.Unlock()
-
-		if lastRunAtMs == firedAt.UnixMilli() && lastRunStatus == "partial" && nextRunAtMs > firedAt.UnixMilli() {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	t.Fatalf("scheduled run mark = lastAt %d status %q nextAt %d, want lastAt %d status partial and future nextAt",
-		store.cfg.LastRunAtMs, store.cfg.LastRunStatus, store.cfg.NextRunAtMs, firedAt.UnixMilli())
+		defer store.mu.Unlock()
+		return store.cfg.LastRunAtMs == firedAt.UnixMilli() &&
+			store.cfg.LastRunStatus == "partial" &&
+			store.cfg.NextRunAtMs > firedAt.UnixMilli()
+	}, "scheduled run mark never settled, want lastAt %d status partial and future nextAt", firedAt.UnixMilli())
 }
 
 func TestNextLastRunAccessorsReflectScheduleConfigAfterMarkScheduleRun(t *testing.T) {
