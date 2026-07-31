@@ -38,7 +38,10 @@
 - Load `bridge-testing` before writing, reviewing, or refactoring bridge tests.
 - Load `bridge-debugging` when investigating regressions or any mismatch between tests and runtime behavior.
 - When writing Go tests, also load `go-testing`.
-- When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → REFACTOR strictly.
+- When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → **MUTATE** → REFACTOR strictly.
+- **Load `mutation-tdd` and mutation-check every guard before refactoring.** Delete the guard the test claims to cover, run only that test, and confirm it FAILS; then `git checkout -- <file>`. A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
+- Mutation checking is a prompt-driven step, NOT a hook. `lefthook.yml` deliberately does not run it: gremlins is non-reproducible on Windows and `go run ./tools/mutationstaged` costs ~100s per staged file against a ~90s gate. See `docs/mutation-testing.md`.
+- Branches the scheduler cannot reach (a raced pointer swap, `setErr(nil)`) need direct invocation of the unexported function from an in-package test. A stress loop that never reaches the branch passes while proving nothing — this has already happened twice in this repo.
 - Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted in SDD-55) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
 
 ## Cross-Cutting File Size Policy
@@ -132,6 +135,7 @@
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
 | `fallow-repo-setup` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
+| `mutation-tdd` | After a test goes green; any test guarding a conditional, defensive branch, error path, or concurrency |
 
 ## References
 
@@ -140,6 +144,7 @@
 - `docs/architecture.md`
 - `docs/autoreas-bridge-design-doc.md`
 - `docs/fallow-usage.md`
+- `docs/mutation-testing.md`
 - `docs/adr/007-english-code-spanish-boundaries.md`
 - `openspec/config.yaml`
 - `.atl/skill-registry.md`
