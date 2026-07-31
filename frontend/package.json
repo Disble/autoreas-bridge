@@ -14,7 +14,11 @@
     "validate": "bun run lint && bun run typecheck",
     "doctor:react": "bunx react-doctor@0.5.7 --verbose --no-telemetry",
     "test": "vitest run",
-    "generate:feature": "node ./scripts/generate-feature.js"
+    "test:mutation": "stryker run",
+    "test:mutation:guard": "node --test scripts/__tests__/mutation-staged.node-test.mjs",
+    "test:mutation:staged": "node ./scripts/dlinter-mutation-staged.mjs",
+    "generate:feature": "node ./scripts/generate-feature.js",
+    "audit": "fallow audit --quiet"
   },
   "dependencies": {
     "@dnd-kit/helpers": "^0.5.0",
@@ -35,6 +39,8 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/vitest-runner": "9.6.1",
     "@tailwindcss/vite": "4.2.2",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
@@ -42,7 +48,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.1",
-    "dlinter-ts-react": "^0.4.1",
+    "dlinter-ts-react": "^0.9.0",
     "eslint": "^9",
     "fallow": "^3.3.0",
     "jsdom": "29.0.2",

@@ -5,13 +5,16 @@ pre-commit:
       run: bun --cwd="frontend" run fallow audit --quiet --brief
 
     - name: frontend-fallow-dupes
-      run: bun --cwd="frontend" run fallow dupes --quiet --baseline ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
+      run: bun --cwd="frontend" run fallow dupes --quiet --baseline
+        ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
 
     - name: frontend-filesize-warning
       run: bun --cwd="frontend" run filesize:warning
 
     - name: frontend-lint
-      run: bun --cwd="frontend" run lint
+      run: bun x eslint {staged_files}
+      root: frontend
+      glob: "**/*.{js,cjs,mjs,ts,tsx,mts,cts}"
 
     - name: frontend-typecheck
       run: bun --cwd="frontend" run typecheck
@@ -42,3 +45,7 @@ pre-commit:
 
     - name: openapi
       run: go run ./tools/checkopenapi
+    # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
+    - name: test:mutation:staged
+      run: npm run test:mutation:staged
+      root: frontend

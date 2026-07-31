@@ -52,7 +52,12 @@ export default defineConfig(
               name: 'dom',
               environment: 'jsdom',
               // Setting `exclude` replaces Vitest's defaults, so keep them.
-              exclude: [...configDefaults.exclude, ...nodeTestInclude]
+              exclude: [
+                ...configDefaults.exclude,
+                '**/.stryker-*/**',
+                '**/*-mutation-tmp/**',
+                ...nodeTestInclude
+              ]
             }
           }
         ],

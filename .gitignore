@@ -4,6 +4,8 @@ frontend/dist
 resources/autoreas-data/*.dat
 .atl/active-sdd-change
 frontend/package.json.md5
+frontend/.stryker-*/
+frontend/reports/
 resources/autoreas-bridge-full-icon.png
 cmd/poc/.env
 *.exe
@@ -15,3 +17,6 @@ cmd/poc/.env
 .ignore/
 opencode.json
 .mcp.json
+
+# Gremlins mutation testing (see docs/mutation-testing.md)
+gremlins-report.json
