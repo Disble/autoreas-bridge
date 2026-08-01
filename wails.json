@@ -2,6 +2,10 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "autoreas-bridge",
   "outputfilename": "autoreas-bridge",
+  "info": {
+    "productName": "Autoreas Bridge",
+    "productVersion": "1.0.1"
+  },
   "frontend:install": "bun install",
   "frontend:build": "bun run build",
   "frontend:dev:watcher": "bun run dev",
