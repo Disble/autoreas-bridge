@@ -27,7 +27,7 @@
 
 ## Mandatory Workflow
 
-1. Read `docs/sdd-tree.md` and follow the change order unless the user explicitly reprioritizes.
+1. Read `openspec/changes/` (folders are date-prefixed, so they sort into change order) and follow that order unless the user explicitly reprioritizes.
 2. Before implementing, read the corresponding artifacts in `openspec/changes/<change>/`.
 3. Treat `openspec/specs/` and active change artifacts as the execution contract.
 4. Prefer incremental changes with verification after each meaningful step.
@@ -145,9 +145,8 @@
 ## References
 
 - `docs/learning-log.md`
-- `docs/sdd-tree.md`
 - `docs/architecture.md`
-- `docs/autoreas-bridge-design-doc.md`
+- `docs/autoreas-bridge-rfc.md`
 - `docs/fallow-usage.md`
 - `docs/mutation-testing.md`
 - `docs/adr/007-english-code-spanish-boundaries.md`

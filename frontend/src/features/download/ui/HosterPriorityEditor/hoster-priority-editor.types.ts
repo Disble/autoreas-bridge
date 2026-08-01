@@ -38,8 +38,11 @@ export interface HosterPriorityEditorState {
   readonly errorMessage: string | undefined;
 }
 
-/** Where the dragged item lands relative to the drop target, mirroring react-aria's `ItemDropTarget.dropPosition`. */
-export type HosterPriorityDropPosition = 'before' | 'after';
+/** Props for one draggable hoster row rendered by `SortableHosterRow`. */
+export interface SortableHosterRowProps {
+  readonly row: HosterPriorityRowViewModel;
+  readonly index: number;
+}
 
 /** Re-export for callers building reorder requests against the Wails binding shape. */
 export type { HosterPriorityItem };

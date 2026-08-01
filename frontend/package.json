@@ -31,7 +31,6 @@
     "@nivo/bar": "^0.99.0",
     "qrcode": "1.5.4",
     "react": "19.2.5",
-    "react-aria-components": "1.19.0",
     "react-dom": "19.2.5",
     "react-router": "7.14.0",
     "tailwindcss": "4.2.2",

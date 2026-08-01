@@ -1,33 +1,19 @@
-import { Chip, EmptyState, Skeleton } from '@heroui/react';
-import { Button, GridList, GridListItem, useDragAndDrop } from 'react-aria-components';
+import { DragDropProvider } from '@dnd-kit/react';
+import { EmptyState, Skeleton } from '@heroui/react';
+import { SortableHosterRow } from './SortableHosterRow';
 import { useHosterPriorityEditor } from './use-hoster-priority-editor';
-import type { HosterPriorityEditorProps, HosterPriorityRowViewModel } from './hoster-priority-editor.types';
+import type { HosterPriorityEditorProps } from './hoster-priority-editor.types';
 
 /**
  * HosterPriorityEditor renders the user-orderable hoster priority list.
- * Reordering is driven by `react-aria-components`' `GridList` +
- * `useDragAndDrop` — the accessible drag-and-drop primitive available in the
- * installed stack — which provides pointer drag, native keyboard reorder
- * (Space to grab, Arrow keys to move, Space/Enter to drop, Escape to cancel),
- * and built-in screen-reader announcements out of the box. All Wails calls
- * and reorder/persist logic live in the colocated `useHosterPriorityEditor`
+ * Reordering runs on @dnd-kit/react, which drives drags with POINTER events —
+ * the only thing that works reliably inside Wails WebView2 (AGENTS.md rule 11).
+ * It also ships keyboard reordering and screen-reader announcements. All Wails
+ * calls and reorder/persist logic live in the colocated `useHosterPriorityEditor`
  * hook; this component is presentation-only.
  */
 export function HosterPriorityEditor({ className }: Readonly<HosterPriorityEditorProps>) {
-  const { status, items, isSaving, errorMessage, reorder } = useHosterPriorityEditor();
-
-  const { dragAndDropHooks } = useDragAndDrop({
-    getItems: (keys) =>
-      [...keys].map((key) => ({ 'text/plain': String(key) })),
-    onReorder: (event) => {
-      const draggedKey = String([...event.keys][0]);
-      const targetKey = String(event.target.key);
-
-      reorder(String(draggedKey), String(targetKey), event.target.dropPosition === 'after' ? 'after' : 'before').catch(
-        () => undefined,
-      );
-    },
-  });
+  const { status, items, isSaving, errorMessage, onDragEnd } = useHosterPriorityEditor();
 
   if (status === 'loading') {
     return (
@@ -62,32 +48,13 @@ export function HosterPriorityEditor({ className }: Readonly<HosterPriorityEdito
         {isSaving ? 'Saving hoster priority order…' : 'Hoster priority order saved.'}
       </div>
 
-      <GridList
-        aria-label="Hoster priority"
-        className="flex flex-col gap-2"
-        dragAndDropHooks={dragAndDropHooks}
-        items={items}
-      >
-        {(item: HosterPriorityRowViewModel) => (
-          <GridListItem
-            className="flex items-center justify-between gap-3 rounded-lg border border-divider/60 bg-content1/60 px-3 py-2.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60 data-[dragging]:opacity-60 data-[focus-visible]:ring-2"
-            id={item.id}
-            textValue={item.hoster}
-          >
-            <Button
-              aria-label={`Reorder ${item.hoster}`}
-              className="cursor-grab touch-none rounded-md p-1 text-muted outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60"
-              slot="drag"
-            >
-              <span aria-hidden="true">⠿</span>
-            </Button>
-            <span className="flex-1 font-medium text-foreground">{item.hoster}</span>
-            <Chip color={item.enabled ? 'success' : 'default'} size="sm" variant="soft">
-              {item.enabled ? 'Enabled' : 'Disabled'}
-            </Chip>
-          </GridListItem>
-        )}
-      </GridList>
+      <DragDropProvider onDragEnd={(event) => void onDragEnd(event)}>
+        <ul aria-label="Hoster priority" className="flex flex-col gap-2">
+          {items.map((row, index) => (
+            <SortableHosterRow key={row.id} index={index} row={row} />
+          ))}
+        </ul>
+      </DragDropProvider>
     </section>
   );
 }
