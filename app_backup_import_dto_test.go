@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -197,5 +198,49 @@ func TestImportResultCarriesRestorePointPathOnFailure(t *testing.T) {
 	}
 	if result.ErrorMessage == "" {
 		t.Fatalf("expected a non-empty error message on failure")
+	}
+}
+
+// TestPreviewResultSerializesEmptySlicesAsArraysNotNull guards the wire shape
+// the frontend actually receives. A nil Go slice marshals to JSON null, and
+// the frontend reads these fields with .length and .map -- so a nil here
+// blanks the whole UI with a TypeError on the single most common path: a
+// successful same-version import, where all four are empty.
+func TestPreviewResultSerializesEmptySlicesAsArraysNotNull(t *testing.T) {
+	t.Parallel()
+
+	// A report with no unknown groups, no absent groups and no version notes:
+	// exactly what importing a current-version bundle produces.
+	result := newBackupImportPreviewResult("C:/tmp/bundle.zip", backup.PreviewReport{})
+
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal preview result: %v", err)
+	}
+
+	for _, field := range []string{"groups", "unknownGroups", "absentGroups", "versionNotes"} {
+		if bytes.Contains(raw, []byte(`"`+field+`":null`)) {
+			t.Fatalf("field %q serialized as null; the frontend calls .length/.map on it: %s", field, raw)
+		}
+	}
+}
+
+// TestImportResultSerializesEmptySlicesAsArraysNotNull is the apply-side twin
+// of the preview guard above. On a successful import Unattempted is nil, and
+// the frontend maps over it unconditionally.
+func TestImportResultSerializesEmptySlicesAsArraysNotNull(t *testing.T) {
+	t.Parallel()
+
+	result := newBackupImportResult(backup.ApplyReport{}, "C:/data/restore.db", nil)
+
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal import result: %v", err)
+	}
+
+	for _, field := range []string{"importedGroups", "unattemptedGroups"} {
+		if bytes.Contains(raw, []byte(`"`+field+`":null`)) {
+			t.Fatalf("field %q serialized as null; the frontend calls .length/.map on it: %s", field, raw)
+		}
 	}
 }

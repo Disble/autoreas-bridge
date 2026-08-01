@@ -29,7 +29,7 @@ type BackupImportPreviewResult struct {
 
 // BackupImportResult is the apply outcome returned to the frontend. On
 // success FailedGroup and ErrorMessage are empty and UnattemptedGroups is
-// nil. On failure it names exactly which groups committed, which one failed,
+// an empty array, never null. On failure it names which groups committed, which one failed,
 // which were never attempted, and the restore point's path -- the
 // information a user needs to decide whether to reach for it.
 type BackupImportResult struct {
@@ -55,10 +55,21 @@ func newBackupImportPreviewResult(bundlePath string, report backup.PreviewReport
 		CreatedAt:      report.CreatedAt,
 		BundleChecksum: report.BundleChecksum,
 		Groups:         groups,
-		UnknownGroups:  report.UnknownGroups,
-		AbsentGroups:   report.AbsentGroups,
-		VersionNotes:   report.VersionNotes,
+		UnknownGroups:  emptyIfNil(report.UnknownGroups),
+		AbsentGroups:   emptyIfNil(report.AbsentGroups),
+		VersionNotes:   emptyIfNil(report.VersionNotes),
 	}
+}
+
+// emptyIfNil returns a non-nil slice so the field marshals to [] rather than
+// null. The frontend reads every one of these with .length and .map, and a
+// nil slice on the most ordinary path -- a successful same-version import,
+// where all of them are empty -- would throw a TypeError and blank the UI.
+func emptyIfNil(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 // newBackupImportResult builds the DTO from an apply report and the restore
@@ -73,7 +84,7 @@ func newBackupImportResult(report backup.ApplyReport, restorePointPath string, a
 	result := BackupImportResult{
 		ImportedGroups:    imported,
 		FailedGroup:       report.Failed,
-		UnattemptedGroups: report.Unattempted,
+		UnattemptedGroups: emptyIfNil(report.Unattempted),
 		RestorePointPath:  restorePointPath,
 	}
 	if applyErr != nil {
