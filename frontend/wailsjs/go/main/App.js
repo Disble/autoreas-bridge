@@ -18,6 +18,10 @@ export function CloseSeason() {
   return window['go']['main']['App']['CloseSeason']();
 }
 
+export function ConfirmBackupImport(arg1) {
+  return window['go']['main']['App']['ConfirmBackupImport'](arg1);
+}
+
 export function ConfirmSeasonSelection() {
   return window['go']['main']['App']['ConfirmSeasonSelection']();
 }
@@ -196,6 +200,10 @@ export function PickFile(arg1) {
 
 export function PickFolder(arg1) {
   return window['go']['main']['App']['PickFolder'](arg1);
+}
+
+export function PreviewBackupImport() {
+  return window['go']['main']['App']['PreviewBackupImport']();
 }
 
 export function RecheckSeasonAvailability() {

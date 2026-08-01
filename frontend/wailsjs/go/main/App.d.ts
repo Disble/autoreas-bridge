@@ -12,6 +12,8 @@ export function ApplySeasonSchedule():Promise<main.ApplyScheduleDTO>;
 
 export function CloseSeason():Promise<string>;
 
+export function ConfirmBackupImport(arg1:string):Promise<main.BackupImportResult>;
+
 export function ConfirmSeasonSelection():Promise<main.ConfirmSelectionDTO>;
 
 export function CopyAnimeFolder(arg1:string):Promise<contracts.EpisodeCommandResult>;
@@ -101,6 +103,8 @@ export function OpenAnimePage(arg1:string):Promise<contracts.EpisodeCommandResul
 export function PickFile(arg1:string):Promise<string>;
 
 export function PickFolder(arg1:string):Promise<string>;
+
+export function PreviewBackupImport():Promise<main.BackupImportPreviewResult>;
 
 export function RecheckSeasonAvailability():Promise<string>;
 

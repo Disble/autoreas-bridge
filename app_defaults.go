@@ -230,6 +230,20 @@ func (a *App) ensureRuntimeFunctions() {
 			})
 		}
 	}
+	if a.pickBundle == nil {
+		// a.pickFile is hard-wired to an image filter for the anime cover
+		// picker; widening it would change that unrelated dialog, so import
+		// gets its own seam with a Backup bundle (*.zip) filter instead.
+		a.pickBundle = func(ctx context.Context, title string) (string, error) {
+			return wruntime.OpenFileDialog(ctx, wruntime.OpenDialogOptions{
+				Title:   title,
+				Filters: []wruntime.FileFilter{{DisplayName: "Backup bundle (*.zip)", Pattern: "*.zip"}},
+			})
+		}
+	}
+	if a.resolveBridgeDBPath == nil {
+		a.resolveBridgeDBPath = bridgeSync.ResolveExistingBridgeDBPath
+	}
 }
 
 // ensureRuntimeObservability initializes the shared logging and event bus services.

@@ -1,15 +1,15 @@
 import { useCallback, useMemo, useState } from 'react';
 import { backupSource } from '../../../../infrastructure/backup-source/backup-source.helpers';
-import type { BackupSource } from '../../../../infrastructure/backup-source/backup-source.types';
 import { classifyExportOutcome, describeExportError } from './backup-panel.helpers';
 import type { BackupExportResultDTO } from '../../../../infrastructure/backup-source';
+import type { BackupExportSource } from './backup-panel.types';
 
 /**
  * Owns the backup export run: it is the only file in this feature that
  * calls into the backup runtime source. Guards against firing a second
  * export while one is already in flight.
  */
-export function useBackupPanel(source: BackupSource = backupSource) {
+export function useBackupPanel(source: BackupExportSource = backupSource) {
   // 1. Refs
 
   // 2. State

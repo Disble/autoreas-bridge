@@ -2,7 +2,8 @@
 
 ## Status
 Accepted (SDD-58). Relates to ADR-008 (SQLite sole owner) and ADR-007 (English
-code, Spanish boundaries).
+code, Spanish boundaries). The import policies deferred in § D below are
+decided in ADR-010 (SDD-59).
 
 ## Context
 Since SDD-55/ADR-008, `bridge.db` is the sole owner of anime, season, and

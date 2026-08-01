@@ -101,7 +101,10 @@ type App struct {
 	openFolder               func(path string) error
 	pickFolder               func(ctx context.Context, title string) (string, error)
 	pickFile                 func(ctx context.Context, title string) (string, error)
+	pickBundle               func(ctx context.Context, title string) (string, error)
 	saveFile                 func(ctx context.Context, title, defaultFilename string) (string, error)
+	resolveBridgeDBPath      func() (string, error)
+	pendingBackupImport      *pendingBackupImport
 	copyText                 func(ctx context.Context, value string) error
 	nowTime                  func() time.Time
 	processStartedAt         time.Time

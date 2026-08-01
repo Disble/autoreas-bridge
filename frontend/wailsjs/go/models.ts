@@ -1905,6 +1905,106 @@ export namespace main {
 		}
 	}
 	
+	export class BackupImportGroupResult {
+	    name: string;
+	    recordCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupImportGroupResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.recordCount = source["recordCount"];
+	    }
+	}
+	export class BackupImportPreviewResult {
+	    cancelled: boolean;
+	    bundlePath: string;
+	    formatVersion: number;
+	    bridgeVersion: string;
+	    createdAt: string;
+	    bundleChecksum: string;
+	    groups: BackupImportGroupResult[];
+	    unknownGroups: string[];
+	    absentGroups: string[];
+	    versionNotes: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupImportPreviewResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.bundlePath = source["bundlePath"];
+	        this.formatVersion = source["formatVersion"];
+	        this.bridgeVersion = source["bridgeVersion"];
+	        this.createdAt = source["createdAt"];
+	        this.bundleChecksum = source["bundleChecksum"];
+	        this.groups = this.convertValues(source["groups"], BackupImportGroupResult);
+	        this.unknownGroups = source["unknownGroups"];
+	        this.absentGroups = source["absentGroups"];
+	        this.versionNotes = source["versionNotes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BackupImportResult {
+	    importedGroups: BackupImportGroupResult[];
+	    failedGroup: string;
+	    unattemptedGroups: string[];
+	    restorePointPath: string;
+	    errorMessage: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupImportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.importedGroups = this.convertValues(source["importedGroups"], BackupImportGroupResult);
+	        this.failedGroup = source["failedGroup"];
+	        this.unattemptedGroups = source["unattemptedGroups"];
+	        this.restorePointPath = source["restorePointPath"];
+	        this.errorMessage = source["errorMessage"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ConfirmSelectionDTO {
 	    status: string;
 	    approved: number;
