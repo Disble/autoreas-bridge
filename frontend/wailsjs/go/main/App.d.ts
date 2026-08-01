@@ -28,6 +28,8 @@ export function DeactivateAnime(arg1:string,arg2:number):Promise<contracts.Anime
 
 export function DiscardSeasonName(arg1:string):Promise<string>;
 
+export function ExportBackup():Promise<main.BackupExportResult>;
+
 export function GetAnimeCover(arg1:string):Promise<contracts.AnimeCover>;
 
 export function GetAnimeDetail(arg1:string):Promise<contracts.MobileAnime>;

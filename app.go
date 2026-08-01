@@ -101,6 +101,7 @@ type App struct {
 	openFolder               func(path string) error
 	pickFolder               func(ctx context.Context, title string) (string, error)
 	pickFile                 func(ctx context.Context, title string) (string, error)
+	saveFile                 func(ctx context.Context, title, defaultFilename string) (string, error)
 	copyText                 func(ctx context.Context, value string) error
 	nowTime                  func() time.Time
 	processStartedAt         time.Time

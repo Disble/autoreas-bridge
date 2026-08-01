@@ -221,6 +221,15 @@ func (a *App) ensureRuntimeFunctions() {
 			})
 		}
 	}
+	if a.saveFile == nil {
+		a.saveFile = func(ctx context.Context, title, defaultFilename string) (string, error) {
+			return wruntime.SaveFileDialog(ctx, wruntime.SaveDialogOptions{
+				Title:           title,
+				DefaultFilename: defaultFilename,
+				Filters:         []wruntime.FileFilter{{DisplayName: "Backup bundle (*.zip)", Pattern: "*.zip"}},
+			})
+		}
+	}
 }
 
 // ensureRuntimeObservability initializes the shared logging and event bus services.

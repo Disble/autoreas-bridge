@@ -50,6 +50,10 @@ export function DiscardSeasonName(arg1) {
   return window['go']['main']['App']['DiscardSeasonName'](arg1);
 }
 
+export function ExportBackup() {
+  return window['go']['main']['App']['ExportBackup']();
+}
+
 export function GetAnimeCover(arg1) {
   return window['go']['main']['App']['GetAnimeCover'](arg1);
 }
