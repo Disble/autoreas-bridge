@@ -248,13 +248,13 @@ func (s *Service) flattenDownloadFolder(ctx context.Context, runID string, anime
 	if err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.flatten_failed",
 			map[string]any{"moved": moved},
-			"anime %s: pre-download flatten moved %d files with errors: %v", anime.Name, moved, err)
+			"anime %s: download folder flatten moved %d files with errors: %v", anime.Name, moved, err)
 		return
 	}
 	if moved > 0 {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.flattened",
 			map[string]any{"moved": moved},
-			"anime %s: pre-download flatten moved %d files", anime.Name, moved)
+			"anime %s: download folder flatten moved %d files", anime.Name, moved)
 	}
 }
 

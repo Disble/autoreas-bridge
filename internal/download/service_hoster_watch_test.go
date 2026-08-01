@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/events"
 )
@@ -185,6 +186,45 @@ func TestAwaitHosterOutcomeReturnsSuccessWhenDiskBaselineExceeded(t *testing.T) 
 	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(folder), "Mediafire", 4, 1, true)
 	if outcome.kind != hosterOutcomeSuccess {
 		t.Fatalf("expected success outcome when disk baseline is exceeded, got %#v", outcome)
+	}
+}
+
+func TestAwaitHosterOutcomeFlattensJDownloaderPackageWhenRootSignalsCompletion(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	packageFolder := filepath.Join(root, "9gm31meptrvq")
+	rootVideo := filepath.Join(root, "episode-01.mp4")
+	nestedVideo := filepath.Join(packageFolder, "episode-02.mp4")
+	if err := os.MkdirAll(packageFolder, 0o755); err != nil {
+		t.Fatalf("create JDownloader package folder: %v", err)
+	}
+	if err := os.WriteFile(rootVideo, []byte("video"), 0o600); err != nil {
+		t.Fatalf("create root video: %v", err)
+	}
+	if err := os.WriteFile(nestedVideo, []byte("video"), 0o600); err != nil {
+		t.Fatalf("create nested video: %v", err)
+	}
+
+	now := time.Now()
+	deps := baseDeps(t)
+	deps.Counter = filesystem.NewEpisodeCounter()
+	deps.Flattener = filesystem.NewFlattener()
+	deps.Clock = func() time.Time { return now }
+	s := NewService(deps)
+
+	outcome := s.awaitHosterOutcome(context.Background(), "run-1", testAnime(root), "Mediafire", 0, 1, true)
+	if outcome.kind != hosterOutcomeSuccess {
+		t.Fatalf("expected success outcome, got %#v", outcome)
+	}
+	if _, err := os.Stat(rootVideo); err != nil {
+		t.Fatalf("expected existing root video to remain in place: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, filepath.Base(nestedVideo))); err != nil {
+		t.Fatalf("expected JDownloader video at root: %v", err)
+	}
+	if _, err := os.Stat(packageFolder); !os.IsNotExist(err) {
+		t.Fatalf("expected emptied JDownloader package folder removed, stat err: %v", err)
 	}
 }
 

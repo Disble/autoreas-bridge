@@ -187,6 +187,7 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	}
 
 	if s.downloadedEpisodeBaseline(folder) > baselineCount {
+		s.flattenDownloadFolder(ctx, runID, anime)
 		return hosterOutcome{kind: hosterOutcomeSuccess}
 	}
 
@@ -208,6 +209,7 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
 		if s.downloadedEpisodeBaseline(folder) > baselineCount {
+			s.flattenDownloadFolder(ctx, runID, anime)
 			return hosterOutcome{kind: hosterOutcomeSuccess}
 		}
 
