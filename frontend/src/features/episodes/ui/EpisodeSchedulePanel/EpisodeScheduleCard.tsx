@@ -41,10 +41,6 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
               </Chip>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-              <span className="group relative cursor-default">
-                <span className="group-hover:hidden">{row.watchedLabel}</span>
-                <span className="hidden group-hover:inline">{row.remainingLabel}</span>
-              </span>
               <AnimeDesktopActions
                 animeId={row.id}
                 name={row.name}
@@ -57,6 +53,10 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
                 onOpenFolder={openAnimeFolder}
                 onCopyFolder={copyAnimeFolder}
               />
+              <span className="group relative cursor-default">
+                <span className="group-hover:hidden">{row.watchedLabel}</span>
+                <span className="hidden group-hover:inline">{row.remainingLabel}</span>
+              </span>
             </div>
           </div>
 

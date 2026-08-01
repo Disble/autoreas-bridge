@@ -22,7 +22,8 @@ export default defineConfig(
       'src/shared/**/__tests__/*.helpers.test.ts',
       'src/shared/store/**/__tests__/*.test.ts',
       'src/shared/constants/__tests__/*.test.ts',
-      'src/shared/contracts/__tests__/*.test.ts'
+      'src/shared/contracts/__tests__/*.test.ts',
+      'scripts/__tests__/*.test.mjs'
     ]
 
     return {
@@ -32,11 +33,9 @@ export default defineConfig(
         environment: 'jsdom',
         setupFiles: './src/test/setup.ts',
         forbidOnly: true,
-        // One worker per logical core starves the heavy integration suites:
-        // with the default fan-out the slowest test spent ~3s of its 5s budget,
-        // so a busy machine turned a green suite red. Half the cores roughly
-        // halves per-test latency for no extra wall time.
-        maxWorkers: '50%',
+        // Files run sequentially under the concurrent Lefthook gate to preserve
+        // the fixed 5-second test budget.
+        fileParallelism: false,
         projects: [
           {
             extends: true,

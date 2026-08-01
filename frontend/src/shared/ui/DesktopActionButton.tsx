@@ -26,7 +26,7 @@ export function DesktopActionButton({ ariaLabel, className, icon, path, onOpen, 
       >
         <Icon icon={icon} className="size-4" />
       </Button>
-      <Tooltip.Content showArrow>
+      <Tooltip.Content showArrow placement="bottom">
         <Tooltip.Arrow />
         {path}
       </Tooltip.Content>
