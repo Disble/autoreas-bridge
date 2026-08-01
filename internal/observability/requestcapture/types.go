@@ -20,6 +20,15 @@ const (
 	// its size was not declared, so reading it before auth would stream
 	// unboundedly.
 	CaptureStateOmittedStreaming = "omitted_streaming"
+	// OutcomePending is the transport-only arrival outcome written before a
+	// handler runs, replaced by the terminal write that follows it.
+	OutcomePending = "pending"
+	// OutcomeAbandoned is the terminal outcome for an arrival row whose
+	// terminal write never landed -- the process died between the two writes.
+	// It deliberately carries no http_status and no duration_ms: the bridge
+	// never observed either, and inventing them would make the row claim a
+	// wire fact that never happened.
+	OutcomeAbandoned = "abandoned"
 )
 
 // CaptureFunc enqueues one sanitized observability record, reporting whether

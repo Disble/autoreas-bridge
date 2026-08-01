@@ -202,7 +202,7 @@ describe('useTransactionPanel', () => {
   it('refreshes the selected detail when the selected request transitions from pending to terminal via a runtime upsert', async () => {
     const source = createFakeSource({
       listTransactions: vi.fn().mockResolvedValue({
-        items: [row({ requestId: 'req-1', outcome: 'pending' })],
+        items: [row({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() })],
         appliedLimit: 25,
         malformedRowsSkipped: 0,
         warningCount: 0,
@@ -210,7 +210,7 @@ describe('useTransactionPanel', () => {
       }),
       getTransaction: vi
         .fn()
-        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'pending' }), degraded: false })
+        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() }), degraded: false })
         .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }), degraded: false }),
     });
     let pushRow: ((row: CaptureRow) => void) | undefined;

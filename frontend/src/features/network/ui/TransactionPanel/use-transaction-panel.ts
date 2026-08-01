@@ -54,8 +54,11 @@ export function useTransactionPanel(
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const hasPending = useMemo(() => selectHasPendingTransactions(items), [items]);
-  const now = useElapsedClock(hasPending);
+  // The clock takes a predicate rather than a boolean so it can observe a
+  // pending row aging out of the staleness window and stop itself; a plain
+  // inline closure is fine because the interval keys off the resulting boolean,
+  // not this function's identity.
+  const now = useElapsedClock((at: number) => selectHasPendingTransactions(items, at));
   const rows = useMemo(
     () => selectVisibleTransactionRows(items, filters).map((row) => toTransactionRow(row, now)),
     [items, filters, now],

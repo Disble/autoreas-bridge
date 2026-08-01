@@ -12,7 +12,7 @@ describe('useElapsedClock', () => {
   });
 
   it('does not tick while hasPending is false', () => {
-    const { result } = renderHook(() => useElapsedClock(false));
+    const { result } = renderHook(() => useElapsedClock(() => false));
     const initial = result.current;
 
     act(() => {
@@ -23,7 +23,7 @@ describe('useElapsedClock', () => {
   });
 
   it('ticks every 500ms while hasPending is true', () => {
-    const { result } = renderHook(() => useElapsedClock(true));
+    const { result } = renderHook(() => useElapsedClock(() => true));
     const initial = result.current;
 
     act(() => {
@@ -40,7 +40,7 @@ describe('useElapsedClock', () => {
   });
 
   it('stops ticking once hasPending flips back to false', () => {
-    const { result, rerender } = renderHook(({ hasPending }) => useElapsedClock(hasPending), {
+    const { result, rerender } = renderHook(({ hasPending }) => useElapsedClock(() => hasPending), {
       initialProps: { hasPending: true },
     });
 
@@ -59,7 +59,7 @@ describe('useElapsedClock', () => {
   });
 
   it('resumes ticking once hasPending flips back to true', () => {
-    const { result, rerender } = renderHook(({ hasPending }) => useElapsedClock(hasPending), {
+    const { result, rerender } = renderHook(({ hasPending }) => useElapsedClock(() => hasPending), {
       initialProps: { hasPending: false },
     });
 

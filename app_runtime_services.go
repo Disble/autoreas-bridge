@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/observability/eventlog"
+	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -21,6 +22,7 @@ import (
 // configureRuntimeServices wires and starts the bridge runtime services.
 func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureQueue()
+	a.sweepOrphanedCaptures()
 	a.configureCaptureReader()
 	a.configureEventLogQueue(ctx)
 	a.prepareAnimeRuntime(ctx)
@@ -41,6 +43,44 @@ func (a *App) configureCaptureQueue() {
 		return
 	}
 	a.captureQueue = a.newCaptureQueue(a.bridgeDB)
+}
+
+// sweepOrphanedCaptures closes capture rows left in their pending arrival shape
+// by a process that died before writing their terminal row (force close, crash,
+// or a shutdown that tore down the capture queue and its SQLite fallback first).
+// Without this they stay 'pending' forever and the Activity view renders them as
+// in-flight requests whose elapsed clock grows without bound.
+//
+// Ordering matters: this runs during configureRuntimeServices, before
+// startHTTPServer accepts connections, so no request can legitimately be in
+// flight and every pending row present is provably an orphan. Nil-safe when
+// bridgeDB is absent (capture persistence simply is not configured -- not a
+// failure, so it stays silent), and idempotent across restarts.
+func (a *App) sweepOrphanedCaptures() {
+	if a.bridgeDB == nil {
+		return
+	}
+	// Mirrors readEventPersistDebugSetting: some unit tests (and any degraded
+	// bootstrap) wire a bare, unopened *sql.DB{} that panics on query rather
+	// than erroring. A best-effort observability sweep must never take startup
+	// down with it.
+	defer func() {
+		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
+			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", recovered)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	swept, err := requestcapture.SweepOrphanedCaptures(ctx, a.bridgeDB)
+	if err != nil {
+		if a.sharedLogger != nil {
+			a.sharedLogger.Warnf("api", "failed to sweep orphaned capture rows: %v", err)
+		}
+		return
+	}
+	if swept > 0 && a.sharedLogger != nil {
+		a.sharedLogger.Warnf("api", "swept %d orphaned capture row(s) left pending by a previous process", swept)
+	}
 }
 
 // configureCaptureReader wires the in-process capture read path

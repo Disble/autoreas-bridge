@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
+import { TRANSACTION_STALE_PENDING_THRESHOLD_MS } from '../../../../../shared/store/transaction-store/transaction-store.constants';
 import {
   TRANSACTION_EMPTY_LABEL,
   TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE,
@@ -218,6 +219,52 @@ describe('toTransactionRow', () => {
 
     expect(viewModel.isPending).toBe(false);
     expect(viewModel.durationLabel).toBe('42ms');
+  });
+});
+
+describe('formatTransactionDuration — human-readable units', () => {
+  it('keeps sub-second durations in raw milliseconds', () => {
+    expect(toTransactionRow(row({ outcome: 'accepted', durationMs: 999 })).durationLabel).toBe('999ms');
+  });
+
+  it('formats a multi-second duration in seconds', () => {
+    expect(toTransactionRow(row({ outcome: 'accepted', durationMs: 52628 })).durationLabel).toBe('52.6s');
+  });
+
+  it('formats a multi-minute duration in minutes and seconds', () => {
+    expect(toTransactionRow(row({ outcome: 'accepted', durationMs: 125000 })).durationLabel).toBe('2m 5s');
+  });
+
+  it('formats a multi-hour duration in hours and minutes instead of an unreadable millisecond count', () => {
+    expect(toTransactionRow(row({ outcome: 'accepted', durationMs: 49412953 })).durationLabel).toBe('13h 43m');
+  });
+});
+
+describe('toTransactionRow — stale pending rows', () => {
+  const capturedAtMs = 1_000_000;
+
+  it('keeps ticking for a pending row inside the staleness window', () => {
+    const viewModel = toTransactionRow(
+      row({ outcome: 'pending', capturedAtMs, durationMs: undefined, httpStatus: undefined }),
+      capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS - 1,
+    );
+
+    expect(viewModel.isPending).toBe(true);
+  });
+
+  it('stops the ticker and reports a pending row past the staleness window as abandoned', () => {
+    const viewModel = toTransactionRow(
+      row({ outcome: 'pending', capturedAtMs, durationMs: undefined, httpStatus: undefined }),
+      capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS,
+    );
+
+    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.outcome).toBe('abandoned');
+    expect(viewModel.durationLabel).toBe(TRANSACTION_EMPTY_LABEL);
+  });
+
+  it('colors an abandoned row as a warning rather than a neutral default', () => {
+    expect(getTransactionOutcomeColor('abandoned')).toBe('warning');
   });
 });
 
