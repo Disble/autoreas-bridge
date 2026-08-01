@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wailsapp/wails/v2/pkg/options"
+
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/cover"
@@ -350,6 +352,13 @@ func (a *App) openMainWindow() {
 	}
 	a.unminimiseWindow(a.ctx)
 	a.showWindow(a.ctx)
+}
+
+// onSecondInstanceLaunch surfaces the running window when another launch is
+// attempted. It runs on the first, surviving instance; the second process
+// exits before startup, so the app never opens a duplicate window or tray icon.
+func (a *App) onSecondInstanceLaunch(options.SecondInstanceData) {
+	a.openMainWindow()
 }
 
 // requestQuit asks the application runtime to exit.
