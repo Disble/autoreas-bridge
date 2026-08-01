@@ -20,3 +20,5 @@ opencode.json
 
 # Gremlins mutation testing (see docs/mutation-testing.md)
 gremlins-report.json
+# Local AI runtime state
+.atl/
