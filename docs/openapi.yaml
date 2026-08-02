@@ -120,6 +120,33 @@ info:
       - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
         mobile clients require no update.
 
+    2026-08-01 — orphaned-capture-sweep API consumer impact: NO REST/WS wire
+    change (no HTTP path, request/response field, or WebSocket message shape
+    changed). Bridge-internal observability fix, announced here per project
+    convention because it widens the capture outcome vocabulary the MCP
+    sidecar exposes.
+      - New terminal capture outcome: `abandoned`. A capture row is written
+        twice under one `request_id` — a `pending` arrival before the handler
+        runs, then a terminal row. A process that dies between the two (force
+        close, crash, or a shutdown that tore down the capture queue and its
+        SQLite fallback first) previously left the arrival stranded as
+        `pending` forever, and the desktop Activity view rendered it as an
+        in-flight request whose elapsed clock grew without bound.
+      - The bridge now sweeps those rows once at startup, before the HTTP
+        server accepts connections — a window in which no request can
+        legitimately be in flight, so every `pending` row present is provably
+        an orphan. Swept rows keep a NULL `http_status` and NULL
+        `duration_ms`: the bridge never observed a response or a completion,
+        and inventing either would make the row claim a wire fact that never
+        happened.
+      - MCP clients filtering or grouping `outcome` (`search_requests`,
+        `summary_requests`) must treat `abandoned` as a terminal value
+        alongside `accepted`/`rejected`/`malformed`/`completed`. Historical
+        rows already stranded in `pending` are rewritten in place on the next
+        launch; the sweep is idempotent across restarts.
+      - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
+        mobile clients require no update.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}

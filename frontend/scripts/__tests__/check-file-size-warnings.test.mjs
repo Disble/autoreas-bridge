@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -18,6 +18,25 @@ function readFrontendFile(...segments) {
 
 function readPackageJson() {
   return JSON.parse(readFrontendFile('package.json'));
+}
+
+/** Every `.ts`/`.tsx` file under `src/`, as `{ path, source }`, for source-wide contract assertions. */
+function readFrontendSourceFiles(relativeDir = 'src') {
+  const absoluteDir = path.join(frontendRoot, relativeDir);
+
+  return readdirSync(absoluteDir, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = path.join(relativeDir, entry.name);
+
+    if (entry.isDirectory()) {
+      return readFrontendSourceFiles(relativePath);
+    }
+
+    if (!/\.tsx?$/.test(entry.name)) {
+      return [];
+    }
+
+    return [{ path: relativePath, source: readFrontendFile(relativePath) }];
+  });
 }
 
 function readFallowConfig() {
@@ -122,7 +141,7 @@ describe('formatFileSizeWarnings', () => {
 });
 
 describe('frontend dependency contracts', () => {
-  it('declares react-aria-components as a production dependency when feature code imports it directly', () => {
+  it('declares @dnd-kit/react as a production dependency when feature code imports it directly', () => {
     const hosterPriorityEditorSource = readFrontendFile(
       'src',
       'features',
@@ -133,8 +152,18 @@ describe('frontend dependency contracts', () => {
     );
     const packageJson = readPackageJson();
 
-    expect(hosterPriorityEditorSource).toContain("from 'react-aria-components'");
-    expect(packageJson.dependencies['react-aria-components']).toBeDefined();
+    expect(hosterPriorityEditorSource).toContain("from '@dnd-kit/react'");
+    expect(packageJson.dependencies['@dnd-kit/react']).toBeDefined();
+  });
+
+  // AGENTS.md rule 11: drag-and-drop must be pointer-based (@dnd-kit), because native
+  // HTML5 DnD -- which react-aria's mouse drag path uses -- does not fire in Wails
+  // WebView2. react-aria-components reaches the bundle only via @heroui/react.
+  it('keeps react-aria-components out of app source and out of direct dependencies', () => {
+    const packageJson = readPackageJson();
+
+    expect(packageJson.dependencies['react-aria-components']).toBeUndefined();
+    expect(readFrontendSourceFiles().filter((file) => file.source.includes("from 'react-aria-components'"))).toEqual([]);
   });
 
   it('keeps eslint as a script-only devDependency and scopes any Fallow exception to eslint alone', () => {

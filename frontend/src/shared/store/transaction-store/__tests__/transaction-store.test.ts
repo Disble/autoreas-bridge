@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { DEFAULT_TRANSACTION_FILTERS } from '../transaction-store.constants';
+import { DEFAULT_TRANSACTION_FILTERS, TRANSACTION_STALE_PENDING_THRESHOLD_MS } from '../transaction-store.constants';
 import {
   getTransactionStoreState,
   matchesStatusClass,
@@ -125,15 +125,25 @@ describe('transaction-store.helpers', () => {
 
   describe('selectHasPendingTransactions', () => {
     it('reports true when at least one row is pending', () => {
-      expect(selectHasPendingTransactions([row({ outcome: 'accepted' }), row({ requestId: 'req-2', outcome: 'pending' })])).toBe(true);
+      const items = [row({ outcome: 'accepted' }), row({ requestId: 'req-2', outcome: 'pending' })];
+
+      expect(selectHasPendingTransactions(items, 1000)).toBe(true);
     });
 
     it('reports false when no row is pending', () => {
-      expect(selectHasPendingTransactions([row({ outcome: 'accepted' })])).toBe(false);
+      expect(selectHasPendingTransactions([row({ outcome: 'accepted' })], 1000)).toBe(false);
     });
 
     it('reports false for an empty item list', () => {
       expect(selectHasPendingTransactions([])).toBe(false);
+    });
+
+    it('stops reporting a pending row once it is older than the staleness window, so the elapsed clock can stop', () => {
+      const capturedAtMs = 1_000_000;
+      const stale = [row({ outcome: 'pending', capturedAtMs })];
+
+      expect(selectHasPendingTransactions(stale, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS - 1)).toBe(true);
+      expect(selectHasPendingTransactions(stale, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS)).toBe(false);
     });
   });
 

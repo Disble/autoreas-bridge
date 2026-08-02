@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type { CaptureQueryFilters, CaptureRow } from '../../contracts/capture.types';
-import { DEFAULT_TRANSACTION_FILTERS } from './transaction-store.constants';
+import { DEFAULT_TRANSACTION_FILTERS, TRANSACTION_STALE_PENDING_THRESHOLD_MS } from './transaction-store.constants';
 import type {
   TransactionPageMode,
   TransactionStatusClassFilter,
@@ -83,9 +83,23 @@ export function upsertTransactionRows(
   return next;
 }
 
-/** Reports whether any row in the buffer is still in its pending (in-flight) state. */
-export function selectHasPendingTransactions(items: readonly CaptureRow[]): boolean {
-  return items.some((item) => item.outcome === 'pending');
+/**
+ * Reports whether a pending row has aged past
+ * `TRANSACTION_STALE_PENDING_THRESHOLD_MS` — i.e. its terminal write is never
+ * coming and it must stop being presented as in flight.
+ */
+export function isStalePendingCapture(capturedAtMs: number, now: number): boolean {
+  return now - capturedAtMs >= TRANSACTION_STALE_PENDING_THRESHOLD_MS;
+}
+
+/**
+ * Reports whether any row in the buffer is still genuinely in flight, which is
+ * what gates the shared elapsed clock. A stranded arrival row does NOT count:
+ * without this the clock would tick forever for a request that can never
+ * complete, re-rendering the whole table every second for nothing.
+ */
+export function selectHasPendingTransactions(items: readonly CaptureRow[], now: number = Date.now()): boolean {
+  return items.some((item) => item.outcome === 'pending' && !isStalePendingCapture(item.capturedAtMs, now));
 }
 
 /**

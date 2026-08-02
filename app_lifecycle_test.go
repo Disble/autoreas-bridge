@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wailsapp/wails/v2/pkg/options"
+
 	"autoreas-bridge/internal/api"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
@@ -78,6 +80,34 @@ func TestAppTrayOnOpenShowsAndUnminimisesWindow(t *testing.T) {
 	if app.quitCalls != 0 {
 		t.Fatalf("expected OnOpen not to quit app, got %d quit calls", app.quitCalls)
 	}
+}
+
+func TestAppOnSecondInstanceLaunchOpensExistingWindow(t *testing.T) {
+	t.Parallel()
+
+	manager := &tray.MockTrayManager{}
+	app := newTrayLifecycleTestApp(t, manager)
+	app.startup(context.Background())
+
+	app.onSecondInstanceLaunch(options.SecondInstanceData{})
+
+	if app.unminimiseWindowCalls != 1 {
+		t.Fatalf("expected second instance to unminimise the window once, got %d", app.unminimiseWindowCalls)
+	}
+	if app.showWindowCalls != 1 {
+		t.Fatalf("expected second instance to show the window once, got %d", app.showWindowCalls)
+	}
+	if app.quitCalls != 0 {
+		t.Fatalf("expected second instance not to quit the running app, got %d quit calls", app.quitCalls)
+	}
+}
+
+func TestAppOnSecondInstanceLaunchIsSafeBeforeStartup(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+
+	app.onSecondInstanceLaunch(options.SecondInstanceData{})
 }
 
 func TestAppTrayOnExitRequestsQuit(t *testing.T) {

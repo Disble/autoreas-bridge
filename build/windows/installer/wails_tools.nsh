@@ -11,10 +11,10 @@
     !define INFO_COMPANYNAME "autoreas-bridge"
 !endif
 !ifndef INFO_PRODUCTNAME
-    !define INFO_PRODUCTNAME "autoreas-bridge"
+    !define INFO_PRODUCTNAME "Autoreas Bridge"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "1.0.0"
+    !define INFO_PRODUCTVERSION "1.0.2"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright........."

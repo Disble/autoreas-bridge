@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { move } from '@dnd-kit/helpers';
 import { useHosterPriorityEditor } from '../use-hoster-priority-editor';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
 import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
@@ -49,6 +50,17 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
   };
 }
 
+// `move` owns dnd-kit's index math; the hook only maps its result onto persistence.
+// Real pointer drags are not exercisable under jsdom, so the boundary is mocked.
+vi.mock('@dnd-kit/helpers', () => ({ move: vi.fn() }));
+
+const mockedMove = vi.mocked(move);
+
+/** Minimal structural stand-in for a dnd-kit `dragend` event. */
+function dragEndEvent(canceled = false) {
+  return { canceled, operation: { source: { id: 'mediafire' }, target: { id: 'mega' } } } as never;
+}
+
 describe('useHosterPriorityEditor', () => {
   it('starts in the loading status before the config resolves', () => {
     const source = createFakeSource();
@@ -92,7 +104,7 @@ describe('useHosterPriorityEditor', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
-      await result.current.reorder('mediafire', 'mega', 'before');
+      await result.current.reorder(['mediafire', 'mega']);
     });
 
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
@@ -111,7 +123,7 @@ describe('useHosterPriorityEditor', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
-      await result.current.reorder('mediafire', 'mega', 'before');
+      await result.current.reorder(['mediafire', 'mega']);
     });
 
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mega', 'mediafire']);
@@ -134,7 +146,7 @@ describe('useHosterPriorityEditor', () => {
 
     let reorderPromise!: Promise<void>;
     act(() => {
-      reorderPromise = result.current.reorder('mediafire', 'mega', 'before');
+      reorderPromise = result.current.reorder(['mediafire', 'mega']);
     });
 
     await waitFor(() => expect(result.current.isSaving).toBe(true));
@@ -145,5 +157,49 @@ describe('useHosterPriorityEditor', () => {
     });
 
     expect(result.current.isSaving).toBe(false);
+  });
+
+  it('persists the key order that `move` projects for a completed drag', async () => {
+    mockedMove.mockReturnValue(['mediafire', 'mega']);
+    const source = createFakeSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.onDragEnd(dragEndEvent());
+    });
+
+    expect(mockedMove).toHaveBeenCalledWith(['mega', 'mediafire'], expect.anything());
+    expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
+    expect(source.setHosterPriority).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not persist when the drag was canceled', async () => {
+    mockedMove.mockReturnValue(['mediafire', 'mega']);
+    const source = createFakeSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.onDragEnd(dragEndEvent(true));
+    });
+
+    expect(source.setHosterPriority).not.toHaveBeenCalled();
+  });
+
+  it('does not persist when the drag leaves the order unchanged', async () => {
+    mockedMove.mockReturnValue(['mega', 'mediafire']);
+    const source = createFakeSource();
+    const { result } = renderHook(() => useHosterPriorityEditor(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.onDragEnd(dragEndEvent());
+    });
+
+    expect(source.setHosterPriority).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import type { CaptureDetail, CaptureRow } from '../../../../shared/contracts/capture.types';
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
+import { isStalePendingCapture } from '../../../../shared/store/transaction-store/transaction-store.helpers';
 import {
   TRANSACTION_EMPTY_LABEL,
   TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE,
@@ -67,6 +68,10 @@ export function getTransactionOutcomeColor(outcome: string): HeroChipColor {
       return 'danger';
     case 'malformed':
       return 'warning';
+    // A stranded arrival row: the bridge never recorded how this request ended.
+    // Warning, not default -- it is missing evidence, not an ordinary outcome.
+    case 'abandoned':
+      return 'warning';
     case 'pending':
     case 'opened':
       return 'accent';
@@ -116,20 +121,63 @@ export function toTransactionBody(source: Readonly<TransactionBodySource>): Tran
   return { state: 'captured', raw: source.raw };
 }
 
-/** Formats the DURATION column in milliseconds, or the Null Object em-dash when absent. */
+/**
+ * Formats the DURATION column, or the Null Object em-dash when absent. Raw
+ * milliseconds stay exact below a second, where they are the useful unit;
+ * above that the value is scaled so a long request reads as "52.6s" or
+ * "13h 43m" rather than an unparseable millisecond count.
+ */
 function formatTransactionDuration(durationMs: number | undefined): string {
-  return durationMs === undefined ? TRANSACTION_EMPTY_LABEL : `${durationMs}ms`;
+  if (durationMs === undefined) {
+    return TRANSACTION_EMPTY_LABEL;
+  }
+
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+
+  if (durationMs < 60_000) {
+    return `${(durationMs / 1000).toFixed(1)}s`;
+  }
+
+  if (durationMs < 3_600_000) {
+    return `${Math.floor(durationMs / 60_000)}m ${Math.floor((durationMs % 60_000) / 1000)}s`;
+  }
+
+  return `${Math.floor(durationMs / 3_600_000)}h ${Math.floor((durationMs % 3_600_000) / 60_000)}m`;
 }
 
-/** Resolves whether a row is truly in flight, excluding terminal captures that still carry a legacy pending outcome token. */
-function isInFlightCapture(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): boolean {
+/**
+ * Reports whether a row is still in its transport-only arrival shape: the
+ * pending outcome the capture middleware writes before a handler runs, with
+ * neither of the terminal columns filled in. A terminal capture that still
+ * carries the legacy pending token is excluded.
+ */
+function isTransportOnlyArrival(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): boolean {
   return outcome === 'pending' && httpStatus === undefined && durationMs === undefined;
 }
 
-/** Normalizes a transport-only terminal capture so completed HTTP rows never keep the legacy pending label. */
-function normalizeTransactionOutcome(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): string {
-  if (isInFlightCapture(outcome, httpStatus, durationMs)) {
+/**
+ * Resolves whether a row is truly in flight. An arrival row that has aged past
+ * the staleness window is NOT in flight: its terminal write is never coming, so
+ * continuing to tick would present a dead request as live.
+ */
+function isInFlightCapture(row: Readonly<CaptureRow>, now: number): boolean {
+  return isTransportOnlyArrival(row.outcome, row.httpStatus, row.durationMs) && !isStalePendingCapture(row.capturedAtMs, now);
+}
+
+/**
+ * Normalizes a capture's outcome for display: a terminal row never keeps the
+ * legacy pending token, and a stranded arrival row is reported as `abandoned`
+ * rather than pretending to still be in flight.
+ */
+function normalizeTransactionOutcome(outcome: string, httpStatus: number | undefined, durationMs: number | undefined, isInFlight: boolean): string {
+  if (isInFlight) {
     return outcome;
+  }
+
+  if (isTransportOnlyArrival(outcome, httpStatus, durationMs)) {
+    return 'abandoned';
   }
 
   if (outcome === 'pending') {
@@ -147,8 +195,8 @@ function normalizeTransactionOutcome(outcome: string, httpStatus: number | undef
  * non-live callers keep working unchanged).
  */
 export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.now()): TransactionRowViewModel {
-  const isPending = isInFlightCapture(row.outcome, row.httpStatus, row.durationMs);
-  const outcome = normalizeTransactionOutcome(row.outcome, row.httpStatus, row.durationMs);
+  const isPending = isInFlightCapture(row, now);
+  const outcome = normalizeTransactionOutcome(row.outcome, row.httpStatus, row.durationMs, isPending);
 
   return {
     id: row.requestId,
@@ -203,8 +251,8 @@ function toCorrelationRows(detail: Readonly<CaptureDetail>): readonly Transactio
  * body/headers, and correlations. Missing optional telemetry falls back to
  * explicit absent-body notices rather than a blank or fabricated value.
  */
-export function toTransactionDetail(detail: Readonly<CaptureDetail>): TransactionDetailViewModel {
-  const outcome = normalizeTransactionOutcome(detail.outcome, detail.httpStatus, detail.durationMs);
+export function toTransactionDetail(detail: Readonly<CaptureDetail>, now: number = Date.now()): TransactionDetailViewModel {
+  const outcome = normalizeTransactionOutcome(detail.outcome, detail.httpStatus, detail.durationMs, isInFlightCapture(detail, now));
 
   return {
     requestId: detail.requestId,

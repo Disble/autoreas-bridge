@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  moveHosterPriorityItem,
+  applyHosterPriorityOrder,
   toHosterPriorityEditorViewModel,
   toHosterPriorityRequestItems,
 } from '../hoster-priority-editor.helpers';
@@ -48,28 +48,42 @@ describe('toHosterPriorityEditorViewModel', () => {
   });
 });
 
-describe('moveHosterPriorityItem', () => {
-  it('moves an item before the target and renumbers priority sequentially', () => {
-    const reordered = moveHosterPriorityItem(fixture, 'drive', 'mega', 'before');
+describe('applyHosterPriorityOrder', () => {
+  it('reorders items to match the given keys and renumbers priority sequentially', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['drive', 'mega', 'mediafire']);
 
     expect(reordered.map((item) => item.hoster)).toEqual(['drive', 'mega', 'mediafire']);
     expect(reordered.map((item) => item.priority)).toEqual([0, 1, 2]);
   });
 
-  it('moves an item after the target when the drop position is "after"', () => {
-    const reordered = moveHosterPriorityItem(fixture, 'mega', 'drive', 'after');
-
-    expect(reordered.map((item) => item.hoster)).toEqual(['mediafire', 'drive', 'mega']);
-  });
-
-  it('returns the same order unchanged when the dragged key equals the target key', () => {
-    const reordered = moveHosterPriorityItem(fixture, 'mega', 'mega', 'before');
+  it('returns the same order when the keys already match the current order', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['mega', 'mediafire', 'drive']);
 
     expect(reordered.map((item) => item.hoster)).toEqual(['mega', 'mediafire', 'drive']);
   });
 
-  it('preserves the enabled flag of every moved item', () => {
-    const reordered = moveHosterPriorityItem(fixture, 'drive', 'mega', 'before');
+  it('ignores keys that do not match any known hoster', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['drive', 'ghost', 'mega', 'mediafire']);
+
+    expect(reordered.map((item) => item.hoster)).toEqual(['drive', 'mega', 'mediafire']);
+    expect(reordered.map((item) => item.priority)).toEqual([0, 1, 2]);
+  });
+
+  it('appends items missing from the key list, preserving their relative order', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['drive']);
+
+    expect(reordered.map((item) => item.hoster)).toEqual(['drive', 'mega', 'mediafire']);
+    expect(reordered.map((item) => item.priority)).toEqual([0, 1, 2]);
+  });
+
+  it('never emits an item twice when a key is repeated', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['drive', 'drive', 'mega', 'mediafire']);
+
+    expect(reordered.map((item) => item.hoster)).toEqual(['drive', 'mega', 'mediafire']);
+  });
+
+  it('preserves the enabled flag of every reordered item', () => {
+    const reordered = applyHosterPriorityOrder(fixture, ['drive', 'mega', 'mediafire']);
 
     const drive = reordered.find((item) => item.hoster === 'drive');
     expect(drive?.enabled).toBe(false);

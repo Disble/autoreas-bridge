@@ -1,6 +1,5 @@
 import type { HosterPriorityItem } from '../../../../shared/contracts/download.types';
 import type {
-  HosterPriorityDropPosition,
   HosterPriorityEditorViewModel,
   HosterPriorityEditorViewModelOptions,
   HosterPriorityRowViewModel,
@@ -40,37 +39,33 @@ export function toHosterPriorityEditorViewModel(
 }
 
 /**
- * Moves the item identified by `draggedKey` immediately before or after the
- * item identified by `targetKey` (per `dropPosition`), then renumbers every
- * item's `priority` sequentially (0-based) to match the new order. A no-op
- * (besides renumbering) when both keys are equal.
+ * Reorders `items` to match `orderedKeys` (hoster names) and renumbers every
+ * item's `priority` sequentially (0-based). The key list comes from dnd-kit's
+ * `move` helper, which owns all index math; this helper only projects that
+ * order back onto the wire-shape items. Unknown or repeated keys are ignored,
+ * and any item absent from `orderedKeys` is appended in its original relative
+ * order so a partial key list can never drop a configured hoster.
  */
-export function moveHosterPriorityItem(
+export function applyHosterPriorityOrder(
   items: readonly HosterPriorityItem[],
-  draggedKey: string,
-  targetKey: string,
-  dropPosition: HosterPriorityDropPosition,
+  orderedKeys: readonly string[],
 ): readonly HosterPriorityItem[] {
-  if (draggedKey === targetKey) {
-    return items.map((item, index) => ({ ...item, priority: index }));
+  const byKey = new Map(items.map((item) => [item.hoster, item]));
+  const reordered: HosterPriorityItem[] = [];
+
+  for (const key of orderedKeys) {
+    const item = byKey.get(key);
+    if (item !== undefined) {
+      reordered.push(item);
+      byKey.delete(key);
+    }
   }
 
-  const withoutDragged = items.filter((item) => item.hoster !== draggedKey);
-  const draggedItem = items.find((item) => item.hoster === draggedKey);
-
-  if (draggedItem === undefined) {
-    return items.map((item, index) => ({ ...item, priority: index }));
+  for (const item of items) {
+    if (byKey.has(item.hoster)) {
+      reordered.push(item);
+    }
   }
-
-  const targetIndex = withoutDragged.findIndex((item) => item.hoster === targetKey);
-  const baseInsertAt = targetIndex === -1 ? withoutDragged.length : targetIndex;
-  const insertAt = dropPosition === 'after' ? baseInsertAt + 1 : baseInsertAt;
-
-  const reordered = [
-    ...withoutDragged.slice(0, insertAt),
-    draggedItem,
-    ...withoutDragged.slice(insertAt),
-  ];
 
   return reordered.map((item, index) => ({ ...item, priority: index }));
 }

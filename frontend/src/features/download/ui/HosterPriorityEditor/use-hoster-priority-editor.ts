@@ -1,23 +1,24 @@
+import type { DragEndEvent } from '@dnd-kit/dom';
+import { move } from '@dnd-kit/helpers';
 import { useCallback, useEffect, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { HosterPriorityItem } from '../../../../shared/contracts/download.types';
 import { HOSTER_PRIORITY_DEFAULT_SITE } from './hoster-priority-editor.constants';
 import {
-  moveHosterPriorityItem,
+  applyHosterPriorityOrder,
   toHosterPriorityEditorViewModel,
   toHosterPriorityRequestItems,
 } from './hoster-priority-editor.helpers';
-import type {
-  HosterPriorityDropPosition,
-  HosterPriorityEditorState,
-} from './hoster-priority-editor.types';
+import type { HosterPriorityEditorState } from './hoster-priority-editor.types';
 
 /**
  * useHosterPriorityEditor loads the persisted hoster priority order for
  * `DEFAULT_SITE` and exposes an optimistic `reorder` mutation: the new order
  * is applied to local state immediately, persisted via `setHosterPriority`,
- * and rolled back (with an error surfaced) if persistence fails.
+ * and rolled back (with an error surfaced) if persistence fails. `onDragEnd`
+ * is the @dnd-kit/react boundary: dnd-kit's `move` helper owns the index math,
+ * and the resulting key order is what gets persisted — once, on drop.
  */
 export function useHosterPriorityEditor(source: DownloadRuntimeSource = downloadRuntimeSource) {
   // 1. Refs
@@ -38,9 +39,9 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
 
   // 6. Callbacks (useCallback calling pure helpers)
   const reorder = useCallback(
-    async (draggedKey: string, targetKey: string, dropPosition: HosterPriorityDropPosition) => {
+    async (orderedKeys: readonly string[]) => {
       const previousItems = state.items;
-      const nextItems = moveHosterPriorityItem(state.items, draggedKey, targetKey, dropPosition);
+      const nextItems = applyHosterPriorityOrder(state.items, orderedKeys);
 
       setState((prev) => ({ ...prev, items: nextItems, isSaving: true, errorMessage: undefined }));
 
@@ -58,6 +59,26 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
       }
     },
     [state.items, source],
+  );
+
+  // Persist once on drop. A canceled drag, or one that lands the item back where
+  // it started, must not fire a write.
+  const onDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      if (event.canceled) {
+        return;
+      }
+
+      const currentKeys = state.items.map((item) => item.hoster);
+      const nextKeys = move(currentKeys, event);
+
+      if (nextKeys.length === currentKeys.length && nextKeys.every((key, index) => key === currentKeys[index])) {
+        return;
+      }
+
+      await reorder(nextKeys);
+    },
+    [state.items, reorder],
   );
 
   // 7. Effects
@@ -102,5 +123,6 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
     isSaving: state.isSaving,
     errorMessage: state.errorMessage,
     reorder,
+    onDragEnd,
   };
 }
