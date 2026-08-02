@@ -9,6 +9,9 @@ func TestBuildAppOptionsLocksToASingleInstance(t *testing.T) {
 
 	appOptions := buildAppOptions(NewApp())
 
+	if !appOptions.StartHidden {
+		t.Fatal("expected app options to keep the main window hidden at startup")
+	}
 	if appOptions.SingleInstanceLock == nil {
 		t.Fatal("expected app options to declare a single-instance lock")
 	}

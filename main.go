@@ -34,6 +34,7 @@ func buildAppOptions(app *App) *options.App {
 		},
 		BackgroundColour:  options.NewRGB(27, 38, 54),
 		HideWindowOnClose: true,
+		StartHidden:       true,
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId:               singleInstanceLockID,
 			OnSecondInstanceLaunch: app.onSecondInstanceLaunch,
