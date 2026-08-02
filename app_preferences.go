@@ -1,6 +1,15 @@
 package main
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"autoreas-bridge/internal/settings"
+)
+
+// errAutoStartSettingsUnavailable marks an unusable test-time settings boundary.
+var errAutoStartSettingsUnavailable = errors.New("auto-start settings unavailable")
 
 // GetSeasonMode reports whether the bridge is in season mode. Season mode is a
 // DERIVED state (SDD-41b): it is on exactly while a season is open. The manual
@@ -48,6 +57,66 @@ func (a *App) SetDownloadsRoot(path string) string {
 		return err.Error()
 	}
 	return "ok"
+}
+
+// GetAutoStartEnabled returns the persisted login-launch preference. The
+// preference defaults to enabled when settings have not been initialized yet.
+func (a *App) GetAutoStartEnabled() bool {
+	if a.settingsStore == nil {
+		return true
+	}
+	enabled, err := a.autoStartEnabled(a.seasonCtx())
+	return err == nil && enabled
+}
+
+// SetAutoStartEnabled persists and immediately reconciles the login-launch
+// preference. Registry failures leave the preference intact for the next start.
+func (a *App) SetAutoStartEnabled(enabled bool) string {
+	if a.settingsStore == nil {
+		return "settings store unavailable"
+	}
+	if err := a.settingsStore.SetAutoStartEnabled(a.seasonCtx(), enabled); err != nil {
+		return err.Error()
+	}
+	if a.newAutoStartReconciler == nil {
+		return "ok"
+	}
+	if err := a.newAutoStartReconciler().Reconcile(enabled); err != nil {
+		return err.Error()
+	}
+	return "ok"
+}
+
+// reconcileAutoStart makes registration best effort so registry access can
+// never prevent the resident tray application from starting.
+func (a *App) reconcileAutoStart(ctx context.Context) {
+	if a.settingsStore == nil || a.newAutoStartReconciler == nil {
+		return
+	}
+	enabled, err := a.autoStartEnabled(ctx)
+	if err != nil {
+		if errors.Is(err, errAutoStartSettingsUnavailable) || errors.Is(err, settings.ErrDatabaseUnavailable) {
+			return
+		}
+		if a.sharedLogger != nil {
+			a.sharedLogger.Warnf("system", "failed to read auto-start preference: %v", err)
+		}
+		return
+	}
+	if err := a.newAutoStartReconciler().Reconcile(enabled); err != nil && a.sharedLogger != nil {
+		a.sharedLogger.Warnf("system", "failed to reconcile Windows auto-start: %v", err)
+	}
+}
+
+// autoStartEnabled reads the startup preference without allowing an unavailable
+// settings boundary to prevent the resident application from starting.
+func (a *App) autoStartEnabled(ctx context.Context) (enabled bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("%w: %v", errAutoStartSettingsUnavailable, recovered)
+		}
+	}()
+	return a.settingsStore.AutoStartEnabled(ctx)
 }
 
 // PickFolder opens the native directory picker and returns the chosen absolute

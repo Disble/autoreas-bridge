@@ -32,6 +32,8 @@ describe('preferences-source', () => {
     const getSeasonModeMock = vi.fn().mockResolvedValue(true);
     const pickFolderMock = vi.fn().mockResolvedValue('D:/Anime');
     const setDownloadsRootMock = vi.fn().mockResolvedValue('saved');
+    const getAutoStartEnabledMock = vi.fn().mockResolvedValue(true);
+    const setAutoStartEnabledMock = vi.fn().mockResolvedValue('ok');
     window.go = {
       main: {
         App: {
@@ -39,6 +41,8 @@ describe('preferences-source', () => {
           GetSeasonMode: getSeasonModeMock,
           PickFolder: pickFolderMock,
           SetDownloadsRoot: setDownloadsRootMock,
+          GetAutoStartEnabled: getAutoStartEnabledMock,
+          SetAutoStartEnabled: setAutoStartEnabledMock,
         },
       },
     } as never;
@@ -50,10 +54,14 @@ describe('preferences-source', () => {
     await expect(source.getDownloadsRoot()).resolves.toBe('D:/Downloads');
     await expect(source.setDownloadsRoot('D:/Downloads')).resolves.toBe('saved');
     await expect(source.pickFolder('Choose anime directory')).resolves.toBe('D:/Anime');
+    await expect(source.getAutoStartEnabled()).resolves.toBe(true);
+    await expect(source.setAutoStartEnabled(false)).resolves.toBe('ok');
     expect(getSeasonModeMock).toHaveBeenCalledTimes(1);
     expect(getDownloadsRootMock).toHaveBeenCalledTimes(1);
     expect(setDownloadsRootMock).toHaveBeenCalledWith('D:/Downloads');
     expect(pickFolderMock).toHaveBeenCalledWith('Choose anime directory');
+    expect(getAutoStartEnabledMock).toHaveBeenCalledTimes(1);
+    expect(setAutoStartEnabledMock).toHaveBeenCalledWith(false);
   });
 
   it('keeps source-adapter declarations in colocated sibling modules', () => {

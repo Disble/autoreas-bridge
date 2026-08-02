@@ -9,6 +9,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/autostart"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/events"
@@ -118,6 +119,11 @@ func (a *App) ensureSyncRuntimeDependencies() {
 	if a.newTrayManager == nil {
 		a.newTrayManager = func() tray.Manager {
 			return nil
+		}
+	}
+	if a.newAutoStartReconciler == nil {
+		a.newAutoStartReconciler = func() autoStartReconciler {
+			return autostart.NewSystemReconciler()
 		}
 	}
 	if a.newTracerBulletRunner == nil {

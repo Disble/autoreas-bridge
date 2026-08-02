@@ -15,7 +15,13 @@ import (
 // keyDownloadsRoot is the app_settings key holding the global downloads root:
 // the base folder joined with a sanitized anime name to form a newly-created
 // season anime's default carpeta.
-const keyDownloadsRoot = "downloads.root"
+const (
+	keyDownloadsRoot = "downloads.root"
+	keyAutoStart     = "system.auto_start"
+)
+
+// ErrDatabaseUnavailable reports that the settings accessor has no database.
+var ErrDatabaseUnavailable = errors.New("settings database unavailable")
 
 // SQLiteStore reads and writes app_settings rows on the shared bridge DB.
 type SQLiteStore struct {
@@ -31,6 +37,9 @@ func NewSQLiteStore(db *sql.DB) *SQLiteStore {
 // Get returns the stored value for key, or "" when the key has never been set
 // (a missing row is the canonical unset state — never an error).
 func (s *SQLiteStore) Get(ctx context.Context, key string) (string, error) {
+	if s == nil || s.db == nil {
+		return "", ErrDatabaseUnavailable
+	}
 	var value string
 	err := s.db.QueryRowContext(ctx, `SELECT value FROM app_settings WHERE key = ?`, key).Scan(&value)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -62,4 +71,23 @@ func (s *SQLiteStore) DownloadsRoot(ctx context.Context) (string, error) {
 // SetDownloadsRoot persists the global downloads root.
 func (s *SQLiteStore) SetDownloadsRoot(ctx context.Context, path string) error {
 	return s.Set(ctx, keyDownloadsRoot, path)
+}
+
+// AutoStartEnabled returns the login-launch preference. Missing settings default
+// to enabled so a first run registers Bridge for the current Windows user.
+func (s *SQLiteStore) AutoStartEnabled(ctx context.Context) (bool, error) {
+	value, err := s.Get(ctx, keyAutoStart)
+	if err != nil {
+		return false, err
+	}
+	return value != "false", nil
+}
+
+// SetAutoStartEnabled persists the user's login-launch preference.
+func (s *SQLiteStore) SetAutoStartEnabled(ctx context.Context, enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	return s.Set(ctx, keyAutoStart, value)
 }

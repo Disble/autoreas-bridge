@@ -86,6 +86,10 @@ export function GetAnimes() {
   return window['go']['main']['App']['GetAnimes']();
 }
 
+export function GetAutoStartEnabled() {
+  return window['go']['main']['App']['GetAutoStartEnabled']();
+}
+
 export function GetBridgeStatus() {
   return window['go']['main']['App']['GetBridgeStatus']();
 }
@@ -256,6 +260,10 @@ export function SetAnimeDays(arg1, arg2, arg3) {
 
 export function SetAnimeState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetAnimeState'](arg1, arg2, arg3);
+}
+
+export function SetAutoStartEnabled(arg1) {
+  return window['go']['main']['App']['SetAutoStartEnabled'](arg1);
 }
 
 export function SetDownloadsRoot(arg1) {

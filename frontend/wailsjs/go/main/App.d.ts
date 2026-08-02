@@ -46,6 +46,8 @@ export function GetAnimeHistory():Promise<Array<contracts.AnimeHistoryItem>>;
 
 export function GetAnimes():Promise<Array<contracts.AnimeListItem>>;
 
+export function GetAutoStartEnabled():Promise<boolean>;
+
 export function GetBridgeStatus():Promise<string>;
 
 export function GetCaptureTransaction(arg1:string):Promise<contracts.CaptureDetailResult>;
@@ -131,6 +133,8 @@ export function SendSeasonAnimesToVerHoy(arg1:Array<string>):Promise<main.SendTo
 export function SetAnimeDays(arg1:string,arg2:Array<string>,arg3:number):Promise<contracts.EpisodeCommandResult>;
 
 export function SetAnimeState(arg1:string,arg2:number,arg3:number):Promise<contracts.EpisodeCommandResult>;
+
+export function SetAutoStartEnabled(arg1:boolean):Promise<string>;
 
 export function SetDownloadsRoot(arg1:string):Promise<string>;
 

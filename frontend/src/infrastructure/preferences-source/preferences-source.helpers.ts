@@ -1,4 +1,11 @@
-import { GetDownloadsRoot, GetSeasonMode, PickFolder, SetDownloadsRoot } from '../../../wailsjs/go/main/App';
+import {
+  GetAutoStartEnabled,
+  GetDownloadsRoot,
+  GetSeasonMode,
+  PickFolder,
+  SetAutoStartEnabled,
+  SetDownloadsRoot,
+} from '../../../wailsjs/go/main/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
 import type { PreferencesSource } from './preferences-source.types';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
@@ -30,6 +37,16 @@ export function createPreferencesSource(): PreferencesSource {
     pickFolder(title: string) {
       return waitForBindings(() => hasGoBinding('PickFolder')).then((isReady) => {
         return isReady ? PickFolder(title) : Promise.resolve('');
+      });
+    },
+    getAutoStartEnabled() {
+      return waitForBindings(() => hasGoBinding('GetAutoStartEnabled')).then((isReady) => {
+        return isReady ? GetAutoStartEnabled() : Promise.resolve(true);
+      });
+    },
+    setAutoStartEnabled(enabled: boolean) {
+      return waitForBindings(() => hasGoBinding('SetAutoStartEnabled')).then((isReady) => {
+        return isReady ? SetAutoStartEnabled(enabled) : Promise.resolve('runtime unavailable');
       });
     },
   };

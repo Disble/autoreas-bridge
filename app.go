@@ -14,6 +14,7 @@ import (
 	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/autostart"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/events"
@@ -52,6 +53,7 @@ type App struct {
 	newCaptureQueue          func(db *sql.DB) captureQueue
 	newCaptureReader         func(db *sql.DB) *requestcapture.Reader
 	newTrayManager           func() tray.Manager
+	newAutoStartReconciler   func() autoStartReconciler
 	newTracerBulletRunner    func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink      func() tracerbullet.TraceSink
 	emitFn                   func(ctx context.Context, eventName string, optionalData ...interface{})
@@ -137,7 +139,16 @@ type tracerBulletRunner interface {
 type appSettingsStore interface {
 	DownloadsRoot(ctx context.Context) (string, error)
 	SetDownloadsRoot(ctx context.Context, path string) error
+	AutoStartEnabled(ctx context.Context) (bool, error)
+	SetAutoStartEnabled(ctx context.Context, enabled bool) error
 }
+
+// autoStartReconciler synchronizes the Bridge-owned Windows Run value.
+type autoStartReconciler interface {
+	Reconcile(enabled bool) error
+}
+
+var _ autoStartReconciler = (*autostart.Reconciler)(nil)
 
 type changelogPendingStore interface {
 	InsertPending(ctx context.Context, entry bridgeSync.ChangelogEntry) error
@@ -215,6 +226,7 @@ func (a *App) startup(ctx context.Context) {
 	if a.startupErr != nil {
 		return
 	}
+	a.reconcileAutoStart(ctx)
 	a.startDownloadOrchestration(ctx)
 	a.startSeasonAvailability(ctx)
 }

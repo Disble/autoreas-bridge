@@ -43,6 +43,8 @@ function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): Pr
     getDownloadsRoot: vi.fn().mockResolvedValue(''),
     setDownloadsRoot: vi.fn().mockResolvedValue('ok'),
     pickFolder: vi.fn().mockResolvedValue(''),
+    getAutoStartEnabled: vi.fn().mockResolvedValue(true),
+    setAutoStartEnabled: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }
