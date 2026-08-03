@@ -26,7 +26,7 @@ func main() {
 // buildAppOptions assembles the Wails application options for the bridge app.
 func buildAppOptions(app *App) *options.App {
 	return &options.App{
-		Title:  "autoreas-bridge",
+		Title:  "Autoreas Bridge",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{

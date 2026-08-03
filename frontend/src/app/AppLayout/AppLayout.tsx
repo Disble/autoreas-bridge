@@ -58,8 +58,8 @@ export function AppLayout() {
               <span className="size-5">{bridgeMark}</span>
             </div>
             <div className="min-w-0 overflow-hidden opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
-              <p className="truncate text-sm font-semibold tracking-tight text-foreground">Autoreas</p>
-              <p className="truncate text-[11px] text-muted">Bridge workspace</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-foreground">Autoreas Bridge</p>
+              <p className="truncate text-[11px] text-muted">Anime workspace</p>
             </div>
           </div>
 
