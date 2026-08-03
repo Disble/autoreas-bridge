@@ -1,6 +1,6 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source';
+import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source/observability-log-source.types';
 import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
 import { getNetworkStoreState, resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
 import { NetworkPanel } from '../NetworkPanel';

@@ -1,1 +1,0 @@
-export { ManualTriggerButton } from './ManualTriggerButton';

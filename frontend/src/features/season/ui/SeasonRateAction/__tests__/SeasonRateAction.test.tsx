@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { SeasonRateAction } from '../SeasonRateAction';
 import { useSeasonRateAction } from '../use-season-rate-action';
 

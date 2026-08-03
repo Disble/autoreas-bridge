@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source';
+import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { useBackupPanel } from '../use-backup-panel';
 
 function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExportResultDTO {

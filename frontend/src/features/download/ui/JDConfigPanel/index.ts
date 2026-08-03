@@ -1,1 +1,0 @@
-export { JDConfigPanel } from './JDConfigPanel';

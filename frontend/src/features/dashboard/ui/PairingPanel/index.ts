@@ -1,1 +1,0 @@
-export { PairingPanel } from './PairingPanel';

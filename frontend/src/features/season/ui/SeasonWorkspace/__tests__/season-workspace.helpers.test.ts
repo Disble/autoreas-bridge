@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonSnapshot } from '../../../../../infrastructure/season-source';
+import type { SeasonSnapshot } from '../../../../../infrastructure/season-source/season-source.types';
 import { SEASON_SECTION_TABS } from '../season-workspace.constants';
 import { buildPastSeasonEntries, buildSeasonOverview, suggestSeasonName } from '../season-workspace.helpers';
 

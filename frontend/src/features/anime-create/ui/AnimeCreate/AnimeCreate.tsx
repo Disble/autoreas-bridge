@@ -1,5 +1,5 @@
 import { Alert, Button, Modal, Typography } from '@heroui/react';
-import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering';
+import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/AnimeScheduleOrdering';
 import { AnimeCreateRow } from './AnimeCreateRow';
 import { useAnimeCreate } from './use-anime-create';
 
@@ -15,7 +15,7 @@ export function AnimeCreate() {
   return (
     <section className="flex w-full flex-col gap-5">
       <header>
-        <Typography type="h2">Create anime</Typography>
+        <Typography type="h1">Create anime</Typography>
         <Typography color="muted" type="body-sm">Add one or more titles, then place each on the schedule to create the whole batch at once.</Typography>
       </header>
 

@@ -15,7 +15,7 @@ describe('preferences-source', () => {
   });
 
   it('degrades to safe defaults when the runtime is unavailable', async () => {
-    const { createPreferencesSource } = await import('../preferences-source');
+    const { createPreferencesSource } = await import('../preferences-source/preferences-source.helpers');
     const source = createPreferencesSource();
 
     const seasonModePromise = source.getSeasonMode();
@@ -47,7 +47,7 @@ describe('preferences-source', () => {
       },
     } as never;
 
-    const { createPreferencesSource } = await import('../preferences-source');
+    const { createPreferencesSource } = await import('../preferences-source/preferences-source.helpers');
     const source = createPreferencesSource();
 
     await expect(source.getSeasonMode()).resolves.toBe(true);
@@ -67,17 +67,14 @@ describe('preferences-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/preferences-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'preferences-source.types.ts');
     const helperPath = join(sourceRoot, 'preferences-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/preferences-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './preferences-source.types'");
-    expect(sourceText).toContain("from './preferences-source.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+PreferencesSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
-    expect(sourceText).not.toMatch(/export const\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 

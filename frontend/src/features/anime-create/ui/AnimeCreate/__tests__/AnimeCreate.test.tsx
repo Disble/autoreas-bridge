@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { AnimeCreate } from '../AnimeCreate';
 
-vi.mock('../../../../../infrastructure/bridge-runtime-source', () => ({
+vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers', () => ({
   bridgeRuntimeSource: {
     getAnimeEditorScheduleBoard: vi.fn(),
     createAnime: vi.fn(),

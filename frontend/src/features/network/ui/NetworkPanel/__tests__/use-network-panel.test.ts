@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source';
+import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source/observability-log-source.types';
 import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
-import { resetNetworkStore } from '../../../../../shared/store/network-store';
+import { resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
 import { useNetworkPanel } from '../use-network-panel';
 
 function entry(overrides: Partial<ObservabilityLogEntry> = {}): ObservabilityLogEntry {

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 

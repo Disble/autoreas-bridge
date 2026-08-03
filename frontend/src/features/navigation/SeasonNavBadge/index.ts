@@ -1,1 +1,0 @@
-export { SeasonNavBadge } from './SeasonNavBadge';

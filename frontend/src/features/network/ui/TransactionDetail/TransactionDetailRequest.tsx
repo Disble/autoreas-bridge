@@ -1,4 +1,4 @@
-import { CodeBlock } from '../../../../shared/ui/CodeBlock';
+import { CodeBlock } from '../../../../shared/ui/CodeBlock/CodeBlock';
 import type { TransactionBodyViewModel, TransactionDetailFieldRow } from '../TransactionPanel/transaction-panel.types';
 
 /**

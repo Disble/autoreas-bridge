@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
-import type { PreferencesSource } from '../../../../../infrastructure/preferences-source';
+import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
 import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
-import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store';
-import { resetPreferencesStore } from '../../../../../shared/store/preferences-store';
+import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { resetPreferencesStore } from '../../../../../shared/store/preferences-store/preferences-store.helpers';
 
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',

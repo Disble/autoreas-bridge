@@ -17,7 +17,7 @@ describe('season-source', () => {
   });
 
   it('degrades read methods to safe defaults when the runtime is unavailable', async () => {
-    const { createSeasonSource } = await import('../season-source');
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
     const seasonPromise = source.getSeason();
@@ -35,7 +35,8 @@ describe('season-source', () => {
     const createSeasonMock = vi.fn().mockResolvedValue('created');
     window.go = { main: { App: { CreateSeason: createSeasonMock } } } as never;
 
-    const { createSeasonSource, SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source');
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
+    const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
     const source = createSeasonSource();
 
     const resultPromise = source.closeSeason();
@@ -57,7 +58,7 @@ describe('season-source', () => {
     };
     const getSeasonMock = vi.fn().mockResolvedValue(season);
 
-    const { createSeasonSource } = await import('../season-source');
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
     const resultPromise = source.getSeason();
@@ -92,7 +93,7 @@ describe('season-source', () => {
       },
     } as never;
 
-    const { createSeasonSource } = await import('../season-source');
+    const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const source = createSeasonSource();
 
     await expect(source.getSeasonAnimes()).resolves.toEqual(seasonAnimes);
@@ -115,18 +116,14 @@ describe('season-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/season-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'season-source.types.ts');
     const helperPath = join(sourceRoot, 'season-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/season-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './season-source.types'");
-    expect(sourceText).toContain("from './season-source.helpers'");
-    expect(sourceText).toContain("from './season-source.constants'");
-    expect(sourceText).not.toMatch(/export interface\s+(SeasonSnapshot|SeasonAnimeCandidate|SeasonAnimeRow|OrderingCard|OrderingBoard|ApplyScheduleResult|SendToVerHoyResult|ConfirmSelectionResult|SeasonSource)\b/);
-    expect(sourceText).not.toMatch(/export const\s+SEASON_RUNTIME_UNAVAILABLE\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 });

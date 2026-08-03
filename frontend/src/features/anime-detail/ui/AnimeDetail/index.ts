@@ -1,1 +1,0 @@
-export { AnimeDetail } from './AnimeDetail';

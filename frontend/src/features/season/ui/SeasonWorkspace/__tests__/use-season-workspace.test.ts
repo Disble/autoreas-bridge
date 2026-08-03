@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSnapshot, SeasonSource } from '../../../../../infrastructure/season-source';
-import { resetSeasonStore } from '../../../../../shared/store/season-store';
+import type { SeasonSnapshot, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonWorkspace } from '../use-season-workspace';
 
 function makeSeason(overrides: Partial<SeasonSnapshot> = {}): SeasonSnapshot {

@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import type { EvaluationRow } from './evaluation-panel.types';
 
 /**

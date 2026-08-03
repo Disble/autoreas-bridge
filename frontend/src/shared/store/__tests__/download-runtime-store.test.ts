@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView, ScheduleConfig } from '../../contracts/download.types';
 import {
   connectDownloadRuntimeStore,
   getDownloadRuntimeStoreState,
   resetDownloadRuntimeStore,
-} from '../download-runtime-store';
+} from '../download-runtime-store/download-runtime-store.helpers';
 
 const scheduleConfig: ScheduleConfig = {
   mode: 'in_process',

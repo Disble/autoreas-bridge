@@ -1,1 +1,0 @@
-export { SyncingAnimePanel } from './SyncingAnimePanel';

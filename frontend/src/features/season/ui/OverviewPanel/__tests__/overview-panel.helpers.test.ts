@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { getMatchStatusColor } from '../../IntakePanel/intake-panel.helpers';
 import { INTAKE_HEALTH_CHART_COLORS } from '../overview-panel.constants';
 import {

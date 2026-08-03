@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
-import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice';
+import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
 import { formatMissedScheduleDueLabel } from '../../../../shared/hooks/use-missed-schedule-notice/missed-schedule-notice.helpers';
 import { MISSED_DECISION_TOAST_ID, MISSED_FAILURE_TOAST_ID } from './notification-resolver.constants';
 

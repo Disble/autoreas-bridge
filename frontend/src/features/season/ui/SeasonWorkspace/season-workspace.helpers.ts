@@ -1,4 +1,4 @@
-import type { SeasonSnapshot } from '../../../../infrastructure/season-source';
+import type { SeasonSnapshot } from '../../../../infrastructure/season-source/season-source.types';
 import { SEASON_MONTHS_ES } from './season-workspace.constants';
 import type { PastSeasonEntry, SeasonOverview } from './season-workspace.types';
 

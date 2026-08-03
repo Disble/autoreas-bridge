@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source';
-import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source';
+import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
+import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
-import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store';
+import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { useTransactionPanel } from '../use-transaction-panel';
 
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {

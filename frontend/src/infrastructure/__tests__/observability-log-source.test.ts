@@ -17,7 +17,7 @@ describe('observability-log-source', () => {
   });
 
   it('resolves an empty array from getRecentLogs when the Go runtime is absent', async () => {
-    const { createObservabilityLogSource } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
     const source = createObservabilityLogSource();
 
     const recentLogsPromise = source.getRecentLogs();
@@ -28,7 +28,7 @@ describe('observability-log-source', () => {
   });
 
   it('reports the runtime as available when Go bindings and the runtime object exist', async () => {
-    const { isWailsRuntimeAvailable } = await import('../observability-log-source');
+    const { isWailsRuntimeAvailable } = await import('../observability-log-source/observability-log-source.helpers');
 
     window.go = { main: { App: {} } } as never;
     window.runtime = {} as never;
@@ -37,7 +37,7 @@ describe('observability-log-source', () => {
   });
 
   it('reports the runtime as unavailable when the runtime object is null', async () => {
-    const { isWailsRuntimeAvailable } = await import('../observability-log-source');
+    const { isWailsRuntimeAvailable } = await import('../observability-log-source/observability-log-source.helpers');
 
     window.go = { main: { App: {} } } as never;
     window.runtime = null as never;
@@ -46,7 +46,8 @@ describe('observability-log-source', () => {
   });
 
   it('resolves recent logs from the Go runtime once bindings become ready', async () => {
-    const { createObservabilityLogSource, WAILS_BINDINGS_POLL_MS } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createObservabilityLogSource();
     const getRecentLogsMock = vi.fn().mockResolvedValue([{ timestamp: 't1', domain: 'anime', message: 'booted' }]);
 
@@ -66,7 +67,7 @@ describe('observability-log-source', () => {
   });
 
   it('degrades subscribe to a no-op unsubscribe when the runtime is absent', async () => {
-    const { createObservabilityLogSource } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
     const source = createObservabilityLogSource();
     const listener = vi.fn();
 
@@ -79,7 +80,7 @@ describe('observability-log-source', () => {
   });
 
   it('shares a single singleton across multiple subscribers (no duplicate Wails subscriptions)', async () => {
-    const { createObservabilityLogSource } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
     const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
 
     window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
@@ -101,7 +102,7 @@ describe('observability-log-source', () => {
   });
 
   it('forwards live runtime events to subscribed listeners', async () => {
-    const { createObservabilityLogSource } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
     let handler: ((entry: unknown) => void) | undefined;
     const eventsOnMultipleMock = vi
       .fn()
@@ -126,7 +127,7 @@ describe('observability-log-source', () => {
   });
 
   it('releases the runtime listener once the last subscriber unsubscribes', async () => {
-    const { createObservabilityLogSource } = await import('../observability-log-source');
+    const { createObservabilityLogSource } = await import('../observability-log-source/observability-log-source.helpers');
     const runtimeUnsubscribeMock = vi.fn();
     const eventsOnMultipleMock = vi.fn().mockReturnValue(runtimeUnsubscribeMock);
 
@@ -145,18 +146,14 @@ describe('observability-log-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/observability-log-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'observability-log-source.types.ts');
     const helperPath = join(sourceRoot, 'observability-log-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/observability-log-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './observability-log-source.types'");
-    expect(sourceText).toContain("from './observability-log-source.helpers'");
-    expect(sourceText).toContain("from '../wails-bindings.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+ObservabilityLogSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
-    expect(sourceText).not.toMatch(/export const\s+observabilityLogSource\b/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 

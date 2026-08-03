@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 
 /** The two intake editing modes: plain-text draft vs rendered rows. */
 export type IntakeMode = 'raw' | 'list';

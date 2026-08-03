@@ -17,7 +17,7 @@ describe('notification-source', () => {
   });
 
   it('degrades subscribe to a no-op unsubscribe when the runtime is absent', async () => {
-    const { createNotificationSource } = await import('../notification-source');
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const source = createNotificationSource();
     const listener = vi.fn();
 
@@ -30,7 +30,7 @@ describe('notification-source', () => {
   });
 
   it('shares a single singleton across multiple subscribers (no duplicate Wails subscriptions)', async () => {
-    const { createNotificationSource } = await import('../notification-source');
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
 
     window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
@@ -52,7 +52,7 @@ describe('notification-source', () => {
   });
 
   it('forwards live notification.push events to subscribed listeners', async () => {
-    const { createNotificationSource } = await import('../notification-source');
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     let handler: ((payload: unknown) => void) | undefined;
     const eventsOnMultipleMock = vi
       .fn()
@@ -86,7 +86,7 @@ describe('notification-source', () => {
   });
 
   it('subscribes to the exact "notification.push" event name', async () => {
-    const { createNotificationSource } = await import('../notification-source');
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
 
     window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
@@ -106,7 +106,7 @@ describe('notification-source', () => {
   });
 
   it('releases the runtime listener once the last subscriber unsubscribes', async () => {
-    const { createNotificationSource } = await import('../notification-source');
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const runtimeUnsubscribeMock = vi.fn();
     const eventsOnMultipleMock = vi.fn().mockReturnValue(runtimeUnsubscribeMock);
 
@@ -125,17 +125,14 @@ describe('notification-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/notification-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'notification-source.types.ts');
     const helperPath = join(sourceRoot, 'notification-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/notification-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './notification-source.types'");
-    expect(sourceText).toContain("from './notification-source.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+NotificationSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
-    expect(sourceText).not.toMatch(/export const\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 });

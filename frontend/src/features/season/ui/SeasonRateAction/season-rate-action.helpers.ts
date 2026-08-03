@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 
 /**
  * findSeasonCandidate returns the active season's CREATED row linked to the given

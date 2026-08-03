@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router';
-import { AppLayout } from './app/AppLayout';
+import { AppLayout } from './app/AppLayout/AppLayout';
 import { ActivityRoute } from './app/routes/ActivityRoute';
 import { AnimeDetailRoute } from './app/routes/AnimeDetailRoute';
 import { AnimeEditorRoute } from './app/routes/AnimeEditorRoute';
@@ -9,7 +9,7 @@ import { HistoryRoute } from './app/routes/HistoryRoute';
 import { EpisodesRoute } from './app/routes/EpisodesRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';
-import { PreferencesRoute } from './app/routes/PreferencesRoute';
+import { PreferencesRoute } from './app/routes/PreferencesRoute/PreferencesRoute';
 import { SeasonRoute } from './app/routes/SeasonRoute';
 
 function App() {

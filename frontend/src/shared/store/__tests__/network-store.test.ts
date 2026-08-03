@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ObservabilityLogEntry } from '../../contracts/observability.types';
-import type { ObservabilityLogSource } from '../../../infrastructure/observability-log-source';
-import { connectNetworkStore, getNetworkStoreState, resetNetworkStore } from '../network-store';
-import { selectFilteredRows } from '../network-store/network-store.helpers';
+import type { ObservabilityLogSource } from '../../../infrastructure/observability-log-source/observability-log-source.types';
+import { connectNetworkStore, getNetworkStoreState, resetNetworkStore, selectFilteredRows } from '../network-store/network-store.helpers';
 
 function entry(overrides: Partial<ObservabilityLogEntry>): ObservabilityLogEntry {
   return {

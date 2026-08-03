@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source';
+import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { classifyExportOutcome, describeExportError, summarizeExportResult } from '../backup-panel.helpers';
 
 function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExportResultDTO {

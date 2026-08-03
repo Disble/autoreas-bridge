@@ -19,6 +19,24 @@ export default [
     files: ['src/**/*.{ts,tsx}'],
     rules: {
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
+      // ADR-011 removes the index.ts entrypoints required by folder-ownership.
+      'dlinter/folder-ownership': 'off',
+      // ADR-011: modules are imported by concrete path, never through a
+      // barrel. This catches the explicit `.../index` form; the directory
+      // form stops resolving once the barrels are deleted, and
+      // `bun run check:no-barrels` keeps them from coming back.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/index'],
+              message:
+                'Import the concrete module file instead of a barrel (ADR-011: docs/adr/011-no-barrel-files.md).',
+            },
+          ],
+        },
+      ],
     },
   },
   // Vitest mock hygiene — local enforcement of the rules proposed to dlinter

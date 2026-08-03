@@ -6,7 +6,7 @@ import {
   BACKUP_IMPORT_PREVIEW_LABEL,
   BACKUP_IMPORT_UNKNOWN_ERROR_MESSAGE,
 } from './backup-import-section.constants';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../infrastructure/backup-source';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../infrastructure/backup-source/backup-source.types';
 import type { BackupImportPhase, ImportPhaseInput, ImportPreviewSummary } from './backup-import-section.types';
 
 /** Resolves a group name to its human-readable label, falling back to the raw name. */

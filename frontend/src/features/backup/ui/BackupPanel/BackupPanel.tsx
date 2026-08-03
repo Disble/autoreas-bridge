@@ -2,7 +2,7 @@ import { Button } from '@heroui/react';
 import { BACKUP_PANEL_EXPORTING_LABEL, BACKUP_PANEL_EXPORT_LABEL } from './backup-panel.constants';
 import { summarizeExportResult } from './backup-panel.helpers';
 import { useBackupPanel } from './use-backup-panel';
-import { BackupImportSection } from '../BackupImportSection';
+import { BackupImportSection } from '../BackupImportSection/BackupImportSection';
 
 /**
  * Options "Backup" tab body: exposes the desktop-only backup export action

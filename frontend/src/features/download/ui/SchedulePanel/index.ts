@@ -1,1 +1,0 @@
-export { SchedulePanel } from './SchedulePanel';

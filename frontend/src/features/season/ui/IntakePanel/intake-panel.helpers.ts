@@ -1,4 +1,4 @@
-import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import { MATCH_STATUS_LABELS } from './intake-panel.constants';
 import type { IntakeChipColor } from './intake-panel.types';
 

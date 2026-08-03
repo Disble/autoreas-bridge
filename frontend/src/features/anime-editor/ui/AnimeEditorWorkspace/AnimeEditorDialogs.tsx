@@ -1,5 +1,5 @@
 import { Button, Modal, Typography } from '@heroui/react';
-import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering';
+import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/AnimeScheduleOrdering';
 import type { AnimeEditorDialogsProps } from './anime-editor-workspace.types';
 
 /** Renders the shared dirty guard and near-full-screen schedule modal. */

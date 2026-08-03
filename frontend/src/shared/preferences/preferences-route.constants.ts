@@ -1,5 +1,5 @@
-import { BackupPanel } from '../../features/backup/ui/BackupPanel';
-import { AutoStartPanel } from '../../features/preferences/ui/AutoStartPanel';
+import { BackupPanel } from '../../features/backup/ui/BackupPanel/BackupPanel';
+import { AutoStartPanel } from '../../features/preferences/ui/AutoStartPanel/AutoStartPanel';
 import { DownloadsRootPanel } from '../../features/preferences/ui/DownloadsRootPanel/DownloadsRootPanel';
 
 /** Options category registry rendered by the Preferences route tab workspace. */

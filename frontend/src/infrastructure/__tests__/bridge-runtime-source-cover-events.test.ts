@@ -15,7 +15,7 @@ describe('bridge-runtime-source cover and events', () => {
   });
 
   it('degrades cover and episode counts while runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
     const coverPromise = source.getAnimeCover?.('anime-1');
     const countsPromise = source.getEpisodeDayCounts?.();
@@ -25,7 +25,7 @@ describe('bridge-runtime-source cover and events', () => {
   });
 
   it('returns explicit fallback outcomes for all five required editor calls', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
     const patch = {
       page: { present: false, clear: false, value: '' }, folder: { present: false, clear: false, value: '' },
@@ -47,7 +47,8 @@ describe('bridge-runtime-source cover and events', () => {
   });
 
   it('calls cover and episode-count bindings once ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
     const getEpisodeDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Lunes' }]);
@@ -66,7 +67,7 @@ describe('bridge-runtime-source cover and events', () => {
       return () => undefined;
     });
     window.runtime = { EventsOnMultiple: eventsOnMultiple } as never;
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
     const listener = vi.fn();
     const unsubscribe = source.onPairingTokenConsumed(listener);

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import { useCatalogPanel } from '../use-catalog-panel';
 

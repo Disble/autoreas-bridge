@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { usePairingPanel } from '../use-pairing-panel';
 
 vi.mock('qrcode', () => ({

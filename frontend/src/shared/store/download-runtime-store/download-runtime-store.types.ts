@@ -1,4 +1,4 @@
-import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView, ScheduleConfig } from '../../contracts/download.types';
 
 /** Zustand read-model for the Downloads screen. */

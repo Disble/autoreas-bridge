@@ -3,7 +3,7 @@ import { downloadRuntimeSource } from '../../../../infrastructure/download-runti
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
-import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice';
+import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
 import { toSchedulePanelViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';

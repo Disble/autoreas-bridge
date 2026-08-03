@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as ReactRouter from 'react-router';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { useAnimeDetail } from '../use-anime-detail';
 

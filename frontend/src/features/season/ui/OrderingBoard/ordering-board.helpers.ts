@@ -1,5 +1,5 @@
 import type { DragOverEvent } from '@dnd-kit/react';
-import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import {
   applyAnimeScheduleOrder,

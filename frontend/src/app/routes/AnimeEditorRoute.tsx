@@ -1,6 +1,6 @@
 import { Tabs } from '@heroui/react';
-import { AnimeCreate } from '../../features/anime-create/ui/AnimeCreate';
-import { AnimeEditorWorkspace } from '../../features/anime-editor/ui/AnimeEditorWorkspace';
+import { AnimeCreate } from '../../features/anime-create/ui/AnimeCreate/AnimeCreate';
+import { AnimeEditorWorkspace } from '../../features/anime-editor/ui/AnimeEditorWorkspace/AnimeEditorWorkspace';
 
 /** AnimeEditorRoute mounts a Library/Create tab shell as its own routed surface. */
 export function AnimeEditorRoute() {

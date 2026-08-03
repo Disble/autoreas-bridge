@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { ScheduleConfig } from '../../../contracts/download.types';
-import { resetDownloadRuntimeStore, getDownloadRuntimeStoreState } from '../../../store/download-runtime-store';
+import { resetDownloadRuntimeStore, getDownloadRuntimeStoreState } from '../../../store/download-runtime-store/download-runtime-store.helpers';
 import { useMissedScheduleNotice } from '../use-missed-schedule-notice';
 
 const baseConfig: ScheduleConfig = {

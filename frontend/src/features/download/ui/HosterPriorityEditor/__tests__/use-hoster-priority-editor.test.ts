@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { move } from '@dnd-kit/helpers';
 import { useHosterPriorityEditor } from '../use-hoster-priority-editor';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
 
 const baseConfig: DownloadConfig = {

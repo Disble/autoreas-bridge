@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeHistoryEntry } from '../../../../shared/contracts/anime.types';
-import { useAsyncList } from '../../../../shared/hooks/use-async-list';
+import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import {
   HISTORY_TABLE_ESTADO_OPTIONS,

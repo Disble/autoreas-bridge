@@ -1,7 +1,7 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { RAIL_CONTAINER_ID } from '../ordering-board.constants';
 import {
   applyOrder,

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { PreferencesSource } from '../../../infrastructure/preferences-source';
-import { getPreferencesStoreState, resetPreferencesStore } from '../preferences-store';
+import type { PreferencesSource } from '../../../infrastructure/preferences-source/preferences-source.types';
+import { getPreferencesStoreState, resetPreferencesStore } from '../preferences-store/preferences-store.helpers';
 
 it('keeps the state interface in the colocated types module', async () => {
   const { readFileSync } = await import('node:fs');

@@ -1,4 +1,4 @@
-import { TodaySeasonBanner } from '../../features/season/ui/TodaySeasonBanner';
+import { TodaySeasonBanner } from '../../features/season/ui/TodaySeasonBanner/TodaySeasonBanner';
 import { EpisodeSchedulePanel } from '../../features/episodes/ui/EpisodeSchedulePanel/EpisodeSchedulePanel';
 import { episodeDayLabel, getDefaultEpisodeDay } from '../../features/episodes/ui/EpisodeSchedulePanel/episode-schedule-panel.helpers';
 

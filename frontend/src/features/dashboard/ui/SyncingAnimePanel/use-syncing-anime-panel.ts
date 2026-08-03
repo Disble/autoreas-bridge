@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { SyncingAnime } from '../../../../shared/contracts/syncing-anime.types';
-import { useAsyncList } from '../../../../shared/hooks/use-async-list';
+import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
 import type { SyncingAnimePanelProps } from './syncing-anime-panel.types';
 import { toSyncingAnimePanelViewModel } from './syncing-anime-panel.helpers';
 

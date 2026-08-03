@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { formatAvailableEpisodes, getScheduledDay, getSinVerAvailabilityIndicator, groupCreatedBySection } from '../daily-board.helpers';
 
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {

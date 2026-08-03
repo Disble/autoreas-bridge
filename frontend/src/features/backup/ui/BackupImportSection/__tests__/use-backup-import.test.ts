@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { useBackupImport } from '../use-backup-import';
 
 function buildPreview(overrides: Partial<BackupImportPreviewDTO> = {}): BackupImportPreviewDTO {

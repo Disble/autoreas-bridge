@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DragOverEvent } from '@dnd-kit/react';
 
-import type { OrderingBoard, OrderingCard, SeasonSource } from '../../../../../infrastructure/season-source';
+import type { OrderingBoard, OrderingCard, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
 import { ORDERING_AUTOSAVE_DEBOUNCE_MS, ORDERING_DUPLICATE_WEEKDAY_ERROR } from '../ordering-board.constants';
 import { useOrderingBoard } from '../use-ordering-board';
 

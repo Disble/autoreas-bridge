@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import { CONSIDERATION_OPTIONS } from '../selection-board.constants';
 import {
   countApproved,

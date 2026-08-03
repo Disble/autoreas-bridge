@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
-import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store';
+import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 
 function createRun(index: number, overrides: Partial<DownloadRunView> = {}): DownloadRunView {
   return {

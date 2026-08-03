@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import type { EvaluationRow } from '../evaluation-panel.types';
 import { countUngraded, formatRatedAt, getGradeSourceLabel, toEvaluationRows } from '../evaluation-panel.helpers';
 

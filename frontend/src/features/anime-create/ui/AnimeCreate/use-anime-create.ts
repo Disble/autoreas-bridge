@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source';
+import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';

@@ -5,7 +5,7 @@ vi.mock('../../../features/episodes/ui/EpisodeSchedulePanel/EpisodeSchedulePanel
   EpisodeSchedulePanel: () => <div>Episode schedule panel</div>,
 }));
 
-vi.mock('../../../features/season/ui/TodaySeasonBanner', () => ({
+vi.mock('../../../features/season/ui/TodaySeasonBanner/TodaySeasonBanner', () => ({
   TodaySeasonBanner: () => <div>Today season banner</div>,
 }));
 

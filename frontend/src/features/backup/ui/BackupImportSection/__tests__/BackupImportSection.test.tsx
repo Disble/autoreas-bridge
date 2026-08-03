@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import type { BackupImportPhase } from '../backup-import-section.types';
 
 const onPreview = vi.fn();

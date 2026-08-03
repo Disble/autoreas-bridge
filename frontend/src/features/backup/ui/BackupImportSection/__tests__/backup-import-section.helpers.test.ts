@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source';
+import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { classifyImportPhase, describeImportOutcome, summarizeImportPreview } from '../backup-import-section.helpers';
 import type { ImportPhaseInput } from '../backup-import-section.types';
 

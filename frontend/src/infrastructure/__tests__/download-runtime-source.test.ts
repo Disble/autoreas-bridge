@@ -17,7 +17,7 @@ describe('download-runtime-source', () => {
   });
 
   it('degrades getDownloadConfig to a safe empty default when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const resultPromise = source.getDownloadConfig();
@@ -49,7 +49,7 @@ describe('download-runtime-source', () => {
   });
 
   it('degrades missed-notice actions to descriptive error results when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const runPromise = source.runMissedScheduleNow('2026-07-26');
@@ -69,7 +69,7 @@ describe('download-runtime-source', () => {
   });
 
   it('degrades listDownloadRuns to an empty array when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const resultPromise = source.listDownloadRuns();
@@ -79,7 +79,7 @@ describe('download-runtime-source', () => {
   });
 
   it('degrades triggerDownloadCheck to a descriptive message when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const resultPromise = source.triggerDownloadCheck();
@@ -89,7 +89,7 @@ describe('download-runtime-source', () => {
   });
 
   it('degrades subscribeRunEvents to a no-op unsubscribe when the runtime is unavailable', async () => {
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
     const listener = vi.fn();
 
@@ -112,7 +112,7 @@ describe('download-runtime-source', () => {
 
     window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
     const listener = vi.fn();
     const unsubscribe = source.subscribeRunEvents(listener);
@@ -157,7 +157,7 @@ describe('download-runtime-source', () => {
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { main: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const resultPromise = source.getDownloadConfig();
@@ -193,7 +193,7 @@ describe('download-runtime-source', () => {
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { main: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const resultPromise = source.getDownloadConfig();
@@ -228,7 +228,7 @@ describe('download-runtime-source', () => {
       },
     } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     await expect(source.getJDStatus()).resolves.toEqual(jdStatus);
@@ -248,7 +248,7 @@ describe('download-runtime-source', () => {
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
     window.go = { main: { App: { SetHosterPriority: setHosterPriorityMock } } } as never;
 
-    const { createDownloadRuntimeSource } = await import('../download-runtime-source');
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
 
     const items = [{ hoster: 'mega', priority: 0, enabled: true }];
@@ -262,17 +262,14 @@ describe('download-runtime-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/download-runtime-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'download-runtime-source.types.ts');
     const helperPath = join(sourceRoot, 'download-runtime-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(existsSync(join(process.cwd(), 'src/infrastructure/download-runtime-source.ts'))).toBe(false);
-    expect(sourceText).toContain("from './download-runtime-source.types'");
-    expect(sourceText).toContain("from './download-runtime-source.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+DownloadRuntimeSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
-    expect(sourceText).not.toMatch(/export const\s+/);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 

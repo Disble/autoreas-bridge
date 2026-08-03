@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source';
+import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.types';
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
 import type { EntryWithId, NetworkLevelFilter } from '../../../../shared/store/network-store/network-store.types';
 

@@ -1,1 +1,0 @@
-export { PreferencesRoute } from './PreferencesRoute';

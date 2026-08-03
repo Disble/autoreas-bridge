@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useAsyncList } from '..';
+import { useAsyncList } from '../use-async-list';
 
 describe('useAsyncList', () => {
   it('exposes loaded items and clears the loading state', async () => {

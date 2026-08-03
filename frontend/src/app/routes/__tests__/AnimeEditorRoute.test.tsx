@@ -14,20 +14,6 @@ function renderRoute() {
   );
 }
 
-vi.mock('../../../infrastructure/bridge-runtime-source', () => ({
-  bridgeRuntimeSource: {
-    getAnimes: vi.fn().mockResolvedValue([]),
-    getAnimeEditorRecord: vi.fn(),
-    saveAnimeEditor: vi.fn(),
-    deactivateAnime: vi.fn(),
-    getAnimeEditorScheduleBoard: vi.fn().mockResolvedValue({ outcome: 'applied', message: 'loaded', board: { originAnimeId: '', boardModifiedAt: 0, destinations: [], entries: [] } }),
-    applyAnimeEditorSchedule: vi.fn(),
-    createAnime: vi.fn(),
-    pickFolder: vi.fn(),
-    pickFile: vi.fn(),
-  },
-}));
-
 describe('AnimeEditorRoute', () => {
   afterEach(() => {
     cleanup();

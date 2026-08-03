@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react';
 import { NavLink, Outlet } from 'react-router';
 import { NotificationToasts } from '../NotificationToasts';
-import { SeasonNavBadge } from '../../features/navigation/SeasonNavBadge';
-import { SyncStatusChip } from '../../features/navigation/SyncStatusChip';
+import { SeasonNavBadge } from '../../features/navigation/SeasonNavBadge/SeasonNavBadge';
+import { SyncStatusChip } from '../../features/navigation/SyncStatusChip/SyncStatusChip';
 import { APP_LAYOUT_BRIDGE_MARK_PATHS, APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { railItemClass, tabItemClass } from './AppLayout.helpers';

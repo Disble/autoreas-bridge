@@ -1,5 +1,5 @@
 import { BACKUP_EXPORT_UNKNOWN_ERROR_MESSAGE, BACKUP_GROUP_LABELS } from './backup-panel.constants';
-import type { BackupExportResultDTO } from '../../../../infrastructure/backup-source';
+import type { BackupExportResultDTO } from '../../../../infrastructure/backup-source/backup-source.types';
 import type { BackupPanelStatus, ExportOutcomeInput } from './backup-panel.types';
 
 /**

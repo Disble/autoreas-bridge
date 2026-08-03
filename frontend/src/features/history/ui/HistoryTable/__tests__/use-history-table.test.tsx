@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, useNavigationType, useSearchParams } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source';
+import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeHistoryEntry } from '../../../../../shared/contracts/anime.types';
 import { HISTORY_TABLE_PAGE_SIZE, HISTORY_TABLE_SORT_NOMBRE_VALUE } from '../history-table.constants';
 import { useHistoryTable } from '../use-history-table';

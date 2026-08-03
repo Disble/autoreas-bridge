@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source';
-import { resetSeasonStore } from '../../../../../shared/store/season-store';
+import type { SeasonAnimeRow, SeasonSource } from '../../../../../infrastructure/season-source/season-source.types';
+import { resetSeasonStore } from '../../../../../shared/store/season-store/season-store.helpers';
 import { useSeasonRateAction } from '../use-season-rate-action';
 
 function createSource(rows: readonly SeasonAnimeRow[]): SeasonSource {

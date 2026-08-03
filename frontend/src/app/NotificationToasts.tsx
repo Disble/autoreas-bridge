@@ -1,1 +1,1 @@
-export { NotificationToasts } from '../features/notifications/ui/NotificationToasts';
+export { NotificationToasts } from '../features/notifications/ui/NotificationToasts/NotificationToasts';

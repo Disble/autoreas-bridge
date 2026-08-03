@@ -85,15 +85,13 @@ describe('anime-runtime-source', () => {
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/anime-runtime-source');
     const indexPath = join(sourceRoot, 'index.ts');
+    const typesPath = join(sourceRoot, 'anime-runtime-source.types.ts');
     const helperPath = join(sourceRoot, 'anime-runtime-source.helpers.ts');
-    const sourceText = readFileSync(indexPath, 'utf8');
     const helperText = readFileSync(helperPath, 'utf8');
 
-    expect(existsSync(indexPath)).toBe(true);
-    expect(sourceText).toContain("from './anime-runtime-source.types'");
-    expect(sourceText).toContain("from './anime-runtime-source.helpers'");
-    expect(sourceText).not.toMatch(/export interface\s+AnimeRuntimeSource\b/);
-    expect(sourceText).not.toMatch(/export function\s+/);
+    expect(existsSync(indexPath)).toBe(false);
+    expect(existsSync(typesPath)).toBe(true);
+    expect(existsSync(helperPath)).toBe(true);
     expect(helperText).toContain("from '../wails-bindings.helpers'");
   });
 });

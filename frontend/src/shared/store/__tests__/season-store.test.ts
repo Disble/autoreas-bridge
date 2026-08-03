@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source';
-import { getSeasonStoreState, resetSeasonStore } from '../season-store';
+import type { SeasonSnapshot, SeasonSource } from '../../../infrastructure/season-source/season-source.types';
+import { getSeasonStoreState, resetSeasonStore } from '../season-store/season-store.helpers';
 
 it('keeps the intake helper outside the main store module', async () => {
   const { readFileSync } = await import('node:fs');

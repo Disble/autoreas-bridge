@@ -1,8 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source';
+import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
-import { resetTransactionStore } from '../../../../../shared/store/transaction-store';
+import { resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { TransactionPanel } from '../TransactionPanel';
 
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {

@@ -15,7 +15,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('resolves degraded defaults for every method when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const statusPromise = source.getSQLiteStatus();
@@ -52,7 +52,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('resolves degraded defaults when the App exists but a specific binding is missing', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const animePromise = source.getSyncingAnimeItems();
@@ -65,7 +65,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetSQLiteStatus once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const getSQLiteStatusMock = vi.fn().mockResolvedValue('ok');
 
@@ -80,7 +81,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetEffectiveAddress once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const getEffectiveAddressMock = vi.fn().mockResolvedValue('192.168.1.10:8080');
 
@@ -94,7 +96,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetPairingToken once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const getPairingTokenMock = vi.fn().mockResolvedValue('token-123');
 
@@ -108,7 +111,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetAnimes once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const getAnimesMock = vi.fn().mockResolvedValue([{ id: 'anime-1', name: 'Test', status: 2, episodesWatched: 5, active: 1 }]);
 
@@ -127,7 +131,7 @@ describe('bridge-runtime-source', () => {
     const getSyncingAnimeItemsMock = vi.fn().mockResolvedValue(syncingItems);
     window.go = { main: { App: { GetSyncingAnimeItems: getSyncingAnimeItemsMock } } } as never;
 
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     await expect(source.getSyncingAnimeItems()).resolves.toEqual(syncingItems);
@@ -135,7 +139,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetAnimeDetail once Go bindings become ready and resolves the mapped DTO', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const detail = {
       id: 'anime-1',
@@ -161,7 +166,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls the anime editor bindings once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const record = {
       animeId: 'anime-1',
@@ -261,7 +267,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('passes every reindexed schedule entry to the Wails binding', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const applyBoardMock = vi.fn().mockResolvedValue({
       outcome: 'applied',
@@ -309,7 +316,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('maps a value-kind zero tipo to a concrete 0 across the wire boundary', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     // Reproduces the reported bug's payload: the backend reports tipo=0
     // ("Anime (TV)") as an explicit value-kind zero. The mapper must surface it
@@ -346,7 +354,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const entries = [{ id: 'anime-1', name: 'Frieren', episodesWatched: 12, lastWatchedAt: 1700000000000, status: 1 }];
     const getAnimeHistoryMock = vi.fn().mockResolvedValue(entries);
@@ -362,7 +371,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('degrades getAnimeHistory to an empty array when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const historyPromise = source.getAnimeHistory();
@@ -373,7 +382,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('degrades getAnimeHistory to an empty array when the App exists but GetAnimeHistory is missing', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const historyPromise = source.getAnimeHistory();
@@ -386,7 +395,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('degrades getAnimeDetail to null when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const detailPromise = source.getAnimeDetail('anime-1');
@@ -397,7 +406,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('degrades getAnimeDetail to null when the App exists but GetAnimeDetail is missing', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const detailPromise = source.getAnimeDetail('anime-1');
@@ -410,7 +419,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls SoftDeleteAnime, RestoreAnime, and RepeatAnime once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const softDeleteMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
     const restoreResult = { status: 'ok', animeId: 'anime-1', outcome: 'no_op', modifiedAt: 0 };
@@ -441,7 +451,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls page and folder desktop actions once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const openPageMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
     const copyPageMock = vi.fn().mockResolvedValue({ status: 'ok', animeId: 'anime-1' });
@@ -477,7 +488,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls CreateAnime once Go bindings become ready and maps the wire DTO', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const createAnimeMock = vi.fn().mockResolvedValue({
       outcome: 'applied',
@@ -542,7 +554,7 @@ describe('bridge-runtime-source', () => {
   });
 
   it('degrades createAnime to an error outcome when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
     const createPromise = source.createAnime?.({ creates: [], changedNeighbors: [] });
@@ -555,7 +567,8 @@ describe('bridge-runtime-source', () => {
   });
 
   it('calls TriggerReconcile once Go bindings become ready', async () => {
-    const { createBridgeRuntimeSource, WAILS_BINDINGS_POLL_MS } = await import('../bridge-runtime-source');
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
     const triggerReconcileMock = vi.fn().mockResolvedValue('done');
 

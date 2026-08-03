@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useJDConfigPanel } from '../use-jdconfig-panel';
-import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source';
+import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { JDStatus } from '../../../../../shared/contracts/download.types';
 
 const baseStatus: JDStatus = {

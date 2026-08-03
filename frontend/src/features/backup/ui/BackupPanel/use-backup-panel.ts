@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { backupSource } from '../../../../infrastructure/backup-source/backup-source.helpers';
 import { classifyExportOutcome, describeExportError } from './backup-panel.helpers';
-import type { BackupExportResultDTO } from '../../../../infrastructure/backup-source';
+import type { BackupExportResultDTO } from '../../../../infrastructure/backup-source/backup-source.types';
 import type { BackupExportSource } from './backup-panel.types';
 
 /**

@@ -1,4 +1,4 @@
-import type { PreferencesSource } from '../../../infrastructure/preferences-source';
+import type { PreferencesSource } from '../../../infrastructure/preferences-source/preferences-source.types';
 
 /** Zustand state contract for the shared Preferences read-model. */
 export type PreferencesStoreState = {

@@ -1,4 +1,4 @@
-import type { SeasonAnimeRow } from '../../../../infrastructure/season-source';
+import type { SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 
 /**
  * Created season animes grouped by their live Estrenos section — the conveyor:

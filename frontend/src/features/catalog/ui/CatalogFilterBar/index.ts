@@ -1,1 +1,0 @@
-export { CatalogFilterBar } from './CatalogFilterBar';
