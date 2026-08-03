@@ -1,7 +1,10 @@
 // Package autostart reconciles the current user's Windows login-launch entry.
 package autostart
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	// RunKeyPath is the current-user Windows Run registry key.
@@ -49,12 +52,29 @@ func (r *Reconciler) Reconcile(enabled bool) error {
 	if err != nil {
 		return fmt.Errorf("resolve executable path: %w", err)
 	}
+	if !isRegistrableExecutable(path) {
+		return r.discardThrowawayValue(current, exists)
+	}
 	command := `"` + path + `"`
 	if exists && current == command {
 		return nil
 	}
 	if err := r.registry.SetValue(RunValueName, command); err != nil {
 		return fmt.Errorf("write auto-start registry value: %w", err)
+	}
+	return nil
+}
+
+// discardThrowawayValue handles an enabled reconcile running from a build that
+// must never register itself. An installed command already in place is left
+// untouched; a value pointing at a throwaway build is removed so a stale entry
+// cannot keep failing at login.
+func (r *Reconciler) discardThrowawayValue(current string, exists bool) error {
+	if !exists || isRegistrableExecutable(strings.Trim(current, `"`)) {
+		return nil
+	}
+	if err := r.registry.DeleteValue(RunValueName); err != nil {
+		return fmt.Errorf("remove stale auto-start registry value: %w", err)
 	}
 	return nil
 }

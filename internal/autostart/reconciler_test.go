@@ -2,6 +2,8 @@ package autostart
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -55,6 +57,66 @@ func TestReconcilerIsIdempotent(t *testing.T) {
 	}
 	if registry.setCalls != 0 {
 		t.Fatalf("SetValue calls = %d, want 0", registry.setCalls)
+	}
+}
+
+func TestReconcilerNeverRegistersThrowawayBuild(t *testing.T) {
+	t.Parallel()
+
+	installed := `"C:\Program Files\Autoreas Bridge\autoreas-bridge.exe"`
+	registry := &fakeRegistry{values: map[string]string{RunValueName: installed}}
+	reconciler := NewReconciler(registry, func() (string, error) {
+		return filepath.Join(os.TempDir(), "go-build123", "b001", "autoreas-bridge.test.exe"), nil
+	})
+
+	if err := reconciler.Reconcile(true); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if got := registry.values[RunValueName]; got != installed {
+		t.Fatalf("Run command = %q, want the installed command %q preserved", got, installed)
+	}
+	if registry.setCalls != 0 {
+		t.Fatalf("SetValue calls = %d, want 0", registry.setCalls)
+	}
+}
+
+func TestReconcilerHealsRunValuePointingAtThrowawayBuild(t *testing.T) {
+	t.Parallel()
+
+	poisoned := `"` + filepath.Join(os.TempDir(), "go-build123", "b001", "autoreas-bridge.test.exe") + `"`
+	registry := &fakeRegistry{values: map[string]string{
+		RunValueName:    poisoned,
+		"Unrelated App": "other.exe",
+	}}
+	reconciler := NewReconciler(registry, func() (string, error) {
+		return filepath.Join(os.TempDir(), "go-build123", "b001", "autoreas-bridge.test.exe"), nil
+	})
+
+	if err := reconciler.Reconcile(true); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if _, exists := registry.values[RunValueName]; exists {
+		t.Fatal("expected the throwaway Run value to be removed")
+	}
+	if got := registry.values["Unrelated App"]; got != "other.exe" {
+		t.Fatalf("unrelated Run value = %q, want preserved value", got)
+	}
+}
+
+func TestReconcilerReplacesThrowawayRunValueWithInstalledCommand(t *testing.T) {
+	t.Parallel()
+
+	poisoned := `"` + filepath.Join(os.TempDir(), "go-build123", "b001", "autoreas-bridge.test.exe") + `"`
+	registry := &fakeRegistry{values: map[string]string{RunValueName: poisoned}}
+	reconciler := NewReconciler(registry, func() (string, error) {
+		return `C:\Program Files\Autoreas Bridge\autoreas-bridge.exe`, nil
+	})
+
+	if err := reconciler.Reconcile(true); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if got, want := registry.values[RunValueName], `"C:\Program Files\Autoreas Bridge\autoreas-bridge.exe"`; got != want {
+		t.Fatalf("Run command = %q, want %q", got, want)
 	}
 }
 
