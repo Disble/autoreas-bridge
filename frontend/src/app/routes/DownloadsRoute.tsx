@@ -1,4 +1,4 @@
-import { Card } from '@heroui/react';
+import { Card, Typography } from '@heroui/react';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
 import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerButton/ManualTriggerButton';
@@ -14,8 +14,7 @@ export function DownloadsRoute() {
   return (
     <div className="flex flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Downloads</h1>
-        <p className="text-sm text-muted">Configure auto-download, run a check now, and review run history</p>
+        <Typography type="h1">Downloads</Typography><Typography color="muted" type="body-sm">Configure auto-download, run a check now, and review run history</Typography>
       </header>
 
       {/*

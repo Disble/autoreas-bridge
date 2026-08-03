@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef } from 'react';
-import { Alert, Button, Card, Chip, Input, Label, Skeleton, Tabs, TextField } from '@heroui/react';
+import { Alert, Button, Card, Chip, Input, Label, Skeleton, Tabs, TextField, Typography } from '@heroui/react';
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
   SEASON_WORKSPACE_EMPTY_TITLE,
@@ -52,8 +52,10 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
   return (
     <section className={`flex flex-col gap-4 ${className ?? ''}`}>
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{SEASON_WORKSPACE_TITLE}</h1>
-        <p className="text-sm text-muted">Run the new-season anime selection workflow.</p>
+        <Typography type="h1">{SEASON_WORKSPACE_TITLE}</Typography>
+        <Typography color="muted" type="body-sm">
+          Run the new-season anime selection workflow.
+        </Typography>
       </header>
 
       {errorMessage !== undefined && (

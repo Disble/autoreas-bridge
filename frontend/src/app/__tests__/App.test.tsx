@@ -44,8 +44,8 @@ describe('App routing', () => {
       ['/episodes', 'Today'],
       ['/dashboard', 'Today'],
       // /network redirects to Activity, which is now the real TransactionPanel
-      // (not the event log NetworkPanel.tsx renders -- NetworkRoute.tsx is
-      // pre-existing dead/unrouted drift, see design.md).
+      // (not the event log NetworkPanel.tsx renders -- the unrouted
+      // NetworkRoute.tsx drift was deleted).
       ['/network', 'Activity'],
       ['/status', 'Activity'],
       ['/pairing', 'Devices'],

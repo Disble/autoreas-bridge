@@ -1,4 +1,4 @@
-import { Card, Tabs } from '@heroui/react';
+import { Card, Tabs, Typography } from '@heroui/react';
 import { PREFERENCES_ROUTE_TABS } from '../../../shared/preferences/preferences-route.constants';
 
 /**
@@ -9,8 +9,10 @@ export function PreferencesRoute() {
   return (
     <div className="flex flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Settings</h1>
-        <p className="text-sm text-muted">Configure application behavior</p>
+        <Typography type="h1">Settings</Typography>
+        <Typography color="muted" type="body-sm">
+          Configure application behavior
+        </Typography>
       </header>
 
       <Tabs defaultSelectedKey="downloads">

@@ -1,3 +1,4 @@
+import { Typography } from '@heroui/react';
 import { HistoryTable } from '../../features/history/ui/HistoryTable/HistoryTable';
 
 /**
@@ -9,8 +10,8 @@ export function HistoryRoute() {
   return (
     <div className="flex flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">History</h1>
-        <p className="text-sm text-muted">Track progress and repetition history for the synchronized inventory</p>
+        <Typography type="h1">History</Typography>
+        <Typography color="muted" type="body-sm">Track progress and repetition history for the synchronized inventory</Typography>
       </header>
       <div className="min-w-0">
         <HistoryTable />
