@@ -18,7 +18,8 @@
     "test:mutation:guard": "node --test scripts/__tests__/mutation-staged.node-test.mjs",
     "test:mutation:staged": "node ./scripts/dlinter-mutation-staged.mjs",
     "generate:feature": "node ./scripts/generate-feature.js",
-    "audit": "fallow audit --quiet"
+    "audit": "fallow audit --quiet",
+    "check:no-barrels": "node ./scripts/check-no-barrels.mjs"
   },
   "dependencies": {
     "@dnd-kit/helpers": "^0.5.0",

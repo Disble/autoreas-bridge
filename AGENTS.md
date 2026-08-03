@@ -12,7 +12,7 @@
 
 1. **Dumb UI Rule**: Files with `.tsx` extensions under `frontend/src/features/` MUST only render JSX using HeroUI React primitives and Tailwind classes. ZERO Wails calls, ZERO `useEffect`, and ZERO business/data transformation logic are allowed in those `.tsx` files.
 2. **Hook Anatomy Rule (10 Steps)**: Custom hooks (`use-*.ts`) in the frontend MUST follow this order: Imports -> Signature -> 1. Refs -> 2. State -> 3. Context/3rd Party Hooks -> 4. Queries/Mutations -> 5. Derived State (`useMemo`) -> 6. Callbacks (`useCallback` calling pure helpers) -> 7. Effects -> Return.
-3. **Strict Colocation**: Each complex frontend UI module must be an independent folder with `index.ts`, `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, optional `*.schema.ts`, and colocated `__tests__/`.
+3. **Strict Colocation**: Each complex frontend UI module must be an independent folder with `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, optional `*.schema.ts`, and colocated `__tests__/`. **No `index.ts` barrel** — modules are imported by concrete path. See `docs/adr/011-no-barrel-files.md`.
    - **ESLint Enforcement**: You are FORBIDDEN from putting `interface`, `type`, root-level `const`, root-level helper functions, or inline Zod schemas in frontend feature `.tsx` or `use-*.ts` files.
    - **Function Export Rule**: Frontend feature `.tsx` and `use-*.ts` files MUST export the main symbol as a named `function`, never a root-level `const` arrow function.
 4. **Delivery Layer Rule**: `frontend/src/App.tsx` and any future `frontend/src/app/**` files are composition only. They MUST NOT use React state/effect hooks, MUST NOT call Wails bindings directly, and MUST NOT contain business logic.

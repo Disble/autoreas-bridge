@@ -11,6 +11,9 @@ pre-commit:
     - name: frontend-filesize-warning
       run: bun --cwd="frontend" run filesize:warning
 
+    - name: frontend-no-barrels
+      run: bun --cwd="frontend" run check:no-barrels
+
     - name: frontend-lint
       run: bun x eslint {staged_files}
       root: frontend

@@ -37,7 +37,7 @@ This repository uses `AGENTS.md` as the primary project instruction file.
 
 1. Files with `.tsx` extensions under `frontend/src/features/` are dumb UI only: HeroUI React + Tailwind, no Wails calls, no `useEffect`, and no business logic.
 2. Frontend custom hooks (`use-*.ts`) must follow the strict hook anatomy: imports, signature, refs, state, context/3rd party hooks, queries/mutations, derived state, callbacks, effects, return.
-3. Complex frontend modules must use strict colocation with `index.ts`, `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, optional `*.schema.ts`, and colocated `__tests__/`.
+3. Complex frontend modules must use strict colocation with `.tsx`, `use-*.ts`, `*.helpers.ts`, `*.types.ts`, `*.constants.ts`, optional `*.schema.ts`, and colocated `__tests__/`. **No `index.ts` barrel.** Import modules by concrete path (`../CatalogPanel/catalog-panel.helpers`), never through a directory specifier. Measured 2026-08-02: 62% of cross-module imports already bypassed the barrel and 40 of 67 barrels had zero production importers, so the barrel was cost without benefit. See `docs/adr/011-no-barrel-files.md`.
 4. `frontend/src/App.tsx` and any future `frontend/src/app/**` files are delivery/composition only. No React state/effect hooks, no direct Wails binding calls, no business logic.
 5. Every property in frontend `*Props` interfaces inside `*.types.ts` must be `readonly`.
 6. Every exported frontend helper in `*.helpers.ts` must have JSDoc.

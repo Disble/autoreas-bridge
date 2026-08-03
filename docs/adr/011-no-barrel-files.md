@@ -76,10 +76,20 @@ enforcement gap that produced the current state.
 - 124 barrel imports are rewritten to concrete paths and all 67 barrels are
   deleted. 48 barrels re-export a single module (a 1:1 path swap); 19
   aggregate two to four sources, so one import line splits into several.
-- `eslint.config.js` restricts `/index` specifiers, staged as `warn` during
-  the migration and raised to `error` once no barrel imports remain.
+- `eslint.config.js` restricts `/index` specifiers at `error`. The repo had
+  zero explicit `/index` specifiers, so the rule shipped at `error`
+  immediately. `dlinter/folder-ownership` is disabled in the same block,
+  because that rule requires the `index.ts` entrypoints this ADR removes.
+- `frontend/scripts/check-no-barrels.mjs` runs as `check:no-barrels` and is
+  wired into the `pre-commit` gate in `lefthook.yml`. ESLint alone is not
+  sufficient: with `moduleResolution: "bundler"`, a re-created `index.ts`
+  plus a directory import resolves cleanly and no lint rule can see it. Only
+  a filesystem check catches a reintroduced barrel.
 - Fallow's `unused-file` findings become real signal instead of ~41 false
-  positives; no `ignorePatterns` entry is needed.
+  positives; no `ignorePatterns` entry is needed. Measured after the
+  migration: **48 issues → 12**, and 44 unused files → 8. The 8 that remain
+  are genuine candidates (four unimported zod schemas, two placeholder
+  `Record<string, never>` props types, two Vitest config entry points).
 
 ## Trade-off accepted
 Barrels buy real decoupling: a module can rearrange its internal files

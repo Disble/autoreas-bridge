@@ -27,8 +27,9 @@ for (const directory of [rootDir, testDir]) {
   }
 }
 
+// No index.ts barrel: modules are consumed by concrete path across this
+// codebase, so a scaffolded barrel is born unimported and stays that way.
 const files = new Map([
-  ['index.ts', `export { ${componentName} } from './${componentName}';\n`],
   [`${componentName}.tsx`, `import type { ${componentName}Props } from './${kebabComponentName}.types';
 import { use${componentName} } from './use-${kebabComponentName}';
 

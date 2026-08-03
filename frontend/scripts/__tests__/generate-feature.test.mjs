@@ -42,7 +42,6 @@ describe('generate-feature scaffolding', () => {
     });
 
     const componentRoot = path.join(workspace, 'src', 'features', 'dashboard', 'ui', 'BridgeStatusCard');
-    const indexText = readFileSync(path.join(componentRoot, 'index.ts'), 'utf8');
     const componentText = readFileSync(path.join(componentRoot, 'BridgeStatusCard.tsx'), 'utf8');
     const hookText = readFileSync(path.join(componentRoot, 'use-bridge-status-card.ts'), 'utf8');
     const helpersText = readFileSync(path.join(componentRoot, 'bridge-status-card.helpers.ts'), 'utf8');
@@ -52,8 +51,9 @@ describe('generate-feature scaffolding', () => {
     const helperTestText = readFileSync(path.join(componentRoot, '__tests__', 'bridge-status-card.helpers.test.ts'), 'utf8');
     const hookTestText = readFileSync(path.join(componentRoot, '__tests__', 'use-bridge-status-card.test.ts'), 'utf8');
     const componentTestText = readFileSync(path.join(componentRoot, '__tests__', 'BridgeStatusCard.test.tsx'), 'utf8');
-    expect(indexText.trim()).toBe("export { BridgeStatusCard } from './BridgeStatusCard';");
-    expect(indexText).not.toContain('/**');
+    // No barrel: modules are imported by concrete path. A scaffolded index.ts
+    // was never imported by the rest of the tree and only produced dead files.
+    expect(existsSync(path.join(componentRoot, 'index.ts'))).toBe(false);
     expect(existsSync(path.join(componentRoot, 'bridge-status-card-source.ts'))).toBe(false);
 
     expect(componentText).toContain('export function BridgeStatusCard(props: Readonly<BridgeStatusCardProps>)');
