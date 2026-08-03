@@ -145,6 +145,17 @@ export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProp
   }, [refreshDayCounts]);
 
   useEffect(() => {
+    // The backend pushes every committed anime change, including writes that
+    // never touched this window (mobile, REST API, background downloads).
+    // Without this the panel only refreshed on remount, so a mobile update
+    // stayed invisible until the user navigated away and back.
+    return source.subscribeAnimeChanges(() => {
+      refresh();
+      refreshDayCounts();
+    });
+  }, [refresh, refreshDayCounts, source]);
+
+  useEffect(() => {
     const idsToFetch: string[] = [];
 
     for (const item of items) {

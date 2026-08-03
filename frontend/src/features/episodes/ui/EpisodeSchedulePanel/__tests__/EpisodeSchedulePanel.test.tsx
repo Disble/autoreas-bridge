@@ -10,6 +10,7 @@ function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeSc
     copyAnimePage: vi.fn().mockResolvedValue({ status: 'ok' }),
     getAnimeCover: vi.fn().mockResolvedValue({ source: 'placeholder' }),
     getEpisodeDayCounts: vi.fn().mockResolvedValue([]),
+    subscribeAnimeChanges: vi.fn().mockReturnValue(() => undefined),
     getEpisodeSchedule: vi.fn().mockResolvedValue([]),
     getSeasonMode: vi.fn().mockResolvedValue(false),
     openAnimeFolder: vi.fn().mockResolvedValue({ status: 'ok' }),

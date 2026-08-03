@@ -23,6 +23,12 @@ export interface EpisodeScheduleSource {
   readonly copyAnimeFolder: (animeID: string) => Promise<EpisodeCommandResult>;
   readonly getAnimeCover: (animeID: string) => Promise<AnimeCover>;
   readonly getEpisodeDayCounts: () => Promise<readonly EpisodeDayCount[]>;
+  /**
+   * Subscribes to committed anime changes pushed by the backend so the panel
+   * reflects writes made outside this window (mobile, REST API, background
+   * downloads). Returns the unsubscribe handle.
+   */
+  readonly subscribeAnimeChanges: (listener: () => void) => () => void;
 }
 
 /** Wails-facing schedule item returned by the backend episode command service. */

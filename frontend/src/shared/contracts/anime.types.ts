@@ -312,3 +312,16 @@ export interface AnimeCreateResult {
   readonly conflictId?: string;
   readonly details?: Readonly<Record<string, string>>;
 }
+
+/**
+ * Slim push notice delivered on the `anime.changed` Wails runtime event
+ * (Go: `contracts.AnimeChangedNotice`). It carries identity only, never the
+ * raw snapshot payload: consumers re-fetch their own read model so a single
+ * write does not push a full snapshot through the WebView bridge.
+ */
+export interface AnimeChangedNotice {
+  readonly animeId: string;
+  readonly changeType: string;
+  readonly changedFields: readonly string[];
+  readonly correlationId: string;
+}

@@ -7,6 +7,7 @@ import {
   EPISODE_SEASON_OPTIONS,
   EPISODE_STATE_LABELS,
 } from './episode-schedule-panel.constants';
+import { animeRuntimeSource } from '../../../../infrastructure/anime-runtime-source/anime-runtime-source.helpers';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { AnimeCover, EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput } from './episode-schedule-panel.types';
@@ -33,6 +34,7 @@ export function createEpisodeScheduleSource(source?: EpisodeScheduleSource): Epi
     openAnimeFolder: bridgeRuntimeSource.openAnimeFolder ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     openAnimePage: bridgeRuntimeSource.openAnimePage ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
     setAnimeState: bridgeRuntimeSource.setAnimeState ?? (() => Promise.resolve(EPISODE_RUNTIME_UNAVAILABLE_RESULT)),
+    subscribeAnimeChanges: (listener) => animeRuntimeSource.subscribeAnimeChanges(() => listener()),
   };
 }
 

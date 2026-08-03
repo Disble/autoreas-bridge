@@ -27,6 +27,7 @@ function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeSc
     openAnimeFolder: vi.fn(),
     openAnimePage: vi.fn(),
     setAnimeState: vi.fn(),
+    subscribeAnimeChanges: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
@@ -311,6 +312,63 @@ describe('useEpisodeSchedulePanel', () => {
       });
 
       await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(2));
+    });
+  });
+  describe('push reactivity', () => {
+    it('re-fetches the schedule and day counts when an external anime change is pushed', async () => {
+      let pushAnimeChanged: (() => void) | undefined;
+      const getEpisodeSchedule = vi.fn().mockResolvedValue([]);
+      const getEpisodeDayCounts = vi.fn().mockResolvedValue([]);
+      const source = createSource({
+        getEpisodeDayCounts,
+        getEpisodeSchedule,
+        subscribeAnimeChanges: vi.fn().mockImplementation((listener: () => void) => {
+          pushAnimeChanged = listener;
+          return () => undefined;
+        }),
+      });
+
+      renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await waitFor(() => expect(getEpisodeSchedule).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(1));
+
+      act(() => {
+        pushAnimeChanged?.();
+      });
+
+      await waitFor(() => expect(getEpisodeSchedule).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(getEpisodeDayCounts).toHaveBeenCalledTimes(2));
+    });
+
+    it('releases the push subscription on unmount so a later event does not refetch', async () => {
+      let pushAnimeChanged: (() => void) | undefined;
+      const unsubscribe = vi.fn();
+      const getEpisodeSchedule = vi.fn().mockResolvedValue([]);
+      const source = createSource({
+        getEpisodeSchedule,
+        subscribeAnimeChanges: vi.fn().mockImplementation((listener: () => void) => {
+          pushAnimeChanged = listener;
+          return () => {
+            pushAnimeChanged = undefined;
+            unsubscribe();
+          };
+        }),
+      });
+
+      const { unmount } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
+
+      await waitFor(() => expect(getEpisodeSchedule).toHaveBeenCalledTimes(1));
+
+      unmount();
+
+      expect(unsubscribe).toHaveBeenCalled();
+
+      act(() => {
+        pushAnimeChanged?.();
+      });
+
+      expect(getEpisodeSchedule).toHaveBeenCalledTimes(1);
     });
   });
 });

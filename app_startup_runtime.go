@@ -302,6 +302,35 @@ func (a *App) downloadJDDeviceName(ctx context.Context) string {
 	return cfg.DeviceName
 }
 
+// registerAnimeRuntimeEventBridge forwards committed anime changes to the
+// desktop frontend so panels react to writes that did not originate in this
+// window (mobile, REST API, background download progress). The realtime hub
+// already fans the same event out to mobile clients; this is the desktop leg.
+func (a *App) registerAnimeRuntimeEventBridge(ctx context.Context) {
+	if a.eventBus == nil || a.emitFn == nil {
+		return
+	}
+	a.eventBus.Subscribe(events.EventNameAnimeChanged, func(event events.Event) {
+		changed, ok := event.(events.AnimeChangedEvent)
+		if !ok {
+			return
+		}
+		emitCtx := a.ctx
+		if emitCtx == nil {
+			emitCtx = ctx
+		}
+		if emitCtx == nil || a.emitFn == nil {
+			return
+		}
+		a.emitFn(emitCtx, events.EventNameAnimeChanged, contracts.AnimeChangedNotice{
+			AnimeID:       changed.AnimeID,
+			ChangeType:    changed.ChangeType,
+			ChangedFields: changed.ChangedFields,
+			CorrelationID: changed.CorrelationID,
+		})
+	})
+}
+
 // registerDownloadRuntimeEventBridge forwards download events to the frontend.
 func (a *App) registerDownloadRuntimeEventBridge(ctx context.Context) {
 	if a.eventBus == nil || a.emitFn == nil {
