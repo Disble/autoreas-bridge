@@ -7,18 +7,29 @@ vi.mock('../use-solo-anime-download-panel', () => ({ useSoloAnimeDownloadPanel: 
 
 const mockedUseSoloAnimeDownloadPanel = vi.mocked(useSoloAnimeDownloadPanel);
 
+const readyOption = { id: 'ready', name: 'Ready Anime', ready: true, reasonLabels: [], statusTag: undefined };
+const blockedOption = {
+  id: 'blocked',
+  name: 'Blocked Anime',
+  ready: false,
+  reasonLabels: ['Download destination could not be resolved.'],
+  statusTag: 'No destination',
+};
+
 function mockHook(overrides: Partial<ReturnType<typeof useSoloAnimeDownloadPanel>> = {}): void {
   mockedUseSoloAnimeDownloadPanel.mockReturnValue({
     status: 'ready',
     query: '',
-    options: [
-      { id: 'blocked', name: 'Blocked Anime', ready: false, reasonLabels: ['Download destination could not be resolved.'] },
-      { id: 'ready', name: 'Ready Anime', ready: true, reasonLabels: [] },
-    ],
+    filter: 'ready',
+    options: [readyOption],
+    counts: { ready: 1, blocked: 1 },
+    emptyMessage: 'No anime is ready for a download check.',
     selected: undefined,
     errorMessage: undefined,
     canTrigger: false,
+    listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 20 },
     onQueryChange: vi.fn(),
+    onFilterChange: vi.fn(),
     onSelectAnime: vi.fn(),
     onTriggerDownload: vi.fn(),
     onRetry: vi.fn(),
@@ -29,27 +40,63 @@ function mockHook(overrides: Partial<ReturnType<typeof useSoloAnimeDownloadPanel
 describe('SoloAnimeDownloadPanel', () => {
   afterEach(() => cleanup());
 
-  it('renders full-catalog readiness rows without an episode-progress label', () => {
+  it('gives a ready row no status marker, because every ready row would carry the same one', () => {
     mockHook();
     render(<SoloAnimeDownloadPanel />);
 
-    expect(screen.getByRole('button', { name: /blocked anime/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ready anime/i })).toBeInTheDocument();
-    expect(screen.getByText('Download destination could not be resolved.')).toBeInTheDocument();
+    expect(screen.queryByText('Ready for download check')).not.toBeInTheDocument();
     expect(screen.queryByText('Needs attention')).not.toBeInTheDocument();
-    expect(screen.queryByText(/episode progress/i)).not.toBeInTheDocument();
   });
 
-  it('shows the selected blocker and disables Download', () => {
-    const onTriggerDownload = vi.fn();
+  it('shows a blocked row as a compact tag, never the full sentence', () => {
+    mockHook({ filter: 'blocked', options: [blockedOption] });
+    render(<SoloAnimeDownloadPanel />);
+
+    expect(screen.getByText('No destination')).toBeInTheDocument();
+    expect(screen.queryByText('Download destination could not be resolved.')).not.toBeInTheDocument();
+  });
+
+  it('labels both tabs with their counts and switches on press', () => {
+    const onFilterChange = vi.fn();
+    mockHook({ onFilterChange });
+    render(<SoloAnimeDownloadPanel />);
+
+    const blockedTab = screen.getByRole('radio', { name: /blocked/i });
+    expect(screen.getByRole('radio', { name: /ready/i })).toHaveTextContent('1');
+    expect(blockedTab).toHaveTextContent('1');
+
+    fireEvent.click(blockedTab);
+    expect(onFilterChange).toHaveBeenCalledWith('blocked');
+  });
+
+  it('explains an empty rail instead of rendering nothing', () => {
     mockHook({
-      selected: { id: 'blocked', name: 'Blocked Anime', ready: false, reasonLabels: ['Download destination could not be resolved.'] },
-      onTriggerDownload,
+      options: [],
+      query: 'oshi',
+      emptyMessage: 'No ready anime match "oshi" — 3 blocked matches.',
     });
     render(<SoloAnimeDownloadPanel />);
 
+    expect(screen.getByText('No ready anime match "oshi" — 3 blocked matches.')).toBeInTheDocument();
+  });
+
+  it('grows the rail when the user scrolls near the bottom', () => {
+    const onScroll = vi.fn();
+    mockHook({ listWindow: { scrollRef: { current: null }, onScroll, visibleCount: 20 } });
+    render(<SoloAnimeDownloadPanel />);
+
+    fireEvent.scroll(screen.getByTestId('solo-anime-download-scroll'));
+    expect(onScroll).toHaveBeenCalled();
+  });
+
+  it('spells out the blocker for the selection and disables Download', () => {
+    const onTriggerDownload = vi.fn();
+    mockHook({ selected: blockedOption, onTriggerDownload });
+    render(<SoloAnimeDownloadPanel />);
+
     expect(screen.getByText('Blocked Anime cannot start a download check.')).toBeInTheDocument();
-    expect(screen.getAllByText('Download destination could not be resolved.')).toHaveLength(2);
+    expect(screen.getByText('Download destination could not be resolved.')).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Download missing episodes' });
     expect(button).toBeDisabled();
     fireEvent.click(button);
@@ -58,14 +105,9 @@ describe('SoloAnimeDownloadPanel', () => {
 
   it('enables Download for a ready selection', () => {
     const onTriggerDownload = vi.fn();
-    mockHook({
-      selected: { id: 'ready', name: 'Ready Anime', ready: true, reasonLabels: [] },
-      canTrigger: true,
-      onTriggerDownload,
-    });
+    mockHook({ selected: readyOption, canTrigger: true, onTriggerDownload });
     render(<SoloAnimeDownloadPanel />);
 
-    expect(screen.getByText('Ready for download check')).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Download missing episodes' });
     expect(button).toBeEnabled();
     fireEvent.click(button);

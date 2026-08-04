@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
 import { SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE } from './solo-anime-download-panel.constants';
-import { getSoloAnimeDownloadOptions } from './solo-anime-download-panel.helpers';
-import type { SoloAnimeDownloadState } from './solo-anime-download-panel.types';
+import {
+  countSoloAnimeDownloadReadiness,
+  getSoloAnimeDownloadEmptyMessage,
+  getSoloAnimeDownloadOptions,
+  toSoloAnimeDownloadOption,
+} from './solo-anime-download-panel.helpers';
+import type { SoloAnimeDownloadFilter, SoloAnimeDownloadState } from './solo-anime-download-panel.types';
 
 /**
- * useSoloAnimeDownloadPanel loads the catalog, owns search/selection state, and
- * calls the one-off anime download binding. The TSX remains dumb: no Wails
- * calls, no effects, no data shaping.
+ * useSoloAnimeDownloadPanel loads the catalog, owns search/filter/selection
+ * state, windows the rail, and calls the one-off anime download binding. The TSX
+ * remains dumb: no Wails calls, no effects, no data shaping.
  */
 export function useSoloAnimeDownloadPanel(
   downloadSource: DownloadRuntimeSource = downloadRuntimeSource,
@@ -19,6 +25,7 @@ export function useSoloAnimeDownloadPanel(
   const [state, setState] = useState<SoloAnimeDownloadState>({
     items: [],
     query: '',
+    filter: 'ready',
     selectedAnimeID: undefined,
     status: 'loading',
     errorMessage: undefined,
@@ -30,19 +37,42 @@ export function useSoloAnimeDownloadPanel(
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
-  const options = useMemo(() => getSoloAnimeDownloadOptions(state.items, state.query), [state.items, state.query]);
-  const selected = useMemo(
-    () => options.find((option) => option.id === state.selectedAnimeID),
-    [options, state.selectedAnimeID],
+  const options = useMemo(
+    () => getSoloAnimeDownloadOptions(state.items, state.query, state.filter),
+    [state.items, state.query, state.filter],
   );
+  const counts = useMemo(
+    () => countSoloAnimeDownloadReadiness(state.items, state.query),
+    [state.items, state.query],
+  );
+  const emptyMessage = useMemo(
+    () => getSoloAnimeDownloadEmptyMessage(state.filter, state.query, counts),
+    [counts, state.filter, state.query],
+  );
+  // Selection resolves against the whole catalog, not the visible tab, so
+  // switching tabs or typing a search never silently drops what the user picked.
+  const selected = useMemo(() => {
+    const item = state.items.find((candidate) => candidate.animeId === state.selectedAnimeID);
+    return item === undefined ? undefined : toSoloAnimeDownloadOption(item);
+  }, [state.items, state.selectedAnimeID]);
   const canTrigger = useMemo(
     () => selected !== undefined && selected.ready && state.status !== 'triggering',
     [selected, state.status],
+  );
+  const listWindow = useProgressiveListWindow(options.length);
+  const visibleOptions = useMemo(
+    () => options.slice(0, listWindow.visibleCount),
+    [options, listWindow.visibleCount],
   );
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onQueryChange = useCallback((query: string) => {
     setState((previous) => ({ ...previous, query }));
+  }, []);
+
+  const onFilterChange = useCallback((value: string) => {
+    const filter: SoloAnimeDownloadFilter = value === 'blocked' ? 'blocked' : 'ready';
+    setState((previous) => ({ ...previous, filter }));
   }, []);
 
   const onSelectAnime = useCallback((animeID: string) => {
@@ -54,18 +84,16 @@ export function useSoloAnimeDownloadPanel(
   }, []);
 
   const onTriggerDownload = useCallback(async () => {
-    const selectedOption = getSoloAnimeDownloadOptions(state.items, state.query).find(
-      (option) => option.id === state.selectedAnimeID,
-    );
+    const selectedItem = state.items.find((candidate) => candidate.animeId === state.selectedAnimeID);
 
-    if (!selectedOption?.ready) {
+    if (selectedItem === undefined || !selectedItem.ready) {
       return;
     }
 
     setState((previous) => ({ ...previous, status: 'triggering', errorMessage: undefined }));
 
     try {
-      const response = await downloadSource.triggerAnimeDownload(selectedOption.id);
+      const response = await downloadSource.triggerAnimeDownload(selectedItem.animeId);
       if (response === 'ok') {
         setState((previous) => ({ ...previous, status: 'success' }));
         return;
@@ -82,7 +110,7 @@ export function useSoloAnimeDownloadPanel(
         errorMessage: error instanceof Error ? error.message : 'Failed to start anime download',
       }));
     }
-  }, [downloadSource, state.items, state.query, state.selectedAnimeID]);
+  }, [downloadSource, state.items, state.selectedAnimeID]);
 
   // 7. Effects
   useEffect(() => {
@@ -115,12 +143,17 @@ export function useSoloAnimeDownloadPanel(
   return {
     status: state.status,
     query: state.query,
-    options,
+    filter: state.filter,
+    options: visibleOptions,
+    counts,
+    emptyMessage,
     selected,
     errorMessage: state.errorMessage,
     canTrigger,
+    listWindow,
     onRetry,
     onQueryChange,
+    onFilterChange,
     onSelectAnime,
     onTriggerDownload,
   };

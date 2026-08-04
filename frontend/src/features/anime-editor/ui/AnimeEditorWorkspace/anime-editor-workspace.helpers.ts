@@ -6,22 +6,12 @@ import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEd
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 
 /**
- * Returns true when a scroll position is within `threshold` px of the bottom of
- * its content — the trigger to append the next batch of rows in the progressive
- * list. Guards the unmeasured case (all geometry `0`) as "at the bottom" so the
- * first real scroll still grows the window.
+ * Progressive-rail geometry now lives in `shared/helpers/progressive-list.helpers`
+ * so the Downloads rail can reuse it without importing across feature boundaries.
+ * Re-exported under the original names because this rail is not the only caller
+ * anymore, but its behaviour is unchanged.
  */
-export function isNearListBottom(scrollTop: number, clientHeight: number, scrollHeight: number, threshold = 240): boolean {
-  return scrollHeight - (scrollTop + clientHeight) <= threshold;
-}
-
-/**
- * Clamps the next progressive render limit: never below the batch already shown,
- * never above the total item count. Keeps the growing-scrollbar contract honest.
- */
-export function nextAnimeEditorRenderLimit(current: number, batch: number, itemCount: number): number {
-  return Math.min(itemCount, current + batch);
-}
+export { isNearListBottom, nextRenderLimit as nextAnimeEditorRenderLimit } from '../../../../shared/helpers/progressive-list.helpers';
 
 function parseNullableInteger(value: string) {
   const trimmed = value.trim();
