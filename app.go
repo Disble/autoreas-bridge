@@ -36,6 +36,7 @@ type App struct {
 	bridgeDB                 *sql.DB
 	bridgeDBCloser           interface{ Close() error }
 	startupErr               error
+	startupFatal             bool
 	sharedLogger             *sharedlogger.FanoutLogger
 	memLogger                *sharedlogger.MemLogger
 	syncTrigger              *bridgeSync.TriggerService
@@ -225,7 +226,13 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.ensureDownloadStore()
 	a.configureRuntimeServices(ctx)
-	if a.startupErr != nil {
+	// Only a fatal failure stops startup. A failed HTTP bind is reported through
+	// startupErr but must not abort the rest: the server serves mobile sync,
+	// while readiness, the download service and the scheduler are local. When a
+	// second instance lost the port race this gate used to skip
+	// startDownloadOrchestration entirely, leaving readinessService nil and every
+	// Downloads panel reporting "Download readiness unavailable".
+	if a.startupFatal {
 		return
 	}
 	a.reconcileAutoStart(ctx)

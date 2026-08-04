@@ -336,3 +336,66 @@ func TestAppStartupWiresCaptureQueueIntoHTTPServerAfterBridgeDBBootstrap(t *test
 		t.Fatal("expected startup to retain the capture queue")
 	}
 }
+
+// A second instance losing the port race must not lose its desktop download
+// features. The HTTP server serves mobile sync; readiness, the download service
+// and the scheduler are local and do not depend on it. Before this, a failed
+// bind set startupErr and startup returned before startDownloadOrchestration,
+// leaving readinessService nil and every Downloads panel reporting
+// "Download readiness unavailable".
+func TestAppStartupWiresDownloadOrchestrationDespiteHTTPServerFailure(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("listen tcp :8080: bind: address already in use")
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	app := newAppTestApp(t)
+	app.bootstrapBridgeDB = func() (*sql.DB, error) {
+		return bridgeSync.OpenBridgeDB(dbPath)
+	}
+	app.newDownloadStore = nil
+	app.newHTTPServer = func(api.Config) api.Server {
+		return &stubAppHTTPServer{startErr: wantErr}
+	}
+	t.Cleanup(func() {
+		if app.bridgeDB != nil {
+			_ = app.bridgeDB.Close()
+		}
+	})
+
+	app.startup(context.Background())
+
+	if !errors.Is(app.startupErr, wantErr) {
+		t.Fatalf("startupErr = %v, want the bind failure still reported", app.startupErr)
+	}
+	if app.readinessService == nil {
+		t.Fatal("readiness service was not wired: a failed HTTP bind must not skip download orchestration")
+	}
+	if _, err := app.ListDownloadReadiness(); err != nil {
+		t.Fatalf("ListDownloadReadiness after a failed bind = %v, want a usable snapshot", err)
+	}
+}
+
+// The counterpart guard: a failure that leaves anime data in an indeterminate
+// state must still abort startup, so orchestration never runs against it.
+func TestAppStartupFatalFailureStillSkipsDownloadOrchestration(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	app := newAppTestApp(t)
+	app.bootstrapBridgeDB = func() (*sql.DB, error) {
+		return bridgeSync.OpenBridgeDB(dbPath)
+	}
+	app.newDownloadStore = nil
+	t.Cleanup(func() {
+		if app.bridgeDB != nil {
+			_ = app.bridgeDB.Close()
+		}
+	})
+	app.startupFatal = true
+
+	app.startup(context.Background())
+
+	if app.readinessService != nil {
+		t.Fatal("a fatal startup failure must not wire download orchestration")
+	}
+}
