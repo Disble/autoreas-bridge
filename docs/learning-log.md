@@ -103,3 +103,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-08-04]: A downloads-root read failure is a runtime configuration failure, never a destination-unresolved anime skip.
 - [2026-08-04]: HeroUI Typography only accepts color=default|muted; semantic color needs a Tailwind utility (className=text-warning), and color=warning is a typecheck error.
 - [2026-08-04]: A status label every row shares carries zero information: readiness is a boolean, so ready rows get no marker and blocked rows get a one-word tag in a shrink-0 slot, keeping the full sentence for the selection Alert.
+- [2026-08-04]: Progressive rails are not interchangeable: useProgressiveListWindow resets its limit when itemCount changes, so a live list like Run history must keep its own reconcile logic and reuse only isNearListBottom.

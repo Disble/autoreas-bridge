@@ -73,6 +73,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'loading', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -85,6 +87,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -97,6 +101,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'error', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, errorMessage: 'network down' },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -109,6 +115,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -123,6 +131,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun,
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -137,6 +147,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: jdOfflineRun },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -153,6 +165,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: okRun },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -167,6 +181,8 @@ describe('RunHistoryPanel', () => {
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
       selectRun: vi.fn(),
       loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
     });
 
     render(<RunHistoryPanel />);
@@ -174,8 +190,9 @@ describe('RunHistoryPanel', () => {
     expect(screen.getByText(/select a run/i)).toBeInTheDocument();
   });
 
-  it('renders a load more control when older runs remain hidden', () => {
+  it('reveals older runs by scrolling the rail, with no load-more control', () => {
     const loadMore = vi.fn();
+    const onScroll = vi.fn();
     mockedUseRunHistoryPanel.mockReturnValue({
       viewModel: {
         status: 'ready',
@@ -203,13 +220,17 @@ describe('RunHistoryPanel', () => {
       },
       selectRun: vi.fn(),
       loadMore,
+      scrollRef: { current: null },
+      onScroll,
     });
 
     render(<RunHistoryPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: /load 5 more runs/i }));
+    expect(screen.queryByRole('button', { name: /load .* more runs/i })).not.toBeInTheDocument();
+
+    fireEvent.scroll(screen.getByTestId('run-history-scroll'));
 
     expect(screen.getAllByRole('button', { name: /row-/i })).toHaveLength(20);
-    expect(loadMore).toHaveBeenCalledTimes(1);
+    expect(onScroll).toHaveBeenCalled();
   });
 });

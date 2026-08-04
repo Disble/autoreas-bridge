@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { UIEvent } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
 import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
@@ -15,6 +17,7 @@ import { getNextVisibleRunCount, reconcileVisibleRunCount, toRunHistoryPanelView
 export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRuntimeSource) {
   // 1. Refs
   const previousRunCountRef = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // 2. State
   const [visibleCount, setVisibleCount] = useState(RUN_HISTORY_PAGE_SIZE);
@@ -38,6 +41,19 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   const loadMore = useCallback(() => {
     setVisibleCount((currentVisibleCount) => getNextVisibleRunCount(currentVisibleCount, runs.length));
   }, [runs.length]);
+
+  // Progressive reveal replaces the old "Load N more runs" button. Only the
+  // trigger is shared with the Editor/Downloads rails (`isNearListBottom`), not
+  // the whole window hook: this list is live, and `useProgressiveListWindow`
+  // resets its limit whenever the item count changes, which would snap the user
+  // back to the newest 20 every time a run event arrives. `reconcileVisibleRunCount`
+  // owns that reconciliation instead, and it must keep owning it.
+  const onScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    if (isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight)) {
+      loadMore();
+    }
+  }, [loadMore]);
 
   // 7. Effects
   useEffect(() => {
@@ -64,5 +80,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     viewModel,
     loadMore,
     selectRun,
+    scrollRef,
+    onScroll,
   };
 }

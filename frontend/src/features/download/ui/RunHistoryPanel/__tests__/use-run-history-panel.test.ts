@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { UIEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
@@ -135,6 +136,37 @@ describe('useRunHistoryPanel', () => {
     expect(result.current.viewModel.visibleRows).toHaveLength(25);
     expect(result.current.viewModel.canLoadMore).toBe(false);
     expect(result.current.viewModel.selectedRun?.runId).toBe(manyRuns[19]!.runId);
+  });
+
+  it('reveals older runs when the rail is scrolled near its bottom', async () => {
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+    expect(result.current.viewModel.visibleRows).toHaveLength(20);
+
+    act(() => {
+      result.current.onScroll({
+        currentTarget: { scrollTop: 900, clientHeight: 400, scrollHeight: 1400 },
+      } as unknown as UIEvent<HTMLDivElement>);
+    });
+
+    expect(result.current.viewModel.visibleRows).toHaveLength(25);
+  });
+
+  it('ignores a scroll that is still far from the bottom', async () => {
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+
+    act(() => {
+      result.current.onScroll({
+        currentTarget: { scrollTop: 0, clientHeight: 400, scrollHeight: 5000 },
+      } as unknown as UIEvent<HTMLDivElement>);
+    });
+
+    expect(result.current.viewModel.visibleRows).toHaveLength(20);
   });
 
   it('does not expose load more when fewer than 20 runs exist', async () => {

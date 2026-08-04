@@ -11,7 +11,7 @@ import { RunProgressBar } from './RunProgressBar';
  * `useRunHistoryPanel` hook; this component is presentation-only.
  */
 export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
-  const { viewModel, selectRun, loadMore } = useRunHistoryPanel();
+  const { viewModel, selectRun, scrollRef, onScroll } = useRunHistoryPanel();
 
   if (viewModel.status === 'loading') {
     return (
@@ -41,37 +41,37 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
 
   return (
     <section aria-label="Download run history" className={`grid gap-4 sm:grid-cols-2 ${className ?? ''}`}>
-      <ul aria-label="Run history list" className="flex flex-col gap-2">
-        {viewModel.visibleRows.map((row: RunHistoryRowViewModel) => (
-          <li key={row.runId}>
-            <Button
-              aria-pressed={row.isSelected}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm ${
-                row.isSelected
-                  ? 'border-accent bg-accent/10 text-foreground'
-                  : 'border-divider/60 bg-content1/60'
-              }`}
-              variant="outline"
-              onPress={() => selectRun(row.runId)}
-            >
-              <span className="flex flex-col">
-                <span className="font-medium text-foreground">{row.startedLabel}</span>
-                <span className="text-xs text-muted">{row.trigger}</span>
-              </span>
-              <Chip color={row.statusLabel === 'ok' ? 'success' : 'default'} size="sm" variant="soft">
-                <Chip.Label>{row.statusLabel}</Chip.Label>
-              </Chip>
-            </Button>
-          </li>
-        ))}
-        {viewModel.canLoadMore && (
-          <li>
-            <Button fullWidth variant="secondary" onPress={loadMore}>
-              Load {viewModel.remainingCount} more runs
-            </Button>
-          </li>
-        )}
-      </ul>
+      <div
+        className="max-h-[32rem] min-h-0 overflow-x-hidden overflow-y-auto pr-1"
+        data-testid="run-history-scroll"
+        onScroll={onScroll}
+        ref={scrollRef}
+      >
+        <ul aria-label="Run history list" className="flex flex-col gap-2">
+          {viewModel.visibleRows.map((row: RunHistoryRowViewModel) => (
+            <li key={row.runId}>
+              <Button
+                aria-pressed={row.isSelected}
+                className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm ${
+                  row.isSelected
+                    ? 'border-accent bg-accent/10 text-foreground'
+                    : 'border-divider/60 bg-content1/60'
+                }`}
+                variant="outline"
+                onPress={() => selectRun(row.runId)}
+              >
+                <span className="flex flex-col">
+                  <span className="font-medium text-foreground">{row.startedLabel}</span>
+                  <span className="text-xs text-muted">{row.trigger}</span>
+                </span>
+                <Chip color={row.statusLabel === 'ok' ? 'success' : 'default'} size="sm" variant="soft">
+                  <Chip.Label>{row.statusLabel}</Chip.Label>
+                </Chip>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div className="rounded-lg border border-divider/60 bg-content1/40 p-4">
         {viewModel.selectedRun === undefined ? (
