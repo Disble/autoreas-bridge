@@ -14,6 +14,24 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-08-04
+
+### Fixed
+
+- **Downloads no longer reports "Download readiness unavailable".** When a second
+  copy of Autoreas Bridge was already running, the new copy could not claim the
+  port it uses to talk to the mobile app, and that failure stopped the local
+  download features from starting at all. Serving the mobile app and checking
+  downloads are now independent: if the port is taken, only mobile sync is
+  affected, and Downloads keeps working.
+- **Errors from the backend are shown as written.** They were being replaced with
+  a generic sentence, so a failure could not be acted on or reported. The panel
+  now names the actual cause.
+
+### Internal
+
+- No wire changes in this release.
+
 ## [1.1.0] — 2026-08-04
 
 ### Added

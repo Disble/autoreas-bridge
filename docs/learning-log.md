@@ -106,3 +106,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-08-04]: Progressive rails are not interchangeable: useProgressiveListWindow resets its limit when itemCount changes, so a live list like Run history must keep its own reconcile logic and reuse only isNearListBottom.
 - [2026-08-04]: Releases now carry CHANGELOG.md: promote [Unreleased] to the version heading and ship it in the same commit as wails.json and the regenerated installer, written in user language rather than commit subjects.
 - [2026-08-04]: A second instance losing the :8080 bind set startupErr, which gated startup before startDownloadOrchestration, so readinessService stayed nil and Downloads reported readiness unavailable; only fatal failures may abort startup.
+- [2026-08-04]: Release 1.1.1 ships the startup fix: a failed HTTP bind must report through startupErr without aborting startup, so a second instance keeps its local download features.
