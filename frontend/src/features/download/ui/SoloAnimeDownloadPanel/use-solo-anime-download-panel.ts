@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
 import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
 import { SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE } from './solo-anime-download-panel.constants';
 import {
@@ -107,7 +108,7 @@ export function useSoloAnimeDownloadPanel(
       setState((previous) => ({
         ...previous,
         status: 'trigger-error',
-        errorMessage: error instanceof Error ? error.message : 'Failed to start anime download',
+        errorMessage: toErrorMessage(error, 'Failed to start anime download'),
       }));
     }
   }, [downloadSource, state.items, state.selectedAnimeID]);
@@ -131,7 +132,7 @@ export function useSoloAnimeDownloadPanel(
           ...previous,
           items: [],
           status: 'readiness-error',
-          errorMessage: error instanceof Error ? error.message : 'Failed to load animes',
+          errorMessage: toErrorMessage(error, 'Failed to load animes'),
         }));
       });
 

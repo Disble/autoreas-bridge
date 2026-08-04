@@ -509,3 +509,18 @@ func TestNewJDownloaderClientSuppliesNonNilLogger(t *testing.T) {
 		t.Fatal("expected jdownloader client logger to be non-nil")
 	}
 }
+
+func TestListDownloadReadinessNamesUnwiredServiceSoTheCauseIsNotGeneric(t *testing.T) {
+	app := &App{ctx: context.Background()}
+
+	got, err := app.ListDownloadReadiness()
+	if err == nil {
+		t.Fatalf("readiness = %#v, want an error when the service was never wired", got)
+	}
+	if !strings.Contains(err.Error(), "not wired at startup") {
+		t.Fatalf("readiness error = %q; want it to name the unwired service so the UI can show a cause", err)
+	}
+	if got.Items != nil {
+		t.Fatalf("unwired readiness returned fabricated items: %#v", got.Items)
+	}
+}

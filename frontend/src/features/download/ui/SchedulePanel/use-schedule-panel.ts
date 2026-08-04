@@ -3,6 +3,7 @@ import { downloadRuntimeSource } from '../../../../infrastructure/download-runti
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { PreferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.types';
+import { toErrorMessage } from '../../../../shared/helpers/error-message.helpers';
 import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
@@ -52,7 +53,7 @@ export function useSchedulePanel(
       setReadinessSnapshot(await source.listDownloadReadiness());
     } catch (error) {
       setReadinessSnapshot(undefined);
-      setReadinessErrorMessage(error instanceof Error ? error.message : 'Failed to load download readiness');
+      setReadinessErrorMessage(toErrorMessage(error, 'Failed to load download readiness'));
     }
   }, [source]);
 
@@ -74,7 +75,7 @@ export function useSchedulePanel(
 
         await refresh();
       } catch (error) {
-        setSaveErrorMessage(error instanceof Error ? error.message : 'Failed to save schedule config');
+        setSaveErrorMessage(toErrorMessage(error, 'Failed to save schedule config'));
       } finally {
         setIsSaving(false);
       }

@@ -1,6 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { downloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import { EMPTY_SCHEDULE_CONFIG } from '../../../infrastructure/download-runtime-source/download-runtime-source.constants';
+import { toErrorMessage } from '../../helpers/error-message.helpers';
 import type { DownloadRuntimeSource } from '../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE } from './download-runtime-store.constants';
 import type { DownloadRuntimeStoreState } from './download-runtime-store.types';
@@ -26,7 +27,7 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
     } catch (error) {
       set({
         scheduleHasLoaded: true,
-        scheduleErrorMessage: error instanceof Error ? error.message : 'Failed to load schedule config',
+        scheduleErrorMessage: toErrorMessage(error, 'Failed to load schedule config'),
       });
     }
   },
@@ -38,7 +39,7 @@ export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((se
       set({
         runHistory: [],
         runHistoryHasLoaded: true,
-        runHistoryErrorMessage: error instanceof Error ? error.message : 'Failed to load download run history',
+        runHistoryErrorMessage: toErrorMessage(error, 'Failed to load download run history'),
       });
     }
   },
