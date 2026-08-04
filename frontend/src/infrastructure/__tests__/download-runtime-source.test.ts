@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { contracts } from '../../../wailsjs/go/models';
 
 describe('download-runtime-source', () => {
   beforeEach(() => {
@@ -76,6 +77,17 @@ describe('download-runtime-source', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     await expect(resultPromise).resolves.toEqual([]);
+  });
+
+  it('rejects readiness queries when the runtime is unavailable instead of fabricating an empty snapshot', async () => {
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+	const source = createDownloadRuntimeSource();
+
+	const resultPromise = source.listDownloadReadiness();
+	const rejection = resultPromise.then(() => undefined, (error: unknown) => error);
+	await vi.advanceTimersByTimeAsync(5000);
+
+	await expect(rejection).resolves.toMatchObject({ message: 'runtime unavailable' });
   });
 
   it('degrades triggerDownloadCheck to a descriptive message when the runtime is unavailable', async () => {
@@ -241,6 +253,95 @@ describe('download-runtime-source', () => {
     expect(runMissedScheduleNowMock).toHaveBeenCalledWith('2026-07-26');
     expect(ignoreMissedScheduleMock).toHaveBeenCalledWith('2026-07-26');
     expect(listDownloadRunsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards readiness snapshots from the live Wails binding', async () => {
+    const snapshot = {
+      items: [
+        {
+          animeId: 'anime-1',
+          name: 'Frieren',
+          ready: false,
+          reasons: ['missing_source', 'invalid_source', 'unsupported_source', 'destination_unresolved'],
+          scheduledToday: true,
+        },
+      ],
+      scheduledTotal: 1,
+      scheduledReady: 0,
+      scheduledBlocked: 1,
+    };
+    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
+    window.go = { main: { App: { ListDownloadReadiness: vi.fn().mockResolvedValue(snapshot) } } } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const source = createDownloadRuntimeSource();
+
+    await expect(source.listDownloadReadiness()).resolves.toEqual(snapshot);
+  });
+
+  it('maps generated readiness DTOs into the frontend readiness contract', async () => {
+    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const generatedSnapshot = new contracts.DownloadReadinessSnapshot({
+      items: [
+        {
+          animeId: 'anime-1',
+          name: 'Frieren',
+          ready: false,
+          reasons: ['missing_source', 'invalid_source', 'unsupported_source', 'destination_unresolved'],
+          scheduledToday: true,
+        },
+      ],
+      scheduledTotal: 1,
+      scheduledReady: 0,
+      scheduledBlocked: 1,
+    });
+
+    const mapped = mapDownloadReadinessSnapshot(generatedSnapshot);
+
+    expect(mapped).toEqual({
+      items: [
+        {
+          animeId: 'anime-1',
+          name: 'Frieren',
+          ready: false,
+          reasons: ['missing_source', 'invalid_source', 'unsupported_source', 'destination_unresolved'],
+          scheduledToday: true,
+        },
+      ],
+      scheduledTotal: 1,
+      scheduledReady: 0,
+      scheduledBlocked: 1,
+    });
+    expect(mapped.items).not.toBe(generatedSnapshot.items);
+    expect(mapped.items[0]?.reasons).not.toBe(generatedSnapshot.items[0]?.reasons);
+  });
+
+  it('rejects malformed generated readiness reason codes', async () => {
+    const { mapDownloadReadinessSnapshot } = await import('../download-runtime-source/download-runtime-source.helpers');
+
+    expect(() =>
+      mapDownloadReadinessSnapshot(
+        new contracts.DownloadReadinessSnapshot({
+          items: [{ animeId: 'anime-1', name: 'Frieren', ready: false, reasons: ['unknown_reason'], scheduledToday: false }],
+          scheduledTotal: 0,
+          scheduledReady: 0,
+          scheduledBlocked: 0,
+        }),
+      ),
+    ).toThrow('Unknown download readiness reason: unknown_reason');
+  });
+
+  it('preserves top-level readiness query rejections from the Wails binding', async () => {
+    const queryError = new Error('catalog unavailable');
+    const listDownloadReadinessMock = vi.fn().mockRejectedValue(queryError);
+    window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
+    window.go = { main: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const source = createDownloadRuntimeSource();
+
+    await expect(source.listDownloadReadiness()).rejects.toThrow('catalog unavailable');
+    expect(listDownloadReadinessMock).toHaveBeenCalledTimes(1);
   });
 
   it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {

@@ -20,12 +20,6 @@ type CreateMetadata struct {
 	LatestEpisode   *int
 }
 
-// MetadataProvider looks up source metadata without exposing the source to the
-// Legacy gateway.
-type MetadataProvider interface {
-	Lookup(context.Context, string) (CreateMetadata, error)
-}
-
 type canonicalCreateWriter interface {
 	CreateCanonicalAnime(context.Context, contracts.AnimeCreate, CreateMetadata) (PatchResult, error)
 	BuildCreateOperation(contracts.AnimeCreate, CreateMetadata) (store.BatchOperation, string, error)
@@ -38,12 +32,11 @@ type neighborRecordLister interface {
 	ListReadRecords(ctx context.Context) ([]ReadRecord, error)
 }
 
-// CreateService validates and enriches a create before handing canonical state
-// to the persistence service.
+// CreateService validates a create before handing canonical state to the
+// persistence service. Download capability is intentionally outside this path.
 type CreateService struct {
-	writer   canonicalCreateWriter
-	metadata MetadataProvider
-	query    neighborRecordLister
+	writer canonicalCreateWriter
+	query  neighborRecordLister
 }
 
 // SetQuery configures the read-model service used to resolve existing
@@ -53,12 +46,12 @@ func (s *CreateService) SetQuery(query neighborRecordLister) {
 	s.query = query
 }
 
-// NewCreateService builds a create service over the provided writer and metadata seam.
-func NewCreateService(writer canonicalCreateWriter, metadata MetadataProvider) *CreateService {
-	return &CreateService{writer: writer, metadata: metadata}
+// NewCreateService builds a create service over the provided writer.
+func NewCreateService(writer canonicalCreateWriter) *CreateService {
+	return &CreateService{writer: writer}
 }
 
-// CreateAnime validates and enriches one anime create request before persistence.
+// CreateAnime validates one anime create request before persistence.
 func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeCreate) (PatchResult, error) {
 	if s == nil || s.writer == nil {
 		return PatchResult{}, fmt.Errorf("canonical anime create writer is required")
@@ -67,16 +60,7 @@ func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeC
 		return PatchResult{}, err
 	}
 
-	var metadata CreateMetadata
-	if s.metadata != nil {
-		var err error
-		metadata, err = s.metadata.Lookup(ctx, create.Pagina)
-		if err != nil {
-			return PatchResult{}, fmt.Errorf("lookup anime metadata for %q: %w", create.Pagina, err)
-		}
-	}
-
-	return s.writer.CreateCanonicalAnime(ctx, create, metadata)
+	return s.writer.CreateCanonicalAnime(ctx, create, CreateMetadata{})
 }
 
 // validateCreateRequest checks that an anime creation payload has a non-empty trimmed title
@@ -124,11 +108,7 @@ func (s *CreateService) CreateBatch(
 		if err := validateCreateRequest(create); err != nil {
 			return contracts.AnimeCreateResult{}, err
 		}
-		metadata, err := s.lookupMetadata(ctx, create.Pagina)
-		if err != nil {
-			return contracts.AnimeCreateResult{}, err
-		}
-		operation, id, err := s.writer.BuildCreateOperation(create, metadata)
+		operation, id, err := s.writer.BuildCreateOperation(create, CreateMetadata{})
 		if err != nil {
 			return contracts.AnimeCreateResult{}, err
 		}
@@ -151,18 +131,6 @@ func (s *CreateService) CreateBatch(
 		Outcome: result.Outcome, AnimeIDs: ids,
 		ModifiedAt: result.ModifiedAt, ConflictID: result.ConflictID,
 	}, nil
-}
-
-// lookupMetadata resolves optional source metadata for one create request.
-func (s *CreateService) lookupMetadata(ctx context.Context, pageURL string) (CreateMetadata, error) {
-	if s.metadata == nil {
-		return CreateMetadata{}, nil
-	}
-	metadata, err := s.metadata.Lookup(ctx, pageURL)
-	if err != nil {
-		return CreateMetadata{}, fmt.Errorf("lookup anime metadata for %q: %w", pageURL, err)
-	}
-	return metadata, nil
 }
 
 // buildNeighborOperations builds reflow operations for existing neighbors,

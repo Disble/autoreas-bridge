@@ -45,6 +45,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     runMissedScheduleNow: vi.fn(),
     ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn(),
+    listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };

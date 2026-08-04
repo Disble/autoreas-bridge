@@ -78,7 +78,7 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 		t,
 		store,
 		"anime-1",
-		`{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"totalEpisodes":28,"active":false,"firstCycle":true,"createdAt":1600000000000,"premieredAt":1600000100000,"lastWatchedAt":1600000200000,"deletedAt":1600000300000,"repetitions":[{"numRepetitions":0,"episodesWatched":8,"status":1,"repeatedAt":1500000000000}]}`,
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"totalEpisodes":28,"active":false,"firstCycle":true,"sourceUrl":"https://pixeldrain.net/l/qyupHs6T","folder":"D:/Anime/Frieren","createdAt":1600000000000,"premieredAt":1600000100000,"lastWatchedAt":1600000200000,"deletedAt":1600000300000,"repetitions":[{"numRepetitions":0,"episodesWatched":8,"status":1,"repeatedAt":1500000000000}]}`,
 		1000,
 	)
 
@@ -114,6 +114,9 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 	payload := decodeRawJSONMap(t, snapshot.CanonicalJSON)
 	assertRepeatPayloadReset(t, payload)
 	assertRepeatedCycleSnapshot(t, payload)
+	if payload["sourceUrl"] != "https://pixeldrain.net/l/qyupHs6T" || payload["folder"] != "D:/Anime/Frieren" {
+		t.Fatalf("repeat must preserve source and folder, got source=%v folder=%v", payload["sourceUrl"], payload["folder"])
+	}
 
 	if len(activity.records) != 1 {
 		t.Fatalf("expected 1 activity record, got %d", len(activity.records))

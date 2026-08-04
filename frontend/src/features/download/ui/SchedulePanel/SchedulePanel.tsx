@@ -17,6 +17,7 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
     dailyTimeDraft,
     isSaving,
     saveErrorMessage,
+    readinessErrorMessage,
     isResolvingMissedAction,
     missedActionMessage,
     setEnabled,
@@ -25,6 +26,7 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
     setWeekdays,
     runMissedScheduleNow,
     ignoreMissedSchedule,
+    refreshReadiness,
   } = useSchedulePanel();
 
   if (status === 'loading') {
@@ -38,9 +40,13 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
 
   if (status === 'error') {
     return (
-      <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-        Failed to load schedule configuration.
-      </p>
+      <Alert status="danger">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Schedule unavailable</Alert.Title>
+          <Alert.Description>Failed to load schedule configuration.</Alert.Description>
+        </Alert.Content>
+      </Alert>
     );
   }
 
@@ -52,9 +58,13 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
       </Card.Header>
       <Card.Content className="flex flex-col gap-4">
         {saveErrorMessage !== undefined && (
-          <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-            {saveErrorMessage}
-          </p>
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Schedule save failed</Alert.Title>
+              <Alert.Description>{saveErrorMessage}</Alert.Description>
+            </Alert.Content>
+          </Alert>
         )}
 
         {viewModel.missedNotice !== undefined && (
@@ -91,9 +101,52 @@ export function SchedulePanel({ className }: Readonly<SchedulePanelProps>) {
         )}
 
         {missedActionMessage !== undefined && (
-          <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning" role="alert">
-            {missedActionMessage}
-          </p>
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Missed schedule action needs attention</Alert.Title>
+              <Alert.Description>{missedActionMessage}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        {readinessErrorMessage !== undefined && (
+          <Alert status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Download readiness unavailable</Alert.Title>
+              <Alert.Description>{readinessErrorMessage}</Alert.Description>
+              <Button
+                className="mt-3"
+                variant="secondary"
+                onPress={() => {
+                  refreshReadiness().catch(() => undefined);
+                }}
+              >
+                Retry
+              </Button>
+            </Alert.Content>
+          </Alert>
+        )}
+
+        {viewModel.isScheduledToday && viewModel.readiness !== undefined && viewModel.readiness.scheduledBlocked > 0 && (
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Scheduled anime need attention</Alert.Title>
+              <Alert.Description>
+                {viewModel.readiness.scheduledReady} of {viewModel.readiness.scheduledTotal} scheduled anime are ready for download checks.{' '}
+                {viewModel.readiness.scheduledBlocked} will be skipped.
+              </Alert.Description>
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+                {viewModel.readiness.blockedAnime.map((anime) => (
+                  <li key={anime.name}>
+                    {anime.name}: {anime.reasonLabels.join(' ')}
+                  </li>
+                ))}
+              </ul>
+            </Alert.Content>
+          </Alert>
         )}
 
         {viewModel.seasonModeActive && (

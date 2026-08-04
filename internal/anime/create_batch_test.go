@@ -20,7 +20,7 @@ func TestCreateServiceCreateBatchPersistsOneCreateAtomically(t *testing.T) {
 	write := anime.NewWriteService(store, &stubAnimeWriter{})
 	write.SetIDGen(func() string { return "batch-anime-1" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
-	service := anime.NewCreateService(write, nil)
+	service := anime.NewCreateService(write)
 
 	result, err := service.CreateBatch(ctx, []api.AnimeCreate{
 		{Nombre: "Batch Anime", Pagina: "https://example.test/batch", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
@@ -56,7 +56,7 @@ func TestCreateServiceCreateBatchReflowsNeighborsAlongsideCreates(t *testing.T) 
 	write := anime.NewWriteService(store, &stubAnimeWriter{})
 	write.SetIDGen(func() string { return "batch-anime-2" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_100).UTC() })
-	service := anime.NewCreateService(write, nil)
+	service := anime.NewCreateService(write)
 	service.SetQuery(anime.NewQueryService(store))
 
 	result, err := service.CreateBatch(ctx, []api.AnimeCreate{
@@ -108,7 +108,7 @@ func TestCreateServiceCreateBatchRejectsWholeBatchOnStaleNeighborBase(t *testing
 
 	write := anime.NewWriteService(store, &stubAnimeWriter{})
 	write.SetIDGen(func() string { return "batch-anime-3" })
-	service := anime.NewCreateService(write, nil)
+	service := anime.NewCreateService(write)
 	service.SetQuery(anime.NewQueryService(store))
 
 	result, err := service.CreateBatch(ctx, []api.AnimeCreate{
@@ -141,7 +141,7 @@ func TestCreateServiceCreateBatchCreatesNeverTriggerStaleBaseRejection(t *testin
 	store := openAnimeServiceTestStore(t)
 	write := anime.NewWriteService(store, &stubAnimeWriter{})
 	write.SetIDGen(func() string { return "batch-anime-4" })
-	service := anime.NewCreateService(write, nil)
+	service := anime.NewCreateService(write)
 
 	result, err := service.CreateBatch(ctx, []api.AnimeCreate{
 		{Nombre: "No Neighbors", Pagina: "https://example.test/no-neighbors", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},

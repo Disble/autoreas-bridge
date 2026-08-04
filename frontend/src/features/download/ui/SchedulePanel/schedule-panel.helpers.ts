@@ -1,6 +1,13 @@
-import type { ScheduleConfig, ScheduleMissedNotice } from '../../../../shared/contracts/download.types';
+import type { DownloadReadinessSnapshot, ScheduleConfig, ScheduleMissedNotice } from '../../../../shared/contracts/download.types';
+import { getDownloadReadinessReasonLabel } from '../../../../shared/constants/download-readiness';
 import { ALL_WEEKDAYS_MASK, WEEKDAY_OPTIONS } from './schedule-panel.constants';
-import type { ScheduleMissedNoticeViewModel, SchedulePanelViewModel, ScheduleSaveEdits } from './schedule-panel.types';
+import type {
+  ScheduleBlockedAnimeViewModel,
+  ScheduleMissedNoticeViewModel,
+  SchedulePanelViewModel,
+  ScheduleReadinessViewModel,
+  ScheduleSaveEdits,
+} from './schedule-panel.types';
 
 /**
  * Maps a 7-bit weekday mask (bit i = `time.Weekday(i)`, Sunday=0..Saturday=6)
@@ -116,7 +123,33 @@ export function toSchedulePanelViewModel(
     enabledWeekdays: config.enabledWeekdays,
     selectedWeekdayValues: maskToWeekdayValues(config.enabledWeekdays),
     willNeverRun: config.enabled && config.enabledWeekdays === 0,
+    isScheduledToday: config.enabled && (config.enabledWeekdays & (1 << now.getDay())) !== 0,
     missedNotice: toMissedNoticeViewModel(missedNotice),
+  };
+}
+
+/**
+ * Converts the backend's full-catalog readiness snapshot into the small
+ * scheduled-only warning model so the Schedule UI never reimplements
+ * candidate selection or blocker classification.
+ */
+export function toScheduleReadinessViewModel(snapshot: DownloadReadinessSnapshot): ScheduleReadinessViewModel {
+  const blockedAnime: ScheduleBlockedAnimeViewModel[] = [];
+
+  for (const item of snapshot.items) {
+    if (item.scheduledToday && !item.ready) {
+      blockedAnime.push({
+        name: item.name,
+        reasonLabels: item.reasons.map(getDownloadReadinessReasonLabel),
+      });
+    }
+  }
+
+  return {
+    scheduledTotal: snapshot.scheduledTotal,
+    scheduledReady: snapshot.scheduledReady,
+    scheduledBlocked: snapshot.scheduledBlocked,
+    blockedAnime,
   };
 }
 
@@ -132,5 +165,3 @@ export function toScheduleSaveRequest(current: ScheduleConfig, edits: ScheduleSa
     ...edits,
   };
 }
-
-

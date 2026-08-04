@@ -6,7 +6,8 @@ import type { PreferencesSource } from '../../../../infrastructure/preferences-s
 import { useMissedScheduleNotice } from '../../../../shared/hooks/use-missed-schedule-notice/use-missed-schedule-notice';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { usePreferencesStore } from '../../../../shared/store/preferences-store/preferences-store';
-import { toSchedulePanelViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
+import type { DownloadReadinessSnapshot } from '../../../../shared/contracts/download.types';
+import { toSchedulePanelViewModel, toScheduleReadinessViewModel, toScheduleSaveRequest } from './schedule-panel.helpers';
 import type { ScheduleSaveEdits } from './schedule-panel.types';
 
 /**
@@ -25,6 +26,8 @@ export function useSchedulePanel(
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState<string | undefined>(undefined);
   const [dailyTimeEdit, setDailyTimeEdit] = useState<string | undefined>(undefined);
+  const [readinessSnapshot, setReadinessSnapshot] = useState<DownloadReadinessSnapshot | undefined>(undefined);
+  const [readinessErrorMessage, setReadinessErrorMessage] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const missedScheduleNotice = useMissedScheduleNotice(source);
@@ -42,6 +45,16 @@ export function useSchedulePanel(
 
   // 6. Callbacks (useCallback calling pure helpers)
   const refresh = useCallback(() => refreshSchedule(source), [refreshSchedule, source]);
+
+  const refreshReadiness = useCallback(async () => {
+    try {
+      setReadinessErrorMessage(undefined);
+      setReadinessSnapshot(await source.listDownloadReadiness());
+    } catch (error) {
+      setReadinessSnapshot(undefined);
+      setReadinessErrorMessage(error instanceof Error ? error.message : 'Failed to load download readiness');
+    }
+  }, [source]);
 
   const save = useCallback(
     async (edits: ScheduleSaveEdits) => {
@@ -105,6 +118,10 @@ export function useSchedulePanel(
     void refreshPreferences(prefSource);
   }, [refreshPreferences, prefSource]);
 
+  useEffect(() => {
+    void refreshReadiness();
+  }, [refreshReadiness]);
+
   let status: 'loading' | 'error' | 'ready' = 'ready';
 
   if (!hasLoaded) {
@@ -115,12 +132,18 @@ export function useSchedulePanel(
 
   return {
     status,
-    viewModel: { ...toSchedulePanelViewModel(config, missedScheduleNotice.decisionNotice), seasonModeActive: seasonMode },
+    viewModel: {
+      ...toSchedulePanelViewModel(config, missedScheduleNotice.decisionNotice),
+      seasonModeActive: seasonMode,
+      readiness: readinessSnapshot === undefined ? undefined : toScheduleReadinessViewModel(readinessSnapshot),
+    },
     dailyTimeDraft,
     isSaving,
     saveErrorMessage,
     isResolvingMissedAction: missedScheduleNotice.isResolving,
     missedActionMessage: missedScheduleNotice.actionMessage,
+    readinessErrorMessage,
+    refreshReadiness,
     setEnabled,
     setDailyTime,
     setDailyTimeDraft,

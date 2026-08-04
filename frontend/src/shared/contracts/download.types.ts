@@ -84,6 +84,26 @@ export interface DownloadConfig {
   readonly hosterPriority: readonly HosterPriorityItem[];
 }
 
+/** Stable local blocker codes returned by the backend readiness query. */
+export type DownloadReadinessReason = 'missing_source' | 'invalid_source' | 'unsupported_source' | 'destination_unresolved';
+
+/** One catalog anime's local download-check readiness. */
+export interface AnimeDownloadReadiness {
+  readonly animeId: string;
+  readonly name: string;
+  readonly ready: boolean;
+  readonly reasons: readonly DownloadReadinessReason[];
+  readonly scheduledToday: boolean;
+}
+
+/** Catalog-wide local readiness snapshot returned when Downloads opens. */
+export interface DownloadReadinessSnapshot {
+  readonly items: readonly AnimeDownloadReadiness[];
+  readonly scheduledTotal: number;
+  readonly scheduledReady: number;
+  readonly scheduledBlocked: number;
+}
+
 /**
  * ManualLink mirrors `contracts.ManualLink` (Go): a JD-offline degradation
  * record exposing the raw download links a user must fetch manually.

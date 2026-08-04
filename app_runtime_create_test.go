@@ -27,7 +27,7 @@ func TestCreateAnimeMapsCommandAndDelegatesToCreateBatch(t *testing.T) {
 	write := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	write.SetIDGen(func() string { return "created-anime" })
 	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_000).UTC() })
-	service := anime.NewCreateService(write, nil)
+	service := anime.NewCreateService(write)
 	app := &App{ctx: context.Background(), animeCreateBatch: service}
 
 	got := app.CreateAnime(AnimeCreateCommandDTO{

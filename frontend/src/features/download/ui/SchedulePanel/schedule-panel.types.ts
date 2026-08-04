@@ -19,6 +19,20 @@ export interface ScheduleMissedNoticeViewModel {
   readonly attemptStatus?: string;
 }
 
+/** One scheduled anime whose local readiness currently blocks a download check. */
+export interface ScheduleBlockedAnimeViewModel {
+  readonly name: string;
+  readonly reasonLabels: readonly string[];
+}
+
+/** Summary rendered before the scheduler runs, with named local blockers. */
+export interface ScheduleReadinessViewModel {
+  readonly scheduledTotal: number;
+  readonly scheduledReady: number;
+  readonly scheduledBlocked: number;
+  readonly blockedAnime: readonly ScheduleBlockedAnimeViewModel[];
+}
+
 /** View model rendered by `SchedulePanel`, derived from `ScheduleConfig` and preferences. */
 export type SchedulePanelViewModel = Pick<
   ScheduleConfig,
@@ -30,9 +44,12 @@ export type SchedulePanelViewModel = Pick<
   readonly selectedWeekdayValues: readonly string[];
   /** True when the schedule is enabled but NO weekday is selected — it will never fire. */
   readonly willNeverRun: boolean;
+  /** True when the schedule is enabled and the current local weekday is selected. */
+  readonly isScheduledToday: boolean;
   /** True when season mode is active — each run downloads the "Ver hoy" set. */
   readonly seasonModeActive: boolean;
   readonly missedNotice?: ScheduleMissedNoticeViewModel;
+  readonly readiness?: ScheduleReadinessViewModel;
 };
 
 /** The user-editable subset of `ScheduleConfig` the form can change. */

@@ -26,14 +26,8 @@ func (s *Service) listActiveAnimesToday(ctx context.Context) ([]contracts.Mobile
 
 	active := make([]contracts.MobileAnime, 0, len(all))
 	for _, anime := range all {
-		if anime.Active != 1 {
-			continue
-		}
-		for _, d := range anime.Days {
-			if englishWeekday(d.Day) == target {
-				active = append(active, anime)
-				break
-			}
+		if isScheduledAnime(anime, target) {
+			active = append(active, anime)
 		}
 	}
 	return active, nil

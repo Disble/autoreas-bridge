@@ -250,18 +250,26 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		return entries
 	})
 	a.downloadService = a.newDownloadService(download.ServiceDeps{
-		Animes:       a.animeQuery,
-		Sites:        registry,
-		Hosters:      hosterResolver,
-		JD:           newReconfigurableJDClient(a.downloadStore),
-		Counter:      filesystem.NewEpisodeCounter(),
-		Flattener:    filesystem.NewFlattener(),
-		Store:        a.downloadStore,
-		Notifier:     a.notifier,
-		Bus:          a.eventBus,
-		Logger:       a.sharedLogger,
-		JDDeviceName: a.downloadJDDeviceName(ctx),
-		SeasonMode:   a.seasonModeReader(),
+		Animes:        a.animeQuery,
+		Sites:         registry,
+		DownloadsRoot: a.downloadsRoot,
+		Hosters:       hosterResolver,
+		JD:            newReconfigurableJDClient(a.downloadStore),
+		Counter:       filesystem.NewEpisodeCounter(),
+		Flattener:     filesystem.NewFlattener(),
+		Store:         a.downloadStore,
+		Notifier:      a.notifier,
+		Bus:           a.eventBus,
+		Logger:        a.sharedLogger,
+		JDDeviceName:  a.downloadJDDeviceName(ctx),
+		SeasonMode:    a.seasonModeReader(),
+	})
+	a.readinessService = download.NewReadinessService(download.ReadinessServiceDeps{
+		Animes:        a.animeQuery,
+		DownloadsRoot: a.downloadsRoot,
+		Sites:         registry,
+		Clock:         time.Now,
+		SeasonMode:    a.seasonModeReader(),
 	})
 	if _, err := a.downloadStore.ReconcileInterruptedRuns(ctx, time.Now().UnixMilli()); err != nil && a.sharedLogger != nil {
 		a.sharedLogger.Warnf("download", "failed to reconcile interrupted download runs at startup: %v", err)

@@ -144,6 +144,37 @@ type HosterPriorityItem struct {
 	Enabled  bool   `json:"enabled"`
 }
 
+// DownloadReadinessReason is a stable local blocker returned by the download context.
+type DownloadReadinessReason string
+
+const (
+	// DownloadReadinessMissingSource identifies an anime without a source page.
+	DownloadReadinessMissingSource DownloadReadinessReason = "missing_source"
+	// DownloadReadinessInvalidSource identifies a source page that is not an absolute HTTP URL.
+	DownloadReadinessInvalidSource DownloadReadinessReason = "invalid_source"
+	// DownloadReadinessUnsupportedSource identifies a source page without a registered adapter.
+	DownloadReadinessUnsupportedSource DownloadReadinessReason = "unsupported_source"
+	// DownloadReadinessDestinationUnresolved identifies an anime without a deterministic download destination.
+	DownloadReadinessDestinationUnresolved DownloadReadinessReason = "destination_unresolved"
+)
+
+// AnimeDownloadReadiness is one catalog anime's local download-check status.
+type AnimeDownloadReadiness struct {
+	AnimeID        string                    `json:"animeId"`
+	Name           string                    `json:"name"`
+	Ready          bool                      `json:"ready"`
+	Reasons        []DownloadReadinessReason `json:"reasons"`
+	ScheduledToday bool                      `json:"scheduledToday"`
+}
+
+// DownloadReadinessSnapshot is the catalog-wide local readiness query result.
+type DownloadReadinessSnapshot struct {
+	Items            []AnimeDownloadReadiness `json:"items"`
+	ScheduledTotal   int                      `json:"scheduledTotal"`
+	ScheduledReady   int                      `json:"scheduledReady"`
+	ScheduledBlocked int                      `json:"scheduledBlocked"`
+}
+
 // DownloadConfig is the read-model for the download settings screen.
 type DownloadConfig struct {
 	JD             JDStatus             `json:"jd"`

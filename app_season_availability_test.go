@@ -64,30 +64,6 @@ func TestSeasonAvailabilityProbe(t *testing.T) {
 	}
 }
 
-func TestSeasonAnimeMetadataProviderKeepsLatestEpisodeSeparateFromAnnouncedTotal(t *testing.T) {
-	provider := seasonAnimeMetadataProvider{registry: fakeRegistry{source: fakeEpisodeSource{latest: 17}}}
-
-	metadata, err := provider.Lookup(context.Background(), "https://jkanime.net/airing/")
-	if err != nil {
-		t.Fatalf("Lookup: %v", err)
-	}
-	if metadata.LatestEpisode == nil || *metadata.LatestEpisode != 17 {
-		t.Fatalf("LatestEpisode = %v, want 17", metadata.LatestEpisode)
-	}
-	if metadata.AnnouncedTotal != nil {
-		t.Fatalf("AnnouncedTotal = %v, want unknown; latest aired is not an announced total", metadata.AnnouncedTotal)
-	}
-}
-
-func TestSeasonAnimeMetadataProviderReturnsSourceFailures(t *testing.T) {
-	sourceErr := errors.New("metadata fetch failed")
-	provider := seasonAnimeMetadataProvider{registry: fakeRegistry{source: fakeEpisodeSource{err: sourceErr}}}
-
-	if _, err := provider.Lookup(context.Background(), "https://jkanime.net/failing/"); !errors.Is(err, sourceErr) {
-		t.Fatalf("Lookup error = %v, want source error", err)
-	}
-}
-
 // fakeReadRecordLister returns the English read model exposed by the anime query service.
 type fakeReadRecordLister struct {
 	records []anime.ReadRecord

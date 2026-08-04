@@ -94,6 +94,8 @@ export function ImportSeasonIntake(arg1:string):Promise<string>;
 
 export function ListCaptureTransactions(arg1:contracts.CaptureQuery):Promise<contracts.CapturePage>;
 
+export function ListDownloadReadiness():Promise<contracts.DownloadReadinessSnapshot>;
+
 export function ListDownloadRuns():Promise<Array<contracts.DownloadRunView>>;
 
 export function ListSeasons():Promise<Array<main.SeasonDTO>>;

@@ -2,6 +2,7 @@ package download
 
 import (
 	"context"
+	"strings"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/jdownloader"
@@ -26,6 +27,8 @@ func (s *Service) processAnime(
 	if complete {
 		return outcome
 	}
+	anime.Folder = &preparation.destination
+	anime.SourceURL = &preparation.sourceURL
 	return s.downloadAvailableEpisodes(ctx, runID, anime, gate, preparation, emitProgress)
 }
 
@@ -33,6 +36,8 @@ type animeDownloadPreparation struct {
 	source        sites.EpisodeSource
 	listing       sites.EpisodeListing
 	onDiskEpisode int
+	destination   string
+	sourceURL     string
 }
 
 // progressEmitter returns the supplied progress callback or a no-op callback.
@@ -45,7 +50,18 @@ func progressEmitter(progress []func(animeProgressDelta)) func(animeProgressDelt
 
 // prepareAnimeDownload evaluates an anime and prepares its episode source and listing.
 func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime contracts.MobileAnime, emitProgress func(animeProgressDelta)) (animeDownloadPreparation, animeRunOutcome, bool) {
-	decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{Tipo: anime.Kind, Pagina: anime.SourceURL, Carpeta: anime.Folder})
+	root := ""
+	if strings.TrimSpace(derefOrEmpty(anime.Folder)) == "" && s.deps.DownloadsRoot != nil {
+		var err error
+		root, err = s.deps.DownloadsRoot(ctx)
+		if err != nil {
+			return animeDownloadPreparation{}, s.configurationFailure(runID, anime, err, emitProgress), true
+		}
+	}
+	decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
+		Name: anime.Name, Tipo: anime.Kind, Pagina: anime.SourceURL, Carpeta: anime.Folder,
+		DownloadsRoot: root, Sites: s.deps.Sites,
+	})
 	if decision.Skip {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{"reason": string(decision.SkipReason)}, "anime %s skipped: %s", anime.Name, decision.SkipReason)
 		s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: string(decision.SkipReason), CorrelationID: runID})
@@ -53,19 +69,17 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 		return animeDownloadPreparation{}, animeRunOutcome{skipped: true}, true
 	}
 
+	anime.Folder = &decision.Destination
+	sourceURL := strings.TrimSpace(derefOrEmpty(anime.SourceURL))
 	s.flattenDownloadFolder(ctx, runID, anime)
-	onDiskEpisode := s.downloadedEpisodeBaseline(*anime.Folder)
+	onDiskEpisode := s.downloadedEpisodeBaseline(decision.Destination)
 	if anime.TotalEpisodes != nil && *anime.TotalEpisodes > 0 && *anime.TotalEpisodes == onDiskEpisode {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{"reason": "season_complete_on_disk", "totalcap": *anime.TotalEpisodes, "onDiskCount": onDiskEpisode}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Name, onDiskEpisode, *anime.TotalEpisodes)
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
 		return animeDownloadPreparation{}, animeRunOutcome{checked: true, upToDate: true}, true
 	}
 
-	source, outcome, complete := s.resolveEpisodeSource(runID, anime, emitProgress)
-	if complete {
-		return animeDownloadPreparation{}, outcome, true
-	}
-	listing, err := source.ListEpisodes(ctx, *anime.SourceURL)
+	listing, err := decision.Source.ListEpisodes(ctx, sourceURL)
 	if err != nil {
 		return animeDownloadPreparation{}, s.episodeListFailure(runID, anime, err, emitProgress), true
 	}
@@ -74,22 +88,16 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
 		return animeDownloadPreparation{}, animeRunOutcome{checked: true, upToDate: true}, true
 	}
-	return animeDownloadPreparation{source: source, listing: listing, onDiskEpisode: onDiskEpisode}, animeRunOutcome{}, false
+	return animeDownloadPreparation{source: decision.Source, listing: listing, onDiskEpisode: onDiskEpisode, destination: decision.Destination, sourceURL: sourceURL}, animeRunOutcome{}, false
 }
 
-// resolveEpisodeSource resolves the site adapter for an anime page.
-func (s *Service) resolveEpisodeSource(runID string, anime contracts.MobileAnime, emitProgress func(animeProgressDelta)) (sites.EpisodeSource, animeRunOutcome, bool) {
-	if s.deps.Sites == nil {
-		return nil, s.episodeListFailure(runID, anime, nil, emitProgress), true
-	}
-	source, err := s.deps.Sites.Resolve(*anime.SourceURL)
-	if err == nil {
-		return source, animeRunOutcome{}, false
-	}
-	s.logf(logger.LevelWarn, runID, anime.ID, "download.skipped", map[string]any{"reason": "site_unsupported"}, "anime %s skipped: %v", anime.Name, err)
-	s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: "site_unsupported", CorrelationID: runID})
-	emitProgress(animeProgressDelta{skipped: true})
-	return nil, animeRunOutcome{skipped: true}, true
+// configurationFailure records a runtime configuration dependency failure without
+// misclassifying it as an anime readiness skip.
+func (s *Service) configurationFailure(runID string, anime contracts.MobileAnime, err error, emitProgress func(animeProgressDelta)) animeRunOutcome {
+	s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": FailureKindConfiguration}, "anime %s: read download root failed: %v", anime.Name, err)
+	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindConfiguration, CorrelationID: runID})
+	emitProgress(animeProgressDelta{checked: true})
+	return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindConfiguration}
 }
 
 // episodeListFailure records an episode-listing failure and its progress outcome.

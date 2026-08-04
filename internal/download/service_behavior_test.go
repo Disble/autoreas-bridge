@@ -2,6 +2,8 @@ package download
 
 import (
 	"context"
+	"errors"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -149,12 +151,11 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 	deps.Sites = registry
 	destFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:        "anime-movie",
-		Name:      "A Movie",
+		ID:        "anime-blocked",
+		Name:      "Blocked Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		Kind:      ptrInt(1),
-		SourceURL: ptrStr("https://jkanime.net/movie/"),
+		SourceURL: nil,
 		Folder:    ptrStr(t.TempDir()),
 	}, {
 		ID:        "anime-no-folder",
@@ -195,6 +196,70 @@ func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 	}
 }
 
+func TestProcessAnimeRevalidatesCurrentSourceBeforeRuntimeWork(t *testing.T) {
+	deps := baseDeps(t)
+	source := &spyEpisodeSource{}
+	registry := &spySiteRegistry{source: source, err: ErrSiteUnsupported}
+	deps.Sites = registry
+	folder := t.TempDir()
+	anime := contracts.MobileAnime{ID: "stale", Name: "Stale", SourceURL: ptrStr("https://unsupported.example/stale"), Folder: &folder}
+
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
+	if !got.skipped {
+		t.Fatalf("expected stale unsupported source to be skipped, got %#v", got)
+	}
+	if source.listEpisodesCalls != 0 {
+		t.Fatalf("stale source triggered ListEpisodes %d times", source.listEpisodesCalls)
+	}
+}
+
+func TestProcessAnimeUsesDerivedDestinationWithoutPersistingIt(t *testing.T) {
+	root := filepath.Join("D:", "Downloads")
+	destination := filepath.Join(root, "Ready Anime")
+	source := &spyEpisodeSource{listing: sites.EpisodeListing{LatestEpisode: 0}}
+	flattener := &svcFakeFlattener{}
+	deps := baseDeps(t)
+	deps.Sites = &spySiteRegistry{source: source}
+	deps.DownloadsRoot = func(context.Context) (string, error) { return root, nil }
+	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destination: 0}, recursive: map[string]int{destination: 0}}
+	deps.Flattener = flattener
+	anime := contracts.MobileAnime{ID: "derived", Name: "Ready: Anime", SourceURL: ptrStr("https://supported.example/ready")}
+
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
+	if !got.upToDate || got.skipped {
+		t.Fatalf("expected derived destination to remain executable, got %#v", got)
+	}
+	if len(flattener.calls) != 1 || flattener.calls[0] != destination {
+		t.Fatalf("flatten destinations = %#v, want [%q]", flattener.calls, destination)
+	}
+	if anime.Folder != nil {
+		t.Fatalf("derived destination mutated caller anime folder: %v", *anime.Folder)
+	}
+}
+
+func TestProcessAnimeFailsWhenDerivedDestinationSettingsCannotBeRead(t *testing.T) {
+	deps := baseDeps(t)
+	registry := &spySiteRegistry{source: &spyEpisodeSource{}}
+	deps.Sites = registry
+	deps.DownloadsRoot = func(context.Context) (string, error) {
+		return "", errors.New("settings unavailable")
+	}
+	anime := contracts.MobileAnime{
+		ID:        "settings-failure",
+		Name:      "Settings Failure",
+		SourceURL: ptrStr("https://supported.example/settings-failure"),
+	}
+
+	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
+
+	if !got.failed || got.skipped || got.failureKind != FailureKindConfiguration {
+		t.Fatalf("expected configuration failure without skip, got %#v", got)
+	}
+	if registry.calls() != 0 {
+		t.Fatalf("expected settings failure before source resolution, got %d Resolve calls", registry.calls())
+	}
+}
+
 func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T) {
 	t.Parallel()
 
@@ -229,8 +294,8 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 	if !got.upToDate || got.skipped || got.failed || got.episodesFound != 0 || got.episodesDownloaded != 0 || got.episodesFailed != 0 || len(got.manualLinks) != 0 {
 		t.Fatalf("expected up-to-date outcome for fully downloaded season, got %#v", got)
 	}
-	if registry.calls() != 0 {
-		t.Fatalf("expected Resolve not to be called, got %d calls", registry.calls())
+	if registry.calls() != 1 {
+		t.Fatalf("expected readiness revalidation before filesystem work, got %d Resolve calls", registry.calls())
 	}
 	if listCalls, extractCalls := source.counts(); listCalls != 0 || extractCalls != 0 {
 		t.Fatalf("expected no online source calls, got ListEpisodes=%d ExtractLinks=%d", listCalls, extractCalls)

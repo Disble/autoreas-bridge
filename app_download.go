@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -356,6 +357,15 @@ func (a *App) ListDownloadRuns() []contracts.DownloadRunView {
 		out = append(out, toContractsDownloadRunView(run))
 	}
 	return out
+}
+
+// ListDownloadReadiness returns the current local readiness snapshot. Query failures are
+// returned to Wails so the frontend cannot mistake an unavailable snapshot for an empty catalog.
+func (a *App) ListDownloadReadiness() (contracts.DownloadReadinessSnapshot, error) {
+	if a.readinessService == nil {
+		return contracts.DownloadReadinessSnapshot{}, errors.New("download readiness unavailable")
+	}
+	return a.readinessService.BuildSnapshot(a.downloadCtx())
 }
 
 // downloadCtx returns a.ctx, falling back to context.Background() before startup has set it

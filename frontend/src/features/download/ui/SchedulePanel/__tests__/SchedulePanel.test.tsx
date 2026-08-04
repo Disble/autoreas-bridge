@@ -10,7 +10,11 @@ vi.mock('../use-schedule-panel', () => ({
 
 const mockedUseSchedulePanel = vi.mocked(useSchedulePanel);
 
-const baseViewModel: SchedulePanelViewModel = {
+type TestSchedulePanelViewModel = SchedulePanelViewModel & {
+  readonly readiness: SchedulePanelViewModel['readiness'];
+};
+
+const baseViewModel: TestSchedulePanelViewModel = {
   enabled: true,
   dailyTimeHHMM: '03:30',
   running: false,
@@ -20,14 +24,16 @@ const baseViewModel: SchedulePanelViewModel = {
   enabledWeekdays: 127,
   selectedWeekdayValues: ['1', '2', '3', '4', '5', '6', '0'],
   willNeverRun: false,
+  isScheduledToday: true,
   seasonModeActive: false,
   missedNotice: undefined,
+  readiness: undefined,
 };
 
 type HookReturn = ReturnType<typeof useSchedulePanel>;
 
 function mockHook(overrides: Partial<HookReturn> = {}): void {
-  mockedUseSchedulePanel.mockReturnValue({
+  const defaults: HookReturn = {
     status: 'ready',
     viewModel: baseViewModel,
     dailyTimeDraft: baseViewModel.dailyTimeHHMM,
@@ -42,7 +48,14 @@ function mockHook(overrides: Partial<HookReturn> = {}): void {
     ignoreMissedSchedule: vi.fn(),
     isResolvingMissedAction: false,
     missedActionMessage: undefined,
+    readinessErrorMessage: undefined,
+    refreshReadiness: vi.fn(),
+  };
+
+  mockedUseSchedulePanel.mockReturnValue({
+    ...defaults,
     ...overrides,
+    viewModel: overrides.viewModel ?? defaults.viewModel,
   });
 }
 
@@ -64,7 +77,7 @@ describe('SchedulePanel', () => {
 
     render(<SchedulePanel />);
 
-    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('Schedule unavailable')).toBeInTheDocument();
   });
 
   it('renders last/next run labels and status', () => {
@@ -167,6 +180,57 @@ describe('SchedulePanel', () => {
     render(<SchedulePanel />);
 
     expect(screen.getByText(/no days selected/i)).toBeInTheDocument();
+  });
+
+  it('shows named blockers before a scheduled download run', () => {
+    mockHook({
+      viewModel: {
+        ...baseViewModel,
+        readiness: {
+          scheduledTotal: 2,
+          scheduledReady: 1,
+          scheduledBlocked: 1,
+          blockedAnime: [{ name: 'Blocked Anime', reasonLabels: ['This source is not supported for downloads.'] }],
+        },
+      },
+    });
+
+    render(<SchedulePanel />);
+
+    expect(screen.getByText('Scheduled anime need attention')).toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 scheduled anime are ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/blocked anime.*this source is not supported/i)).toBeInTheDocument();
+  });
+
+  it('hides scheduled blockers when today is not a selected download day', () => {
+    mockHook({
+      viewModel: {
+        ...baseViewModel,
+        isScheduledToday: false,
+        readiness: {
+          scheduledTotal: 2,
+          scheduledReady: 1,
+          scheduledBlocked: 1,
+          blockedAnime: [{ name: 'Blocked Anime', reasonLabels: ['This source is not supported for downloads.'] }],
+        },
+      },
+    });
+
+    render(<SchedulePanel />);
+
+    expect(screen.queryByText('Scheduled anime need attention')).not.toBeInTheDocument();
+  });
+
+  it('shows a retryable readiness error', () => {
+    const refreshReadiness = vi.fn().mockReturnValue({ catch: vi.fn() });
+    mockHook({ readinessErrorMessage: 'readiness unavailable', refreshReadiness });
+
+    render(<SchedulePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(screen.getByText('readiness unavailable')).toBeInTheDocument();
+    expect(refreshReadiness).toHaveBeenCalledTimes(1);
   });
 
   it('renders the missed selected-day notice with Run now and Ignore controls', () => {

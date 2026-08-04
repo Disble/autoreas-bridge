@@ -11,29 +11,6 @@ import (
 	seasondomain "autoreas-bridge/internal/season/domain"
 )
 
-// seasonAnimeMetadataProvider exposes only facts the current source can prove.
-// Episode listings know the latest aired episode, not the announced total,
-// duration, or cover, so those canonical fields remain unknown.
-type seasonAnimeMetadataProvider struct {
-	registry siteResolver
-}
-
-func (p seasonAnimeMetadataProvider) Lookup(ctx context.Context, pageURL string) (anime.CreateMetadata, error) {
-	source, err := p.registry.Resolve(pageURL)
-	if err != nil {
-		return anime.CreateMetadata{}, fmt.Errorf("resolve anime metadata source: %w", err)
-	}
-	listing, err := source.ListEpisodes(ctx, pageURL)
-	if err != nil {
-		return anime.CreateMetadata{}, fmt.Errorf("list anime metadata source: %w", err)
-	}
-	if listing.LatestEpisode < 0 {
-		return anime.CreateMetadata{}, nil
-	}
-	latest := listing.LatestEpisode
-	return anime.CreateMetadata{LatestEpisode: &latest}, nil
-}
-
 // animeReadRecordLister is the narrow English read seam required by the season gateway.
 type animeReadRecordLister interface {
 	ListReadRecords(ctx context.Context) ([]anime.ReadRecord, error)

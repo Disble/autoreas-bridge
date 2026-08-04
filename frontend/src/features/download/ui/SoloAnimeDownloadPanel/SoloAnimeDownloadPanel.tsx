@@ -1,5 +1,5 @@
-import { Button, Chip, SearchField, Spinner } from '@heroui/react';
-import { SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION } from './solo-anime-download-panel.constants';
+import { Alert, Button, Chip, ScrollShadow, SearchField, Spinner, Typography } from '@heroui/react';
+import { SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION, SOLO_ANIME_DOWNLOAD_READY_LABEL } from './solo-anime-download-panel.constants';
 import type { SoloAnimeDownloadPanelProps } from './solo-anime-download-panel.types';
 import { useSoloAnimeDownloadPanel } from './use-solo-anime-download-panel';
 
@@ -10,15 +10,16 @@ export function SoloAnimeDownloadPanel({ className }: Readonly<SoloAnimeDownload
     query,
     options,
     selected,
-    errorMessage,
-    canTrigger,
+		errorMessage,
+		canTrigger,
+		onRetry,
     onQueryChange,
     onSelectAnime,
     onTriggerDownload,
   } = useSoloAnimeDownloadPanel();
 
-  return (
-    <section aria-label="Solo anime download" className={`flex flex-col gap-3 ${className ?? ''}`}>
+	return (
+		<section aria-label="Solo anime download" className={`flex flex-col gap-3 ${className ?? ''}`}>
       <SearchField aria-label="Search animes for solo download" fullWidth onChange={onQueryChange} value={query} variant="secondary">
         <SearchField.Group>
           <SearchField.SearchIcon />
@@ -27,38 +28,67 @@ export function SoloAnimeDownloadPanel({ className }: Readonly<SoloAnimeDownload
         </SearchField.Group>
       </SearchField>
 
-      {status === 'loading' ? (
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Spinner size="sm" />
-          <span>Loading animes...</span>
-        </div>
-      ) : null}
+		{status === 'loading' ? (
+			<div className="flex items-center gap-2 text-sm text-muted">
+				<Spinner size="sm" />
+				<Typography color="muted" type="body-sm">Loading readiness...</Typography>
+			</div>
+		) : null}
 
-      <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1" aria-label="Anime results">
-        {options.map((option) => (
+			{status === 'readiness-error' ? (
+				<Alert status="danger">
+				<Alert.Indicator />
+				<Alert.Content>
+					<Alert.Title>Download readiness unavailable</Alert.Title>
+					<Alert.Description>{errorMessage ?? 'The readiness query failed.'}</Alert.Description>
+					<Button className="mt-3" variant="secondary" onPress={onRetry}>Retry</Button>
+				</Alert.Content>
+				</Alert>
+			) : null}
+			{status === 'trigger-error' ? (
+				<Alert status="danger">
+					<Alert.Indicator />
+					<Alert.Content>
+						<Alert.Title>Download could not start</Alert.Title>
+						<Alert.Description>{errorMessage ?? 'The download could not start.'}</Alert.Description>
+					</Alert.Content>
+				</Alert>
+			) : null}
+
+		<ScrollShadow className="flex max-h-56 flex-col gap-2 pr-1" aria-label="Anime results">
+	        {options.map((option) => (
           <Button
             key={option.id}
             className="justify-between"
             variant={selected?.id === option.id ? 'primary' : 'secondary'}
             onPress={() => onSelectAnime(option.id)}
           >
-            <span className="min-w-0 truncate text-left">{option.name}</span>
-            <span className="flex shrink-0 items-center gap-2">
-              <span className="text-xs opacity-80">{option.progressLabel}</span>
-              {option.gapLabel !== undefined ? (
-                <Chip color="warning" size="sm" variant="soft">
-                  <Chip.Label>{option.gapLabel}</Chip.Label>
+	            <span className="min-w-0 truncate text-left">{option.name}</span>
+	            <span className="flex shrink-0 flex-wrap justify-end gap-2">
+	              {option.ready ? (
+	                <Chip color="success" size="sm" variant="soft">
+	                  <Chip.Label>{SOLO_ANIME_DOWNLOAD_READY_LABEL}</Chip.Label>
+	                </Chip>
+              ) : option.reasonLabels.map((reasonLabel) => (
+                <Chip key={reasonLabel} color="warning" size="sm" variant="soft">
+                  <Chip.Label>{reasonLabel}</Chip.Label>
                 </Chip>
-              ) : null}
-            </span>
+              ))}
+	            </span>
           </Button>
         ))}
-      </div>
+		</ScrollShadow>
 
-      {selected === undefined ? <p className="text-sm text-muted">{SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION}</p> : null}
-      {selected !== undefined && !selected.canDownload ? (
-        <p className="text-sm text-warning">This anime needs a download page and folder before it can be downloaded.</p>
-      ) : null}
+		{selected === undefined ? <Typography color="muted" type="body-sm">{SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION}</Typography> : null}
+		{selected !== undefined && !selected.ready ? (
+			<Alert status="warning">
+				<Alert.Indicator />
+				<Alert.Content>
+					<Alert.Title>{selected.name} cannot start a download check.</Alert.Title>
+					<Alert.Description>{selected.reasonLabels.join(' ')}</Alert.Description>
+				</Alert.Content>
+			</Alert>
+		) : null}
 
       <Button isDisabled={!canTrigger} variant="primary" onPress={() => void onTriggerDownload()}>
         {status === 'triggering' ? 'Starting anime download...' : 'Download missing episodes'}
@@ -74,11 +104,6 @@ export function SoloAnimeDownloadPanel({ className }: Readonly<SoloAnimeDownload
           <Chip.Label>A download check is already in progress.</Chip.Label>
         </Chip>
       ) : null}
-      {status === 'error' && errorMessage !== undefined ? (
-        <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-          {errorMessage}
-        </p>
-      ) : null}
-    </section>
-  );
+	</section>
+	);
 }

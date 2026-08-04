@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import { SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE } from './solo-anime-download-panel.constants';
@@ -13,7 +11,6 @@ import type { SoloAnimeDownloadState } from './solo-anime-download-panel.types';
  * calls, no effects, no data shaping.
  */
 export function useSoloAnimeDownloadPanel(
-  animeSource: BridgeRuntimeSource = bridgeRuntimeSource,
   downloadSource: DownloadRuntimeSource = downloadRuntimeSource,
 ) {
   // 1. Refs
@@ -26,6 +23,7 @@ export function useSoloAnimeDownloadPanel(
     status: 'loading',
     errorMessage: undefined,
   });
+  const [retryCount, setRetryCount] = useState(0);
 
   // 3. Context/3rd Party Hooks
 
@@ -38,7 +36,7 @@ export function useSoloAnimeDownloadPanel(
     [options, state.selectedAnimeID],
   );
   const canTrigger = useMemo(
-    () => selected !== undefined && selected.canDownload && state.status !== 'triggering',
+    () => selected !== undefined && selected.ready && state.status !== 'triggering',
     [selected, state.status],
   );
 
@@ -51,12 +49,16 @@ export function useSoloAnimeDownloadPanel(
     setState((previous) => ({ ...previous, selectedAnimeID: animeID, status: 'ready', errorMessage: undefined }));
   }, []);
 
+  const onRetry = useCallback(() => {
+    setRetryCount((count) => count + 1);
+  }, []);
+
   const onTriggerDownload = useCallback(async () => {
     const selectedOption = getSoloAnimeDownloadOptions(state.items, state.query).find(
       (option) => option.id === state.selectedAnimeID,
     );
 
-    if (!selectedOption?.canDownload) {
+    if (!selectedOption?.ready) {
       return;
     }
 
@@ -72,11 +74,11 @@ export function useSoloAnimeDownloadPanel(
         setState((previous) => ({ ...previous, status: 'already-in-progress' }));
         return;
       }
-      setState((previous) => ({ ...previous, status: 'error', errorMessage: response }));
+      setState((previous) => ({ ...previous, status: 'trigger-error', errorMessage: response }));
     } catch (error) {
       setState((previous) => ({
         ...previous,
-        status: 'error',
+        status: 'trigger-error',
         errorMessage: error instanceof Error ? error.message : 'Failed to start anime download',
       }));
     }
@@ -86,13 +88,12 @@ export function useSoloAnimeDownloadPanel(
   useEffect(() => {
     let active = true;
 
-    animeSource
-      .getAnimes()
-      .then((items) => {
+    downloadSource.listDownloadReadiness()
+      .then((snapshot) => {
         if (!active) {
           return;
         }
-        setState((previous) => ({ ...previous, items, status: 'ready', errorMessage: undefined }));
+        setState((previous) => ({ ...previous, items: snapshot.items, status: 'ready', errorMessage: undefined }));
       })
       .catch((error: unknown) => {
         if (!active) {
@@ -101,7 +102,7 @@ export function useSoloAnimeDownloadPanel(
         setState((previous) => ({
           ...previous,
           items: [],
-          status: 'error',
+          status: 'readiness-error',
           errorMessage: error instanceof Error ? error.message : 'Failed to load animes',
         }));
       });
@@ -109,7 +110,7 @@ export function useSoloAnimeDownloadPanel(
     return () => {
       active = false;
     };
-  }, [animeSource]);
+  }, [downloadSource, retryCount]);
 
   return {
     status: state.status,
@@ -118,6 +119,7 @@ export function useSoloAnimeDownloadPanel(
     selected,
     errorMessage: state.errorMessage,
     canTrigger,
+    onRetry,
     onQueryChange,
     onSelectAnime,
     onTriggerDownload,

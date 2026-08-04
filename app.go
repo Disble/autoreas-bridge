@@ -92,6 +92,7 @@ type App struct {
 	newDownloadScheduler     func(deps schedule.Deps) schedule.Scheduler
 	downloadStore            download.Store
 	downloadService          *download.Service
+	readinessService         *download.ReadinessService
 	downloadScheduler        schedule.Scheduler
 	soloDownloadMu           sync.Mutex
 	newSeasonStore           func(db *sql.DB) season.Repository

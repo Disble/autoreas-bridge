@@ -46,6 +46,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' }),
     ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' }),
     listDownloadRuns: vi.fn().mockResolvedValue([]),
+    listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };

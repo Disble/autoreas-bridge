@@ -1,64 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import type { Anime } from '../../../../../shared/contracts/anime.types';
+import type { AnimeDownloadReadiness, DownloadReadinessReason } from '../../../../../shared/contracts/download.types';
+import { getDownloadReadinessReasonLabel } from '../../../../../shared/constants/download-readiness';
 import {
-  formatSoloAnimeProgress,
-  getSoloAnimeDownloadGapLabel,
   getSoloAnimeDownloadOptions,
   toSoloAnimeDownloadOption,
 } from '../solo-anime-download-panel.helpers';
 
-const baseAnime: Anime = {
-  id: 'anime-1',
+const readyAnime: AnimeDownloadReadiness = {
+  animeId: 'anime-1',
   name: 'Frieren',
-  status: 2,
-  episodesWatched: 12,
-  totalEpisodes: 28,
-  active: 1,
-  days: [],
-  genres: [],
-  hasDownloadPage: true,
-  hasFolder: true,
+  ready: true,
+  reasons: [],
+  scheduledToday: false,
 };
 
+function blocked(reason: DownloadReadinessReason, name = 'Blocked'): AnimeDownloadReadiness {
+  return { ...readyAnime, animeId: name.toLowerCase(), name, ready: false, reasons: [reason] };
+}
+
 describe('solo anime download helpers', () => {
-  it('formats progress with unknown total fallback', () => {
-    expect(formatSoloAnimeProgress(4)).toBe('4 / ?');
-    expect(formatSoloAnimeProgress(4, 12)).toBe('4 / 12');
+  it('maps every backend blocker to precise English copy', () => {
+    const reasons: DownloadReadinessReason[] = ['missing_source', 'invalid_source', 'unsupported_source', 'destination_unresolved'];
+    expect(reasons.map(getDownloadReadinessReasonLabel)).toEqual([
+      'Source page is missing.',
+      'Source page is invalid.',
+      'This source is not supported for downloads.',
+      'Download destination could not be resolved.',
+    ]);
   });
 
-  it('marks an anime downloadable only when active and complete', () => {
-    expect(toSoloAnimeDownloadOption(baseAnime).canDownload).toBe(true);
-    expect(toSoloAnimeDownloadOption({ ...baseAnime, active: 0 }).canDownload).toBe(false);
-    expect(toSoloAnimeDownloadOption({ ...baseAnime, hasFolder: false }).canDownload).toBe(false);
+  it('keeps ready and blocked rows inspectable', () => {
+    expect(toSoloAnimeDownloadOption(readyAnime)).toEqual({ id: 'anime-1', name: 'Frieren', ready: true, reasonLabels: [] });
+    expect(toSoloAnimeDownloadOption(blocked('destination_unresolved')).reasonLabels).toEqual([
+      'Download destination could not be resolved.',
+    ]);
   });
 
-  it('returns a download gap label for missing prerequisites', () => {
-    expect(getSoloAnimeDownloadGapLabel({ ...baseAnime, hasDownloadPage: false })).toBe('Missing page');
-    expect(getSoloAnimeDownloadGapLabel({ ...baseAnime, hasFolder: false })).toBe('Missing folder');
-    expect(getSoloAnimeDownloadGapLabel({ ...baseAnime, hasDownloadPage: false, hasFolder: false })).toBe('Missing page & folder');
-  });
-
-  it('filters and sorts selector options by name', () => {
+  it('searches the full catalog, including inactive and Movie/OVA entries', () => {
     const options = getSoloAnimeDownloadOptions([
-      { ...baseAnime, id: 'b', name: 'Zeta' },
-      { ...baseAnime, id: 'a', name: 'Alpha' },
-    ], 'alp');
+      blocked('unsupported_source', 'Zeta'),
+      { ...readyAnime, animeId: 'movie', name: 'Movie', scheduledToday: false },
+      { ...readyAnime, animeId: 'inactive', name: 'Inactive', scheduledToday: false },
+    ], '');
 
-    expect(options.map((option) => option.name)).toEqual(['Alpha']);
+    expect(options.map((option) => option.name)).toEqual(['Inactive', 'Movie', 'Zeta']);
   });
 
-  it('caps the selector list at eight items after sorting', () => {
+  it('does not truncate a catalog larger than the old selector limit', () => {
     const options = getSoloAnimeDownloadOptions(
-      Array.from({ length: 10 }, (_, index) => ({
-        ...baseAnime,
-        id: `anime-${index + 1}`,
-        name: `Anime ${String(10 - index).padStart(2, '0')}`,
-      })),
+      Array.from({ length: 10 }, (_, index) => ({ ...readyAnime, animeId: `anime-${index}`, name: `Anime ${index}` })),
       '',
     );
 
-    expect(options).toHaveLength(8);
-    expect(options[0]?.name).toBe('Anime 01');
-    expect(options[7]?.name).toBe('Anime 08');
+    expect(options).toHaveLength(10);
   });
 });

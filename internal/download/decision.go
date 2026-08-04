@@ -1,5 +1,12 @@
 package download
 
+import (
+	"net/url"
+	"strings"
+
+	"autoreas-bridge/internal/download/sites"
+)
+
 // NeedsDownload reports whether a download is needed for an anime, per the validated PoC
 // trigger semantic: the HIGHEST online episode NUMBER (not a count of listed entries)
 // exceeds the count of video files currently on disk. The on-disk count MUST be re-derived
@@ -26,13 +33,6 @@ func HighestEpisodeNumber(episodeNumbers []int) int {
 	return highest
 }
 
-// unsupportedTipo holds the Tipo values explicitly out of scope for episodic download
-// (design.md §2.1 row #3, contracts.MobileAnime.Tipo: 0=Serie, 1=Pelicula, 2=OVA).
-var unsupportedTipo = map[int]bool{
-	1: true, // Pelicula
-	2: true, // OVA
-}
-
 // SkipReason is a stable, observable code identifying why an anime was excluded from a
 // download run (download-orchestration spec "Explicit Tipo 1/2 Skip"; "Missing
 // Pagina/Carpeta Surfaced as Actionable State"). It is surfaced in structured logs and/or
@@ -42,11 +42,11 @@ type SkipReason string
 const (
 	// SkipReasonNone indicates the candidate was NOT skipped by the gating checks.
 	SkipReasonNone SkipReason = ""
-	// SkipReasonUnsupportedTipo identifies a Tipo 1 (movie) or 2 (OVA) skip.
+	// SkipReasonUnsupportedTipo remains readable from historical run details.
 	SkipReasonUnsupportedTipo SkipReason = "unsupported_tipo"
-	// SkipReasonMissingPagina identifies a missing/empty Pagina (site page URL) skip.
+	// SkipReasonMissingPagina remains readable from historical run details.
 	SkipReasonMissingPagina SkipReason = "missing_pagina"
-	// SkipReasonMissingCarpeta identifies a missing/empty Carpeta (destination folder) skip.
+	// SkipReasonMissingCarpeta remains readable from historical run details.
 	SkipReasonMissingCarpeta SkipReason = "missing_carpeta"
 )
 
@@ -56,56 +56,82 @@ const (
 // It deliberately mirrors only the fields relevant to EvaluateAnimeForDownload so this file
 // has no dependency on the contracts package.
 type AnimeDownloadCandidate struct {
-	Tipo    *int    // nil or 0 = Serie (eligible); 1 = Pelicula, 2 = OVA (unsupported)
-	Pagina  *string // site page URL; nil/empty = missing
-	Carpeta *string // destination folder; nil/empty = missing
+	Name          string
+	Tipo          *int // retained for read compatibility; type never blocks download readiness
+	Pagina        *string
+	Carpeta       *string
+	DownloadsRoot string
+	Sites         SiteRegistry
 }
 
 // AnimeDownloadDecision is the pure gating outcome for one anime candidate. When Skip is
 // true, SkipReason identifies why and Err wraps the matching sentinel error from errors.go
 // -- per spec, a skip MUST be a surfaced, observable reason, never a silent no-op.
 type AnimeDownloadDecision struct {
-	Skip       bool
-	SkipReason SkipReason
-	Err        error
+	Skip        bool
+	SkipReason  SkipReason
+	Err         error
+	Reasons     []ReadinessReason
+	Destination string
+	Source      sites.EpisodeSource
 }
 
-// EvaluateAnimeForDownload runs the pure gating checks that decide whether an anime
-// candidate should be excluded from a download run BEFORE any site resolution, scraping, or
-// filesystem I/O is attempted:
-//
-//  1. Tipo 1 (Pelicula) or Tipo 2 (OVA) -> SkipReasonUnsupportedTipo (checked first: a
-//     movie/OVA is out of scope regardless of its Pagina/Carpeta state).
-//  2. Missing/empty Pagina -> SkipReasonMissingPagina.
-//  3. Missing/empty Carpeta -> SkipReasonMissingCarpeta.
-//
-// A candidate that passes all three checks is NOT skipped (Skip=false, Err=nil) and
-// proceeds to the online-vs-disk decision (NeedsDownload), which is evaluated separately
-// once the caller has resolved a site adapter and an on-disk count.
+// EvaluateAnimeForDownload classifies local source and destination blockers before runtime work.
 func EvaluateAnimeForDownload(candidate AnimeDownloadCandidate) AnimeDownloadDecision {
-	if candidate.Tipo != nil && unsupportedTipo[*candidate.Tipo] {
-		return AnimeDownloadDecision{
-			Skip:       true,
-			SkipReason: SkipReasonUnsupportedTipo,
-			Err:        ErrUnsupportedTipo,
+	reasons := make([]ReadinessReason, 0, 2)
+	var source sites.EpisodeSource
+	page := strings.TrimSpace(derefOrEmpty(candidate.Pagina))
+	switch {
+	case page == "":
+		reasons = append(reasons, DownloadReadinessMissingSource)
+	case !validSourceURL(page):
+		reasons = append(reasons, DownloadReadinessInvalidSource)
+	default:
+		if candidate.Sites == nil {
+			reasons = append(reasons, DownloadReadinessUnsupportedSource)
+		} else {
+			var err error
+			source, err = candidate.Sites.Resolve(page)
+			if err != nil || source == nil {
+				reasons = append(reasons, DownloadReadinessUnsupportedSource)
+			}
 		}
 	}
-
-	if candidate.Pagina == nil || *candidate.Pagina == "" {
-		return AnimeDownloadDecision{
-			Skip:       true,
-			SkipReason: SkipReasonMissingPagina,
-			Err:        ErrMissingPagina,
-		}
+	destination := ResolveDestination(candidate.Carpeta, candidate.DownloadsRoot, candidate.Name)
+	if destination == "" {
+		reasons = append(reasons, DownloadReadinessDestinationUnresolved)
 	}
-
-	if candidate.Carpeta == nil || *candidate.Carpeta == "" {
-		return AnimeDownloadDecision{
-			Skip:       true,
-			SkipReason: SkipReasonMissingCarpeta,
-			Err:        ErrMissingCarpeta,
-		}
+	decision := AnimeDownloadDecision{Reasons: reasons, Destination: destination, Source: source}
+	if len(reasons) > 0 {
+		decision.Skip = true
+		decision.SkipReason = SkipReason(reasons[0])
+		decision.Err = readinessReasonError(reasons[0])
 	}
+	return decision
+}
 
-	return AnimeDownloadDecision{Skip: false, SkipReason: SkipReasonNone}
+// validSourceURL accepts absolute HTTP(S) source pages before adapter matching.
+func validSourceURL(value string) bool {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || !parsed.IsAbs() {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	return scheme == "http" || scheme == "https"
+}
+
+// readinessReasonError maps one stable readiness blocker to its runtime sentinel.
+func readinessReasonError(reason ReadinessReason) error {
+	switch reason {
+	case DownloadReadinessMissingSource:
+		return ErrMissingSource
+	case DownloadReadinessInvalidSource:
+		return ErrInvalidSource
+	case DownloadReadinessUnsupportedSource:
+		return ErrUnsupportedSource
+	case DownloadReadinessDestinationUnresolved:
+		return ErrDestinationUnresolved
+	default:
+		return nil
+	}
 }

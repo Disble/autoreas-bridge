@@ -200,7 +200,7 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	a.animeWrite.SetDeps(deps)
 	a.animeEditorWrite.SetDeps(deps)
 	a.animeEditorScheduleWrite.SetDeps(deps)
-	create := anime.NewCreateService(a.animeWrite, nil)
+	create := anime.NewCreateService(a.animeWrite)
 	create.SetQuery(animeQuery)
 	a.animeCreate = create
 	a.animeCreateBatch = create

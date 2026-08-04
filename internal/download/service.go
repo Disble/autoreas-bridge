@@ -47,6 +47,7 @@ const (
 // Failure-kind classification (design.md §8, download-sites spec "Failure-Cause
 // Classification"): recorded in error_summary / log Metadata, never silently dropped.
 const (
+	FailureKindConfiguration = "configuration"
 	FailureKindCaptcha       = "captcha"
 	FailureKindHosterDown    = "hoster_down"
 	FailureKindSlowOrTimeout = "slow_or_timeout"
@@ -58,18 +59,19 @@ const (
 // has NO write dependency on the anime context (download-orchestration spec "No Write-Back to
 // the Anime Context", ADR-5).
 type ServiceDeps struct {
-	Animes    contracts.AnimeQueryService
-	Sites     SiteRegistry
-	Hosters   HosterResolver
-	JD        jdownloader.JDClient
-	Counter   filesystem.EpisodeCounter
-	Flattener filesystem.Flattener
-	Store     Store
-	Notifier  notification.Notifier
-	Bus       events.Bus
-	Logger    logger.Logger
-	Clock     func() time.Time
-	NewRunID  func() string
+	Animes        contracts.AnimeQueryService
+	Sites         SiteRegistry
+	DownloadsRoot func(context.Context) (string, error)
+	Hosters       HosterResolver
+	JD            jdownloader.JDClient
+	Counter       filesystem.EpisodeCounter
+	Flattener     filesystem.Flattener
+	Store         Store
+	Notifier      notification.Notifier
+	Bus           events.Bus
+	Logger        logger.Logger
+	Clock         func() time.Time
+	NewRunID      func() string
 
 	// JDDeviceName is the configured MyJDownloader device name used for EnsureOnline/AddAndStart.
 	// Empty is valid in tests (fakes ignore it); production wiring (app.go) sources it from the

@@ -46,6 +46,14 @@ func (a *App) GetDownloadsRoot() string {
 	return root
 }
 
+// downloadsRoot is the download-context settings seam used by readiness and execution.
+func (a *App) downloadsRoot(ctx context.Context) (string, error) {
+	if a.settingsStore == nil {
+		return "", settings.ErrDatabaseUnavailable
+	}
+	return a.settingsStore.DownloadsRoot(ctx)
+}
+
 // SetDownloadsRoot persists the global downloads root — the base folder joined
 // with a sanitized anime name to form a newly-created season anime's default
 // download folder. Returns "ok" or an error string.

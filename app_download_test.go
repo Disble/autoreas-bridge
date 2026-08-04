@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -103,6 +104,42 @@ func TestListDownloadRunsReturnsEmptyWhenStoreNil(t *testing.T) {
 	app := &App{ctx: context.Background()}
 	if got := app.ListDownloadRuns(); len(got) != 0 {
 		t.Fatalf("expected empty run list when store is nil, got %#v", got)
+	}
+}
+
+func TestListDownloadReadinessReturnsEmptyArraysForEmptyCatalog(t *testing.T) {
+	service := download.NewReadinessService(download.ReadinessServiceDeps{
+		Animes:        &stubAnimeQueryService{},
+		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:         download.NewStaticRegistry(),
+	})
+	app := &App{ctx: context.Background(), readinessService: service}
+
+	got, err := app.ListDownloadReadiness()
+	if err != nil || len(got.Items) != 0 || got.Items == nil {
+		t.Fatalf("readiness = %#v, err=%v; want successful empty array", got, err)
+	}
+	payload, marshalErr := json.Marshal(got)
+	if marshalErr != nil || !strings.Contains(string(payload), `"items":[]`) {
+		t.Fatalf("readiness payload = %s, err=%v; want items []", payload, marshalErr)
+	}
+}
+
+func TestListDownloadReadinessReturnsQueryErrorWithoutFabricatingSnapshot(t *testing.T) {
+	queryErr := errors.New("catalog unavailable")
+	service := download.NewReadinessService(download.ReadinessServiceDeps{
+		Animes:        &stubAnimeQueryService{err: queryErr},
+		DownloadsRoot: func(context.Context) (string, error) { return "D:/Downloads", nil },
+		Sites:         download.NewStaticRegistry(),
+	})
+	app := &App{ctx: context.Background(), readinessService: service}
+
+	got, err := app.ListDownloadReadiness()
+	if !errors.Is(err, queryErr) {
+		t.Fatalf("readiness error = %v, want %v", err, queryErr)
+	}
+	if got.Items != nil {
+		t.Fatalf("failed readiness returned fabricated items: %#v", got.Items)
 	}
 }
 

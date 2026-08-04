@@ -1,36 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
-import type { Anime } from '../../../../../shared/contracts/anime.types';
+import type { DownloadReadinessSnapshot } from '../../../../../shared/contracts/download.types';
 import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 
-const anime: Anime = {
-  id: 'anime-1',
-  name: 'Frieren',
-  status: 2,
-  episodesWatched: 12,
-  totalEpisodes: 28,
-  active: 1,
-  days: [],
-  genres: [],
-  hasDownloadPage: true,
-  hasFolder: true,
+const snapshot: DownloadReadinessSnapshot = {
+  items: [
+    { animeId: 'blocked', name: 'Blocked Anime', ready: false, reasons: ['destination_unresolved'], scheduledToday: false },
+    { animeId: 'ready', name: 'Ready Anime', ready: true, reasons: [], scheduledToday: false },
+  ],
+  scheduledTotal: 0,
+  scheduledReady: 0,
+  scheduledBlocked: 0,
 };
-
-function createAnimeSource(items: readonly Anime[] = [anime]): BridgeRuntimeSource {
-  return {
-    getSQLiteStatus: vi.fn(),
-    getEffectiveAddress: vi.fn(),
-    getPairingToken: vi.fn(),
-    getSyncingAnimeItems: vi.fn(),
-    getAnimes: vi.fn().mockResolvedValue(items),
-    getAnimeDetail: vi.fn().mockResolvedValue(null),
-    getAnimeHistory: vi.fn(),
-    triggerReconcile: vi.fn(),
-    onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
-  };
-}
 
 function createDownloadSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
@@ -45,57 +27,73 @@ function createDownloadSource(overrides: Partial<DownloadRuntimeSource> = {}): D
     runMissedScheduleNow: vi.fn(),
     ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn(),
+    listDownloadReadiness: vi.fn().mockResolvedValue(snapshot),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
 
 describe('useSoloAnimeDownloadPanel', () => {
-  it('loads anime options', async () => {
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(createAnimeSource(), createDownloadSource()));
+  it('loads the backend readiness catalog without filtering blocked records', async () => {
+    const source = createDownloadSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
-    expect(result.current.options[0].name).toBe('Frieren');
+    expect(result.current.options.map((option) => option.name)).toEqual(['Blocked Anime', 'Ready Anime']);
   });
 
-  it('triggers a solo download for the selected anime', async () => {
-    const downloadSource = createDownloadSource();
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(createAnimeSource(), downloadSource));
-    let triggerPromise: Promise<void> | undefined;
+  it('keeps a blocked selection inspectable and prevents runtime execution', async () => {
+    const source = createDownloadSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => result.current.onSelectAnime('blocked'));
+    await waitFor(() => expect(result.current.selected?.id).toBe('blocked'));
 
-    act(() => {
-      result.current.onSelectAnime('anime-1');
-    });
-    await waitFor(() => expect(result.current.selected?.id).toBe('anime-1'));
-    expect(result.current.canTrigger).toBe(true);
-    act(() => {
-      triggerPromise = result.current.onTriggerDownload();
-    });
-    await triggerPromise;
-    expect(downloadSource.triggerAnimeDownload).toHaveBeenCalledWith('anime-1');
-
+    expect(result.current.canTrigger).toBe(false);
+    await act(async () => result.current.onTriggerDownload());
+    expect(source.triggerAnimeDownload).not.toHaveBeenCalled();
   });
 
-  it('sends the selected anime id when the backend later reports an error', async () => {
-    const downloadSource = createDownloadSource({ triggerAnimeDownload: vi.fn().mockResolvedValue('boom') });
-    const { result } = renderHook(() => useSoloAnimeDownloadPanel(createAnimeSource(), downloadSource));
-    let triggerPromise: Promise<void> | undefined;
+  it('enables and triggers a ready selection', async () => {
+    const source = createDownloadSource();
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
 
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => result.current.onSelectAnime('ready'));
+    await waitFor(() => expect(result.current.selected?.id).toBe('ready'));
 
-    act(() => {
-      result.current.onSelectAnime('anime-1');
-    });
-    await waitFor(() => expect(result.current.selected?.id).toBe('anime-1'));
     expect(result.current.canTrigger).toBe(true);
-    act(() => {
-      triggerPromise = result.current.onTriggerDownload();
-    });
-    await triggerPromise;
+    await act(async () => result.current.onTriggerDownload());
+    expect(source.triggerAnimeDownload).toHaveBeenCalledWith('ready');
+  });
 
-    expect(downloadSource.triggerAnimeDownload).toHaveBeenCalledWith('anime-1');
+  it('surfaces query failure and retries the backend query', async () => {
+    const source = createDownloadSource({
+      listDownloadReadiness: vi.fn().mockRejectedValueOnce(new Error('readiness failed')).mockResolvedValue(snapshot),
+    });
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('readiness-error'));
+    expect(result.current.errorMessage).toBe('readiness failed');
+    act(() => result.current.onRetry());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(source.listDownloadReadiness).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a download-start failure separate from readiness loading', async () => {
+    const source = createDownloadSource({
+      triggerAnimeDownload: vi.fn().mockRejectedValue(new Error('JDownloader is unavailable')),
+    });
+    const { result } = renderHook(() => useSoloAnimeDownloadPanel(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    act(() => result.current.onSelectAnime('ready'));
+    await act(async () => result.current.onTriggerDownload());
+
+    expect(result.current.status).toBe('trigger-error');
+    expect(result.current.errorMessage).toBe('JDownloader is unavailable');
+    expect(result.current.canTrigger).toBe(true);
   });
 });

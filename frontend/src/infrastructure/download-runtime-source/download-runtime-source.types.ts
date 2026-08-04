@@ -1,6 +1,7 @@
 import type {
   DownloadConfig,
-  DownloadRunView,
+	DownloadRunView,
+	DownloadReadinessSnapshot,
   HosterPriorityItem,
   JDConfigInput,
   JDStatus,
@@ -22,6 +23,7 @@ export interface DownloadRuntimeSource {
   readonly triggerAnimeDownload: (animeID: string) => Promise<string>;
   readonly runMissedScheduleNow: (localDate: string) => Promise<ScheduleMissedActionResult>;
   readonly ignoreMissedSchedule: (localDate: string) => Promise<ScheduleMissedActionResult>;
-  readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
+	readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
+	readonly listDownloadReadiness: () => Promise<DownloadReadinessSnapshot>;
   readonly subscribeRunEvents: (listener: () => void) => () => void;
 }

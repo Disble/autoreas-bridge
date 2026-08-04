@@ -9,6 +9,15 @@ import "errors"
 // Only the errors needed by Phase 3 (pure domain) are defined here. Later phases (adapters,
 // scheduler, service) add their own sentinels to this same file as they are implemented.
 var (
+	// ErrMissingSource identifies an absent source page at execution time.
+	ErrMissingSource = errors.New("download: source page is missing")
+	// ErrInvalidSource identifies a source value that is not an absolute HTTP(S) URL.
+	ErrInvalidSource = errors.New("download: source page is invalid")
+	// ErrUnsupportedSource identifies a source with no local adapter match.
+	ErrUnsupportedSource = errors.New("download: source page is unsupported")
+	// ErrDestinationUnresolved identifies a source with no deterministic destination.
+	ErrDestinationUnresolved = errors.New("download: destination could not be resolved")
+
 	// ErrUnsupportedTipo is returned/wrapped when an anime's Tipo is 1 (Pelicula) or 2 (OVA)
 	// -- these are explicitly out of scope for the episodic download pipeline and MUST be
 	// skipped with a surfaced reason, never silently treated as a series.

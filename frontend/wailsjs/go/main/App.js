@@ -182,6 +182,10 @@ export function ListCaptureTransactions(arg1) {
   return window['go']['main']['App']['ListCaptureTransactions'](arg1);
 }
 
+export function ListDownloadReadiness() {
+  return window['go']['main']['App']['ListDownloadReadiness']();
+}
+
 export function ListDownloadRuns() {
   return window['go']['main']['App']['ListDownloadRuns']();
 }

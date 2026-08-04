@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSchedulePanel } from '../use-schedule-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { PreferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.types';
-import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadReadinessSnapshot, ScheduleConfig } from '../../../../../shared/contracts/download.types';
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { resetPreferencesStore } from '../../../../../shared/store/preferences-store/preferences-store.helpers';
 
@@ -19,6 +19,13 @@ const baseConfig: ScheduleConfig = {
   missedNotice: undefined,
 };
 
+const emptyReadiness: DownloadReadinessSnapshot = {
+  items: [],
+  scheduledTotal: 0,
+  scheduledReady: 0,
+  scheduledBlocked: 0,
+};
+
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -32,6 +39,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     runMissedScheduleNow: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' }),
     ignoreMissedSchedule: vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' }),
     listDownloadRuns: vi.fn(),
+    listDownloadReadiness: vi.fn().mockResolvedValue(emptyReadiness),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
@@ -78,6 +86,40 @@ describe('useSchedulePanel', () => {
     const { result } = renderHook(() => useSchedulePanel(source));
 
     await waitFor(() => expect(result.current.status).toBe('error'));
+  });
+
+  it('loads the schedule readiness summary without changing the schedule status', async () => {
+    const source = createSource({
+      listDownloadReadiness: vi.fn().mockResolvedValue({
+        items: [{ animeId: 'blocked', name: 'Blocked Anime', ready: false, reasons: ['unsupported_source'], scheduledToday: true }],
+        scheduledTotal: 1,
+        scheduledReady: 0,
+        scheduledBlocked: 1,
+      }),
+    });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.readiness?.scheduledBlocked).toBe(1));
+
+    expect(result.current.status).toBe('ready');
+    expect(result.current.readinessErrorMessage).toBeUndefined();
+  });
+
+  it('surfaces a retryable readiness error without fabricating a readiness summary', async () => {
+    const listDownloadReadiness = vi.fn().mockRejectedValue(new Error('readiness unavailable'));
+    const source = createSource({ listDownloadReadiness });
+    const { result } = renderHook(() => useSchedulePanel(source));
+
+    await waitFor(() => expect(result.current.readinessErrorMessage).toBe('readiness unavailable'));
+
+    expect(result.current.status).toBe('ready');
+    expect(result.current.viewModel.readiness).toBeUndefined();
+
+    await act(async () => {
+      await result.current.refreshReadiness();
+    });
+
+    expect(listDownloadReadiness).toHaveBeenCalledTimes(2);
   });
 
   it('setEnabled persists the change via setScheduleConfig', async () => {

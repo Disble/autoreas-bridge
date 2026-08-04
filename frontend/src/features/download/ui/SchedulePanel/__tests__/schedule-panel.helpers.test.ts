@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   computeNextRunAtMs,
   maskToWeekdayValues,
+  toScheduleReadinessViewModel,
   toSchedulePanelViewModel,
   toScheduleSaveRequest,
   weekdayValuesToMask,
 } from '../schedule-panel.helpers';
-import type { ScheduleConfig } from '../../../../../shared/contracts/download.types';
+import type { DownloadReadinessSnapshot, ScheduleConfig } from '../../../../../shared/contracts/download.types';
 
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',
@@ -74,6 +75,16 @@ describe('toSchedulePanelViewModel', () => {
     expect(viewModel.selectedWeekdayValues).toEqual(['3', '4']);
   });
 
+  it('flags whether today is one of the selected schedule weekdays', () => {
+    const thursday = new Date(2024, 0, 4, 12, 0, 0);
+    const friday = new Date(2024, 0, 5, 12, 0, 0);
+    const config = { ...baseConfig, enabledWeekdays: (1 << 4) | (1 << 5) };
+
+    expect(toSchedulePanelViewModel(config, undefined, thursday).isScheduledToday).toBe(true);
+    expect(toSchedulePanelViewModel(config, undefined, new Date(2024, 0, 2, 12, 0, 0)).isScheduledToday).toBe(false);
+    expect(toSchedulePanelViewModel({ ...config, enabled: false }, undefined, friday).isScheduledToday).toBe(false);
+  });
+
   it('flags willNeverRun when enabled with no weekdays selected', () => {
     expect(toSchedulePanelViewModel({ ...baseConfig, enabled: true, enabledWeekdays: 0 }, undefined).willNeverRun).toBe(true);
   });
@@ -122,6 +133,28 @@ describe('toSchedulePanelViewModel', () => {
 
   it('does not flag willNeverRun when disabled even with no weekdays', () => {
     expect(toSchedulePanelViewModel({ ...baseConfig, enabled: false, enabledWeekdays: 0 }, undefined).willNeverRun).toBe(false);
+  });
+});
+
+describe('toScheduleReadinessViewModel', () => {
+  it('keeps only blocked scheduled anime and maps their precise reason labels', () => {
+    const snapshot: DownloadReadinessSnapshot = {
+      items: [
+        { animeId: 'ready', name: 'Ready Anime', ready: true, reasons: [], scheduledToday: true },
+        { animeId: 'blocked', name: 'Blocked Anime', ready: false, reasons: ['unsupported_source'], scheduledToday: true },
+        { animeId: 'solo', name: 'Solo Only', ready: false, reasons: ['missing_source'], scheduledToday: false },
+      ],
+      scheduledTotal: 2,
+      scheduledReady: 1,
+      scheduledBlocked: 1,
+    };
+
+    expect(toScheduleReadinessViewModel(snapshot)).toEqual({
+      scheduledTotal: 2,
+      scheduledReady: 1,
+      scheduledBlocked: 1,
+      blockedAnime: [{ name: 'Blocked Anime', reasonLabels: ['This source is not supported for downloads.'] }],
+    });
   });
 });
 

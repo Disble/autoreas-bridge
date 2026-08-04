@@ -3,7 +3,8 @@ import {
   GetJDStatus,
   GetScheduleConfig,
   IgnoreMissedSchedule,
-  ListDownloadRuns,
+	ListDownloadRuns,
+	ListDownloadReadiness,
   RunMissedScheduleNow,
   SetHosterPriority,
   SetJDConfig,
@@ -12,6 +13,7 @@ import {
   TriggerDownloadCheck,
 } from '../../../wailsjs/go/main/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
+import type { contracts } from '../../../wailsjs/go/models';
 import {
   DOWNLOAD_RUN_EVENT_NAMES,
   DOWNLOAD_RUNTIME_SOURCE_STATE,
@@ -20,6 +22,7 @@ import {
   EMPTY_SCHEDULE_CONFIG,
   createRuntimeUnavailableMissedActionResult,
 } from './download-runtime-source.constants';
+import type { AnimeDownloadReadiness, DownloadReadinessReason, DownloadReadinessSnapshot } from '../../shared/contracts/download.types';
 import type { DownloadRuntimeSource } from './download-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
@@ -30,6 +33,41 @@ function normalizeDownloadConfig(config: import('../../shared/contracts/download
   return {
     ...config,
     hosterPriority: Array.isArray(config.hosterPriority) ? config.hosterPriority : [],
+  };
+}
+
+function mapDownloadReadinessReason(reason: string): DownloadReadinessReason {
+  switch (reason) {
+    case 'missing_source':
+    case 'invalid_source':
+    case 'unsupported_source':
+    case 'destination_unresolved':
+      return reason;
+    default:
+      throw new Error(`Unknown download readiness reason: ${reason}`);
+  }
+}
+
+function mapDownloadReadinessItem(item: contracts.AnimeDownloadReadiness): AnimeDownloadReadiness {
+  return {
+    animeId: item.animeId,
+    name: item.name,
+    ready: item.ready,
+    reasons: item.reasons.map(mapDownloadReadinessReason),
+    scheduledToday: item.scheduledToday,
+  };
+}
+
+/**
+ * Converts the mutable generated Wails readiness DTO into the readonly frontend contract.
+ * Validation rejects backend reason drift so the UI cannot silently display an unknown blocker.
+ */
+export function mapDownloadReadinessSnapshot(snapshot: contracts.DownloadReadinessSnapshot): DownloadReadinessSnapshot {
+  return {
+    items: snapshot.items.map(mapDownloadReadinessItem),
+    scheduledTotal: snapshot.scheduledTotal,
+    scheduledReady: snapshot.scheduledReady,
+    scheduledBlocked: snapshot.scheduledBlocked,
   };
 }
 
@@ -45,7 +83,7 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     return DOWNLOAD_RUN_EVENT_NAMES.map((eventName) => EventsOn(eventName, () => emit(undefined)));
   });
 
-  DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource = {
+  const source: DownloadRuntimeSource = {
     getDownloadConfig() {
       return invokeGoBinding('GetDownloadConfig', GetDownloadConfig, () => EMPTY_DOWNLOAD_CONFIG).then(normalizeDownloadConfig);
     },
@@ -76,15 +114,21 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     ignoreMissedSchedule(localDate) {
       return invokeGoBinding('IgnoreMissedSchedule', () => IgnoreMissedSchedule(localDate), () => createRuntimeUnavailableMissedActionResult(localDate));
     },
-    listDownloadRuns() {
-      return invokeGoBinding('ListDownloadRuns', ListDownloadRuns, () => []);
-    },
+	listDownloadRuns() {
+		return invokeGoBinding('ListDownloadRuns', ListDownloadRuns, () => []);
+	},
+	listDownloadReadiness() {
+		return invokeGoBinding('ListDownloadReadiness', ListDownloadReadiness, () => {
+			throw new Error('runtime unavailable');
+		}).then(mapDownloadReadinessSnapshot);
+	},
     subscribeRunEvents(listener) {
       return runSubscription.subscribe(listener);
     },
   };
 
-  return DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource;
+  DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource = source;
+  return source;
 }
 
 /** Shared download source singleton used across hooks and stores. */
