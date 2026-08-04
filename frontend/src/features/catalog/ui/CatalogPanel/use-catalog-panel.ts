@@ -4,6 +4,7 @@ import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runt
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-list';
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
+import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window';
 import {
   ANIME_ACTIVO_OPTIONS,
   ANIME_ESTADO_OPTIONS,
@@ -59,6 +60,13 @@ export function useCatalogPanel(
     [filteredItems],
   );
   const isEmpty = useMemo(() => !isLoading && viewItems.length === 0, [isLoading, viewItems.length]);
+  // Static list (ADR-012): the count only moves when a filter or the search
+  // changes, which is exactly when restarting at the first batch is correct.
+  const listWindow = useProgressiveListWindow(viewItems.length);
+  const visibleItems = useMemo(
+    () => viewItems.slice(0, listWindow.visibleCount),
+    [viewItems, listWindow.visibleCount],
+  );
   const diaOptions = useMemo(() => getUniqueDiaOptions(items), [items]);
   const generoOptions = useMemo(() => getUniqueGeneroOptions(items), [items]);
 
@@ -90,9 +98,10 @@ export function useCatalogPanel(
   // 7. Effects
 
   return {
-    items: viewItems,
+    items: visibleItems,
     isLoading,
     isEmpty,
+    listWindow,
     filters,
     estadoOptions: ANIME_ESTADO_OPTIONS,
     activoOptions: ANIME_ACTIVO_OPTIONS,

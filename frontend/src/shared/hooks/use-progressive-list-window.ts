@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { UIEvent } from 'react';
 import { PROGRESSIVE_LIST_INITIAL_COUNT, PROGRESSIVE_LIST_LOAD_BATCH } from '../constants/progressive-list.constants';
 import { isNearListBottom, nextRenderLimit } from '../helpers/progressive-list.helpers';
+import type { ProgressiveListWindow } from './use-progressive-list-window.types';
 
 /**
  * Progressive rail rendering for large selectable lists: starts at INITIAL_COUNT
@@ -13,7 +14,7 @@ export function useProgressiveListWindow(
   itemCount: number,
   initialCount = PROGRESSIVE_LIST_INITIAL_COUNT,
   batch = PROGRESSIVE_LIST_LOAD_BATCH,
-) {
+): ProgressiveListWindow {
   // 1. Refs
   const scrollRef = useRef<HTMLDivElement>(null);
 

@@ -23,7 +23,8 @@
 9. **Reference Feature**: If in doubt, use `frontend/src/features/dashboard` as the frontend source-of-truth structure once introduced.
 10. **Scaffolding Generators**: NEVER create complex frontend feature folders manually when a generator can do it. Use `bun --cwd="frontend" run generate:feature <feature> <ComponentName>`.
 11. **Drag & Drop Rule**: Load the `dnd-kit` skill for any drag-and-drop (sortable, kanban/multi-column). Use the new `@dnd-kit/react` + `@dnd-kit/helpers` (React 19 + StrictMode safe, pointer-based for Wails WebView2). NEVER legacy `@dnd-kit/core`/`sortable`/`utilities`, NEVER native HTML5 DnD, and NEVER remove `React.StrictMode` to make dragging work.
-12. **Shared Dumb Components Rule**: Reusable presentation-only components live in `frontend/src/shared/ui/` — e.g. `LabeledTextField`, `LabeledSelect`, `LabeledCheckbox`, `PathPickerField`, `AnimeCoverPlaceholder`. PREFER composing these over hand-writing another raw `Label`/`Input`/`Select` block. When a Label/Input/Select pattern repeats (3+ instances), EXTRACT a new generic `shared/ui` component (readonly props in a colocated `*.types.ts`, JSDoc, colocated test) — this is the sanctioned way to cut JSX duplication and render complexity that the Fallow gate flags.
+12. **Long List Rule**: Any rail that can render 100+ rows MUST load progressively — an initial batch that grows on scroll-near-bottom — never a full `.map()` of the collection into a scroll container. Use `useProgressiveListWindow` (`frontend/src/shared/hooks/`) for **static** lists (count changes only from filter/search/one-shot fetch) and render `items.slice(0, visibleCount)`. For **live** lists (an event stream pushes items into a store) do NOT use that hook — its render-phase reset would snap the user back to the first batch on every event; keep the panel's own reconciliation and reuse only `isNearListBottom` from `shared/helpers/progressive-list.helpers.ts`. There is deliberately no lint rule (the trigger is not statically decidable), so every such rail MUST ship a DOM-count test asserting only one batch renders — see `AnimeEditorWorkspace.windowing.test.tsx`. Full rationale and rejected alternatives in `docs/adr/012-progressive-list-rendering.md`.
+13. **Shared Dumb Components Rule**: Reusable presentation-only components live in `frontend/src/shared/ui/` — e.g. `LabeledTextField`, `LabeledSelect`, `LabeledCheckbox`, `PathPickerField`, `AnimeCoverPlaceholder`. PREFER composing these over hand-writing another raw `Label`/`Input`/`Select` block. When a Label/Input/Select pattern repeats (3+ instances), EXTRACT a new generic `shared/ui` component (readonly props in a colocated `*.types.ts`, JSDoc, colocated test) — this is the sanctioned way to cut JSX duplication and render complexity that the Fallow gate flags.
 
 ## Mandatory Workflow
 
@@ -40,7 +41,11 @@
 - When writing Go tests, also load `go-testing`.
 - When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → **MUTATE** → REFACTOR strictly.
 - **Load `mutation-tdd` and mutation-check every guard before refactoring.** Delete the guard the test claims to cover, run only that test, and confirm it FAILS; then `git checkout -- <file>`. A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
-- Mutation checking is a prompt-driven step, NOT a hook. `lefthook.yml` deliberately does not run it: gremlins is non-reproducible on Windows and `go run ./tools/mutationstaged` costs ~100s per staged file against a ~90s gate. See `docs/mutation-testing.md`.
+- **Mutation coverage differs by surface — do not assume one answer for the repo.**
+  - **Frontend: automated.** `lefthook.yml` runs the `test:mutation:staged` job with `root: frontend` (a `dlinter:owned` job). The runner is Stryker via `frontend/stryker.dlinter.json`, driven by `frontend/scripts/dlinter-mutation-staged.mjs`, and `frontend/package.json` also exposes `test:mutation` and `test:mutation:guard` (the latter tests the staged runner itself). The staged job covers only the added lines of staged frontend files; everything else exits zero with no mutation coverage.
+  - **Go: prompt-driven, no runner.** `go run ./tools/mutationstaged` costs ~100s per staged file against an already ~90s gate, so no Go mutation job is wired. Delete the guard by hand, run the single test, confirm it FAILS, then `git checkout -- <file>`.
+  - `.gremlins.yaml` at the repo root is dead config from an abandoned proof of concept. It configures nothing that runs; do not treat its presence as evidence that Go mutation testing is set up.
+  - See `docs/mutation-testing.md`.
 - Branches the scheduler cannot reach (a raced pointer swap, `setErr(nil)`) need direct invocation of the unexported function from an in-package test. A stress loop that never reaches the branch passes while proving nothing — this has already happened twice in this repo.
 - Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted in SDD-55) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
 
@@ -60,7 +65,7 @@
 ## Pre-commit Gate
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
-- **The gate is SLOW by design — budget for it.** A full pre-commit run takes ~90 seconds and can exceed 2 minutes on a cold cache (golangci-lint, `go vet`/coverage, frontend typecheck/lint/test/Fallow, filesize all run serially). When you run `git commit`, use a generous command timeout (≥ 5 minutes / 300000 ms) so the commit is not killed mid-hook. A killed commit leaves changes staged but unrecorded — re-run `git commit` (do not `--no-verify`) to complete it.
+- **The gate is SLOW by design — budget for it.** A full pre-commit run takes ~90 seconds and can exceed 2 minutes on a cold cache (golangci-lint, `go vet`/coverage, frontend typecheck/lint/test/Fallow, filesize). Jobs are declared `parallel: true`, so their output interleaves — on a failure, read the job name rather than assuming the last lines belong to it. When you run `git commit`, use a generous command timeout (≥ 5 minutes / 300000 ms) so the commit is not killed mid-hook. A killed commit leaves changes staged but unrecorded — re-run `git commit` (do not `--no-verify`) to complete it.
 - The gate is intentionally **complete**, not partial: frontend Fallow audit + lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
 - Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, and `tools/checksdd`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
@@ -128,7 +133,15 @@
 
 - `docs/learning-log.md` is a human-readable "why" log of decisions taken and non-obvious problems solved.
 - Read it at the start of non-trivial work so you inherit past reasoning instead of rediscovering it.
-- When you resolve a non-obvious bug or take a deliberate decision, append one line: `- [YYYY-MM-DD]: text`.
+- When you resolve a non-obvious bug or take a deliberate decision, append one line with the writer:
+
+  ```
+  node scripts/log-lesson.mjs "the lesson, in one sentence"
+  ```
+
+  It stamps the date, enforces the format, and appends. **Do not edit `docs/learning-log.md` by hand** — the writer exists so the format cannot drift.
+- **One line, 300 characters maximum.** The ceiling is measured: across the 82 existing entries the p25 is 278 characters and the median is 498, so three quarters of the log had already drifted past the "one short sentence" rule the file itself declares. If a lesson does not fit, it has not been extracted yet — you are storing the investigation. Put that in an ADR or a postmortem and log the one-line lesson that points at it.
+- This is deliberately NOT in `lefthook.yml` and never blocks a commit. A gate that blocks on documentation makes deleting the entry the cheapest way to commit, which destroys the lessons it was meant to protect.
 - It complements deterministic guards (linters, tests, gates); it does NOT replace them. Enforce the rule in code first, then record the *why* here.
 
 ## Project-local Skills

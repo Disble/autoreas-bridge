@@ -16,6 +16,7 @@ function createHookReturn(overrides = {}) {
     isLoading: false,
     isEmpty: false,
     items: [],
+    listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 20 },
     filters: {
       query: '',
       estado: ANIME_FILTER_ALL_VALUE,

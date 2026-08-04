@@ -1,4 +1,5 @@
 import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.types';
+import type { ProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window.types';
 
 /**
  * Props for the CatalogPanel component. The panel is self-contained and reads
@@ -74,9 +75,11 @@ export interface CatalogFilterBarProps {
  * View state returned by the CatalogPanel hook.
  */
 export interface CatalogPanelState {
+  /** Only the currently revealed slice — see `listWindow` and ADR-012. */
   readonly items: readonly AnimeViewModel[];
   readonly isLoading: boolean;
   readonly isEmpty: boolean;
+  readonly listWindow: ProgressiveListWindow;
   readonly filters: AnimeFilterState;
   readonly estadoOptions: readonly AnimeFilterOption[];
   readonly activoOptions: readonly AnimeFilterOption[];

@@ -14,6 +14,7 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
     isEmpty,
     isLoading,
     items,
+    listWindow,
     filters,
     estadoOptions,
     activoOptions,
@@ -66,7 +67,10 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
         {!isLoading && !isEmpty ? (
           <menu
             aria-label="Anime catalog"
-            className="flex max-h-[28rem] flex-col gap-3 overflow-y-auto pr-1"
+            className="flex max-h-[28rem] min-h-0 flex-col gap-3 overflow-y-auto pr-1"
+            data-testid="catalog-list-scroll"
+            onScroll={listWindow.onScroll}
+            ref={listWindow.scrollRef}
           >
             {items.map((item) => (
               <li
