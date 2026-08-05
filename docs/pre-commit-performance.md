@@ -4,6 +4,10 @@ Why the gate is shaped the way it is, and what the shape is worth. Read this
 before changing `lefthook.yml`, `scripts/lint.ps1`, or the vitest pool settings
 in `frontend/vite.config.ts` — each carries a comment pointing here.
 
+For the investigation narrative, the wrong turns, and the stack-independent
+lessons written for other teams, see
+[`docs/postmortem-pre-commit-gate-freeze.md`](postmortem-pre-commit-gate-freeze.md).
+
 Reference machine: Intel i7-12700K, 12 cores / 20 logical threads, 32 GB RAM.
 
 ## The failure it fixes
