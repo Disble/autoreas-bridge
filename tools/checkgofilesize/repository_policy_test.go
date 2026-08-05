@@ -20,7 +20,7 @@ func TestRepositoryHookRunsFrontendFileSizeWarningBeforeFrontendLint(t *testing.
 		t.Fatalf("yaml.Unmarshal() error = %v", err)
 	}
 
-	jobs := config.PreCommit.Jobs
+	jobs := flattenJobs(config.PreCommit.Jobs)
 	warningIndex := -1
 	lintIndex := -1
 	for index, job := range jobs {

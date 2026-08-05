@@ -33,9 +33,16 @@ export default defineConfig(
         environment: 'jsdom',
         setupFiles: './src/test/setup.ts',
         forbidOnly: true,
-        // Files run sequentially under the concurrent Lefthook gate to preserve
-        // the fixed 5-second test budget.
-        fileParallelism: false,
+        // Bounded file parallelism. This was `fileParallelism: false` because
+        // the old pre-commit gate ran 14 jobs at once and left vitest no CPU to
+        // spare. That gate now caps every tool at 4 threads (see the
+        // concurrency budget in lefthook.yml), so the suite gets a budget of
+        // its own back. Measured on the reference machine (i7-12700K, 12c/20t):
+        // 186s sequential -> 49s at 4 workers, 171 files / 1450 tests green on
+        // three consecutive runs. Keep `maxWorkers` pinned: unbounded workers
+        // reintroduce exactly the desktop starvation the cap exists to prevent.
+        fileParallelism: true,
+        maxWorkers: 4,
         projects: [
           {
             extends: true,

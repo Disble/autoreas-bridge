@@ -18,8 +18,30 @@ type lefthookConfig struct {
 }
 
 type lefthookJob struct {
-	Name string `yaml:"name"`
-	Run  string `yaml:"run"`
+	Name  string        `yaml:"name"`
+	Run   string        `yaml:"run"`
+	Group *lefthookJobs `yaml:"group"`
+}
+
+type lefthookJobs struct {
+	Jobs []lefthookJob `yaml:"jobs"`
+}
+
+// flattenJobs returns the leaf jobs of a lefthook job list in declaration
+// order, descending into `group:` containers. The gate nests jobs in groups to
+// bound how much work runs at once (see lefthook.yml), but the ordering
+// guarantees these tests protect are about the sequence of actual checks, not
+// about the grouping that carries them.
+func flattenJobs(jobs []lefthookJob) []lefthookJob {
+	flat := make([]lefthookJob, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Group != nil {
+			flat = append(flat, flattenJobs(job.Group.Jobs)...)
+			continue
+		}
+		flat = append(flat, job)
+	}
+	return flat
 }
 
 func TestCountEffectiveLines(t *testing.T) {

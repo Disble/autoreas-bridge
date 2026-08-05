@@ -1,54 +1,147 @@
+# Pre-commit gate.
+#
+# ── Concurrency budget ───────────────────────────────────────────────────────
+# Go tools default their internal parallelism to the logical CPU count (20 on
+# the reference machine: i7-12700K, 12 cores / 20 threads). Under the previous
+# flat `parallel: true` across 14 jobs, `go vet ./...`, `go test ./...` and two
+# golangci-lint passes EACH claimed all 20 threads at the same time — 60+
+# CPU-bound threads on a 20-thread box. Nothing was left to redraw the desktop,
+# so the machine appeared frozen until the gate finished. Measured proof from
+# that era: `frontend-filesize-warning`, a script that only reads file lengths,
+# took 34s because it never got scheduled.
+#
+# The shape below is: one parallel group of cheap checks, plus exactly two
+# piped lanes for the genuinely expensive work. Peak is ~2 heavy tools x 4
+# threads, leaving most of the machine responsive. Every Go job pins `-p`
+# (package build/test parallelism) and GOMAXPROCS to 4.
+#
+# Do not restore a flat `parallel: true`, do not remove the `-p=4` / GOMAXPROCS
+# pins, and do not move a cheap job into a piped lane — serialising cheap work
+# behind vitest cost 110s in testing for no benefit.
+# See docs/pre-commit-performance.md for the before/after measurements.
+#
+# ── Job selection ────────────────────────────────────────────────────────────
+# Jobs are globbed to the files they actually judge. A docs-only commit no
+# longer compiles and tests the whole Go module, and a Go-only commit no longer
+# runs vitest. This does not weaken the gate: unchanged Go source cannot change
+# the Go verdict. Keep the glob lists in sync when a checker gains a new input.
+#
+# Job ORDER inside `quick` is asserted by tools/checkgofilesize/hook_order_test.go
+# and repository_policy_test.go, which flatten these groups: gofmt runs
+# immediately before go-filesize, go-filesize before golangci-lint, and
+# frontend-filesize-warning before frontend-lint, so the cheapest signal always
+# lands first.
+
 pre-commit:
   parallel: true
   jobs:
-    - name: frontend-fallow
-      run: bun --cwd="frontend" run fallow audit --quiet --brief
+    # Cheap checks — seconds each, safe to run together.
+    - name: quick
+      group:
+        parallel: true
+        jobs:
+          - name: gofmt
+            glob: "*.go"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkgofmt
 
-    - name: frontend-fallow-dupes
-      run: bun --cwd="frontend" run fallow dupes --quiet --baseline
-        ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
+          - name: go-filesize
+            glob: "*.go"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkgofilesize
 
-    - name: frontend-filesize-warning
-      run: bun --cwd="frontend" run filesize:warning
+          - name: architecture
+            glob: "*.go"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkarchitecture
 
-    - name: frontend-no-barrels
-      run: bun --cwd="frontend" run check:no-barrels
+          # ~2s now that scripts/lint.ps1 caches both linter binaries.
+          - name: golangci-lint
+            glob:
+              - "*.go"
+              - "go.mod"
+              - "go.sum"
+              - ".golangci.yml"
+              - ".golangci.dlinter.yml"
+              - ".custom-gcl.yml"
+              - "lefthook.yml"
+              - "scripts/lint.ps1"
+            env: {GOMAXPROCS: "4"}
+            run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
 
-    - name: frontend-lint
-      run: bun x eslint {staged_files}
-      root: frontend
-      glob: "**/*.{js,cjs,mjs,ts,tsx,mts,cts}"
+          - name: sdd-gate
+            glob:
+              - "openspec/**"
+              - "*.go"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checksdd
 
-    - name: frontend-typecheck
-      run: bun --cwd="frontend" run typecheck
+          - name: openapi
+            glob:
+              - "*.go"
+              - "docs/openapi.yaml"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkopenapi
 
-    - name: frontend-test
-      run: bun --cwd="frontend" run test
+          - name: frontend-filesize-warning
+            glob: "frontend/**"
+            run: bun --cwd="frontend" run filesize:warning
 
-    - name: gofmt
-      run: go run ./tools/checkgofmt
+          - name: frontend-no-barrels
+            glob: "frontend/**"
+            run: bun --cwd="frontend" run check:no-barrels
 
-    - name: go-filesize
-      run: go run ./tools/checkgofilesize
+          - name: frontend-fallow
+            glob: "frontend/**"
+            run: bun --cwd="frontend" run fallow audit --quiet --brief
 
-    - name: architecture
-      run: go run ./tools/checkarchitecture
+          - name: frontend-fallow-dupes
+            glob: "frontend/**"
+            run: bun --cwd="frontend" run fallow dupes --quiet --baseline
+              ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
 
-    - name: golangci-lint
-      run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
+          - name: frontend-typecheck
+            glob: "frontend/**"
+            run: bun --cwd="frontend" run typecheck
 
-    - name: go-vet
-      run: go vet ./...
+          - name: frontend-lint
+            run: bun x eslint {staged_files}
+            root: frontend
+            glob: "**/*.{js,cjs,mjs,ts,tsx,mts,cts}"
 
-    - name: go-cover
-      run: go test ./... -cover
+    # Heavy lane 1: the Go module. Piped so vet and the test run never overlap.
+    - name: go-heavy
+      glob:
+        - "*.go"
+        - "go.mod"
+        - "go.sum"
+        # Changing the gate itself re-proves the gate.
+        - "lefthook.yml"
+        - "scripts/lint.ps1"
+      group:
+        piped: true
+        jobs:
+          - name: go-vet
+            env: {GOMAXPROCS: "4"}
+            run: go vet -p 4 ./...
 
-    - name: sdd-gate
-      run: go run ./tools/checksdd
+          - name: go-cover
+            env: {GOMAXPROCS: "4"}
+            run: go test ./... -cover -p 4 -parallel 4
 
-    - name: openapi
-      run: go run ./tools/checkopenapi
-    # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
-    - name: test:mutation:staged
-      run: npm run test:mutation:staged
-      root: frontend
+    # Heavy lane 2: the frontend suite. Runs concurrently with lane 1.
+    - name: frontend-heavy
+      glob:
+        - "frontend/**"
+        # Changing the gate itself re-proves the gate.
+        - "lefthook.yml"
+      group:
+        piped: true
+        jobs:
+          - name: frontend-test
+            run: bun --cwd="frontend" run test
+
+          # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
+          - name: test:mutation:staged
+            run: npm run test:mutation:staged
+            root: frontend

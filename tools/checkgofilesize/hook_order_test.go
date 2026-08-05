@@ -14,8 +14,9 @@ func TestRepositoryHookRunsGoFileSizeBeforeGolangCILint(t *testing.T) {
 	if err := yaml.Unmarshal(content, &config); err != nil {
 		t.Fatalf("yaml.Unmarshal() error = %v", err)
 	}
-	goFileSizeIndex, golangciIndex := findGoHookOrder(t, config.PreCommit.Jobs)
-	assertGoHookOrder(t, config.PreCommit.Jobs, goFileSizeIndex, golangciIndex)
+	jobs := flattenJobs(config.PreCommit.Jobs)
+	goFileSizeIndex, golangciIndex := findGoHookOrder(t, jobs)
+	assertGoHookOrder(t, jobs, goFileSizeIndex, golangciIndex)
 }
 
 // findGoHookOrder scans lefthook jobs and returns the indices of the
