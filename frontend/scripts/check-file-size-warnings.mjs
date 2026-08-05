@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import tsParser from '@typescript-eslint/parser';
 import { ESLint } from 'eslint';
 
 export const warningThreshold = 400;
@@ -60,9 +61,24 @@ export async function runFileSizeWarnings({
 } = {}) {
   const eslint = eslintFactory({
     cwd,
+    // Ignore the repo's flat config entirely. This check needs exactly one
+    // rule, but inheriting eslint.config.js dragged in the full type-aware
+    // preset, so counting lines paid for building a whole TypeScript program:
+    // 47s of an 88s pre-commit gate. `max-lines` only needs the syntax tree to
+    // tell blank lines and comments apart, so the parser runs without a
+    // `project`/`projectService`. Measured: 47s -> ~2s, identical output.
+    overrideConfigFile: true,
     overrideConfig: [
       {
         files: ['**/*.ts', '**/*.tsx'],
+        languageOptions: {
+          parser: tsParser,
+          parserOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            ecmaFeatures: { jsx: true },
+          },
+        },
         rules: {
           'max-lines': ['warn', { max: warningThreshold, skipBlankLines: true, skipComments: true }],
         },

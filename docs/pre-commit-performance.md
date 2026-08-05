@@ -18,9 +18,14 @@ passes each tried to claim all 20 threads *simultaneously*, on top of vitest,
 tsc, eslint and two Fallow passes. That is 60+ CPU-bound threads on a 20-thread
 machine, and nothing was left to redraw the UI.
 
-The tell was in the gate's own log: `frontend-filesize-warning`, a script that
-does nothing but read file lengths, reported **34 seconds**. It was not slow. It
-was never scheduled.
+The tell was in the gate's own log: `frontend-filesize-warning`, nominally a
+script that reads file lengths, reported **34 seconds**.
+
+That number turned out to have two independent causes, which is worth recording
+because the first one masked the second. Contention was real. But once the gate
+was bounded and the machine had CPU to spare, the same job still took 46s — it
+was also doing far more work than its name suggests (see below). Starvation is
+an easy story to stop at; confirm it by re-measuring the job in isolation.
 
 ## The shape
 
@@ -47,9 +52,10 @@ Full gate, both lanes active, warm caches:
 
 | | Before | After |
 |---|---|---|
-| Wall time | 186–211s | **88s** |
+| Wall time | 186–211s | **~60s** |
 | golangci-lint job | 43–55s | **2.4s** |
 | vitest | 186s | **49s** |
+| frontend-filesize-warning | 34–47s | **2.2s** |
 | Desktop during run | unusable | responsive |
 
 ### Where the wins came from
@@ -66,6 +72,14 @@ fragility: the gate previously **could not run without internet**, because
 for the contention above — its own comment said "under the concurrent Lefthook
 gate". With the gate bounded, four workers cut the suite from 186s to 49s, with
 171 files / 1450 tests green on three consecutive runs.
+
+**The file-size warning stopped type-checking the world.** `frontend-filesize-warning`
+inherited `eslint.config.js` — the full type-aware preset — to read a single
+`max-lines` result, so counting lines paid for building an entire TypeScript
+program. It now ignores the project config and parses syntax only, which is all
+`max-lines` needs. 47s to 2.2s, byte-identical output. This one hid behind the
+contention above: it looked like a starved process, and only became visibly the
+slowest job once the machine had CPU to spare.
 
 **Jobs only run when they can change the verdict.** Each job is globbed to the
 files it judges, so a docs-only commit no longer compiles and tests the whole Go
