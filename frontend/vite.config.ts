@@ -35,14 +35,19 @@ export default defineConfig(
         forbidOnly: true,
         // Bounded file parallelism. This was `fileParallelism: false` because
         // the old pre-commit gate ran 14 jobs at once and left vitest no CPU to
-        // spare. That gate now caps every tool at 4 threads (see the
-        // concurrency budget in lefthook.yml), so the suite gets a budget of
-        // its own back. Measured on the reference machine (i7-12700K, 12c/20t):
-        // 186s sequential -> 49s at 4 workers, 171 files / 1450 tests green on
-        // three consecutive runs. Keep `maxWorkers` pinned: unbounded workers
+        // spare. That gate now bounds every tool (see the concurrency budget in
+        // lefthook.yml), so the suite gets a budget of its own back.
+        //
+        // Measured on the reference machine (i7-12700K, 12c/20t), 171 files /
+        // 1450 tests green throughout: 186s sequential, 48s at 4 workers, 31s
+        // at 8, 28s at 12. Eight is the knee — 12 buys 3s while pushing
+        // cumulative environment cost from 111s to 154s, which is contention
+        // being paid for nothing. Keep `maxWorkers` pinned: unbounded workers
         // reintroduce exactly the desktop starvation the cap exists to prevent.
+        // `isolate: false` was measured and REJECTED: the suite fails without
+        // per-file isolation, so that speedup is not available here.
         fileParallelism: true,
-        maxWorkers: 4,
+        maxWorkers: 8,
         projects: [
           {
             extends: true,

@@ -37,9 +37,14 @@ Three top-level groups run concurrently:
 | `go-heavy` | piped | `go vet`, then `go test ./... -cover` |
 | `frontend-heavy` | piped | vitest, then staged mutation testing |
 
-Peak load is roughly two heavy tools at four threads each, leaving most of the
-machine free. Every Go job pins `-p=4` and `GOMAXPROCS=4`; vitest pins
-`maxWorkers: 4`.
+Every Go job pins `-p=4` and `GOMAXPROCS=4`; vitest pins `maxWorkers: 8`. Peak
+is therefore about 12 of 20 threads with both heavy lanes running, which keeps
+roughly 40% of the machine free for the desktop.
+
+The gate's wall time is `max(quick, go-heavy, frontend-heavy)`. Measured today
+that is roughly 20s / 26s / 31s, so **vitest is the only thing on the critical
+path**. Speeding up anything else lowers CPU cost but not commit time — check
+which lane you are actually shortening before optimising.
 
 An earlier attempt piped the *cheap* frontend jobs behind vitest as well. That
 measured **313s — slower than the unoptimised gate** — because typecheck, Fallow
@@ -52,9 +57,9 @@ Full gate, both lanes active, warm caches:
 
 | | Before | After |
 |---|---|---|
-| Wall time | 186–211s | **~60s** |
+| Wall time | 186–211s | **~32s** |
 | golangci-lint job | 43–55s | **2.4s** |
-| vitest | 186s | **49s** |
+| vitest | 186s | **31s** |
 | frontend-filesize-warning | 34–47s | **2.2s** |
 | Desktop during run | unusable | responsive |
 
@@ -70,8 +75,9 @@ fragility: the gate previously **could not run without internet**, because
 
 **Vitest got its parallelism back.** `fileParallelism: false` was a workaround
 for the contention above — its own comment said "under the concurrent Lefthook
-gate". With the gate bounded, four workers cut the suite from 186s to 49s, with
-171 files / 1450 tests green on three consecutive runs.
+gate". With the gate bounded, the suite can use workers again; see the tuning
+note below for the chosen count. 171 files / 1450 tests stayed green across
+every configuration measured.
 
 **The file-size warning stopped type-checking the world.** `frontend-filesize-warning`
 inherited `eslint.config.js` — the full type-aware preset — to read a single
@@ -81,11 +87,35 @@ program. It now ignores the project config and parses syntax only, which is all
 contention above: it looked like a starved process, and only became visibly the
 slowest job once the machine had CPU to spare.
 
+**Vitest workers were tuned, not guessed.** 186s sequential, 48s at 4 workers,
+31s at 8, 28s at 12. Eight is the knee: 12 workers buy 3s while pushing
+cumulative environment cost from 111s to 154s — pure contention. Note that a
+`maxWorkers` value in the config silently overrides `--maxWorkers` on the CLI,
+which makes a naive command-line sweep look perfectly flat.
+
 **Jobs only run when they can change the verdict.** Each job is globbed to the
 files it judges, so a docs-only commit no longer compiles and tests the whole Go
 module. Unchanged Go source cannot change the Go verdict, so this costs no
 coverage. A change to `lefthook.yml` or `scripts/lint.ps1` deliberately triggers
 everything: changing the gate re-proves the gate.
+
+## Measured and rejected
+
+**`isolate: false`.** Reusing the environment across files would cut the
+dominant jsdom cost, but the suite fails outright without per-file isolation.
+Not available here.
+
+**Dropping the redundant `go vet ./...`.** golangci-lint already enables
+`govet`, so the standalone job is near-duplicate work. It was left in place: it
+sits in `go-heavy` (26s) which is *below* vitest on the critical path, so
+removing it would save no commit time, and the two analyser sets are not
+provably identical. Redundancy that costs nothing is not worth the risk.
+
+**Running only tests related to staged files (`vitest --changed`).** This would
+be the single largest win — most commits would drop to a few seconds. Rejected
+because CI runs only `go-lint.yml`: the frontend suite executes *nowhere else*.
+Narrowing it locally would mean the full suite never runs at all. Revisit only
+once the frontend suite runs in CI.
 
 ## What is guarded, and what is not
 
