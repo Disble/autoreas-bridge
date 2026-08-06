@@ -79,6 +79,30 @@ describe('EpisodeRenamePanel', () => {
     expect(screen.getByRole('switch')).toBeInTheDocument();
   });
 
+  it('shows no alert while nothing has failed', () => {
+    mockHook({ errorMessage: undefined });
+
+    render(<EpisodeRenamePanel />);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('applies the caller-provided className to the section', () => {
+    mockHook();
+
+    const { container } = render(<EpisodeRenamePanel className="custom-panel" />);
+
+    expect(container.querySelector('section')).toHaveClass('custom-panel', 'flex');
+  });
+
+  it('keeps its own layout classes when no className is provided', () => {
+    mockHook();
+
+    const { container } = render(<EpisodeRenamePanel />);
+
+    expect(container.querySelector('section')).toHaveClass('flex', 'flex-col', 'gap-3');
+  });
+
   // Users need to know this only affects future downloads before they turn it
   // on, not after it has already skipped their existing library.
   it('states that only newly downloaded episodes are renamed', () => {
