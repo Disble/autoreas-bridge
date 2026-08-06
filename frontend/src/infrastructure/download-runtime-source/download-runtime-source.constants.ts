@@ -55,6 +55,7 @@ export const EMPTY_DOWNLOAD_CONFIG: DownloadConfig = {
   // than inventing a scope the download engine would never read.
   hosterPrioritySite: '',
   hosterPriority: [],
+  renameEpisodes: false,
 };
 
 /** Module-local singleton container for the shared download runtime source. */

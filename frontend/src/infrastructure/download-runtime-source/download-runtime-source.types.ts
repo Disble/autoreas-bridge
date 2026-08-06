@@ -19,6 +19,8 @@ export interface DownloadRuntimeSource {
   readonly getScheduleConfig: () => Promise<ScheduleConfig>;
   readonly setScheduleConfig: (config: ScheduleConfig) => Promise<string>;
   readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<string>;
+  /** Persists the episode auto-rename opt-in. Resolves to "ok" or an error message. */
+  readonly setEpisodeRenameEnabled: (enabled: boolean) => Promise<string>;
   readonly triggerDownloadCheck: () => Promise<string>;
   readonly triggerAnimeDownload: (animeID: string) => Promise<string>;
   /** Stops the run currently in flight; resolves "ok" when one was stopped. */

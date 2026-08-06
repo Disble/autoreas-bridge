@@ -70,6 +70,7 @@ type ServiceDeps struct {
 	JD            jdownloader.JDClient
 	Counter       filesystem.EpisodeCounter
 	Flattener     filesystem.Flattener
+	Renamer       filesystem.Renamer
 	Store         Store
 	Notifier      notification.Notifier
 	Bus           events.Bus
@@ -94,6 +95,13 @@ type ServiceDeps struct {
 	// like every other ServiceDeps seam — so download never imports the preferences context
 	// (no cross-context coupling, ADR-5).
 	SeasonMode func(ctx context.Context) bool
+
+	// RenameEpisodes reports whether a downloaded episode should be renamed to
+	// "<canonical anime name> - <NN>.<ext>". Read per episode rather than captured at
+	// construction so toggling the setting takes effect on the next download instead of
+	// waiting for a Bridge restart. Nil means off, which is what every wiring that
+	// predates the feature -- and every existing test -- relies on.
+	RenameEpisodes func(ctx context.Context) bool
 
 	// DetectStartPhaseDisabled skips the detect-download-start phase. Tests set to true to
 	// avoid the 60s filesystem-evidence grace period.
@@ -132,6 +140,9 @@ func NewService(deps ServiceDeps) *Service {
 	}
 	if deps.SeasonMode == nil {
 		deps.SeasonMode = func(context.Context) bool { return false }
+	}
+	if deps.RenameEpisodes == nil {
+		deps.RenameEpisodes = func(context.Context) bool { return false }
 	}
 	if deps.HasPartFiles == nil {
 		deps.HasPartFiles = hasPartFilesRecursive

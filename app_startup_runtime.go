@@ -257,12 +257,16 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		JD:            newReconfigurableJDClient(a.downloadStore),
 		Counter:       filesystem.NewEpisodeCounter(),
 		Flattener:     filesystem.NewFlattener(),
+		Renamer:       filesystem.NewRenamer(),
 		Store:         a.downloadStore,
 		Notifier:      a.notifier,
 		Bus:           a.eventBus,
 		Logger:        a.sharedLogger,
 		JDDeviceName:  a.downloadJDDeviceName(ctx),
 		SeasonMode:    a.seasonModeReader(),
+		// Read per episode rather than captured here, so toggling the setting takes
+		// effect on the next download instead of the next Bridge restart.
+		RenameEpisodes: a.episodeRenameEnabled,
 	})
 	a.readinessService = download.NewReadinessService(download.ReadinessServiceDeps{
 		Animes:        a.animeQuery,

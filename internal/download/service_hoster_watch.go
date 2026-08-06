@@ -209,7 +209,7 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
 		if s.downloadedEpisodeBaseline(folder) > baselineCount {
-			s.flattenDownloadFolder(ctx, runID, anime)
+			s.completeDownloadedEpisode(ctx, runID, anime, episode)
 			return hosterOutcome{kind: hosterOutcomeSuccess}
 		}
 

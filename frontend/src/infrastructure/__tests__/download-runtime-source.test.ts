@@ -49,6 +49,7 @@ describe('download-runtime-source', () => {
       // back into rather than a guessed scope.
       hosterPrioritySite: '',
       hosterPriority: [],
+      renameEpisodes: false,
     });
   });
 

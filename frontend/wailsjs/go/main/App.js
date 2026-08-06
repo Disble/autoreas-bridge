@@ -278,6 +278,10 @@ export function SetDownloadsRoot(arg1) {
   return window['go']['main']['App']['SetDownloadsRoot'](arg1);
 }
 
+export function SetEpisodeRenameEnabled(arg1) {
+  return window['go']['main']['App']['SetEpisodeRenameEnabled'](arg1);
+}
+
 export function SetHosterPriority(arg1, arg2) {
   return window['go']['main']['App']['SetHosterPriority'](arg1, arg2);
 }

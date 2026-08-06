@@ -142,6 +142,8 @@ export function SetAutoStartEnabled(arg1:boolean):Promise<string>;
 
 export function SetDownloadsRoot(arg1:string):Promise<string>;
 
+export function SetEpisodeRenameEnabled(arg1:boolean):Promise<string>;
+
 export function SetHosterPriority(arg1:string,arg2:Array<contracts.HosterPriorityItem>):Promise<string>;
 
 export function SetJDConfig(arg1:contracts.JDConfigInput):Promise<string>;

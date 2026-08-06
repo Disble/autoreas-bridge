@@ -180,6 +180,7 @@ func (a *App) GetDownloadConfig() contracts.DownloadConfig {
 		Schedule:           a.toContractsScheduleConfig(scheduleCfg),
 		HosterPrioritySite: config.DefaultHosterPrioritySite,
 		HosterPriority:     toContractsHosterPriority(hosterEntries),
+		RenameEpisodes:     a.episodeRenameEnabled(ctx),
 	}
 }
 

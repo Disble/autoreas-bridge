@@ -1098,6 +1098,7 @@ export namespace contracts {
 	    schedule: ScheduleConfig;
 	    hosterPrioritySite: string;
 	    hosterPriority: HosterPriorityItem[];
+	    renameEpisodes: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DownloadConfig(source);
@@ -1109,6 +1110,7 @@ export namespace contracts {
 	        this.schedule = this.convertValues(source["schedule"], ScheduleConfig);
 	        this.hosterPrioritySite = source["hosterPrioritySite"];
 	        this.hosterPriority = this.convertValues(source["hosterPriority"], HosterPriorityItem);
+	        this.renameEpisodes = source["renameEpisodes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

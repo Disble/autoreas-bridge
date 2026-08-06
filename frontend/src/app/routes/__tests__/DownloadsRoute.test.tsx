@@ -27,6 +27,10 @@ vi.mock('../../../features/download/ui/JDConfigPanel/JDConfigPanel', () => ({
   JDConfigPanel: () => <div>jd config panel</div>,
 }));
 
+vi.mock('../../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel', () => ({
+  EpisodeRenamePanel: () => <div>episode rename panel</div>,
+}));
+
 afterEach(cleanup);
 
 function selectTab(name: string): void {
@@ -58,6 +62,7 @@ describe('DownloadsRoute', () => {
 
     expect(screen.getByText('hoster priority editor')).toBeInTheDocument();
     expect(screen.getByText('jd config panel')).toBeInTheDocument();
+    expect(screen.getByText('episode rename panel')).toBeInTheDocument();
   });
 
   it('returns to the act-now panels when the Downloads tab is selected again', () => {

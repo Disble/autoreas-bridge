@@ -31,6 +31,7 @@ const baseConfig: DownloadConfig = {
     { hoster: 'mega', priority: 0, enabled: true },
     { hoster: 'mediafire', priority: 1, enabled: true },
   ],
+  renameEpisodes: false,
 };
 
 function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
@@ -41,6 +42,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     getScheduleConfig: vi.fn(),
     setScheduleConfig: vi.fn(),
     setHosterPriority: vi.fn().mockResolvedValue('ok'),
+    setEpisodeRenameEnabled: vi.fn().mockResolvedValue('ok'),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
     cancelDownloadRun: vi.fn().mockResolvedValue('ok'),

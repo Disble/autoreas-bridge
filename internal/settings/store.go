@@ -18,6 +18,7 @@ import (
 const (
 	keyDownloadsRoot = "downloads.root"
 	keyAutoStart     = "system.auto_start"
+	keyEpisodeRename = "downloads.rename_episodes"
 )
 
 // ErrDatabaseUnavailable reports that the settings accessor has no database.
@@ -85,9 +86,31 @@ func (s *SQLiteStore) AutoStartEnabled(ctx context.Context) (bool, error) {
 
 // SetAutoStartEnabled persists the user's login-launch preference.
 func (s *SQLiteStore) SetAutoStartEnabled(ctx context.Context, enabled bool) error {
-	value := "false"
-	if enabled {
-		value = "true"
+	return s.Set(ctx, keyAutoStart, formatBool(enabled))
+}
+
+// EpisodeRenameEnabled reports whether a downloaded episode should be renamed to
+// "<canonical anime name> - <NN>.<ext>". Missing settings default to DISABLED --
+// the opposite of auto-start -- because renaming rewrites files the user already
+// owns, and no Bridge upgrade should silently start reorganising a library.
+func (s *SQLiteStore) EpisodeRenameEnabled(ctx context.Context) (bool, error) {
+	value, err := s.Get(ctx, keyEpisodeRename)
+	if err != nil {
+		return false, err
 	}
-	return s.Set(ctx, keyAutoStart, value)
+	return value == "true", nil
+}
+
+// SetEpisodeRenameEnabled persists the user's episode-renaming preference.
+func (s *SQLiteStore) SetEpisodeRenameEnabled(ctx context.Context, enabled bool) error {
+	return s.Set(ctx, keyEpisodeRename, formatBool(enabled))
+}
+
+// formatBool renders a preference as the canonical "true"/"false" text stored in
+// app_settings.
+func formatBool(enabled bool) string {
+	if enabled {
+		return "true"
+	}
+	return "false"
 }

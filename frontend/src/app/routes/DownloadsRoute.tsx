@@ -1,4 +1,5 @@
 import { Card, Tabs, Typography } from '@heroui/react';
+import { EpisodeRenamePanel } from '../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
 import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerButton/ManualTriggerButton';
@@ -109,6 +110,16 @@ export function DownloadsRoute() {
               </Card.Header>
               <Card.Content>
                 <HosterPriorityEditor />
+              </Card.Content>
+            </Card>
+
+            <Card>
+              <Card.Header>
+                <Card.Title>Episode naming</Card.Title>
+                <Card.Description>Give each downloaded episode a name you can actually read</Card.Description>
+              </Card.Header>
+              <Card.Content>
+                <EpisodeRenamePanel />
               </Card.Content>
             </Card>
 

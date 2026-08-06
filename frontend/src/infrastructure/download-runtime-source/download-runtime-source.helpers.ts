@@ -8,6 +8,7 @@ import {
 	ListDownloadReadiness,
   RunMissedScheduleNow,
   SetHosterPriority,
+  SetEpisodeRenameEnabled,
   SetJDConfig,
   SetScheduleConfig,
   TriggerAnimeDownload,
@@ -102,6 +103,9 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     },
     setHosterPriority(site, items) {
       return invokeGoBinding('SetHosterPriority', () => SetHosterPriority(site, [...items]), () => 'runtime unavailable');
+    },
+    setEpisodeRenameEnabled(enabled) {
+      return invokeGoBinding('SetEpisodeRenameEnabled', () => SetEpisodeRenameEnabled(enabled), () => 'runtime unavailable');
     },
     triggerDownloadCheck() {
       return invokeGoBinding('TriggerDownloadCheck', TriggerDownloadCheck, () => 'runtime unavailable');

@@ -145,6 +145,8 @@ type appSettingsStore interface {
 	SetDownloadsRoot(ctx context.Context, path string) error
 	AutoStartEnabled(ctx context.Context) (bool, error)
 	SetAutoStartEnabled(ctx context.Context, enabled bool) error
+	EpisodeRenameEnabled(ctx context.Context) (bool, error)
+	SetEpisodeRenameEnabled(ctx context.Context, enabled bool) error
 }
 
 // autoStartReconciler synchronizes the Bridge-owned Windows Run value.

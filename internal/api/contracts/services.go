@@ -184,6 +184,10 @@ type DownloadConfig struct {
 	// resolves against instead of guessing a site name of its own.
 	HosterPrioritySite string               `json:"hosterPrioritySite"`
 	HosterPriority     []HosterPriorityItem `json:"hosterPriority"`
+	// RenameEpisodes reports whether a downloaded episode is renamed to
+	// "<canonical anime name> - <NN>.<ext>" once it lands. Off unless the user
+	// opted in: it rewrites files they already own.
+	RenameEpisodes bool `json:"renameEpisodes"`
 }
 
 // JDStatus is the UI-facing view of MyJDownloader connectivity and configuration.

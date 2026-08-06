@@ -88,6 +88,11 @@ export interface DownloadConfig {
    */
   readonly hosterPrioritySite: string;
   readonly hosterPriority: readonly HosterPriorityItem[];
+  /**
+   * Whether a downloaded episode is renamed to `<Anime> - <NN>.<ext>` once it
+   * lands. Off unless the user opted in: it rewrites files they already own.
+   */
+  readonly renameEpisodes: boolean;
 }
 
 /** Stable local blocker codes returned by the backend readiness query. */
