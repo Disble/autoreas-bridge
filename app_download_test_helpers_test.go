@@ -16,17 +16,21 @@ type fakeAppDownloadStore struct {
 	finalizedRuns  []download.Run
 	finalized      chan download.Run
 
+	listHosterPrioritySite   string
+	setHosterPrioritySite    string
 	setHosterPriorityEntries []download.HosterPriorityEntry
 	setJDConfigCfg           download.JDConfig
 	setJDConfigPassword      *string
 	setScheduleConfigCfg     download.ScheduleConfig
 }
 
-func (f *fakeAppDownloadStore) ListHosterPriority(context.Context, string) ([]download.HosterPriorityEntry, error) {
+func (f *fakeAppDownloadStore) ListHosterPriority(_ context.Context, site string) ([]download.HosterPriorityEntry, error) {
+	f.listHosterPrioritySite = site
 	return f.hosterPriority, nil
 }
 
-func (f *fakeAppDownloadStore) SetHosterPriority(_ context.Context, _ string, entries []download.HosterPriorityEntry) error {
+func (f *fakeAppDownloadStore) SetHosterPriority(_ context.Context, site string, entries []download.HosterPriorityEntry) error {
+	f.setHosterPrioritySite = site
 	f.setHosterPriorityEntries = entries
 	return nil
 }

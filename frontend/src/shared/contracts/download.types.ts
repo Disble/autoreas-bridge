@@ -81,6 +81,12 @@ export interface ScheduleConfig {
 export interface DownloadConfig {
   readonly jd: JDStatus;
   readonly schedule: ScheduleConfig;
+  /**
+   * The site scope `hosterPriority` was read from. The editor persists back to
+   * this exact site so the saved ordering is the one the download engine
+   * resolves against.
+   */
+  readonly hosterPrioritySite: string;
   readonly hosterPriority: readonly HosterPriorityItem[];
 }
 

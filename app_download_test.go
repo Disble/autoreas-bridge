@@ -11,6 +11,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
+	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/schedule"
 )
 
@@ -162,6 +163,28 @@ func TestGetDownloadConfigDelegatesToStore(t *testing.T) {
 	}
 	if len(got.HosterPriority) != 1 || got.HosterPriority[0].Hoster != "Mega" {
 		t.Fatalf("expected hoster priority to be delegated, got %#v", got.HosterPriority)
+	}
+}
+
+// The hoster ordering the download engine obeys is the one stored under the
+// canonical site. GetDownloadConfig must read THAT site and echo it back, so the
+// editor persists where the engine reads instead of writing to a site nobody
+// consults (the "reorder does nothing" bug: writes landed under "default" while
+// the resolver read "jkanime").
+func TestGetDownloadConfigReadsAndEchoesTheCanonicalHosterPrioritySite(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeAppDownloadStore{
+		hosterPriority: []download.HosterPriorityEntry{{Hoster: "Mega", Priority: 0, Enabled: true}},
+	}
+	app := &App{ctx: context.Background(), downloadStore: store}
+
+	got := app.GetDownloadConfig()
+	if store.listHosterPrioritySite != config.DefaultHosterPrioritySite {
+		t.Fatalf("expected the canonical site %q to be read, got %q", config.DefaultHosterPrioritySite, store.listHosterPrioritySite)
+	}
+	if got.HosterPrioritySite != config.DefaultHosterPrioritySite {
+		t.Fatalf("expected the config to echo site %q, got %q", config.DefaultHosterPrioritySite, got.HosterPrioritySite)
 	}
 }
 

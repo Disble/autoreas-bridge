@@ -177,9 +177,13 @@ type DownloadReadinessSnapshot struct {
 
 // DownloadConfig is the read-model for the download settings screen.
 type DownloadConfig struct {
-	JD             JDStatus             `json:"jd"`
-	Schedule       ScheduleConfig       `json:"schedule"`
-	HosterPriority []HosterPriorityItem `json:"hosterPriority"`
+	JD       JDStatus       `json:"jd"`
+	Schedule ScheduleConfig `json:"schedule"`
+	// HosterPrioritySite names the site scope HosterPriority was read from, so the
+	// editor persists the reordered list back to the same site the download engine
+	// resolves against instead of guessing a site name of its own.
+	HosterPrioritySite string               `json:"hosterPrioritySite"`
+	HosterPriority     []HosterPriorityItem `json:"hosterPriority"`
 }
 
 // JDStatus is the UI-facing view of MyJDownloader connectivity and configuration.

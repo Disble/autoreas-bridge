@@ -51,6 +51,9 @@ export function createRuntimeUnavailableMissedActionResult(localDate: string): S
 export const EMPTY_DOWNLOAD_CONFIG: DownloadConfig = {
   jd: EMPTY_JD_STATUS,
   schedule: EMPTY_SCHEDULE_CONFIG,
+  // No runtime means no site to save to; the editor refuses to persist rather
+  // than inventing a scope the download engine would never read.
+  hosterPrioritySite: '',
   hosterPriority: [],
 };
 

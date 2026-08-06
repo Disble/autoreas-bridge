@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { HosterPriorityItem } from '../../../../shared/contracts/download.types';
-import { HOSTER_PRIORITY_DEFAULT_SITE } from './hoster-priority-editor.constants';
 import {
   applyHosterPriorityOrder,
   toHosterPriorityEditorViewModel,
@@ -13,8 +12,9 @@ import {
 import type { HosterPriorityEditorState } from './hoster-priority-editor.types';
 
 /**
- * useHosterPriorityEditor loads the persisted hoster priority order for
- * `DEFAULT_SITE` and exposes an optimistic `reorder` mutation: the new order
+ * useHosterPriorityEditor loads the persisted hoster priority order together with
+ * the site scope it belongs to, and exposes an optimistic `reorder` mutation that
+ * saves back to that same site — the backend owns the site name. The new order
  * is applied to local state immediately, persisted via `setHosterPriority`,
  * and rolled back (with an error surfaced) if persistence fails. `onDragEnd`
  * is the @dnd-kit/react boundary: dnd-kit's `move` helper owns the index math,
@@ -26,6 +26,7 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
   // 2. State
   const [state, setState] = useState<HosterPriorityEditorState>({
     items: [],
+    site: '',
     hasLoaded: false,
     isSaving: false,
     errorMessage: undefined,
@@ -40,6 +41,13 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
   // 6. Callbacks (useCallback calling pure helpers)
   const reorder = useCallback(
     async (orderedKeys: readonly string[]) => {
+      // Never guess a site: writing to the wrong scope persists an ordering the
+      // download engine never reads, which looks exactly like a silent success.
+      if (state.site === '') {
+        setState((prev) => ({ ...prev, errorMessage: 'Hoster priority has no site to save to.' }));
+        return;
+      }
+
       const previousItems = state.items;
       const nextItems = applyHosterPriorityOrder(state.items, orderedKeys);
 
@@ -47,7 +55,7 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
 
       try {
         const rows = toHosterPriorityEditorViewModel(nextItems, { isSaving: false }).items;
-        await source.setHosterPriority(HOSTER_PRIORITY_DEFAULT_SITE, toHosterPriorityRequestItems(rows));
+        await source.setHosterPriority(state.site, toHosterPriorityRequestItems(rows));
         setState((prev) => ({ ...prev, isSaving: false }));
       } catch (error) {
         setState((prev) => ({
@@ -58,7 +66,7 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
         }));
       }
     },
-    [state.items, source],
+    [state.items, state.site, source],
   );
 
   // Persist once on drop. A canceled drag, or one that lands the item back where
@@ -87,9 +95,10 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
 
     source
       .getDownloadConfig()
-      .then((config) => ({ items: config.hosterPriority, errorMessage: undefined }))
+      .then((config) => ({ items: config.hosterPriority, site: config.hosterPrioritySite, errorMessage: undefined }))
       .catch((error: unknown) => ({
         items: [] as readonly HosterPriorityItem[],
+        site: '',
         errorMessage: error instanceof Error ? error.message : 'Failed to load hoster priority',
       }))
       .then((outcome) => {
@@ -100,6 +109,7 @@ export function useHosterPriorityEditor(source: DownloadRuntimeSource = download
         setState((prev) => ({
           ...prev,
           items: outcome.items,
+          site: outcome.site,
           hasLoaded: true,
           errorMessage: outcome.errorMessage,
         }));

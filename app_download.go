@@ -7,6 +7,7 @@ import (
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download"
+	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/schedule"
 	jd "github.com/rkosegi/jdownloader-go/jdownloader"
@@ -146,7 +147,10 @@ func (errJDConfigUnavailableErr) Error() string { return "download: JD config st
 
 // emptyDownloadConfig returns the safe empty download configuration.
 func emptyDownloadConfig() contracts.DownloadConfig {
-	return contracts.DownloadConfig{HosterPriority: []contracts.HosterPriorityItem{}}
+	return contracts.DownloadConfig{
+		HosterPrioritySite: config.DefaultHosterPrioritySite,
+		HosterPriority:     []contracts.HosterPriorityItem{},
+	}
 }
 
 // GetDownloadConfig returns the current JD config, schedule config, and hoster priority
@@ -169,12 +173,13 @@ func (a *App) GetDownloadConfig() contracts.DownloadConfig {
 		return emptyDownloadConfig()
 	}
 
-	hosterEntries, _ := a.downloadStore.ListHosterPriority(ctx, "jkanime")
+	hosterEntries, _ := a.downloadStore.ListHosterPriority(ctx, config.DefaultHosterPrioritySite)
 
 	return contracts.DownloadConfig{
-		JD:             toContractsJDStatus(jdCfg),
-		Schedule:       a.toContractsScheduleConfig(scheduleCfg),
-		HosterPriority: toContractsHosterPriority(hosterEntries),
+		JD:                 toContractsJDStatus(jdCfg),
+		Schedule:           a.toContractsScheduleConfig(scheduleCfg),
+		HosterPrioritySite: config.DefaultHosterPrioritySite,
+		HosterPriority:     toContractsHosterPriority(hosterEntries),
 	}
 }
 

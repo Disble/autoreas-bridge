@@ -1,13 +1,13 @@
 export namespace contracts {
-
+	
 	export class AnimeCover {
 	    dataUrl?: string;
 	    source: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeCover(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dataUrl = source["dataUrl"];
@@ -170,21 +170,21 @@ export namespace contracts {
 		    return a;
 		}
 	}
-
-
-
-
+	
+	
+	
+	
 	export class AnimeDownloadReadiness {
 	    animeId: string;
 	    name: string;
 	    ready: boolean;
 	    reasons: string[];
 	    scheduledToday: boolean;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeDownloadReadiness(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.animeId = source["animeId"];
@@ -199,7 +199,7 @@ export namespace contracts {
 	    type?: string;
 	    path?: string;
 	    raw?: Record<string, any>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnimeEditorCoverDTO(source);
 	    }
@@ -1096,6 +1096,7 @@ export namespace contracts {
 	export class DownloadConfig {
 	    jd: JDStatus;
 	    schedule: ScheduleConfig;
+	    hosterPrioritySite: string;
 	    hosterPriority: HosterPriorityItem[];
 	
 	    static createFrom(source: any = {}) {
@@ -1106,6 +1107,7 @@ export namespace contracts {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jd = this.convertValues(source["jd"], JDStatus);
 	        this.schedule = this.convertValues(source["schedule"], ScheduleConfig);
+	        this.hosterPrioritySite = source["hosterPrioritySite"];
 	        this.hosterPriority = this.convertValues(source["hosterPriority"], HosterPriorityItem);
 	    }
 	
@@ -1132,11 +1134,11 @@ export namespace contracts {
 	    scheduledTotal: number;
 	    scheduledReady: number;
 	    scheduledBlocked: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new DownloadReadinessSnapshot(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.items = this.convertValues(source["items"], AnimeDownloadReadiness);
@@ -1144,7 +1146,7 @@ export namespace contracts {
 	        this.scheduledReady = source["scheduledReady"];
 	        this.scheduledBlocked = source["scheduledBlocked"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -2294,3 +2296,4 @@ export namespace main {
 	}
 
 }
+

@@ -26,6 +26,7 @@ const baseConfig: DownloadConfig = {
     enabledWeekdays: 127,
     missedNotice: undefined,
   },
+  hosterPrioritySite: 'jkanime',
   hosterPriority: [
     { hoster: 'mega', priority: 0, enabled: true },
     { hoster: 'mediafire', priority: 1, enabled: true },
@@ -109,10 +110,45 @@ describe('useHosterPriorityEditor', () => {
     });
 
     expect(result.current.items.map((item) => item.hoster)).toEqual(['mediafire', 'mega']);
-    expect(source.setHosterPriority).toHaveBeenCalledWith('default', [
+    expect(source.setHosterPriority).toHaveBeenCalledWith('jkanime', [
       { hoster: 'mediafire', priority: 0, enabled: true },
       { hoster: 'mega', priority: 1, enabled: true },
     ]);
+  });
+
+  // The engine resolves hosters for the site the config was read from. Persisting
+  // to a site name the editor picked itself is how a reorder silently became a
+  // no-op: the write landed under "default" while the engine read "jkanime".
+  it('persists back to the site the loaded config reported, not a hardcoded one', async () => {
+    const source = createFakeSource({
+      getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, hosterPrioritySite: 'otheranime' }),
+    });
+    const { result } = renderHook(() => useHosterPriorityEditor(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.reorder(['mediafire', 'mega']);
+    });
+
+    expect(source.setHosterPriority).toHaveBeenCalledWith('otheranime', expect.anything());
+  });
+
+  it('refuses to persist and surfaces an error when the config reported no site', async () => {
+    const source = createFakeSource({
+      getDownloadConfig: vi.fn().mockResolvedValue({ ...baseConfig, hosterPrioritySite: '' }),
+    });
+    const { result } = renderHook(() => useHosterPriorityEditor(source));
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.reorder(['mediafire', 'mega']);
+    });
+
+    expect(source.setHosterPriority).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('error');
+    expect(result.current.items.map((item) => item.hoster)).toEqual(['mega', 'mediafire']);
   });
 
   it('rolls back to the previous order and surfaces an error when persistence fails', async () => {

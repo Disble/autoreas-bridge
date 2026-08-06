@@ -45,6 +45,9 @@ describe('download-runtime-source', () => {
         enabledWeekdays: 127,
         missedNotice: undefined,
       },
+      // No runtime means no site to save to, so the editor has nothing to write
+      // back into rather than a guessed scope.
+      hosterPrioritySite: '',
       hosterPriority: [],
     });
   });

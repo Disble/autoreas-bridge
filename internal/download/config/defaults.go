@@ -5,6 +5,13 @@ package config
 
 import "time"
 
+// DefaultHosterPrioritySite is the site scope every hoster-priority row is stored
+// under until per-site editing ships. It is the single source of truth shared by
+// the bootstrap seeder, the read model the Downloads screen loads, and the
+// HosterResolver the download engine consults: a second literal here means the
+// editor persists an ordering the engine never reads.
+const DefaultHosterPrioritySite = "jkanime"
+
 // HosterPrioritySeed is a single seed row for the default hoster ordering.
 type HosterPrioritySeed struct {
 	Hoster   string

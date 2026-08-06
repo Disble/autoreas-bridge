@@ -17,12 +17,15 @@ import (
 )
 
 const (
-	bridgeDataDirName         = "Autoreas"
-	bridgeDataSubdir          = "data"
-	bridgeDBName              = "bridge.db"
-	sqliteDriverName          = "sqlite"
-	busyTimeoutMillis         = 5000
-	defaultHosterPrioritySite = "jkanime"
+	bridgeDataDirName = "Autoreas"
+	bridgeDataSubdir  = "data"
+	bridgeDBName      = "bridge.db"
+	sqliteDriverName  = "sqlite"
+	busyTimeoutMillis = 5000
+	// defaultHosterPrioritySite aliases the download context's canonical site so
+	// seeding, the settings read model, and the HosterResolver can never drift onto
+	// two different site scopes.
+	defaultHosterPrioritySite = downloadconfig.DefaultHosterPrioritySite
 )
 
 // SQLiteBootstrap wires the injectable helpers used by tests (userConfigDir, mkdirAll,

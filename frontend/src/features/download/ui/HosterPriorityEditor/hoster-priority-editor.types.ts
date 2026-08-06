@@ -33,6 +33,8 @@ export interface HosterPriorityEditorViewModelOptions {
 /** Internal hook state consolidating load + optimistic-save concerns into a single object. */
 export interface HosterPriorityEditorState {
   readonly items: readonly HosterPriorityItem[];
+  /** Site scope the loaded items came from; reorders are persisted back to it. */
+  readonly site: string;
   readonly hasLoaded: boolean;
   readonly isSaving: boolean;
   readonly errorMessage: string | undefined;
