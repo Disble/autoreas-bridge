@@ -43,9 +43,19 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
     <section aria-label="Download run history" className={`grid gap-4 sm:grid-cols-2 ${className ?? ''}`}>
       {viewModel.runInProgress && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-divider/60 px-3 py-2 sm:col-span-2">
-          <span className="text-sm text-muted">A download run is in progress.</span>
-          <Button onPress={() => void cancelRun()} size="sm" variant="secondary">
-            Stop run
+          <span aria-live="polite" className="text-sm text-muted">
+            {viewModel.isStopping
+              ? 'Stopping — the run ends after the episode it is already downloading.'
+              : 'A download run is in progress.'}
+          </span>
+          <Button
+            isDisabled={viewModel.isStopping}
+            isPending={viewModel.isStopping}
+            onPress={() => void cancelRun()}
+            size="sm"
+            variant="secondary"
+          >
+            {viewModel.isStopping ? 'Stopping…' : 'Stop run'}
           </Button>
         </div>
       )}

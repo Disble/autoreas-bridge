@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDownloadRunInProgress, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
+import { findRunningRunId, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 
 function createRun(index: number): DownloadRunView {
@@ -111,23 +111,25 @@ describe('toRunHistoryPanelViewModel', () => {
   });
 });
 
-describe('isDownloadRunInProgress', () => {
+describe('findRunningRunId', () => {
   // A run row is opened as "running" by BOTH entry points -- the scheduler's
   // full check and the App's single-anime catch-up -- so the row itself is the
-  // one signal that covers every way a download can be in flight.
-  it('reports a run in progress while a row is still running', () => {
-    expect(isDownloadRunInProgress([{ ...okRun, status: 'running' }, okRun])).toBe(true);
+  // one signal that covers every way a download can be in flight. The ID (not a
+  // boolean) is what lets the UI tie a pending "Stopping…" state to the exact run
+  // it asked to stop, so the state clears itself when that run ends.
+  it('returns the id of the run still running', () => {
+    expect(findRunningRunId([{ ...okRun, runId: 'run-live', status: 'running' }, okRun])).toBe('run-live');
   });
 
-  it('reports no run in progress once every row reached a terminal status', () => {
-    expect(isDownloadRunInProgress([okRun, jdOfflineRun])).toBe(false);
+  it('returns undefined once every row reached a terminal status', () => {
+    expect(findRunningRunId([okRun, jdOfflineRun])).toBeUndefined();
   });
 
-  it('reports no run in progress for an empty history', () => {
-    expect(isDownloadRunInProgress([])).toBe(false);
+  it('returns undefined for an empty history', () => {
+    expect(findRunningRunId([])).toBeUndefined();
   });
 
   it('does not mistake a canceled run for a running one', () => {
-    expect(isDownloadRunInProgress([{ ...okRun, status: 'canceled' }])).toBe(false);
+    expect(findRunningRunId([{ ...okRun, status: 'canceled' }])).toBeUndefined();
   });
 });

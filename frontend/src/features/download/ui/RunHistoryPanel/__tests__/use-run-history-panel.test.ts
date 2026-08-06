@@ -273,3 +273,75 @@ describe('useRunHistoryPanel stop control', () => {
     await waitFor(() => expect(result.current.viewModel.errorMessage).toBe('no download run in progress'));
   });
 });
+
+describe('useRunHistoryPanel stopping feedback', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+    vi.restoreAllMocks();
+  });
+
+  // Stopping is not instant: the backend cancels the run context and the pipeline
+  // stops at its next boundary. Without a pending state the button looks inert and
+  // the user cannot tell the press registered at all.
+  it('reports the stop as pending from the press until the run actually ends', async () => {
+    const runningRuns = [createRun(3, { runId: 'run-live', status: 'running' }), ...runs];
+    const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(runningRuns) });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+    expect(result.current.viewModel.isStopping).toBe(false);
+
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+
+    expect(result.current.viewModel.isStopping).toBe(true);
+  });
+
+  it('clears the pending state once the stopped run reaches a terminal status', async () => {
+    let listener: (() => void) | undefined;
+    const listDownloadRuns = vi
+      .fn()
+      .mockResolvedValueOnce([createRun(3, { runId: 'run-live', status: 'running' }), ...runs])
+      .mockResolvedValueOnce([createRun(3, { runId: 'run-live', status: 'canceled' }), ...runs]);
+    const source = createSource({
+      listDownloadRuns,
+      subscribeRunEvents: vi.fn().mockImplementation((nextListener: () => void) => {
+        listener = nextListener;
+        return () => undefined;
+      }),
+    });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+    expect(result.current.viewModel.isStopping).toBe(true);
+
+    // The run finalizing its own terminal row is what ends the pending state.
+    await act(async () => {
+      listener?.();
+    });
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(false));
+    expect(result.current.viewModel.isStopping).toBe(false);
+  });
+
+  // A refused stop must not leave the button stuck saying "Stopping…" forever.
+  it('clears the pending state when the backend refuses the stop', async () => {
+    const source = createSource({
+      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { runId: 'run-live', status: 'running' }), ...runs]),
+      cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
+    });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+
+    expect(result.current.viewModel.isStopping).toBe(false);
+    expect(result.current.viewModel.errorMessage).toBe('no download run in progress');
+  });
+});

@@ -14,7 +14,15 @@ export function toRunHistoryPanelViewModel(
   visibleCount: number,
 ): RunHistoryPanelViewModel {
   if (runs.length === 0) {
-    return { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, runInProgress: false };
+    return {
+      status: 'empty',
+      rows: [],
+      visibleRows: [],
+      canLoadMore: false,
+      remainingCount: 0,
+      runInProgress: false,
+      isStopping: false,
+    };
   }
 
   const effectiveSelectedRunId = resolveSelectedRunId(runs, selectedRunId);
@@ -32,6 +40,7 @@ export function toRunHistoryPanelViewModel(
   const selectedRun = runs.find((run) => run.runId === effectiveSelectedRunId);
   const safeVisibleCount = Math.max(getInitialVisibleRunCount(runs.length), visibleCount);
   const visibleRows = rows.slice(0, Math.min(safeVisibleCount, rows.length));
+  const runningRunId = findRunningRunId(runs);
 
   return {
     status: 'ready',
@@ -39,20 +48,26 @@ export function toRunHistoryPanelViewModel(
     visibleRows,
     canLoadMore: visibleRows.length < rows.length,
     remainingCount: rows.length - visibleRows.length,
-    runInProgress: isDownloadRunInProgress(runs),
+    runInProgress: runningRunId !== undefined,
+    runningRunId,
+    isStopping: false,
     selectedRun,
   };
 }
 
 /**
- * Reports whether a download run is currently in flight, which is what gates the
- * Stop control. Both entry points -- the scheduler's full check and the App's
- * single-anime catch-up -- open their row as "running" and replace it with a
- * terminal status when they end, so the run history is the one signal that sees
- * every kind of run without a second liveness query.
+ * Returns the id of the run currently in flight, or undefined when none is. Both
+ * entry points -- the scheduler's full check and the App's single-anime catch-up --
+ * open their row as "running" and replace it with a terminal status when they end,
+ * so the run history is the one signal that sees every kind of run without a second
+ * liveness query.
+ *
+ * This returns the ID rather than a boolean so a pending "Stopping…" state can be
+ * tied to the exact run it was requested for. That state then clears itself when
+ * that run reaches a terminal status, with no timer and no flag to reset.
  */
-export function isDownloadRunInProgress(runs: readonly DownloadRunView[]): boolean {
-  return runs.some((run) => run.status === 'running');
+export function findRunningRunId(runs: readonly DownloadRunView[]): string | undefined {
+  return runs.find((run) => run.status === 'running')?.runId;
 }
 
 /** Resolves which run should be selected, defaulting to the newest available item. */

@@ -27,6 +27,15 @@ export interface RunHistoryPanelViewModel {
   readonly remainingCount: number;
   /** True while a run is still open, which is what reveals the Stop control. */
   readonly runInProgress: boolean;
+  /** Id of the run still open, used to scope a pending stop to that exact run. */
+  readonly runningRunId?: string;
+  /**
+   * True from the moment a stop is requested until that run reaches a terminal
+   * status. Stopping is not instant — the backend cancels the run's context and the
+   * pipeline stops at its next boundary — so the control must stay visibly busy
+   * rather than looking inert.
+   */
+  readonly isStopping: boolean;
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
 }
