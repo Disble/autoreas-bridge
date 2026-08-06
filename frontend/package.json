@@ -18,6 +18,7 @@
     "test:mutation:guard": "node --test scripts/__tests__/mutation-staged.node-test.mjs",
     "test:mutation:staged": "node ./scripts/dlinter-mutation-staged.mjs",
     "generate:feature": "node ./scripts/generate-feature.js",
+    "render:smoke": "node ./scripts/render-smoke.mjs",
     "audit": "fallow audit --quiet",
     "check:no-barrels": "node ./scripts/check-no-barrels.mjs"
   },

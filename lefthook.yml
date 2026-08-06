@@ -141,6 +141,13 @@ pre-commit:
           - name: frontend-test
             run: bun --cwd="frontend" run test
 
+          # Renders the real production bundle in headless Edge (the same
+          # Chromium engine WebView2 runs) and fails if the app paints nothing.
+          # Every other frontend job runs source through Vite in jsdom, so a
+          # blank window ships green -- 1.2.0 did exactly that.
+          - name: frontend-render-smoke
+            run: bun --cwd="frontend" run render:smoke
+
           # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
           - name: test:mutation:staged
             run: npm run test:mutation:staged

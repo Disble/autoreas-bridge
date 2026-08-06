@@ -76,7 +76,11 @@ must also be announced in `docs/openapi.yaml`.
    `rg 'INFO_PRODUCTVERSION "' build/windows/installer/wails_tools.nsh`.
 7. Confirm both artifacts exist in `build/bin/`: `autoreas-bridge.exe` and
    `autoreas-bridge-amd64-installer.exe`.
-8. Smoke-test the built binary for anything tests cannot reach (window/tray
+8. Verify the UI actually paints: `bun --cwd="frontend" run render:smoke`.
+   **Launching the binary and seeing the process stay alive is NOT a smoke
+   test** — 1.2.0 shipped a blank window behind a completely healthy Go startup
+   log. See `.claude/skills/frontend-render-smoke/SKILL.md`.
+   Then smoke-test what neither tests nor that check can reach (window/tray
    behavior, single-instance, installer flow). Report it as unverified if you
    cannot run it — never imply you did.
 9. Append the release rationale to `docs/learning-log.md` with

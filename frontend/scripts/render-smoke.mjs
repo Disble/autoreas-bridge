@@ -1,0 +1,196 @@
+// Renders the production bundle in headless Edge and fails if the app paints
+// nothing.
+//
+// This exists because a blank window ships silently. Every other frontend check
+// runs source through Vite in jsdom: `tsc` proves types, vitest proves component
+// behaviour with the panels mocked, and none of them ever execute the minified
+// artifact that actually gets embedded into the binary. Release 1.2.0 passed the
+// entire gate, built, installed, and opened to an empty window.
+//
+// Edge is the same Chromium engine WebView2 runs, so `--dump-dom` against the
+// real `dist/` output is the closest thing to opening the app that a terminal
+// can do.
+//
+// Deliberately NOT used here, each verified as a dead end:
+//   - WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port : Wails
+//     overrides it, no CDP port ever opens.
+//   - windows.Options{AdditionalBrowserArgs} : does not exist in Wails v2.12.0,
+//     it is a v3 field.
+//   - jsdom against dist : jsdom 29 removed ResourceLoader, cannot execute
+//     <script type="module">, and lacks ResizeObserver/getAnimations, so it
+//     throws for reasons a real browser never would.
+
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+// Imported explicitly rather than taken from globals: this file is linted with
+// the frontend's browser config, which does not declare Node's globals.
+import { clearTimeout, setTimeout } from 'node:timers';
+import { URL } from 'node:url';
+
+/* eslint-disable sonarjs/no-os-command-from-path -- `bun` must resolve from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and arguments are passed as an array rather than through a shell. */
+
+const DIST = path.resolve(import.meta.dirname, '..', 'dist');
+const RENDER_TIMEOUT_MS = 60000;
+const VIRTUAL_TIME_BUDGET_MS = 10000;
+
+/** Markers that only exist once React has mounted the shell and its navigation. */
+const REQUIRED_MARKERS = ['Today', 'Catalog', 'Downloads'];
+
+/** Route-specific markers, proving the route actually rendered its own content. */
+const ROUTE_MARKERS = {
+  '/#/downloads': ['Configuration', 'Manual check'],
+};
+
+const CONTENT_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+};
+
+function findEdge() {
+  const candidates = [
+    process.env.EDGE_PATH,
+    `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    `${process.env.PROGRAMFILES}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\Application\\msedge.exe`,
+  ];
+  return candidates.find((candidate) => candidate && existsSync(candidate));
+}
+
+function buildDist() {
+  // `vite build` only -- typechecking is frontend-typecheck's job, and paying for
+  // it twice would make this gate cost more than the bug it catches.
+  const result = spawnSync('bun', ['x', 'vite', 'build'], {
+    cwd: path.resolve(import.meta.dirname, '..'),
+    stdio: 'pipe',
+    shell: true,
+  });
+  if (result.status !== 0) {
+    console.error('render-smoke: vite build failed');
+    console.error(result.stderr?.toString() ?? '');
+    process.exit(1);
+  }
+}
+
+/**
+ * Serves dist with a SPA fallback, mirroring how the Wails asset server answers
+ * a client-side route. A gate that only ever requested "/" would miss a bundle
+ * that renders at the root and 404s everywhere else.
+ */
+function startServer() {
+  const server = createServer((request, response) => {
+    const requested = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    let file = path.join(DIST, requested);
+    if (!existsSync(file) || requested === '/') {
+      file = path.join(DIST, 'index.html');
+    }
+    response.writeHead(200, { 'Content-Type': CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream' });
+    response.end(readFileSync(file));
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port }));
+  });
+}
+
+function renderRoute(edge, profileDir, url) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      edge,
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--no-first-run',
+        '--disable-extensions',
+        `--virtual-time-budget=${VIRTUAL_TIME_BUDGET_MS}`,
+        `--user-data-dir=${profileDir}`,
+        '--dump-dom',
+        url,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+
+    let dom = '';
+    child.stdout.on('data', (chunk) => {
+      dom += chunk.toString();
+    });
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`headless render timed out after ${RENDER_TIMEOUT_MS}ms`));
+    }, RENDER_TIMEOUT_MS);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', () => {
+      clearTimeout(timer);
+      resolve(dom);
+    });
+  });
+}
+
+function checkDom(dom, route) {
+  const failures = [];
+  const root = /<div id="root">([\s\S]*)<\/div>\s*<\/body>/.exec(dom);
+  const rendered = root ? root[1].trim() : '';
+
+  if (rendered.length === 0) {
+    failures.push(`${route}: #root is empty — the app painted nothing`);
+    return failures;
+  }
+  for (const marker of [...REQUIRED_MARKERS, ...(ROUTE_MARKERS[route] ?? [])]) {
+    if (!dom.includes(marker)) {
+      failures.push(`${route}: rendered ${rendered.length} chars but "${marker}" is missing`);
+    }
+  }
+  return failures;
+}
+
+const edge = findEdge();
+if (!edge) {
+  // Fail rather than skip: a silent skip is how a gate stops guarding without
+  // anyone noticing. Set EDGE_PATH if Edge lives somewhere unusual.
+  console.error('render-smoke: could not find msedge.exe. Set EDGE_PATH to your Edge binary.');
+  process.exit(1);
+}
+
+buildDist();
+
+const { server, port } = await startServer();
+const profileDir = mkdtempSync(path.join(tmpdir(), 'render-smoke-'));
+const failures = [];
+
+try {
+  // The app uses HashRouter (see src/main.tsx), so a route lives after the "#".
+  // Requesting "/downloads" would silently serve index.html with an empty hash
+  // and render the default route instead -- a check that looks like it covers
+  // Downloads while never leaving Today.
+  for (const route of ['/', '/#/downloads']) {
+    const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
+    failures.push(...checkDom(dom, route));
+  }
+} finally {
+  server.close();
+  rmSync(profileDir, { recursive: true, force: true });
+}
+
+if (failures.length > 0) {
+  console.error('render-smoke: the production bundle does not render.\n');
+  for (const failure of failures) {
+    console.error(`  - ${failure}`);
+  }
+  console.error('\nReproduce it yourself:');
+  console.error('  cd frontend && bun x vite build');
+  console.error('  npx serve dist   # or any static server with SPA fallback');
+  console.error(`  "${edge}" --headless=new --dump-dom http://127.0.0.1:<port>/`);
+  process.exit(1);
+}
+
+console.log(`render-smoke: the production bundle renders (${REQUIRED_MARKERS.join(', ')} present on / and /downloads).`);
