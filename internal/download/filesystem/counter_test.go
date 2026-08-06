@@ -260,3 +260,51 @@ func TestFlattenRemovesEmptySubdirectoryEvenWhenNoFilesWereMoved(t *testing.T) {
 		t.Fatalf("expected empty Pack1 to be removed, stat err: %v", err)
 	}
 }
+
+// episodeNumberFromName is the single most dangerous parser in the download
+// context: an over-read is silent and permanent. `d2ouiemgt90z.mp4` -- the real
+// name Vidhide/JDownloader gave episode 1 of a 12-episode season -- was read as
+// episode 90, which ended the catch-up loop after one episode and made the anime
+// read as "up to date" forever. Under-reading is safe (CountAtRoot still counts
+// the file), so anything ambiguous MUST return 0.
+func TestEpisodeNumberFromNameReadsConventionalEpisodeNames(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]int{
+		"trigunstampedesvs-06": 6,
+		"Anime - 12":           12,
+		"Anime_03":             3,
+		"ep01":                 1,
+		"EP 7":                 7,
+		"cap12":                12,
+		"Anime S01E12":         12,
+		"Anime 12 (1080p)":     12,
+		"5":                    5,
+	}
+
+	for name, want := range cases {
+		if got := episodeNumberFromName(name + ".mp4"); got != want {
+			t.Fatalf("episodeNumberFromName(%q) = %d, want %d", name, got, want)
+		}
+	}
+}
+
+func TestEpisodeNumberFromNameRefusesDigitsBuriedInOpaqueNames(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"d2ouiemgt90z",     // the hoster hash that caused the bug
+		"Anime [1080p]",    // resolution suffix, not an episode
+		"Anime 720p",       // resolution suffix, not an episode
+		"abc123def",        // digits mid-token
+		"xyzape01",         // "e" preceded by a letter is not an episode marker
+		"file9999999",      // implausibly long digit run
+		"Anime - 9999999",  // properly delimited, but too long to be an episode
+		"Anime - 20260805", // a date, not an episode
+		"no digits at all", // nothing to read
+	} {
+		if got := episodeNumberFromName(name + ".mp4"); got != 0 {
+			t.Fatalf("episodeNumberFromName(%q) = %d, want 0 (ambiguous names must not be read)", name, got)
+		}
+	}
+}
