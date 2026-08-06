@@ -59,6 +59,9 @@ type svcFakeEpisodeSource struct {
 	listErr      map[string]error
 	extractLinks map[string][]sites.DownloadLink
 	extractErr   map[string]error
+	// pageURLErr fails EpisodePageURL for the given episode numbers, covering the
+	// site adapter that cannot even build an episode's page URL.
+	pageURLErr map[int]error
 }
 
 func (f *svcFakeEpisodeSource) Descriptor() sites.SiteDescriptor {
@@ -80,6 +83,9 @@ func (f *svcFakeEpisodeSource) ListEpisodes(ctx context.Context, pageURL string)
 }
 
 func (f *svcFakeEpisodeSource) EpisodePageURL(ctx context.Context, pageURL string, episode int) (string, error) {
+	if err, ok := f.pageURLErr[episode]; ok {
+		return "", err
+	}
 	return strings.TrimRight(pageURL, "/") + "/" + strconv.Itoa(episode) + "/", nil
 }
 

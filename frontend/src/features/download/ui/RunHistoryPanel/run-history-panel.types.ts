@@ -44,6 +44,12 @@ export interface RunHistoryPanelViewModel {
 export interface RunProgressBarProps {
   readonly episodesFound: number;
   readonly episodesDownloaded: number;
+  /**
+   * The `found - downloaded - failed` remainder. Genuinely in flight while the
+   * run is open; genuinely never attempted once it has terminated.
+   */
   readonly episodesDownloading: number;
   readonly episodesFailed: number;
+  /** Decides whether the pending segment reads as active or as never attempted. */
+  readonly isRunning: boolean;
 }

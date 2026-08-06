@@ -166,6 +166,49 @@ describe('RunHistoryPanel', () => {
     );
   });
 
+  // The exact case from the field: a finished jd_offline run with 0 downloaded
+  // and 0 failed was reporting "Downloading 8" for episodes it never attempted.
+  it('labels the pending episodes "Not attempted" on a run that has terminated', () => {
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false, isStopping: false, selectedRun: jdOfflineRun },
+      cancelRun: vi.fn(),
+      selectRun: vi.fn(),
+      loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+
+    expect(screen.getByText('Not attempted')).toBeInTheDocument();
+    expect(screen.queryByText('Downloading')).not.toBeInTheDocument();
+  });
+
+  it('labels the pending episodes "Downloading" only while the run is still open', () => {
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: {
+        status: 'ready',
+        rows,
+        visibleRows: rows,
+        canLoadMore: false,
+        remainingCount: 0,
+        runInProgress: true,
+        isStopping: false,
+        selectedRun: { ...jdOfflineRun, status: 'running' },
+      },
+      cancelRun: vi.fn(),
+      selectRun: vi.fn(),
+      loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+
+    expect(screen.getByText('Downloading')).toBeInTheDocument();
+    expect(screen.queryByText('Not attempted')).not.toBeInTheDocument();
+  });
+
   it('renders the "Up to date" counter in the detail pane for a selected run', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
       viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false, isStopping: false, selectedRun: okRun },

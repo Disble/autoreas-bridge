@@ -142,13 +142,19 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 // processAvailableEpisode resolves, extracts, and downloads one available episode. The gate is
 // already resolved by downloadAvailableEpisodes before this runs, so gate.knownOffline() is the
 // single source of truth for JD availability here -- it never forces a launch.
+//
+// Every path that does not put a file on disk is terminal for the anime. There is
+// deliberately no "skip to the next episode": the download cursor is derived from
+// the folder contents, so it can express "I have N episodes" but not "I have 4 and
+// 12". Advancing past an episode nobody downloaded therefore either fabricates
+// progress (the old offline path logged an on-disk count climbing 4 -> 11 with no
+// file written) or invites a gap that hides every earlier missing episode behind a
+// later one.
 func (s *Service) processAvailableEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, gate *jdGate, source sites.EpisodeSource, current int, outcome *animeRunOutcome, emitProgress func(animeProgressDelta)) (int, bool) {
 	nextEpisode := current + 1
 	episodePageURL, err := source.EpisodePageURL(ctx, *anime.SourceURL, nextEpisode)
 	if err != nil {
-		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, gate, "anime %s: resolve episode %d page failed: %v", anime.Name, nextEpisode, err) {
-			return current + 1, false
-		}
+		s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, "anime %s: resolve episode %d page failed: %v", anime.Name, nextEpisode, err)
 		return current, true
 	}
 
@@ -156,16 +162,19 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	s.publish(events.DownloadEpisodeAvailableEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	links, err := source.ExtractLinks(ctx, episodePageURL)
 	if linkExtractionFailed(err, links) {
-		if s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, gate, "anime %s: extract links failed: %v", anime.Name, err) {
-			return current + 1, false
-		}
+		s.recordEpisodeFailure(runID, anime, FailureKindHosterDown, outcome, emitProgress, "anime %s: extract links failed: %v", anime.Name, err)
 		return current, true
 	}
+	// Offering the links this run already resolved is worth doing only here: JD
+	// being offline means the links are fine and just our downloader is dead,
+	// unlike a hoster failure where they are dead too. Exactly one episode is
+	// offered -- the next one -- so fetching it by hand advances the counter
+	// correctly instead of opening a gap.
 	if gate.knownOffline() {
 		manualLink := ManualLink{Anime: anime.Name, Episode: nextEpisode, Links: linkURLs(links)}
 		outcome.manualLinks = append(outcome.manualLinks, manualLink)
 		emitProgress(animeProgressDelta{manualLinks: []ManualLink{manualLink}})
-		return current + 1, false
+		return current, true
 	}
 
 	ordered := s.orderHosters(source.Descriptor().Name, links)
@@ -187,17 +196,16 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	return s.downloadedEpisodeBaseline(*anime.Folder), false
 }
 
-// recordEpisodeFailure records an episode failure and reports whether processing should stop.
-// Uses gate.knownOffline() so a listing/page-resolution failure never forces the gate to resolve
-// just to decide whether to continue.
-func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), gate *jdGate, logFormat string, logArgs ...any) bool {
+// recordEpisodeFailure records an episode failure. It no longer decides whether to
+// continue: an episode that did not land is always terminal for its anime, so the
+// caller stops unconditionally.
+func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime, failureKind string, outcome *animeRunOutcome, emitProgress func(animeProgressDelta), logFormat string, logArgs ...any) {
 	s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": failureKind}, logFormat, logArgs...)
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
 	outcome.episodesFailed++
 	outcome.failed = true
 	outcome.failureKind = failureKind
 	emitProgress(animeProgressDelta{episodesFailed: 1})
-	return gate.knownOffline()
 }
 
 // linkExtractionFailed reports whether link extraction yielded an unusable result.

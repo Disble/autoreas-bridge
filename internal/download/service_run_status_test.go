@@ -137,63 +137,6 @@ func assertJDOfflineManualLink(t *testing.T, deps ServiceDeps, runID string) {
 	}
 }
 
-func TestRunOnceJDOfflineCollectsResolvableManualLinksAfterEpisodeFailure(t *testing.T) {
-	t.Parallel()
-
-	deps := baseDeps(t)
-	dia := todayDiaName(deps.Clock())
-	folder := t.TempDir()
-
-	registry := NewStaticRegistry()
-	source := &svcFakeEpisodeSource{
-		name: "jkanime",
-		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/catchup/": {LatestEpisode: 12, EpisodePageURL: "https://jkanime.net/catchup/12/"},
-		},
-		extractLinks: map[string][]sites.DownloadLink{
-			"https://jkanime.net/catchup/11/": {{URL: "http://mediafire.example/11", Hoster: "Mediafire"}},
-			"https://jkanime.net/catchup/12/": {{URL: "http://mediafire.example/12", Hoster: "Mediafire"}},
-		},
-		extractErr: map[string]error{
-			"https://jkanime.net/catchup/10/": errors.New("episode 10 links unavailable"),
-		},
-	}
-	registry.Register(source)
-	deps.Sites = registry
-	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
-		ID:        "anime-1",
-		Name:      "Catchup Anime",
-		Active:    1,
-		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/catchup/"),
-		Folder:    ptrStr(folder),
-	}}}
-	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 9}})
-	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
-
-	result, err := NewService(deps).RunOnce(context.Background(), "manual")
-	if err != nil {
-		t.Fatalf("expected RunOnce to degrade gracefully on jd offline, got err %v", err)
-	}
-	if result.Status != RunStatusJDOffline {
-		t.Fatalf("expected run status %q, got %q", RunStatusJDOffline, result.Status)
-	}
-
-	run, ok := deps.Store.(*svcFakeDownloadStore).getRun(result.RunID)
-	if !ok {
-		t.Fatalf("expected run %q persisted", result.RunID)
-	}
-	if run.EpisodesFound != 3 || run.EpisodesFailed != 1 {
-		t.Fatalf("expected 3 found and 1 failed for the unresolved episode, got %#v", run)
-	}
-	if len(run.ManualLinks) != 2 {
-		t.Fatalf("expected manual links for the two resolvable episodes, got %#v", run.ManualLinks)
-	}
-	if run.ManualLinks[0].Episode != 11 || run.ManualLinks[1].Episode != 12 {
-		t.Fatalf("expected manual links for episodes 11 and 12, got %#v", run.ManualLinks)
-	}
-}
-
 func TestRunOnceReturnsNoAnimesTodayWhenNoneActiveToday(t *testing.T) {
 	t.Parallel()
 

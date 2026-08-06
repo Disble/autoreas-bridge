@@ -1,4 +1,5 @@
 import { Button, Chip, EmptyState, Skeleton } from '@heroui/react';
+import { pendingEpisodesLabel } from './run-history-panel.helpers';
 import { useRunHistoryPanel } from './use-run-history-panel';
 import type { RunHistoryPanelProps, RunHistoryRowViewModel } from './run-history-panel.types';
 import { RunProgressBar } from './RunProgressBar';
@@ -124,8 +125,14 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-muted">
               <dt>Found</dt>
               <dd className="text-right font-medium text-warning">{viewModel.selectedRun.episodesFound}</dd>
-              <dt>Downloading</dt>
-              <dd className="text-right font-medium text-primary">{viewModel.selectedRun.episodesDownloading}</dd>
+              <dt>{pendingEpisodesLabel(viewModel.selectedRun.status === 'running')}</dt>
+              <dd
+                className={`text-right font-medium ${
+                  viewModel.selectedRun.status === 'running' ? 'text-primary' : 'text-default-500'
+                }`}
+              >
+                {viewModel.selectedRun.episodesDownloading}
+              </dd>
               <dt>Downloaded</dt>
               <dd className="text-right font-medium text-success">{viewModel.selectedRun.episodesDownloaded}</dd>
               <dt>Failed</dt>
@@ -137,6 +144,7 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
               episodesDownloaded={viewModel.selectedRun.episodesDownloaded}
               episodesDownloading={viewModel.selectedRun.episodesDownloading}
               episodesFailed={viewModel.selectedRun.episodesFailed}
+              isRunning={viewModel.selectedRun.status === 'running'}
             />
 
             {viewModel.selectedRun.errorSummary !== undefined && (
@@ -150,14 +158,24 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
                 <span className="font-medium text-foreground">Manual links (JDownloader was offline)</span>
                 <ul className="flex flex-col gap-2">
                   {viewModel.selectedRun.manualLinks.map((link) => (
-                    <li key={`${link.anime}-${link.episode}`} className="rounded-lg border border-divider/60 p-2">
+                    <li key={`${link.anime}-${link.episode}`} className="min-w-0 rounded-lg border border-divider/60 p-2">
                       <p className="font-medium text-foreground">
                         <span>{link.anime}</span> — Episode {link.episode}
                       </p>
-                      <ul className="flex flex-col gap-1">
+                      {/*
+                       * Hoster URLs are long, unbroken tokens. Without break-all they
+                       * push the card wider than its column and put a horizontal
+                       * scrollbar on the whole window.
+                       */}
+                      <ul className="flex min-w-0 flex-col gap-1">
                         {link.links.map((url) => (
-                          <li key={url}>
-                            <a className="text-primary underline" href={url} rel="noreferrer" target="_blank">
+                          <li key={url} className="min-w-0">
+                            <a
+                              className="block break-all text-primary underline"
+                              href={url}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
                               {url}
                             </a>
                           </li>

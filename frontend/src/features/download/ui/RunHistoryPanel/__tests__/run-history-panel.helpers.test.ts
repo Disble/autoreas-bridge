@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findRunningRunId, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
+import { findRunningRunId, pendingEpisodesLabel, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 
 function createRun(index: number): DownloadRunView {
@@ -108,6 +108,21 @@ describe('toRunHistoryPanelViewModel', () => {
     expect(viewModel.visibleRows).toHaveLength(20);
     expect(viewModel.canLoadMore).toBe(true);
     expect(viewModel.remainingCount).toBe(5);
+  });
+});
+
+describe('pendingEpisodesLabel', () => {
+  // The number is `found - downloaded - failed`, which means two different things
+  // depending on whether the run is over. While it runs, those episodes really are
+  // in flight. Once it has terminated nothing can still be downloading, so the same
+  // number means "never attempted" -- and calling that "Downloading" is what made a
+  // jd_offline run with 0 downloaded and 0 failed report "8 downloading".
+  it('says Downloading only while the run is still open', () => {
+    expect(pendingEpisodesLabel(true)).toBe('Downloading');
+  });
+
+  it('says Not attempted once the run has terminated', () => {
+    expect(pendingEpisodesLabel(false)).toBe('Not attempted');
   });
 });
 

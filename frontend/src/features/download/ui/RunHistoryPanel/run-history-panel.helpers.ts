@@ -3,6 +3,20 @@ import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
 import type { RunHistoryPanelViewModel, RunHistoryRowViewModel } from './run-history-panel.types';
 
 /**
+ * Names the `episodesFound - episodesDownloaded - episodesFailed` remainder for a
+ * run in the given status.
+ *
+ * The backend never stores that number; it is derived. While a run is open the
+ * remainder really is in flight, but a run that has terminated cannot still be
+ * downloading anything — there the same number counts episodes that were never
+ * attempted at all. Labelling both "Downloading" is what made a finished
+ * `jd_offline` run with 0 downloaded and 0 failed claim it was downloading 8.
+ */
+export function pendingEpisodesLabel(isRunning: boolean): string {
+  return isRunning ? 'Downloading' : 'Not attempted';
+}
+
+/**
  * Maps the raw `DownloadRunView[]` (Wails wire shape, newest-first per
  * `ListDownloadRuns`) into the master/detail view model: one formatted row
  * per run, plus the currently selected run's full record (manual links
