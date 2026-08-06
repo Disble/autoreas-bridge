@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
+import { isDownloadRunInProgress, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 
 function createRun(index: number): DownloadRunView {
@@ -108,5 +108,26 @@ describe('toRunHistoryPanelViewModel', () => {
     expect(viewModel.visibleRows).toHaveLength(20);
     expect(viewModel.canLoadMore).toBe(true);
     expect(viewModel.remainingCount).toBe(5);
+  });
+});
+
+describe('isDownloadRunInProgress', () => {
+  // A run row is opened as "running" by BOTH entry points -- the scheduler's
+  // full check and the App's single-anime catch-up -- so the row itself is the
+  // one signal that covers every way a download can be in flight.
+  it('reports a run in progress while a row is still running', () => {
+    expect(isDownloadRunInProgress([{ ...okRun, status: 'running' }, okRun])).toBe(true);
+  });
+
+  it('reports no run in progress once every row reached a terminal status', () => {
+    expect(isDownloadRunInProgress([okRun, jdOfflineRun])).toBe(false);
+  });
+
+  it('reports no run in progress for an empty history', () => {
+    expect(isDownloadRunInProgress([])).toBe(false);
+  });
+
+  it('does not mistake a canceled run for a running one', () => {
+    expect(isDownloadRunInProgress([{ ...okRun, status: 'canceled' }])).toBe(false);
   });
 });

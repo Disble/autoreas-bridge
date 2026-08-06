@@ -21,6 +21,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
 
   // 2. State
   const [visibleCount, setVisibleCount] = useState(RUN_HISTORY_PAGE_SIZE);
+  const [cancelErrorMessage, setCancelErrorMessage] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
   const runs = useDownloadRuntimeStore((state) => state.runHistory);
@@ -37,6 +38,17 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   const selectRun = useCallback((runId: string) => {
     storeSelectRun(runId);
   }, [storeSelectRun]);
+
+  // The stopped run finalizes its own terminal row and the run-event stream
+  // refreshes the list, so there is nothing to optimistically patch here: only a
+  // refusal needs surfacing.
+  const cancelRun = useCallback(async () => {
+    setCancelErrorMessage(undefined);
+    const result = await source.cancelDownloadRun();
+    if (result !== 'ok') {
+      setCancelErrorMessage(result);
+    }
+  }, [source]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((currentVisibleCount) => getNextVisibleRunCount(currentVisibleCount, runs.length));
@@ -74,10 +86,15 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
     viewModel = { ...baseViewModel, status: 'error' as const, errorMessage };
   } else if (!hasLoaded) {
     viewModel = { ...baseViewModel, status: 'loading' as const };
+  } else if (cancelErrorMessage !== undefined) {
+    // A refused stop does not invalidate the history that loaded fine, so the
+    // list stays readable and only the message is added.
+    viewModel = { ...baseViewModel, errorMessage: cancelErrorMessage };
   }
 
   return {
     viewModel,
+    cancelRun,
     loadMore,
     selectRun,
     scrollRef,

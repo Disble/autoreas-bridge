@@ -21,6 +21,8 @@ export interface DownloadRuntimeSource {
   readonly setHosterPriority: (site: string, items: readonly HosterPriorityItem[]) => Promise<string>;
   readonly triggerDownloadCheck: () => Promise<string>;
   readonly triggerAnimeDownload: (animeID: string) => Promise<string>;
+  /** Stops the run currently in flight; resolves "ok" when one was stopped. */
+  readonly cancelDownloadRun: () => Promise<string>;
   readonly runMissedScheduleNow: (localDate: string) => Promise<ScheduleMissedActionResult>;
   readonly ignoreMissedSchedule: (localDate: string) => Promise<ScheduleMissedActionResult>;
 	readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;

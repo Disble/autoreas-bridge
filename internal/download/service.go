@@ -42,6 +42,10 @@ const (
 	RunStatusError         = "error"
 	RunStatusJDOffline     = "jd_offline"
 	RunStatusNoAnimesToday = "no_animes_today"
+	// RunStatusCanceled is the terminal status of a run the user stopped. It is
+	// distinct from "interrupted", which startup reconciliation writes for runs a
+	// crash or shutdown left non-terminal.
+	RunStatusCanceled = "canceled"
 )
 
 // Failure-kind classification (design.md §8, download-sites spec "Failure-Cause
@@ -317,6 +321,10 @@ func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool) {
 
 // setRunCompletionStatus assigns the terminal status and related notification.
 func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool) {
+	if s.markCanceled(ctx, runID, run) {
+		return
+	}
+
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
@@ -333,6 +341,21 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 			s.notify(ctx, notification.LevelSuccess, runID, "Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
 		}
 	}
+}
+
+// markCanceled assigns the terminal "canceled" status when the run context was
+// cancelled, and reports whether it did. Stopping is a user action, so it outranks
+// every other terminal status: the partial failures a stop leaves behind are a
+// consequence of stopping, not the story worth telling. Shared by the fan-out and
+// single-anime status ladders so a stopped run reads the same either way.
+func (s *Service) markCanceled(ctx context.Context, runID string, run *Run) bool {
+	if ctx.Err() == nil {
+		return false
+	}
+	run.Status = RunStatusCanceled
+	s.notify(ctx, notification.LevelInfo, runID, "Download run stopped",
+		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded))
+	return true
 }
 
 // applyProgressDelta adds one anime's progress delta to the aggregate run.

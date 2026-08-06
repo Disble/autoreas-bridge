@@ -48,6 +48,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
+    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
     runMissedScheduleNow: vi.fn(),
     ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn().mockResolvedValue(runHistory),

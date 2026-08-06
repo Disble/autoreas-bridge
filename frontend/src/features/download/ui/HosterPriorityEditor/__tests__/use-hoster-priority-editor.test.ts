@@ -43,6 +43,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     setHosterPriority: vi.fn().mockResolvedValue('ok'),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
+    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
     runMissedScheduleNow: vi.fn(),
     ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn(),

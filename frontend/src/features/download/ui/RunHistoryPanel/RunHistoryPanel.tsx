@@ -11,7 +11,7 @@ import { RunProgressBar } from './RunProgressBar';
  * `useRunHistoryPanel` hook; this component is presentation-only.
  */
 export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
-  const { viewModel, selectRun, scrollRef, onScroll } = useRunHistoryPanel();
+  const { viewModel, cancelRun, selectRun, scrollRef, onScroll } = useRunHistoryPanel();
 
   if (viewModel.status === 'loading') {
     return (
@@ -41,6 +41,21 @@ export function RunHistoryPanel({ className }: Readonly<RunHistoryPanelProps>) {
 
   return (
     <section aria-label="Download run history" className={`grid gap-4 sm:grid-cols-2 ${className ?? ''}`}>
+      {viewModel.runInProgress && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-divider/60 px-3 py-2 sm:col-span-2">
+          <span className="text-sm text-muted">A download run is in progress.</span>
+          <Button onPress={() => void cancelRun()} size="sm" variant="secondary">
+            Stop run
+          </Button>
+        </div>
+      )}
+
+      {viewModel.errorMessage !== undefined && (
+        <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger sm:col-span-2" role="alert">
+          {viewModel.errorMessage}
+        </p>
+      )}
+
       <div
         className="max-h-[32rem] min-h-0 overflow-x-hidden overflow-y-auto pr-1"
         data-testid="run-history-scroll"

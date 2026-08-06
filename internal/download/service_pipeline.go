@@ -124,6 +124,12 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 	emitProgress(animeProgressDelta{checked: true, episodesFound: missingEpisodes})
 	current := preparation.onDiskEpisode
 	for current < preparation.listing.LatestEpisode {
+		// A stopped run must not start the next episode. Checking here (rather than
+		// only inside the watch loops) means Stop costs at most the episode already
+		// in flight.
+		if ctx.Err() != nil {
+			return outcome
+		}
 		nextCount, terminal := s.processAvailableEpisode(ctx, runID, anime, gate, preparation.source, current, &outcome, emitProgress)
 		if terminal {
 			return outcome
@@ -308,6 +314,11 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 
 	lastFailureKind := FailureKindHosterDown
 	for i, hl := range ordered {
+		// Falling back to the next hoster after a stop would keep the run alive for
+		// minutes after the user asked it to end.
+		if ctx.Err() != nil {
+			return false, lastFailureKind
+		}
 		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,

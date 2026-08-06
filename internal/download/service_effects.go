@@ -2,11 +2,27 @@ package download
 
 import (
 	"context"
+	"time"
 
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
 )
+
+// finalizeTimeout bounds the detached write that persists a stopped run's
+// terminal row, so a hung store cannot keep a cancelled run alive.
+const finalizeTimeout = 5 * time.Second
+
+// finalizeContext returns a bounded context detached from the run's own
+// cancellation, plus its release func. The terminal row is the one write that must
+// land no matter how the run ended: writing it through a cancelled run context
+// fails, leaving the row "running" until the next startup reconcile relabels it
+// "interrupted" -- exactly the state a user-pressed Stop must never produce. It is
+// detached unconditionally rather than only when cancelled, so the guarantee does
+// not depend on a branch that ordinary runs never take.
+func finalizeContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
+}
 
 // finalize stamps and persists a completed download run.
 func (s *Service) finalize(ctx context.Context, run *Run) {
@@ -15,7 +31,9 @@ func (s *Service) finalize(ctx context.Context, run *Run) {
 	if s.deps.Store == nil {
 		return
 	}
-	if err := s.deps.Store.FinalizeRun(ctx, *run); err != nil {
+	finalizeCtx, release := finalizeContext(ctx)
+	defer release()
+	if err := s.deps.Store.FinalizeRun(finalizeCtx, *run); err != nil {
 		s.logf(logger.LevelError, run.RunID, "", "download.failed", nil,
 			"failed to finalize run %s: %v", run.RunID, err)
 	}

@@ -14,7 +14,7 @@ export function toRunHistoryPanelViewModel(
   visibleCount: number,
 ): RunHistoryPanelViewModel {
   if (runs.length === 0) {
-    return { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 };
+    return { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, runInProgress: false };
   }
 
   const effectiveSelectedRunId = resolveSelectedRunId(runs, selectedRunId);
@@ -39,8 +39,20 @@ export function toRunHistoryPanelViewModel(
     visibleRows,
     canLoadMore: visibleRows.length < rows.length,
     remainingCount: rows.length - visibleRows.length,
+    runInProgress: isDownloadRunInProgress(runs),
     selectedRun,
   };
+}
+
+/**
+ * Reports whether a download run is currently in flight, which is what gates the
+ * Stop control. Both entry points -- the scheduler's full check and the App's
+ * single-anime catch-up -- open their row as "running" and replace it with a
+ * terminal status when they end, so the run history is the one signal that sees
+ * every kind of run without a second liveness query.
+ */
+export function isDownloadRunInProgress(runs: readonly DownloadRunView[]): boolean {
+  return runs.some((run) => run.status === 'running');
 }
 
 /** Resolves which run should be selected, defaulting to the newest available item. */

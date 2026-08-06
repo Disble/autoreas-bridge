@@ -112,6 +112,9 @@ type Scheduler interface {
 	Stop()
 	NotifyConfigChanged()
 	TriggerNow(ctx context.Context, trigger string) error
+	// CancelRun cancels an in-flight run without stopping the scheduler, reporting
+	// whether a run was actually cancelled.
+	CancelRun() bool
 	ResolveMissedStartupDate(ctx context.Context, localDate string, action MissedStartupAction) MissedStartupActionResult
 	Status(ctx context.Context) Status
 }

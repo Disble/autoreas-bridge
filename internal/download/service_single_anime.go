@@ -28,6 +28,11 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 
 	outcome := s.processAnime(ctx, runID, anime, gate, applyDelta)
 
+	if s.markCanceled(ctx, runID, run) {
+		s.finalize(ctx, run)
+		return RunResult{RunID: runID, Status: run.Status}
+	}
+
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline

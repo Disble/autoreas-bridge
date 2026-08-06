@@ -1,4 +1,5 @@
 import {
+  CancelDownloadRun,
   GetDownloadConfig,
   GetJDStatus,
   GetScheduleConfig,
@@ -107,6 +108,9 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     },
     triggerAnimeDownload(animeID) {
       return invokeGoBinding('TriggerAnimeDownload', () => TriggerAnimeDownload(animeID), () => 'runtime unavailable');
+    },
+    cancelDownloadRun() {
+      return invokeGoBinding('CancelDownloadRun', CancelDownloadRun, () => 'runtime unavailable');
     },
     runMissedScheduleNow(localDate) {
       return invokeGoBinding('RunMissedScheduleNow', () => RunMissedScheduleNow(localDate), () => createRuntimeUnavailableMissedActionResult(localDate));

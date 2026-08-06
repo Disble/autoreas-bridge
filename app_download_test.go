@@ -547,3 +547,56 @@ func TestListDownloadReadinessNamesUnwiredServiceSoTheCauseIsNotGeneric(t *testi
 		t.Fatalf("unwired readiness returned fabricated items: %#v", got.Items)
 	}
 }
+
+func TestCancelDownloadRunReportsWhenNoRunIsInProgress(t *testing.T) {
+	t.Parallel()
+
+	sched := &fakeAppScheduler{cancelRunResult: false}
+	app := &App{ctx: context.Background(), downloadScheduler: sched}
+
+	if got := app.CancelDownloadRun(); got != "no download run in progress" {
+		t.Fatalf("expected the idle message, got %q", got)
+	}
+	if sched.cancelRunCalls != 1 {
+		t.Fatalf("expected the scheduler to be asked once, got %d", sched.cancelRunCalls)
+	}
+}
+
+func TestCancelDownloadRunCancelsAScheduledOrManualRun(t *testing.T) {
+	t.Parallel()
+
+	sched := &fakeAppScheduler{cancelRunResult: true}
+	app := &App{ctx: context.Background(), downloadScheduler: sched}
+
+	if got := app.CancelDownloadRun(); got != "ok" {
+		t.Fatalf("expected ok, got %q", got)
+	}
+}
+
+// A single-anime run is started by the App itself, not the scheduler, so the
+// scheduler cannot cancel it -- the App has to hold its own cancel.
+func TestCancelDownloadRunCancelsAnInFlightSoloAnimeRun(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background(), downloadScheduler: &fakeAppScheduler{cancelRunResult: false}}
+	soloCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	app.setSoloDownloadCancel(cancel)
+
+	if got := app.CancelDownloadRun(); got != "ok" {
+		t.Fatalf("expected ok, got %q", got)
+	}
+	if soloCtx.Err() == nil {
+		t.Fatalf("expected the solo run context to be cancelled")
+	}
+}
+
+func TestCancelDownloadRunDegradesWhenNothingIsWired(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ctx: context.Background()}
+
+	if got := app.CancelDownloadRun(); got != "no download run in progress" {
+		t.Fatalf("expected the idle message with no scheduler, got %q", got)
+	}
+}

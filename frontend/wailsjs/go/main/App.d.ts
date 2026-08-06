@@ -10,6 +10,8 @@ export function ApplyAnimeEditorSchedule(arg1:main.ApplyAnimeScheduleDraftComman
 
 export function ApplySeasonSchedule():Promise<main.ApplyScheduleDTO>;
 
+export function CancelDownloadRun():Promise<string>;
+
 export function CloseSeason():Promise<string>;
 
 export function ConfirmBackupImport(arg1:string):Promise<main.BackupImportResult>;

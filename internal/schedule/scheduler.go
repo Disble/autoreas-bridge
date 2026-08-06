@@ -105,6 +105,25 @@ func (s *scheduler) Start(ctx context.Context) {
 	})
 }
 
+// CancelRun cancels the in-flight run WITHOUT stopping the scheduler loop, and
+// reports whether there was one to cancel. This is the user-facing "stop this
+// download" action: the next scheduled tick must still fire, which is what
+// separates it from Stop. It does not wait for the run to unwind -- the run
+// goroutine releases the concurrency guard itself as it finishes.
+func (s *scheduler) CancelRun() bool {
+	// runCancel is the whole test: releaseGuard nils it when a run unwinds, so a
+	// non-nil cancel means a run is genuinely in flight.
+	s.mu.Lock()
+	runCancel := s.runCancel
+	s.mu.Unlock()
+
+	if runCancel == nil {
+		return false
+	}
+	runCancel()
+	return true
+}
+
 // Stop cancels the loop and BOUNDED-DRAINS an in-flight run (design.md §6 "Lifecycle hooks +
 // bounded drain"). It cancels the active run context, waits at most shutdownDrainWait for the
 // run goroutine to unwind, then returns regardless -- it NEVER blocks for the lifetime of a

@@ -47,6 +47,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     setHosterPriority: vi.fn(),
     triggerDownloadCheck: vi.fn(),
     triggerAnimeDownload: vi.fn(),
+    cancelDownloadRun: vi.fn().mockResolvedValue('ok'),
     runMissedScheduleNow: vi.fn(),
     ignoreMissedSchedule: vi.fn(),
     listDownloadRuns: vi.fn().mockResolvedValue(runs),
@@ -215,5 +216,60 @@ describe('useRunHistoryPanel', () => {
 
     resetDownloadRuntimeStore();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useRunHistoryPanel stop control', () => {
+  afterEach(() => {
+    resetDownloadRuntimeStore();
+    vi.restoreAllMocks();
+  });
+
+  it('exposes no stop control when every run has finished', async () => {
+    const source = createSource();
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
+    expect(result.current.viewModel.runInProgress).toBe(false);
+  });
+
+  it('exposes the stop control while a run is in flight', async () => {
+    const source = createSource({
+      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
+    });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+  });
+
+  it('asks the backend to stop the in-flight run', async () => {
+    const cancelDownloadRun = vi.fn().mockResolvedValue('ok');
+    const source = createSource({
+      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
+      cancelDownloadRun,
+    });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+
+    expect(cancelDownloadRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces the backend message when the run could not be stopped', async () => {
+    const source = createSource({
+      listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
+      cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
+    });
+    const { result } = renderHook(() => useRunHistoryPanel(source));
+
+    await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
+    await act(async () => {
+      await result.current.cancelRun();
+    });
+
+    await waitFor(() => expect(result.current.viewModel.errorMessage).toBe('no download run in progress'));
   });
 });

@@ -96,6 +96,8 @@ type App struct {
 	readinessService         *download.ReadinessService
 	downloadScheduler        schedule.Scheduler
 	soloDownloadMu           sync.Mutex
+	soloDownloadCancelMu     sync.Mutex
+	soloDownloadCancel       context.CancelFunc
 	newSeasonStore           func(db *sql.DB) season.Repository
 	seasonService            *season.Service
 	settingsStore            appSettingsStore

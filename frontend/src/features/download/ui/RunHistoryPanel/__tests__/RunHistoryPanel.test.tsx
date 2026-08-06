@@ -70,7 +70,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders a loading skeleton while the status is "loading"', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'loading', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
+      viewModel: { status: 'loading', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -84,7 +85,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders an empty state when there are no runs', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0 },
+      viewModel: { status: 'empty', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -98,7 +100,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders an error message when the status is "error"', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'error', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, errorMessage: 'network down' },
+      viewModel: { status: 'error', rows: [], visibleRows: [], canLoadMore: false, remainingCount: 0, runInProgress: false, errorMessage: 'network down' },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -112,7 +115,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders every run as a selectable master-list row', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -128,7 +132,8 @@ describe('RunHistoryPanel', () => {
   it('calls selectRun when a master row is clicked', () => {
     const selectRun = vi.fn();
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
       selectRun,
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -144,7 +149,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders manual links in the detail pane for a selected jd_offline run', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: jdOfflineRun },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false, selectedRun: jdOfflineRun },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -162,7 +168,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders the "Up to date" counter in the detail pane for a selected run', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, selectedRun: okRun },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false, selectedRun: okRun },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -178,7 +185,8 @@ describe('RunHistoryPanel', () => {
 
   it('renders an empty detail-pane prompt when no run is selected', () => {
     mockedUseRunHistoryPanel.mockReturnValue({
-      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0 },
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore: vi.fn(),
       scrollRef: { current: null },
@@ -216,8 +224,10 @@ describe('RunHistoryPanel', () => {
         })),
         canLoadMore: true,
         remainingCount: 5,
+        runInProgress: false,
         selectedRun: okRun,
       },
+      cancelRun: vi.fn(),
       selectRun: vi.fn(),
       loadMore,
       scrollRef: { current: null },
@@ -232,5 +242,67 @@ describe('RunHistoryPanel', () => {
 
     expect(screen.getAllByRole('button', { name: /row-/i })).toHaveLength(20);
     expect(onScroll).toHaveBeenCalled();
+  });
+});
+
+describe('RunHistoryPanel stop control', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('offers no stop control when no run is in progress', () => {
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: false },
+      cancelRun: vi.fn(),
+      selectRun: vi.fn(),
+      loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+
+    expect(screen.queryByRole('button', { name: /stop run/i })).not.toBeInTheDocument();
+  });
+
+  it('stops the run when the stop control is pressed', () => {
+    const cancelRun = vi.fn().mockResolvedValue(undefined);
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: { status: 'ready', rows, visibleRows: rows, canLoadMore: false, remainingCount: 0, runInProgress: true },
+      cancelRun,
+      selectRun: vi.fn(),
+      loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /stop run/i }));
+
+    expect(cancelRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces a refused stop without hiding the history', () => {
+    mockedUseRunHistoryPanel.mockReturnValue({
+      viewModel: {
+        status: 'ready',
+        rows,
+        visibleRows: rows,
+        canLoadMore: false,
+        remainingCount: 0,
+        runInProgress: true,
+        errorMessage: 'no download run in progress',
+      },
+      cancelRun: vi.fn(),
+      selectRun: vi.fn(),
+      loadMore: vi.fn(),
+      scrollRef: { current: null },
+      onScroll: vi.fn(),
+    });
+
+    render(<RunHistoryPanel />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('no download run in progress');
+    expect(screen.getByRole('button', { name: /stop run/i })).toBeInTheDocument();
   });
 });

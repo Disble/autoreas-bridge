@@ -106,6 +106,8 @@ var _ download.Store = (*fakeAppDownloadStore)(nil)
 type fakeAppScheduler struct {
 	triggerNowCalls          int
 	notifyConfigChangedCalls int
+	cancelRunCalls           int
+	cancelRunResult          bool
 	triggerNowErr            error
 	status                   schedule.Status
 	resolveMissedResult      schedule.MissedStartupActionResult
@@ -121,6 +123,11 @@ func (f *fakeAppScheduler) NotifyConfigChanged() { f.notifyConfigChangedCalls++ 
 func (f *fakeAppScheduler) TriggerNow(context.Context, string) error {
 	f.triggerNowCalls++
 	return f.triggerNowErr
+}
+
+func (f *fakeAppScheduler) CancelRun() bool {
+	f.cancelRunCalls++
+	return f.cancelRunResult
 }
 
 func (f *fakeAppScheduler) Status(context.Context) schedule.Status {

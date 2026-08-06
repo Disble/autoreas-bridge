@@ -25,6 +25,8 @@ export interface RunHistoryPanelViewModel {
   readonly visibleRows: readonly RunHistoryRowViewModel[];
   readonly canLoadMore: boolean;
   readonly remainingCount: number;
+  /** True while a run is still open, which is what reveals the Stop control. */
+  readonly runInProgress: boolean;
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
 }

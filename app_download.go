@@ -337,9 +337,16 @@ func (a *App) TriggerAnimeDownload(animeID string) string {
 		return "anime not found"
 	}
 
+	// The solo run is owned by the App, not the scheduler, so it needs its own
+	// cancel for CancelDownloadRun to be able to stop it.
+	runCtx, cancel := context.WithCancel(a.downloadCtx())
+	a.setSoloDownloadCancel(cancel)
+
 	go func(selected contracts.MobileAnime) {
 		defer a.soloDownloadMu.Unlock()
-		_, _ = a.downloadService.RunAnime(a.downloadCtx(), "manual_anime", selected)
+		defer a.clearSoloDownloadCancel()
+		defer cancel()
+		_, _ = a.downloadService.RunAnime(runCtx, "manual_anime", selected)
 	}(*anime)
 
 	return "ok"

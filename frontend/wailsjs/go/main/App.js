@@ -14,6 +14,10 @@ export function ApplySeasonSchedule() {
   return window['go']['main']['App']['ApplySeasonSchedule']();
 }
 
+export function CancelDownloadRun() {
+  return window['go']['main']['App']['CancelDownloadRun']();
+}
+
 export function CloseSeason() {
   return window['go']['main']['App']['CloseSeason']();
 }
