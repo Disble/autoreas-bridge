@@ -14,6 +14,50 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-08-07
+
+### Fixed
+
+- **The same episode is no longer downloaded twice.** When several anime were
+  downloading at once, an episode could be fetched to completion from two
+  different hosters — the full file transferred twice — while extra attempts
+  against other hosters piled up as errors. Two separate faults combined to cause
+  it, and both are fixed.
+- **Episodes no longer land in a folder named after the hoster.** JDownloader
+  ships a rule that files every download into a subfolder named after its package,
+  so episodes ended up in `Bleach Sennen Kessen-hen\bleeeacccchthou…-02\` instead
+  of the anime folder. Bridge now tells JDownloader to use the folder it asked
+  for. Your own JDownloader rules are untouched and still apply to anything you
+  add there by hand.
+- **Automatic renaming works again.** Because of that subfolder, Bridge lost track
+  of the file it had just downloaded and quietly skipped the rename, leaving the
+  hoster's name — `bleeeacccchthou…-02.mp4` instead of
+  `Bleach Sennen Kessen-hen - Kashin-tan - 02.mp4`.
+- **Downloads waiting their turn are no longer treated as failed.** JDownloader
+  runs a limited number of transfers at a time and queues the rest. Bridge waited
+  60 seconds for a download to start, saw a queued one had not, and gave up on
+  that hoster — on a download that was simply waiting in line.
+
+### Changed
+
+- **Bridge now respects JDownloader's "Max. simultaneous Downloads" setting.** It
+  never starts more anime at once than JDownloader will actually run, instead of
+  handing it a queue it cannot work through. The setting is read at the start of
+  every run, so changing it in JDownloader applies to your next run without
+  restarting Bridge. If the setting cannot be read, Bridge behaves as before and
+  does not limit itself.
+- **Renaming is done by JDownloader itself** rather than by moving the file behind
+  its back, so JDownloader's own view of your library stays correct. The resulting
+  file name is unchanged. Episodes are renamed once the download finishes, so the
+  hoster's name is visible while it is still transferring.
+
+### Internal
+
+- Consumes `github.com/Disble/jdownloader-go` v0.1.0, a fork that adds the
+  download-list rename and the packagizer override this release depends on.
+- The commit gate now fails when the production frontend bundle renders nothing,
+  catching the blank-window class of regression that shipped in 1.2.0.
+
 ## [1.2.0] — 2026-08-06
 
 ### Added
