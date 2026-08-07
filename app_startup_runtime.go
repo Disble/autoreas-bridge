@@ -258,12 +258,15 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		Counter:       filesystem.NewEpisodeCounter(),
 		Flattener:     filesystem.NewFlattener(),
 		Renamer:       filesystem.NewRenamer(),
-		Store:         a.downloadStore,
-		Notifier:      a.notifier,
-		Bus:           a.eventBus,
-		Logger:        a.sharedLogger,
-		JDDeviceName:  a.downloadJDDeviceName(ctx),
-		SeasonMode:    a.seasonModeReader(),
+		// Read JD's own "Max. simultaneous Downloads" per run rather than once at startup,
+		// so changing it in JDownloader takes effect without restarting Bridge.
+		MaxConcurrentAnimes: jdMaxConcurrentAnimes,
+		Store:               a.downloadStore,
+		Notifier:            a.notifier,
+		Bus:                 a.eventBus,
+		Logger:              a.sharedLogger,
+		JDDeviceName:        a.downloadJDDeviceName(ctx),
+		SeasonMode:          a.seasonModeReader(),
 		// Read per episode rather than captured here, so toggling the setting takes
 		// effect on the next download instead of the next Bridge restart.
 		RenameEpisodes: a.episodeRenameEnabled,

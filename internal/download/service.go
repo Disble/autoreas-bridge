@@ -75,8 +75,14 @@ type ServiceDeps struct {
 	Notifier      notification.Notifier
 	Bus           events.Bus
 	Logger        logger.Logger
-	Clock         func() time.Time
-	NewRunID      func() string
+	// MaxConcurrentAnimes caps how many animes are processed at once, so Bridge never hands
+	// JDownloader more transfers than its maxsimultanedownloads setting will actually run.
+	// The surplus would otherwise sit queued, write no .part file and report nothing running,
+	// and the hoster watch would classify that silence as a dead hoster and remove it.
+	// Nil, or any value below 1, means unthrottled (the behaviour before this seam existed).
+	MaxConcurrentAnimes func() int
+	Clock               func() time.Time
+	NewRunID            func() string
 
 	// JDDeviceName is the configured MyJDownloader device name used for EnsureOnline/AddAndStart.
 	// Empty is valid in tests (fakes ignore it); production wiring (app.go) sources it from the
@@ -124,6 +130,11 @@ type RunResult struct {
 type Service struct {
 	deps ServiceDeps
 	jdMu sync.Mutex
+
+	// testHookAnimeStarted/Finished bracket one anime's processing so concurrency tests can
+	// observe how many run at once. Nil in production.
+	testHookAnimeStarted  func()
+	testHookAnimeFinished func()
 }
 
 // NewService builds a Service from the given deps, defaulting Clock/NewRunID when unset so
@@ -306,14 +317,46 @@ func (s *Service) newJDGateForRun(ctx context.Context, runID string, run *Run, r
 	})
 }
 
+// animeConcurrencyLimit resolves how many animes may run at once. Zero or less means
+// unthrottled, which is both the pre-existing behaviour and the safe answer when JD's limit
+// could not be read -- a misread must never silently serialise or stall a run.
+func (s *Service) animeConcurrencyLimit() int {
+	if s.deps.MaxConcurrentAnimes == nil {
+		return 0
+	}
+	return s.deps.MaxConcurrentAnimes()
+}
+
 // processAnimes concurrently processes selected animes and summarizes their outcomes.
 func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, gate *jdGate, applyDelta func(animeProgressDelta)) (bool, bool) {
 	outcomes := make(chan animeRunOutcome, len(animes))
+
+	// slots is a counting semaphore: a nil channel disables the throttle, because a send on
+	// a nil channel blocks forever and would deadlock the run rather than run it unthrottled.
+	var slots chan struct{}
+	if limit := s.animeConcurrencyLimit(); limit > 0 {
+		slots = make(chan struct{}, limit)
+	}
+
 	var wg sync.WaitGroup
 	for _, anime := range animes {
 		anime := anime
 		wg.Add(1)
-		go func() { defer wg.Done(); outcomes <- s.processAnime(ctx, runID, anime, gate, applyDelta) }()
+		go func() {
+			defer wg.Done()
+			if slots != nil {
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
+			if s.testHookAnimeStarted != nil {
+				s.testHookAnimeStarted()
+			}
+			outcome := s.processAnime(ctx, runID, anime, gate, applyDelta)
+			if s.testHookAnimeFinished != nil {
+				s.testHookAnimeFinished()
+			}
+			outcomes <- outcome
+		}()
 	}
 	wg.Wait()
 	close(outcomes)
