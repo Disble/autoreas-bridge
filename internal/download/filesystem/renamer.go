@@ -59,9 +59,9 @@ func NewRenamer() Renamer {
 // recently modified one. Subfolders are ignored: flattening them is the
 // Flattener's job and has already run by this point.
 func (r renamer) RenameLatestEpisode(folder, canonicalName string, episode int) (string, error) {
-	safeName := sanitizeFileNameBase(canonicalName)
-	if safeName == "" {
-		return "", fmt.Errorf("canonical name %q has no usable characters for a file name", canonicalName)
+	base, err := EpisodeBaseName(canonicalName, episode)
+	if err != nil {
+		return "", err
 	}
 
 	current, err := latestVideoAtRoot(folder)
@@ -69,7 +69,7 @@ func (r renamer) RenameLatestEpisode(folder, canonicalName string, episode int) 
 		return "", err
 	}
 
-	target := fmt.Sprintf("%s - %0*d%s", safeName, minEpisodeDigits, episode, filepath.Ext(current))
+	target := base + filepath.Ext(current)
 	if target == current {
 		return current, nil
 	}
@@ -85,6 +85,18 @@ func (r renamer) RenameLatestEpisode(folder, canonicalName string, episode int) 
 		return "", fmt.Errorf("rename %q to %q: %w", current, target, err)
 	}
 	return target, nil
+}
+
+// EpisodeBaseName builds the canonical episode file name WITHOUT an extension
+// ("NegaPosi Angler - 04"). It is the single source of truth for that shape, shared by
+// the filesystem renamer and by the JDownloader-side rename, which appends the extension
+// JD actually downloaded rather than one read off disk.
+func EpisodeBaseName(canonicalName string, episode int) (string, error) {
+	safeName := sanitizeFileNameBase(canonicalName)
+	if safeName == "" {
+		return "", fmt.Errorf("canonical name %q has no usable characters for a file name", canonicalName)
+	}
+	return fmt.Sprintf("%s - %0*d", safeName, minEpisodeDigits, episode), nil
 }
 
 // latestVideoAtRoot returns the name of the most recently modified video file

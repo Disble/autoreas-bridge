@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	jd "github.com/rkosegi/jdownloader-go/jdownloader"
+	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
 // intPtr returns a pointer to an integer value.

@@ -513,3 +513,11 @@ func TestAwaitHosterOutcomeRemovesPackageWhenDetectPhaseReturnsDead(t *testing.T
 		t.Fatalf("expected RemoveByDestination to be called for %q after detect-phase dead, got %v", folder, jd.removeCalls)
 	}
 }
+
+func (f *deadJDClient) RenameEpisodeByDestination(_ context.Context, _, _, baseName string) (string, error) {
+	return baseName + ".mp4", nil
+}
+
+func (f *detectDeadJDClient) RenameEpisodeByDestination(_ context.Context, _, _, baseName string) (string, error) {
+	return baseName + ".mp4", nil
+}

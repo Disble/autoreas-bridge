@@ -1,6 +1,6 @@
 module autoreas-bridge
 
-go 1.25.0
+go 1.26
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
@@ -9,15 +9,14 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gtramontina/ooze v0.2.0
 	github.com/modelcontextprotocol/go-sdk v1.2.0
-	github.com/rkosegi/jdownloader-go v1.0.3
 	github.com/wailsapp/wails/v2 v2.12.0
-	go.uber.org/zap v1.28.0
 	golang.org/x/sys v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.1
 )
 
 require (
+	github.com/Disble/jdownloader-go v0.1.0
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.14.1 // indirect
@@ -54,7 +53,6 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect

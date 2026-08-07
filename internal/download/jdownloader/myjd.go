@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	jd "github.com/rkosegi/jdownloader-go/jdownloader"
+	jd "github.com/Disble/jdownloader-go/jdownloader"
 
 	"autoreas-bridge/internal/download/config"
 )
@@ -16,7 +16,7 @@ import (
 // does NOT mean the device is online).
 var ErrDeviceOffline = errors.New("jdownloader: device offline")
 
-// myJDAdapter implements JDClient on top of the real github.com/rkosegi/jdownloader-go client.
+// myJDAdapter implements JDClient on top of the real github.com/Disble/jdownloader-go client.
 type myJDAdapter struct {
 	client jd.JdClient
 
@@ -153,7 +153,14 @@ func (a *myJDAdapter) AddAndStart(ctx context.Context, deviceName string, req En
 		return fmt.Errorf("jdownloader: get device %s: %w", deviceName, err)
 	}
 
-	opts := []jd.AddLinksOptions{jd.AddLinksOptionAutostart(true)}
+	// overwritePackagizerRules stops JD's packagizer rewriting the destination. The stock,
+	// enabled "Create Subfolder by Packagename" rule sets downloadDestination to
+	// <jd:packagename>, which turns the requested anime folder into a subfolder of itself --
+	// breaking SaveTo correlation and leaving episodes under their hoster names.
+	opts := []jd.AddLinksOptions{
+		jd.AddLinksOptionAutostart(true),
+		jd.AddLinksOptionOverwritePackagizerRules(true),
+	}
 	if req.Destination != "" {
 		opts = append(opts, jd.AddLinksOptionDestinationDir(req.Destination))
 	}

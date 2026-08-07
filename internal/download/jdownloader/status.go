@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	jd "github.com/rkosegi/jdownloader-go/jdownloader"
+	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
 // normDest normalizes a JD-reported or locally-known destination path so two representations of
@@ -29,6 +29,17 @@ func normDest(dest string) string {
 // sameDestination reports whether a and b normalize to the same destination folder.
 func sameDestination(a, b string) bool {
 	return normDest(a) == normDest(b)
+}
+
+// destinationCovers reports whether candidate IS destination or lives beneath it.
+//
+// JDownloader routinely saves a package into its own subfolder of the anime folder, so a
+// package's SaveTo is frequently a descendant of the folder Bridge asked about rather than
+// equal to it. The trailing separator matters: without it "D:/Anime/Bleach" would also
+// swallow the unrelated sibling "D:/Anime/Bleach Sennen Kessen-hen".
+func destinationCovers(destination, candidate string) bool {
+	root, sub := normDest(destination), normDest(candidate)
+	return sub == root || strings.HasPrefix(sub, root+"/")
 }
 
 // boolValue returns a boolean pointer value or false when nil.

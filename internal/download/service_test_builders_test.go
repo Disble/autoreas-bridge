@@ -133,3 +133,7 @@ func inferHosterFromURLs(urls []string) string {
 	}
 	return ""
 }
+
+func (f *fallbackAwareJDClient) RenameEpisodeByDestination(_ context.Context, _, _, baseName string) (string, error) {
+	return baseName + ".mp4", nil
+}

@@ -104,6 +104,9 @@ type svcFakeJDClient struct {
 	ensureOnlineErr   error
 	ensureOnlineCalls int
 	addAndStartCall   []jdownloader.EnqueueRequest
+	renameCalls       []jdRenameCall
+	renameErr         error
+	onRename          func()
 }
 
 func (f *svcFakeJDClient) Connect(ctx context.Context) error { return nil }
@@ -432,3 +435,30 @@ func (f *svcFakeHosterResolver) OrderWithDiscovered(site string, discovered []st
 }
 
 var _ HosterResolver = (*svcFakeHosterResolver)(nil)
+
+// jdRenameCall records one RenameEpisodeByDestination invocation. The rename now happens
+// JD-side, so the assertions live on this seam rather than on a filesystem renamer.
+type jdRenameCall struct {
+	destination string
+	base        string
+}
+
+func (f *svcFakeJDClient) RenameEpisodeByDestination(_ context.Context, _, destination, baseName string) (string, error) {
+	if f.onRename != nil {
+		f.onRename()
+	}
+	f.mu.Lock()
+	f.renameCalls = append(f.renameCalls, jdRenameCall{destination: destination, base: baseName})
+	f.mu.Unlock()
+	if f.renameErr != nil {
+		return "", f.renameErr
+	}
+	return baseName + ".mp4", nil
+}
+
+// recordedRenames returns a copy of the rename calls observed so far.
+func (f *svcFakeJDClient) recordedRenames() []jdRenameCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]jdRenameCall(nil), f.renameCalls...)
+}

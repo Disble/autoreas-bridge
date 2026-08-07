@@ -4,18 +4,20 @@ import (
 	"context"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/download/filesystem"
 	"autoreas-bridge/internal/logger"
 )
 
-// completeDownloadedEpisode runs the two filesystem fix-ups that turn "JD wrote a
-// file somewhere under the anime folder" into "the episode is at the folder root
-// under a name the counter can read".
+// completeDownloadedEpisode turns "JD wrote a file somewhere under the anime folder" into
+// "the episode is at the folder root under a name the counter can read".
 //
-// Order matters: flattening lifts the file out of JD's package subfolder, and only
-// then is there something at the root for the renamer to target.
+// Order matters, and it is the REVERSE of the original filesystem-only pipeline. The rename
+// is delegated to JDownloader, and JD can only rename a file whose path it still knows --
+// so it must run BEFORE the Flattener moves that file out of JD's package subfolder. Doing
+// it the other way round leaves JD pointing at a path Bridge already emptied.
 func (s *Service) completeDownloadedEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, episode int) {
-	s.flattenDownloadFolder(ctx, runID, anime)
 	s.renameDownloadedEpisode(ctx, runID, anime, episode)
+	s.flattenDownloadFolder(ctx, runID, anime)
 }
 
 // renameDownloadedEpisode gives the episode that just landed a parseable name
@@ -31,11 +33,19 @@ func (s *Service) renameDownloadedEpisode(ctx context.Context, runID string, ani
 	if !s.deps.RenameEpisodes(ctx) {
 		return
 	}
-	if s.deps.Renamer == nil || anime.Folder == nil || *anime.Folder == "" {
+	if s.deps.JD == nil || anime.Folder == nil || *anime.Folder == "" {
 		return
 	}
 
-	renamed, err := s.deps.Renamer.RenameLatestEpisode(*anime.Folder, anime.Name, episode)
+	base, err := filesystem.EpisodeBaseName(anime.Name, episode)
+	if err != nil {
+		s.logf(logger.LevelWarn, runID, anime.ID, "download.rename_failed",
+			map[string]any{"episode": episode},
+			"anime %s: episode %d kept its downloaded name: %v", anime.Name, episode, err)
+		return
+	}
+
+	renamed, err := s.deps.JD.RenameEpisodeByDestination(ctx, s.deps.JDDeviceName, *anime.Folder, base)
 	if err != nil {
 		s.logf(logger.LevelWarn, runID, anime.ID, "download.rename_failed",
 			map[string]any{"episode": episode},

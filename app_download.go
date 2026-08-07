@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -10,8 +11,7 @@ import (
 	"autoreas-bridge/internal/download/config"
 	"autoreas-bridge/internal/download/jdownloader"
 	"autoreas-bridge/internal/schedule"
-	jd "github.com/rkosegi/jdownloader-go/jdownloader"
-	"go.uber.org/zap"
+	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
 // reconfigurableJDClient wraps the real jdownloader.JDClient adapter behind a lazily
@@ -70,7 +70,7 @@ func (c *reconfigurableJDClient) client(ctx context.Context) (jdownloader.JDClie
 
 // newJDownloaderClient constructs the underlying JDownloader API client.
 func newJDownloaderClient(email string, password string) jd.JdClient {
-	return jd.NewClient(email, password, zap.NewNop().Sugar())
+	return jd.NewClient(email, password, slog.New(slog.DiscardHandler))
 }
 
 func (c *reconfigurableJDClient) Connect(ctx context.Context) error {
@@ -111,6 +111,14 @@ func (c *reconfigurableJDClient) PackageStatusByDestination(ctx context.Context,
 		return jdownloader.DestinationStatus{}, err
 	}
 	return inner.PackageStatusByDestination(ctx, deviceName, destination)
+}
+
+func (c *reconfigurableJDClient) RenameEpisodeByDestination(ctx context.Context, deviceName, destination, baseName string) (string, error) {
+	inner, err := c.client(ctx)
+	if err != nil {
+		return "", err
+	}
+	return inner.RenameEpisodeByDestination(ctx, deviceName, destination, baseName)
 }
 
 func (c *reconfigurableJDClient) RemoveByDestination(ctx context.Context, deviceName, destination string) error {

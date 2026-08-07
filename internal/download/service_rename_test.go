@@ -129,20 +129,21 @@ func TestRunOnceRenamesEachDownloadedEpisodeWithTheCanonicalNameAndNumber(t *tes
 	t.Parallel()
 
 	deps, folder := renameScenario(t)
-	fake := &svcFakeRenamer{renamed: "renamed.mp4"}
-	deps.Renamer = fake
+	jd := deps.JD.(*recordingCatchupJD)
 	deps.RenameEpisodes = func(context.Context) bool { return true }
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	want := []renameCall{
-		{folder: folder, canonical: "NegaPosi Angler", episode: 1},
-		{folder: folder, canonical: "NegaPosi Angler", episode: 2},
-		{folder: folder, canonical: "NegaPosi Angler", episode: 3},
+	// The base name carries no extension: JD appends the one it actually downloaded,
+	// which is the whole reason the rename moved off the filesystem.
+	want := []jdRenameCall{
+		{destination: folder, base: "NegaPosi Angler - 01"},
+		{destination: folder, base: "NegaPosi Angler - 02"},
+		{destination: folder, base: "NegaPosi Angler - 03"},
 	}
-	got := fake.recorded()
+	got := jd.recordedRenames()
 	if len(got) != len(want) {
 		t.Fatalf("rename calls = %#v, want %#v", got, want)
 	}
@@ -177,7 +178,7 @@ func TestRunOnceReportsSuccessWhenRenamingFails(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
-	deps.Renamer = &svcFakeRenamer{err: errors.New("target already exists")}
+	deps.JD.(*recordingCatchupJD).renameErr = errors.New("target already exists")
 	deps.RenameEpisodes = func(context.Context) bool { return true }
 
 	events := &renameEventRecorder{}
@@ -209,15 +210,15 @@ func TestRunOnceReportsSuccessWhenRenamingFails(t *testing.T) {
 	}
 }
 
-// Flattening moves the episode from JD's package subfolder up to the anime
-// folder root. Renaming first would target a file that is not there yet.
+// The rename is delegated to JDownloader, and JD can only rename a file whose path it
+// still knows -- so it MUST happen before the Flattener moves that file to the folder
+// root. This is the reverse of the original filesystem-only pipeline.
 //
-// "A flatten happened before this rename" is too weak an assertion to prove the
-// order: preparation flattens the folder once before any episode downloads, so a
-// rename-then-flatten pipeline still has a flatten behind every rename. What
-// pins the order is HOW MANY flattens have happened -- episode N is renamed
-// after the preparation flatten plus N episode flattens.
-func TestRunOnceRenamesOnlyAfterTheEpisodeHasBeenFlattenedToTheFolderRoot(t *testing.T) {
+// "A flatten happened after this rename" is too weak an assertion to prove the order:
+// flattens keep happening for later episodes, so a flatten follows every rename under
+// either ordering. What pins it is HOW MANY flattens have happened at rename time --
+// one fewer per episode than the flatten-first pipeline recorded.
+func TestRunOnceRenamesBeforeTheEpisodeIsFlattenedToTheFolderRoot(t *testing.T) {
 	t.Parallel()
 
 	deps, _ := renameScenario(t)
@@ -231,12 +232,11 @@ func TestRunOnceRenamesOnlyAfterTheEpisodeHasBeenFlattenedToTheFolderRoot(t *tes
 		mu.Unlock()
 		counter.Flatten(f)
 	}}
-	fake := &svcFakeRenamer{renamed: "renamed.mp4", onCall: func() {
+	deps.JD.(*recordingCatchupJD).onRename = func() {
 		mu.Lock()
 		flattensAtRename = append(flattensAtRename, flattens)
 		mu.Unlock()
-	}}
-	deps.Renamer = fake
+	}
 	deps.RenameEpisodes = func(context.Context) bool { return true }
 
 	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
@@ -248,36 +248,36 @@ func TestRunOnceRenamesOnlyAfterTheEpisodeHasBeenFlattenedToTheFolderRoot(t *tes
 	if len(flattensAtRename) != 3 {
 		t.Fatalf("renames = %d, want 3 (flatten counts %v)", len(flattensAtRename), flattensAtRename)
 	}
-	// Preparation flattens once; each episode then flattens twice more (the
-	// completion-poll flatten and completeDownloadedEpisode's own) before its
-	// rename. The exact tally is the assertion on purpose: renaming before
-	// flattening merely shifts every count down by one, so any looser bound --
-	// "at least N", "preceded by a flatten" -- passes for both orders and proves
-	// nothing. If a flatten call site is ever added or removed, this test must
-	// fail so the ordering gets re-verified rather than silently re-baselined.
-	for i, want := range []int{3, 5, 7} {
+	// One fewer flatten per episode than the old flatten-first pipeline saw ({3,5,7}),
+	// because completeDownloadedEpisode's own flatten now runs AFTER the rename. The
+	// exact tally is the assertion on purpose: any looser bound -- "at least N",
+	// "followed by a flatten" -- passes for both orders and proves nothing. If a
+	// flatten call site is ever added or removed, this test must fail so the ordering
+	// gets re-verified rather than silently re-baselined.
+	for i, want := range []int{2, 4, 6} {
 		if flattensAtRename[i] != want {
 			t.Fatalf("episode %d renamed after %d flattens, want %d (counts %v)", i+1, flattensAtRename[i], want, flattensAtRename)
 		}
 	}
 }
 
-// Production wiring can leave the seam nil (no renamer available); that must
-// degrade to "do not rename", never to a panic mid-run.
-func TestRunOnceSurvivesAnEnabledSettingWithNoRenamerWired(t *testing.T) {
+// Production wiring can leave the JD seam nil; with the rename now delegated to
+// JDownloader that is the seam which must degrade to "do not rename", never to a panic.
+//
+// This is exercised directly rather than through RunOnce: a nil JD fails the whole run as
+// jd_offline long before an episode completes, so the run-level path can no longer reach
+// this guard at all.
+func TestRenameDownloadedEpisodeSurvivesANilJDSeam(t *testing.T) {
 	t.Parallel()
 
-	deps, _ := renameScenario(t)
-	deps.Renamer = nil
+	deps, folder := renameScenario(t)
+	deps.JD = nil
 	deps.RenameEpisodes = func(context.Context) bool { return true }
 
-	result, err := NewService(deps).RunOnce(context.Background(), "manual")
-	if err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if result.Status != RunStatusOK {
-		t.Fatalf("status = %q, want %q", result.Status, RunStatusOK)
-	}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "NegaPosi Angler", Folder: ptrStr(folder)}
+
+	// The assertion is the absence of a panic: a missing seam must be a no-op.
+	NewService(deps).renameDownloadedEpisode(context.Background(), "run-1", anime, 1)
 }
 
 // An unset seam is the default in every existing test and in any wiring that

@@ -1,5 +1,5 @@
 // Package jdownloader implements the JDClient port (design.md §3.3, PoC #12/#13) on top of
-// github.com/rkosegi/jdownloader-go. Connect() succeeding does NOT prove JD is online -- only
+// github.com/Disble/jdownloader-go. Connect() succeeding does NOT prove JD is online -- only
 // ListDevices() finding the configured device name is a valid liveness proof (the PoC #12
 // quirk this design calls out explicitly). AddAndStart NEVER sets a package name so JD does not
 // create a per-package subfolder (PoC #13; filesystem.Flatten exists to mop up any subfolder
@@ -31,7 +31,7 @@ type LinkSignal struct {
 }
 
 // PackageSignal is a neutral, structured view of a single JD download package. It carries only
-// the fields the classifier needs from github.com/rkosegi/jdownloader-go's DownloadPackage
+// the fields the classifier needs from github.com/Disble/jdownloader-go's DownloadPackage
 // surface, again excluding the localized free-form Status text.
 type PackageSignal struct {
 	Finished, Running                 bool
@@ -73,5 +73,10 @@ type JDClient interface {
 	// "Dead Package Removed From JD Before Advancing"). Callers MUST treat a non-nil error as
 	// non-fatal: log and continue, never abort the run.
 	RemoveByDestination(ctx context.Context, deviceName, destination string) error
+	// RenameEpisodeByDestination asks JD to rename the episode it just finished in
+	// destination to baseName + JD's own extension, returning the applied file name.
+	// MUST run before the Flattener: JD can only rename a file it still knows the path of.
+	// Returns ErrNoRenamableLink when JD holds no finished link for that folder.
+	RenameEpisodeByDestination(ctx context.Context, deviceName, destination, baseName string) (string, error)
 	Disconnect(ctx context.Context) error
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	jd "github.com/rkosegi/jdownloader-go/jdownloader"
+	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
 // fakeJdClient implements the real jdownloader.JdClient interface (the library's own contract)
@@ -101,9 +101,12 @@ type fakeDownloader struct {
 	removeLinkIDs    []int64
 	removePackageIDs []int64
 	removeErr        error
+	renamedLinkID    int64
+	renamedTo        string
+	renameErr        error
 }
 
-func (d *fakeDownloader) Packages(...jd.LinkGrabberQueryPackagesOptions) (*[]jd.DownloadPackage, error) {
+func (d *fakeDownloader) Packages(...jd.DownloadQueryPackagesOptions) (*[]jd.DownloadPackage, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
@@ -113,6 +116,11 @@ func (d *fakeDownloader) Packages(...jd.LinkGrabberQueryPackagesOptions) (*[]jd.
 func (d *fakeDownloader) Links(...jd.DownloadQueryLinksOptions) (*[]jd.DownloadLink, error) {
 	links := d.links
 	return &links, nil
+}
+func (d *fakeDownloader) Rename(linkID int64, name string) error {
+	d.renamedLinkID = linkID
+	d.renamedTo = name
+	return d.renameErr
 }
 func (d *fakeDownloader) Remove(linkIDs []int64, packageIDs []int64) error {
 	d.removeLinkIDs = linkIDs
@@ -278,3 +286,37 @@ func TestAddAndStartReturnsErrorOnLinkGrabberFailure(t *testing.T) {
 }
 
 var _ = (*fakeDevice)(nil) // ensures the fake stays compiled even if a test above is skipped
+
+// JD ships an ENABLED packagizer rule "Create Subfolder by Packagename" whose
+// downloadDestination is <jd:packagename>, so without overwritePackagizerRules every add
+// lands in a subfolder of the requested folder instead of the folder itself. Bridge owns
+// the exact layout (anime folder, flat, one episode per file), so the rules must not apply.
+func TestAddAndStartTellsJDToIgnorePackagizerRules(t *testing.T) {
+	t.Parallel()
+
+	lg := &fakeLinkGrabber{}
+	fake := &fakeJdClient{
+		devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}},
+		device:  &fakeDevice{lg: lg, dl: &fakeDownloader{}},
+	}
+	adapter := newWithClient(fake)
+
+	err := adapter.AddAndStart(context.Background(), "MyPC", EnqueueRequest{
+		URLs:        []string{"http://mediafire.example/1"},
+		Destination: `D:\Anime\Bleach`,
+	})
+	if err != nil {
+		t.Fatalf("AddAndStart: %v", err)
+	}
+
+	params := &jd.AddLinksParams{}
+	for _, opt := range lg.capturedOpts {
+		opt(params)
+	}
+	if params.OverwritePackagizerRules == nil || !*params.OverwritePackagizerRules {
+		t.Fatalf("expected overwritePackagizerRules=true so JD keeps the exact destination, got %v", params.OverwritePackagizerRules)
+	}
+	if params.DestinationFolder == nil || *params.DestinationFolder != `D:\Anime\Bleach` {
+		t.Fatalf("destination = %v, want the anime folder verbatim", params.DestinationFolder)
+	}
+}
