@@ -4,7 +4,7 @@ description: "Trigger: release, version bump, semver, build the installer, regen
 license: Apache-2.0
 metadata:
   author: autoreas-bridge
-  version: "1.0.0"
+  version: "1.1.0"
   scope: project
   updates: living
 ---
