@@ -66,6 +66,8 @@ export function GetEpisodeDayCounts():Promise<Array<contracts.EpisodeDayCount>>;
 
 export function GetEpisodeSchedule(arg1:string):Promise<Array<contracts.EpisodeScheduleItem>>;
 
+export function GetJDMaxSimultaneousDownloads():Promise<number>;
+
 export function GetJDStatus():Promise<contracts.JDStatus>;
 
 export function GetPairingToken():Promise<string>;

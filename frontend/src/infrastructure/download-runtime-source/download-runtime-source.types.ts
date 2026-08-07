@@ -15,6 +15,11 @@ import type {
 export interface DownloadRuntimeSource {
   readonly getDownloadConfig: () => Promise<DownloadConfig>;
   readonly getJDStatus: () => Promise<JDStatus>;
+  /**
+   * Reads JDownloader's "Max. simultaneous Downloads" setting. Resolves to 0 when the
+   * setting could not be read, which is not a limit of zero but an absent reading.
+   */
+  readonly getJDMaxSimultaneousDownloads: () => Promise<number>;
   readonly setJDConfig: (input: JDConfigInput) => Promise<string>;
   readonly getScheduleConfig: () => Promise<ScheduleConfig>;
   readonly setScheduleConfig: (config: ScheduleConfig) => Promise<string>;

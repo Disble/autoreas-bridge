@@ -126,6 +126,10 @@ export function GetEpisodeSchedule(arg1) {
   return window['go']['main']['App']['GetEpisodeSchedule'](arg1);
 }
 
+export function GetJDMaxSimultaneousDownloads() {
+  return window['go']['main']['App']['GetJDMaxSimultaneousDownloads']();
+}
+
 export function GetJDStatus() {
   return window['go']['main']['App']['GetJDStatus']();
 }

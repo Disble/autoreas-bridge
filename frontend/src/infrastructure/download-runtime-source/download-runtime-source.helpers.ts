@@ -1,6 +1,7 @@
 import {
   CancelDownloadRun,
   GetDownloadConfig,
+  GetJDMaxSimultaneousDownloads,
   GetJDStatus,
   GetScheduleConfig,
   IgnoreMissedSchedule,
@@ -91,6 +92,9 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     },
     getJDStatus() {
       return invokeGoBinding('GetJDStatus', GetJDStatus, () => EMPTY_JD_STATUS);
+    },
+    getJDMaxSimultaneousDownloads() {
+      return invokeGoBinding('GetJDMaxSimultaneousDownloads', GetJDMaxSimultaneousDownloads, () => 0);
     },
     setJDConfig(input) {
       return invokeGoBinding('SetJDConfig', () => SetJDConfig(input), () => 'runtime unavailable');

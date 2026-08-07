@@ -34,6 +34,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
   return {
     getDownloadConfig: vi.fn().mockResolvedValue(baseConfig),
     getJDStatus: vi.fn(),
+    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
     setJDConfig: vi.fn(),
     getScheduleConfig: vi.fn(),
     setScheduleConfig: vi.fn(),

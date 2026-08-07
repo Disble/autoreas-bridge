@@ -2,6 +2,7 @@ import { Card, Tabs, Typography } from '@heroui/react';
 import { EpisodeRenamePanel } from '../../features/download/ui/EpisodeRenamePanel/EpisodeRenamePanel';
 import { HosterPriorityEditor } from '../../features/download/ui/HosterPriorityEditor/HosterPriorityEditor';
 import { JDConfigPanel } from '../../features/download/ui/JDConfigPanel/JDConfigPanel';
+import { JDLimitsPanel } from '../../features/download/ui/JDLimitsPanel/JDLimitsPanel';
 import { ManualTriggerButton } from '../../features/download/ui/ManualTriggerButton/ManualTriggerButton';
 import { RunHistoryPanel } from '../../features/download/ui/RunHistoryPanel/RunHistoryPanel';
 import { SchedulePanel } from '../../features/download/ui/SchedulePanel/SchedulePanel';
@@ -130,6 +131,16 @@ export function DownloadsRoute() {
               </Card.Header>
               <Card.Content>
                 <JDConfigPanel />
+              </Card.Content>
+            </Card>
+
+            <Card>
+              <Card.Header>
+                <Card.Title>Download limits</Card.Title>
+                <Card.Description>How many downloads JDownloader runs at once, and the pace Bridge matches</Card.Description>
+              </Card.Header>
+              <Card.Content>
+                <JDLimitsPanel />
               </Card.Content>
             </Card>
           </div>

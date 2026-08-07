@@ -24,3 +24,17 @@ func jdMaxConcurrentAnimes() int {
 	}
 	return limit
 }
+
+// GetJDMaxSimultaneousDownloads reports JDownloader's "Max. simultaneous Downloads" setting
+// for display, so the number Bridge throttles itself to is visible rather than inferred.
+//
+// It reads the same source as the throttle on purpose: showing a value the run would not
+// actually use would be worse than showing nothing. 0 means the setting could not be read,
+// which the UI reports as unavailable rather than as a limit of zero.
+//
+// This is read-only. Changing the setting requires the MyJDownloader /config/set endpoint,
+// which the client does not implement yet; writing JD's cfg JSON directly has no effect
+// while JD is running, because JD holds its config in memory and rewrites the file itself.
+func (a *App) GetJDMaxSimultaneousDownloads() int {
+	return jdMaxConcurrentAnimes()
+}

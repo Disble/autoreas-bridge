@@ -14,6 +14,15 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Added
+
+- **Downloads → Configuration shows JDownloader's download limit.** A new *Download
+  limits* card reports the "Max. simultaneous Downloads" value Bridge reads from
+  JDownloader and paces itself to, so the number is visible instead of guessed. It
+  is read-only, and a Refresh button re-reads it after you change it in
+  JDownloader. If the setting cannot be read, the card says so rather than showing
+  a limit of zero.
+
 ## [1.3.0] — 2026-08-07
 
 ### Fixed

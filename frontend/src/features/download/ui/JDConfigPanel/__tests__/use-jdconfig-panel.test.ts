@@ -18,6 +18,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
   return {
     getDownloadConfig: vi.fn(),
     getJDStatus: vi.fn().mockResolvedValue(baseStatus),
+    getJDMaxSimultaneousDownloads: vi.fn().mockResolvedValue(0),
     setJDConfig: vi.fn().mockResolvedValue('ok'),
     getScheduleConfig: vi.fn(),
     setScheduleConfig: vi.fn(),
