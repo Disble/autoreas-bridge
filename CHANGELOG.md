@@ -14,6 +14,8 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-08-07
+
 ### Added
 
 - **Downloads → Configuration shows JDownloader's download limit.** A new *Download
