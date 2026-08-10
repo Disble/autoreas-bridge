@@ -14,6 +14,8 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-08-10
+
 ### Fixed
 
 - **Episodes past number 16 are found again.** jkanime serves its episode list 16 at
@@ -22,6 +24,15 @@ called out explicitly under its release.
   without an error. Long-running series silently stopped downloading at 16. Bridge
   now reads the whole list before deciding, and a listing it cannot read completely
   fails loudly instead of quietly reporting an anime as up to date.
+
+### Internal
+
+- No wire changes in this release.
+- The Go mutation-testing guard now mutates only the lines a change touched
+  instead of whole files, which cut a representative run from ~6 minutes to ~53
+  seconds. It remains a manual tool, outside the commit gate.
+- Removed the abandoned gremlins configuration and rewrote `docs/mutation-testing.md`
+  around the runner actually in use.
 
 ## [1.4.0] — 2026-08-07
 
