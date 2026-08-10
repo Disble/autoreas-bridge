@@ -13,6 +13,29 @@ The runner is [ooze](https://github.com/gtramontina/ooze), driven by
 `tools/mutationstaged`. It works. It is deliberately **not** wired into any
 hook — see "Why it is not in pre-commit".
 
+## This is the MUTATE step
+
+RED → GREEN → **MUTATE** → REFACTOR. On Go, MUTATE means running this wrapper
+over the staged change — not hand-picking a mutant or two.
+
+That is a deliberate reversal of the earlier guidance, and it was paid for. On
+2026-08-09 a change shipped with four hand-picked mutants, all of which died. The
+wrapper then found a surviving mutant on a test that asserted against the very
+constant it claimed to pin — a test that passed for any value of that constant.
+The hand-check had mutated the *comparison*, because that is where attention was.
+**A mutant you choose yourself covers only what you already suspected.**
+
+Hand-mutation keeps a job: one guard, mid-edit, nothing staged, instant answer.
+It confirms a suspicion. It does not survey a change, and it is not what "MUTATE"
+means here. When you do use it, prove the edit applied before believing the
+mutant was killed — `sd` is not installed in this environment, and four
+substitutions that silently failed once produced four reassuring `ok` lines:
+
+```sh
+perl -0pi -e 's/old/new/' "$F"
+git diff --quiet -- "$F" && echo "!! MUTATION DID NOT APPLY"
+```
+
 ## Run it
 
 ```sh
@@ -123,9 +146,11 @@ scales with how much you changed rather than with the diff's importance.
 | Nothing staged | — | exit 0 | 1.0s |
 | `internal/observability/eventlog/store.go` (whole file) | 27 | 20 killed / 7 survived, score 0.74 | ~100s |
 
-Use it to audit a change you are about to own. For the per-guard TDD step, the
-manual check stays faster and fully deterministic: delete the guard, run only
-that test, confirm it FAILS, then `git checkout -- <file>`.
+So it stays a step you run, not a step the gate runs for you. Stage the change,
+run it, read the survivors, then commit.
+
+An unexpected multi-minute run is a signal, not slowness: the scope fell open to
+whole-file mutation because the diff ranges did not resolve. Check `-dry`.
 
 `ooze.Parallel()` is off by default: it deadlocks here. A 30-minute run ended
 with goroutines still blocked in `testing.(*T).Parallel` after 29 minutes. Set

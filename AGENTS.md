@@ -40,11 +40,13 @@
 - Load `bridge-debugging` when investigating regressions or any mismatch between tests and runtime behavior.
 - When writing Go tests, also load `go-testing`.
 - When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → **MUTATE** → REFACTOR strictly.
-- **Load `mutation-tdd` and mutation-check every guard before refactoring.** Delete the guard the test claims to cover, run only that test, and confirm it FAILS; then `git checkout -- <file>`. A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
+- **Load `mutation-tdd` and mutation-check every guard before refactoring.** A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
+- **On Go, MUTATE means running the wrapper: `go run ./tools/mutationstaged`.** Stage the change and run it; it mutates only the lines you touched and reports every surviving mutant. Hand-mutation is the fallback for one guard mid-edit, not the step itself — it mutates where you were already looking, so it confirms a suspicion rather than surveying the change. On 2026-08-09 four hand-picked mutants all died while the wrapper found a test asserting against the very constant it claimed to pin. See `docs/postmortems/postmortem-silent-no-ops.md`.
+- **Before concluding a hand-mutation was killed, prove it applied.** A failed edit and a perfectly-covered guard print the same thing. `sd` is NOT installed here despite what global instructions say — use `perl -0pi -e '<s///>' <file>` and follow it with `git diff --quiet -- <file> && echo "!! MUTATION DID NOT APPLY"`.
 - **Mutation coverage differs by surface — do not assume one answer for the repo.**
   - **Frontend: automated.** `lefthook.yml` runs the `test:mutation:staged` job with `root: frontend` (a `dlinter:owned` job). The runner is Stryker via `frontend/stryker.dlinter.json`, driven by `frontend/scripts/dlinter-mutation-staged.mjs`, and `frontend/package.json` also exposes `test:mutation` and `test:mutation:guard` (the latter tests the staged runner itself). The staged job covers only the added lines of staged frontend files; everything else exits zero with no mutation coverage.
-  - **Go: a runner exists, but no gate is wired.** `go run ./tools/mutationstaged` drives ooze over the staged production Go files. It works — do not claim the Go side has no mutation tooling — but it is invoked by hand, never by a hook, because it mutates WHOLE FILES rather than changed line ranges and keeps no incremental cache. Cost scales with the file, not the edit: measured at ~100s for `internal/observability/eventlog/store.go` (27 mutants) and ~6 minutes for `internal/download/sites/jkanime/jkanime.go` (91 mutants), against an already ~90s gate. Touching one function therefore makes you accountable for every untested branch already in that file.
-  - Use it to audit a file you are about to own. For the per-guard TDD step, deleting the guard by hand stays faster and fully deterministic: run the single test, confirm it FAILS, then `git checkout -- <file>`.
+  - **Go: a runner exists and is the MUTATE step; no gate is wired.** `go run ./tools/mutationstaged` drives ooze over the staged production Go files, scoped to the lines the staged diff touched. Do not claim the Go side has no mutation tooling. It is invoked by hand rather than by a hook because ooze still recompiles and re-runs the package's whole suite per mutant: measured at ~53s for a real one-function change (18 mutants) against an already ~90s gate. Add `-dry` to see the computed scope without paying for a run.
+  - Line scoping is what makes it usable as a routine step — before it, the same change cost 89 mutants and ~6 minutes because ooze mutates whole files. A scope it cannot derive falls OPEN to whole-file mutation, so an unexpected six-minute run means the diff ranges did not resolve, not that the tool is slow.
   - See `docs/mutation-testing.md`.
 - Branches the scheduler cannot reach (a raced pointer swap, `setErr(nil)`) need direct invocation of the unexported function from an in-package test. A stress loop that never reaches the branch passes while proving nothing — this has already happened twice in this repo.
 - Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted in SDD-55) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
@@ -216,13 +218,17 @@ markers is repo-owned and survives every update.
 
 ### Tests
 
-**P09 — Mutate, don't trust coverage.** RED → GREEN → MUTATE → REFACTOR. Delete
-the guard a test claims to cover, run only that test, confirm it fails, restore.
-A test that passes with its guard deleted proves nothing, and neither the suite
-nor the coverage number will tell you. **Tests own behavior scenarios, never
-mutants** — a suite written one test per surviving mutant mirrors the
-implementation instead of the behavior it exists to protect. Strengthen the
-scenario that already owns the outcome before adding a new test.
+**P09 — Mutate, don't trust coverage.** RED → GREEN → MUTATE → REFACTOR. A test
+that passes with its guard deleted proves nothing, and neither the suite nor the
+coverage number will tell you. Run a mutation tool over the change rather than
+hand-picking mutants: a mutant you choose yourself covers only what you already
+suspected, so it confirms rather than surveys. Hand-mutation stays useful for one
+guard mid-edit — and there, prove the mutation applied before believing it was
+killed. **Tests own behavior scenarios, never mutants** — a suite written one
+test per surviving mutant mirrors the implementation instead of the behavior it
+exists to protect. Strengthen the scenario that already owns the outcome before
+adding a new test. Never assert against the production symbol you are pinning: if
+both sides of the comparison can move together, the test has no opinion.
 
 **P10 — State the boundary a guard does not cover.** Name what the check cannot
 see, in the place someone will look. A guard whose limits are unstated will be
@@ -352,14 +358,16 @@ length is the scarce resource in this file.
 
 **Not landed — both mutation fragments.** The "Testing Rules" section already
 states mutation coverage per surface, with the exact job, runner, config path and
-covered scope on the frontend, and the measured reason the Go side stays
-prompt-driven. That is what the fragments exist to produce.
+covered scope on the frontend, and the measured reason the Go runner stays out of
+the hook while remaining the expected MUTATE step. That is what the fragments
+exist to produce.
 
-**Note on the Go mutation surface.** `tools/mutationstaged` exists and is directly
-runnable, and is deliberately not wired into `lefthook.yml` at ~100s per staged
-file. Available and unwired is a real third state — do not read the tool's
-existence as evidence the gate runs it, and do not read its absence from the hook
-as evidence no runner exists.
+**Note on the Go mutation surface.** `tools/mutationstaged` exists, is directly
+runnable, is the expected MUTATE step, and is deliberately not wired into
+`lefthook.yml` (~53s for a small staged change, on top of an already ~90s gate).
+Available and unwired is a real third state — do not read the tool's existence as
+evidence the gate runs it, and do not read its absence from the hook as evidence
+no runner exists, or that running it is optional.
 
 - `deviates: P07 — the gate's failure path is unproven.` `tools/` holds
   `checkgofmt`, `checkgofilesize`, `checkarchitecture`, `checkopenapi` and
