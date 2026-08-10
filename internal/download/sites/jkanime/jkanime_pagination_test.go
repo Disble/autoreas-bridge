@@ -210,8 +210,13 @@ func TestFetchEpisodesStopsAtThePageCapWhenLastPageNeverEnds(t *testing.T) {
 		t.Fatalf("fetchEpisodes: %v", err)
 	}
 
-	if walked := recorder.walked(); len(walked) != maxEpisodeListingPages {
-		t.Fatalf("walked %d pages, want the walk capped at %d", len(walked), maxEpisodeListingPages)
+	// The expected count is a LITERAL, deliberately not `maxEpisodeListingPages`. Asserting
+	// against the constant moves both sides of the comparison together, so the test passes
+	// for any cap and pins nothing -- mutation testing caught exactly that. Changing the cap
+	// must be a deliberate act that updates this number too.
+	const wantCappedPages = 100
+	if walked := recorder.walked(); len(walked) != wantCappedPages {
+		t.Fatalf("walked %d pages, want the walk capped at %d", len(walked), wantCappedPages)
 	}
 }
 

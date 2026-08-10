@@ -215,7 +215,10 @@ func (a *Adapter) fetchAnimeInfo(ctx context.Context, pagina string) (animeID st
 // failure (download-sites spec "jkanime Episode Listing via AJAX").
 func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) ([]jkanimeEpisode, int, error) {
 	var episodes []jkanimeEpisode
-	total := 0
+	// Declared at its zero value rather than assigned one: the loop below always runs at
+	// least once and always overwrites this, so an explicit `= 0` would be a literal no
+	// test could ever hold to account.
+	var total int
 
 	for page := 1; page <= maxEpisodeListingPages; page++ {
 		resp, err := a.fetchEpisodePage(ctx, animeID, csrfToken, page)
