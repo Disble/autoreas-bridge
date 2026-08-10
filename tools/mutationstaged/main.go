@@ -17,6 +17,7 @@ const (
 	envTestCommand   = "AUTOREAS_MUTATION_TEST_CMD"
 	envThreshold     = "AUTOREAS_MUTATION_THRESHOLD"
 	envRepositoryDir = "AUTOREAS_MUTATION_ROOT"
+	envScope         = "AUTOREAS_MUTATION_SCOPE"
 )
 
 // defaultThreshold matches frontend/stryker.dlinter.json's break: 80, so both
@@ -77,11 +78,18 @@ func run(dry bool) error {
 
 	ignorePattern := buildIgnorePattern(tracked, staged)
 	testCommand := buildTestCommand(staged)
+
+	scope, err := computeScope(staged)
+	if err != nil {
+		return err
+	}
+
 	if dry {
 		fmt.Printf("  mutable files : %s\n", strings.Join(staged, " "))
 		fmt.Printf("  test command  : %s\n", testCommand)
 		fmt.Printf("  excluded files: %d (ignore pattern %d bytes)\n",
 			len(tracked)-len(staged), len(ignorePattern))
+		fmt.Printf("  line scope    : %s\n", describeScope(scope))
 		return nil
 	}
 
@@ -95,7 +103,50 @@ func run(dry bool) error {
 	// untracked while under development and would be missing from a sandbox
 	// built out of the index -- but ooze is pointed at the sandbox, so every
 	// mutation and test run happens against the staged content.
-	return runOoze(root, sandbox, ignorePattern, testCommand)
+	return runOoze(root, sandbox, ignorePattern, testCommand, scope)
+}
+
+// computeScope renders the byte ranges the staged change actually touches, which
+// the harness turns into a line filter around every ooze mutator. Failing to
+// derive them is NOT fatal: an empty scope degrades to the previous whole-file
+// behaviour, which is slower but never wrong.
+func computeScope(staged []string) (string, error) {
+	args := append([]string{"diff", "--cached", "-U0", "--"}, staged...)
+	diff, err := git(args...)
+	if err != nil {
+		return "", fmt.Errorf("read staged diff: %w", err)
+	}
+
+	changed, err := parseChangedLineRanges(diff)
+	if err != nil {
+		return "", fmt.Errorf("parse staged diff: %w", err)
+	}
+
+	var offsets []offsetRange
+	for _, file := range staged {
+		lines, touched := changed[file]
+		if !touched {
+			continue
+		}
+		// `git show :path` reads the INDEX copy, which is the content ooze
+		// mutates. Reading the worktree here would offset every range by any
+		// unstaged edit -- and partial staging is already refused upstream.
+		content, err := gitBytes("show", ":"+file)
+		if err != nil {
+			return "", fmt.Errorf("read staged content of %s: %w", file, err)
+		}
+		offsets = append(offsets, lineRangesToOffsets(content, lines)...)
+	}
+
+	return encodeOffsetRanges(mergeOffsetRanges(offsets)), nil
+}
+
+// describeScope renders the scope for the dry-run summary.
+func describeScope(scope string) string {
+	if scope == "" {
+		return "none derived -- the whole file will be mutated"
+	}
+	return fmt.Sprintf("%d byte range(s), %d bytes encoded", strings.Count(scope, ",")+1, len(scope))
 }
 
 // rejectPartiallyStaged refuses a file that has unstaged changes on top of its
@@ -116,7 +167,7 @@ func rejectPartiallyStaged(staged []string) error {
 // pattern is passed through as empty and the harness treats it as "exclude
 // nothing" -- it must never be turned into a regexp, since an empty pattern
 // matches every path and would silently mutate nothing.
-func runOoze(root, sandbox, ignorePattern, testCommand string) error {
+func runOoze(root, sandbox, ignorePattern, testCommand, scope string) error {
 	threshold := os.Getenv(envThreshold)
 	if threshold == "" {
 		threshold = defaultThreshold
@@ -131,6 +182,7 @@ func runOoze(root, sandbox, ignorePattern, testCommand string) error {
 		envTestCommand+"="+testCommand,
 		envThreshold+"="+threshold,
 		envRepositoryDir+"="+sandbox,
+		envScope+"="+scope,
 	)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go mutation guard: staged mutation score below %s (or the run failed)", threshold)
@@ -145,4 +197,10 @@ func git(args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// gitBytes runs a read-only Git command and returns its stdout verbatim. File
+// content must NOT be trimmed: a stripped leading byte shifts every offset.
+func gitBytes(args ...string) ([]byte, error) {
+	return exec.Command("git", args...).Output()
 }

@@ -17,6 +17,21 @@ import (
 	"testing"
 
 	"github.com/gtramontina/ooze"
+	"github.com/gtramontina/ooze/viruses"
+	"github.com/gtramontina/ooze/viruses/arithmetic"
+	"github.com/gtramontina/ooze/viruses/arithmeticassignment"
+	"github.com/gtramontina/ooze/viruses/arithmeticassignmentinvert"
+	"github.com/gtramontina/ooze/viruses/bitwise"
+	"github.com/gtramontina/ooze/viruses/comparison"
+	"github.com/gtramontina/ooze/viruses/comparisoninvert"
+	"github.com/gtramontina/ooze/viruses/comparisonreplace"
+	"github.com/gtramontina/ooze/viruses/floatdecrement"
+	"github.com/gtramontina/ooze/viruses/floatincrement"
+	"github.com/gtramontina/ooze/viruses/integerdecrement"
+	"github.com/gtramontina/ooze/viruses/integerincrement"
+	"github.com/gtramontina/ooze/viruses/loopbreak"
+	"github.com/gtramontina/ooze/viruses/loopcondition"
+	"github.com/gtramontina/ooze/viruses/rangebreak"
 )
 
 // Environment contract shared with tools/mutationstaged.
@@ -26,7 +41,33 @@ const (
 	envThreshold     = "AUTOREAS_MUTATION_THRESHOLD"
 	envRepositoryDir = "AUTOREAS_MUTATION_ROOT"
 	envParallel      = "AUTOREAS_MUTATION_PARALLEL"
+	envScope         = "AUTOREAS_MUTATION_SCOPE"
 )
+
+// defaultViruses mirrors ooze's own default set. It has to be restated here
+// because ooze exposes the list only as an unexported default: WithViruses
+// REPLACES the set rather than decorating it, so wrapping the defaults means
+// naming them. A virus added upstream will not appear until this list grows,
+// which is the price of the line filter -- and cheaper than the whole-file runs
+// it replaces.
+func defaultViruses() []viruses.Virus {
+	return []viruses.Virus{
+		arithmetic.New(),
+		arithmeticassignment.New(),
+		arithmeticassignmentinvert.New(),
+		bitwise.New(),
+		comparison.New(),
+		comparisoninvert.New(),
+		comparisonreplace.New(),
+		floatdecrement.New(),
+		floatincrement.New(),
+		integerdecrement.New(),
+		integerincrement.New(),
+		loopbreak.New(),
+		loopcondition.New(),
+		rangebreak.New(),
+	}
+}
 
 // TestStagedMutation mutates exactly the files tools/mutationstaged selected
 // and fails when the surviving-mutant ratio breaches the threshold.
@@ -67,7 +108,28 @@ func TestStagedMutation(t *testing.T) {
 		options = append(options, ooze.IgnoreSourceFiles(ignore))
 	}
 
+	ranges, err := ParseOffsetRanges(os.Getenv(envScope))
+	if err != nil {
+		t.Fatalf("%s is malformed; refusing to guess a scope: %v", envScope, err)
+	}
+	counter := &ScopeCounter{}
+	if len(ranges) > 0 {
+		scoped := ScopeAll(defaultViruses(), ranges, counter)
+		options = append(options, ooze.WithViruses(scoped[0], scoped[1:]...))
+	}
+
 	ooze.Release(t, options...)
+
+	// A filter that kept nothing produces a spotless report over an empty run,
+	// which reads exactly like success. The byte offsets rest on ooze parsing
+	// each file with a fresh single-file FileSet; if that ever changes, this is
+	// the assertion that says so instead of quietly passing.
+	if len(ranges) > 0 {
+		t.Logf("line scope: %d nodes mutated, %d skipped as unchanged", counter.Kept(), counter.Dropped())
+		if counter.Kept() == 0 {
+			t.Fatalf("line scope kept 0 of %d nodes: the staged byte ranges matched nothing, so this run proved nothing", counter.Dropped())
+		}
+	}
 }
 
 // thresholdFromEnv parses the configured minimum score, failing loudly on a
