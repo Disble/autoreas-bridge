@@ -14,6 +14,15 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Episodes past number 16 are found again.** jkanime serves its episode list 16 at
+  a time, and Bridge only ever read the first batch — so for any anime past episode
+  16 it saw "latest online 16", decided nothing was new, and skipped the download
+  without an error. Long-running series silently stopped downloading at 16. Bridge
+  now reads the whole list before deciding, and a listing it cannot read completely
+  fails loudly instead of quietly reporting an anime as up to date.
+
 ## [1.4.0] — 2026-08-07
 
 ### Added

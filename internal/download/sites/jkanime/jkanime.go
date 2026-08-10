@@ -22,6 +22,11 @@ import (
 
 const defaultBaseURL = "https://jkanime.net"
 
+// maxEpisodeListingPages bounds the AJAX pagination walk. jkanime serves 16 entries per
+// page, so this covers ~1600 episodes -- far past any real series -- while keeping a
+// drifted or hostile `last_page` from looping forever.
+const maxEpisodeListingPages = 100
+
 // animeIDPattern matches the data-anime="(\d+)" attribute on the anime info page (PoC
 // scraper.go fetchAnimeInfo). Isolated as a package-level regex so it is the single place a
 // future template change must update.
@@ -39,11 +44,15 @@ type jkanimeEpisode struct {
 	ID     int `json:"id"`
 }
 
-// jkanimeEpisodesResponse mirrors the AJAX endpoint's JSON envelope.
+// jkanimeEpisodesResponse mirrors the AJAX endpoint's JSON envelope, which is a Laravel
+// paginator: Total counts every episode across ALL pages, not this page's entries, and
+// LastPage is the only field that says whether more pages exist. An envelope without
+// last_page decodes to 0 and is treated as a single page.
 type jkanimeEpisodesResponse struct {
-	Success bool             `json:"success"`
-	Data    []jkanimeEpisode `json:"data"`
-	Total   int              `json:"total"`
+	Success  bool             `json:"success"`
+	Data     []jkanimeEpisode `json:"data"`
+	Total    int              `json:"total"`
+	LastPage int              `json:"last_page"`
 }
 
 // jkanimeServerLink mirrors one entry of the inline `var servers` array.
@@ -195,27 +204,54 @@ func (a *Adapter) fetchAnimeInfo(ctx context.Context, pagina string) (animeID st
 	return animeID, csrfToken, nil
 }
 
-// fetchEpisodes retrieves the episode list via the AJAX endpoint. A response with total==0 and
-// an empty data array is a SUCCESSFUL "no episodes available" outcome, distinguishable from an
-// extraction/network failure (download-sites spec "jkanime Episode Listing via AJAX").
+// fetchEpisodes retrieves the FULL episode list via the AJAX endpoint, walking the paginator
+// to its last page. jkanime pages the listing at 16 entries, so any anime past episode 16
+// keeps its newest episode on a later page: reading only page 1 reported a stale
+// "latest online 16" and made NeedsDownload declare a false up-to-date (regression, 2026-08-09
+// scheduled run). A page that fails mid-walk is a LOUD error -- returning the pages already
+// collected would under-report the latest episode, which is the exact silent truncation this
+// walk exists to prevent. A response with total==0 and an empty data array is still a
+// SUCCESSFUL "no episodes available" outcome, distinguishable from an extraction/network
+// failure (download-sites spec "jkanime Episode Listing via AJAX").
 func (a *Adapter) fetchEpisodes(ctx context.Context, animeID, csrfToken string) ([]jkanimeEpisode, int, error) {
-	ajaxURL := fmt.Sprintf("%s/ajax/episodes/%s/1", a.baseURL, animeID)
+	var episodes []jkanimeEpisode
+	total := 0
+
+	for page := 1; page <= maxEpisodeListingPages; page++ {
+		resp, err := a.fetchEpisodePage(ctx, animeID, csrfToken, page)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		episodes = append(episodes, resp.Data...)
+		total = resp.Total
+		if len(resp.Data) == 0 || page >= resp.LastPage {
+			break
+		}
+	}
+
+	return episodes, total, nil
+}
+
+// fetchEpisodePage retrieves a single page of the AJAX episode listing. The page number is
+// the last path segment: jkanime also accepts a `?p=` query parameter, but the path form is
+// the one the listing route is built around.
+func (a *Adapter) fetchEpisodePage(ctx context.Context, animeID, csrfToken string, page int) (jkanimeEpisodesResponse, error) {
+	ajaxURL := fmt.Sprintf("%s/ajax/episodes/%s/%d", a.baseURL, animeID, page)
 
 	formData := url.Values{}
 	formData.Set("_token", csrfToken)
 
 	body, err := a.fetchPOST(ctx, ajaxURL, formData)
 	if err != nil {
-		return nil, 0, err
+		return jkanimeEpisodesResponse{}, err
 	}
 
 	var resp jkanimeEpisodesResponse
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		return nil, 0, fmt.Errorf("parse AJAX JSON: %w", err)
+		return jkanimeEpisodesResponse{}, fmt.Errorf("parse AJAX JSON: %w", err)
 	}
-
-	// total==0 && len(data)==0 is NOT an error -- it is a successful "no episodes" result.
-	return resp.Data, resp.Total, nil
+	return resp, nil
 }
 
 // fetchGET retrieves a page with a browser-like GET request.

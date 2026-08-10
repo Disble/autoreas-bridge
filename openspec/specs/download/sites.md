@@ -40,10 +40,27 @@ The jkanime adapter MUST extract the anime ID and CSRF token required for the ep
 
 The jkanime adapter MUST retrieve the episode list via the site's AJAX endpoint and MUST treat an empty/zero-total response as a distinguishable outcome from a successful empty list.
 
+The AJAX endpoint is PAGINATED (16 entries per page), so the adapter MUST walk every page before deciding which episode is the latest. Reading only the first page reports the 16th episode as the latest for any longer-running anime, which "Online Episode Availability" then reads as up-to-date. `total` counts every episode across all pages and MUST NOT be read as this page's entry count.
+
 #### Scenario: Episodes are returned
 - GIVEN a valid AJAX response with `total > 0` and matching `data` entries
 - WHEN the adapter parses the response
 - THEN the adapter MUST return the parsed episode list
+
+#### Scenario: The latest episode lives on a later page
+- GIVEN an anime whose AJAX listing spans more than one page (e.g. episodes 1-16 on page 1 and episode 17 on page 2)
+- WHEN the adapter lists episodes
+- THEN the adapter MUST report the highest episode number across ALL pages, never the first page's highest
+
+#### Scenario: A page fails mid-walk
+- GIVEN an AJAX listing whose first page succeeds and whose later page fails
+- WHEN the adapter lists episodes
+- THEN the adapter MUST fail loudly rather than return the pages it already collected, because a truncated listing under-reports the latest episode and silently produces a false up-to-date verdict
+
+#### Scenario: Pagination terminates
+- GIVEN an AJAX listing that reports more pages than it can serve, or an exhausted page returning an empty `data` array
+- WHEN the adapter walks the pages
+- THEN the walk MUST stop on the exhausted page and MUST remain bounded by a maximum page count
 
 #### Scenario: AJAX reports zero total
 - GIVEN an AJAX response with `total == 0` and an empty `data` array
