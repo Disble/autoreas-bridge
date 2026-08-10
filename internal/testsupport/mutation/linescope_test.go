@@ -169,6 +169,23 @@ func TestLineScopedWithoutRangesMutatesEverything(t *testing.T) {
 	}
 }
 
+// ast.Inspect calls its visitor with a nil node after every subtree, so ooze
+// hands one to every virus roughly as often as it hands a real one. Calling
+// Pos() on it panics -- and the first version of this filter did, which made
+// ooze report a flawless zero-mutant run instead of crashing. Nothing in the
+// unit tests reached it, because every test built a node.
+func TestLineScopedSurvivesTheNilNodeAstInspectSends(t *testing.T) {
+	t.Parallel()
+
+	inner := &alwaysInfects{}
+	scoped := NewLineScoped(inner, OffsetRanges{{Start: 100, End: 200}}, &ScopeCounter{})
+
+	var node ast.Node
+	if infections := scoped.Incubate(node); len(infections) != 1 {
+		t.Fatalf("a nil node must pass through to the inner virus, got %d infections", len(infections))
+	}
+}
+
 // A node ooze cannot position (Pos() == token.NoPos) must not be silently
 // dropped: an unpositioned node is unknown scope, not out-of-scope.
 func TestLineScopedKeepsUnpositionedNodes(t *testing.T) {

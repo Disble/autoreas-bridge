@@ -65,30 +65,65 @@ were already looking. Assertions that reference the constant they are meant to
 pin are invisible to the manual check and obvious to ooze. Run it on any test
 whose expected value is computed from production code rather than written out.
 
+## Line scoping
+
+ooze mutates whole files and keeps no incremental cache, so on its own a
+one-line edit pays for the entire file every time, and touching one function
+makes you accountable for every untested branch already in it.
+
+The guard works around the first half. `ooze.WithViruses` accepts arbitrary
+`viruses.Virus` implementations, the interface hands over the `ast.Node`, and
+ooze parses each file with a fresh single-file `token.FileSet` — so
+`int(node.Pos()) - 1` is a plain byte offset. `internal/testsupport/mutation`
+wraps all fourteen default mutators in a filter that withholds every node
+outside the staged diff's byte ranges, which `tools/mutationstaged` derives from
+`git diff --cached -U0` against the index copy of each file.
+
+Measured on `internal/download/sites/jkanime/jkanime.go`, the same staged change
+either way:
+
+| | Mutants | Result | Wall clock |
+| --- | --- | --- | --- |
+| Whole file | 89 | 71 killed / 18 survived, score 0.7978 | ~6min |
+| Changed lines only | 18 | 18 killed / 0 survived, score 1.00 | ~53s |
+
+The 18 the filter dropped are pre-existing debt in untouched parts of the file.
+That is the whole point: the score now describes the change rather than the file
+it landed in.
+
+Ranges from every staged file are unioned, because `Incubate(node)` names no
+file. With more than one file staged that over-approximates — a node in one file
+can fall inside another's range and survive the filter. Deliberate: keeping
+mutants that could have been dropped costs time, dropping mutants that should
+have run costs truth.
+
+### Two ways this hid a failure, both now closed
+
+- **`ast.Inspect` sends a nil node** after every subtree. The first version of
+  the filter called `Pos()` on it, and ooze reported a flawless **zero-mutant**
+  run rather than crashing — 0.98s, score -1.00, no stack trace. Every unit test
+  had built a node, so nothing reached it.
+  `TestLineScopedSurvivesTheNilNodeAstInspectSends` pins it.
+- **A filter that keeps nothing** produces a spotless report over an empty run.
+  The harness counts kept/dropped nodes and refuses a run that kept none. Note
+  this only fires where ooze itself would pass; a zero-mutant run scores -1.00
+  and fails on the threshold first.
+
+An empty or underivable scope falls **open** to whole-file mutation rather than
+filtering everything away.
+
 ## Why it is not in pre-commit
 
-Two ooze limitations, both structural:
-
-- It mutates **whole files**, never the changed line ranges.
-- It keeps **no incremental cache**, so nothing is reused between commits.
-
-Together those mean a one-line edit pays for the entire file, every time, and
-touching one function makes you accountable for every untested branch already
-in that file.
-
-Measured on this repo:
+Even at ~53s, this stays out of the hook. The gate already runs ~90s, ooze still
+recompiles and re-runs the package's whole suite per mutant, and cost still
+scales with how much you changed rather than with the diff's importance.
 
 | Staged input | Mutants | Result | Wall clock |
 | --- | --- | --- | --- |
 | Nothing staged | — | exit 0 | 1.0s |
-| `internal/observability/eventlog/store.go` | 27 | 20 killed / 7 survived, score 0.74 | ~100s |
-| `internal/download/sites/jkanime/jkanime.go` | 89 | 71 killed / 18 survived, score 0.7978 | ~6min |
+| `internal/observability/eventlog/store.go` (whole file) | 27 | 20 killed / 7 survived, score 0.74 | ~100s |
 
-The pre-commit gate already runs ~90s. Adding six minutes to it for a one-file
-change is not a trade worth making, and a gate at `0.80` would block both files
-above on debt neither change introduced.
-
-Use it to audit a file you are about to own. For the per-guard TDD step, the
+Use it to audit a change you are about to own. For the per-guard TDD step, the
 manual check stays faster and fully deterministic: delete the guard, run only
 that test, confirm it FAILS, then `git checkout -- <file>`.
 

@@ -114,8 +114,10 @@ func (v *lineScoped) Incubate(node ast.Node) []*viruses.Infection {
 	if len(v.ranges) == 0 {
 		return v.inner.Incubate(node)
 	}
-	// An unpositioned node is unknown scope, not out of scope.
-	if node.Pos() == token.NoPos {
+	// ast.Inspect calls its visitor with nil after every subtree, and an
+	// unpositioned node is unknown scope rather than out of scope. Neither may
+	// be filtered: the first would panic, the second would drop silently.
+	if node == nil || node.Pos() == token.NoPos {
 		return v.inner.Incubate(node)
 	}
 
