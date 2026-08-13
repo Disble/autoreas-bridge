@@ -195,3 +195,50 @@ code quality.
 It shared one trap with ooze, worth remembering for any third tool: an
 exclusion option that filters *mutant selection* but not the *file-tree copy* is
 useless on this repo, because the copy is what costs.
+
+## The frontend guard, and the day it was found doing nothing
+
+The frontend has its own scoped runner: `frontend/scripts/dlinter-mutation-staged.mjs`,
+driven by Stryker through `stryker.dlinter.json`, wired into `lefthook.yml` as
+`test:mutation:staged`. Unlike the Go side it *is* in pre-commit, because it
+mutates only the lines a commit adds.
+
+**On 2026-08-13 it was found exiting 0 without mutating anything, and it had
+been doing so for an unknown period.**
+
+The script read its file list with `git diff --cached --name-only`, which
+returns paths relative to the **repository root** (`frontend/src/...`). It then
+passed that list straight back as a pathspec to a second `git diff` running with
+`cwd` set to `frontend/`. Git resolves a pathspec relative to the current
+directory, so it looked for `frontend/frontend/src/...`, matched nothing, and
+returned an empty diff. No hunks meant no line ranges, and no line ranges took
+the early-exit branch:
+
+```
+dlinter mutation guard: no added production TypeScript lines.
+```
+
+Indistinguishable, from the outside, from a commit that genuinely touched no
+production TypeScript.
+
+The tell was in the gate output the whole time, and it is worth internalising
+because it is the cheapest detector available: the job reported **0.42 seconds**.
+A real scoped run of the same change takes 33. **A gate that got dramatically
+cheaper did not get faster — it stopped working.**
+
+Two things changed:
+
+1. The pathspec is now built relative to `cwd`.
+2. Staged production files resolving to **zero** ranges is now a hard failure,
+   not a quiet pass. Every path in the list came out of a diff, so each one must
+   yield at least one hunk; zero is a contradiction that can only mean the diff
+   or its parsing broke. This invariant is what would have caught the bug on day
+   one, and it costs nothing.
+
+A third thing was found while fixing it: `package.json` declared
+`test:mutation:guard` pointing at `scripts/__tests__/mutation-staged.node-test.mjs`,
+a file that does not exist. The test guarding the mutation guard was gone, and
+no hook invoked it. The dangling script entry was removed.
+
+See `docs/postmortems/postmortem-silent-no-ops.md` — this is the same failure
+mode that postmortem was written about, in the tool meant to prevent it.

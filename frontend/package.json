@@ -15,7 +15,6 @@
     "doctor:react": "bunx react-doctor@0.5.7 --verbose --no-telemetry",
     "test": "vitest run",
     "test:mutation": "stryker run",
-    "test:mutation:guard": "node --test scripts/__tests__/mutation-staged.node-test.mjs",
     "test:mutation:staged": "node ./scripts/dlinter-mutation-staged.mjs",
     "generate:feature": "node ./scripts/generate-feature.js",
     "render:smoke": "node ./scripts/render-smoke.mjs",

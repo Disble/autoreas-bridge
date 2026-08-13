@@ -32,8 +32,17 @@ for (const file of staged) {
   }
 }
 
+// The pathspec must be relative to `cwd`, not to the repo root. `--name-only`
+// returns repo-relative paths (`frontend/src/...`), and passing those straight
+// back from inside `frontend/` made git look for `frontend/frontend/src/...`,
+// which matches nothing: the diff came back empty, no ranges were built, and
+// the guard exited 0 announcing "no added production TypeScript lines" on every
+// commit. A gate that cannot fail is not a gate — see
+// docs/postmortems/postmortem-silent-no-ops.md.
+/** Staged paths relative to this workspace, for use as a git pathspec. */
+const stagedPathspec = staged.map((file) => file.slice(prefix.length));
 /** Zero-context diff of the staged files, the source of the mutated line ranges. */
-const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...staged], { cwd, encoding: 'utf8' });
+const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...stagedPathspec], { cwd, encoding: 'utf8' });
 /** Accumulated `file:start-end` ranges handed to Stryker's `--mutate`. */
 const ranges = [];
 /** File the diff parser is currently inside, tracked across hunk headers. */
@@ -46,6 +55,18 @@ for (const line of diff.split(/\r?\n/)) {
     const count = Number(match[2] ?? '1');
     if (count > 0) ranges.push(`${file.slice(prefix.length)}:${match[1]}-${Number(match[1]) + count - 1}`);
   }
+}
+
+// Staged production files with zero resolved ranges is a contradiction, not a
+// quiet pass: every path in `staged` came from a diff, so each one must yield at
+// least one hunk. Reaching here means the diff or the parse silently stopped
+// matching, which is exactly how this guard spent its life exiting 0 without
+// mutating anything. Fail loudly instead.
+if (ranges.length === 0 && staged.length > 0) {
+  console.error(`dlinter mutation guard: ${staged.length} staged production file(s) resolved to no diff ranges.`);
+  console.error('The diff or its parsing is broken — this is a defect in this script, not an empty change.');
+  console.error(`Files: ${staged.join(', ')}`);
+  process.exit(1);
 }
 
 if (ranges.length === 0) {
