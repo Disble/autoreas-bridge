@@ -1,0 +1,13 @@
+{
+  "plugins": [
+    "dharness-eslint-plugin"
+  ],
+  "rules": {
+    "dharness/folder-ownership": "error",
+    "dharness/max-file-lines": "error",
+    "dharness/pure-index-barrel": "error",
+    "dharness/require-jsdoc": "error",
+    "dharness/require-variable-jsdoc": "error",
+    "dharness/role-file-shape": "error"
+  }
+}

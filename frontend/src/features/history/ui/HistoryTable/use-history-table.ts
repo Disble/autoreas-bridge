@@ -119,7 +119,7 @@ export function useHistoryTable(
     writeParams({ q: debouncedQuery, page: 1 }, { replace: true });
     // Only the debounced value (not urlState.q or writeParams) should retrigger this write --
     // urlState.q changes as a RESULT of this effect, and including it would fight the write.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-doctor/exhaustive-deps
   }, [debouncedQuery]);
 
   return {

@@ -9,7 +9,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestRepositoryHookRunsFrontendFileSizeWarningBeforeFrontendLint(t *testing.T) {
+// The frontend-filesize-warning job was removed from the gate on 2026-08-11:
+// dharness runs react-doctor, whose max-file-lines rule covers the staged
+// change. What must not disappear is the hard-fail path, which is ESLint's
+// max-lines rule reached through the frontend-lint job. The advisory script
+// survives as a manual command and is asserted separately by
+// TestRepositoryFrontendFileSizePolicyWiresWarningAndFailurePaths.
+func TestRepositoryHookKeepsFrontendLintAsTheFileSizeFailurePath(t *testing.T) {
 	t.Parallel()
 
 	root := repoRootFromTest(t)
@@ -21,25 +27,15 @@ func TestRepositoryHookRunsFrontendFileSizeWarningBeforeFrontendLint(t *testing.
 	}
 
 	jobs := flattenJobs(config.PreCommit.Jobs)
-	warningIndex := -1
 	lintIndex := -1
 	for index, job := range jobs {
-		if job.Name == "frontend-filesize-warning" {
-			warningIndex = index
-		}
 		if job.Name == "frontend-lint" {
 			lintIndex = index
 		}
 	}
 
-	if warningIndex == -1 {
-		t.Fatal("lefthook.yml is missing pre-commit job frontend-filesize-warning")
-	}
 	if lintIndex == -1 {
 		t.Fatal("lefthook.yml is missing pre-commit job frontend-lint")
-	}
-	if warningIndex > lintIndex {
-		t.Fatalf("frontend-filesize-warning job index = %d, want before frontend-lint index = %d", warningIndex, lintIndex)
 	}
 }
 
@@ -75,7 +71,6 @@ func TestRepositoryPolicyDocsDescribeCrossCuttingGoFileSizeRule(t *testing.T) {
 	}
 
 	for _, check := range checks {
-		check := check
 		t.Run(check.path, func(t *testing.T) {
 			t.Parallel()
 

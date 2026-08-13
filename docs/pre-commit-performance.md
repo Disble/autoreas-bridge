@@ -125,9 +125,16 @@ once the frontend suite runs in CI.
 
 `tools/checkgofilesize/hook_order_test.go` and `repository_policy_test.go` parse
 `lefthook.yml` and assert the cheap-signal-first ordering (gofmt → go-filesize →
-golangci-lint; frontend-filesize-warning → frontend-lint). They flatten `group:`
-containers, so the grouping above is free to change but the ordering is not.
-Verified by mutation: swapping `gofmt` and `go-filesize` fails the test.
+golangci-lint). They flatten `group:` containers, so the grouping above is free
+to change but the ordering is not. Verified by mutation: swapping `gofmt` and
+`go-filesize` fails the test.
+
+> **2026-08-11.** The frontend-filesize-warning → frontend-lint half of that
+> assertion is gone: `frontend-filesize-warning`, `frontend-fallow` and
+> `frontend-fallow-dupes` were removed from the gate when `dharness check`
+> took over react-doctor and fallow. Every measurement in this document is the
+> July 2026 record and is left as written; the current gate is smaller than
+> what it describes.
 
 **Nothing enforces the concurrency budget itself.** No test asserts that `-p=4`,
 `GOMAXPROCS`, or `maxWorkers` are still present. Deleting them is a one-line

@@ -2,6 +2,14 @@ import type { SeasonAnimeCandidate, SeasonAnimeRow } from '../../../../infrastru
 import { MATCH_STATUS_LABELS } from './intake-panel.constants';
 import type { IntakeChipColor } from './intake-panel.types';
 
+/**
+ * Strips trailing dots and spaces, which Windows silently drops from a folder
+ * name. Duplicated from `shared/helpers/download-folder.helpers.ts` on purpose
+ * for now: both mirror the backend `sanitizeFolderName`, and merging them would
+ * make this feature depend on the shared copy's evolution.
+ * @param value Candidate folder-name segment.
+ * @returns The segment with trailing `.` and ` ` removed.
+ */
 function trimTrailingWindowsNameCharacters(value: string): string {
   let end = value.length;
   while (end > 0 && (value[end - 1] === '.' || value[end - 1] === ' ')) {
@@ -10,6 +18,12 @@ function trimTrailingWindowsNameCharacters(value: string): string {
   return value.slice(0, end);
 }
 
+/**
+ * Removes trailing path separators so joining a root with a segment cannot
+ * produce a doubled slash.
+ * @param value Candidate path root.
+ * @returns The root without trailing `/` or `\`.
+ */
 function trimTrailingPathSeparators(value: string): string {
   let end = value.length;
   while (end > 0 && (value[end - 1] === '/' || value[end - 1] === '\\')) {
@@ -78,7 +92,7 @@ export function deriveIntakeDownloadFolder(root: string, name: string): string {
     return '';
   }
   const segment = name
-    // eslint-disable-next-line no-control-regex -- mirrors the backend sanitizeFolderName control-char strip (internal/season/folder.go), not an accidental range.
+    // Control-char range is deliberate: mirrors the backend sanitizeFolderName control-char strip (internal/season/folder.go), not an accidental range.
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
     .trim()
     .split(/\s+/)

@@ -30,10 +30,13 @@ import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { URL } from 'node:url';
 
-/* eslint-disable sonarjs/no-os-command-from-path -- `bun` must resolve from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and arguments are passed as an array rather than through a shell. */
+// Resolves the binary from PATH on purpose: `bun` must resolve from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and arguments are passed as an array rather than through a shell.
 
+/** Built bundle the smoke server serves; the real production output, not a dev build. */
 const DIST = path.resolve(import.meta.dirname, '..', 'dist');
+/** Hard ceiling for one headless render before the run is called a failure. */
 const RENDER_TIMEOUT_MS = 60000;
+/** Edge virtual-time budget, so the page settles without waiting in real time. */
 const VIRTUAL_TIME_BUDGET_MS = 10000;
 
 /** Markers that only exist once React has mounted the shell and its navigation. */
@@ -44,6 +47,7 @@ const ROUTE_MARKERS = {
   '/#/downloads': ['Configuration', 'Manual check'],
 };
 
+/** Extension-to-MIME map for the throwaway static server. */
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -54,6 +58,10 @@ const CONTENT_TYPES = {
   '.woff2': 'font/woff2',
 };
 
+/**
+ * Locates an Edge binary, preferring EDGE_PATH over the standard install paths.
+ * @returns {string|undefined} Path to msedge.exe, or undefined when none exists.
+ */
 function findEdge() {
   const candidates = [
     process.env.EDGE_PATH,
@@ -64,6 +72,11 @@ function findEdge() {
   return candidates.find((candidate) => candidate && existsSync(candidate));
 }
 
+/**
+ * Builds the production bundle the smoke test will serve. Exits the process on
+ * failure, because rendering a stale dist would prove nothing.
+ * @returns {void}
+ */
 function buildDist() {
   // `vite build` only -- typechecking is frontend-typecheck's job, and paying for
   // it twice would make this gate cost more than the bug it catches.
@@ -99,6 +112,13 @@ function startServer() {
   });
 }
 
+/**
+ * Renders one URL in headless Edge and resolves with the serialized DOM.
+ * @param {string} edge Path to the Edge binary.
+ * @param {string} profileDir Throwaway user-data dir, so runs never share state.
+ * @param {string} url Absolute URL to load.
+ * @returns {Promise<string>} The dumped DOM.
+ */
 function renderRoute(edge, profileDir, url) {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -136,6 +156,12 @@ function renderRoute(edge, profileDir, url) {
   });
 }
 
+/**
+ * Asserts a rendered DOM is not an empty shell.
+ * @param {string} dom Serialized DOM for the route.
+ * @param {string} route Route label used in failure messages.
+ * @returns {string[]} Human-readable failures; empty means the route painted.
+ */
 function checkDom(dom, route) {
   const failures = [];
   const root = /<div id="root">([\s\S]*)<\/div>\s*<\/body>/.exec(dom);
@@ -153,6 +179,7 @@ function checkDom(dom, route) {
   return failures;
 }
 
+/** Resolved Edge binary for this run. */
 const edge = findEdge();
 if (!edge) {
   // Fail rather than skip: a silent skip is how a gate stops guarding without
@@ -163,8 +190,11 @@ if (!edge) {
 
 buildDist();
 
+/** The throwaway static server and the ephemeral port it bound to. */
 const { server, port } = await startServer();
+/** Throwaway Edge profile directory for this run. */
 const profileDir = mkdtempSync(path.join(tmpdir(), 'render-smoke-'));
+/** Collected failures across every route checked. */
 const failures = [];
 
 try {

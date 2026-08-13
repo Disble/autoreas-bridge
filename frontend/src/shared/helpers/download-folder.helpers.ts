@@ -1,3 +1,9 @@
+/**
+ * Strips trailing dots and spaces, which Windows silently drops from a folder
+ * name. Without this the UI would preview a path the filesystem never creates.
+ * @param value Candidate folder-name segment.
+ * @returns The segment with trailing `.` and ` ` removed.
+ */
 function trimTrailingWindowsNameCharacters(value: string): string {
   let end = value.length;
   while (end > 0 && (value[end - 1] === '.' || value[end - 1] === ' ')) {
@@ -6,6 +12,12 @@ function trimTrailingWindowsNameCharacters(value: string): string {
   return value.slice(0, end);
 }
 
+/**
+ * Removes trailing path separators so joining a root with a segment cannot
+ * produce a doubled slash.
+ * @param value Candidate path root.
+ * @returns The root without trailing `/` or `\`.
+ */
 function trimTrailingPathSeparators(value: string): string {
   let end = value.length;
   while (end > 0 && (value[end - 1] === '/' || value[end - 1] === '\\')) {
@@ -27,7 +39,7 @@ export function deriveDownloadFolder(root: string, name: string): string {
   // Windows-illegal filename chars plus ASCII control chars (U+0000–U+001F). Built
   // via the RegExp constructor so no literal control bytes appear in source; mirrors
   // the backend sanitizeFolderName (internal/season/folder.go).
-  // eslint-disable-next-line no-control-regex -- deliberate control-char strip, not an accidental range.
+  // Control-char range is deliberate: deliberate control-char strip, not an accidental range.
   const illegalFolderChars = new RegExp('[<>:"/\\\\|?*\\u0000-\\u001f]', 'g');
   const segment = name
     .replace(illegalFolderChars, ' ')

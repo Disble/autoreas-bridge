@@ -28,9 +28,24 @@
 #
 # Job ORDER inside `quick` is asserted by tools/checkgofilesize/hook_order_test.go
 # and repository_policy_test.go, which flatten these groups: gofmt runs
-# immediately before go-filesize, go-filesize before golangci-lint, and
-# frontend-filesize-warning before frontend-lint, so the cheapest signal always
-# lands first.
+# immediately before go-filesize and go-filesize before golangci-lint, so the
+# cheapest signal always lands first.
+#
+# ── What dharness owns ───────────────────────────────────────────────────────
+# The `dharness` command merged in from .dharness/lefthook.yml runs react-doctor
+# over the staged change and then fallow. Three jobs were removed on 2026-08-11
+# because they duplicated it: frontend-filesize-warning, frontend-fallow and
+# frontend-fallow-dupes. `bun --cwd="frontend" run filesize:warning` still
+# exists as a manual command; it is simply no longer part of the gate.
+#
+# Note what did NOT survive the swap: frontend-fallow-dupes ran
+# `fallow dupes --fail-on-regression --tolerance 0` against
+# .fallow/baselines/dupes.json. `dharness check` runs `fallow audit`, which
+# reads audit.dupesBaseline but is not the same zero-tolerance regression gate.
+# Duplication regressions are now reported, not blocked.
+
+extends:
+  - .dharness/lefthook.yml
 
 pre-commit:
   parallel: true
@@ -83,22 +98,9 @@ pre-commit:
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/checkopenapi
 
-          - name: frontend-filesize-warning
-            glob: "frontend/**"
-            run: bun --cwd="frontend" run filesize:warning
-
           - name: frontend-no-barrels
             glob: "frontend/**"
             run: bun --cwd="frontend" run check:no-barrels
-
-          - name: frontend-fallow
-            glob: "frontend/**"
-            run: bun --cwd="frontend" run fallow audit --quiet --brief
-
-          - name: frontend-fallow-dupes
-            glob: "frontend/**"
-            run: bun --cwd="frontend" run fallow dupes --quiet --baseline
-              ".fallow/baselines/dupes.json" --fail-on-regression --tolerance 0
 
           - name: frontend-typecheck
             glob: "frontend/**"

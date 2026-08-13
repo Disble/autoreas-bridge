@@ -17,7 +17,7 @@
    - **Function Export Rule**: Frontend feature `.tsx` and `use-*.ts` files MUST export the main symbol as a named `function`, never a root-level `const` arrow function.
 4. **Delivery Layer Rule**: `frontend/src/App.tsx` and any future `frontend/src/app/**` files are composition only. They MUST NOT use React state/effect hooks, MUST NOT call Wails bindings directly, and MUST NOT contain business logic.
 5. **Readonly Props Rule**: Every property in any `*Props` interface inside frontend `*.types.ts` files MUST be declared as `readonly`.
-6. **Mandatory JSDoc on Helpers**: All exported functions in frontend `*.helpers.ts` MUST have a JSDoc block explaining what the function does and why.
+6. **Mandatory JSDoc, everywhere**: ALL frontend declarations MUST carry a JSDoc block explaining what they do and why — not only exported functions, and not only `*.helpers.ts`. Private functions, top-of-file variables, and test-file declarations are included. Enforced by `dharness/require-jsdoc` and `dharness/require-variable-jsdoc` through the dharness layer in `frontend/eslint.config.js`. The wording here used to say "all exported functions in frontend `*.helpers.ts`", which was always narrower than the intent. Because the gate lints `{staged_files}`, adoption is incremental: a file owes its JSDoc the next time it is touched.
 7. **TDD Mandate**: You are PROHIBITED from modifying or creating a frontend helper or hook without first creating or updating its corresponding test file in the colocated `__tests__/` directory.
 8. **The 500-Line Rule**: If any frontend `.ts` or `.tsx` file exceeds 500 lines, refactor it immediately.
 9. **Reference Feature**: If in doubt, use `frontend/src/features/dashboard` as the frontend source-of-truth structure once introduced.
@@ -55,7 +55,7 @@
 
 - Go and frontend files share a warning threshold at 400 effective lines and a hard failure ceiling above 500 effective lines.
 - The Go gate is repo-owned and enforced with `go run ./tools/checkgofilesize` through `lefthook.yml`.
-- The frontend warning path is `bun --cwd="frontend" run filesize:warning`; it must stay advisory-only and preserve the existing ESLint hard failure path at `>500`.
+- The frontend hard failure path at `>500` is ESLint `max-lines` in `frontend/eslint.config.js`, reached through the `frontend-lint` job, and it must stay. `dharness/max-file-lines` checks the same 500 ceiling through the layer `dharness sync` splices into that same config; `dharness sync`'s "residue" note only means those plugin rules do not fire under react-doctor's `--staged` pass, not that they are off. The 400-line warning left the gate on 2026-08-11: `bun --cwd="frontend" run filesize:warning` is manual and whole-tree, and nothing runs it automatically.
 - Existing oversized Go files may stay only when `tools/checkgofilesize/baseline.yaml` records a no-growth ceiling.
 - `tools/checkgofilesize/baseline.yaml` is expected to be empty (`files: []`). It exists only as structural scaffolding for any temporary approved debt that must not grow; any entry MUST be removed as soon as the file reaches `<=500` effective lines.
 - New Go files, renamed Go files, and files already at `<=500` effective lines MUST NOT receive baseline entries.

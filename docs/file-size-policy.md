@@ -25,33 +25,58 @@ El repo usa dos herramientas independientes que comparten la misma semántica de
 | Stack | Hard fail (>500) | Advertencia (400) | Comando |
 |---|---|---|---|
 | Go | `tools/checkgofilesize` | `tools/checkgofilesize` | `go run ./tools/checkgofilesize` |
-| TS/TSX | ESLint `max-lines` | `frontend/scripts/check-file-size-warnings.mjs` | `bun --cwd="frontend" run filesize:warning` |
+| TS/TSX | ESLint `max-lines` | **ninguna automática** — ver abajo | `bun --cwd="frontend" run filesize:warning` (manual) |
 
-Ambas se ejecutan en `lefthook.yml`:
+El lado Go corre en `lefthook.yml`:
 
 ```yml
 pre-commit:
-  parallel: false
   jobs:
-    - name: frontend-fallow
-      run: bun --cwd="frontend" run fallow audit --quiet
-
-    - name: frontend-filesize-warning
-      run: bun --cwd="frontend" run filesize:warning
-
     - name: frontend-lint
-      run: bun --cwd="frontend" run lint
-
-    # ...
+      run: bun x eslint {staged_files}
 
     - name: go-filesize
       run: go run ./tools/checkgofilesize
 
     - name: golangci-lint
-      run: golangci-lint run
+      run: powershell -File scripts/lint.ps1 -Profile all
 ```
 
-`frontend-filesize-warning` corre **antes** de `frontend-lint` para dar visibilidad temprana sin debilitar el error de ESLint. `go-filesize` corre **antes** de `golangci-lint` para fallar rápido en archivos nuevos o en crecimiento.
+`go-filesize` corre **antes** de `golangci-lint` para fallar rápido en archivos nuevos o en crecimiento.
+
+### Cambio 2026-08-11 — el frontend se quedó sin advertencia automática
+
+`frontend-filesize-warning` salió de `lefthook.yml` porque se esperaba que
+`dharness/max-file-lines` lo reemplazara, con el umbral declarado en
+`.dharness/rules.json` (`maxFileLines: 500`).
+
+Lo reemplaza **a medias**, y hay una nota de dharness fácil de malinterpretar.
+`dharness sync` lista esa regla — y las otras cinco de `dharness-eslint-plugin`
+— bajo *residue*, con este motivo:
+
+> the gate's react-doctor invocation runs with `--staged`, and a plugin's rules
+> do not fire under that flag (measured against react-doctor 0.5.7)
+
+Eso es cierto **solo para la pasada de react-doctor**. Desde dharness 1.3.0 el
+sync ademas splicea una capa en `frontend/eslint.config.js`
+(`// dharness:eslint-layer`), y por ahí las reglas **sí corren**, dentro del job
+`frontend-lint`. Comprobado: `dharness check` reporta 30 errores de
+`dharness/require-jsdoc` y `dharness/require-variable-jsdoc`.
+
+Entonces, hoy, del lado TS/TSX:
+
+- El **techo de 500** se chequea dos veces: `max-lines` de ESLint y
+  `dharness/max-file-lines` (umbral en `.dharness/rules.json`).
+- La **advertencia a 400 no la corre nadie**. El script
+  `check-file-size-warnings.mjs` sigue existiendo y funciona
+  (`bun --cwd="frontend" run filesize:warning`), pero es manual y a mano.
+
+Para cerrar el hueco de los 400 hay dos caminos, ninguno tomado: volver a poner
+el job en el gate, o aceptar de forma explícita que el aviso sea manual.
+
+El hard-fail no cambió: sigue siendo `max-lines` de ESLint en
+`frontend/eslint.config.js`, alcanzado por el job `frontend-lint`, y
+`tools/checkgofilesize/repository_policy_test.go` asserta esa línea textual.
 
 ## Implementación Go
 

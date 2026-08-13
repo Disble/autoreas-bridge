@@ -1,53 +1,60 @@
 # Frontend architecture enforcement
 
-Architecture governance for this frontend is provided by the
-[`dlinter-ts-react`](https://www.npmjs.com/package/dlinter-ts-react) package —
-the published successor of the rules that used to live in this directory
-(`architecture-rules.js`, the documentation plugin, and the structural
-checker script). The same Feature-Sliced constraints documented in
-`ARCHITECTURE.md`, `AGENTS.md`, and `CLAUDE.md` stay **deterministic**: they
-are mechanically enforced and gated by lefthook before any commit lands.
+Architecture governance for this frontend is **react-doctor**, invoked by
+`dharness check` and configured in `frontend/doctor.config.json`.
 
-## Quick path
+Six rules from `dharness-eslint-plugin` (`require-jsdoc`,
+`require-variable-jsdoc`, `max-file-lines`, `role-file-shape`,
+`folder-ownership`, `pure-index-barrel`) reach the code through the
+`// dharness:eslint-layer` region that `dharness sync` splices into
+`eslint.config.js`, so they run inside the `frontend-lint` job.
 
-1. Keep `src/App.tsx` and `src/app/` limited to composition.
-2. Treat production source under `src/` as globally governed by the architecture policy, with explicit exemptions only for generated Wails bindings and production tests.
-3. Keep split modules folder-owned. Their public surface flows through a pure re-export `index.ts`, and migrated infrastructure adapters keep zero flat facade or compatibility shim allowances.
-4. Run `bun run validate` (lint + typecheck) after frontend changes.
+> **Do not misread the sync output.** `dharness sync` lists those six under
+> "residue" because they do not fire under react-doctor's `--staged` pass.
+> That is true and does **not** mean they are off — they fire through ESLint.
+> Measured 2026-08-11: 30 `require-jsdoc` / `require-variable-jsdoc` errors on
+> pre-existing code. Note the plugin is stricter than `CLAUDE.md`, which asks
+> for JSDoc on every **exported** helper; the rule also wants it on private
+> declarations at the top of a file.
 
-## Configuration
+`frontend/eslint.config.js` is deliberately small. It carries only the rules
+this repository decided for itself and no external preset knows about:
 
-`eslint.config.js` composes `createRecommendedConfig` from the package. The
-Wails specifics are **consumer options**, not package presets:
+| Rule | Why it is local |
+|---|---|
+| `max-lines` (500) | The hard-fail half of the shared file-size policy. `tools/checkgofilesize/repository_policy_test.go` asserts the exact line. |
+| `no-restricted-imports` on `**/index` | ADR-011. The only automated barrel signal left in the repo. |
+| `no-restricted-syntax` (Vitest) | Mock hygiene and per-test timeout bans, proposed upstream and never adopted. |
 
-- `infrastructure.importPatterns: ['(^|/)wailsjs(/|$)']` — generated bindings are the infrastructure edge.
-- `infrastructure.runtimeGlobals: ['window.go']` — the desktop runtime is reachable only through colocated hooks/adapters.
-- `wailsjs/**` is excluded from lint as generated code.
+The `react-doctor` plugin is registered there but its rules stay **off**: the
+CLI pass is the governance run, and enabling the same rules in the
+`frontend-lint` job would pay for them twice. Registration is still required so
+that `// eslint-disable-next-line react-doctor/...` comments in the source
+resolve instead of erroring.
 
-## What the linter enforces
+## History — and two things this file used to get wrong
 
-| Area | Deterministic rule |
-|------|--------------------|
-| Delivery (`App.tsx`, `app/`) | `dlinter/composition-only-delivery` + `dlinter/no-infrastructure-in-view` |
-| Dumb UI (`src/**/*.tsx`) | `dlinter/no-view-effects`, `dlinter/readonly-props`, `dlinter/no-infrastructure-in-view` |
-| Hook anatomy (`src/**/use-*.ts`) | `dlinter/hook-anatomy` |
-| Strict colocation | `dlinter/strict-colocation` — role files own declarations; feature folders are kebab-case; tests live in `__tests__/` |
-| Barrels and folder ownership | `dlinter/pure-index-barrel` + `dlinter/folder-ownership` |
-| Type contracts (`src/**/*.types.ts`) | `dlinter/readonly-props` — every `*Props` field is `readonly` |
-| Public JSDoc | `jsdoc/require-jsdoc` + `dlinter/require-exported-variable-jsdoc` |
-| Transversal | `import-x/no-cycle`, duplicate imports, `sonarjs` and `react-doctor` (advisory), 500-line max per file |
+Until 2026-08-11 governance came from the `dlinter-ts-react` preset, which
+bundled typescript-eslint, react, react-hooks, sonarjs, jsdoc, import-x,
+check-file and `eslint-plugin-react-doctor` behind one
+`createRecommendedConfig()` call. It was removed in favour of react-doctor
+alone; `eslint-plugin-react-doctor` is now a direct devDependency rather than a
+transitive one.
 
-## Contract notes
+Two claims in the previous version of this file were already false when it was
+deleted, and are worth naming so they are not restored from memory:
 
-- Folder-owned modules expose their public surface only through a pure re-export `index.ts`.
-- No flat facade or compatibility shim allowance remains for migrated infrastructure adapters.
-- Generated `wailsjs/**` stays excluded.
-- Production tests under `src/**/__tests__/**`, `src/**/*.test.*`, and `src/test/**` stay exempt from architecture rules — tests describe behavior, not production shape.
+1. **"Their public surface flows through a pure re-export `index.ts`."** ADR-011
+   removed all 67 barrels in July 2026. There are no barrels here. See
+   `docs/adr/011-no-barrel-files.md`.
+2. **"Gated by lefthook before any commit lands."** True for the hard-fail path
+   only. `dharness check` runs react-doctor over the **staged change**, so a
+   violation sitting in a file the commit does not touch is not re-evaluated.
 
-## Why this exists
+## Commands
 
-Architecture that is only described in docs is a promise, not a guarantee. Any
-agent or developer can silently violate prose. By encoding every boundary as a
-linter rule wired into the pre-commit gate, the architecture becomes a property
-the toolchain protects automatically — and by consuming the shared package, the
-same property now scales to every project that installs it.
+```bash
+bun --cwd="frontend" run lint          # the small local pass
+bun --cwd="frontend" run doctor:react  # the react-doctor governance pass
+bun --cwd="frontend" run validate      # lint + typecheck
+```

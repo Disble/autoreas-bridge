@@ -1,0 +1,5 @@
+pre-commit:
+  commands:
+    dharness:
+      run: dharness check
+      root: frontend/

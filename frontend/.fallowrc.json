@@ -1,8 +1,10 @@
 {
   // This file is JSONC: fallow reads these comments; generic JSON tools may not.
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  // Architecture boundaries live in the file dharness owns; they arrive here by
+  // reference so `dharness sync` can rewrite them without touching this file.
+  "extends": ["../.dharness/fallow.jsonc"],
   "entry": [
-    "src/index.{ts,tsx,js,jsx}",
     "src/main.{ts,tsx,js,jsx}",
     "src/test/setup.ts",
     // Vitest discovers this ESM script test, but Fallow does not infer it as
@@ -13,48 +15,34 @@
     // `eslint` is imported only by `scripts/check-file-size-warnings.mjs`, a
     // repo-owned quality script reached from package.json scripts rather than
     // shipped frontend runtime code.
-    "eslint"
-  ],
-  "ignoreExports": [
-    {
-      "file": "src/**/index.ts",
-      "exports": ["*"]
-    }
-  ],
-  "ignorePatterns": ["wailsjs/**"],
-  "overrides": [
-    {
-      "files": ["src/**/index.ts"],
-      "rules": {
-        "unused-types": "off"
-      }
-    }
+    "eslint",
+    // `dharness-eslint-plugin` is named as a string inside `doctor.config.json`
+    // and loaded by the `doctor:react` script, never imported from JS, so the
+    // import graph cannot see it.
+    "dharness-eslint-plugin"
   ],
   "audit": {
     "dupesBaseline": ".fallow/baselines/dupes.json"
   },
+  // `dharness sync` reports this key as a two-owner collision with the presets
+  // region of ../.dharness/fallow.jsonc, and the collision is DELIBERATE. The
+  // dharness copy adds `"threshold": 3`, an absolute 3% ceiling on duplication.
+  // This repository sits at 17.1% (3,960 lines across 117 files, measured
+  // 2026-08-13) and has never gated on an absolute number: the policy is
+  // no-regression against `audit.dupesBaseline`. Adopting the ceiling failed
+  // the gate outright on an unchanged tree. Fallow resolves the project file
+  // last, so the values below are the ones that run.
+  //
+  // `ignorePatterns` is NOT redeclared here — the dharness copy of that one is
+  // identical and arrives through `extends`.
   "duplicates": {
     "mode": "semantic",
-    // Hide pair-only clones; focus on widespread copy-paste
-    // worth refactoring. Lower to 2 to report every duplicate pair.
-    "minOccurrences": 3
-    // Common additions (uncomment to enable):
-    // "ignore": [
-    //   "**/lib/**",          // for repos that publish transpiled output to lib/
-    //   "**/legacy/**",       // for repos with legacy-build artifacts
-    //   "**/__generated__/**", // Relay, GraphQL Code Generator
-    //   "**/generated/**"     // OpenAPI, Protobuf codegen
-    // ]
-  },
-  "rules": {
-    "boundary-violation": "error",
-    "circular-dependencies": "error",
-    "duplicate-exports": "error",
-    "unlisted-dependencies": "error",
-    "unresolved-imports": "error",
-    "unused-dependencies": "error",
-    "unused-files": "error",
-    "unused-exports": "error",
-    "unused-types": "error"
+    // Hide pair-only clones; focus on widespread copy-paste worth refactoring.
+    // Lower to 2 to report every duplicate pair.
+    "minOccurrences": 3,
+    // 0 means "no limit" per fallow's schema, and it must be stated
+    // explicitly: `extends` MERGES this object, so simply omitting `threshold`
+    // leaves the dharness value of 3 in force rather than unsetting it.
+    "threshold": 0
   }
 }

@@ -101,7 +101,7 @@ export function useTransactionPanel(
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-doctor/exhaustive-deps
   }, [source, limit, filters.route, filters.outcome, filters.kind]);
 
   useEffect(() => {

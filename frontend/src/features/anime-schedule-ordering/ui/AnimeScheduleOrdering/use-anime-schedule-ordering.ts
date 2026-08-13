@@ -78,7 +78,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   // 7. Effects
   useEffect(() => {
     setState(buildInitialAnimeScheduleOrderingState(props));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-doctor/exhaustive-deps
   }, [props.board]);
   useEffect(() => {
     setState((current) => reconcileDraftEntries(current, props.draftEntries));

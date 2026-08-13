@@ -1,0 +1,66 @@
+{
+  // dharness:presets begin — rewritten by `dharness sync`; edits here are lost.
+  // wails: wails.json declares no "wailsjsdir", so the default Wails itself falls back to (frontend/) applies
+  "ignorePatterns": ["wailsjs/**"],
+  // generic: dharness compares structure rather than text (mode "semantic"), reports a clone group only from 3 occurrences, and caps duplication at 3%. fallow's own defaults are mild, 2 and no limit, so all three are departures rather than restatements: structural matching still finds the copy-paste that has since diverged, two occurrences is usually coincidence where three is a pattern, and the ceiling is borrowed from the SonarQube gate this toolchain already answers to — different algorithms, so they corroborate rather than repeat each other
+  "duplicates": {"minOccurrences":3,"mode":"semantic","threshold":3},
+  // dharness:presets end
+
+  // dharness writes this file; the architecture below is decided by analysis,
+  // not by detection. See `dharness init`.
+  //
+  // ── What the tree actually is ────────────────────────────────────────────
+  // The frontend is a delivery shell over feature slices, with two support
+  // layers. Measured 2026-08-10 over 519 files under `frontend/src`:
+  //
+  //     app             ->  features 23, shared 7
+  //     features        ->  shared 183, infrastructure 155
+  //     shared          ->  infrastructure 18
+  //     infrastructure  ->  shared 17
+  //
+  // Two facts drive the declaration:
+  //
+  // 1. Feature isolation is nearly total: 19 imports cross from one feature to
+  //    another across 354 files and 16 features. `autoDiscover` turns each
+  //    directory under `src/features` into its own zone, so the property is
+  //    enforced from here on. The 19 existing crossings are reported and do
+  //    not block — the gate fails only on the ones a change introduces.
+  //
+  // 2. `shared -> infrastructure` is the design, not drift. The zustand stores
+  //    in `src/shared/store` and the hooks in `src/shared/hooks` consume the
+  //    runtime sources in `src/infrastructure` on purpose (13 files, 18
+  //    imports). Declaring `shared` a pure leaf would flag all of them on day
+  //    one — a wish, not this architecture — so the edge is declared legal.
+  //    `infrastructure -> shared` (17) is the mirror edge for shared contracts
+  //    and datetime helpers; the two support layers are peers here, and the
+  //    `circular-dependencies` rule stays responsible for real file cycles.
+  //
+  // What the declaration deliberately leaves reported (22 findings today):
+  //
+  //   - `anime-schedule-ordering` is imported by anime-create, anime-editor
+  //     and season (10 crossings). It sits in `features/` but is consumed as
+  //     a shared widget. Either it moves to `shared/ui`, or the crossings are
+  //     debt — the gate names it either way rather than guessing.
+  //   - `devices -> dashboard` (4) and `devices -> preferences` (2): panels
+  //     reused across workspaces. `episodes -> season` (2),
+  //     `navigation -> dashboard` (1).
+  //   - `src/shared/preferences/preferences-route.constants.ts` imports three
+  //     feature panels to compose a route (3). That is composition work living
+  //     in `shared` by accident; it belongs in `src/app/routes`.
+  "boundaries": {
+    "zones": [
+      { "name": "app", "patterns": ["src/app/**", "src/App.tsx", "src/main.tsx"] },
+      // No `patterns` here on purpose: `autoDiscover` already zones all 354
+      // files, and a parent fallback would be a zone that matches nothing.
+      { "name": "features", "autoDiscover": ["src/features"] },
+      { "name": "shared", "patterns": ["src/shared/**"] },
+      { "name": "infrastructure", "patterns": ["src/infrastructure/**"] }
+    ],
+    "rules": [
+      { "from": "app", "allow": ["features", "shared"] },
+      { "from": "features", "allow": ["shared", "infrastructure"] },
+      { "from": "shared", "allow": ["infrastructure"] },
+      { "from": "infrastructure", "allow": ["shared"] }
+    ]
+  }
+}
