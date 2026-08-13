@@ -133,6 +133,77 @@ func TestCreateServiceCreateBatchRejectsWholeBatchOnStaleNeighborBase(t *testing
 	}
 }
 
+// TestCreateServiceCreateBatchSkipsNeighborsWhoseReflowIsANoOp pins the
+// regression behind "create anime batch: stage write operation: anime id is
+// required": the frontend reindexes each column's orders from scratch, so a
+// reflowed neighbor can land back on the exact orders already stored. That
+// neighbor's desired snapshot equals its base, buildScheduleOperation reports
+// "not changed" and returns a zero BatchOperation, and staging that zero value
+// used to reject the whole batch over its empty anime id. The changed neighbor
+// queued behind the no-op one pins that skipping it never abandons the rest of
+// the batch.
+func TestCreateServiceCreateBatchSkipsNeighborsWhoseReflowIsANoOp(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "neighbor-c",
+		`{"id":"neighbor-c","name":"Neighbor C","active":true,"days":[{"day":"Sin ver","order":2}]}`, 700)
+	seedAnimeSnapshotWithModifiedAt(t, store, "neighbor-d",
+		`{"id":"neighbor-d","name":"Neighbor D","active":true,"days":[{"day":"Sin ver","order":3}]}`, 700)
+
+	write := anime.NewWriteService(store, &stubAnimeWriter{})
+	write.SetIDGen(func() string { return "batch-anime-5" })
+	write.SetNow(func() time.Time { return time.UnixMilli(1_700_000_000_200).UTC() })
+	service := anime.NewCreateService(write)
+	service.SetQuery(anime.NewQueryService(store))
+
+	result, err := service.CreateBatch(ctx, []api.AnimeCreate{
+		{Nombre: "Placed Anime", Pagina: "https://example.test/placed", Dias: []api.Placement{{Day: "Sin ver", Order: 1}}},
+	}, []anime.ApplyAnimeScheduleDraftEntry{
+		// Order 2 is exactly what neighbor-c already stores: a no-op reflow.
+		{AnimeID: "neighbor-c", BaseModifiedAt: 700, Placements: []contracts.MobileAnimeDay{{Day: "Sin ver", Order: 2}}},
+		// Queued behind it, this one is a real move and must still be written.
+		{AnimeID: "neighbor-d", BaseModifiedAt: 700, Placements: []contracts.MobileAnimeDay{{Day: "Sin ver", Order: 4}}},
+	})
+	if err != nil {
+		t.Fatalf("CreateBatch: %v", err)
+	}
+	if len(result.AnimeIDs) != 1 || result.AnimeIDs[0] != "batch-anime-5" {
+		t.Fatalf("animeIDs = %v, want [batch-anime-5]", result.AnimeIDs)
+	}
+
+	created, err := store.GetSnapshot(ctx, "batch-anime-5")
+	if err != nil {
+		t.Fatalf("get created snapshot: %v", err)
+	}
+	if len(created.CanonicalJSON) == 0 {
+		t.Fatal("expected the new anime to be persisted despite the no-op neighbor reflow")
+	}
+
+	unchanged, err := store.GetSnapshot(ctx, "neighbor-c")
+	if err != nil {
+		t.Fatalf("get unchanged neighbor snapshot: %v", err)
+	}
+	if unchanged.ModifiedAt != 700 {
+		t.Fatalf("neighbor-c modifiedAt = %d, want 700 (an unchanged neighbor is never rewritten)", unchanged.ModifiedAt)
+	}
+
+	reflowed, err := store.GetSnapshot(ctx, "neighbor-d")
+	if err != nil {
+		t.Fatalf("get reflowed neighbor snapshot: %v", err)
+	}
+	fields := decodeJSONFields(t, reflowed.CanonicalJSON)
+	var days []struct {
+		Day   string  `json:"day"`
+		Order float64 `json:"order"`
+	}
+	if err := json.Unmarshal(fields["days"], &days); err != nil {
+		t.Fatalf("unmarshal reflowed neighbor days: %v", err)
+	}
+	if len(days) != 1 || days[0].Order != 4 {
+		t.Fatalf("neighbor-d days = %+v, want reflowed order 4 behind the skipped no-op", days)
+	}
+}
+
 // TestCreateServiceCreateBatchCreatesNeverTriggerStaleBaseRejection covers
 // tasks.md 3.4: empty-Base create ops never trigger a stale-base rejection,
 // only neighbor ops with a real prior snapshot do.

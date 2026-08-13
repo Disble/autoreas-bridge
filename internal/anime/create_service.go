@@ -161,9 +161,16 @@ func (s *CreateService) buildNeighborOperations(ctx context.Context, neighbors [
 		if record.Snapshot.ModifiedAt != neighbor.BaseModifiedAt {
 			return nil, fmt.Errorf("neighbor anime %q base is stale", neighbor.AnimeID)
 		}
-		operation, _, err := buildScheduleOperation(neighbor.AnimeID, record, neighbor.Placements)
+		operation, changed, err := buildScheduleOperation(neighbor.AnimeID, record, neighbor.Placements)
 		if err != nil {
 			return nil, err
+		}
+		// An unchanged neighbor yields a zero BatchOperation, which staging
+		// rejects for its empty anime id. Drop it: the board reindexes column
+		// orders from scratch, so a reflow can legitimately land back on the
+		// orders already stored.
+		if !changed {
+			continue
 		}
 		operations = append(operations, operation)
 	}
