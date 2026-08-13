@@ -14,7 +14,21 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
-## [1.4.1] — 2026-08-10
+## [1.4.2] — 2026-08-13
+
+### Fixed
+
+- **Adding an anime to the schedule no longer fails with "anime id is required".**
+  Placing a new anime pushes the anime already scheduled around it into new
+  positions, and when that reshuffle happened to land them back exactly where
+  they already were, Bridge still tried to save the untouched ones — and the save
+  was rejected, taking the whole creation down with it. Spreading a single anime
+  across three days was enough to trigger it. Untouched neighbours are now left
+  alone and the anime is created.
+
+### Internal
+
+- No wire changes in this release.
 
 ### Fixed
 
