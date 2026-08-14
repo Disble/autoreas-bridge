@@ -4,7 +4,7 @@ import { DroppableColumn } from './DroppableColumn';
 import { ORDERING_EMPTY_MESSAGE, RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import { SortableCard } from './SortableCard';
 import { useOrderingBoard } from './use-ordering-board';
-import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
+import { ANIME_SCHEDULE_ORDERING_EMPTY_MESSAGE } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 
 /**
  * OrderingBoard is the OrderGrid replacement, built on @dnd-kit/react: a left rail of

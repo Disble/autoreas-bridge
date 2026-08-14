@@ -1,77 +1,44 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
-import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
-import type { AnimeScheduleOrderingCreateSubmit } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
-import { ANIME_CREATE_MIN_ROWS, ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE } from './anime-create.constants';
-import { applyRowCover, applyRowFolder, applyRowPatch, buildAnimeCreateCommand, createAnimeCreateRow, rowHasData, validateAnimeCreateRows } from './anime-create.helpers';
-import type { AnimeCreateRowDraft, AnimeCreateRowPatch, AnimeCreateViewModel } from './anime-create.types';
+import type { AnimeScheduleOrderingCreateSubmit } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+import { ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE } from './anime-create.constants';
+import { buildAnimeCreateCommand, validateAnimeCreateRows } from './anime-create.helpers';
+import type { AnimeCreateViewModel } from './anime-create.types';
+import { useAnimeCreateBootstrap } from './use-anime-create-bootstrap';
+import { useAnimeCreateRows } from './use-anime-create-rows';
 
 /**
  * Owns the batch-create rows, the shared schedule board fetch, and the single
  * deferred submit that persists the whole batch through `createAnime`.
+ *
+ * Row editing and the mount-time fetches live in their own hooks. They were
+ * split out on 2026-08-14: this function held twenty-four hook calls, eleven of
+ * them row editing that knows nothing about the board or the submit.
  */
 export function useAnimeCreate(): AnimeCreateViewModel {
   // 1. Refs
 
   // 2. State
-  const [rows, setRows] = useState<readonly AnimeCreateRowDraft[]>(() => [createAnimeCreateRow(1)]);
-  const [nextRowIndex, setNextRowIndex] = useState(2);
   const [board, setBoard] = useState<AnimeEditorScheduleBoard>();
   const [feedback, setFeedback] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBoardOpen, setIsBoardOpen] = useState(false);
   const [downloadsRoot, setDownloadsRoot] = useState('');
-  const [pendingRemoveId, setPendingRemoveId] = useState<string>();
 
   // 3. Context/3rd Party Hooks
+  const rowState = useAnimeCreateRows(downloadsRoot);
+  const { rows, resetRows } = rowState;
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
   const draftEntries = useMemo(() => rows.map((row) => ({ draftId: row.draftId, name: row.name.trim() === '' ? 'New anime' : row.name })), [rows]);
   const lockedAnimeIds = useMemo(() => (board?.entries ?? []).map((entry) => entry.animeId), [board]);
-  const canRemoveRow = rows.length > ANIME_CREATE_MIN_ROWS;
   const canOpenBoard = useMemo(() => board !== undefined && rows.every((row) => row.name.trim() !== '' && isValidDownloadPageUrl(row.page)), [board, rows]);
-  const isRemoveConfirmOpen = pendingRemoveId !== undefined;
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const onAddRow = useCallback(() => {
-    setRows((current) => [...current, createAnimeCreateRow(nextRowIndex)]);
-    setNextRowIndex((current) => current + 1);
-  }, [nextRowIndex]);
-  const removeRowNow = useCallback((draftId: string) => {
-    setRows((current) => (current.length <= ANIME_CREATE_MIN_ROWS ? current : current.filter((row) => row.draftId !== draftId)));
-  }, []);
-  const onRemoveRow = useCallback((draftId: string) => {
-    const target = rows.find((row) => row.draftId === draftId);
-    if (target !== undefined && rowHasData(target)) {
-      setPendingRemoveId(draftId);
-      return;
-    }
-    removeRowNow(draftId);
-  }, [removeRowNow, rows]);
-  const onConfirmRemove = useCallback(() => {
-    if (pendingRemoveId !== undefined) {
-      removeRowNow(pendingRemoveId);
-    }
-    setPendingRemoveId(undefined);
-  }, [pendingRemoveId, removeRowNow]);
-  const onCancelRemove = useCallback(() => setPendingRemoveId(undefined), []);
-  const onRowChange = useCallback((draftId: string, patch: AnimeCreateRowPatch) => {
-    setRows((current) => applyRowPatch(current, draftId, patch, downloadsRoot));
-  }, [downloadsRoot]);
-  const onBrowseFolder = useCallback((draftId: string) => {
-    void bridgeRuntimeSource.pickFolder?.('Select anime folder').then((folder) => {
-      setRows((current) => applyRowFolder(current, draftId, folder));
-    });
-  }, []);
-  const onBrowseCover = useCallback((draftId: string) => {
-    void bridgeRuntimeSource.pickFile?.('Select cover image').then((path) => {
-      setRows((current) => applyRowCover(current, draftId, path));
-    });
-  }, []);
   const onOpenBoard = useCallback(() => {
     setFeedback(undefined);
     setIsBoardOpen(true);
@@ -97,8 +64,7 @@ export function useAnimeCreate(): AnimeCreateViewModel {
         setFeedback(result.message);
         return;
       }
-      setRows([createAnimeCreateRow(1)]);
-      setNextRowIndex(2);
+      resetRows();
       setIsBoardOpen(false);
       const refreshed = await bridgeRuntimeSource.getAnimeEditorScheduleBoard?.('');
       setBoard(refreshed?.board);
@@ -107,23 +73,10 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     } finally {
       setIsSubmitting(false);
     }
-  }, [rows]);
+  }, [resetRows, rows]);
 
   // 7. Effects
-  useEffect(() => {
-    let cancelled = false;
-    void bridgeRuntimeSource.getAnimeEditorScheduleBoard?.('').then((result) => {
-      if (!cancelled) {
-        setBoard(result.board);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  useEffect(() => {
-    void preferencesSource.getDownloadsRoot().then(setDownloadsRoot);
-  }, []);
+  useAnimeCreateBootstrap(setBoard, setDownloadsRoot);
 
   return {
     rows,
@@ -132,17 +85,17 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     lockedAnimeIds,
     feedback,
     isSubmitting,
-    canRemoveRow,
+    canRemoveRow: rowState.canRemoveRow,
     canOpenBoard,
     isBoardOpen,
-    isRemoveConfirmOpen,
-    onAddRow,
-    onRemoveRow,
-    onConfirmRemove,
-    onCancelRemove,
-    onRowChange,
-    onBrowseFolder,
-    onBrowseCover,
+    isRemoveConfirmOpen: rowState.isRemoveConfirmOpen,
+    onAddRow: rowState.onAddRow,
+    onRemoveRow: rowState.onRemoveRow,
+    onConfirmRemove: rowState.onConfirmRemove,
+    onCancelRemove: rowState.onCancelRemove,
+    onRowChange: rowState.onRowChange,
+    onBrowseFolder: rowState.onBrowseFolder,
+    onBrowseCover: rowState.onBrowseCover,
     onOpenBoard,
     onCloseBoard,
     onApplyCreateSubmit,

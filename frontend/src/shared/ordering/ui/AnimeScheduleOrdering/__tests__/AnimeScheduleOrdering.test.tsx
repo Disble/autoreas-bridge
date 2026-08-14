@@ -4,6 +4,7 @@ import { AnimeScheduleOrdering } from '../AnimeScheduleOrdering';
 import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from '../anime-schedule-ordering.constants';
 import type { AnimeScheduleOrderingTestDriverRef } from '../anime-schedule-ordering.types';
 
+/** Fixture board the rendering assertions drive. */
 const board = {
   originAnimeId: 'anime-1',
   boardModifiedAt: 100,

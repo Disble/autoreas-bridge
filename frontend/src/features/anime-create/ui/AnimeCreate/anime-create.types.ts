@@ -1,5 +1,5 @@
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
-import type { AnimeScheduleOrderingCreateSubmit, AnimeScheduleOrderingDraftEntry } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+import type { AnimeScheduleOrderingCreateSubmit, AnimeScheduleOrderingDraftEntry } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /**
  * One batch-create row before submit: primary fields plus optional metadata.

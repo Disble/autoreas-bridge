@@ -1,27 +1,26 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import { move } from '@dnd-kit/helpers';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  applyAnimeScheduleOrder,
-  buildInitialAnimeScheduleOrderingState,
-  countAnimeScheduleChanges,
-  createAnimeScheduleApplyEntries,
-  duplicateAnimeScheduleCard,
-  getInstancesInDestination,
-  getStagedAnimeIds,
-  moveAnimeScheduleCard,
-  partitionCreateSubmit,
-  reconcileDraftEntries,
-  removeAnimeScheduleCard,
+  applyOrdering,
+  duplicateOrderingCard,
+  removeOrderingCard,
   shouldBlockDuplicateHover,
-  validateAnimeScheduleDraft,
-} from './anime-schedule-ordering.helpers';
-import { ANIME_SCHEDULE_STAGING_CONTAINER_ID } from './anime-schedule-ordering.constants';
+} from '../../ordering.helpers';
+import { buildInitialAnimeScheduleOrderingState } from './anime-schedule-ordering.helpers';
 import type { AnimeScheduleOrderingProps, AnimeScheduleOrderingState, AnimeScheduleOrderingViewModel } from './anime-schedule-ordering.types';
+import { countAnimeScheduleChanges, createAnimeScheduleApplyEntries, partitionCreateSubmit, validateAnimeScheduleDraft } from './anime-schedule-payload.helpers';
+import { useAnimeScheduleColumns } from './use-anime-schedule-columns';
+import { useAnimeScheduleDraftSync } from './use-anime-schedule-draft-sync';
 
 /**
  * Owns the shared anime schedule draft, drag projection, validation, reset, and
  * changed-record-only apply payload generation for the editor schedule modal.
+ *
+ * Column projection and prop synchronization live in their own hooks. They were
+ * split out on 2026-08-14 because this function held 19 hook calls in one body
+ * and breached the complexity gate; the three groups never shared anything but
+ * the draft state and its setter.
  */
 export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingProps>): AnimeScheduleOrderingViewModel {
   // 1. Refs
@@ -30,20 +29,13 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   const [state, setState] = useState<AnimeScheduleOrderingState>(() => buildInitialAnimeScheduleOrderingState(props));
 
   // 3. Context/3rd Party Hooks
+  const { columns, weekdayColumns, specialColumns, stagingCards, stagedAnimeCount } = useAnimeScheduleColumns(props.board, state);
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
   const validationMessage = useMemo(() => validateAnimeScheduleDraft(state), [state]);
   const changeCount = useMemo(() => countAnimeScheduleChanges(props.board, state), [props.board, state]);
-  const columns = useMemo(() => props.board.destinations.map((destination) => ({
-    ...destination,
-    cards: getInstancesInDestination(state, destination.id),
-  })), [props.board.destinations, state]);
-  const weekdayColumns = useMemo(() => columns.filter((column) => column.kind === 'weekday'), [columns]);
-  const specialColumns = useMemo(() => columns.filter((column) => column.kind === 'special'), [columns]);
-  const stagingCards = useMemo(() => getInstancesInDestination(state, ANIME_SCHEDULE_STAGING_CONTAINER_ID), [state]);
-  const stagedAnimeCount = useMemo(() => getStagedAnimeIds(state).size, [state]);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onDragOver = useCallback((event: DragOverEvent) => {
@@ -51,13 +43,13 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
       event.preventDefault();
       return;
     }
-    setState((current) => applyAnimeScheduleOrder(current, move(current.order as Record<string, string[]>, event)));
+    setState((current) => applyOrdering(current, move(current.order as Record<string, string[]>, event)));
   }, [state]);
   const onDuplicate = useCallback((animeId: string) => {
-    setState((current) => duplicateAnimeScheduleCard(current, animeId));
+    setState((current) => duplicateOrderingCard(current, animeId));
   }, []);
   const onRemove = useCallback((key: string) => {
-    setState((current) => removeAnimeScheduleCard(current, key));
+    setState((current) => removeOrderingCard(current, key));
   }, []);
   const onReset = useCallback(() => {
     setState(buildInitialAnimeScheduleOrderingState(props));
@@ -76,32 +68,7 @@ export function useAnimeScheduleOrdering(props: Readonly<AnimeScheduleOrderingPr
   const getOverlayName = useCallback((id: string | number) => state.instances[String(id)]?.name ?? '', [state.instances]);
 
   // 7. Effects
-  useEffect(() => {
-    setState(buildInitialAnimeScheduleOrderingState(props));
-    // eslint-disable-next-line react-doctor/exhaustive-deps
-  }, [props.board]);
-  useEffect(() => {
-    setState((current) => reconcileDraftEntries(current, props.draftEntries));
-  }, [props.draftEntries]);
-  useEffect(() => {
-    const testDriverRef = props.testDriverRef;
-    if (testDriverRef === undefined) {
-      return undefined;
-    }
-    testDriverRef.current = {
-      moveAnime(command) {
-        setState((current) => moveAnimeScheduleCard(current, command));
-      },
-    };
-    return () => {
-      testDriverRef.current = undefined;
-    };
-  }, [props.testDriverRef]);
-  useEffect(() => {
-    Array.from(document.querySelectorAll<HTMLElement>('[data-origin-anime]'))
-      .find((element) => element.dataset.originAnime === props.board.originAnimeId)
-      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [props.board.originAnimeId]);
+  useAnimeScheduleDraftSync(props, setState);
 
   return {
     columns,

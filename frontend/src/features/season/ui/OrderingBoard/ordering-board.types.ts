@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { AnimeScheduleOrderingInstance } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+import type { OrderingState } from '../../../../shared/ordering/ordering.types';
+import type { AnimeScheduleOrderingInstance } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** One anime's intended placement — a weekday+position or its Estrenos section. */
 export interface DraftPlacement {
@@ -34,14 +35,13 @@ export interface OrderingCardMeta {
 }
 
 /**
- * The board's working state: per-container ordered instance keys (the shape `move`
- * from @dnd-kit/helpers reorders) plus the instance lookup by key.
+ * The board's working state: the shared ordering state specialized to Season's
+ * richer card. Declaring it as `OrderingState<OrderingInstance>` rather than a
+ * lookalike interface is what lets the shared transitions return Season's own
+ * type — before this, every call through them needed an `as WorkingState` cast
+ * that discarded and re-asserted the extra fields.
  */
-export interface WorkingState {
-  readonly order: Record<string, readonly string[]>;
-  readonly instances: Record<string, OrderingInstance>;
-  readonly duplicateAllowedDestinations?: readonly string[];
-}
+export type WorkingState = OrderingState<OrderingInstance>;
 
 /** Props for a single draggable ordering card (a rail candidate or a placed weekday clone). */
 export interface OrderingItemProps {

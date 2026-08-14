@@ -19,7 +19,17 @@
     // `dharness-eslint-plugin` is named as a string inside `doctor.config.json`
     // and loaded by the `doctor:react` script, never imported from JS, so the
     // import graph cannot see it.
-    "dharness-eslint-plugin"
+    "dharness-eslint-plugin",
+    // `@stryker-mutator/vitest-runner` is named as a string in the `plugins`
+    // list of `stryker.dlinter.json` and loaded by Stryker at runtime. Same
+    // blind spot: a plugin referenced from JSON is invisible to the import
+    // graph, and removing it would silently break the mutation gate.
+    "@stryker-mutator/vitest-runner",
+    // `@typescript-eslint/parser` is imported only by `eslint.config.js`, which
+    // fallow classifies as production because it is not a test file. It is
+    // tooling, exactly like `eslint` above, and moving it to `dependencies` to
+    // silence the finding would ship a linter parser to users.
+    "@typescript-eslint/parser"
   ],
   "audit": {
     "dupesBaseline": ".fallow/baselines/dupes.json"

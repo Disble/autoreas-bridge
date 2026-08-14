@@ -1,4 +1,4 @@
-import { ANIME_SCHEDULE_DRAFT_ID_PREFIX } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
+import { ANIME_SCHEDULE_DRAFT_ID_PREFIX } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.constants';
 import type { AnimeCreateCommand, AnimeCreateItem, AnimeCreatePlacement, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
 import { deriveDownloadFolder } from '../../../../shared/helpers/download-folder.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
@@ -135,7 +135,7 @@ export function applyRowCover(
  * schedule placements, returning a user-facing message naming the row or
  * `undefined` when the row is valid.
  */
-export function validateAnimeCreateRow(
+function validateAnimeCreateRow(
   row: Readonly<AnimeCreateRowDraft>,
   placements: readonly AnimeCreatePlacement[] | undefined,
 ): string | undefined {
@@ -184,31 +184,50 @@ export function buildAnimeCreateCommand(
   creates: Readonly<Record<string, readonly AnimeCreatePlacement[]>>,
   changedNeighbors: readonly ApplyAnimeScheduleDraftEntry[],
 ): AnimeCreateCommand {
-  const items: AnimeCreateItem[] = rows.map((row) => {
-    const item: AnimeCreateItem = {
-      name: row.name.trim(),
-      page: row.page.trim(),
-      placements: creates[row.draftId] ?? [],
-    };
-    const episodesWatched = parseOptionalCreateInt(row.episodesWatched);
-    const totalEpisodes = parseOptionalCreateInt(row.totalEpisodes);
-    const durationMinutes = parseOptionalCreateInt(row.duration);
-    const genres = splitCreateCommaList(row.genres);
-    const studios = splitCreateCommaList(row.studios);
-    const coverPath = row.coverPath.trim();
-    return {
-      ...item,
-      ...(row.folder.trim() === '' ? {} : { folder: row.folder.trim() }),
-      ...(row.kind === ANIME_CREATE_UNSET_FIELD ? {} : { kind: Number(row.kind) }),
-      ...(episodesWatched === undefined ? {} : { episodesWatched }),
-      ...(totalEpisodes === undefined ? {} : { totalEpisodes }),
-      ...(durationMinutes === undefined ? {} : { durationMinutes }),
-      ...(row.origin.trim() === '' ? {} : { origin: row.origin.trim() }),
-      ...(genres.length === 0 ? {} : { genres }),
-      ...(studios.length === 0 ? {} : { studios }),
-      ...(coverPath === '' ? {} : { cover: { type: row.coverType === '' ? 'url' : row.coverType, path: coverPath } }),
-    };
-  });
+  const items: AnimeCreateItem[] = rows.map((row) => ({
+    name: row.name.trim(),
+    page: row.page.trim(),
+    placements: creates[row.draftId] ?? [],
+    ...pruneUnprovidedFields(toOptionalCreateFields(row)),
+  }));
 
   return { creates: items, changedNeighbors };
+}
+
+/**
+ * Reads every optional wire field off a row, leaving "the row did not provide
+ * this" as an empty string, an empty list or `undefined` for the prune step to
+ * drop. Separating read from prune is what keeps this out of the complexity
+ * gate: the previous version inlined nine conditional spreads into the mapper,
+ * one branch per optional field.
+ * @param row The draft row to read.
+ * @returns Every optional field, provided or not.
+ */
+function toOptionalCreateFields(row: Readonly<AnimeCreateRowDraft>) {
+  const coverPath = row.coverPath.trim();
+
+  return {
+    folder: row.folder.trim(),
+    kind: row.kind === ANIME_CREATE_UNSET_FIELD ? undefined : Number(row.kind),
+    episodesWatched: parseOptionalCreateInt(row.episodesWatched),
+    totalEpisodes: parseOptionalCreateInt(row.totalEpisodes),
+    durationMinutes: parseOptionalCreateInt(row.duration),
+    origin: row.origin.trim(),
+    genres: splitCreateCommaList(row.genres),
+    studios: splitCreateCommaList(row.studios),
+    cover: coverPath === '' ? undefined : { type: row.coverType === '' ? 'url' : row.coverType, path: coverPath },
+  };
+}
+
+/**
+ * Drops the fields the row left unprovided, so an optional field is omitted
+ * from the payload rather than sent empty. `0` is provided: only `undefined`,
+ * the empty string and the empty list count as absent.
+ * @param fields The optional fields, provided or not.
+ * @returns Only the fields the row actually provided.
+ */
+function pruneUnprovidedFields(fields: Readonly<Record<string, unknown>>) {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)),
+  );
 }

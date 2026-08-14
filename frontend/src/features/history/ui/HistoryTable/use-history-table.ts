@@ -7,21 +7,14 @@ import { useAsyncList } from '../../../../shared/hooks/use-async-list/use-async-
 import { useDebounce } from '../../../../shared/hooks/use-debounce';
 import {
   HISTORY_TABLE_ESTADO_OPTIONS,
-  HISTORY_TABLE_PAGE_SIZE,
   HISTORY_TABLE_SEARCH_DEBOUNCE_MS,
   HISTORY_TABLE_SORT_OPTIONS,
   HISTORY_TABLE_TIPO_OPTIONS,
 } from './history-table.constants';
-import {
-  filterHistoryEntries,
-  getHistoryPageItems,
-  getHistoryTotalPages,
-  paginateHistoryEntries,
-  parseHistoryParams,
-  serializeHistoryParams,
-  sortHistoryEntries,
-} from './history-table.helpers';
-import type { HistoryParamsState, HistoryTableProps, HistoryTableState } from './history-table.types';
+import { parseHistoryParams } from './history-table.helpers';
+import type { HistoryTableProps, HistoryTableState } from './history-table.types';
+import { useHistoryParamsWriters } from './use-history-params-writers';
+import { useHistoryRows } from './use-history-rows';
 
 /**
  * Drives HistoryTable: fetches the full server-sorted History list with a
@@ -53,62 +46,21 @@ export function useHistoryTable(
   // 5. Derived State (useMemo)
   const debouncedQuery = useDebounce(searchQuery, HISTORY_TABLE_SEARCH_DEBOUNCE_MS);
   const { estado: estadoFilter, tipo: tipoFilter, sort: sortOrder, page } = urlState;
-  const filteredEntries = useMemo(
-    () => filterHistoryEntries(entries, debouncedQuery, estadoFilter, tipoFilter),
-    [entries, debouncedQuery, estadoFilter, tipoFilter],
-  );
-  const sortedEntries = useMemo(
-    () => sortHistoryEntries(filteredEntries, sortOrder),
-    [filteredEntries, sortOrder],
-  );
-  const totalPages = useMemo(
-    () => getHistoryTotalPages(sortedEntries.length, HISTORY_TABLE_PAGE_SIZE),
-    [sortedEntries.length],
-  );
-  const currentPage = Math.min(page, totalPages);
-  const rows = useMemo(
-    () => paginateHistoryEntries(sortedEntries, currentPage, HISTORY_TABLE_PAGE_SIZE),
-    [sortedEntries, currentPage],
-  );
-  const isEmpty = useMemo(() => !isLoading && sortedEntries.length === 0, [isLoading, sortedEntries.length]);
-  const pageItems = useMemo(() => getHistoryPageItems(currentPage, totalPages), [currentPage, totalPages]);
+  const { rows, totalPages, currentPage, isEmpty, pageItems } = useHistoryRows({
+    entries, debouncedQuery, estadoFilter, tipoFilter, sortOrder, page, isLoading,
+  });
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const writeParams = useCallback(
-    (next: Partial<HistoryParamsState>, options: { replace?: boolean } = {}) => {
-      const merged: HistoryParamsState = { q: debouncedQuery, estado: estadoFilter, tipo: tipoFilter, sort: sortOrder, page, ...next };
-
-      setSearchParams(serializeHistoryParams(merged), { replace: options.replace ?? false });
-    },
-    [debouncedQuery, estadoFilter, tipoFilter, sortOrder, page, setSearchParams],
-  );
+  const { writeParams, onEstadoFilterChange, onTipoFilterChange, onSortOrderChange, onPageChange } = useHistoryParamsWriters({
+    // `q` is the debounced value, not `urlState.q`: a write must carry the
+    // search the user has settled on, not the one still in the URL.
+    current: { q: debouncedQuery, estado: estadoFilter, tipo: tipoFilter, sort: sortOrder, page },
+    totalPages,
+    setSearchParams,
+  });
   const onSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
-  const onEstadoFilterChange = useCallback(
-    (estado: string) => {
-      writeParams({ estado, page: 1 });
-    },
-    [writeParams],
-  );
-  const onTipoFilterChange = useCallback(
-    (tipo: string) => {
-      writeParams({ tipo, page: 1 });
-    },
-    [writeParams],
-  );
-  const onSortOrderChange = useCallback(
-    (sort: string) => {
-      writeParams({ sort, page: 1 });
-    },
-    [writeParams],
-  );
-  const onPageChange = useCallback(
-    (nextPage: number) => {
-      writeParams({ page: Math.min(Math.max(nextPage, 1), totalPages) });
-    },
-    [writeParams, totalPages],
-  );
 
   // 7. Effects
   useEffect(() => {

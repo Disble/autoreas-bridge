@@ -1,6 +1,6 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
-import type { AnimeScheduleOrderingTestDriverRef } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** Route input for the ID-driven Anime Editor workspace. */
 export interface AnimeEditorWorkspaceProps {

@@ -163,17 +163,30 @@ function renderRoute(edge, profileDir, url) {
  * @returns {string[]} Human-readable failures; empty means the route painted.
  */
 function checkDom(dom, route) {
-  const failures = [];
   const root = /<div id="root">([\s\S]*)<\/div>\s*<\/body>/.exec(dom);
   const rendered = root ? root[1].trim() : '';
 
   if (rendered.length === 0) {
-    failures.push(`${route}: #root is empty — the app painted nothing`);
-    return failures;
+    return [`${route}: #root is empty — the app painted nothing`];
   }
+  return missingMarkerFailures(dom, route, rendered.length);
+}
+
+/**
+ * Reports the markers a painted route should carry but does not. Split out of
+ * `checkDom` so neither function breaches the complexity gate: this script has
+ * no tests of its own — it is the smoke test — so its CRAP score is computed at
+ * zero coverage and a cyclomatic complexity above four fails outright.
+ * @param {string} dom Serialized DOM for the route.
+ * @param {string} route Route label used in failure messages.
+ * @param {number} renderedLength Characters painted inside `#root`.
+ * @returns {string[]} Human-readable failures; empty means every marker is present.
+ */
+function missingMarkerFailures(dom, route, renderedLength) {
+  const failures = [];
   for (const marker of [...REQUIRED_MARKERS, ...(ROUTE_MARKERS[route] ?? [])]) {
     if (!dom.includes(marker)) {
-      failures.push(`${route}: rendered ${rendered.length} chars but "${marker}" is missing`);
+      failures.push(`${route}: rendered ${renderedLength} chars but "${marker}" is missing`);
     }
   }
   return failures;

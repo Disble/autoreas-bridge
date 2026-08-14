@@ -2,23 +2,37 @@ import type { DragOverEvent } from '@dnd-kit/react';
 import type { OrderingBoard, OrderingCard, SeasonAnimeRow } from '../../../../infrastructure/season-source/season-source.types';
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
 import {
-  applyAnimeScheduleOrder,
-  buildAnimeScheduleDraftPlacements,
-  createAnimeScheduleOrderingState,
-  duplicateAnimeScheduleCard,
-  getInstancesInDestination,
-  removeAnimeScheduleCard,
+  applyOrdering,
+  duplicateOrderingCard,
+  getInstancesIn,
+  removeOrderingCard,
   shouldBlockDuplicateHover,
-  validateAnimeScheduleDraft,
-} from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
+} from '../../../../shared/ordering/ordering.helpers';
+import {
+  createAnimeScheduleOrderingState,
+} from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.helpers';
 import { RAIL_CONTAINER_ID, WEEKDAYS } from './ordering-board.constants';
 import type { DraftPlacement, OrderingCardMeta, OrderingInstance, WorkingState } from './ordering-board.types';
+import { buildAnimeScheduleDraftPlacements, validateAnimeScheduleDraft } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-payload.helpers';
 
+/**
+ * Groups every board card by anime, so an anime placed on several weekdays is
+ * rebuilt as one entry with several placements.
+ * @param board The Season ordering board.
+ * @returns One card list per distinct anime.
+ */
 function cardsByAnime(board: OrderingBoard) {
   const cards = [...board.rail, ...board.grid];
   return [...new Set(cards.map((card) => card.animeId))].map((animeId) => cards.filter((card) => card.animeId === animeId));
 }
 
+/**
+ * Adapts the Season board into the shared schedule board shape, so Season can
+ * reuse the schedule core instead of keeping a parallel state machine. The rail
+ * becomes a wildcard destination and the weekdays become exclusive ones.
+ * @param board The Season ordering board.
+ * @returns The equivalent shared schedule board.
+ */
 function toSharedBoard(board: OrderingBoard): AnimeEditorScheduleBoard {
   return {
     originAnimeId: '', boardModifiedAt: 0,
@@ -39,12 +53,26 @@ function toSharedBoard(board: OrderingBoard): AnimeEditorScheduleBoard {
   };
 }
 
+/**
+ * Finds the original card behind an instance, preferring the one already in the
+ * given container and falling back to any card for that anime.
+ * @param board The Season ordering board.
+ * @param animeId The anime being placed.
+ * @param containerId The container the instance currently sits in.
+ * @returns The matching source card.
+ */
 function sourceCardFor(board: OrderingBoard, animeId: string, containerId: string): OrderingCard {
   const cards = [...board.rail, ...board.grid];
   return cards.find((card) => card.animeId === animeId && (card.dia || RAIL_CONTAINER_ID) === containerId)
     ?? cards.find((card) => card.animeId === animeId)!;
 }
 
+/**
+ * Renders placements as one order-insensitive string, so two drafts can be
+ * compared for equality without caring which order the placements arrived in.
+ * @param placements The placements to fingerprint.
+ * @returns A stable comparison key.
+ */
 function placementKey(placements: readonly DraftPlacement[]) {
   return placements.map((placement) => `${placement.dia}#${placement.orden}`).toSorted((left, right) => left.localeCompare(right)).join('|');
 }
@@ -89,7 +117,7 @@ export function buildOrderingCardMeta(rows: readonly SeasonAnimeRow[]): Record<s
 
 /** Resolves one Season destination through the shared ordered collection. */
 export function instancesIn(state: WorkingState, container: string): OrderingInstance[] {
-  return getInstancesInDestination(state, container) as OrderingInstance[];
+  return getInstancesIn(state, container);
 }
 
 /** Counts card instances per anime for minimum-one controls. */
@@ -118,24 +146,24 @@ export function shouldCancelForbiddenWeekdayHover(state: WorkingState, event: Dr
 
 /** Applies projected DnD order through the reusable schedule core. */
 export function applyOrder(state: WorkingState, order: Record<string, readonly string[]>): WorkingState {
-  return applyAnimeScheduleOrder(state, order) as WorkingState;
+  return applyOrdering(state, order);
 }
 
 /** Stages a Season clone in the approved rail through the reusable schedule core. */
 export function duplicate(state: WorkingState, animeId: string): WorkingState {
-  const next = duplicateAnimeScheduleCard(state, animeId);
+  const next = duplicateOrderingCard(state, animeId);
   if (next === state) return state;
   const key = Object.keys(next.instances).find((candidate) => state.instances[candidate] === undefined)!;
   return {
     order: next.order,
     duplicateAllowedDestinations: [RAIL_CONTAINER_ID],
-    instances: { ...next.instances, [key]: { ...next.instances[key], isPendingDuplicate: true, section: '', orden: 0 } } as Record<string, OrderingInstance>,
+    instances: { ...next.instances, [key]: { ...next.instances[key], isPendingDuplicate: true, section: '', orden: 0 } },
   };
 }
 
 /** Removes a Season clone while retaining one card through the reusable core. */
 export function removeCard(state: WorkingState, key: string): WorkingState {
-  return removeAnimeScheduleCard(state, key) as WorkingState;
+  return removeOrderingCard(state, key);
 }
 
 /** Serializes shared ordered collections into the existing Season persistence DTO. */

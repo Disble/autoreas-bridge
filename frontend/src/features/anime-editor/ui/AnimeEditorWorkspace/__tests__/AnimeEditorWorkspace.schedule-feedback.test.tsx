@@ -2,8 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRecord, AnimeEditorScheduleBoard } from '../../../../../shared/contracts/anime.types';
-import type { AnimeScheduleOrderingTestDriverRef } from '../../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
+import type { AnimeScheduleOrderingTestDriverRef } from '../../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
+/** Hoisted mocks and the schedule entries the apply assertion expects. */
 const { expectedScheduleEntries, fakeSource, getAnimeEditorRecordMock, getAnimeEditorScheduleBoardMock, applyAnimeEditorScheduleMock } = vi.hoisted(() => {
   const getAnimeEditorRecordMock = vi.fn();
   const getAnimeEditorScheduleBoardMock = vi.fn();
@@ -48,6 +49,10 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 
 import { AnimeEditorWorkspace } from '../AnimeEditorWorkspace';
 
+/**
+ * Builds the editor record the workspace loads under test.
+ * @returns A minimal valid editor record.
+ */
 function makeRecord(): AnimeEditorRecord {
   return {
     animeId: 'bang-dream',
@@ -69,6 +74,12 @@ function makeRecord(): AnimeEditorRecord {
   };
 }
 
+/**
+ * Builds a schedule board stamped with a given modification time, so staleness
+ * paths can be driven deterministically.
+ * @param boardModifiedAt The board modification timestamp.
+ * @returns A schedule board fixture.
+ */
 function makeBoard(boardModifiedAt: number): AnimeEditorScheduleBoard {
   return {
     originAnimeId: 'bang-dream',

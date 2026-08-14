@@ -1,6 +1,7 @@
 import type { DragOverEvent } from '@dnd-kit/react';
 import type { ReactNode } from 'react';
 import type { ApplyAnimeScheduleDraftEntry, AnimeEditorScheduleBoard, AnimeSchedulePlacement } from '../../../../shared/contracts/anime.types';
+import type { OrderingInstanceBase, OrderingState } from '../../ordering.types';
 
 /** Test-only move command for driving the real draft reducer under jsdom. */
 export interface AnimeScheduleOrderingTestMoveCommand {
@@ -48,9 +49,7 @@ export interface AnimeScheduleOrderingProps {
 }
 
 /** One draggable card instance inside the shared schedule draft. */
-export interface AnimeScheduleOrderingInstance {
-  readonly key: string;
-  readonly animeId: string;
+export interface AnimeScheduleOrderingInstance extends OrderingInstanceBase {
   readonly name: string;
   readonly baseModifiedAt: number;
   readonly originHighlighted: boolean;
@@ -59,12 +58,12 @@ export interface AnimeScheduleOrderingInstance {
   readonly locked?: boolean;
 }
 
-/** Internal dnd-kit working state for the schedule draft. */
-export interface AnimeScheduleOrderingState {
-  readonly order: Record<string, readonly string[]>;
-  readonly instances: Record<string, AnimeScheduleOrderingInstance>;
-  readonly duplicateAllowedDestinations?: readonly string[];
-}
+/**
+ * Internal dnd-kit working state for the schedule draft: the shared ordering
+ * state specialized to this board's card. Season specializes the same generic
+ * with its own richer card, which is what lets both share the transitions.
+ */
+export type AnimeScheduleOrderingState = OrderingState<AnimeScheduleOrderingInstance>;
 
 /** One normalized placement inside a changed-record schedule payload. */
 export type AnimeScheduleDraftPlacement = AnimeSchedulePlacement;
@@ -93,6 +92,12 @@ export interface AnimeScheduleOrderingColumnViewModel {
   readonly kind: 'weekday' | 'special';
   readonly cards: readonly AnimeScheduleOrderingInstance[];
 }
+
+/** The projection half of the view model, owned by `useAnimeScheduleColumns`. */
+export type AnimeScheduleColumnsViewModel = Pick<
+  AnimeScheduleOrderingViewModel,
+  'columns' | 'weekdayColumns' | 'specialColumns' | 'stagingCards' | 'stagedAnimeCount'
+>;
 
 /** View model returned by the colocated schedule-ordering hook. */
 export interface AnimeScheduleOrderingViewModel {

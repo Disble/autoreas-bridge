@@ -1,5 +1,5 @@
 import { Alert, Button, Modal, Typography } from '@heroui/react';
-import { AnimeScheduleOrdering } from '../../../anime-schedule-ordering/ui/AnimeScheduleOrdering/AnimeScheduleOrdering';
+import { AnimeScheduleOrdering } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/AnimeScheduleOrdering';
 import { AnimeCreateRow } from './AnimeCreateRow';
 import { useAnimeCreate } from './use-anime-create';
 

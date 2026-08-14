@@ -20,11 +20,10 @@
   //
   // Two facts drive the declaration:
   //
-  // 1. Feature isolation is nearly total: 19 imports cross from one feature to
-  //    another across 354 files and 16 features. `autoDiscover` turns each
-  //    directory under `src/features` into its own zone, so the property is
-  //    enforced from here on. The 19 existing crossings are reported and do
-  //    not block — the gate fails only on the ones a change introduces.
+  // 1. Feature isolation is nearly total. `autoDiscover` turns each directory
+  //    under `src/features` into its own zone, so the property is enforced from
+  //    here on. Existing crossings are reported and do not block — the gate
+  //    fails only on the ones a change introduces.
   //
   // 2. `shared -> infrastructure` is the design, not drift. The zustand stores
   //    in `src/shared/store` and the hooks in `src/shared/hooks` consume the
@@ -35,12 +34,18 @@
   //    and datetime helpers; the two support layers are peers here, and the
   //    `circular-dependencies` rule stays responsible for real file cycles.
   //
-  // What the declaration deliberately leaves reported (22 findings today):
+  // The declaration paid for itself on 2026-08-13. It flagged
+  // `anime-schedule-ordering` — a module living in `features/` but imported by
+  // anime-create, anime-editor and season — as 10 of the then 22 crossings.
+  // Following that signal turned up two things no tool reported: the module was
+  // the same ordering-board abstraction Season had, and Season reached it
+  // through four `as WorkingState` casts that existed only because the core was
+  // hard-typed to one card shape. The state machine is now generic
+  // (`shared/ordering/ordering.types.ts`), the widget moved to
+  // `shared/ordering/ui/`, and the casts are gone. 22 crossings -> 12.
   //
-  //   - `anime-schedule-ordering` is imported by anime-create, anime-editor
-  //     and season (10 crossings). It sits in `features/` but is consumed as
-  //     a shared widget. Either it moves to `shared/ui`, or the crossings are
-  //     debt — the gate names it either way rather than guessing.
+  // What the declaration deliberately leaves reported (12 findings today):
+  //
   //   - `devices -> dashboard` (4) and `devices -> preferences` (2): panels
   //     reused across workspaces. `episodes -> season` (2),
   //     `navigation -> dashboard` (1).
