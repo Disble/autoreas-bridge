@@ -16,33 +16,56 @@ const gitDir = execFileSync('git', ['rev-parse', '--git-dir'], { cwd, encoding: 
 const surface = path.relative(root, cwd).replaceAll('\\', '/');
 /** `surface` as a path prefix, so repo-relative paths can be matched and stripped. */
 const prefix = surface === '' ? '' : `${surface}/`;
-/** Raw newline-separated list of staged paths. */
-const output = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd, encoding: 'utf8' });
-/** Staged production TypeScript files in this workspace; tests are excluded because mutating a test proves nothing. */
-const staged = output.split(/\r?\n/).filter((file) => file.startsWith(`${prefix}src/`) && /\.(ts|tsx)$/.test(file) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file));
+/**
+ * Whether a repo-relative path is a production TypeScript file in this
+ * workspace. Tests are excluded because mutating a test proves nothing.
+ * @param {string} file A repo-relative path.
+ * @returns {boolean} True when the file is in scope for mutation.
+ */
+const isProduction = (file) => file.startsWith(`${prefix}src/`) && /\.(ts|tsx)$/.test(file) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+/** Raw `status<TAB>path[<TAB>destination]` lines describing the staged changes. */
+const output = execFileSync('git', ['diff', '--cached', '--name-status', '--diff-filter=ACMR'], { cwd, encoding: 'utf8' });
+/** Staged production TypeScript files, each carrying the path it was renamed from when there is one. */
+const staged = output
+  .split(/\r?\n/)
+  .filter(Boolean)
+  .map((line) => {
+    const [status, ...paths] = line.split('\t');
+    return { status, path: paths[paths.length - 1], source: paths.length > 1 ? paths[0] : undefined };
+  })
+  .filter((entry) => isProduction(entry.path));
 
 if (staged.length === 0) {
   console.log('dlinter mutation guard: no staged production TypeScript lines.');
   process.exit(0);
 }
 
-for (const file of staged) {
-  if (spawnSync('git', ['diff', '--quiet', '--', file], { cwd }).status !== 0) {
-    throw new Error(`dlinter mutation guard: partial staging is unsupported for ${file}; stage or revert its remaining changes.`);
+for (const entry of staged) {
+  if (spawnSync('git', ['diff', '--quiet', '--', entry.path], { cwd: root }).status !== 0) {
+    throw new Error(`dlinter mutation guard: partial staging is unsupported for ${entry.path}; stage or revert its remaining changes.`);
   }
 }
 
-// The pathspec must be relative to `cwd`, not to the repo root. `--name-only`
-// returns repo-relative paths (`frontend/src/...`), and passing those straight
-// back from inside `frontend/` made git look for `frontend/frontend/src/...`,
-// which matches nothing: the diff came back empty, no ranges were built, and
-// the guard exited 0 announcing "no added production TypeScript lines" on every
-// commit. A gate that cannot fail is not a gate — see
-// docs/postmortems/postmortem-silent-no-ops.md.
-/** Staged paths relative to this workspace, for use as a git pathspec. */
-const stagedPathspec = staged.map((file) => file.slice(prefix.length));
+// Both halves of a rename must be in the pathspec, and git must run from the
+// repo root so every path stays repo-relative.
+//
+// Rename detection pairs a deleted path with an added one. `--name-status`
+// reports only the destination, so a pathspec built from destinations alone
+// hides the source: git cannot pair them, and a moved file reads as brand new.
+// The guard then mutates the whole file, billing a move as newly authored code.
+// Measured 2026-08-13 on the ordering extraction: three byte-identical moved
+// components (`similarity index 100%`) contributed 72 of 146 surviving mutants,
+// half the deficit, all on lines the commit never touched. A gate that charges
+// for moving a file penalizes exactly the refactoring the architecture asks for.
+//
+// Keeping paths repo-relative also retires the prefix arithmetic that broke this
+// script before: slicing `frontend/` off and running from inside `frontend/`
+// made git look for `frontend/frontend/src/...`, matching nothing, so the guard
+// exited 0 on every commit. See docs/postmortems/postmortem-silent-no-ops.md.
+/** Staged paths plus the source of every rename, so git can pair them. */
+const stagedPathspec = staged.flatMap((entry) => (entry.source === undefined ? [entry.path] : [entry.source, entry.path]));
 /** Zero-context diff of the staged files, the source of the mutated line ranges. */
-const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...stagedPathspec], { cwd, encoding: 'utf8' });
+const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...stagedPathspec], { cwd: root, encoding: 'utf8' });
 /** Accumulated `file:start-end` ranges handed to Stryker's `--mutate`. */
 const ranges = [];
 /** File the diff parser is currently inside, tracked across hunk headers. */
@@ -51,21 +74,28 @@ let file = '';
 for (const line of diff.split(/\r?\n/)) {
   if (line.startsWith('+++ b/')) file = line.slice(6);
   const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
-  if (match && file.startsWith(prefix)) {
+  if (match && isProduction(file)) {
     const count = Number(match[2] ?? '1');
     if (count > 0) ranges.push(`${file.slice(prefix.length)}:${match[1]}-${Number(match[1]) + count - 1}`);
   }
 }
 
-// Staged production files with zero resolved ranges is a contradiction, not a
-// quiet pass: every path in `staged` came from a diff, so each one must yield at
-// least one hunk. Reaching here means the diff or the parse silently stopped
-// matching, which is exactly how this guard spent its life exiting 0 without
-// mutating anything. Fail loudly instead.
-if (ranges.length === 0 && staged.length > 0) {
-  console.error(`dlinter mutation guard: ${staged.length} staged production file(s) resolved to no diff ranges.`);
+/**
+ * Staged entries whose content actually changed. A 100% rename moved bytes
+ * without touching them, so it legitimately yields no hunks — the one case that
+ * makes "staged but no ranges" honest rather than broken.
+ */
+const contentChanged = staged.filter((entry) => entry.status !== 'R100' && entry.status !== 'C100');
+
+// A file whose content changed but resolved to no range is a contradiction, not
+// a quiet pass: it came from a diff, so it must yield at least one hunk.
+// Reaching here means the diff or the parse silently stopped matching, which is
+// exactly how this guard spent its life exiting 0 without mutating anything.
+// Fail loudly instead.
+if (ranges.length === 0 && contentChanged.length > 0) {
+  console.error(`dlinter mutation guard: ${contentChanged.length} staged production file(s) with changed content resolved to no diff ranges.`);
   console.error('The diff or its parsing is broken — this is a defect in this script, not an empty change.');
-  console.error(`Files: ${staged.join(', ')}`);
+  console.error(`Files: ${contentChanged.map((entry) => entry.path).join(', ')}`);
   process.exit(1);
 }
 

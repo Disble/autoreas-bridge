@@ -242,3 +242,42 @@ no hook invoked it. The dangling script entry was removed.
 
 See `docs/postmortems/postmortem-silent-no-ops.md` — this is the same failure
 mode that postmortem was written about, in the tool meant to prevent it.
+
+### The second pathspec defect: a move billed as new code (2026-08-13)
+
+The fix above was incomplete. The same pathspec was also **defeating rename
+detection**, and that one failed in the opposite direction: instead of mutating
+nothing, it mutated far too much.
+
+`git diff --cached --name-only` reports only the *destination* of a renamed
+file. Building the second diff's pathspec from destinations alone hides the
+source path, so git cannot pair the two halves, and a moved file comes back as
+`new file mode` with a single hunk covering every line. The guard then demands
+mutation-grade coverage for the whole file — including every line the commit
+never touched.
+
+Measured on the `shared/ordering` extraction: three components moved with
+`similarity index 100%`, byte for byte identical, contributed **72 of 146
+surviving mutants** — half the deficit. They are dumb presentational `.tsx`
+files, so those mutants were overwhelmingly `className` string literals and
+inline-handler arrows: killing them means asserting on Tailwind classes, which
+pins styling and proves nothing about behavior.
+
+This matters beyond the arithmetic. **A gate that charges for moving a file
+penalizes exactly the refactoring the architecture asks for.** Extracting a
+shared module became the most expensive possible edit, for no benefit.
+
+What changed:
+
+1. The file list is read with `--name-status`, which carries the rename source,
+   and both halves go into the pathspec so detection can pair them. Git runs
+   from the repository root and paths stay repo-relative, retiring the prefix
+   arithmetic that caused the first defect.
+2. The zero-ranges invariant now measures **content-changed** files. A 100%
+   rename legitimately yields no hunks, so the previous invariant — "staged but
+   no ranges is always a bug" — would have started firing falsely the moment
+   rename detection began working.
+
+Point 2 is the interesting one: fixing a defect *activated* a latent false
+positive in the guard added alongside the first fix. An invariant is only as
+good as the set of cases it was written against.
