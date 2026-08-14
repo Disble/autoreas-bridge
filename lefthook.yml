@@ -98,10 +98,6 @@ pre-commit:
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/checkopenapi
 
-          - name: frontend-no-barrels
-            glob: "frontend/**"
-            run: bun --cwd="frontend" run check:no-barrels
-
           - name: frontend-typecheck
             glob: "frontend/**"
             run: bun --cwd="frontend" run typecheck

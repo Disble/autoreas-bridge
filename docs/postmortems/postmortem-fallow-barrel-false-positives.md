@@ -211,3 +211,33 @@ findings.** Noise does not just annoy; it conceals.
 - [`docs/adr/011-no-barrel-files.md`](adr/011-no-barrel-files.md) — the decision
 - [`docs/fallow-usage.md`](fallow-usage.md) — how Fallow is run in this repo
 - [`docs/learning-log.md`](learning-log.md) — running log of non-obvious calls
+
+---
+
+## Addendum — 2026-08-11: one of the two guards was withdrawn
+
+Everything above is left as written; it records what was decided and measured
+in July 2026. This note only reports what changed afterwards.
+
+During the `dharness` harness adoption, the filesystem check named in §6.3 —
+`check:no-barrels` — was deleted, together with its `package.json` script and
+its `frontend-no-barrels` pre-commit job. The ESLint half of the pair stays.
+
+It was first proposed for deletion on the grounds that
+`dharness/pure-index-barrel` had replaced it. That premise was wrong, and the
+deletion went ahead anyway as an explicit decision: the plugin rule enforces a
+*Pure Barrel Contract* (a barrel may only re-export from siblings), so a pure
+re-export `index.ts` **passes** it — which is precisely the file this
+postmortem's incident was about. It also runs only over staged changes, while
+the deleted script scanned all of `src/` on every commit.
+
+The consequence for §8's lesson 9 ("when a guard cannot see the failure, add a
+guard that can") is that this repository no longer has such a guard for
+barrels. ADR-011 is now enforced by review. Restoring it needs a rule that
+forbids the file rather than its contents, which would live in
+`Disble/dharness-eslint-plugin`, outside this repository.
+
+One correction to §6.3's reasoning, which was repeated from the deleted
+script's header: "no lint rule can see it" is not accurate. ESLint lints by
+glob, not by import graph, so it does see a barrel nobody imports. The right
+statement is that no available rule **fails** a pure barrel.

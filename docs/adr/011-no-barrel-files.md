@@ -80,11 +80,10 @@ enforcement gap that produced the current state.
   zero explicit `/index` specifiers, so the rule shipped at `error`
   immediately. `dlinter/folder-ownership` is disabled in the same block,
   because that rule requires the `index.ts` entrypoints this ADR removes.
-- `frontend/scripts/check-no-barrels.mjs` runs as `check:no-barrels` and is
-  wired into the `pre-commit` gate in `lefthook.yml`. ESLint alone is not
-  sufficient: with `moduleResolution: "bundler"`, a re-created `index.ts`
-  plus a directory import resolves cleanly and no lint rule can see it. Only
-  a filesystem check catches a reintroduced barrel.
+- ~~`frontend/scripts/check-no-barrels.mjs` runs as `check:no-barrels` and is
+  wired into the `pre-commit` gate in `lefthook.yml`.~~ **Withdrawn
+  2026-08-11 — see "Enforcement status" below. This ADR is now a convention,
+  not a guarded rule.**
 - Fallow's `unused-file` findings become real signal instead of ~41 false
   positives; no `ignorePatterns` entry is needed. Measured after the
   migration: **48 issues → 12**, and 44 unused files → 8. The 8 that remain
@@ -100,3 +99,37 @@ If that decoupling is wanted later, reintroduce it deliberately at
 `infrastructure/`, the one area with a genuine seam between the app and the
 Wails bindings, with the lint rule in place from day one — never as a
 scaffold default applied to every module.
+
+## Enforcement status — 2026-08-11
+
+**This ADR has no deterministic guard. It is a convention.**
+
+`frontend/scripts/check-no-barrels.mjs` was deleted during the `dharness`
+harness adoption, along with its `check:no-barrels` script and the
+`frontend-no-barrels` pre-commit job. What remains is `no-restricted-imports`
+on `**/index` in `eslint.config.js`, which bans *importing* through a barrel
+but does not ban the file from existing.
+
+The replacement is not equivalent, and the difference was measured before the
+script was removed:
+
+| | `check-no-barrels.mjs` (deleted) | `dharness/pure-index-barrel` |
+|---|---|---|
+| Forbids | that an `index.ts` **exists** at all | only *impure* barrels — local declarations, imports, side effects |
+| A pure re-export barrel | **fails** | **passes** |
+| Scope | all of `src/`, every commit | staged changes only |
+
+So a re-created `index.ts` that does nothing but re-export siblings — exactly
+the file this ADR removed 67 of — now passes every automated check in the
+repo. A barrel already sitting in the tree is never re-evaluated at all.
+
+Restoring the guard means a rule that forbids the file rather than its
+contents. That rule belongs in `Disble/dharness-eslint-plugin`, which is
+outside this repository. Until it exists, this ADR is enforced by review
+alone, and `docs/learning-log.md` records what that costs.
+
+One correction to the deleted script's own header, so the argument is not
+repeated in the wrong form: it claimed "ESLint cannot catch a barrel that
+nothing imports yet". That reasoning is wrong — ESLint lints by glob, not by
+import graph, so it does see the file. The script was still necessary, for the
+other reason: no available rule *fails* a pure barrel.

@@ -71,8 +71,12 @@ export default [
       'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }],
       // ADR-011: modules are imported by concrete path, never through a
       // barrel. This catches the explicit `.../index` form; the directory
-      // form stops resolving once the barrels are deleted, and
-      // `bun run check:no-barrels` keeps them from coming back.
+      // form stops resolving once the barrels are deleted.
+      //
+      // This rule is now the ONLY automated barrel signal in the repo, and it
+      // bans importing through a barrel, not creating one. The filesystem
+      // guard that banned the file itself was removed on 2026-08-11; see
+      // "Enforcement status" in docs/adr/011-no-barrel-files.md.
       'no-restricted-imports': [
         'error',
         {
