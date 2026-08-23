@@ -171,3 +171,83 @@ export function splitIntakeRows(rows: readonly SeasonAnimeRow[]): {
   }
   return { editable, created };
 }
+
+/**
+ * Reads the user's folder override for one row. An absent key and an empty
+ * string mean the same thing to every caller — "no override" — so both collapse
+ * to `''` here rather than being re-tested at each call site.
+ * @param overrides Row id -> folder chosen through the picker.
+ * @param rowId Row to read.
+ * @returns The override, or `''` when the row has none.
+ */
+function resolveFolderOverride(overrides: Readonly<Record<string, string>>, rowId: string): string {
+  if (!Object.hasOwn(overrides, rowId)) {
+    return '';
+  }
+  return overrides[rowId] ?? '';
+}
+
+/**
+ * Narrows folder overrides to the ids being created, dropping the ones with no
+ * choice behind them. The backend derives its own default for any id absent
+ * from the result, so sending an empty string would override that default with
+ * nothing.
+ * @param ids Row ids selected for creation.
+ * @param overrides Row id -> folder chosen through the picker.
+ * @returns Row id -> non-empty folder, for the given ids only.
+ */
+export function collectFolderOverrides(
+  ids: readonly string[],
+  overrides: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const folders: Record<string, string> = {};
+  for (const id of ids) {
+    const override = resolveFolderOverride(overrides, id);
+    if (override !== '') {
+      folders[id] = override;
+    }
+  }
+  return folders;
+}
+
+/**
+ * Builds the folder shown under each editable row: the user's override when
+ * there is one, otherwise the same default the backend would derive. A row
+ * appears in the result only when one of the two resolves, so the UI shows no
+ * preview rather than an empty one.
+ * @param downloadsRoot Configured downloads root; `''` disables defaults.
+ * @param rows Editable intake rows.
+ * @param overrides Row id -> folder chosen through the picker.
+ * @returns Row id -> folder to preview.
+ */
+export function buildFolderPreviews(
+  downloadsRoot: string,
+  rows: readonly SeasonAnimeRow[],
+  overrides: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const previews: Record<string, string> = {};
+  for (const row of rows) {
+    const preview = resolveFolderOverride(overrides, row.id) || deriveIntakeDownloadFolder(downloadsRoot, row.rawName);
+    if (preview !== '') {
+      previews[row.id] = preview;
+    }
+  }
+  return previews;
+}
+
+/**
+ * Flips one row's membership in the creation selection, returning a new set so
+ * React sees a changed reference.
+ * @param selected Current selection.
+ * @param rowId Row to add or remove.
+ * @returns A new set with `rowId` toggled.
+ */
+export function toggleSelection(selected: ReadonlySet<string>, rowId: string): ReadonlySet<string> {
+  const next = new Set(selected);
+  if (next.has(rowId)) {
+    next.delete(rowId);
+  } else {
+    next.add(rowId);
+  }
+  return next;
+}

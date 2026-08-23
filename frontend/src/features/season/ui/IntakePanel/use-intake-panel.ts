@@ -6,12 +6,14 @@ import type { SeasonSource } from '../../../../infrastructure/season-source/seas
 import { useSeasonStore } from '../../../../shared/store/season-store/season-store';
 import { INTAKE_FOLDER_PICKER_TITLE, INTAKE_RECONCILE_DEBOUNCE_MS } from './intake-panel.constants';
 import {
+  buildFolderPreviews,
   buildRawText,
+  collectFolderOverrides,
   countMatchedWaitingForAvailability,
   countUnresolved,
-  deriveIntakeDownloadFolder,
   isCreatableRow,
   splitIntakeRows,
+  toggleSelection,
 } from './intake-panel.helpers';
 import type { IntakeMode } from './intake-panel.types';
 
@@ -50,27 +52,10 @@ export function useIntakePanel(
   const unresolvedCount = useMemo(() => countUnresolved(editable), [editable]);
   const availableCount = useMemo(() => editable.filter(isCreatableRow).length, [editable]);
   const availabilityPendingCount = useMemo(() => countMatchedWaitingForAvailability(editable), [editable]);
-  const folderPreviews = useMemo(() => {
-    const previews: Record<string, string> = {};
-
-    for (const row of editable) {
-      if (Object.hasOwn(folderOverrides, row.id)) {
-        const override = folderOverrides[row.id] ?? '';
-
-        if (override !== '') {
-          previews[row.id] = override;
-          continue;
-        }
-      }
-
-      const defaultFolder = deriveIntakeDownloadFolder(downloadsRoot, row.rawName);
-      if (defaultFolder !== '') {
-        previews[row.id] = defaultFolder;
-      }
-    }
-
-    return previews;
-  }, [downloadsRoot, editable, folderOverrides]);
+  const folderPreviews = useMemo(
+    () => buildFolderPreviews(downloadsRoot, editable, folderOverrides),
+    [downloadsRoot, editable, folderOverrides],
+  );
 
   // 6. Callbacks
   const switchMode = useCallback(
@@ -116,15 +101,7 @@ export function useIntakePanel(
     [source],
   );
   const toggleSelect = useCallback((rowId: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(rowId)) {
-        next.delete(rowId);
-      } else {
-        next.add(rowId);
-      }
-      return next;
-    });
+    setSelected((prev) => toggleSelection(prev, rowId));
   }, []);
   const onPickFolder = useCallback(
     (rowId: string) => {
@@ -141,20 +118,9 @@ export function useIntakePanel(
       return;
     }
     const ids = [...selected];
-    const folders: Record<string, string> = {};
-
-    for (const id of ids) {
-      if (Object.hasOwn(folderOverrides, id)) {
-        const override = folderOverrides[id] ?? '';
-
-        if (override !== '') {
-          folders[id] = override;
-        }
-      }
-    }
 
     setSelected(new Set());
-    void createSeasonAnimes(source, ids, folders);
+    void createSeasonAnimes(source, ids, collectFolderOverrides(ids, folderOverrides));
   }, [selected, folderOverrides, createSeasonAnimes, source]);
 
   // 7. Effects

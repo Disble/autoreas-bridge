@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { SeasonAnimeRow } from '../../../../../infrastructure/season-source/season-source.types';
 import {
+  buildFolderPreviews,
   buildRawText,
+  collectFolderOverrides,
   countMatchedWaitingForAvailability,
   countUnresolved,
   deriveIntakeDownloadFolder,
@@ -10,8 +12,10 @@ import {
   getMatchStatusColor,
   getMatchStatusLabel,
   splitIntakeRows,
+  toggleSelection,
 } from '../intake-panel.helpers';
 
+/** Builds a pending, uncreated intake row; override only what a case is about. */
 function row(overrides: Partial<SeasonAnimeRow> = {}): SeasonAnimeRow {
   return {
     id: 'sa-1',
@@ -127,5 +131,77 @@ describe('deriveIntakeDownloadFolder', () => {
   it('returns an empty preview when the root or sanitized name is empty', () => {
     expect(deriveIntakeDownloadFolder('', 'Naruto')).toBe('');
     expect(deriveIntakeDownloadFolder('D:/Anime', `:/\\|`)).toBe('');
+  });
+});
+
+describe('collectFolderOverrides', () => {
+  it('keeps only the ids that carry a non-empty override', () => {
+    const overrides = { 'sa-1': 'D:/Anime/One', 'sa-2': '', 'sa-3': 'D:/Anime/Three' };
+
+    expect(collectFolderOverrides(['sa-1', 'sa-2', 'sa-3'], overrides)).toEqual({
+      'sa-1': 'D:/Anime/One',
+      'sa-3': 'D:/Anime/Three',
+    });
+  });
+
+  it('ignores ids absent from the override map', () => {
+    expect(collectFolderOverrides(['sa-1', 'sa-9'], { 'sa-1': 'D:/Anime/One' })).toEqual({
+      'sa-1': 'D:/Anime/One',
+    });
+  });
+
+  it('returns an empty map when no id resolves', () => {
+    expect(collectFolderOverrides(['sa-2'], { 'sa-2': '' })).toEqual({});
+  });
+});
+
+describe('buildFolderPreviews', () => {
+  it('prefers a non-empty override over the derived default', () => {
+    const rows = [row({ id: 'sa-1', rawName: 'Dr. Stone' })];
+
+    expect(buildFolderPreviews('D:/Anime', rows, { 'sa-1': 'D:/Custom' })).toEqual({
+      'sa-1': 'D:/Custom',
+    });
+  });
+
+  it('falls back to the derived default when the override is empty', () => {
+    const rows = [row({ id: 'sa-1', rawName: 'Dr. Stone' })];
+
+    expect(buildFolderPreviews('D:/Anime', rows, { 'sa-1': '' })).toEqual({
+      'sa-1': 'D:/Anime/Dr. Stone',
+    });
+  });
+
+  it('omits a row entirely when neither an override nor a default resolves', () => {
+    const rows = [row({ id: 'sa-1', rawName: 'Dr. Stone' })];
+
+    expect(buildFolderPreviews('', rows, {})).toEqual({});
+  });
+
+  it('previews each row independently', () => {
+    const rows = [row({ id: 'sa-1', rawName: 'One' }), row({ id: 'sa-2', rawName: 'Two' })];
+
+    expect(buildFolderPreviews('D:/Anime', rows, { 'sa-2': 'D:/Custom' })).toEqual({
+      'sa-1': 'D:/Anime/One',
+      'sa-2': 'D:/Custom',
+    });
+  });
+});
+
+describe('toggleSelection', () => {
+  it('adds an id that is absent', () => {
+    expect([...toggleSelection(new Set(['sa-1']), 'sa-2')]).toEqual(['sa-1', 'sa-2']);
+  });
+
+  it('removes an id that is present', () => {
+    expect([...toggleSelection(new Set(['sa-1', 'sa-2']), 'sa-1')]).toEqual(['sa-2']);
+  });
+
+  it('returns a new set rather than mutating the previous one', () => {
+    const previous = new Set(['sa-1']);
+    const next = toggleSelection(previous, 'sa-2');
+
+    expect(next).not.toBe(previous);
+    expect([...previous]).toEqual(['sa-1']);
   });
 });
