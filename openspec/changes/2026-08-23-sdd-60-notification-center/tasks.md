@@ -499,60 +499,115 @@ by construction of the chain).
 action still refuses (Slice 5 not merged yet).
 **Forecast:** 450–500 lines.
 
+**Slice 3a-i/3a-ii split (numbering stays honest):** Slice 3a's 19 tasks were split on the same seam
+Slice 2 used, pre-declared by the orchestrating agent before this batch started: **Slice 3a-i** (this
+batch): 3a.1.1–3a.1.3 (contracts + infrastructure source) and 3a.2.1–3a.2.8 (empty states,
+`NotificationTable`, the sync hook, the truncation tooltip) — components and their tests, not routed
+yet. **Slice 3a-ii** (separate batch): 3a.3.* (panel, `/notifications` route, nav entry, unread badge,
+`ROUTE_MARKERS`, render smoke) and 3a.4.* (mutation confirmation, nav spec merge, commit).
+
 ### 3a.1 Infrastructure
 
-- [ ] **3a.1.1** [GREEN] Create `frontend/src/shared/contracts/notification-center.types.ts`: the
+- [x] **3a.1.1** [GREEN] Create `frontend/src/shared/contracts/notification-center.types.ts`: the
   frontend mirror of design §10's DTOs (through `NotificationMutationResult`; `NotificationActionResult`
   deferred to Slice 5), following `capture.types.ts`'s shape — every property `readonly`.
-- [ ] **3a.1.2** [RED] Write
+- [x] **3a.1.2** [RED] Write
   `frontend/src/infrastructure/notification-center-source/__tests__/notification-center-source.helpers.test.ts`:
   the adapter maps a successful Wails binding call to the typed page/detail result, and maps a
-  rejected/unavailable binding to a `Degraded: true` result rather than throwing.
-- [ ] **3a.1.3** [GREEN] Create `frontend/src/infrastructure/notification-center-source/` —
+  rejected/unavailable binding to a `Degraded: true` result rather than throwing. **Extended beyond the
+  task's literally-named List/Get scenarios** to all six bindings (`GetUnreadNotificationCount`,
+  `MarkNotificationsRead`, `ArchiveNotifications`, `RestoreNotifications`) under strict TDD, mirroring how
+  Slice 2's 2.2.5 added tests beyond its own literal text once the full binding surface came into scope.
+  **Also required regenerating `frontend/wailsjs/go/main/App.{d.ts,js}` and `models.ts` via `wails
+  generate module`** — Slice 2b shipped the Go bindings (`6a9756d`) but never regenerated the frontend
+  JS bindings, so `ListNotifications`/`GetNotification`/etc. did not exist on `window.go.main.App`'s
+  type surface at all until this task ran the generator (purely additive diff: +278 lines, only new
+  exports, zero existing binding touched).
+- [x] **3a.1.3** [GREEN] Create `frontend/src/infrastructure/notification-center-source/` —
   `notification-center-source.helpers.ts` (Wails binding adapter for `ListNotifications`,
   `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `ArchiveNotifications`,
-  `RestoreNotifications`) + `notification-center-source.types.ts`. Scaffold with `bun
-  --cwd="frontend" run generate:feature notifications <ComponentName>` per component rather than
-  hand-rolling folders (CLAUDE.md frontend constraint #10), then colocate per ADR-011 (no `index.ts`
-  barrel).
+  `RestoreNotifications`) + `notification-center-source.types.ts` + `notification-center-source.constants.ts`
+  (degraded fallbacks, the singleton container, and the binding-name list — `dharness/role-file-shape`
+  requires the binding-name array live in `.constants.ts`, not `.helpers.ts`). **Deviation:** hand-crafted
+  rather than scaffolded via `generate:feature`, since strict TDD's RED-first test (3a.1.2) already fixed
+  the exact six-method shape before any GREEN file existed, and the generator's generic
+  title/description scaffold would have been fully overwritten anyway; colocation (no `index.ts` barrel,
+  concrete-path imports) still follows ADR-011. Mirrors `capture-transaction-source/`'s existing
+  `hasGoBinding`/`invokeGoBinding` adapter pattern exactly.
 
 ### 3a.2 Implementation — Empty States And Table
 
-- [ ] **3a.2.1** [RED] Write
+- [x] **3a.2.1** [RED] Write
   `frontend/src/features/notifications/ui/NotificationEmptyState/__tests__/notification-empty-state.helpers.test.ts`:
   a pure-helper table test over all 5 `(totalEverRecorded, view, unreadOnly, hasFilters,
   serviceAvailable)` combinations, asserting 5 DISTINCT state ids as literals. Satisfies notification-
   center spec scenarios "Nothing has ever been recorded," "A search or filter combination matches
   nothing," "Every active record has been archived," "Unread filter with nothing unread," "Archived
-  view with nothing archived."
-- [ ] **3a.2.2** [GREEN] Implement `NotificationEmptyState.tsx` (dumb render only) +
+  view with nothing archived." **Added a 6th test beyond the task's literal 5:** `serviceAvailable: false`
+  → `'unavailable'`, checked with the HIGHEST priority. Design.md §9.3's table names this as its own
+  condition ("the notification service is unavailable... distinct from every empty above") with no
+  matching spec scenario, and the helper's signature already threads `serviceAvailable` through per the
+  task's own named tuple — leaving it unexercised would have shipped an untested parameter under strict
+  TDD.
+- [x] **3a.2.2** [GREEN] Implement `NotificationEmptyState.tsx` (dumb render only) +
   `notification-empty-state.helpers.ts` (the selection function) +
-  `notification-empty-state.constants.ts` (the five copies + icons per design §9.3) +
-  `notification-empty-state.types.ts`.
-- [ ] **3a.2.3** [RED] [[MANDATORY DOM-COUNT WINDOWING TEST]] Write
+  `notification-empty-state.constants.ts` (the six copies + icons per design §9.3, including the added
+  `unavailable` state) + `notification-empty-state.types.ts`. **Added** `NotificationEmptyState.test.tsx`
+  (not named by the task text) as a thin render-level smoke test over 3 of the 6 states, since the
+  helper's own exhaustive test does not otherwise cover the icon/copy lookup table inside the `.tsx`
+  itself.
+- [x] **3a.2.3** [RED] [[MANDATORY DOM-COUNT WINDOWING TEST]] Write
   `frontend/src/features/notifications/ui/NotificationTable/__tests__/NotificationTable.windowing.test.tsx`,
   in the shape of `AnimeEditorWorkspace.windowing.test.tsx`: seed N loaded rows greater than the initial
   page size; assert the rendered `Table.Row` DOM-node count equals the loaded page size, never the full
-  backing collection.
-- [ ] **3a.2.4** [RED] Write `use-notification-center-sync.test.ts`: `LoadMore` fires exactly once when
+  backing collection. **Implementation note:** since `NotificationTable` is a dumb, props-driven
+  component and the panel that will wire it to the sync hook is 3a-ii's, this test uses a minimal
+  in-file harness combining `useNotificationCenterSync` + `NotificationTable` directly against a fake
+  500-row backing collection, and triggers the `Table.LoadMore` sentinel via a new
+  `triggerIntersectionObservers()` test helper (see 3a.2.7's deviation note below) rather than a real
+  scroll event, since HeroUI's load-more trigger is IntersectionObserver-based, not scroll-based. Counts
+  real data rows via `getAllByRole('rowheader')` rather than `getAllByRole('row')` minus one, since both
+  the header row and the load-more sentinel row also carry `role="row"`.
+- [x] **3a.2.4** [RED] Write `use-notification-center-sync.test.ts`: `LoadMore` fires exactly once when
   scroll position crosses "near bottom," and does NOT fire again until the new bottom is reached (guard
   re-entry while a fetch is in flight). Satisfies "Scrolling near the bottom triggers exactly one
-  next-page fetch."
-- [ ] **3a.2.5** [RED] Write a `NotificationTable` sort test: default `sortDescriptor` sorts `When`
-  descending with no user interaction. Satisfies "Rows are sorted newest-first by default."
-- [ ] **3a.2.6** [RED] Write `use-truncation-tooltip.test.ts`: `isDisabled` is `true` when
+  next-page fetch." Tested at the hook level (`onLoadMore()` invoked directly, guarded by an
+  in-flight ref and by `hasNextPage`), since HeroUI's own sentinel already owns the actual near-bottom
+  detection (`useLoadMoreSentinel`'s `IntersectionObserver`) — the hook's job proven here is exactly the
+  re-entry guard the task names.
+- [x] **3a.2.5** [RED] Write a `NotificationTable` sort test: default `sortDescriptor` sorts `When`
+  descending with no user interaction. Satisfies "Rows are sorted newest-first by default." Asserts
+  `aria-sort="descending"` on the "When" column header. **Deliberately no `onSortChange`/re-sort logic
+  implemented**: rows already arrive newest-first from the backend keyset cursor, and no RED test in
+  this slice exercises an actual user-triggered re-sort, so none was written under strict TDD.
+- [x] **3a.2.6** [RED] Write `use-truncation-tooltip.test.ts`: `isDisabled` is `true` when
   `scrollWidth <= clientWidth` (no tooltip) and `false` when `scrollWidth > clientWidth` (tooltip after
   the library's default 700ms delay). Satisfies "A truncated title shows its full text on hover/focus"
-  and "A non-truncated title never shows a redundant tooltip."
-- [ ] **3a.2.7** [GREEN] Implement `NotificationTable.tsx` (`Table.Root`/`Table.ScrollContainer`
+  and "A non-truncated title never shows a redundant tooltip." Tested via `renderHook` + manual
+  `ref.current` assignment (no JSX needed), matching the task's literal `.ts` (not `.tsx`) filename.
+- [x] **3a.2.7** [GREEN] Implement `NotificationTable.tsx` (`Table.Root`/`Table.ScrollContainer`
   /`Table.Content`/`Table.Header`/`Table.Column`/`Table.Body`/`Table.Row`/`Table.Cell`, row grid
   `40px minmax(0,1fr) 100px 84px`, `w-full table-fixed` + explicit column widths + `block truncate`,
   never `overflow-x-clip`, a separate `max-h-* overflow-y-auto` wrapper for vertical scroll since
   `Table.ScrollContainer` is horizontal-only) + `use-truncation-tooltip.ts` +
   `notification-table.helpers.ts` + `notification-table.types.ts` + `notification-table.constants.ts`.
-  Design §9.1, §9.2.
-- [ ] **3a.2.8** [GREEN] Implement `use-notification-center-sync.ts` (cursor paging + `LoadMore`
-  handling with in-flight guard).
+  Design §9.1, §9.2. **Renders exactly 3 real columns (title, source, when) in this slice**, not 4: the
+  leading 40px "selection" column in design's row grid is RAC's own auto-rendered checkbox column, which
+  only appears once 3b sets `selectionMode="multiple"` — there is nothing for 3a to manually author for
+  it. **Required a new shared test-infrastructure addition**: jsdom has no `IntersectionObserver`, and
+  react-aria's `useLoadMoreSentinel` (which `Table.LoadMore` uses internally) constructs a real one on
+  mount, throwing and aborting every render of a table with `hasNextPage` true. Added a controllable
+  `IntersectionObserverMock` (alongside the existing `ResizeObserverMock`) plus an exported
+  `triggerIntersectionObservers()` helper to `frontend/src/test/setup.ts` — this is a shared,
+  project-wide test file, so touching it also required adding JSDoc to two pre-existing undocumented
+  declarations in the same file (the `declare global` block and `ResizeObserverMock`) per the incremental
+  JSDoc adoption policy (CLAUDE.md frontend constraint #6: "a file owes its JSDoc the next time it is
+  touched").
+- [x] **3a.2.8** [GREEN] Implement `use-notification-center-sync.ts` (cursor paging + `LoadMore`
+  handling with in-flight guard). Also guards re-entry when `hasNextPage` is already `false` (a third
+  near-bottom trigger after the backend reports no further cursor issues no request at all), which the
+  task's own "does NOT fire again until the new bottom is reached" wording implies but does not name as
+  a separate condition — covered by 3a.2.4's test.
 
 ### 3a.3 Implementation — Panel, Route, Nav
 
