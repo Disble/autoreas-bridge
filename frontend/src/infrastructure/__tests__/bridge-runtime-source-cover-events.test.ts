@@ -1,18 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { useIsolatedWailsRuntime } from './bridge-runtime-source.test-support';
 
 describe('bridge-runtime-source cover and events', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.useFakeTimers();
-    Reflect.deleteProperty(window, 'go');
-    Reflect.deleteProperty(window, 'runtime');
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    Reflect.deleteProperty(window, 'go');
-    Reflect.deleteProperty(window, 'runtime');
-  });
+  useIsolatedWailsRuntime();
 
   it('degrades cover and episode counts while runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
