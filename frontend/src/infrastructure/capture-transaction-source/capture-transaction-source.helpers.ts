@@ -13,7 +13,7 @@ import type { CaptureTransactionSource } from './capture-transaction-source.type
  * request. `contracts.CaptureQuery` carries no JSON tags, so the Go bound
  * method expects the raw (PascalCase) struct field names verbatim.
  */
-export function toCaptureQueryWireShape(filters: Readonly<CaptureQueryFilters>) {
+function toCaptureQueryWireShape(filters: Readonly<CaptureQueryFilters>) {
   return {
     Limit: filters.limit ?? 0,
     Cursor: filters.cursor ?? '',
@@ -63,5 +63,3 @@ export function isCaptureTransactionRuntimeAvailable(): boolean {
   return hasGoBinding('ListCaptureTransactions') && hasGoBinding('GetCaptureTransaction');
 }
 
-/** Shared capture transaction source singleton used across hooks and stores. */
-export const captureTransactionSource = createCaptureTransactionSource();

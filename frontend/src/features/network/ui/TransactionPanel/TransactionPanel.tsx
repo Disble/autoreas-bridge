@@ -1,6 +1,6 @@
 import { Alert } from '@heroui/react';
 import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
-import { captureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
+import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import { TransactionDetail } from '../TransactionDetail/TransactionDetail';
 import { TransactionFilterBar } from '../TransactionFilterBar/TransactionFilterBar';
 import { TransactionTable } from '../TransactionTable/TransactionTable';
@@ -16,7 +16,7 @@ import { useTransactionPanel } from './use-transaction-panel';
  * push subscription; this component only renders.
  */
 export function TransactionPanel({
-  source = captureTransactionSource,
+  source = createCaptureTransactionSource(),
   limit,
   runtimeSource = captureRuntimeSource,
 }: Readonly<TransactionPanelProps>) {

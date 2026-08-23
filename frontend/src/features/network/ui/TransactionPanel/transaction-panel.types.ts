@@ -1,6 +1,5 @@
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import type { CaptureRow } from '../../../../shared/contracts/capture.types';
 import type { TransactionStatusClassFilter } from '../../../../shared/store/transaction-store/transaction-store.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
 
@@ -9,8 +8,6 @@ export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'dang
 
 /** Active tab in the transaction detail inspector. */
 export type TransactionDetailTab = 'general' | 'request' | 'response';
-
-export type { CaptureRow };
 
 /** Presentation-ready shape of one inspectable body/payload pane (request payload or response body). */
 export interface TransactionBodyViewModel {

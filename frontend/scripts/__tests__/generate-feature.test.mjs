@@ -9,12 +9,19 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+/** Absolute path of this test file, the anchor for locating the generator. */
 const testFilePath = fileURLToPath(import.meta.url);
+
+/** Frontend package root, two levels up from `scripts/__tests__`. */
 const frontendRoot = path.resolve(path.dirname(testFilePath), '..', '..');
+
+/** The generator under test; it is copied into each throwaway workspace. */
 const generatorPath = path.join(frontendRoot, 'scripts', 'generate-feature.js');
 
+/** Every temp workspace created by this suite, removed in `afterEach`. */
 const tempDirectories = [];
 
+/** Creates an isolated temp workspace holding a copy of the generator. */
 function createWorkspace() {
   const workspace = mkdtempSync(path.join(os.tmpdir(), 'generate-feature-'));
   tempDirectories.push(workspace);
@@ -47,7 +54,6 @@ describe('generate-feature scaffolding', () => {
     const helpersText = readFileSync(path.join(componentRoot, 'bridge-status-card.helpers.ts'), 'utf8');
     const typesText = readFileSync(path.join(componentRoot, 'bridge-status-card.types.ts'), 'utf8');
     const constantsText = readFileSync(path.join(componentRoot, 'bridge-status-card.constants.ts'), 'utf8');
-    const schemaText = readFileSync(path.join(componentRoot, 'bridge-status-card.schema.ts'), 'utf8');
     const helperTestText = readFileSync(path.join(componentRoot, '__tests__', 'bridge-status-card.helpers.test.ts'), 'utf8');
     const hookTestText = readFileSync(path.join(componentRoot, '__tests__', 'use-bridge-status-card.test.ts'), 'utf8');
     const componentTestText = readFileSync(path.join(componentRoot, '__tests__', 'BridgeStatusCard.test.tsx'), 'utf8');
@@ -55,6 +61,10 @@ describe('generate-feature scaffolding', () => {
     // was never imported by the rest of the tree and only produced dead files.
     expect(existsSync(path.join(componentRoot, 'index.ts'))).toBe(false);
     expect(existsSync(path.join(componentRoot, 'bridge-status-card-source.ts'))).toBe(false);
+    // No scaffolded Zod schema either, for the same reason: every generated
+    // `.schema.ts` stayed a placeholder nobody filled in, and the six of them
+    // were the only thing keeping `zod` in the dependency list.
+    expect(existsSync(path.join(componentRoot, 'bridge-status-card.schema.ts'))).toBe(false);
 
     expect(componentText).toContain('export function BridgeStatusCard(props: Readonly<BridgeStatusCardProps>)');
     expect(componentText).toContain('/**');
@@ -65,7 +75,6 @@ describe('generate-feature scaffolding', () => {
 
     expect(typesText).toContain('/**');
     expect(constantsText).toContain('/**');
-    expect(schemaText).toContain('/**');
 
     expect(helperTestText).toContain("returns fallback title when omitted");
     expect(hookTestText).toContain("returns fallback values when omitted");

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
-import { captureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
+import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import { useElapsedClock } from '../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock';
 import {
@@ -32,7 +32,7 @@ import { useTransactionStoreBindings } from './use-transaction-store-bindings';
  * can hold that at once.
  */
 export function useTransactionPanel(
-  source: CaptureTransactionSource = captureTransactionSource,
+  source: CaptureTransactionSource = createCaptureTransactionSource(),
   limit: number = DEFAULT_TRANSACTION_PAGE_LIMIT,
   runtimeSource: CaptureRuntimeSource = captureRuntimeSource,
 ) {

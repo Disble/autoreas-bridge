@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** CLI arguments after the node executable and this script: `<featureName> <ComponentName>`. */
 const args = process.argv.slice(2);
 
 if (args.length < 2) {
@@ -10,15 +11,24 @@ if (args.length < 2) {
   process.exit(1);
 }
 
+/** Feature slice directory under `src/features`, lowercased so the path is stable. */
 const featureName = args[0].toLowerCase();
+
+/** Component name in PascalCase; it names the folder, the `.tsx`, and every symbol. */
 const componentName = args[1];
 
+/** Converts PascalCase to the kebab-case this codebase uses for non-component filenames. */
 function toKebabCase(value) {
   return value.replaceAll(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
+/** Filename stem for the colocated hook, helpers, types, and constants modules. */
 const kebabComponentName = toKebabCase(componentName);
+
+/** Absolute path of the component folder this run scaffolds. */
 const rootDir = path.resolve(import.meta.dirname, '..', 'src', 'features', featureName, 'ui', componentName);
+
+/** Colocated `__tests__` folder; every scaffolded module ships with a test. */
 const testDir = path.join(rootDir, '__tests__');
 
 for (const directory of [rootDir, testDir]) {
@@ -29,6 +39,8 @@ for (const directory of [rootDir, testDir]) {
 
 // No index.ts barrel: modules are consumed by concrete path across this
 // codebase, so a scaffolded barrel is born unimported and stays that way.
+// No `.schema.ts` either, for the same reason — see the generator test.
+/** Relative path -> file contents for every module this scaffold writes. */
 const files = new Map([
   [`${componentName}.tsx`, `import type { ${componentName}Props } from './${kebabComponentName}.types';
 import { use${componentName} } from './use-${kebabComponentName}';
@@ -101,14 +113,6 @@ export function get${componentName}Title(title?: string) {
 export function get${componentName}Description(description?: string) {
   return description ?? ${componentName}DefaultDescription;
 }
-`],
-  [`${kebabComponentName}.schema.ts`, `import { z } from 'zod';
-
-/** Validation schema for the ${componentName} scaffold contract. */
-export const ${componentName}Schema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-});
 `],
   [path.join('__tests__', `${kebabComponentName}.helpers.test.ts`), `import { describe, expect, it } from 'vitest';
 import { get${componentName}Description, get${componentName}Title } from '../${kebabComponentName}.helpers';

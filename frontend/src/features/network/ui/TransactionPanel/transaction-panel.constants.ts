@@ -6,9 +6,6 @@ export const DEFAULT_TRANSACTION_PAGE_LIMIT = 25;
 /** Null Object placeholder for an absent value. */
 export const TRANSACTION_EMPTY_LABEL = '–';
 
-/** Placeholder shown for optional telemetry the capture pipeline never recorded. */
-export const TRANSACTION_NOT_CAPTURED_LABEL = 'Not captured';
-
 /**
  * Notice shown for a response pane with no captured body. A bodyless response
  * such as 204 is genuinely empty; this notice avoids implying anything was

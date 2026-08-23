@@ -9,7 +9,12 @@
     "src/test/setup.ts",
     // Vitest discovers this ESM script test, but Fallow does not infer it as
     // a test root because it lives outside `src`.
-    "scripts/__tests__/check-file-size-warnings.test.mjs"
+    "scripts/__tests__/check-file-size-warnings.test.mjs",
+    // Named as a string in `stryker.dlinter.json` -> `vitest.configFile`, the
+    // same JSON-reference blind spot as the `ignoreDependencies` entries
+    // below. It is a real entry point, not dead code: deleting it breaks the
+    // staged mutation gate, so it is declared rather than ignored.
+    "vitest.dlinter-mutation.mts"
   ],
   "ignoreDependencies": [
     // `eslint` is imported only by `scripts/check-file-size-warnings.mjs`, a
