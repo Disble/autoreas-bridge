@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    .band { background: #18181B; border: 1px solid #27272A; border-radius: 18px; padding: 16px; }
+    .band-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #62626C; margin: 0 0 12px; }
+    .state { flex: 1; background: #09090B; border: 1px solid #27272A; border-radius: 13px; padding: 12px 14px; }
+    .state-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #FCFCFC; margin: 0 0 5px; }
+    .state-note { margin: 0; font-size: 11.5px; line-height: 1.5; color: #9F9FA9; }
+    .mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+    .swap { display: grid; place-items: center; width: 44px; flex-shrink: 0; }
+  </style>
+</helmet>
+
+<div style="width: 880px; height: 620px; padding: 26px 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+
+  <header>
+    <h1 style="margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em;">What happens to a notification</h1>
+    <p style="margin: 0; font-size: 12.5px; color: #9F9FA9;">Three verbs the user controls, and one they never get. Each keeps its own timestamp, so they compose instead of overwriting each other.</p>
+  </header>
+
+  <div class="band">
+    <p class="band-label">Have I seen it?</p>
+    <div style="display: flex; align-items: stretch;">
+      <div class="state">
+        <p class="state-name"><span style="width: 8px; height: 8px; border-radius: 999px; background: #0385F7;"></span>Unread</p>
+        <p class="state-note">Where every record starts. Counted in the rail badge.</p>
+      </div>
+      <div class="swap">
+        <svg width="30" height="24" viewBox="0 0 30 24" fill="none" stroke="#3F3F46" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 8h26"></path><path d="M23 4l5 4-5 4"></path>
+          <path d="M28 16H2"></path><path d="M7 12l-5 4 5 4"></path>
+        </svg>
+      </div>
+      <div class="state">
+        <p class="state-name"><span style="width: 8px; height: 8px; border-radius: 999px; border: 1.5px solid #3F3F46;"></span>Read</p>
+        <p class="state-note">Set by opening the detail, or by hand. Reversible &mdash; &ldquo;mark unread&rdquo; puts it back.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="band" style="border-color: rgba(247,183,80,0.3);">
+    <p class="band-label" style="color: #F7B750;">Stop bothering me &mdash; a layer, not a state</p>
+    <div style="display: flex; gap: 14px; align-items: center;">
+      <div style="flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px; background: rgba(247,183,80,0.12); display: grid; place-items: center;">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#F7B750" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9.5a6 6 0 0110.2-4.3"></path>
+          <path d="M18 11v-1.5"></path>
+          <path d="M4.4 15.6c.8-1.1 1.6-2.9 1.6-6.1"></path>
+          <path d="M18 9.5c0 3.2.8 5 1.6 6.1.4.6 0 1.4-.7 1.4H5.1c-.7 0-1.1-.8-.7-1.4"></path>
+          <path d="M3.5 3.5l17 17"></path>
+        </svg>
+      </div>
+      <div style="flex: 1;">
+        <p style="margin: 0 0 4px; font-size: 13px; font-weight: 600; color: #FCFCFC;">Dismissed</p>
+        <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">Closes the toast and stops future attention for that record. It does <strong style="color: #FCFCFC;">not</strong> mark it read, and it does <strong style="color: #FCFCFC;">not</strong> take it out of the inbox. That is why dismissal carries its own timestamp rather than reusing the read one &mdash; a record can be dismissed and still unread.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="band">
+    <p class="band-label">Deal with it later</p>
+    <div style="display: flex; align-items: stretch;">
+      <div class="state">
+        <p class="state-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9F9FA9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1.5"></rect><path d="M5 9v9a2 2 0 002 2h10a2 2 0 002-2V9"></path><path d="M10 13h4"></path></svg>
+          Archived
+        </p>
+        <p class="state-note">Off the Active list, still searchable. Marks it read if it was not. Nothing is destroyed.</p>
+      </div>
+      <div class="swap">
+        <svg width="30" height="24" viewBox="0 0 30 24" fill="none" stroke="#3F3F46" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 8h26"></path><path d="M23 4l5 4-5 4"></path>
+          <path d="M28 16H2"></path><path d="M7 12l-5 4 5 4"></path>
+        </svg>
+      </div>
+      <div class="state">
+        <p class="state-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9F9FA9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 8.9 8.9 0 00-6.4 2.7"></path><path d="M3 3v4h4"></path></svg>
+          Restored
+        </p>
+        <p class="state-note">Back on the Active list. Deliberately does not make it unread again &mdash; you already saw it.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 12px; margin-top: auto;">
+    <div style="flex: 1; background: #18181B; border: 1px solid #27272A; border-left: 3px solid #DB3B3E; border-radius: 14px; padding: 13px 15px;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">There is no delete</p>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">Dismissing an interruption and erasing what happened are different intentions. The UI offers the first; only retention ever removes a row, and it will not touch one that is still unread or still actionable.</p>
+    </div>
+    <div style="flex: 1; background: #18181B; border: 1px solid #27272A; border-left: 3px solid #0385F7; border-radius: 14px; padding: 13px 15px;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">Restarting changes nothing</p>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">Read, dismissed and archived all live in SQLite, so closing the app is not a way to clear the badge. Startup re-reads the same rows and does not replay the backlog as toasts.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

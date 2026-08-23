@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    figure { margin: 0; }
+    figcaption { margin-top: 14px; font-size: 12.5px; line-height: 1.6; color: #9F9FA9; }
+    .mono { font-family: ui-monospace, Consolas, monospace; }
+  </style>
+</helmet>
+
+<div style="width: 1400px; height: 780px; padding: 26px 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+
+  <header>
+    <h1 style="margin: 0 0 4px; font-size: 23px; font-weight: 600; letter-spacing: -0.02em;">Component and dependency structure</h1>
+    <p style="margin: 0; font-size: 13px; color: #9F9FA9;">Every arrow is a Go import. The one that would not compile is drawn too, because avoiding it is what shapes the rest.</p>
+  </header>
+
+  <figure style="flex: 1; min-height: 0;">
+    <svg role="img" aria-label="Producers import internal/notification. The new center package is a child of it and imports it. The center defines an intent registry interface; the composition root registers producer handlers into that registry, so the center never imports a producer — the edge that would form an import cycle." viewBox="0 0 1340 590" style="width: 100%; height: auto; max-width: 100%;">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="currentColor"></polygon>
+        </marker>
+        <marker id="ar-accent" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#0385F7"></polygon>
+        </marker>
+        <marker id="ar-bad" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#DB3B3E"></polygon>
+        </marker>
+      </defs>
+
+      <!-- PRODUCERS -->
+      <text x="40" y="34" fill="#62626C" font-size="11" font-weight="700" letter-spacing="1.4">PRODUCERS</text>
+      <rect x="40" y="48" width="228" height="46" rx="10" fill="#18181B" stroke="#27272A"></rect>
+      <text x="58" y="76" fill="#FCFCFC" font-size="13" font-family="ui-monospace, Consolas, monospace">internal/download</text>
+      <rect x="40" y="106" width="228" height="46" rx="10" fill="#18181B" stroke="#27272A"></rect>
+      <text x="58" y="134" fill="#FCFCFC" font-size="13" font-family="ui-monospace, Consolas, monospace">internal/anime</text>
+      <rect x="40" y="164" width="228" height="46" rx="10" fill="#18181B" stroke="#27272A"></rect>
+      <text x="58" y="192" fill="#FCFCFC" font-size="13" font-family="ui-monospace, Consolas, monospace">internal/season</text>
+
+      <!-- arrows producers -> notification -->
+      <line x1="268" y1="71" x2="352" y2="112" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></line>
+      <line x1="268" y1="129" x2="352" y2="129" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></line>
+      <line x1="268" y1="187" x2="352" y2="146" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></line>
+      <text x="284" y="108" fill="#9F9FA9" font-size="11">imports</text>
+
+      <!-- NOTIFICATION (port) -->
+      <text x="362" y="34" fill="#62626C" font-size="11" font-weight="700" letter-spacing="1.4">PORT &mdash; UNCHANGED</text>
+      <rect x="362" y="48" width="278" height="162" rx="12" fill="#18181B" stroke="#27272A"></rect>
+      <text x="382" y="76" fill="#FCFCFC" font-size="13.5" font-weight="600" font-family="ui-monospace, Consolas, monospace">internal/notification</text>
+      <text x="382" y="102" fill="#9F9FA9" font-size="12">Notifier &middot; Dispatcher</text>
+      <text x="382" y="122" fill="#9F9FA9" font-size="12">UIToast &middot; Desktop &middot; LogForward</text>
+      <line x1="382" y1="138" x2="620" y2="138" stroke="#27272A" stroke-width="1"></line>
+      <text x="382" y="160" fill="#62626C" font-size="11.5">imports only</text>
+      <text x="382" y="178" fill="#62626C" font-size="11.5" font-family="ui-monospace, Consolas, monospace">internal/logger</text>
+      <text x="382" y="197" fill="#17C964" font-size="11.5">no new dependency</text>
+
+      <!-- CENTER -->
+      <text x="722" y="34" fill="#0385F7" font-size="11" font-weight="700" letter-spacing="1.4">NEW</text>
+      <rect x="722" y="48" width="292" height="162" rx="12" fill="rgba(3,133,247,0.06)" stroke="rgba(3,133,247,0.45)"></rect>
+      <text x="742" y="76" fill="#FCFCFC" font-size="13.5" font-weight="600" font-family="ui-monospace, Consolas, monospace">.../notification/center</text>
+      <text x="742" y="102" fill="#9F9FA9" font-size="12">Service implements Notifier</text>
+      <text x="742" y="122" fill="#9F9FA9" font-size="12">and decorates Dispatcher</text>
+      <line x1="742" y1="138" x2="994" y2="138" stroke="rgba(3,133,247,0.3)" stroke-width="1"></line>
+      <text x="742" y="160" fill="#62626C" font-size="11.5">ports.go &middot; service.go &middot; query.go</text>
+      <text x="742" y="178" fill="#62626C" font-size="11.5">retention.go &middot; sqlite_store.go</text>
+      <text x="742" y="196" fill="#62626C" font-size="11.5">projection.go &middot; domain/</text>
+
+      <!-- center -> notification (child imports parent) -->
+      <line x1="722" y1="118" x2="646" y2="118" stroke="#0385F7" stroke-width="1.6" marker-end="url(#ar-accent)"></line>
+      <text x="648" y="106" fill="#0385F7" font-size="11" text-anchor="start">child imports parent</text>
+
+      <!-- FORBIDDEN EDGE -->
+      <path d="M 860 210 C 860 268, 200 268, 160 216" fill="none" stroke="#DB3B3E" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ar-bad)"></path>
+      <rect x="470" y="248" width="182" height="26" rx="7" fill="#09090B"></rect>
+      <text x="561" y="266" fill="#DB3B3E" font-size="11.5" text-anchor="middle">import cycle &mdash; will not build</text>
+      <line x1="551" y1="252" x2="571" y2="270" stroke="#DB3B3E" stroke-width="2"></line>
+
+      <!-- REGISTRY -->
+      <rect x="1044" y="88" width="256" height="82" rx="12" fill="#18181B" stroke="rgba(3,133,247,0.45)"></rect>
+      <text x="1064" y="116" fill="#FCFCFC" font-size="13" font-weight="600">IntentRegistry</text>
+      <text x="1064" y="138" fill="#9F9FA9" font-size="11.5">interface, defined by the center</text>
+      <text x="1064" y="157" fill="#9F9FA9" font-size="11.5">resolved on press, not on create</text>
+      <line x1="1014" y1="129" x2="1038" y2="129" stroke="#0385F7" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar-accent)"></line>
+
+      <!-- COMPOSITION ROOT -->
+      <text x="362" y="330" fill="#62626C" font-size="11" font-weight="700" letter-spacing="1.4">COMPOSITION ROOT</text>
+      <rect x="362" y="344" width="938" height="76" rx="12" fill="#18181B" stroke="#27272A"></rect>
+      <text x="384" y="372" fill="#FCFCFC" font-size="13" font-weight="600" font-family="ui-monospace, Consolas, monospace">app.go &middot; app_defaults.go &middot; app_startup_runtime.go</text>
+      <text x="384" y="398" fill="#9F9FA9" font-size="12">knows both sides, so neither side has to know the other</text>
+
+      <!-- root -> registry -->
+      <path d="M 1172 344 L 1172 178" fill="none" stroke="#0385F7" stroke-width="1.6" marker-end="url(#ar-accent)"></path>
+      <rect x="1080" y="238" width="186" height="26" rx="7" fill="#09090B"></rect>
+      <text x="1173" y="256" fill="#0385F7" font-size="11.5" text-anchor="middle">registers handlers</text>
+
+      <!-- root -> producers -->
+      <path d="M 384 344 C 300 344, 160 300, 154 216" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></path>
+      <rect x="176" y="300" width="176" height="24" rx="7" fill="#09090B"></rect>
+      <text x="264" y="317" fill="#9F9FA9" font-size="11" text-anchor="middle">holds Service.RunAnime</text>
+
+      <!-- SCHEMA LEAF -->
+      <rect x="722" y="454" width="292" height="76" rx="12" fill="#18181B" stroke="#27272A"></rect>
+      <text x="742" y="482" fill="#FCFCFC" font-size="13" font-weight="600" font-family="ui-monospace, Consolas, monospace">.../centerschema</text>
+      <text x="742" y="506" fill="#9F9FA9" font-size="11.5">leaf &mdash; imports only internal/persistence</text>
+      <text x="742" y="524" fill="#62626C" font-size="11.5">SchemaTables()</text>
+
+      <line x1="868" y1="420" x2="868" y2="448" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></line>
+
+      <!-- SYNC -->
+      <rect x="362" y="454" width="278" height="76" rx="12" fill="#18181B" stroke="#27272A"></rect>
+      <text x="382" y="482" fill="#FCFCFC" font-size="13" font-weight="600" font-family="ui-monospace, Consolas, monospace">internal/sync</text>
+      <text x="382" y="506" fill="#9F9FA9" font-size="11.5">sqlite_bootstrap.go</text>
+      <text x="382" y="524" fill="#62626C" font-size="11.5">one appended line, as eventlog already does</text>
+
+      <line x1="716" y1="492" x2="648" y2="492" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></line>
+
+      <!-- center -> schema -->
+      <path d="M 1000 210 C 1060 300, 1060 400, 1010 470" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.55" marker-end="url(#ar)"></path>
+    </svg>
+
+    <figcaption>
+      The center is a child package, so importing its parent is legal and <span class="mono" style="color: #D4D4D8;">internal/notification</span> gains no dependency. Its <span class="mono" style="color: #D4D4D8;">Service</span> implements the same one-method port and delegates projection to the existing <span class="mono" style="color: #D4D4D8;">Dispatcher</span>, which is why no adapter, no producer and no call site moves. The registry is the inversion: the center declares the interface, the composition root fills it, and the red edge never has to exist. The schema sits in a leaf so <span class="mono" style="color: #D4D4D8;">internal/sync</span> can bootstrap it without the same cycle appearing one level down &mdash; the reason <span class="mono" style="color: #D4D4D8;">internal/download/dbschema</span> already exists.
+    </figcaption>
+  </figure>
+</div>
+</x-dc>
+</body>
+</html>

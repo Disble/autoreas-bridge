@@ -1,0 +1,71 @@
+{
+  "artboards": [
+    {
+      "file": "Flow.dc.html",
+      "title": "The workflow",
+      "x": 0,
+      "y": 0,
+      "w": 1400,
+      "h": 620
+    },
+    {
+      "file": "Lifecycle.dc.html",
+      "title": "Record lifecycle",
+      "x": 1520,
+      "y": 0,
+      "w": 880,
+      "h": 700
+    },
+    {
+      "file": "Toast.dc.html",
+      "title": "1 · Attention — Today",
+      "x": 0,
+      "y": 820,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Main.dc.html",
+      "title": "2 · Review — Notification Center",
+      "x": 1560,
+      "y": 820,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "Anatomy.dc.html",
+      "title": "Block component — one row per thing",
+      "x": 0,
+      "y": 1840,
+      "w": 1560,
+      "h": 1000
+    },
+    {
+      "file": "Intents.dc.html",
+      "title": "Actions — PendingIntent model",
+      "x": 1680,
+      "y": 1840,
+      "w": 1560,
+      "h": 840
+    }
+  ],
+  "annotations": [
+    {
+      "id": "read-order",
+      "x": 0,
+      "y": -178,
+      "w": 620,
+      "text": "Read the top row first: how one notification travels from the feature that raised it to the screens below.\n\nThe bottom row is the same notification as the user meets it — the toast that interrupts, then the Center that remembers."
+    },
+    {
+      "id": "screens-note",
+      "x": 3120,
+      "y": 820,
+      "w": 320,
+      "text": "Both screens are drawn from the real components: 64px rail, 24px card radius, the app's own night-bridge cover art, and the accent/success/warning tokens already in the theme.\n\nNothing here introduces a new colour."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

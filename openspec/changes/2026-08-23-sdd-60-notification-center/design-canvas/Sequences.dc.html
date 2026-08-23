@@ -1,0 +1,177 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    figure { margin: 0; }
+    figcaption { margin-top: 12px; font-size: 12.5px; line-height: 1.6; color: #9F9FA9; }
+    .mono { font-family: ui-monospace, Consolas, monospace; }
+    .eyebrow { margin: 0 0 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #62626C; }
+  </style>
+</helmet>
+
+<div style="width: 1400px; height: 1300px; padding: 26px 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px;">
+
+  <header>
+    <h1 style="margin: 0 0 4px; font-size: 23px; font-weight: 600; letter-spacing: -0.02em;">The two sequences that decide the design</h1>
+    <p style="margin: 0; font-size: 13px; color: #9F9FA9;">One for how a notification is born, one for what happens when someone presses a button on it days later.</p>
+  </header>
+
+  <!-- ============ SEQUENCE 1 ============ -->
+  <figure>
+    <p class="eyebrow">1 &middot; Raising a notification</p>
+    <svg role="img" aria-label="A feature calls Notify. The center service persists the record to SQLite, then always delegates projection to the existing dispatcher, which fans out to the adapters. If persistence fails, projection still runs, and the error returns to the producer for logging only." viewBox="0 0 1340 470" style="width: 100%; height: auto;">
+      <defs>
+        <marker id="s-ar" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="currentColor"></polygon></marker>
+        <marker id="s-ar-a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#0385F7"></polygon></marker>
+        <marker id="s-ar-m" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#62626C"></polygon></marker>
+      </defs>
+
+      <!-- participants -->
+      <rect x="30" y="12" width="160" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="110" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Feature</text>
+      <rect x="248" y="12" width="184" height="38" rx="9" fill="rgba(3,133,247,0.08)" stroke="rgba(3,133,247,0.45)"></rect>
+      <text x="340" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle" font-family="ui-monospace, Consolas, monospace">center.Service</text>
+      <rect x="480" y="12" width="150" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="555" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Repository</text>
+      <rect x="686" y="12" width="130" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="751" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">SQLite</text>
+      <rect x="874" y="12" width="150" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="949" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Dispatcher</text>
+      <rect x="1104" y="12" width="206" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="1207" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Adapters &rarr; toast / OS / log</text>
+
+      <!-- lifelines -->
+      <line x1="110" y1="50" x2="110" y2="452" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="340" y1="50" x2="340" y2="452" stroke="rgba(3,133,247,0.35)" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="555" y1="50" x2="555" y2="452" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="751" y1="50" x2="751" y2="452" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="949" y1="50" x2="949" y2="452" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="1207" y1="50" x2="1207" y2="452" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+
+      <!-- 1 -->
+      <text x="225" y="84" fill="#D4D4D8" font-size="11.5" text-anchor="middle">Notify(notification)</text>
+      <line x1="110" y1="94" x2="334" y2="94" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <!-- 2 -->
+      <text x="448" y="124" fill="#D4D4D8" font-size="11.5" text-anchor="middle">CreateOrResolve</text>
+      <line x1="340" y1="134" x2="549" y2="134" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <!-- 3 -->
+      <text x="653" y="164" fill="#D4D4D8" font-size="11.5" text-anchor="middle">insert, or hit the idempotency key</text>
+      <line x1="555" y1="174" x2="745" y2="174" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <!-- 4 return -->
+      <text x="653" y="204" fill="#62626C" font-size="11.5" text-anchor="middle">committed record</text>
+      <line x1="751" y1="214" x2="561" y2="214" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <!-- 5 return -->
+      <line x1="555" y1="248" x2="346" y2="248" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="448" y="240" fill="#62626C" font-size="11.5" text-anchor="middle">record, or a write error</text>
+
+      <!-- 6 the important one -->
+      <rect x="352" y="272" width="590" height="26" rx="7" fill="rgba(3,133,247,0.10)"></rect>
+      <text x="647" y="290" fill="#0385F7" font-size="11.5" text-anchor="middle" font-weight="600">project(record) &mdash; runs even when the write above failed</text>
+      <line x1="340" y1="316" x2="943" y2="316" stroke="#0385F7" stroke-width="2" marker-end="url(#s-ar-a)"></line>
+
+      <!-- 7 -->
+      <text x="1078" y="346" fill="#D4D4D8" font-size="11.5" text-anchor="middle">Deliver &mdash; one failure never blocks another</text>
+      <line x1="949" y1="356" x2="1201" y2="356" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+
+      <!-- 8 return to feature -->
+      <text x="225" y="392" fill="#62626C" font-size="11.5" text-anchor="middle">error, for the log only</text>
+      <line x1="340" y1="402" x2="116" y2="402" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="225" y="424" fill="#62626C" font-size="11">the business operation never fails for this</text>
+    </svg>
+    <figcaption>
+      Persistence comes first so nothing can flash on screen without a record behind it. But the arrow in blue is unconditional, and that is the correction: every producer discards this error &mdash; <span class="mono">_ = a.notifier.Notify(...)</span> in season and startup, a log line in download &mdash; so returning early on a write failure would quietly turn a user-visible message into a log entry nobody reads.
+    </figcaption>
+  </figure>
+
+  <!-- ============ SEQUENCE 2 ============ -->
+  <figure style="margin-top: 6px;">
+    <p class="eyebrow">2 &middot; Pressing an action, days later</p>
+    <svg role="img" aria-label="A row action is pressed. The Wails binding calls the center service, which re-reads the record, validates the action against it, resolves the stored intent name through the registry at press time, and invokes the registered handler with the arguments frozen when the notification was created." viewBox="0 0 1340 560" style="width: 100%; height: auto;">
+      <!-- participants -->
+      <rect x="24" y="12" width="172" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="110" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Row action</text>
+      <rect x="256" y="12" width="168" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="340" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Wails binding</text>
+      <rect x="463" y="12" width="184" height="38" rx="9" fill="rgba(3,133,247,0.08)" stroke="rgba(3,133,247,0.45)"></rect>
+      <text x="555" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle" font-family="ui-monospace, Consolas, monospace">center.Service</text>
+      <rect x="686" y="12" width="130" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="751" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">Repository</text>
+      <rect x="856" y="12" width="186" height="38" rx="9" fill="#18181B" stroke="rgba(3,133,247,0.45)"></rect>
+      <text x="949" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle">IntentRegistry</text>
+      <rect x="1114" y="12" width="186" height="38" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="1207" y="36" fill="#FCFCFC" font-size="12" text-anchor="middle" font-family="ui-monospace, Consolas, monospace">download.Service</text>
+
+      <!-- lifelines -->
+      <line x1="110" y1="50" x2="110" y2="542" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="340" y1="50" x2="340" y2="542" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="555" y1="50" x2="555" y2="542" stroke="rgba(3,133,247,0.35)" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="751" y1="50" x2="751" y2="542" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="949" y1="50" x2="949" y2="542" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+      <line x1="1207" y1="50" x2="1207" y2="542" stroke="#27272A" stroke-width="1" stroke-dasharray="4 5"></line>
+
+      <!-- 1 -->
+      <text x="225" y="84" fill="#D4D4D8" font-size="11.5" text-anchor="middle">ExecuteNotificationAction(id, actionId)</text>
+      <line x1="110" y1="94" x2="334" y2="94" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <text x="225" y="112" fill="#62626C" font-size="11" text-anchor="middle">the button disables until a result returns</text>
+
+      <!-- 2 -->
+      <line x1="340" y1="144" x2="549" y2="144" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <text x="448" y="136" fill="#D4D4D8" font-size="11.5" text-anchor="middle">ExecuteAction</text>
+
+      <!-- 3 -->
+      <line x1="555" y1="184" x2="745" y2="184" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <text x="650" y="176" fill="#D4D4D8" font-size="11.5" text-anchor="middle">Get(notificationID)</text>
+      <line x1="751" y1="218" x2="561" y2="218" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="650" y="210" fill="#62626C" font-size="11.5" text-anchor="middle">record</text>
+
+      <!-- 4 self validation -->
+      <rect x="567" y="240" width="330" height="52" rx="9" fill="#18181B" stroke="#27272A"></rect>
+      <text x="583" y="260" fill="#D4D4D8" font-size="11.5">Does this action belong to this record?</text>
+      <text x="583" y="280" fill="#D4D4D8" font-size="11.5">Expired? Is the revision still current?</text>
+      <path d="M 555 240 L 555 232 L 567 232" fill="none" stroke="#27272A" stroke-width="1"></path>
+
+      <!-- 5 resolve -->
+      <rect x="588" y="308" width="326" height="26" rx="7" fill="rgba(3,133,247,0.10)"></rect>
+      <text x="751" y="326" fill="#0385F7" font-size="11.5" text-anchor="middle" font-weight="600">resolve("download.run_anime")</text>
+      <line x1="555" y1="352" x2="943" y2="352" stroke="#0385F7" stroke-width="2" marker-end="url(#s-ar-a)"></line>
+      <text x="751" y="372" fill="#0385F7" font-size="11" text-anchor="middle">resolved now &mdash; nothing was resolved when the record was written</text>
+
+      <!-- 6 return handler -->
+      <line x1="949" y1="404" x2="561" y2="404" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="751" y="396" fill="#62626C" font-size="11.5" text-anchor="middle">the handler &mdash; or refused, if nobody registered that name</text>
+
+      <!-- 7 invoke -->
+      <line x1="555" y1="444" x2="1201" y2="444" stroke="currentColor" stroke-width="1.5" marker-end="url(#s-ar)"></line>
+      <text x="878" y="436" fill="#D4D4D8" font-size="11.5" text-anchor="middle">RunAnime(animeId) &mdash; arguments frozen when the notification was created</text>
+
+      <!-- 8 result back -->
+      <line x1="1207" y1="482" x2="561" y2="482" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="878" y="474" fill="#62626C" font-size="11.5" text-anchor="middle">result</text>
+
+      <!-- 9 back to UI -->
+      <line x1="555" y1="520" x2="116" y2="520" stroke="#62626C" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#s-ar-m)"></line>
+      <text x="335" y="512" fill="#62626C" font-size="11.5" text-anchor="middle">structured result &middot; the record may be marked read by policy</text>
+    </svg>
+    <figcaption>
+      Nothing executable was stored, so this works after any number of restarts: the record held a name and some frozen arguments, and the name is looked up only at the moment of the press. That late lookup is also what makes the wiring order irrelevant &mdash; the notifier is built at <span class="mono" style="color: #D4D4D8;">app_startup_runtime.go:139</span> and the download service does not exist until <span class="mono" style="color: #D4D4D8;">app.go:243</span>, which would matter if anything resolved at creation time. Nothing does.
+    </figcaption>
+  </figure>
+</div>
+</x-dc>
+</body>
+</html>

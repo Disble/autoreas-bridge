@@ -1,0 +1,850 @@
+# Tasks: Notification Center (SDD-60)
+
+Change: `2026-08-23-sdd-60-notification-center`
+Inputs: `proposal.md` (Engram #8600), `design.md` (Engram #8603), `specs/notification-center/spec.md`
+(34 scenarios), `specs/notification-actions/spec.md` (15 scenarios), `specs/notifications/notifications.md`
+delta (7 scenarios), `specs/desktop-navigation/spec.md` delta (5 scenarios) — **61 scenarios total**,
+every one cited against the task that proves it.
+
+> **Deliberate override of the `sdd-tasks` size budget.** The user's standing instruction for this
+> change is verbatim: *"diagramas, apuntes, artifact, todo debe ser guardado en los documentos con la
+> mayor definición posible, nada de descripciones escuetas en texto plano."* A task line reading
+> "implement the store" is a failure under that mandate. Every task below names the exact file, the
+> exact symbol, the exact test, and the exact spec scenario or design section it satisfies — the same
+> override `proposal.md` and `design.md` already recorded. `openspec/config.yaml` `rules.tasks`
+> additionally requires phase grouping (infrastructure, implementation, testing) and hierarchical
+> numbering, both applied per slice below.
+
+---
+
+## Task-Planning Notes (read before Slice 1)
+
+Two kinds of note, both made explicit rather than silently absorbed into a task line:
+
+**A. File-to-slice placement calls design left implicit.** `design.md` §11's file table lists files
+once, without a slice tag, for anything outside Slices 5/6. Where `proposal.md`'s per-slice "Contents"
+column and `design.md`'s file table appear to overlap (e.g. `sqlite_store.go` described in §5.6 as
+"Insert + in-transaction prune + keyset reads" but `proposal.md` Slice 1 content only mentions
+persistence, and Slice 2 content explicitly says "keyset-cursor list query"), this document splits the
+file across slices by symbol, stated once here so it is not re-discovered mid-chain:
+
+| File | Slice 1 owns | Slice 2 adds | Slice 5 adds |
+|---|---|---|---|
+| `internal/notification/center/sqlite_store.go` | `NewStore`, `InsertRecord`, `pruneOldestBeyondRetention` | `List`, `Record` (keyset reads) | — |
+| `internal/notification/center/sqlite_store_lifecycle.go` | — (not created yet) | Created: `UnreadCount`, `MarkRead`, `Archive`, `Restore` | Adds: `LoadAction`, `StampExecuted`, `StampRefused` |
+| `app_notification_center.go` | — (not created yet) | Created: `ListNotifications`, `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `ArchiveNotifications`, `RestoreNotifications` | Adds: `registerNotificationIntents()`, `ExecuteNotificationAction` |
+| `app.go` fields | Adds `notificationCenterStore *center.Store` | — | Adds `notificationCenterExecutor *center.Executor` |
+| `internal/api/contracts/notification_center.go` | — | Created: all DTOs except `NotificationActionResult` | Adds: `NotificationActionResult` |
+
+**B. One design gap found during task planning, resolved here as an explicit assumption.**
+`internal/notification/notifier.go:37-44`'s `Notification` struct carries only `Title`, `Body`, `Level`,
+`Source`, `CorrelationID`, `Timestamp` — there is no field through which a producer can attach the
+`DetailRow`s or `Action`s that `design.md` §5.2's `Record.Rows`/`Record.Actions` require. Slices 1-5 do
+not need this (their tests construct `center.Record`/`center.Action` values directly against the store,
+executor, and service — never through a live producer), but **Slice 6 (producer enrichment) cannot ship
+without it**, since that is precisely where a real producer must attach real rows.
+
+Resolution adopted for Slice 6 (task 6.0.1 below), chosen because it satisfies the already-fixed
+constraint "`internal/notification` MUST gain no new import" (that constraint is about imports, not
+fields) and keeps the acyclic import graph intact — `center` already imports `notification`, so
+`notification` referencing a `center` type would recreate the forbidden cycle:
+
+```go
+// Declared in internal/notification/notifier.go — neutral, in-package types so
+// producers (which import only internal/notification) never need to import
+// internal/notification/center, and center converts these into its own
+// DetailRow/Action shapes when persisting.
+type DetailItem struct {
+    RefType        string
+    RefID          string
+    Name           string
+    Status         string
+    Detail         string
+    CollapsedCount int
+}
+
+type ActionSpec struct {
+    Label  string
+    Intent string
+    Args   map[string]string
+}
+
+type Notification struct {
+    Title         string
+    Body          string
+    Level         Level
+    Source        string
+    CorrelationID string
+    Timestamp     time.Time
+    Rows          []DetailItem // NEW, optional, nil for every notification before Slice 6
+    Actions       []ActionSpec // NEW, optional, nil for every notification before Slice 6
+}
+```
+
+This is a task-planning-time design decision, not a re-opening of `sdd-design`. It is flagged here so
+the orchestrator can route it back to `sdd-design` for confirmation if a different resolution is
+preferred; absent that, Slice 6's tasks below build on it as a stated assumption.
+
+**C. One UI affordance design's file tree did not explicitly name.** The `notifications` delta spec's
+"The persistedId enables opening the matching Center record" scenario requires a toast to offer a
+"view details" affordance that navigates to the matching Center row. `design.md` §9.1's module tree
+does not list a distinct component for this. Task 4.6.3 below adds the minimal affordance (a
+`ToastActionButton` wired to `recordId`, navigating to `/notifications` with that id) inside the
+already-planned `NotificationToasts.tsx` rewrite, rather than a new component — consistent with
+Decision F's cost-bounding rationale (exactly two call sites already touched in that module).
+
+---
+
+## Review Workload Forecast
+
+This change's session-level review budget is **800 changed lines** (`review_budget_lines=800`,
+overriding the skill's generic 400-line default — the same override `proposal.md` §6 and `design.md`
+§14 already recorded). The plain-text guard lines below keep the label the downstream guard matches on
+literally; read the risk column against the **800**-line effective budget, not the generic 400.
+
+| Field | Value |
+|---|---|
+| Estimated changed lines | ~2 850 – 3 800 across the whole chain (six slices, see per-slice table) |
+| 400-line budget risk | High (against the generic 400 default) — **Medium** against the session's actual 800-line budget, except Slice 3 |
+| Chained PRs recommended | Yes |
+| Suggested split | Six chained PRs (Slice 1 → 2 → 3a → 3b → 4 → 5 → 6), 3a/3b pre-split per R-6 |
+| Delivery strategy | `auto-chain` |
+| Chain strategy | `feature-branch-chain` — PR #1 targets the feature/tracker branch; each later PR targets the immediately previous slice's branch (proposal.md §6 chain shape) |
+
+```text
+Decision needed before apply: No
+Chained PRs recommended: Yes
+Chain strategy: feature-branch-chain
+400-line budget risk: High
+```
+
+`auto-chain` resolves `Decision needed before apply` to `No`: the chain strategy was already fixed by
+`proposal.md` §6 under `execution_mode=auto`, so `sdd-apply` proceeds directly with Slice 1 using
+`feature-branch-chain`, no additional user decision required before starting.
+
+### Per-Slice Line Forecast
+
+| Slice | Forecast (lines) | Over 800? | Runtime harness | Rollback boundary |
+|---|---|---|---|---|
+| 1. Persistence spine | 450–600 | No | `go test ./internal/notification/... ./internal/sync/...` | `git revert`; table stays inert, no producer touched |
+| 2. Read model + bindings | 400–550 | No | `go test ./internal/notification/... ./internal/api/...` | `git revert`; no consumer yet |
+| 3a. Route + Table + empty states | 450–500 | No | `bun --cwd="frontend" run render:smoke` + `bun --cwd="frontend" run test` | `git revert`; route/nav entry disappear |
+| 3b. Selection bar + filters | 200–300 | No | `bun --cwd="frontend" run test` | `git revert`; 3a's base list keeps working |
+| 4. Detail pane + toast correlation | 500–700 | No | `bun --cwd="frontend" run test` + `bun --cwd="frontend" run test:mutation:staged` | `git revert`; Bug A/B return to pre-existing broken state |
+| 5. PendingIntent actions | 500–700 | No | `go test ./internal/notification/center/...` | No revert needed — empty registry is the kill switch |
+| 6. Producer enrichment + spec | 450–650 (was 400–600; +~60-100 for the Notification struct extension, task-planning note B) | No | `go test ./internal/download/... ./...` (root) | `git revert`; producers return to "see run details" |
+
+**No slice is forecast over 800.** Slice 3 was the one proposal flagged (R-6) as likely to overrun if
+shipped whole; it is pre-split into 3a/3b here exactly as `proposal.md` §6 and `design.md` §14
+pre-declared, keeping each half comfortably inside budget.
+
+### Suggested Work Units
+
+| Unit | Goal | Likely PR | Focused test command | Runtime harness | Rollback boundary |
+|---|---|---|---|---|---|
+| 1 | Persistence spine, invisible to the user | PR 1 | `go test ./internal/notification/... -run TestServiceNotify` | `go test ./...` (full suite, zero unexpected file edits) | `git revert`; inert unreferenced table |
+| 2 | Read model + Wails bindings, no UI yet | PR 2 | `go test ./internal/notification/center/... -run TestList` | `go test ./internal/api/...` | `git revert`; no consumer |
+| 3a | `/notifications` route, Table, empty states, nav entry + badge | PR 3a | `bun --cwd="frontend" run test -- NotificationTable` | `bun --cwd="frontend" run render:smoke` | `git revert`; nav returns to 9 items |
+| 3b | Selection bar, bulk actions, search/filter | PR 3b | `bun --cwd="frontend" run test -- NotificationSelectionBar` | `bun --cwd="frontend" run test` | `git revert`; 3a list still works |
+| 4 | Detail pane, Bug A, Bug B, toast queue swap | PR 4 | `bun --cwd="frontend" run test -- NotificationToasts` | `bun --cwd="frontend" run test:mutation:staged` | `git revert`; bugs return to pre-existing state |
+| 5 | PendingIntent actions live | PR 5 | `go test ./internal/notification/center/... -run TestExecute` | `go test ./...` | No revert needed — empty registry kill switch |
+| 6 | Producer enrichment + spec reconciliation | PR 6 | `go test ./internal/download/... -run TestService` | `go test ./...` + `bun --cwd="frontend" run render:smoke` | `git revert`; producers revert to prose |
+
+---
+
+## Slice 1 — Persistence Spine
+
+**Leaves the app working because:** nothing user-visible changes; records simply start accumulating.
+**Forecast:** 450–600 lines.
+
+### 1.1 Infrastructure
+
+- [ ] **1.1.1** [RED] Write `internal/notification/centerschema/schema_test.go`:
+  `TestSchemaTablesReturnsNotificationRecordsAndActionsDescriptors` asserts `SchemaTables()` returns
+  exactly 2 `persistence.TableSchema` entries named `notification_records` and
+  `notification_record_actions`. Satisfies notification-center spec "Schema leaf package has exactly
+  one internal dependency" (partial — see 1.3.1 for the import half); design §5.1.
+- [ ] **1.1.2** [GREEN] Implement `internal/notification/centerschema/schema.go`: `SchemaTables()
+  []persistence.TableSchema` returning the exact DDL from design §4 — both `CREATE TABLE IF NOT EXISTS`
+  statements plus the four `CREATE INDEX IF NOT EXISTS` statements (`idx_notification_records_time`,
+  `_active`, `_unread` partial index, `idx_notification_record_actions_notification`). Package doc
+  comment mirrors `internal/download/dbschema/schema.go:1-6`. Design §5.1, §4.
+- [ ] **1.1.3** [GREEN] Modify `internal/sync/sqlite_bootstrap.go`: append `centerschema.SchemaTables()`
+  to the existing `tables := append(...)` chain at lines 156-164, identical in shape to the adjacent
+  `eventlog.SchemaTables()` call on the same line. Design §2, §11.
+- [ ] **1.1.4** [GREEN] Create `internal/notification/center/types.go` with the complete type set from
+  design §5.2 verbatim: `Level`, `EntityRef`, `DetailRow`, `RefusalReason` + its 5 consts (`RefusalNone`,
+  `RefusalIntentUnregistered`, `RefusalTargetMissing`, `RefusalAlreadyExecuted`, `RefusalForeignAction`),
+  `Action`, `Record`, `View` + its 2 consts (`ViewActive`, `ViewArchived`), `ListQuery`, `Page`,
+  `StoreConfig`.
+- [ ] **1.1.5** [GREEN] Create `internal/notification/center/ports.go` with design §5.3 verbatim:
+  `ErrTargetMissing`, `IntentHandler` interface, `IntentRegistry` interface, `Logger` interface.
+  (`IntentHandler`/`IntentRegistry` stay unused by any concrete type until Slice 5's `Executor` lands —
+  declaring the full port file now means it is authored once, matching design's single §5.3 unit.)
+
+### 1.2 Implementation
+
+- [ ] **1.2.1** [RED] Write `internal/notification/center/service_test.go` — five tests, in this order:
+  - `TestWrapWithNilStoreReturnsInnerByIdentity` — `Wrap(inner, nil)` returns `inner` by identity
+    (`got == inner`, not a new wrapper). Satisfies "Wrap with a nil store returns the inner notifier's
+    exact identity."
+  - `TestWrapWithNilInnerReturnsNil` — `Wrap(nil, store)` returns a bare `nil` interface (`got == nil`),
+    never a typed-nil `*Service`. Satisfies "Wrap with a nil inner notifier returns nil."
+  - **`TestServiceNotifyPersistFailureStillDispatches`** [[MANDATORY R-1 REGRESSION GUARD]] — a fake
+    `Store` whose insert path returns an error, wrapped around a spy `notification.Notifier`; assert the
+    spy's `Notify` WAS invoked with the identical `Notification` value despite the persist failure, and
+    assert the returned error is non-nil. Written BEFORE `Service.Notify` exists. Expected values as
+    literals, never against the production symbol under test (CLAUDE.md #16). Satisfies notification-
+    center spec "Persist fails, but the toast and desktop notification still fire"; notifications delta
+    spec "A decorator's own side-effect failure never suppresses delegation"; design §5.5, §6, §12
+    Slice 1 row 2, proposal R-1.
+  - `TestServiceNotifyPersistSuccessDispatchesAndReturnsNil` — happy path: persist succeeds, spy
+    invoked, `nil` returned. Satisfies "Persist succeeds, then the notification is projected"; also
+    covers "Existing adapters are invoked unmodified through the decorator" at the spy-`Notifier` level.
+  - `TestServiceNotifyUnopenedDBDegradesWithoutPanic` — a `Store` backed by a bare unopened `&sql.DB{}`
+    (mirroring `app_test_helpers_test.go:30`'s exact shape); assert `Notify` does not panic and the spy
+    is still invoked. Satisfies "An unopened database handle degrades to dispatch-only, never a panic."
+- [ ] **1.2.2** [GREEN] Implement `internal/notification/center/service.go`: `Service` struct (`inner`,
+  `store`, `log`, `now`), `Wrap(inner, store) notification.Notifier` (both early returns as bare values
+  per design §5.5's explicit warning against a typed-nil `*Service`), `(*Service).Notify` implementing
+  persist-then-ALWAYS-delegate with `errors.Join(persistErr, dispatchErr)`. Design §5.5.
+- [ ] **1.2.3** [RED] Write `internal/notification/center/sqlite_store_test.go` (integration, real
+  bootstrapped SQLite via `internal/sync`) — six tests:
+  - `TestInsertRecordPersistsRecordAndActions` — one `InsertRecord` round-trips a `Record` with 2
+    `Action`s.
+  - `TestPruneOnCapCrossingKeepsExactly2000Rows` — seed 2000 rows, insert one more, assert exactly 2000
+    remain and the oldest is gone. Literal `2000`, not `defaultRowCap`. Satisfies "A write that crosses
+    the cap prunes back down to exactly 2000 rows."
+  - `TestPruneRunsOnFirstWriteOfNewProcessRegardlessOfCadence` — seed >2000 rows via one `Store`,
+    construct a SECOND `Store` over the same DB handle (simulating a process restart), insert once
+    (fewer than 50 writes total in this "session"), assert the table is at or below 2000 after that
+    first write. Satisfies "A short session still bounds the table across a process restart."
+  - `TestUnreadRowsAreNotPinnedDuringPrune` — oldest row is unread, still pruned. Satisfies "Unread rows
+    are not protected from pruning."
+  - `TestArchivedRowsAreNotPinnedDuringPrune` — oldest row is archived, still pruned. Satisfies
+    "Archived rows are not protected from pruning."
+  - `TestNoRowPrunedOnAgeAloneBelowCap` — a row far older than any freshness window survives when the
+    table is under 2000 total. Satisfies "No row is pruned on age alone."
+  - `TestPruneDeletesActionsBeforeRecordsNoOrphans` — insert past cap with actions attached to the
+    doomed record; assert `notification_record_actions` rows for that id drop to 0 (`PRAGMA
+    foreign_keys` is OFF, so this is the only orphan guard). Design §12 Slice 1 row 5; also the
+    executable proof for notification-actions spec "A pruned record's actions are simply gone."
+- [ ] **1.2.4** [GREEN] Implement `internal/notification/center/sqlite_store.go`: `Store` struct,
+  `NewStore(db, config)` (defaults `RowCap=2000`/`PruneEvery=50` when zero-valued), `InsertRecord`
+  (single transaction: insert record + N actions, then call prune), `pruneOldestBeyondRetention`
+  (actions-first two-statement delete per design §4's exact SQL; cadence: unconditional on
+  `successful==1`, else `successful%pruneEvery==0`). Design §5.6, §4.
+- [ ] **1.2.5** [RED] Write `app_notification_center_wrap_test.go` (NEW file in the root `app` package —
+  not an edit to any existing `_test.go` file): `TestStartupWrapsNotifierWhenBridgeDBUsable` constructs
+  an `*App` with a real, usable (temp-file or in-memory) bridge DB, runs `startup`, and asserts
+  `a.notificationCenterStore != nil` and `a.notifier` is no longer the bare value `a.newNotifier(...)`
+  returned (identity differs). This is new evidence for design §5.9 / notification-center spec's
+  positive Wrap-applied path; it does not touch `app_startup_test.go:136`'s existing negative-path
+  assertion, which is re-run unmodified in 1.2.6.
+- [ ] **1.2.6** [GREEN] Modify `app_startup_runtime.go`: after line 139
+  (`a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)`), add the three lines from design §5.9 —
+  `if a.canUseBridgeDB(ctx) { a.notificationCenterStore = center.NewStore(a.bridgeDB,
+  center.StoreConfig{}); a.notifier = center.Wrap(a.notifier, a.notificationCenterStore) }`. Add exactly
+  one new field to `app.go`: `notificationCenterStore *center.Store` (the executor field is deliberately
+  deferred to Slice 5 — see Task-Planning Note A — so this slice's `app.go` diff is one line).
+
+### 1.3 Testing & Verification
+
+- [ ] **1.3.1** [TEST] [[MANDATORY IMPORT-BOUNDARY TEST]] Write
+  `internal/notification/center/import_boundary_test.go`: use `exec.Command("go", "list", "-deps",
+  "./internal/notification")` (run from the module root) and assert the returned import list contains
+  `autoreas-bridge/internal/logger` and does NOT contain `autoreas-bridge/internal/download`,
+  `autoreas-bridge/internal/anime`, `autoreas-bridge/internal/sync`, or
+  `autoreas-bridge/internal/notification/center`. A second assertion runs `go list -deps
+  ./internal/notification/center` and asserts `autoreas-bridge/internal/download` is absent. A third
+  runs `go list -deps ./internal/notification/centerschema` and asserts its only internal import is
+  `autoreas-bridge/internal/persistence` (completes 1.1.1's schema test). Satisfies notification-center
+  spec "The parent notification package gains no dependency," "The schema leaf package has exactly one
+  internal dependency," "The service package never imports the download package"; design §12 Slice 1
+  "Import guard" row.
+- [ ] **1.3.2** [VERIFY] [[MANDATORY D-1 VERIFICATION OBLIGATION]] Run `go test ./...` (full existing
+  suite). Confirm via `git diff --stat` that `app_startup_test.go`, `app_lifecycle_test.go`,
+  `app_defaults.go` show **zero** changes, and `app.go` shows only the one additive field from 1.2.6. If
+  any of these files needs an edit beyond that single field addition, STOP and name the exact edit and
+  its reason explicitly in the slice completion report — it MUST NOT be silently absorbed. Confirm
+  `app_startup_test.go:136`'s `app.notifier != fake` identity assertion passes unmodified. Satisfies
+  proposal §3 D-1 verification obligation; notification-center spec "An unusable bridge database means
+  the decorator is never applied" and "A producer call site requires no code change."
+- [ ] **1.3.3** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 1 staged diff. Confirm the
+  mutant that flips `Notify`'s persist-then-delegate ordering (an early `return` inserted right after
+  the persist call) is KILLED by `TestServiceNotifyPersistFailureStillDispatches` (1.2.1). Confirm the
+  cadence-branch mutant on `pruneOldestBeyondRetention` (`successful==1 || successful%pruneEvery==0`) is
+  killed by 1.2.3's tests; if it survives, add a literal-value assertion and re-run. Proposal R-1
+  mitigation.
+- [ ] **1.3.4** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+
+**Rollback:** `git revert` the slice commit. `persistence.EnsureTableSchema` is additive/idempotent, so
+the table remains present but inert. `a.notifier` reverts to the bare `Dispatcher` because no producer
+call site was ever touched. No data migration to undo.
+
+---
+
+## Slice 2 — Read Model + Bindings
+
+**Leaves the app working because:** bindings exist and are callable; no route consumes them yet.
+**Forecast:** 400–550 lines.
+
+### 2.1 Infrastructure
+
+- [ ] **2.1.1** [RED] Write `internal/notification/center/cursor_test.go`: `TestCursorRoundTrip` —
+  `encodeRecordCursor` then `decodeRecordCursor` returns the original `recordCursor`;
+  `TestDecodeCursorRejectsZeroID` — a cursor with `ID == 0` returns an error from `decodeRecordCursor`.
+  Design §5.6 "Cursor encoding."
+- [ ] **2.1.2** [GREEN] Implement `internal/notification/center/cursor.go`: `recordCursor` struct,
+  `encodeRecordCursor` (base64.RawURLEncoding of JSON), `decodeRecordCursor` (rejects `ID == 0`). Design
+  §5.6.
+
+### 2.2 Implementation
+
+- [ ] **2.2.1** [RED] Write `internal/notification/center/sqlite_store_list_test.go`:
+  - `TestListFirstPageReturnsCursorForNextPage` — more records exist than fit one page; the response
+    includes a usable `NextCursor`. Satisfies "The first page returns a cursor for the next page."
+  - `TestListKeysetPageNeverRepeatsOrSkips` — seed rows sharing one millisecond timestamp to exercise
+    the `(created_at_ms, id)` tiebreaker; fetch page 1, then page 2 via its cursor; assert every page-2
+    record is strictly older by the tiebreak order than every page-1 record. Satisfies "A cursor-based
+    next page never repeats or skips a row relative to `When` ordering."
+- [ ] **2.2.2** [GREEN] Add `List(ctx, query ListQuery) (Page, error)` and `Record(ctx, id int64)
+  (Record, bool, error)` to `internal/notification/center/sqlite_store.go`, implementing the keyset
+  predicate `(created_at_ms < ?) OR (created_at_ms = ? AND id < ?)`. Design §5.6, §4.
+- [ ] **2.2.3** [RED] Write `internal/notification/center/sqlite_store_lifecycle_test.go`:
+  - `TestMarkReadDecrementsUnreadCountExactlyOnce` — mark the same record read twice; unread count drops
+    by exactly 1, not 2. Satisfies "Marking a record read decrements the unread count exactly once."
+  - `TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread` — archiving an unread record removes
+    it from the active view and marks it read in the same operation. Satisfies "Archiving a record
+    removes it from the default active list."
+  - `TestRestoreClearsArchivedButNotRead` — `Restore` clears `archived_at_ms` and deliberately leaves
+    `read_at_ms` untouched.
+- [ ] **2.2.4** [GREEN] Create `internal/notification/center/sqlite_store_lifecycle.go`: `UnreadCount`,
+  `MarkRead` (stamps `read_at_ms` only where it IS NULL), `Archive` (stamps `archived_at_ms` and, in the
+  same statement set, `read_at_ms` for any still-unread rows), `Restore` (clears `archived_at_ms` only).
+  Design §5.6.
+- [ ] **2.2.5** [RED] Write `app_notification_center_bindings_test.go`:
+  `TestListNotificationsMapsStoreValuesToContractDTOs` and
+  `TestBindingsReturnDegradedTrueWhenStoreNilNeverPanic` — construct an `*App` with
+  `notificationCenterStore == nil`, call each binding, assert `Degraded: true` (or the equivalent flag
+  per DTO) and no panic.
+- [ ] **2.2.6** [GREEN] Create `internal/api/contracts/notification_center.go` with the DTOs from design
+  §10 EXCEPT `NotificationActionResult` (deferred to Slice 5 — see Task-Planning Note A):
+  `NotificationListRequest`, `NotificationRow`, `NotificationPage`, `NotificationDetailRow`,
+  `NotificationAction`, `NotificationDetail`, `NotificationDetailResult`, `NotificationMutationResult`.
+  Create `app_notification_center.go` with `ListNotifications`, `GetNotification`,
+  `GetUnreadNotificationCount`, `MarkNotificationsRead`, `ArchiveNotifications`,
+  `RestoreNotifications`, mapping `Store` results to these DTOs.
+
+### 2.3 Testing & Verification
+
+- [ ] **2.3.1** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 2 staged lines (keyset
+  predicate and `MarkRead`'s `WHERE read_at_ms IS NULL` guard are the highest-value targets).
+- [ ] **2.3.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate, ≥300 000 ms).
+
+**Rollback:** `git revert`; bindings disappear. No schema change. No consumer yet (Slice 3 is not merged
+by construction of the chain).
+
+---
+
+## Slice 3a — Master List Route, Table, Empty States, Nav
+
+**Leaves the app working because:** the screen lists records; no selection/search yet (3b), and every
+action still refuses (Slice 5 not merged yet).
+**Forecast:** 450–500 lines.
+
+### 3a.1 Infrastructure
+
+- [ ] **3a.1.1** [GREEN] Create `frontend/src/shared/contracts/notification-center.types.ts`: the
+  frontend mirror of design §10's DTOs (through `NotificationMutationResult`; `NotificationActionResult`
+  deferred to Slice 5), following `capture.types.ts`'s shape — every property `readonly`.
+- [ ] **3a.1.2** [RED] Write
+  `frontend/src/infrastructure/notification-center-source/__tests__/notification-center-source.helpers.test.ts`:
+  the adapter maps a successful Wails binding call to the typed page/detail result, and maps a
+  rejected/unavailable binding to a `Degraded: true` result rather than throwing.
+- [ ] **3a.1.3** [GREEN] Create `frontend/src/infrastructure/notification-center-source/` —
+  `notification-center-source.helpers.ts` (Wails binding adapter for `ListNotifications`,
+  `GetNotification`, `GetUnreadNotificationCount`, `MarkNotificationsRead`, `ArchiveNotifications`,
+  `RestoreNotifications`) + `notification-center-source.types.ts`. Scaffold with `bun
+  --cwd="frontend" run generate:feature notifications <ComponentName>` per component rather than
+  hand-rolling folders (CLAUDE.md frontend constraint #10), then colocate per ADR-011 (no `index.ts`
+  barrel).
+
+### 3a.2 Implementation — Empty States And Table
+
+- [ ] **3a.2.1** [RED] Write
+  `frontend/src/features/notifications/ui/NotificationEmptyState/__tests__/notification-empty-state.helpers.test.ts`:
+  a pure-helper table test over all 5 `(totalEverRecorded, view, unreadOnly, hasFilters,
+  serviceAvailable)` combinations, asserting 5 DISTINCT state ids as literals. Satisfies notification-
+  center spec scenarios "Nothing has ever been recorded," "A search or filter combination matches
+  nothing," "Every active record has been archived," "Unread filter with nothing unread," "Archived
+  view with nothing archived."
+- [ ] **3a.2.2** [GREEN] Implement `NotificationEmptyState.tsx` (dumb render only) +
+  `notification-empty-state.helpers.ts` (the selection function) +
+  `notification-empty-state.constants.ts` (the five copies + icons per design §9.3) +
+  `notification-empty-state.types.ts`.
+- [ ] **3a.2.3** [RED] [[MANDATORY DOM-COUNT WINDOWING TEST]] Write
+  `frontend/src/features/notifications/ui/NotificationTable/__tests__/NotificationTable.windowing.test.tsx`,
+  in the shape of `AnimeEditorWorkspace.windowing.test.tsx`: seed N loaded rows greater than the initial
+  page size; assert the rendered `Table.Row` DOM-node count equals the loaded page size, never the full
+  backing collection.
+- [ ] **3a.2.4** [RED] Write `use-notification-center-sync.test.ts`: `LoadMore` fires exactly once when
+  scroll position crosses "near bottom," and does NOT fire again until the new bottom is reached (guard
+  re-entry while a fetch is in flight). Satisfies "Scrolling near the bottom triggers exactly one
+  next-page fetch."
+- [ ] **3a.2.5** [RED] Write a `NotificationTable` sort test: default `sortDescriptor` sorts `When`
+  descending with no user interaction. Satisfies "Rows are sorted newest-first by default."
+- [ ] **3a.2.6** [RED] Write `use-truncation-tooltip.test.ts`: `isDisabled` is `true` when
+  `scrollWidth <= clientWidth` (no tooltip) and `false` when `scrollWidth > clientWidth` (tooltip after
+  the library's default 700ms delay). Satisfies "A truncated title shows its full text on hover/focus"
+  and "A non-truncated title never shows a redundant tooltip."
+- [ ] **3a.2.7** [GREEN] Implement `NotificationTable.tsx` (`Table.Root`/`Table.ScrollContainer`
+  /`Table.Content`/`Table.Header`/`Table.Column`/`Table.Body`/`Table.Row`/`Table.Cell`, row grid
+  `40px minmax(0,1fr) 100px 84px`, `w-full table-fixed` + explicit column widths + `block truncate`,
+  never `overflow-x-clip`, a separate `max-h-* overflow-y-auto` wrapper for vertical scroll since
+  `Table.ScrollContainer` is horizontal-only) + `use-truncation-tooltip.ts` +
+  `notification-table.helpers.ts` + `notification-table.types.ts` + `notification-table.constants.ts`.
+  Design §9.1, §9.2.
+- [ ] **3a.2.8** [GREEN] Implement `use-notification-center-sync.ts` (cursor paging + `LoadMore`
+  handling with in-flight guard).
+
+### 3a.3 Implementation — Panel, Route, Nav
+
+- [ ] **3a.3.1** [GREEN] Implement `NotificationCenterPanel.tsx` + `use-notification-center-panel.ts` +
+  `notification-center-panel.helpers.ts` / `.types.ts` / `.constants.ts` — composes `NotificationTable` +
+  `NotificationEmptyState`, wired to the `notification-center-source` adapter; NO selection/search yet
+  (3b adds that). Design §9.1.
+- [ ] **3a.3.2** [RED] Write `frontend/src/app/routes/__tests__/NotificationsRoute.test.tsx`: renders
+  `NotificationCenterPanel` without throwing.
+- [ ] **3a.3.3** [GREEN] Create `frontend/src/app/routes/NotificationsRoute.tsx` (composition only, no
+  hooks/business logic per CLAUDE.md constraint #4). Modify `frontend/src/App.tsx`: add
+  `<Route path="/notifications" element={<NotificationsRoute />} />` inside the existing `AppLayout`
+  outlet (lines 18-40).
+- [ ] **3a.3.4** [RED] Write a constant test for `APP_LAYOUT_NAV_GROUPS` asserting the CURRENT (9-item)
+  shape — this test is expected to FAIL once 3a.3.5 lands, proving the change is observed, not silently
+  passing before and after. Then update the assertion to the new literal expectation: SYSTEM =
+  `[Activity, Notifications, Settings]`, total = 10 items across 3 groups. Satisfies desktop-navigation
+  delta "Group order and membership" and "Item count."
+- [ ] **3a.3.5** [GREEN] Modify `frontend/src/shared/navigation/app-layout.constants.ts`: insert the
+  Notifications `NavItem` into SYSTEM, between Activity and Settings.
+- [ ] **3a.3.6** [RED] Write
+  `frontend/src/features/navigation/NotificationsNavBadge/__tests__/NotificationsNavBadge.test.tsx`:
+  - shows a badge reflecting the unread count while it is `> 0`
+  - shows NO badge while unread count is `0`
+  - after a `notification.push` event arrives (or a mutation reduces the count), the badge updates
+    without a full page reload
+  Satisfies desktop-navigation delta "Badge shows the unread count while unread records exist," "No
+  badge when nothing is unread," "The badge count updates as records are read."
+- [ ] **3a.3.7** [GREEN] Implement `NotificationsNavBadge.tsx` + `use-notifications-nav-badge.ts`
+  (mirrors `SeasonNavBadge/`; fetches `GetUnreadNotificationCount` on mount and subscribes to
+  `notification.push` to increment locally — design §15's resolved open question, "the subscription is
+  the cheaper answer"). Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add the render seam mirroring
+  line 77's `{to === '/season' ? <SeasonNavBadge /> : null}` for `/notifications`.
+- [ ] **3a.3.8** [GREEN] [[MANDATORY ROUTE_MARKERS ENTRY]] Modify `frontend/scripts/render-smoke.mjs`:
+  add `'/#/notifications'` to BOTH the `ROUTE_MARKERS` map (currently only `/#/downloads` at lines
+  46-48) AND the iterated route array at line 218 (currently `['/', '/#/downloads']`). CLAUDE.md #18b —
+  a route is not covered by the smoke test until it is present in both places; the 1.2.0 regression
+  shipped exactly this gap.
+- [ ] **3a.3.9** [VERIFY] Run `bun --cwd="frontend" run render:smoke` and confirm `/#/notifications`
+  paints a non-empty `#root`.
+
+### 3a.4 Testing & Verification
+
+- [ ] **3a.4.1** [MUTATE] Stryker runs automatically via `lefthook.yml`'s `test:mutation:staged` on the
+  staged 3a frontend files — no separate invocation needed, but confirm the hook actually ran (check its
+  output in the commit log) rather than assuming.
+- [ ] **3a.4.2** [DOC] Merge the already-drafted delta at
+  `openspec/changes/2026-08-23-sdd-60-notification-center/specs/desktop-navigation/spec.md` into the
+  live `openspec/specs/desktop-navigation/spec.md`: "Grouped Rail Nav Items" → 10 items / SYSTEM order;
+  "Item count" scenario → 10; add the new "Notifications Nav Unread Badge" requirement. Design §11 file
+  table tags this file `Modify (Slice 3)`.
+- [ ] **3a.4.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
+
+**Rollback:** `git revert`; route and nav entry disappear; `APP_LAYOUT_NAV_GROUPS` returns to 9 items;
+the `desktop-navigation` item-count scenario reverts with it.
+
+---
+
+## Slice 3b — Selection Bar, Bulk Actions, Search/Filter
+
+**Leaves the app working because:** the base list from 3a keeps working; this only adds selection and
+filtering on top.
+**Forecast:** 200–300 lines.
+
+### 3b.1 Implementation
+
+- [ ] **3b.1.1** [RED] Write
+  `frontend/src/features/notifications/ui/NotificationSelectionBar/__tests__/NotificationSelectionBar.test.tsx`:
+  the bar renders ONLY while `selectedKeys.size > 0`, shows the selected count and bulk actions (mark
+  read, archive, clear selection); it disappears once the selection is cleared. Satisfies "A selection
+  bar appears only while rows are selected."
+- [ ] **3b.1.2** [GREEN] Implement `NotificationSelectionBar.tsx` +
+  `notification-selection-bar.types.ts` + `use-notification-selection.ts` (added to
+  `NotificationCenterPanel/`, per design §9.1's tree — holds `selectedKeys` state and the bulk-action
+  callbacks calling `MarkNotificationsRead`/`ArchiveNotifications`).
+- [ ] **3b.1.3** [RED] Write `use-notification-filters.test.ts`: an app-owned debounce — typed input only
+  triggers a query after the debounce window elapses (`SearchField` itself has no built-in debounce).
+- [ ] **3b.1.4** [GREEN] Implement `NotificationFilterBar.tsx` (`SearchField.Root/.Group/.Input
+  /.SearchIcon/.ClearButton` `variant="secondary"` inside a `Card`) + `use-notification-filters.ts` +
+  `notification-filter-bar.types.ts`.
+- [ ] **3b.1.5** [GREEN] Wire `NotificationTable`'s `selectionMode="multiple"` +
+  `selectedKeys`/`onSelectionChange` + `Checkbox slot="selection"`; wire `NotificationCenterPanel` to
+  compose `NotificationSelectionBar` + `NotificationFilterBar` alongside `NotificationTable`.
+
+### 3b.2 Testing & Verification
+
+- [ ] **3b.2.1** [MUTATE] Stryker automatic via `lefthook.yml` on staged 3b files; confirm it ran.
+- [ ] **3b.2.2** [GATE] `git commit` (full pre-commit gate).
+
+**Rollback:** `git revert`; selection bar and search disappear; 3a's base list keeps working unaffected.
+
+---
+
+## Slice 4 — Detail Pane + Toast Correlation
+
+**Leaves the app working because:** rows render their four parts; the per-row action button is present
+but every intent still refuses with `intent_unregistered` — a designed, tested Slice 5 kill-switch
+state, not a bug.
+**Forecast:** 500–700 lines.
+
+### 4.1 Infrastructure — Toast Queue Characterization (Decision F spike)
+
+- [ ] **4.1.1** [RED — MANDATORY CHARACTERIZATION TEST, MUST LAND BEFORE THE QUEUE SWAP] Write
+  `app-toast-queue.test.ts` pinning, against the CURRENT module-level `toast.*` singleton behavior:
+  - all four `severity → variant` mappings (`success`, `warning`, `error`, `info`) as literals
+  - `persistent: true` → the resulting options OMIT `timeout`
+  - `persistent: false` (or unset) → `timeout: 4000` (the literal number, not
+    `DEFAULT_TOAST_TIMEOUT_MS`)
+  This is design §3 Decision F's "bounded unknown" spike: it must pass BEFORE 4.1.3's queue swap lands
+  and must keep passing through it, proving the app-owned mapping survives the switch from
+  `toast()`'s wrapper semantics to direct `ToastQueue.add(content, options)` semantics. Design §12
+  Slice 4 row 1.
+- [ ] **4.1.2** [GREEN] Add to `notification-resolver.constants.ts`: `SEVERITY_TO_VARIANT` map,
+  `DEFAULT_TOAST_TIMEOUT_MS = 4000`.
+- [ ] **4.1.3** [GREEN] Create `app-toast-queue.ts`: constructs the app-owned `ToastQueue<AppToastPayload>`
+  and implements the `persistent`→timeout-omission mapping function satisfying 4.1.1's pinned behavior.
+
+### 4.2 Implementation — Bug B (toast drops non-primary actions)
+
+- [ ] **4.2.1** [RED — MANDATORY BUG B GUARD] Write `app-notification.helpers.test.tsx`:
+  - a single-action notification renders that one action as the toast's primary action (`actionProps`).
+    Satisfies notifications delta "A single-action notification renders its one action normally."
+  - a two-action notification renders BOTH: `actions[0]` via `actionProps`, and `actions[1]` reachable
+    (by accessible role/label query) from the rendered toast tree. The test explicitly asserts
+    `actions[1].label`/`onPress` are reachable and is documented inline as FAILING when a second action
+    becomes unreachable. Satisfies "A second action is never silently dropped."
+- [ ] **4.2.2** [GREEN] Modify `app-notification.helpers.tsx`: stop truncating to `actions[0]` only;
+  keep `actions[0]` as `actionProps` and map `actions[1..n]` into the custom toast content per Decision
+  F's render-function approach (never inside `description`, per design §3 Decision F's rejected
+  alternative — interactive controls inside the `aria-describedby` region are a correctness regression).
+
+### 4.3 Implementation — Bug A (resolver drops fields) + Decision E
+
+- [ ] **4.3.1** [RED — MANDATORY BUG A GUARD] Write `use-backend-event-resolver.test.ts`: an incoming
+  `notification.push` payload carrying `Source`, `CorrelationID`, `Timestamp`, and a persisted record id
+  ALL reach the pushed value unchanged — none silently dropped. Satisfies "A backend event's identifying
+  fields reach the pushed notification."
+- [ ] **4.3.2** [GREEN] Modify `use-backend-event-resolver.ts`: stop dropping `Source`/`CorrelationID`
+  /`Timestamp`; set `recordId` from the event's persisted record id (Decision E — into the NEW
+  `recordId` field, never into the renamed `dedupeKey`).
+- [ ] **4.3.3** [GREEN] Modify `frontend/src/shared/contracts/app-notification.types.ts` (Decision E):
+  rename `persistedId` → `dedupeKey`; add `recordId?: number`; add `source`, `correlationId`,
+  `timestamp` fields. Every property `readonly`.
+- [ ] **4.3.4** [GREEN] Modify `use-missed-schedule-resolver.ts`: update its two existing call sites from
+  `persistedId` to `dedupeKey` — the client-literal values (`MISSED_DECISION_TOAST_ID`,
+  `MISSED_FAILURE_TOAST_ID`) keep flowing unchanged, only the field name changes.
+
+### 4.4 Implementation — Decision H (state extraction) + Decision F (provider wiring)
+
+- [ ] **4.4.1** [RED] Write a characterization test for the CURRENT `useRef` ledger + `push`/`remove`
+  behavior inside `NotificationToasts.tsx`, run once BEFORE 4.4.2's extraction to pin existing behavior.
+- [ ] **4.4.2** [GREEN] Extract `use-app-toast-controller.ts` out of `NotificationToasts.tsx` (Decision
+  H): the ledger and `push`/`remove` callbacks move into the hook; the `.tsx` keeps only the
+  `ToastProvider` and its children render function (CLAUDE.md constraint #1: `.tsx` under `features/` is
+  dumb UI only). JSDoc required on all declarations (CLAUDE.md constraint #6).
+- [ ] **4.4.3** [RED] Write a regression test asserting `frontend/src/app/NotificationToasts.tsx` remains
+  exactly a one-line re-export (`export { NotificationToasts } from
+  '../features/notifications/ui/NotificationToasts/NotificationToasts'`), never gaining hooks or
+  business logic. Satisfies notifications delta "Shared surface is domain-agnostic and reusable,
+  wherever its files live."
+- [ ] **4.4.4** [RED — MANDATORY "SECOND TOAST ACTION DOES NOT DISAPPEAR" REGRESSION TEST] Modify
+  `NotificationToasts.test.tsx`: through the ACTUAL mounted `ToastProvider` + app-owned queue (not the
+  isolated helper unit test from 4.2.1) — push a two-action notification, assert both actions are
+  present and pressable in the rendered toast region; then push a SECOND toast afterward and assert the
+  first toast's second action is STILL present and pressable (the deterministic guard for the team's
+  flagged Bug B regression risk — a second toast must not evict or hide the first one's actions).
+- [ ] **4.4.5** [GREEN] Wire `NotificationToasts.tsx`'s `ToastProvider` `queue` prop to the
+  `app-toast-queue.ts` instance and its children render function to `actions.map(...)` → one
+  `ToastActionButton` per action.
+- [ ] **4.4.6** [RED] Extend `use-backend-event-resolver.test.ts`: a `notification.archived` event for a
+  currently-live toast's `recordId` calls the controller's `remove(...)`. Satisfies design §3 Decision G.
+- [ ] **4.4.7** [GREEN] Modify `use-backend-event-resolver.ts` to subscribe to `notification.archived`
+  and call `remove(recordId)` — routed through the event bus the module already subscribes to, never a
+  direct cross-feature import (Decision G; keeps CLAUDE.md's ban on business logic in
+  `frontend/src/app/**` satisfied).
+- [ ] **4.4.8** [RED] Write a Go test on `app_notification_center.go`'s `ArchiveNotifications`: after a
+  successful archive, a Wails runtime event named `notification.archived` is emitted carrying the
+  archived ids. Locate the repo's existing test-double pattern for `runtime.EventsEmit` call sites first
+  (`grep -rn EventsEmit` for precedent) and reuse it rather than inventing a new harness.
+- [ ] **4.4.9** [GREEN] Modify `app_notification_center.go`'s `ArchiveNotifications`: after
+  `Store.Archive` succeeds, call `runtime.EventsEmit(ctx, "notification.archived", ids)`.
+
+### 4.5 Implementation — Toast "View Details" Navigation (Task-Planning Note C)
+
+- [ ] **4.5.1** [RED] Write a test asserting a toast carrying a non-empty `recordId` renders a "View
+  details" action that, when pressed, navigates to `/notifications` scoped to that `recordId` (e.g. via
+  a query param or router state the `NotificationCenterPanel` reads to auto-open the matching row).
+  Satisfies notifications delta "The persistedId enables opening the matching Center record."
+- [ ] **4.5.2** [GREEN] Wire the affordance inside `NotificationToasts.tsx`'s render function (bounded
+  cost — this module already owns exactly two `toast.*` call sites per Decision F, and this is additive
+  to the same render function, not a new component).
+
+### 4.6 Implementation — Detail Pane
+
+- [ ] **4.6.1** [RED] Write `NotificationDetail`/`NotificationDetailRow` component tests:
+  - a row renders cover+name / status / detail / action (the single bounded row-list block). Satisfies
+    "A download run's manual links become individually identified rows" at the render level (producer
+    side lands in Slice 6; this proves the renderer handles the shape).
+  - a row carrying `collapsedCount > 0` renders exactly ONE summary line, never N rows. Satisfies
+    "Uneventful rows collapse into a single summary line."
+  - no row's serialized/rendered model carries an image-byte field — cover resolves at render time via
+    `getAnimeCover`, falling back to `CoverPlaceholderScene` when absent. Satisfies "A row never carries
+    embedded image bytes."
+- [ ] **4.6.2** [GREEN] Implement `NotificationDetail.tsx` + `NotificationDetailHeader.tsx` +
+  `NotificationDetailRows.tsx` + `NotificationDetailRow.tsx` + `use-notification-action.ts` (wires the
+  press handler to `ExecuteNotificationAction` — the button disables optimistically on press; until
+  Slice 5 registers real intents, every press resolves `intent_unregistered`, itself a designed, tested
+  state) + `notification-detail.helpers.ts` / `.types.ts`. Design §9.1, §9.2.
+
+### 4.7 Testing & Verification
+
+- [ ] **4.7.1** [MUTATE] Stryker automatic via `lefthook.yml` on staged Slice 4 frontend files — confirm
+  it ran. Run `go run ./tools/mutationstaged` over the small Go diff in 4.4.9 (the `EventsEmit` call).
+- [ ] **4.7.2** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
+
+**Rollback:** `git revert`; the detail pane disappears; Bug A and Bug B revert to their pre-existing
+broken production state (not a new one).
+
+---
+
+## Slice 5 — PendingIntent Actions
+
+**Leaves the app working because:** actions become live; an unregistered/empty registry state is itself
+the tested rollback kill switch.
+**Forecast:** 500–700 lines.
+
+### 5.1 Infrastructure
+
+- [ ] **5.1.1** [RED] Write `internal/notification/center/intent_registry_test.go`:
+  - `TestEmptyRegistryResolveReturnsNotFoundWithoutPanic` — `Resolve` on a fresh `StaticRegistry` with
+    zero registrations returns not-found for any key.
+  - **`TestDownloadRetryRunAbsentFromRegistryKeys`** [[MANDATORY]] — build a `StaticRegistry` with the
+    three real intents registered exactly as the composition root would (`download.run_anime`,
+    `schedule.run_missed_now`, `schedule.ignore_missed`); call `.Keys()`; assert
+    `"download.retry_run"` is NOT among them — asserted against LIVE registry state, never a source
+    grep. Satisfies notification-actions spec "`download.retry_run` is absent from the registry."
+  - `TestDownloadCompletionActionResolvesToRunAnime` — an action labeled "Run this anime again" carries
+    intent key `download.run_anime`, not any retry-shaped key. Satisfies "A download completion action
+    resolves to `download.run_anime`."
+- [ ] **5.1.2** [GREEN] Implement `internal/notification/center/intent_registry.go`: `StaticRegistry`,
+  `NewStaticRegistry`, `Register`, `Resolve`, `Keys()` (sorted), `SingleFireFunc`. Design §5.4.
+
+### 5.2 Implementation — Store Extensions (Decision D)
+
+- [ ] **5.2.1** [RED] Extend `sqlite_store_lifecycle_test.go`:
+  - `TestStampRefusedPersistsReasonAcrossRestart` — `StampRefused`, construct a NEW `Store` over the
+    same DB (simulated restart), `LoadAction` returns the same `RefusedReason` — proves "permanently
+    disabled" survives a restart (Decision D).
+  - `TestArgsJSONNeverUpdatedByAnyStatement` — round-trip: `Action.Args` after `StampExecuted` is
+    byte-identical to `Args` at creation time. Satisfies notification-actions spec "An action's args
+    cannot be altered after creation."
+  - `TestActionValidatedIdenticallyRegardlessOfElapsedTime` — an action created with an artificially old
+    `CreatedAtMS` on its owning record still executes/refuses exactly as a freshly-created one would; no
+    elapsed-time check causes a refusal. Satisfies "An action pressed long after creation, with its
+    record still present, resolves normally."
+- [ ] **5.2.2** [GREEN] Extend `internal/notification/center/sqlite_store_lifecycle.go`: `LoadAction`,
+  `StampExecuted`, `StampRefused`.
+
+### 5.3 Implementation — Executor
+
+- [ ] **5.3.1** [RED] Write `internal/notification/center/executor_test.go` — one test per refusal
+  reason, each using a spy `IntentHandler` asserting INVOCATION COUNTS:
+  - `TestExecuteForeignActionRefusedPreResolution` — `actionID` belongs to record A, pressed as B;
+    refused `foreign_action`; the spy registry/handler records ZERO calls (no registry lookup, no
+    handler invocation). Satisfies "An action from a foreign record is refused."
+  - `TestExecuteAlreadyExecutedRefusedHandlerNotReinvoked` — second press of an already-executed,
+    non-repeatable action; handler invocation count stays at 1. Satisfies "A second press of an
+    already-executed action is refused, without re-invoking the handler."
+  - `TestExecuteIntentUnregisteredRefusedNoHandlerInvoked` — registry returns not-found; handler
+    invocation count is 0. Satisfies "An unregistered intent is refused before reaching a handler."
+  - `TestExecuteTargetMissingWhenHandlerReturnsErrTargetMissing` — handler returns `ErrTargetMissing`;
+    refusal `target_missing`; `StampRefused` called. Satisfies "A deleted target entity is refused, not
+    silently no-op'd, not crashed."
+  - `TestExecuteUnrecognisedHandlerErrorMapsToTargetMissing` [[Decision C defense-in-depth]] — handler
+    returns an arbitrary non-`ErrTargetMissing` error; `Execute` still returns exactly one of the four
+    closed reasons (`target_missing`), never a fifth value.
+  - `TestExecuteEmptyRegistryNeverPanics` — `Executor` built with `NewStaticRegistry()` (zero handlers);
+    every press returns `intent_unregistered` without panicking. Satisfies "An empty registry refuses
+    every action, without crashing" — this is the Slice 5 kill switch, verified directly.
+  - `TestExecuteFirstPressSucceedsAndStampsExecutedAtMs` — happy path: handler returns `nil`,
+    `executedAtMs` stamped, result reports success. Satisfies "A first press succeeds and stamps
+    executedAtMs."
+  - `TestRefusalReasonIsAlwaysOneOfExactlyFour` — a table test iterating every failure path above and
+    asserting the returned `Reason` is always a member of the closed 4-value set. Satisfies "A refusal
+    is always one of exactly four reasons."
+- [ ] **5.3.2** [GREEN] Implement `internal/notification/center/executor.go`: `ExecuteResult`,
+  `Executor`, `NewExecutor(store, registry)`, `Execute` implementing the fixed validation order per
+  design §5.7's note — (a) foreign-action check, (b) already-executed check (answerable from the same
+  loaded row as (a)), (c) registry resolve, (d) handler invocation with unrecognised-error mapping to
+  `target_missing`.
+
+### 5.4 Implementation — Composition Root Wiring
+
+- [ ] **5.4.1** [RED] Write `app_notification_center_intents_test.go`: `registerNotificationIntents()`
+  registers `download.run_anime` only when `a.downloadService != nil`; registers
+  `schedule.run_missed_now`/`schedule.ignore_missed` only when `a.downloadScheduler != nil`. Assert
+  absence when the field is `nil`, presence when non-nil, against stub/fake subsystems. Design §3
+  Decision C.
+- [ ] **5.4.2** [GREEN] Implement `registerNotificationIntents() *center.StaticRegistry` in
+  `app_notification_center.go`; add `ExecuteNotificationAction(notificationID int64, actionID string)
+  contracts.NotificationActionResult` binding (constructs the result from `Executor.Execute`). Add
+  `notificationCenterExecutor *center.Executor` to `app.go`, constructed AFTER `app.go:243`'s
+  `startDownloadOrchestration` call (design §5.8 — the download service and scheduler must exist before
+  their intents can be registered). Add `NotificationActionResult` to
+  `internal/api/contracts/notification_center.go` and its frontend mirror
+  `notification-center.types.ts` (deferred from Slice 2 per Task-Planning Note A).
+- [ ] **5.4.3** [RED] Write `app_download_test.go` (or a colocated new test file):
+  `TestRunMissedScheduleNowAndEquivalentActionTokenInvokeSameHandler` — a shared spy handler is invoked
+  identically whether triggered via the pre-existing `RunMissedScheduleNow` binding or via a pressed
+  action token carrying `schedule.run_missed_now` with equivalent args. Satisfies "The same token
+  resolves identically from every carrier" and "The existing binding and an equivalent action token
+  invoke the same handler."
+- [ ] **5.4.4** [GREEN] Modify `app_download.go`'s `RunMissedScheduleNow` (lines 293-298) and
+  `IgnoreMissedSchedule` (lines 300-306) to route through the registered handler (via the registry) so
+  both paths converge on one handler — never a second, independent code path.
+
+### 5.5 Implementation — Frontend Refusal Rendering
+
+- [ ] **5.5.1** [GREEN] Modify `NotificationDetailRow.tsx` / `use-notification-action.ts` (built inert
+  in Slice 4) to render the real `refusedReason`/`executedAtMs` now meaningfully returned by
+  `ExecuteNotificationAction`, permanently disabling the button on any non-empty `refusedReason` or
+  `executedAtMs`.
+
+### 5.6 Testing & Verification
+
+- [ ] **5.6.1** [MUTATE] Run `go run ./tools/mutationstaged`, explicitly confirming the validation-order
+  branches in `Execute` (a→b→c→d) are fully killed — CLAUDE.md #16 flags validation-order branches as a
+  known high-value mutation target for this kind of code.
+- [ ] **5.6.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate).
+
+**Rollback:** No revert needed. The kill switch is the registry itself: `registerNotificationIntents()`
+returning an empty `StaticRegistry` makes every press refuse with `intent_unregistered`, a designed and
+already-tested state (5.1.1, 5.3.1).
+
+---
+
+## Slice 6 — Producer Enrichment + Spec Reconciliation
+
+**Leaves the app working because:** this only changes what a notification's `Body`/`Rows` say, never
+its delivery mechanism.
+**Forecast:** 450–650 lines (the Notification struct extension from Task-Planning Note B adds ~60-100
+lines beyond the original 400-600 estimate).
+
+### 6.1 Infrastructure — Notification Struct Extension (Task-Planning Note B)
+
+- [ ] **6.1.1** [RED] Write `internal/notification/notifier_test.go` (or extend the existing test file
+  if one exists — check first): `TestNotificationZeroValueRowsAndActionsAreNil` — a `Notification{}`
+  zero value has `Rows == nil` and `Actions == nil`. Regression coverage: run the FULL existing
+  `internal/notification` test suite unmodified to confirm the four adapter files still compile and
+  behave identically with the new optional fields present but unset.
+- [ ] **6.1.2** [GREEN] Modify `internal/notification/notifier.go`: add `DetailItem` struct (`RefType`,
+  `RefID`, `Name`, `Status`, `Detail`, `CollapsedCount`), `ActionSpec` struct (`Label`, `Intent`,
+  `Args`), and two new optional fields on `Notification`: `Rows []DetailItem`, `Actions []ActionSpec`.
+  Per Task-Planning Note B, these are neutral in-package types — no new import for
+  `internal/notification`.
+- [ ] **6.1.3** [RED] Write `internal/notification/center/service_test.go` (extend):
+  `TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord` — a `Notification` carrying 2
+  `DetailItem`s and 1 `ActionSpec` persists a `Record` whose `Rows`/`Actions` reflect them, with a
+  freshly generated `Action.ID`.
+- [ ] **6.1.4** [GREEN] Modify `internal/notification/center/service.go`'s `Notify`: convert
+  `n.Rows`/`n.Actions` into `Record.Rows`/`Record.Actions` before calling `InsertRecord`.
+
+### 6.2 Implementation — Download Producer Sites
+
+- [ ] **6.2.1** [RED] Write a test (new file or extend `internal/download/service_test.go`): a completed
+  run with `ManualLinks` entries (`internal/download/store.go:76-86`) produces `Notification.Rows` with
+  one `DetailItem` per manual-link entry naming the specific anime and episode; `Body` no longer relies
+  on "see run details" as the only identification. Covers the three sites at `service.go:385,388,391`.
+  Satisfies "A download run's manual links become individually identified rows."
+- [ ] **6.2.2** [GREEN] Modify `internal/download/service.go` lines 385, 388, 391: build
+  `[]notification.DetailItem` from `run.ManualLinks` and the failed-episode list; attach via
+  `Notification.Rows` alongside the existing `Title`/`Body` composition (wording may stay similar, but
+  MUST NOT be the sole identification mechanism).
+- [ ] **6.2.3** [RED] Write a test on `internal/download/service_single_anime.go`'s failure ladder (lines
+  43-48): the single-anime path attaches an equivalent `DetailItem` for the one anime/episode involved.
+- [ ] **6.2.4** [GREEN] Modify `internal/download/service_single_anime.go` lines 43-48 accordingly.
+- [ ] **6.2.5** [RED] Write a test: uneventful anime collapse into ONE summary row (`CollapsedCount > 0`,
+  literal expected count) while failed/manual anime each keep their own row. Satisfies "Uneventful rows
+  collapse into a single summary line."
+- [ ] **6.2.6** [GREEN] Implement the collapse helper (e.g. `buildRunDetailRows(run)` colocated in
+  `internal/download`, since `internal/download` already imports `internal/notification` and MAY depend
+  on the neutral `notification.DetailItem` type without creating a new dependency direction).
+
+### 6.3 Implementation — Season Availability Producer Site
+
+- [ ] **6.3.1** [RED] Write a test on `app_season_availability.go` (new colocated test file or extend the
+  existing one): an N-anime-available notification produces N individually-referenceable `DetailItem`
+  rows (`{RefType: "anime", RefID: ...}`) instead of the single comma-joined sentence at line 348;
+  neither `Body` nor `Rows` relies on `strings.Join(names, ", ")` as the sole identification. Satisfies
+  "Season availability produces one row per anime instead of one comma-joined sentence."
+- [ ] **6.3.2** [GREEN] Modify `app_season_availability.go` lines 342-353 to build
+  `[]notification.DetailItem` (one per anime) and attach via `Notification.Rows`.
+
+### 6.4 Documentation And Spec Reconciliation
+
+- [ ] **6.4.1** [DOC] Merge the already-drafted delta at
+  `openspec/changes/2026-08-23-sdd-60-notification-center/specs/notifications/notifications.md` into the
+  live `openspec/specs/notifications/notifications.md` at lines 66 and 77 — replace the file-path-literal
+  wording with the structural-invariant wording already fixed in this change's delta spec. This is the
+  proposal §4 mandatory drift reconciliation (S-16 / R-8).
+- [ ] **6.4.2** [DOC] Add a superseded-sections banner to `docs/notification-center-proposal.md` over
+  §7, §8, §16.3, §19.1, §37, pointing readers to `design.md` instead (R-8 mitigation).
+- [ ] **6.4.3** [DOC] Run `node scripts/log-lesson.mjs "<one-line lesson>"` to append
+  `docs/learning-log.md` — NEVER hand-edit the file (CLAUDE.md #17). Suggested lesson content: the
+  design gap found and resolved for producer-attached rows/actions (Task-Planning Note B), stated in
+  ≤300 characters.
+
+### 6.5 Testing & Verification
+
+- [ ] **6.5.1** [TEST] Write a table test over the four enriched producer sites plus season availability
+  asserting no emitted `Notification.Body` string contains the literal substring "see run details"
+  anymore.
+- [ ] **6.5.2** [MUTATE] Run `go run ./tools/mutationstaged` over Slice 6's staged Go lines — the
+  row-building and collapse-threshold branches are the natural mutation targets.
+- [ ] **6.5.3** [VERIFY] Confirm `docs/openapi.yaml` and the mobile-sync contract show NO diff across the
+  entire six-slice chain (`git diff main -- docs/openapi.yaml` and the equivalent mobile contract path);
+  record this as a POSITIVE finding in the slice report (R-7), not as an omission.
+- [ ] **6.5.4** [GATE] `go test ./...` full green; `bun --cwd="frontend" run render:smoke`; `git commit`
+  (full pre-commit gate, ≥300 000 ms).
+
+**Rollback:** `git revert`; producers return to their `"see run details"` wording. Rows already
+persisted by earlier slices keep whatever structure they were written with — no migration is performed
+or undone.
+
+---
+
+## Whole-Change Rollback
+
+Revert the six (seven, counting the 3a/3b split) slice commits in reverse order. The only durable
+residue is the inert `notification_records`/`notification_record_actions` tables and their accumulated
+rows — harmless, droppable later via an explicit, separately-reviewed migration if ever desired. No
+existing table, column, or wire contract is modified by this change at any point in the chain.
+
+## Traceability Confirmation
+
+All 61 spec scenarios (34 `notification-center` + 15 `notification-actions` + 7 `notifications` delta +
+5 `desktop-navigation` delta) are cited against a specific task above. The three Task-Planning Notes
+(A: file/slice placement synthesis, B: `Notification` struct extension, C: toast "view details"
+affordance) are the only points where this document made an explicit call design left implicit —
+flagged for confirmation rather than silently absorbed, per CLAUDE.md #2's drift-documentation
+requirement.

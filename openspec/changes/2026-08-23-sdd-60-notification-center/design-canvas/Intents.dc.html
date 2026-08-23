@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    .mono { font-family: ui-monospace, Consolas, monospace; }
+    .panel { background: #18181B; border: 1px solid #27272A; border-radius: 18px; padding: 16px 18px; }
+    .label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #62626C; margin: 0 0 11px; }
+    .code { background: #09090B; border: 1px solid #27272A; border-radius: 12px; padding: 12px 14px; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; line-height: 1.75; color: #D4D4D8; }
+    .k { color: #9F9FA9; }
+    .s { color: #17C964; }
+    .c { color: #52525B; }
+    .reg { display: flex; align-items: center; gap: 10px; background: #09090B; border: 1px solid #27272A; border-radius: 10px; padding: 8px 11px; font-size: 11.5px; font-family: ui-monospace, Consolas, monospace; }
+    .carrier { flex: 1; background: #09090B; border: 1px solid #27272A; border-radius: 13px; padding: 12px 13px; text-align: center; }
+    .prop { flex: 1; background: #18181B; border: 1px solid #27272A; border-radius: 14px; padding: 13px 15px; }
+  </style>
+</helmet>
+
+<div style="width: 1560px; height: 840px; padding: 26px 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 15px;">
+
+  <header>
+    <h1 style="margin: 0 0 4px; font-size: 23px; font-weight: 600; letter-spacing: -0.02em;">One operation, many carriers</h1>
+    <p style="margin: 0; font-size: 13px; color: #9F9FA9;">A notification is not the author of an action. It is the <strong style="color: #FCFCFC;">carrier</strong> of a token pointing at an operation the app already registered &mdash; Android's PendingIntent, applied here.</p>
+  </header>
+
+  <div style="display: flex; gap: 15px; align-items: stretch;">
+
+    <!-- REGISTRY -->
+    <div class="panel" style="width: 470px; flex-shrink: 0;">
+      <p class="label">1 &middot; The app owns the registry</p>
+      <p style="margin: 0 0 11px; font-size: 11.5px; line-height: 1.6; color: #9F9FA9;">Each bounded context registers its own operations as the app comes up. Notifications do not own this list &mdash; they are one consumer of it.</p>
+
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div class="reg"><span style="color: #0385F7;">download.run_anime</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #9F9FA9;">Service.RunAnime</span></div>
+        <div class="reg"><span style="color: #0385F7;">download.run_once</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #9F9FA9;">Service.RunOnce</span></div>
+        <div class="reg"><span style="color: #0385F7;">schedule.run_missed</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #9F9FA9;">missed-schedule use case</span></div>
+        <div class="reg"><span style="color: #0385F7;">schedule.ignore_missed</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #9F9FA9;">missed-schedule use case</span></div>
+        <div class="reg"><span style="color: #0385F7;">navigation.open</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #9F9FA9;">route</span></div>
+        <div class="reg" style="border-style: dashed; border-color: #3F3F46;"><span style="color: #52525B;">download.retry_run</span><span style="color: #3F3F46;">&rarr;</span><span style="color: #DB3B3E;">nothing. never registered.</span></div>
+      </div>
+
+      <p style="margin: 11px 0 0; font-size: 11px; line-height: 1.55; color: #62626C;">The shape already exists in this repo &mdash; <span class="mono">SiteRegistry</span> / <span class="mono">StaticRegistry</span> in <span class="mono">internal/download/registry.go</span>.</p>
+    </div>
+
+    <!-- TOKEN -->
+    <div class="panel" style="flex: 1; border-color: rgba(3,133,247,0.35);">
+      <p class="label" style="color: #0385F7;">2 &middot; The record stores tokens, not buttons &mdash; at two levels</p>
+      <div class="code">
+<span class="c">// about the whole notification</span>
+<span class="k">"actions"</span>: [{
+  <span class="k">"label"</span>:  <span class="s">"Open Downloads"</span>,        <span class="c">// copy. changeable.</span>
+  <span class="k">"intent"</span>: <span class="s">"navigation.open"</span>,       <span class="c">// a key. resolved on press.</span>
+  <span class="k">"args"</span>:   { <span class="k">"route"</span>: <span class="s">"/downloads"</span> } <span class="c">// bound now. immutable.</span>
+}],
+
+<span class="c">// about one row of the list</span>
+<span class="k">"items"</span>: [{
+  <span class="k">"entity"</span>:  { <span class="k">"type"</span>: <span class="s">"anime"</span>, <span class="k">"id"</span>: <span class="s">"a-4417"</span> },
+  <span class="k">"status"</span>:  <span class="s">"stopped"</span>,
+  <span class="k">"detail"</span>:  <span class="s">"episode 16 failed on every hoster"</span>,
+  <span class="k">"actions"</span>: [{
+    <span class="k">"label"</span>:  <span class="s">"Run this anime again"</span>,
+    <span class="k">"intent"</span>: <span class="s">"download.run_anime"</span>,
+    <span class="k">"args"</span>:   { <span class="k">"animeId"</span>: <span class="s">"a-4417"</span> }
+  }]
+}]</div>
+      <p style="margin: 11px 0 0; font-size: 11.5px; line-height: 1.6; color: #9F9FA9;">Same token shape either way. A row's action is not a special case &mdash; it is the same immutable address, bound to that row's entity. Nothing executable is stored at either level, which is why both survive a restart.</p>
+    </div>
+  </div>
+
+  <!-- CARRIERS -->
+  <div class="panel">
+    <p class="label">3 &middot; The carrier is ignorant &mdash; and there is already more than one</p>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <div class="carrier" style="border-color: rgba(3,133,247,0.35); background: rgba(3,133,247,0.07);">
+        <p style="margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #FCFCFC;">Notification Center</p>
+        <p style="margin: 0; font-size: 10.5px; color: #62626C;">the detail pane</p>
+      </div>
+      <div class="carrier" style="border-color: rgba(3,133,247,0.35); background: rgba(3,133,247,0.07);">
+        <p style="margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #FCFCFC;">Toast</p>
+        <p style="margin: 0; font-size: 10.5px; color: #62626C;">same token, shorter life</p>
+      </div>
+      <div class="carrier">
+        <p style="margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #D4D4D8;">Wails methods</p>
+        <p style="margin: 0; font-size: 10.5px; color: #62626C;" class="mono">RunMissedScheduleNow</p>
+      </div>
+      <div class="carrier">
+        <p style="margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #D4D4D8;">Tray</p>
+        <p style="margin: 0; font-size: 10.5px; color: #62626C;" class="mono">internal/tray</p>
+      </div>
+      <div class="carrier" style="border-style: dashed; border-color: #3F3F46;">
+        <p style="margin: 0 0 3px; font-size: 12px; font-weight: 600; color: #52525B;">Deep link</p>
+        <p style="margin: 0; font-size: 10.5px; color: #52525B;">none today</p>
+      </div>
+    </div>
+    <p style="margin: 11px 0 0; font-size: 11.5px; line-height: 1.6; color: #9F9FA9;">None of them knows what the operation does. That ignorance is the feature: it is what stops every new surface from re-deriving the same five buttons.</p>
+  </div>
+
+  <!-- PROPERTIES -->
+  <div style="display: flex; gap: 12px;">
+    <div class="prop" style="border-left: 3px solid #0385F7;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">Resolved on press, not on create</p>
+      <p style="margin: 0; font-size: 11px; line-height: 1.55; color: #9F9FA9;">This dissolves the ordering problem outright. It no longer matters that the notifier is built at <span class="mono">app_startup_runtime.go:139</span> while the download service does not exist until <span class="mono">app.go:243</span> &mdash; creating a token resolves nothing.</p>
+    </div>
+    <div class="prop" style="border-left: 3px solid #17C964;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">Arguments are frozen at creation</p>
+      <p style="margin: 0; font-size: 11px; line-height: 1.55; color: #9F9FA9;">Android calls this <span class="mono">FLAG_IMMUTABLE</span>. Whoever holds the token may fire it; nobody may rewrite it. An unregistered intent is refused, so a stored string can never reach a shell, a URL, or a method by name.</p>
+    </div>
+    <div class="prop" style="border-left: 3px solid #17C964;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">The duplicate route disappears</p>
+      <p style="margin: 0; font-size: 11px; line-height: 1.55; color: #9F9FA9;"><span class="mono">RunMissedScheduleNow</span> and <span class="mono">IgnoreMissedSchedule</span> stop being a rival path and become another carrier of the same registered intent. One operation, many holders &mdash; nothing to pick a winner between.</p>
+    </div>
+  </div>
+
+  <div style="background: #18181B; border: 1px solid #27272A; border-left: 3px solid #DB3B3E; border-radius: 14px; padding: 12px 15px; margin-top: auto;">
+    <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;"><strong style="color: #FCFCFC;">The one thing the pattern will not do for you:</strong> you cannot hold a token to something that does not exist. <span class="mono">grep -rn "Retry" internal/download/</span> returns zero non-test hits &mdash; the service is <span class="mono">RunOnce</span> and <span class="mono">RunAnime</span>, nothing else. A registry makes that impossible to fake, which is the point.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

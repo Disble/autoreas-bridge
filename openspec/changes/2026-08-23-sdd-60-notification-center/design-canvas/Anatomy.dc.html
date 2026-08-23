@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    .mono { font-family: ui-monospace, Consolas, monospace; }
+    .panel { background: #18181B; border: 1px solid #27272A; border-radius: 18px; padding: 16px 18px; }
+    .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: #62626C; margin: 0 0 11px; }
+    .caption { margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9; }
+    .item { display: flex; gap: 11px; padding: 10px; border-radius: 13px; background: #09090B; border: 1px solid #27272A; }
+    .thumb { position: relative; width: 44px; height: 44px; flex-shrink: 0; border-radius: 9px; overflow: hidden; }
+    .chip { display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px; font-size: 10.5px; font-weight: 500; flex-shrink: 0; }
+    .act { display: inline-flex; align-items: center; gap: 5px; height: 25px; padding: 0 10px; border-radius: 7px; font-size: 11px; font-weight: 500; background: #18181B; border: 1px solid #27272A; color: #0385F7; }
+    .kindchip { font-family: ui-monospace, Consolas, monospace; font-size: 9.5px; background: #09090B; border: 1px solid #27272A; border-radius: 5px; padding: 2px 6px; color: #9F9FA9; }
+  </style>
+</helmet>
+
+<div style="width: 1560px; height: 1000px; padding: 26px 30px; box-sizing: border-box; display: flex; flex-direction: column; gap: 15px;">
+
+  <header>
+    <h1 style="margin: 0 0 4px; font-size: 23px; font-weight: 600; letter-spacing: -0.02em;">One block: the things it is about</h1>
+    <p style="margin: 0; font-size: 13px; color: #9F9FA9;">A count answers &ldquo;how many&rdquo;. Nobody asks that. They ask <strong style="color: #FCFCFC;">which ones</strong> &mdash; so the block is a list of the actual anime, and the count goes back to being a sentence.</p>
+  </header>
+
+  <div style="display: flex; gap: 15px; align-items: stretch;">
+
+    <!-- THE ROW -->
+    <div class="panel" style="width: 560px; flex-shrink: 0;">
+      <p class="eyebrow">The row &mdash; four things, always</p>
+
+      <div style="position: relative;">
+        <div class="item" style="border-color: rgba(3,133,247,0.4);">
+          <div class="thumb">
+            <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+              <defs><linearGradient id="t1s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient><linearGradient id="t1w" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0d1a33"/><stop offset="1" stop-color="#070d1c"/></linearGradient></defs>
+              <rect fill="url(#t1s)" height="94" width="96" y="0"/><rect fill="url(#t1w)" height="34" width="96" y="94"/>
+              <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+              <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/><line stroke-width="2.5" x1="20" x2="20" y1="60" y2="94"/><line stroke-width="2.5" x1="76" x2="76" y1="60" y2="94"/></g>
+              <rect fill="#05070f" height="4" width="96" y="90"/>
+            </svg>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tensei shitara Slime Datta Ken 4th Season</span>
+              <span class="chip" style="background: rgba(247,183,80,0.15); color: #F7B750;">Stopped</span>
+            </div>
+            <p style="margin: 0 0 7px; font-size: 11px; line-height: 1.5; color: #9F9FA9;">Episodes 1&ndash;2 downloaded &middot; episode 3 failed on every hoster &middot; 4&ndash;12 not attempted</p>
+            <span class="act">Run this anime again</span>
+          </div>
+        </div>
+
+        <div style="position: absolute; top: 14px; left: -6px; width: 6px; height: 1px; background: #DB3B3E;"></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 13px;">
+        <div style="display: flex; gap: 9px; align-items: baseline;"><span style="flex-shrink: 0; width: 16px; height: 16px; border-radius: 999px; background: #27272A; color: #9F9FA9; font-size: 9px; font-weight: 700; display: grid; place-items: center;">1</span><p class="caption"><strong style="color: #FCFCFC;">Which one it is.</strong> Cover art and the real name &mdash; the same 4:3-ish thumb and title the Today screen already uses.</p></div>
+        <div style="display: flex; gap: 9px; align-items: baseline;"><span style="flex-shrink: 0; width: 16px; height: 16px; border-radius: 999px; background: #27272A; color: #9F9FA9; font-size: 9px; font-weight: 700; display: grid; place-items: center;">2</span><p class="caption"><strong style="color: #FCFCFC;">What happened to it,</strong> as a status word, not a colour alone.</p></div>
+        <div style="display: flex; gap: 9px; align-items: baseline;"><span style="flex-shrink: 0; width: 16px; height: 16px; border-radius: 999px; background: #27272A; color: #9F9FA9; font-size: 9px; font-weight: 700; display: grid; place-items: center;">3</span><p class="caption"><strong style="color: #FCFCFC;">The specific detail</strong> &mdash; which episodes, which blocker. This is the line the old bar could never carry.</p></div>
+        <div style="display: flex; gap: 9px; align-items: baseline;"><span style="flex-shrink: 0; width: 16px; height: 16px; border-radius: 999px; background: #27272A; color: #9F9FA9; font-size: 9px; font-weight: 700; display: grid; place-items: center;">4</span><p class="caption"><strong style="color: #FCFCFC;">The thing you would do next,</strong> per row &mdash; each one carries its own intent.</p></div>
+      </div>
+    </div>
+
+    <!-- SAME COMPONENT, FOUR KINDS -->
+    <div class="panel" style="flex: 1;">
+      <p class="eyebrow">The same component, wherever the notification came from</p>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+
+        <div class="item">
+          <div class="thumb">
+            <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+              <defs><linearGradient id="t2s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+              <rect fill="url(#t2s)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+              <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+              <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+            </svg>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tenmaku no Jaadugar</span>
+              <span class="chip" style="background: rgba(247,183,80,0.15); color: #F7B750;">Manual</span>
+            </div>
+            <p style="margin: 0 0 7px; font-size: 11px; color: #9F9FA9;">Episode 7 &middot; JDownloader was offline &middot; 2 hosters available</p>
+            <div style="display: flex; gap: 6px;">
+              <span class="act"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5h10"/></svg>Copy hoster 1</span>
+              <span class="act"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5h10"/></svg>Copy hoster 2</span>
+            </div>
+          </div>
+          <span class="mono" style="flex-shrink: 0; font-size: 9px; color: #3F3F46; align-self: flex-start;">jdownloader_offline</span>
+        </div>
+
+        <div class="item">
+          <div class="thumb">
+            <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+              <defs><linearGradient id="t3s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+              <rect fill="url(#t3s)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+              <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+              <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+            </svg>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Nijuuseiki Denki Mokuroku: Eureka</span>
+              <span class="chip" style="background: rgba(247,183,80,0.15); color: #F7B750;">Blocked</span>
+            </div>
+            <p style="margin: 0 0 7px; font-size: 11px; color: #9F9FA9;">Missing source &mdash; it will be skipped on every scheduled run until you set one</p>
+            <span class="act">Open in editor</span>
+          </div>
+          <span class="mono" style="flex-shrink: 0; font-size: 9px; color: #3F3F46; align-self: flex-start;">readiness_attention</span>
+        </div>
+
+        <div class="item">
+          <div class="thumb">
+            <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+              <defs><linearGradient id="t4s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+              <rect fill="url(#t4s)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+              <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+              <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+            </svg>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Sousou no Frieren 2nd Season</span>
+              <span class="chip" style="background: rgba(3,133,247,0.15); color: #0385F7;">New</span>
+            </div>
+            <p style="margin: 0 0 7px; font-size: 11px; color: #9F9FA9;">Available this season &mdash; not in your catalog yet</p>
+            <span class="act">Create it</span>
+          </div>
+          <span class="mono" style="flex-shrink: 0; font-size: 9px; color: #3F3F46; align-self: flex-start;">season.anime_available</span>
+        </div>
+
+        <div class="item">
+          <div class="thumb">
+            <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+              <defs><linearGradient id="t5s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+              <rect fill="url(#t5s)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+              <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+              <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+            </svg>
+          </div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tensei shitara Slime Datta Ken 4th Season</span>
+              <span class="chip" style="background: rgba(23,201,100,0.13); color: #17C964;">Downloaded</span>
+            </div>
+            <p style="margin: 0; font-size: 11px; color: #9F9FA9;">Episodes 14&ndash;16 &middot; ready to watch</p>
+          </div>
+          <span class="mono" style="flex-shrink: 0; font-size: 9px; color: #3F3F46; align-self: flex-start;">run_completed</span>
+        </div>
+
+        <div style="padding: 8px 11px; border-radius: 11px; border: 1px dashed #27272A; text-align: center; font-size: 11px; color: #62626C;">
+          6 more downloaded without incident &mdash; <span style="color: #0385F7;">show all in Downloads</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RULES -->
+  <div style="display: flex; gap: 13px; flex: 1; min-height: 0;">
+
+    <div class="panel" style="flex: 1; border-left: 3px solid #0385F7;">
+      <p style="margin: 0 0 5px; font-size: 12.5px; font-weight: 700; color: #FCFCFC;">The record stores references, never pictures</p>
+      <p class="caption">A row carries <span class="mono">{ type, id }</span>. The cover is resolved at render through <span class="mono">getAnimeCover</span>, which the Today screen already calls and already caches per session &mdash; falling back to the same night-bridge art. No image ever enters SQLite.</p>
+    </div>
+
+    <div class="panel" style="flex: 1; border-left: 3px solid #F7B750;">
+      <p style="margin: 0 0 5px; font-size: 12.5px; font-weight: 700; color: #FCFCFC;">Rows are bounded, and the boring ones collapse</p>
+      <p class="caption">A run can touch fifty anime. Show what needs attention &mdash; failed, blocked, stopped &mdash; then fold the rest into one line. A notification that lists everything is a log, and we already have one of those.</p>
+    </div>
+
+    <div class="panel" style="flex: 1.5;">
+      <p class="eyebrow" style="margin-bottom: 9px;">Where the four earlier blocks went &mdash; none survive as their own component</p>
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; align-items: baseline; gap: 8px; font-size: 11px;">
+          <span class="mono" style="width: 66px; flex-shrink: 0; color: #DB3B3E; text-decoration: line-through;">segments</span>
+          <span style="color: #3F3F46;">&rarr;</span>
+          <span style="color: #9F9FA9;"><strong style="color: #FCFCFC;">deleted.</strong> The count moved into the body sentence, which already said it.</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 8px; font-size: 11px;">
+          <span class="mono" style="width: 66px; flex-shrink: 0; color: #9F9FA9;">reasons</span>
+          <span style="color: #3F3F46;">&rarr;</span>
+          <span style="color: #9F9FA9;">became the <strong style="color: #FCFCFC;">detail line</strong> of a row &mdash; &ldquo;Missing source&rdquo; now sits under the anime it blocks.</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 8px; font-size: 11px;">
+          <span class="mono" style="width: 66px; flex-shrink: 0; color: #9F9FA9;">links</span>
+          <span style="color: #3F3F46;">&rarr;</span>
+          <span style="color: #9F9FA9;">became <strong style="color: #FCFCFC;">row actions</strong> &mdash; each hoster is a copy intent on the row for that episode.</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 8px; font-size: 11px;">
+          <span class="mono" style="width: 66px; flex-shrink: 0; color: #9F9FA9;">entities</span>
+          <span style="color: #3F3F46;">&rarr;</span>
+          <span style="color: #9F9FA9;">became <strong style="color: #FCFCFC;">the row itself</strong> &mdash; it was always a list of anime, only without cover, status or action.</span>
+        </div>
+      </div>
+      <p class="caption" style="margin-top: 10px;">Three of the four were never separate ideas. They were parts of a row I had not drawn yet.</p>
+    </div>
+
+    <div class="panel" style="flex: 1;">
+      <p class="eyebrow" style="margin-bottom: 8px;">Still no block at all</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+        <span class="kindchip">run_started</span><span class="kindchip">missed_schedule</span><span class="kindchip">device.paired</span><span class="kindchip">sync_health_warning</span><span class="kindchip">anime.operation_failed</span><span class="kindchip">delivery_degraded</span>
+      </div>
+      <p class="caption" style="margin-top: 8px;">Six of fifteen have nothing to list. A sentence and an action are the whole notification.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

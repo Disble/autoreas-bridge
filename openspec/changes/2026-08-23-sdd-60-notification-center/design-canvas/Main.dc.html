@@ -1,0 +1,303 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    .rail-item { display: flex; height: 40px; align-items: center; gap: 12px; border-radius: 8px; padding: 0 10px; color: #9F9FA9; }
+    .rail-item.is-active { background: rgba(3,133,247,0.15); color: #0385F7; }
+    .card { background: #18181B; border-radius: 24px; padding: 16px; }
+    .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 500; }
+    .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    .th { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #52525B; padding: 0 8px; display: flex; align-items: center; gap: 5px; }
+    .tr { display: grid; grid-template-columns: 40px minmax(0, 1fr) 100px 84px; align-items: center; min-height: 62px; border-bottom: 1px solid #1F1F23; }
+    .tr.is-selected { background: rgba(3,133,247,0.10); }
+    .td { padding: 8px; min-width: 0; }
+    .cb { width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid #3F3F46; display: grid; place-items: center; }
+    .cb.on { background: #0385F7; border-color: #0385F7; }
+    .subjects { margin: 0; font-size: 11.5px; line-height: 1.4; color: #62626C; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 900px; overflow: hidden;">
+
+  <aside style="width: 64px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid rgba(39,39,42,0.6); background: rgba(24,24,27,0.4);">
+    <div style="height: 64px; display: flex; align-items: center; padding: 0 12px;">
+      <div style="width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: rgba(3,133,247,0.15); color: #0385F7;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17c3-8 15-8 18 0"></path><circle cx="5" cy="17" r="1.6" fill="currentColor"></circle><circle cx="19" cy="17" r="1.6" fill="currentColor"></circle><path d="M12 4v3"></path>
+        </svg>
+      </div>
+    </div>
+    <nav style="display: flex; flex-direction: column; gap: 4px; padding: 4px 8px; flex: 1;">
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h10M4 18h10"></path><path d="M17.5 5.5l1.6 1.6 3-3"></path></svg></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7.5 11L12 15.5 16.5 11"></path><path d="M4 19h16"></path></svg></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2.5 2.5 0 10-3.5-3.5L4.5 16.5 4 20z"></path></svg></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3.5v3M16 3.5v3"></path></svg></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 108.5-8.5A8.4 8.4 0 006 6.5"></path><path d="M3.5 3.5v4h4"></path><path d="M12 7.5V12l3 2"></path></svg></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3.5v3M16 3.5v3"></path><circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none"></circle></svg></div>
+      <div style="height: 8px;"></div>
+      <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="13" height="10" rx="2"></rect><rect x="16.5" y="9" width="5" height="10" rx="1.6"></rect><path d="M7 19h5"></path></svg></div>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px;">
+        <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3.5l2.5-6 3.5 12 2.5-6H21"></path></svg></div>
+        <div class="rail-item is-active" style="position: relative;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9.5a6 6 0 1112 0c0 3.2.8 5 1.6 6.1.4.6 0 1.4-.7 1.4H5.1c-.7 0-1.1-.8-.7-1.4C5.2 14.5 6 12.7 6 9.5z"></path><path d="M10 20.5a2.2 2.2 0 004 0"></path>
+          </svg>
+          <span style="position: absolute; top: 3px; left: 25px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #0385F7; color: #FCFCFC; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 2px solid #0F0F12;">12</span>
+        </div>
+        <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1v.3a2 2 0 11-4 0v-.2a1.6 1.6 0 00-2.8-1.1l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003.6 15a2 2 0 01-1.8-2 2 2 0 012-2h.2A1.6 1.6 0 005.1 8.3L5 8.2a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3h.1a1.6 1.6 0 001-1.5v-.3a2 2 0 014 0v.2a1.6 1.6 0 002.7 1.2l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8v.1a1.6 1.6 0 001.5 1h.3a2 2 0 010 4h-.2a1.6 1.6 0 00-1.4 1z"></path></svg></div>
+      </div>
+    </nav>
+  </aside>
+
+  <main style="flex: 1; min-width: 0; padding: 32px 40px; display: flex; flex-direction: column; gap: 16px;">
+
+    <header style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
+      <div>
+        <h1 style="margin: 0 0 4px; font-size: 30px; font-weight: 600; letter-spacing: -0.02em;">Notifications</h1>
+        <p style="margin: 0; font-size: 14px; color: #9F9FA9;">12 unread &middot; Warnings and failures stay here after the toast disappears.</p>
+      </div>
+      <button class="btn" style="background: #27272A; color: #FCFCFC; border: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12.5l4 4L14 8"></path><path d="M11 15.5l2 2L21 8.5"></path></svg>
+        Mark all as read
+      </button>
+    </header>
+
+    <!-- Filters — SearchField variant="secondary" (no shadow, for use in a surface) -->
+    <div class="card" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 10px; background: #212126; min-width: 240px; flex: 1;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9F9FA9" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5L21 21"></path></svg>
+        <span style="font-size: 14px; color: #62626C;">Search title and body</span>
+      </div>
+      <div style="display: flex; height: 36px; padding: 3px; border-radius: 10px; background: #09090B; border: 1px solid #27272A; gap: 2px;">
+        <span style="display: grid; place-items: center; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 500; background: #0385F7; color: #FCFCFC;">Active</span>
+        <span style="display: grid; place-items: center; padding: 0 14px; border-radius: 8px; font-size: 13px; color: #9F9FA9;">Unread</span>
+        <span style="display: grid; place-items: center; padding: 0 14px; border-radius: 8px; font-size: 13px; color: #9F9FA9;">Read</span>
+        <span style="display: grid; place-items: center; padding: 0 14px; border-radius: 8px; font-size: 13px; color: #9F9FA9;">Archived</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 36px; padding: 0 12px; border-radius: 10px; background: #09090B; border: 1px solid #27272A; width: 122px;">
+        <span style="font-size: 14px; color: #9F9FA9;">All levels</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#62626C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 36px; padding: 0 12px; border-radius: 10px; background: #09090B; border: 1px solid #27272A; width: 134px;">
+        <span style="font-size: 14px; color: #9F9FA9;">All sources</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#62626C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 600px; gap: 16px; flex: 1; min-height: 0;">
+
+      <!-- TABLE -->
+      <div class="card" style="display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+
+        <!-- selection bar, appears only while rows are selected -->
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(3,133,247,0.10); border-bottom: 1px solid rgba(3,133,247,0.25);">
+          <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC;">2 selected</span>
+          <div style="flex: 1;"></div>
+          <span style="display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 8px; font-size: 12px; font-weight: 500; background: #18181B; border: 1px solid #27272A; color: #D4D4D8;">Mark read</span>
+          <span style="display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border-radius: 8px; font-size: 12px; font-weight: 500; background: #18181B; border: 1px solid #27272A; color: #D4D4D8;">Archive</span>
+          <span style="display: inline-flex; align-items: center; height: 28px; padding: 0 9px; border-radius: 8px; font-size: 12px; color: #62626C;">Clear</span>
+        </div>
+
+        <!-- header -->
+        <div class="tr" style="min-height: 34px; border-bottom: 1px solid #27272A; background: #1C1C20;">
+          <div class="th" style="justify-content: center;"><span class="cb" style="border-color: #52525B;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#52525B" stroke-width="3.4" stroke-linecap="round"><path d="M6 12h12"></path></svg></span></div>
+          <div class="th">Notification</div>
+          <div class="th">Source</div>
+          <div class="th" style="cursor: default;">When
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0385F7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6 6 6-6"></path></svg>
+          </div>
+        </div>
+
+        <!-- rows -->
+        <div class="tr is-selected" style="position: relative;">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb on"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FCFCFC" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 2px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; background: #0385F7; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: underline; text-decoration-style: dotted; text-decoration-color: #3F3F46; text-underline-offset: 3px;">Download stopped before the season&hellip;</span>
+              <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; background: rgba(247,183,80,0.15); color: #F7B750;">Warning</span>
+            </div>
+            <p class="subjects" style="padding-left: 14px; color: #D4D4D8;">Tensei shitara Slime&hellip; &middot; Tenmaku no Jaadugar</p>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">Downloads</span></div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">5m ago</span></div>
+
+          <!-- Tooltip.Content — bg-overlay, radius min(32px, --radius-xl), p-2, text-xs, max-w-xs.
+               Dark mode has no drop shadow, only a 1px inset white hairline. -->
+          <div style="position: absolute; top: 52px; left: 50px; z-index: 5; max-width: 320px; background: #18181B; box-shadow: 0 0 1px 0 rgba(255,255,255,0.3) inset; border-radius: 12px; padding: 8px; font-size: 12px; line-height: 1.45; color: #FCFCFC;">
+            <div style="position: absolute; top: -5px; left: 22px; width: 10px; height: 10px; background: #18181B; transform: rotate(45deg);"></div>
+            Download stopped before the season finished
+          </div>
+        </div>
+
+        <div class="tr is-selected">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb on"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FCFCFC" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 2px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; background: #0385F7; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Scheduled anime need attention</span>
+              <span style="flex-shrink: 0; font-size: 10.5px; font-weight: 600; color: #9F9FA9; background: #27272A; border-radius: 999px; padding: 1px 6px;">3&times;</span>
+            </div>
+            <p class="subjects" style="padding-left: 14px; color: #D4D4D8;">Nijuuseiki Denki Mokuroku &middot; Sousou no Frieren&hellip;</p>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">Downloads</span></div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">26m ago</span></div>
+        </div>
+
+        <div class="tr">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb"></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; background: #0385F7; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Device sync needs attention</span>
+              <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; background: rgba(247,183,80,0.15); color: #F7B750;">Warning</span>
+            </div>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">Devices</span></div>
+          <div class="td"><span style="font-size: 12px; color: #9F9FA9;">yesterday</span></div>
+        </div>
+
+        <div class="tr">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb"></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 2px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid #3F3F46; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 500; color: #9F9FA9; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Download completed</span>
+              <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; background: rgba(23,201,100,0.13); color: #17C964;">Success</span>
+            </div>
+            <p class="subjects" style="padding-left: 14px;">Tensei shitara Slime&hellip; &middot; 6 others</p>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">Downloads</span></div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">yesterday</span></div>
+        </div>
+
+        <div class="tr">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb"></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 2px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid #3F3F46; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 500; color: #9F9FA9; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">4 anime available to create</span>
+              <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; background: rgba(3,133,247,0.15); color: #0385F7;">Info</span>
+            </div>
+            <p class="subjects" style="padding-left: 14px;">Sousou no Frieren&hellip; &middot; Eureka &middot; 2 others</p>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">Season</span></div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">2 days</span></div>
+        </div>
+
+        <div class="tr">
+          <div class="td" style="display: grid; place-items: center;"><span class="cb"></span></div>
+          <div class="td">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 2px;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid #3F3F46; flex-shrink: 0;"></span>
+              <span style="font-size: 13.5px; font-weight: 500; color: #9F9FA9; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">JDownloader is offline</span>
+              <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; background: rgba(247,183,80,0.15); color: #F7B750;">Warning</span>
+            </div>
+            <p class="subjects" style="padding-left: 14px;">3 episodes need manual download</p>
+          </div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">Downloads</span></div>
+          <div class="td"><span style="font-size: 12px; color: #62626C;">3 days</span></div>
+        </div>
+
+        <!-- Table.LoadMore sentinel -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 9px; padding: 14px; margin-top: auto; border-top: 1px solid #27272A;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#62626C" stroke-width="2.4" stroke-linecap="round">
+            <path d="M12 3a9 9 0 109 9" opacity="0.9"></path>
+          </svg>
+          <span style="font-size: 12px; color: #62626C;">Loading the next page&hellip;</span>
+        </div>
+      </div>
+
+      <!-- DETAIL — identical to the card version -->
+      <div class="card" style="display: flex; flex-direction: column; gap: 16px; padding: 20px; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="chip" style="background: rgba(247,183,80,0.15); color: #F7B750;">Warning</span>
+          <span style="font-size: 12px; color: #9F9FA9;">Downloads &middot; Sunday 14:32 &middot; 5m ago</span>
+        </div>
+
+        <div>
+          <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: #FCFCFC; text-wrap: pretty;">Download stopped before the season finished</h2>
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #D4D4D8; text-wrap: pretty;">2 of 9 anime were left incomplete. An episode that fails on every hoster stops the rest of that anime, so everything after it was never attempted.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 11px; padding: 10px; border-radius: 14px; background: #09090B; border: 1px solid #27272A;">
+            <div style="position: relative; width: 44px; height: 44px; flex-shrink: 0; border-radius: 9px; overflow: hidden;">
+              <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+                <defs><linearGradient id="q1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+                <rect fill="url(#q1)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+                <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+                <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+              </svg>
+            </div>
+            <div style="min-width: 0; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+                <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tensei shitara Slime Datta Ken 4th Season</span>
+                <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; background: rgba(247,183,80,0.15); color: #F7B750;">Stopped</span>
+              </div>
+              <p style="margin: 0 0 7px; font-size: 11px; line-height: 1.5; color: #9F9FA9;">Episodes 14&ndash;15 downloaded &middot; episode 16 failed on every hoster &middot; 17&ndash;24 not attempted</p>
+              <span style="display: inline-flex; align-items: center; height: 25px; padding: 0 10px; border-radius: 7px; font-size: 11px; font-weight: 500; background: #18181B; border: 1px solid #27272A; color: #0385F7;">Run this anime again</span>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 11px; padding: 10px; border-radius: 14px; background: #09090B; border: 1px solid #27272A;">
+            <div style="position: relative; width: 44px; height: 44px; flex-shrink: 0; border-radius: 9px; overflow: hidden;">
+              <svg style="position: absolute; inset: 0; width: 100%; height: 100%;" preserveAspectRatio="xMidYMid slice" viewBox="0 0 96 128">
+                <defs><linearGradient id="q2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0b1226"/><stop offset="0.72" stop-color="#132040"/><stop offset="1" stop-color="#0e1830"/></linearGradient></defs>
+                <rect fill="url(#q2)" height="94" width="96" y="0"/><rect fill="#070d1c" height="34" width="96" y="94"/>
+                <circle cx="71" cy="25" fill="#f6edd9" opacity="0.14" r="14"/><circle cx="71" cy="25" fill="#f6edd9" r="8"/>
+                <g stroke="#05070f" stroke-linecap="round"><path d="M-4 84 Q24 62 48 84 Q72 62 100 84" fill="none" stroke-width="2"/></g><rect fill="#05070f" height="4" width="96" y="90"/>
+              </svg>
+            </div>
+            <div style="min-width: 0; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 3px;">
+                <span style="font-size: 12.5px; font-weight: 600; color: #FCFCFC; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tenmaku no Jaadugar</span>
+                <span class="chip" style="height: 19px; padding: 0 8px; font-size: 10.5px; background: rgba(247,183,80,0.15); color: #F7B750;">Stopped</span>
+              </div>
+              <p style="margin: 0 0 7px; font-size: 11px; line-height: 1.5; color: #9F9FA9;">Episode 6 failed on every hoster &middot; 7&ndash;12 not attempted &middot; nothing downloaded</p>
+              <span style="display: inline-flex; align-items: center; height: 25px; padding: 0 10px; border-radius: 7px; font-size: 11px; font-weight: 500; background: #18181B; border: 1px solid #27272A; color: #0385F7;">Run this anime again</span>
+            </div>
+          </div>
+
+          <div style="padding: 9px 12px; border-radius: 12px; border: 1px dashed #27272A; text-align: center; font-size: 11.5px; color: #62626C;">
+            7 other anime finished without incident &mdash; <span style="color: #0385F7;">show all in Downloads</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+            <span style="color: #62626C;">Kind</span><span class="mono" style="color: #D4D4D8;">download.run_stopped_early</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+            <span style="color: #62626C;">Correlation ID</span><span class="mono" style="color: #62626C;">run-8f21c4</span>
+          </div>
+        </div>
+
+        <div style="margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn" style="background: #0385F7; color: #FCFCFC; border: none;">Open Downloads</button>
+          <button class="btn" style="background: transparent; color: #9F9FA9; border: 1px solid #27272A;">Archive</button>
+          <button class="btn" style="background: transparent; color: #9F9FA9; border: 1px solid #27272A;">Mark unread</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

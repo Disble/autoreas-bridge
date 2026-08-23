@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body {
+      margin: 0;
+      background: #09090B;
+      color: #FCFCFC;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0385F7; text-decoration: none; }
+    a:hover { color: #5CA7FF; }
+    .stage { background: #18181B; border: 1px solid #27272A; border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .stage-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #62626C; }
+    .pill { background: #09090B; border: 1px solid #27272A; border-radius: 9px; padding: 6px 10px; font-size: 12px; color: #D4D4D8; }
+    .mono { font-family: ui-monospace, Consolas, monospace; }
+    .step { display: flex; gap: 9px; align-items: flex-start; }
+    .step-n { flex-shrink: 0; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 700; margin-top: 1px; }
+  </style>
+</helmet>
+
+<div style="width: 1400px; height: 620px; padding: 28px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px;">
+
+  <header style="display: flex; align-items: baseline; gap: 14px;">
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em;">Notification workflow</h1>
+    <p style="margin: 0; font-size: 13px; color: #9F9FA9;">One user-notable moment, from the feature that decided it mattered to the screen that shows it.</p>
+  </header>
+
+  <!-- Pipeline -->
+  <div style="display: flex; align-items: stretch; gap: 0;">
+
+    <div class="stage" style="width: 176px;">
+      <span class="stage-label">1 &middot; Producers</span>
+      <div class="pill mono">download</div>
+      <div class="pill mono">season</div>
+      <div class="pill mono">device</div>
+      <div class="pill mono" style="color: #62626C;">anime (wired, idle)</div>
+      <p style="margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: #62626C;">The feature decides a moment is worth a human's attention.</p>
+    </div>
+
+    <div style="width: 44px; display: grid; place-items: center;">
+      <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h22"></path><path d="M18 4l5 5-5 5"></path></svg>
+    </div>
+
+    <div class="stage" style="width: 190px;">
+      <span class="stage-label">2 &middot; Port</span>
+      <div class="pill mono" style="color: #FCFCFC;">notification.Notifier</div>
+      <div style="display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: rgba(23,201,100,0.12); color: #17C964; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 600;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        unchanged
+      </div>
+      <p style="margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: #62626C;">Producers keep calling the same one-method port. No call site moves.</p>
+    </div>
+
+    <div style="width: 44px; display: grid; place-items: center;">
+      <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h22"></path><path d="M18 4l5 5-5 5"></path></svg>
+    </div>
+
+    <div class="stage" style="width: 312px; border-color: rgba(3,133,247,0.4); background: rgba(3,133,247,0.05);">
+      <span class="stage-label" style="color: #0385F7;">3 &middot; Center service &middot; NEW</span>
+      <div class="pill mono" style="color: #FCFCFC; border-color: rgba(3,133,247,0.3);">internal/notification/center</div>
+
+      <div class="step">
+        <span class="step-n" style="background: #0385F7; color: #FCFCFC;">1</span>
+        <div>
+          <p style="margin: 0; font-size: 12px; font-weight: 600; color: #FCFCFC;">Persist the record</p>
+          <p style="margin: 1px 0 0; font-size: 11px; line-height: 1.45; color: #9F9FA9;">Validate, dedupe on the idempotency key, commit to SQLite.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step-n" style="background: #F7B750; color: #09090B;">2</span>
+        <div>
+          <p style="margin: 0; font-size: 12px; font-weight: 600; color: #FCFCFC;">Always project &mdash; even if step 1 failed</p>
+          <p style="margin: 1px 0 0; font-size: 11px; line-height: 1.45; color: #9F9FA9;">A database hiccup must never silently downgrade a toast into a log line.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 44px; display: grid; place-items: center;">
+      <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h22"></path><path d="M18 4l5 5-5 5"></path></svg>
+    </div>
+
+    <div class="stage" style="width: 186px;">
+      <span class="stage-label">4 &middot; Dispatcher</span>
+      <div class="pill mono" style="color: #FCFCFC;">Dispatcher</div>
+      <div style="display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: rgba(23,201,100,0.12); color: #17C964; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 600;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+        unchanged
+      </div>
+      <p style="margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: #62626C;">Fans out to every adapter. One failing channel never blocks another.</p>
+    </div>
+
+    <div style="width: 44px; display: grid; place-items: center;">
+      <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h22"></path><path d="M18 4l5 5-5 5"></path></svg>
+    </div>
+
+    <div class="stage" style="flex: 1;">
+      <span class="stage-label">5 &middot; Channels</span>
+      <div class="pill" style="display: flex; align-items: center; gap: 8px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0385F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M7 10h7"></path></svg>
+        In-app toast
+      </div>
+      <div class="pill" style="display: flex; align-items: center; gap: 8px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9F9FA9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 20h8"></path></svg>
+        Windows notification
+      </div>
+      <div class="pill" style="display: flex; align-items: center; gap: 8px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9F9FA9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14M5 9h14M5 14h9M5 19h9"></path></svg>
+        Observability log
+      </div>
+      <p style="margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: #62626C;">Attention only. Every channel is a projection of a record that already exists.</p>
+    </div>
+  </div>
+
+  <!-- Storage + read-back band -->
+  <div style="display: flex; gap: 16px; align-items: stretch;">
+
+    <div style="width: 422px; display: flex; align-items: center; gap: 14px;">
+      <div style="width: 176px;"></div>
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+        <svg width="16" height="26" viewBox="0 0 16 26" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1v18"></path><path d="M3 14l5 5 5-5"></path></svg>
+      </div>
+    </div>
+
+    <div class="stage" style="flex: 1; flex-direction: row; align-items: center; gap: 18px; border-color: rgba(3,133,247,0.25);">
+      <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0385F7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5.5" rx="8" ry="3"></ellipse>
+          <path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"></path>
+          <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path>
+        </svg>
+        <div>
+          <p style="margin: 0; font-size: 13px; font-weight: 600; color: #FCFCFC;">Bridge SQLite</p>
+          <p style="margin: 1px 0 0; font-size: 11px; color: #9F9FA9;" class="mono">notification_records</p>
+        </div>
+      </div>
+
+      <div style="width: 1px; align-self: stretch; background: #27272A;"></div>
+
+      <p style="margin: 0; font-size: 12px; line-height: 1.55; color: #9F9FA9; flex: 1;">
+        The only source of truth for history, read state and deduplication. Its schema is contributed through the registry the rest of the app already uses, so bootstrap gains one line and no new mechanism.
+      </p>
+
+      <div style="display: grid; place-items: center; flex-shrink: 0;">
+        <svg width="26" height="18" viewBox="0 0 26 18" fill="none" stroke="#3F3F46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 9h22"></path><path d="M18 4l5 5-5 5"></path></svg>
+      </div>
+
+      <div style="flex-shrink: 0; background: rgba(3,133,247,0.10); border: 1px solid rgba(3,133,247,0.35); border-radius: 14px; padding: 12px 16px;">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; color: #FCFCFC;">Notification Center</p>
+        <p style="margin: 2px 0 0; font-size: 11px; color: #9F9FA9;" class="mono">/notifications</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Governing rules -->
+  <div style="display: flex; gap: 14px; margin-top: auto;">
+
+    <div style="flex: 1; background: #18181B; border: 1px solid #27272A; border-left: 3px solid #0385F7; border-radius: 14px; padding: 13px 16px;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">Persist before you interrupt</p>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">A toast the user cannot find again is worse than no toast. The record is committed first, so anything that flashed on screen is still there afterwards.</p>
+    </div>
+
+    <div style="flex: 1; background: #18181B; border: 1px solid #27272A; border-left: 3px solid #F7B750; border-radius: 14px; padding: 13px 16px;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">Storage failure never eats the message</p>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">Producers discard the notifier's error by design. So a failed write still projects &mdash; it just loses its history entry, and says so in the log.</p>
+    </div>
+
+    <div style="flex: 1; background: #18181B; border: 1px solid #27272A; border-left: 3px solid #17C964; border-radius: 14px; padding: 13px 16px;">
+      <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #FCFCFC;">A notification carries actions, it does not define them</p>
+      <p style="margin: 0; font-size: 11.5px; line-height: 1.55; color: #9F9FA9;">It holds a token addressing an operation the app registered elsewhere, resolved when pressed &mdash; never a stored function, and never a button invented for one event.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
