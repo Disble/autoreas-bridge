@@ -414,7 +414,7 @@ No survivors remain among the mandatory targets after the two test additions abo
 `go run ./tools/checkgofilesize` (no new warnings; `baseline.yaml` untouched) all re-confirmed clean
 after every revert.
 
-- [ ] **2.2.3** [RED] Write `internal/notification/center/sqlite_store_lifecycle_test.go`:
+- [x] **2.2.3** [RED] Write `internal/notification/center/sqlite_store_lifecycle_test.go`:
   - `TestMarkReadDecrementsUnreadCountExactlyOnce` — mark the same record read twice; unread count drops
     by exactly 1, not 2. Satisfies "Marking a record read decrements the unread count exactly once."
   - `TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread` — archiving an unread record removes
@@ -422,28 +422,71 @@ after every revert.
     removes it from the default active list."
   - `TestRestoreClearsArchivedButNotRead` — `Restore` clears `archived_at_ms` and deliberately leaves
     `read_at_ms` untouched.
-- [ ] **2.2.4** [GREEN] Create `internal/notification/center/sqlite_store_lifecycle.go`: `UnreadCount`,
+  - `TestTotalEverRecordedCountsAllRowsRegardlessOfView` — **added test**, not named by the task text.
+    See 2.2.4's deviation note below.
+- [x] **2.2.4** [GREEN] Create `internal/notification/center/sqlite_store_lifecycle.go`: `UnreadCount`,
   `MarkRead` (stamps `read_at_ms` only where it IS NULL), `Archive` (stamps `archived_at_ms` and, in the
   same statement set, `read_at_ms` for any still-unread rows), `Restore` (clears `archived_at_ms` only).
-  Design §5.6.
-- [ ] **2.2.5** [RED] Write `app_notification_center_bindings_test.go`:
+  Design §5.6. **One addition beyond design §5.6's signature list:** `TotalEverRecorded(ctx) (int, error)`
+  -- a bare `COUNT(*)` with no view/read/archive filter. Design §10's `NotificationPage.TotalEver` ("drives
+  empty state 1 vs 2", §9.3) has no backing store method anywhere in §5.6, a real design gap discovered
+  while implementing 2.2.6 (parallel to Note B's `Notification` struct gap). Closed here rather than left
+  open because it is unambiguous (a plain row count, unlike `Search`/`Sources`/`Levels`' undefined
+  matching semantics) and the exact DTO field this task's own 2.2.6 half must populate. Placed alongside
+  `UnreadCount` in `sqlite_store_lifecycle.go` rather than `sqlite_store_list.go` to avoid re-touching an
+  already-committed Slice 2a file.
+- [x] **2.2.5** [RED] Write `app_notification_center_bindings_test.go`:
   `TestListNotificationsMapsStoreValuesToContractDTOs` and
   `TestBindingsReturnDegradedTrueWhenStoreNilNeverPanic` — construct an `*App` with
   `notificationCenterStore == nil`, call each binding, assert `Degraded: true` (or the equivalent flag
-  per DTO) and no panic.
-- [ ] **2.2.6** [GREEN] Create `internal/api/contracts/notification_center.go` with the DTOs from design
+  per DTO) and no panic. **Added tests**, not named by the task text, under strict TDD since 2.2.6 wires
+  all 6 bindings, not just `ListNotifications`: `TestGetNotificationFoundMapsRowsAndActions`,
+  `TestGetNotificationNotFoundReturnsFoundFalseNotDegraded`,
+  `TestMarkNotificationsReadUpdatesUnreadCountExactlyOnce`,
+  `TestArchiveNotificationsRemovesFromDefaultListAndMarksRead`,
+  `TestRestoreNotificationsClearsArchivedButKeepsRead`.
+- [x] **2.2.6** [GREEN] Create `internal/api/contracts/notification_center.go` with the DTOs from design
   §10 EXCEPT `NotificationActionResult` (deferred to Slice 5 — see Task-Planning Note A):
   `NotificationListRequest`, `NotificationRow`, `NotificationPage`, `NotificationDetailRow`,
   `NotificationAction`, `NotificationDetail`, `NotificationDetailResult`, `NotificationMutationResult`.
   Create `app_notification_center.go` with `ListNotifications`, `GetNotification`,
   `GetUnreadNotificationCount`, `MarkNotificationsRead`, `ArchiveNotifications`,
-  `RestoreNotifications`, mapping `Store` results to these DTOs.
+  `RestoreNotifications`, mapping `Store` results to these DTOs. **`ListQuery.Search`/`Sources`/`Levels`
+  deliberately NOT wired** from `NotificationListRequest` -- Slice 2a left them unimplemented in the
+  store, and mapping them here would silently promise filtering that does not happen; the filter bar
+  slice (3b) wires them. **`NotificationRow.ActionCount` is 0 for every `ListNotifications` row** --
+  `Store.List()` deliberately does not load per-row actions (Slice 2a), so the list SQL carries no count
+  to map; `GetNotification`'s row DOES report the real count via `Store.Record()`'s full action load.
+  Documented in code comments and pinned by `TestListNotificationsMapsStoreValuesToContractDTOs`'s
+  explicit `ActionCount == 0` assertion rather than silently left untested. A real per-row action count
+  in the list SQL is a follow-up beyond this slice's scope.
 
 ### 2.3 Testing & Verification
 
-- [ ] **2.3.1** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 2 staged lines (keyset
-  predicate and `MarkRead`'s `WHERE read_at_ms IS NULL` guard are the highest-value targets).
+- [x] **2.3.1** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 2b staged lines (keyset
+  predicate and `MarkRead`'s `WHERE read_at_ms IS NULL` guard are the highest-value targets). The
+  automated run hit its own 600s `harnessTimeout` (same intermittent failure mode Slice 1 hit twice and
+  Slice 2a avoided) and reported `FAIL ... 600.626s` / `exit status 1` with no score. Fell back to
+  CLAUDE.md #16's hand-mutation path (`perl -0pi -e`, each edit confirmed applied via `git diff`, each
+  reverted via `git checkout --` with `git diff --quiet` confirming a clean revert) against the 4
+  mandatory targets named for this slice:
+  - `Archive`'s mark-read-if-unread guard (`read_at_ms IS NULL` -> `IS NOT NULL` in the second UPDATE) --
+    KILLED by `TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread`.
+  - `Restore`'s "do NOT mark unread" invariant (added `, read_at_ms = NULL` to `Restore`'s UPDATE) --
+    KILLED by `TestRestoreClearsArchivedButNotRead`.
+  - `UnreadCount`'s predicate (`read_at_ms IS NULL` -> `IS NOT NULL`) -- KILLED by
+    `TestMarkReadDecrementsUnreadCountExactlyOnce` (its seeded-unread-count assertion fails immediately).
+  - The Archive/Active view boundary (swapped the `ViewActive`/`ViewArchived` branches in
+    `sqlite_store_list.go`'s already-shipped `buildListQuery`, to prove this slice's OWN new test still
+    guards it) -- KILLED by `TestArchiveRemovesFromDefaultActiveListAndMarksReadIfUnread`.
+
+  No survivors among the 4 mandatory targets. `gofmt -l`, `go vet ./...`, and
+  `go run ./tools/checkgofilesize` re-confirmed clean after every revert.
 - [ ] **2.3.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate, ≥300 000 ms).
+  `go test ./...` confirmed full green and `scripts/lint.ps1 -Profile all` reported 0 issues. **The
+  commit itself is deliberately left undone**: CLAUDE.md #3/#4 reserve final verification and the commit
+  for the orchestrating agent, and this slice's instructions were explicit not to commit. Changed-line
+  count for this batch: 5 new files, 953 total lines (223 + 277 + 101 + 130 + 222).
 
 **Rollback:** `git revert`; bindings disappear. No schema change. No consumer yet (Slice 3 is not merged
 by construction of the chain).
