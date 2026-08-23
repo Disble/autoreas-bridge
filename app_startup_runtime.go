@@ -13,6 +13,7 @@ import (
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/schedule"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -137,6 +138,10 @@ func (a *App) prepareAnimeRuntime(ctx context.Context) {
 	a.catchUpContext = catchUpContext
 	a.catchUpCancel = catchUpCancel
 	a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)
+	if a.canUseBridgeDB(ctx) {
+		a.notificationCenterStore = center.NewStore(a.bridgeDB, center.StoreConfig{})
+		a.notifier = center.Wrap(a.notifier, a.notificationCenterStore)
+	}
 	a.animeSelfEchoRegistry = a.newSelfEchoRegistry()
 	a.animeUpdateWriter = a.newUpdateWriter(anime.UpdateWriterConfig{
 		Bus:              a.eventBus,

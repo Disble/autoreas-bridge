@@ -20,6 +20,7 @@ import (
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
@@ -88,6 +89,7 @@ type App struct {
 	animeEditorScheduleWrite *anime.ScheduleService
 	coverResolver            coverResolver
 	notifier                 notification.Notifier
+	notificationCenterStore  *center.Store
 	newDownloadStore         func(db *sql.DB) download.Store
 	newDownloadService       func(deps download.ServiceDeps) *download.Service
 	newDownloadScheduler     func(deps schedule.Deps) schedule.Scheduler

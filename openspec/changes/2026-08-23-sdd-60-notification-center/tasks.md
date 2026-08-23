@@ -159,32 +159,32 @@ pre-declared, keeping each half comfortably inside budget.
 
 ### 1.1 Infrastructure
 
-- [ ] **1.1.1** [RED] Write `internal/notification/centerschema/schema_test.go`:
+- [x] **1.1.1** [RED] Write `internal/notification/centerschema/schema_test.go`:
   `TestSchemaTablesReturnsNotificationRecordsAndActionsDescriptors` asserts `SchemaTables()` returns
   exactly 2 `persistence.TableSchema` entries named `notification_records` and
   `notification_record_actions`. Satisfies notification-center spec "Schema leaf package has exactly
   one internal dependency" (partial — see 1.3.1 for the import half); design §5.1.
-- [ ] **1.1.2** [GREEN] Implement `internal/notification/centerschema/schema.go`: `SchemaTables()
+- [x] **1.1.2** [GREEN] Implement `internal/notification/centerschema/schema.go`: `SchemaTables()
   []persistence.TableSchema` returning the exact DDL from design §4 — both `CREATE TABLE IF NOT EXISTS`
   statements plus the four `CREATE INDEX IF NOT EXISTS` statements (`idx_notification_records_time`,
   `_active`, `_unread` partial index, `idx_notification_record_actions_notification`). Package doc
   comment mirrors `internal/download/dbschema/schema.go:1-6`. Design §5.1, §4.
-- [ ] **1.1.3** [GREEN] Modify `internal/sync/sqlite_bootstrap.go`: append `centerschema.SchemaTables()`
+- [x] **1.1.3** [GREEN] Modify `internal/sync/sqlite_bootstrap.go`: append `centerschema.SchemaTables()`
   to the existing `tables := append(...)` chain at lines 156-164, identical in shape to the adjacent
   `eventlog.SchemaTables()` call on the same line. Design §2, §11.
-- [ ] **1.1.4** [GREEN] Create `internal/notification/center/types.go` with the complete type set from
+- [x] **1.1.4** [GREEN] Create `internal/notification/center/types.go` with the complete type set from
   design §5.2 verbatim: `Level`, `EntityRef`, `DetailRow`, `RefusalReason` + its 5 consts (`RefusalNone`,
   `RefusalIntentUnregistered`, `RefusalTargetMissing`, `RefusalAlreadyExecuted`, `RefusalForeignAction`),
   `Action`, `Record`, `View` + its 2 consts (`ViewActive`, `ViewArchived`), `ListQuery`, `Page`,
   `StoreConfig`.
-- [ ] **1.1.5** [GREEN] Create `internal/notification/center/ports.go` with design §5.3 verbatim:
+- [x] **1.1.5** [GREEN] Create `internal/notification/center/ports.go` with design §5.3 verbatim:
   `ErrTargetMissing`, `IntentHandler` interface, `IntentRegistry` interface, `Logger` interface.
   (`IntentHandler`/`IntentRegistry` stay unused by any concrete type until Slice 5's `Executor` lands —
   declaring the full port file now means it is authored once, matching design's single §5.3 unit.)
 
 ### 1.2 Implementation
 
-- [ ] **1.2.1** [RED] Write `internal/notification/center/service_test.go` — five tests, in this order:
+- [x] **1.2.1** [RED] Write `internal/notification/center/service_test.go` — five tests, in this order:
   - `TestWrapWithNilStoreReturnsInnerByIdentity` — `Wrap(inner, nil)` returns `inner` by identity
     (`got == inner`, not a new wrapper). Satisfies "Wrap with a nil store returns the inner notifier's
     exact identity."
@@ -204,11 +204,11 @@ pre-declared, keeping each half comfortably inside budget.
   - `TestServiceNotifyUnopenedDBDegradesWithoutPanic` — a `Store` backed by a bare unopened `&sql.DB{}`
     (mirroring `app_test_helpers_test.go:30`'s exact shape); assert `Notify` does not panic and the spy
     is still invoked. Satisfies "An unopened database handle degrades to dispatch-only, never a panic."
-- [ ] **1.2.2** [GREEN] Implement `internal/notification/center/service.go`: `Service` struct (`inner`,
+- [x] **1.2.2** [GREEN] Implement `internal/notification/center/service.go`: `Service` struct (`inner`,
   `store`, `log`, `now`), `Wrap(inner, store) notification.Notifier` (both early returns as bare values
   per design §5.5's explicit warning against a typed-nil `*Service`), `(*Service).Notify` implementing
   persist-then-ALWAYS-delegate with `errors.Join(persistErr, dispatchErr)`. Design §5.5.
-- [ ] **1.2.3** [RED] Write `internal/notification/center/sqlite_store_test.go` (integration, real
+- [x] **1.2.3** [RED] Write `internal/notification/center/sqlite_store_test.go` (integration, real
   bootstrapped SQLite via `internal/sync`) — six tests:
   - `TestInsertRecordPersistsRecordAndActions` — one `InsertRecord` round-trips a `Record` with 2
     `Action`s.
@@ -229,19 +229,19 @@ pre-declared, keeping each half comfortably inside budget.
     doomed record; assert `notification_record_actions` rows for that id drop to 0 (`PRAGMA
     foreign_keys` is OFF, so this is the only orphan guard). Design §12 Slice 1 row 5; also the
     executable proof for notification-actions spec "A pruned record's actions are simply gone."
-- [ ] **1.2.4** [GREEN] Implement `internal/notification/center/sqlite_store.go`: `Store` struct,
+- [x] **1.2.4** [GREEN] Implement `internal/notification/center/sqlite_store.go`: `Store` struct,
   `NewStore(db, config)` (defaults `RowCap=2000`/`PruneEvery=50` when zero-valued), `InsertRecord`
   (single transaction: insert record + N actions, then call prune), `pruneOldestBeyondRetention`
   (actions-first two-statement delete per design §4's exact SQL; cadence: unconditional on
   `successful==1`, else `successful%pruneEvery==0`). Design §5.6, §4.
-- [ ] **1.2.5** [RED] Write `app_notification_center_wrap_test.go` (NEW file in the root `app` package —
+- [x] **1.2.5** [RED] Write `app_notification_center_wrap_test.go` (NEW file in the root `app` package —
   not an edit to any existing `_test.go` file): `TestStartupWrapsNotifierWhenBridgeDBUsable` constructs
   an `*App` with a real, usable (temp-file or in-memory) bridge DB, runs `startup`, and asserts
   `a.notificationCenterStore != nil` and `a.notifier` is no longer the bare value `a.newNotifier(...)`
   returned (identity differs). This is new evidence for design §5.9 / notification-center spec's
   positive Wrap-applied path; it does not touch `app_startup_test.go:136`'s existing negative-path
   assertion, which is re-run unmodified in 1.2.6.
-- [ ] **1.2.6** [GREEN] Modify `app_startup_runtime.go`: after line 139
+- [x] **1.2.6** [GREEN] Modify `app_startup_runtime.go`: after line 139
   (`a.notifier = a.newNotifier(a.emitFn, a.sharedLogger)`), add the three lines from design §5.9 —
   `if a.canUseBridgeDB(ctx) { a.notificationCenterStore = center.NewStore(a.bridgeDB,
   center.StoreConfig{}); a.notifier = center.Wrap(a.notifier, a.notificationCenterStore) }`. Add exactly
@@ -250,7 +250,7 @@ pre-declared, keeping each half comfortably inside budget.
 
 ### 1.3 Testing & Verification
 
-- [ ] **1.3.1** [TEST] [[MANDATORY IMPORT-BOUNDARY TEST]] Write
+- [x] **1.3.1** [TEST] [[MANDATORY IMPORT-BOUNDARY TEST]] Write
   `internal/notification/center/import_boundary_test.go`: use `exec.Command("go", "list", "-deps",
   "./internal/notification")` (run from the module root) and assert the returned import list contains
   `autoreas-bridge/internal/logger` and does NOT contain `autoreas-bridge/internal/download`,
@@ -262,7 +262,7 @@ pre-declared, keeping each half comfortably inside budget.
   spec "The parent notification package gains no dependency," "The schema leaf package has exactly one
   internal dependency," "The service package never imports the download package"; design §12 Slice 1
   "Import guard" row.
-- [ ] **1.3.2** [VERIFY] [[MANDATORY D-1 VERIFICATION OBLIGATION]] Run `go test ./...` (full existing
+- [x] **1.3.2** [VERIFY] [[MANDATORY D-1 VERIFICATION OBLIGATION]] Run `go test ./...` (full existing
   suite). Confirm via `git diff --stat` that `app_startup_test.go`, `app_lifecycle_test.go`,
   `app_defaults.go` show **zero** changes, and `app.go` shows only the one additive field from 1.2.6. If
   any of these files needs an edit beyond that single field addition, STOP and name the exact edit and
@@ -270,12 +270,44 @@ pre-declared, keeping each half comfortably inside budget.
   `app_startup_test.go:136`'s `app.notifier != fake` identity assertion passes unmodified. Satisfies
   proposal §3 D-1 verification obligation; notification-center spec "An unusable bridge database means
   the decorator is never applied" and "A producer call site requires no code change."
-- [ ] **1.3.3** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 1 staged diff. Confirm the
+- [x] **1.3.3** [MUTATE] Run `go run ./tools/mutationstaged` over the Slice 1 staged diff. Confirm the
   mutant that flips `Notify`'s persist-then-delegate ordering (an early `return` inserted right after
   the persist call) is KILLED by `TestServiceNotifyPersistFailureStillDispatches` (1.2.1). Confirm the
   cadence-branch mutant on `pruneOldestBeyondRetention` (`successful==1 || successful%pruneEvery==0`) is
   killed by 1.2.3's tests; if it survives, add a literal-value assertion and re-run. Proposal R-1
   mitigation.
+
+  **Outcome:** the automated wrapper (`go run ./tools/mutationstaged`) did not complete -- it hit its
+  own internal 10-minute harness timeout twice in a row, both against this slice's diff alone and
+  against the `center`+`centerschema` packages alone. Root cause investigated and reproduced: for a
+  batch of several brand-new files staged together, `computeScope` in
+  `tools/mutationstaged/changedbytes.go` merges each file's byte-offset ranges as if they shared ONE
+  coordinate space (the loop appends every file's `[0, len(content))` range into a single flat
+  `offsets` slice before calling `mergeOffsetRanges`), collapsing 5 separate whole-file ranges into one
+  `[0, <largest-file-byte-length>)` range. Since every new file here is smaller than the largest
+  (`sqlite_store.go`), the effect is full-file mutation of every new production file, not a bug in
+  scope *correctness* -- but it removes the speedup the per-line scoping exists to provide, and a
+  single mutant (`sqlite_store.go` "Comparison Invert#07") was independently observed pinned for 8+
+  minutes on its own in one run, which is the actual cause of the timeout, not the scope collapse
+  by itself. This is a pre-existing `tools/mutationstaged` issue, unrelated to Slice 1's own code
+  correctness, and out of scope to fix from this change.
+
+  Fell back to CLAUDE.md's documented hand-mutation path (mandatory targets only), applying each with
+  `perl -0pi -e`, confirming the mutation applied via `git diff`, running the targeted tests, then
+  reverting via `git checkout --` and confirming `git diff --quiet`:
+  - `Service.Notify` persist-then-always-dispatch: inserted `if persistErr != nil { return persistErr }`
+    right after the persist step -- KILLED by `TestServiceNotifyPersistFailureStillDispatches` AND
+    `TestServiceNotifyUnopenedDBDegradesWithoutPanic` (both drop to 0 dispatcher calls).
+  - `pruneOldestBeyondRetention` cadence branch: flipped `successful%pruneEvery != 0` to `== 0` --
+    KILLED by `TestPruneDeletesActionsBeforeRecordsNoOrphans` (`PruneEvery: 1` makes the inversion
+    skip pruning on the second write instead of always pruning; 1 orphaned action row survives).
+  - `Wrap`'s `inner == nil` branch inverted -- KILLED by `TestWrapWithNilStoreReturnsInnerByIdentity`,
+    `TestWrapWithNilInnerReturnsNil`, `TestServiceNotifyPersistFailureStillDispatches` (panics), and
+    `TestServiceNotifyUnopenedDBDegradesWithoutPanic` (panics).
+  - `Wrap`'s `store == nil` branch inverted -- KILLED by `TestWrapWithNilStoreReturnsInnerByIdentity`
+    and `TestServiceNotifyPersistFailureStillDispatches`.
+
+  No survivors among the mandatory targets. Full suite re-confirmed green after each revert.
 - [ ] **1.3.4** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
 
 **Rollback:** `git revert` the slice commit. `persistence.EnsureTableSchema` is additive/idempotent, so
