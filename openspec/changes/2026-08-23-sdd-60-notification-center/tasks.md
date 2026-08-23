@@ -323,26 +323,97 @@ call site was ever touched. No data migration to undo.
 
 ### 2.1 Infrastructure
 
-- [ ] **2.1.1** [RED] Write `internal/notification/center/cursor_test.go`: `TestCursorRoundTrip` —
+- [x] **2.1.1** [RED] Write `internal/notification/center/cursor_test.go`: `TestCursorRoundTrip` —
   `encodeRecordCursor` then `decodeRecordCursor` returns the original `recordCursor`;
   `TestDecodeCursorRejectsZeroID` — a cursor with `ID == 0` returns an error from `decodeRecordCursor`.
   Design §5.6 "Cursor encoding."
-- [ ] **2.1.2** [GREEN] Implement `internal/notification/center/cursor.go`: `recordCursor` struct,
+- [x] **2.1.2** [GREEN] Implement `internal/notification/center/cursor.go`: `recordCursor` struct,
   `encodeRecordCursor` (base64.RawURLEncoding of JSON), `decodeRecordCursor` (rejects `ID == 0`). Design
   §5.6.
 
 ### 2.2 Implementation
 
-- [ ] **2.2.1** [RED] Write `internal/notification/center/sqlite_store_list_test.go`:
+- [x] **2.2.1** [RED] Write `internal/notification/center/sqlite_store_list_test.go`:
   - `TestListFirstPageReturnsCursorForNextPage` — more records exist than fit one page; the response
     includes a usable `NextCursor`. Satisfies "The first page returns a cursor for the next page."
-  - `TestListKeysetPageNeverRepeatsOrSkips` — seed rows sharing one millisecond timestamp to exercise
-    the `(created_at_ms, id)` tiebreaker; fetch page 1, then page 2 via its cursor; assert every page-2
-    record is strictly older by the tiebreak order than every page-1 record. Satisfies "A cursor-based
-    next page never repeats or skips a row relative to `When` ordering."
-- [ ] **2.2.2** [GREEN] Add `List(ctx, query ListQuery) (Page, error)` and `Record(ctx, id int64)
-  (Record, bool, error)` to `internal/notification/center/sqlite_store.go`, implementing the keyset
-  predicate `(created_at_ms < ?) OR (created_at_ms = ? AND id < ?)`. Design §5.6, §4.
+  - `TestListKeysetPageNeverRepeatsOrSkips` — **strengthened during apply beyond the task's literal
+    description.** Seeding a single shared timestamp across every row (as originally described) turns
+    out to leave the keyset predicate's PRIMARY comparison (`created_at_ms < ?`) unable to affect the
+    result at all -- every row ties, so only the tiebreak branch is ever exercised, and a flipped `<`
+    would silently survive. Rewritten to seed a deliberate MIX
+    (`[100, 100, 200, 300, 300, 300, 400]`) that puts a 3-row same-millisecond run exactly on a
+    `Limit=3` page boundary, then walks every page (not just two) asserting strict newest-first order
+    and full, duplicate-free coverage. This exercises BOTH the primary comparison (crossing
+    400→300→200→100) AND the tiebreak (splitting the id-300 run across the page boundary). Verified via
+    hand-mutation below that this change was necessary: the original design missed both halves.
+  - `TestListExactlyLimitRemainingRecordsHasNoNextCursor` — **added task**, not in the original task
+    text. The `limit+1`-probe / `hasMore` boundary check (`len(page.Items) > limit`) has no test
+    anywhere that exercises the EXACT-limit case (a page that fetches precisely `Limit` rows, no more,
+    no fewer); every originally-planned scenario either overshoots (`limit+1` rows available) or
+    undershoots (fewer than `Limit` remain). Without this test, a `>` → `>=` boundary mutant survives
+    silently and would report a bogus `NextCursor` on the true last page, which a real client would
+    loop on forever. Found and closed during the mandatory hand-mutation pass (design §5.6, §4;
+    notification-center spec "The first page returns a cursor for the next page" — this is its
+    necessary converse).
+  - `TestRecordReturnsStoredRecordWithActions` / `TestRecordReturnsNotFoundForUnknownID` — **added
+    tests**, not named by 2.2.1's task text, which named only List tests even though 2.2.2 requires
+    implementing `Record` too. Added under strict TDD so `Record`'s behavior (full field round-trip,
+    actions in ordinal order, not-found without an error) is test-driven rather than untested GREEN
+    code.
+- [x] **2.2.2** [GREEN] Add `List(ctx, query ListQuery) (Page, error)` and `Record(ctx, id int64)
+  (Record, bool, error)`, implementing the keyset predicate
+  `(created_at_ms < ?) OR (created_at_ms = ? AND id < ?)`. **File placement deviates from this task's
+  literal text**: created in a NEW file `internal/notification/center/sqlite_store_list.go`, not inside
+  `sqlite_store.go`. Slice 1's own shipped code comment at the top of `sqlite_store.go` already commits
+  to this split ("the keyset read model (List, Record) is added in sqlite_store_list.go (Slice 2)"), the
+  RED test file above is itself named `sqlite_store_list_test.go` (matching this file, not
+  `sqlite_store_test.go`), and it keeps both files well inside the repo's per-file line budget.
+  Followed CLAUDE.md #2 (code wins as runtime truth over a task line) rather than silently splitting
+  the difference. `List` additionally applies the `View` filter (`archived_at_ms IS NULL` /
+  `IS NOT NULL`) and `UnreadOnly` (`read_at_ms IS NULL`) as WHERE conditions ahead of the cursor
+  predicate — necessary for the query to resolve through `idx_notification_records_active`
+  (`archived_at_ms, created_at_ms DESC, id DESC`) for the default active view, exactly as design §4's
+  index justification requires ("`_active` serves the active/archived split that every default list
+  query filters on"), and because 2.2.3/2.2.4's archive-then-list scenario (Slice 2b) depends on `List`
+  already honoring `View`. `Search`, `Sources`, `Levels` on `ListQuery` are deliberately left
+  UNIMPLEMENTED in this task: no RED test anywhere in Slice 2 (mine or 2b's) exercises them, their exact
+  matching semantics are undefined in design, and implementing untested SQL filter logic would violate
+  strict TDD. Flagged for whichever slice actually wires the filter bar (3b) or a dedicated backend task
+  to close. `List` does not populate `Items[].Actions`/`Rows.Actions` for list rows (kept a lean summary
+  query, matching `NotificationRow`'s wire shape, which carries only `ActionCount int`, never full
+  actions) — `Record` loads the full action set for the single-record detail view. Design §5.6, §4.
+
+**Slice 2a/2b split (numbering stays honest):** Slice 2's tasks were executed as two chained
+sub-batches so the ~400–550 line forecast (unreliable given Slice 1 landed at 1118 against a 450–600
+forecast) could be re-checked at a natural seam. **Slice 2a** (this batch): 2.1.1, 2.1.2, 2.2.1, 2.2.2 —
+the cursor and the read model, pure Go store work, no Wails surface. Changed-line count: 4 new files,
+527 total lines (34 + 33 + 251 + 209), comfortably inside the 400–550 half-forecast this sub-batch was
+allotted. **Slice 2b** (separate batch, tasks 2.2.3–2.2.6 plus 2.3.1/2.3.2): lifecycle mutations
+(`UnreadCount`, `MarkRead`, `Archive`, `Restore`), `internal/api/contracts/notification_center.go`, and
+the Wails bindings — not touched by this batch.
+
+**Mutation outcome for Slice 2a's diff (cursor.go, sqlite_store_list.go):**
+`go run ./tools/mutationstaged` completed normally this time (~5.6 minutes, unlike Slice 1's run, which
+hit its own 10-minute harness timeout twice) and PASSED the 0.80 threshold (exit code 0). In addition,
+ran the 3 mandatory hand-mutation targets via `perl -0pi -e`, each confirmed applied via `git diff`, each
+reverted via `git checkout --` with `git diff --quiet` confirming a clean revert:
+- Cursor comparison direction (`created_at_ms < ?` → `created_at_ms > ?` in the primary keyset branch) —
+  KILLED, but only after strengthening `TestListKeysetPageNeverRepeatsOrSkips` per the note above; the
+  originally-described single-shared-timestamp seeding let this mutant SURVIVE (both `<` and `>`
+  evaluate to `false` when every row ties on `created_at_ms`, so the primary branch's direction never
+  affected the result).
+- Cursor tiebreak direction (`AND id < ?` → `AND id > ?`) — KILLED by the same strengthened test (a
+  duplicate id from the same-timestamp run reappeared in the second page).
+- Page-size/`hasMore` boundary (`len(page.Items) > limit` → `>=`) — SURVIVED against the pre-existing
+  test set (neither test ever produced exactly `limit` items after the accumulate loop, only `limit+1`
+  or fewer), so added `TestListExactlyLimitRemainingRecordsHasNoNextCursor` (documented above) to close
+  the gap; re-ran the same mutation afterward and confirmed it now KILLS.
+
+No survivors remain among the mandatory targets after the two test additions above. Full suite
+(`go test ./...`), `gofmt -l`, `go vet`, `scripts/lint.ps1 -Profile all` (0 issues), and
+`go run ./tools/checkgofilesize` (no new warnings; `baseline.yaml` untouched) all re-confirmed clean
+after every revert.
+
 - [ ] **2.2.3** [RED] Write `internal/notification/center/sqlite_store_lifecycle_test.go`:
   - `TestMarkReadDecrementsUnreadCountExactlyOnce` — mark the same record read twice; unread count drops
     by exactly 1, not 2. Satisfies "Marking a record read decrements the unread count exactly once."
