@@ -45,6 +45,12 @@ For architectural deep dives, see:
 - [Bun](https://bun.sh/) or Node.js
 - [Wails CLI](https://wails.io/docs/gettingstarted/installation)
 
+The Wails CLI is not optional here: `frontend/wailsjs/` holds the generated
+TypeScript bindings for every bound Go method, it is not tracked, and fifteen
+frontend files import from it. `bun install` regenerates it through a
+postinstall hook, so a fresh clone needs nothing else — but without the CLI on
+your PATH the frontend will not typecheck.
+
 ### Running Locally
 
 To run in live development mode, run the following in the project root:
@@ -52,6 +58,16 @@ To run in live development mode, run the following in the project root:
 ```bash
 wails dev
 ```
+
+After changing a bound Go method, regenerate the bindings so the frontend sees
+the new signature:
+
+```bash
+bun --cwd="frontend" run generate:bindings
+```
+
+`wails dev` and `wails build` regenerate them too; the script exists for when
+you are working on the frontend alone.
 
 This will run a Vite development server that provides very fast hot reload of your frontend changes, along with the Go backend. A local inspector is available at `http://localhost:34115`.
 

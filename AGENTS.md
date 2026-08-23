@@ -86,6 +86,7 @@
 - The enforced config lives in `frontend/.fallowrc.json`; treat it as repo truth and do not add remote config inheritance.
 - `lefthook.yml` runs `bun --cwd="frontend" run fallow audit --quiet` as the pre-commit changed-code gate.
 - `wailsjs/**` is generated bridge/runtime code and intentionally ignored by Fallow.
+- `frontend/wailsjs/` is **untracked** as of 2026-08-23. Wails regenerates it on every build and wipes the runtime directory outright (`os.RemoveAll` in Wails v2.12's `pkg/commands/build/base.go`), so it was never editable source, and committing it made every regeneration fail `dharness check`: react-doctor scans staged files and offers no path exclusion, so 95 findings landed on generated code — see `docs/reports/dharness-generated-code-exclusion.md`. Fifteen frontend files import from it and the gate typechecks without invoking Wails, so `frontend`'s `postinstall` hook regenerates it; use `bun --cwd="frontend" run generate:bindings` after changing a bound Go method. Note `wails generate module` exits 0 even when it cannot find `wails.json`, which is why the hook verifies the output files rather than the exit code.
 - `src/test/setup.ts` is a required manual entry point in Fallow config; do not remove it casually or Vitest setup can be misclassified as dead code.
 - For operational details and triage rules, see `docs/fallow-usage.md`.
 

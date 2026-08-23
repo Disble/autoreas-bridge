@@ -10,6 +10,10 @@
     // Vitest discovers this ESM script test, but Fallow does not infer it as
     // a test root because it lives outside `src`.
     "scripts/__tests__/check-file-size-warnings.test.mjs",
+    // Same blind spot: an ESM script test outside `src`. It is the only
+    // importer of `generate-wails-bindings.mjs`, which is otherwise reached
+    // solely through package.json's postinstall hook.
+    "scripts/__tests__/generate-wails-bindings.test.mjs",
     // Named as a string in `stryker.dlinter.json` -> `vitest.configFile`, the
     // same JSON-reference blind spot as the `ignoreDependencies` entries
     // below. It is a real entry point, not dead code: deleting it breaks the

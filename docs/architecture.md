@@ -93,6 +93,7 @@ El frontend de Wails también queda sujeto a rails arquitectónicos estrictos:
 - La puerta de entrada operativa es `bun --cwd="frontend" run fallow audit --quiet`, ejecutada desde `lefthook.yml`.
 - La configuración viva está en `frontend/.fallowrc.json`.
 - `wailsjs/**` se ignora porque es código generado del bridge/runtime.
+- Desde 2026-08-23 `frontend/wailsjs/` además **no se versiona**: Wails lo regenera en cada build y borra el directorio de runtime entero, así que nunca fue fuente editable. Quince archivos del frontend importan de ahí y el gate hace typecheck sin invocar a Wails, por eso el hook `postinstall` de `frontend` lo regenera; usar `bun --cwd="frontend" run generate:bindings` después de cambiar un método bindeado. El motivo del cambio está en `docs/reports/dharness-generated-code-exclusion.md`.
 - `src/test/setup.ts` se declara manualmente como entry point para evitar falsos positivos sobre el setup de Vitest.
 - El detalle operativo y de triage queda documentado en `docs/fallow-usage.md`.
 

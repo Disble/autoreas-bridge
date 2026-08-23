@@ -4,6 +4,11 @@ frontend/dist
 resources/autoreas-data/*.dat
 .atl/active-sdd-change
 frontend/package.json.md5
+# Wails regenerates these on every build (and wipes the runtime directory
+# outright), so they were never editable source. frontend's postinstall hook
+# rebuilds them into a fresh clone; run `bun --cwd=frontend run generate:bindings`
+# after changing a bound Go method.
+frontend/wailsjs/
 frontend/.stryker-*/
 frontend/reports/
 resources/autoreas-bridge-full-icon.png

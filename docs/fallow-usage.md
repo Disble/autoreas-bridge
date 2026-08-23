@@ -18,8 +18,8 @@ This project uses **Fallow** as the frontend static-analysis layer for dead code
 | Gate entrypoint | `lefthook.yml` runs `bun --cwd="frontend" run fallow audit --quiet` |
 | Config file | `frontend/.fallowrc.json` (JSONC, comments allowed) |
 | Architecture boundaries | Declared in `.dharness/fallow.jsonc`, pulled in with `"extends"` |
-| Manual entry points | `src/main.*`, `src/test/setup.ts`, `scripts/__tests__/check-file-size-warnings.test.mjs` (an ESM script test outside `src`, which Fallow does not infer as a test root), and `vitest.dlinter-mutation.mts` (named as a string in `stryker.dlinter.json` → `vitest.configFile`, so the import graph cannot see it) |
-| Generated ignore | `wailsjs/**` is ignored |
+| Manual entry points | `src/main.*`, `src/test/setup.ts`, `scripts/__tests__/check-file-size-warnings.test.mjs` and `scripts/__tests__/generate-wails-bindings.test.mjs` (ESM script tests outside `src`, which Fallow does not infer as test roots), and `vitest.dlinter-mutation.mts` (named as a string in `stryker.dlinter.json` → `vitest.configFile`, so the import graph cannot see it) |
+| Generated ignore | `wailsjs/**` is ignored — and since 2026-08-23 also untracked, see below |
 | Ignored dependency | `eslint` — imported only by `scripts/check-file-size-warnings.mjs`, never by shipped runtime code |
 | Duplication mode | `semantic` |
 | Minimum duplicate occurrences | `3` — pair-only clones stay hidden; lower to `2` to see every pair |
@@ -75,7 +75,7 @@ The first prints every zone with the number of files it matched. **A zone matchi
 - **There are no barrels here — by convention, not by guard.** ADR-011 removed every `index.ts` barrel, so any Fallow finding that looks like a barrel problem is something else. The filesystem guard that kept them out was withdrawn on 2026-08-11 (see "Enforcement status" in `docs/adr/011-no-barrel-files.md`): a pure re-export `index.ts` now passes every automated check, so a Fallow run is one of the few places a reintroduced barrel would surface at all. Config written for barrels rots invisibly: three keys survived the original removal pointing at `src/**/index.ts`, a pattern that now matches zero files, until the 2026-08-10 audit deleted them.
 - **Do not suppress before understanding.** Prefer fixing imports, ownership, or structure before adding ignores.
 - **Boundary violations that already exist do not block.** The gate fails only on crossings a change introduces, which is what lets an architecture be declared on a tree that does not fully obey it yet. See the comment block in `.dharness/fallow.jsonc` for the 22 known ones and why each is left standing.
-- **Treat `wailsjs/**` as generated bridge code.** Do not widen ignores casually.
+- **Treat `wailsjs/**` as generated bridge code.** Do not widen ignores casually. It is untracked as of 2026-08-23 — Wails rewrites it on every build — so `frontend`'s `postinstall` hook regenerates it into a fresh clone and `bun --cwd="frontend" run generate:bindings` refreshes it after a bound Go method changes. What forced the change, and what dharness would need to make tracking viable again, is in `docs/reports/dharness-generated-code-exclusion.md`.
 - **Use Fallow as analysis, not as a replacement for ESLint, TypeScript, or tests.**
 
 ## Generated artifacts
