@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -60,6 +62,12 @@ func TestListNotificationsCountsACollapsedRowAsEveryThingItStandsFor(t *testing.
 	if row.RowCount != 7 {
 		t.Fatalf("RowCount = %d, want 7 (1 named anime + the 6 the summary row stands for)", row.RowCount)
 	}
+	// The same record proves the other half: a collapsed row counts toward the badge but names
+	// nothing, so it must never contribute a subject -- here, well below the subject cap, where
+	// dropping the unnamed-row guard would show up as a phantom empty entry.
+	if len(row.Subjects) != 1 || row.Subjects[0] != "Tensei shitara Slime Datta Ken" {
+		t.Fatalf("Subjects = %#v, want only the one row that has a name", row.Subjects)
+	}
 }
 
 // TestListNotificationsProjectsABoundedSubjectLine pins the "what is this about" line: it names
@@ -108,5 +116,57 @@ func TestListNotificationsProjectsNoSubjectsForARecordWithNothingToIndividuate(t
 	}
 	if row.RowCount != 0 {
 		t.Fatalf("RowCount = %d, want 0", row.RowCount)
+	}
+}
+
+// TestNotificationKindReachesBothWireReads pins the field the detail pane's metadata footer
+// renders beside the correlation id. It rides on NotificationRow, which the detail embeds, so
+// one mapping serves both reads -- and the list can filter on it without a second round trip.
+func TestNotificationKindReachesBothWireReads(t *testing.T) {
+	t.Parallel()
+
+	app := notificationCenterAppTestDB(t)
+	id, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), center.Record{
+		CreatedAtMS: 1000, Title: "Download stopped before the season finished", Body: "b",
+		Level: "warning", Source: "download", Kind: "download.run_stopped_early", CorrelationID: "run-8f21c4",
+	})
+	if err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+
+	page := app.ListNotifications(contracts.NotificationListRequest{Limit: 10})
+	if len(page.Items) != 1 || page.Items[0].Kind != "download.run_stopped_early" {
+		t.Fatalf("listed items = %#v, want the kind on the list read", page.Items)
+	}
+
+	detail := app.GetNotification(id)
+	if !detail.Found || detail.Item.Kind != "download.run_stopped_early" {
+		t.Fatalf("detail = %#v, want the kind on the detail read", detail.Item)
+	}
+	if detail.Item.Source != "download" {
+		t.Fatalf("Source = %q, want it carried independently of the kind", detail.Item.Source)
+	}
+}
+
+// TestAnAbsentKindIsOmittedFromTheWire pins requirement 4 at the boundary that decides it: the
+// JSON tag. An empty kind must not reach the frontend as a present-but-blank field, or the
+// metadata footer renders a labelled row with nothing in it.
+func TestAnAbsentKindIsOmittedFromTheWire(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := json.Marshal(contracts.NotificationRow{ID: 1, Title: "t", Body: "b", Level: "info", Source: "device"})
+	if err != nil {
+		t.Fatalf("marshal row: %v", err)
+	}
+	if strings.Contains(string(encoded), "kind") {
+		t.Fatalf("encoded row = %s, want no kind key at all when the producer set none", encoded)
+	}
+
+	encoded, err = json.Marshal(contracts.NotificationRow{ID: 1, Title: "t", Body: "b", Level: "info", Source: "device", Kind: "device.paired"})
+	if err != nil {
+		t.Fatalf("marshal row: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"kind":"device.paired"`) {
+		t.Fatalf("encoded row = %s, want the kind present when the producer set one", encoded)
 	}
 }

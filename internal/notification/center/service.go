@@ -60,6 +60,7 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 		Body:          n.Body,
 		Level:         Level(n.Level),
 		Source:        n.Source,
+		Kind:          n.Kind,
 		CorrelationID: n.CorrelationID,
 		Rows:          rows,
 		Actions:       actions,

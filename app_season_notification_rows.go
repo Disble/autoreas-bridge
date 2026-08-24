@@ -7,6 +7,10 @@ import (
 )
 
 const (
+	// seasonAvailableKind is the notification kind the design canvas labels this producer's
+	// example block with (Anatomy.dc.html). It is a second axis next to Source: the source
+	// stays "season" -- the bounded context -- while the kind names the event within it.
+	seasonAvailableKind = "season.anime_available"
 	// seasonAvailableRefType marks a detail row that references an anime which is available
 	// this season but is NOT in the catalog yet. Deliberately not "anime": there is no catalog
 	// id behind it, so cover art cannot resolve and no anime-scoped action could freeze a
@@ -31,15 +35,14 @@ func buildSeasonAvailableRows(names []string) []notification.DetailItem {
 	if len(names) == 0 {
 		return nil
 	}
-	named := names
-	collapsed := 0
-	if len(names) > seasonAvailableNamesShownInBody {
-		named = names[:seasonAvailableNamesShownInBody]
-		collapsed = len(names) - seasonAvailableNamesShownInBody
-	}
+	// min rather than an `if len(names) > limit` branch on purpose: at exactly the limit both
+	// arms of that branch produce the identical result, so the comparison is unprovable -- no
+	// test can tell `>` from `>=` there. Clamping removes the boundary instead of guarding it.
+	shown := min(len(names), seasonAvailableNamesShownInBody)
+	collapsed := len(names) - shown
 
-	rows := make([]notification.DetailItem, 0, len(named)+1)
-	for _, name := range named {
+	rows := make([]notification.DetailItem, 0, shown+1)
+	for _, name := range names[:shown] {
 		rows = append(rows, notification.DetailItem{
 			RefType: seasonAvailableRefType,
 			RefID:   name,

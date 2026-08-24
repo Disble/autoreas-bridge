@@ -228,7 +228,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	s.logf(logger.LevelInfo, runID, "", "download.run_started", nil,
 		"download run %s started (trigger=%s)", runID, trigger)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notify(ctx, notification.LevelInfo, runID,
+	s.notify(ctx, notification.LevelInfo, kindRunStarted, runID,
 		"Download run started", fmt.Sprintf("Download check started (%s).", trigger))
 
 	result := s.execute(ctx, runID, startedAt, trigger, &run)
@@ -260,7 +260,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", nil,
 		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notify(ctx, notification.LevelInfo, runID,
+	s.notify(ctx, notification.LevelInfo, kindRunStarted, runID,
 		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name))
 
 	result := s.executeAnimeLive(ctx, runID, &run, anime)
@@ -411,21 +411,21 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 		run.Status = RunStatusJDOffline
 		// Rows without the default per-row re-run token: the Anatomy artboard draws copy-hoster
 		// actions on a jd_offline row, and no registered intent backs those.
-		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, runID, "MyJDownloader offline",
+		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
 			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
 			buildRunDetailRows(outcomes), runWideActions())
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
-		s.notifyWithRows(ctx, notification.LevelWarning, runID, "Download run completed with errors",
+		s.notifyWithRows(ctx, notification.LevelWarning, kindRunStoppedEarly, runID, "Download run completed with errors",
 			"Some animes failed to download.", buildRunDetailRows(outcomes))
 	case anyFailed:
 		run.Status = RunStatusError
-		s.notifyWithRows(ctx, notification.LevelError, runID, "Download run failed",
+		s.notifyWithRows(ctx, notification.LevelError, kindRunStoppedEarly, runID, "Download run failed",
 			"All animes failed to download.", buildRunDetailRows(outcomes))
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notify(ctx, notification.LevelSuccess, runID, "Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
+			s.notify(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
 		}
 	}
 }
@@ -440,7 +440,7 @@ func (s *Service) markCanceled(ctx context.Context, runID string, run *Run) bool
 		return false
 	}
 	run.Status = RunStatusCanceled
-	s.notify(ctx, notification.LevelInfo, runID, "Download run stopped",
+	s.notify(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
 		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded))
 	return true
 }

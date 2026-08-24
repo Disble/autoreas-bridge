@@ -262,3 +262,257 @@ func partialRunScenarioWithNotifier(t *testing.T) (ServiceDeps, *svcFakeNotifier
 	deps.Notifier = notifier
 	return deps, notifier
 }
+
+// TestEveryRunNotificationCanBeOpenedInDownloads pins notify's contract rather than one call
+// site: every notification a download run raises is ABOUT that run, so all of them carry the
+// whole-notification "Open Downloads" token -- the row-less ones (run started) exactly as much
+// as the ones that individuate anime.
+func TestEveryRunNotificationCanBeOpenedInDownloads(t *testing.T) {
+	t.Parallel()
+
+	deps, notifier := partialRunScenarioWithNotifier(t)
+
+	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	sent := notifier.notifications()
+	if len(sent) < 2 {
+		t.Fatalf("notifications = %#v, want at least the run-started and terminal ones", sent)
+	}
+	rowLess := 0
+	for _, notified := range sent {
+		findActionByIntent(t, notified.Actions, "navigation.open")
+		if len(notified.Rows) == 0 {
+			rowLess++
+		}
+	}
+	if rowLess == 0 {
+		t.Fatal("no row-less notification in this run, so the guard this test exists for was never exercised")
+	}
+}
+
+// TestRunAnimeJDOfflineNotificationIndividuatesTheAnimeAsARow mirrors the fan-out assertion on
+// the single-anime path: RunAnime has its own status ladder, and its jd_offline branch used to
+// attach nothing either.
+func TestRunAnimeJDOfflineNotificationIndividuatesTheAnimeAsARow(t *testing.T) {
+	t.Parallel()
+
+	deps, _ := jdOfflineScenario(t)
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+	anime := deps.Animes.(*svcFakeAnimeQuery).animes[0]
+
+	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
+		t.Fatalf("RunAnime: %v", err)
+	}
+
+	sent, found := notificationWithTitle(notifier, "MyJDownloader offline")
+	if !found {
+		t.Fatalf("no jd_offline notification in %#v", notifier.notifications())
+	}
+	if len(sent.Rows) != 1 || sent.Rows[0].RefID != "anime-1" || sent.Rows[0].Name != "NegaPosi Angler" {
+		t.Fatalf("jd_offline rows = %#v, want exactly one row naming the affected anime", sent.Rows)
+	}
+	for _, action := range sent.Actions {
+		if action.Intent == "download.run_anime" {
+			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
+		}
+	}
+}
+
+// kindOf returns the kind of the last notification sent under title.
+func kindOf(t *testing.T, notifier *svcFakeNotifier, title string) string {
+	t.Helper()
+	sent, found := notificationWithTitle(notifier, title)
+	if !found {
+		t.Fatalf("no notification titled %q in %#v", title, notifier.notifications())
+	}
+	return sent.Kind
+}
+
+// TestRunNotificationsCarryTheirKind pins the vocabulary the design canvas already names, as
+// literals. Kind is a second axis next to Source: every one of these carries source "download",
+// so a mutation that reported the source in the kind's place must fail here.
+func TestRunNotificationsCarryTheirKind(t *testing.T) {
+	t.Parallel()
+
+	deps, notifier := partialRunScenarioWithNotifier(t)
+
+	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	if got := kindOf(t, notifier, "Download run started"); got != "run_started" {
+		t.Fatalf("run-started kind = %q, want %q", got, "run_started")
+	}
+	if got := kindOf(t, notifier, "Download run completed with errors"); got != "download.run_stopped_early" {
+		t.Fatalf("partial-run kind = %q, want %q", got, "download.run_stopped_early")
+	}
+	for _, sent := range notifier.notifications() {
+		if sent.Kind == "" {
+			t.Fatalf("notification %q carries no kind", sent.Title)
+		}
+		if sent.Kind == sent.Source {
+			t.Fatalf("notification %q reports its source %q as its kind", sent.Title, sent.Kind)
+		}
+	}
+}
+
+// TestJDOfflineNotificationCarriesTheJDownloaderOfflineKind pins the kind the Anatomy artboard
+// labels that example block with, on both run paths.
+func TestJDOfflineNotificationCarriesTheJDownloaderOfflineKind(t *testing.T) {
+	t.Parallel()
+
+	fanOutDeps, _ := jdOfflineScenario(t)
+	fanOutNotifier := &svcFakeNotifier{}
+	fanOutDeps.Notifier = fanOutNotifier
+	if _, err := NewService(fanOutDeps).RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if got := kindOf(t, fanOutNotifier, "MyJDownloader offline"); got != "jdownloader_offline" {
+		t.Fatalf("fan-out jd_offline kind = %q, want %q", got, "jdownloader_offline")
+	}
+
+	soloDeps, _ := jdOfflineScenario(t)
+	soloNotifier := &svcFakeNotifier{}
+	soloDeps.Notifier = soloNotifier
+	anime := soloDeps.Animes.(*svcFakeAnimeQuery).animes[0]
+	if _, err := NewService(soloDeps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
+		t.Fatalf("RunAnime: %v", err)
+	}
+	if got := kindOf(t, soloNotifier, "MyJDownloader offline"); got != "jdownloader_offline" {
+		t.Fatalf("single-anime jd_offline kind = %q, want %q", got, "jdownloader_offline")
+	}
+}
+
+// TestCleanRunNotificationCarriesTheRunCompletedKind separates the clean terminal case from the
+// stopped-early one: they are different kinds in the canvas, and a producer collapsing both onto
+// one string would make the metadata footer useless for telling them apart.
+func TestCleanRunNotificationCarriesTheRunCompletedKind(t *testing.T) {
+	t.Parallel()
+
+	deps := cleanRunScenarioWithNotifier(t)
+	notifier := deps.Notifier.(*svcFakeNotifier)
+
+	if _, err := NewService(deps).RunOnce(context.Background(), "manual"); err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+
+	if got := kindOf(t, notifier, "Download run completed"); got != "run_completed" {
+		t.Fatalf("clean-run kind = %q, want %q", got, "run_completed")
+	}
+}
+
+// cleanRunScenarioWithNotifier wires a single anime with one downloadable episode and nothing
+// that fails, so RunOnce settles on "ok" with episodes downloaded.
+func cleanRunScenarioWithNotifier(t *testing.T) ServiceDeps {
+	t.Helper()
+	deps := baseDeps(t)
+	dia := todayDiaName(deps.Clock())
+
+	registry := NewStaticRegistry()
+	registry.Register(&svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/ok-anime/": {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-anime/5/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/ok-anime/5/": {{URL: "http://mediafire.example/5", Hoster: "Mediafire"}},
+		},
+	})
+	deps.Sites = registry
+
+	okFolder := t.TempDir()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:        "anime-ok",
+		Name:      "OK Anime",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/ok-anime/"),
+		Folder:    ptrStr(okFolder),
+	}}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
+	deps.Notifier = &svcFakeNotifier{}
+	return deps
+}
+
+// TestSingleAnimeRunNotificationsCarryTheirKind covers the RunAnime status ladder, which is a
+// second, independent switch from RunOnce's -- the fan-out test above proves nothing about it.
+func TestSingleAnimeRunNotificationsCarryTheirKind(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	folder := t.TempDir()
+	registry := NewStaticRegistry()
+	registry.Register(&svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/flaky/": {LatestEpisode: 2, EpisodePageURL: "https://jkanime.net/flaky/2/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/flaky/1/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+		},
+		extractErr: map[string]error{
+			"https://jkanime.net/flaky/2/": errors.New("boom: episode 2 links unavailable"),
+		},
+	})
+	deps.Sites = registry
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}})
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+	anime := contracts.MobileAnime{ID: "flaky", Name: "Flaky Anime", SourceURL: ptrStr("https://jkanime.net/flaky/"), Folder: ptrStr(folder)}
+
+	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
+		t.Fatalf("RunAnime: %v", err)
+	}
+
+	if got := kindOf(t, notifier, "Anime download started"); got != "run_started" {
+		t.Fatalf("single-anime start kind = %q, want %q", got, "run_started")
+	}
+	if got := kindOf(t, notifier, "Download run completed with errors"); got != "download.run_stopped_early" {
+		t.Fatalf("single-anime partial kind = %q, want %q", got, "download.run_stopped_early")
+	}
+}
+
+// TestCleanSingleAnimeRunCarriesTheRunCompletedKind separates the clean terminal case on the
+// RunAnime ladder too: reporting it as stopped-early would make the two indistinguishable.
+func TestCleanSingleAnimeRunCarriesTheRunCompletedKind(t *testing.T) {
+	t.Parallel()
+
+	deps := cleanRunScenarioWithNotifier(t)
+	notifier := deps.Notifier.(*svcFakeNotifier)
+	anime := deps.Animes.(*svcFakeAnimeQuery).animes[0]
+
+	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
+		t.Fatalf("RunAnime: %v", err)
+	}
+
+	if got := kindOf(t, notifier, "Download run completed"); got != "run_completed" {
+		t.Fatalf("single-anime clean kind = %q, want %q", got, "run_completed")
+	}
+}
+
+// TestStoppedRunCarriesTheStoppedEarlyKind invokes markCanceled directly, the way AGENTS.md
+// prescribes for a branch a scheduled fixture cannot reach reliably: a race between cancellation
+// and the pipeline decides whether an end-to-end run ever lands here, so a stress loop could
+// pass while never executing the line. Stopping by request IS the run ending before it finished
+// everything, which is the outcome family the canvas draws one kind for.
+func TestStoppedRunCarriesTheStoppedEarlyKind(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	run := Run{RunID: "run-1", EpisodesDownloaded: 3}
+	if !NewService(deps).markCanceled(ctx, "run-1", &run) {
+		t.Fatal("markCanceled reported no cancellation for an already-cancelled context")
+	}
+
+	if got := kindOf(t, notifier, "Download run stopped"); got != "download.run_stopped_early" {
+		t.Fatalf("stopped-run kind = %q, want %q", got, "download.run_stopped_early")
+	}
+}

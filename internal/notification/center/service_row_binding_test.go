@@ -145,3 +145,40 @@ func TestNotifyLeavesRowsUnboundWhenNoActionNamesThem(t *testing.T) {
 		t.Fatalf("row ActionIDs = %#v, want none -- no action named this row", got)
 	}
 }
+
+// TestNotifyPersistsTheProducerSKind pins the field the detail pane's metadata footer renders
+// next to the correlation id. Source and Kind are NOT the same axis: source is the bounded
+// context that raised the notification, kind is the specific event within it, so a mutation
+// that persisted one in place of the other must fail here.
+func TestNotifyPersistsTheProducerSKind(t *testing.T) {
+	t.Parallel()
+
+	record := persistOneNotification(t, notification.Notification{
+		Title:  "Download stopped before the season finished",
+		Body:   "2 of 9 anime were left incomplete.",
+		Level:  notification.LevelWarning,
+		Source: "download",
+		Kind:   "download.run_stopped_early",
+	})
+
+	if record.Kind != "download.run_stopped_early" {
+		t.Fatalf("Kind = %q, want the producer's kind", record.Kind)
+	}
+	if record.Source != "download" {
+		t.Fatalf("Source = %q, want it untouched by the kind", record.Source)
+	}
+}
+
+// TestNotifyPersistsAnAbsentKindAsAbsent pins the empty case as first-class: a producer that has
+// not adopted the vocabulary yet must persist NO kind, never a placeholder derived from source.
+func TestNotifyPersistsAnAbsentKindAsAbsent(t *testing.T) {
+	t.Parallel()
+
+	record := persistOneNotification(t, notification.Notification{
+		Title: "Device paired", Body: "b", Level: notification.LevelInfo, Source: "device",
+	})
+
+	if record.Kind != "" {
+		t.Fatalf("Kind = %q, want empty for a producer that set none", record.Kind)
+	}
+}

@@ -65,10 +65,17 @@ type ActionSpec struct {
 // Source is a free-form domain string such as "download", "sync", or "anime"
 // -- the type itself MUST NOT reference any specific feature.
 type Notification struct {
-	Title         string
-	Body          string
-	Level         Level
-	Source        string
+	Title  string
+	Body   string
+	Level  Level
+	Source string
+	// Kind names the specific event this notification is, within its Source. The two are
+	// different axes and neither substitutes for the other: Source is the bounded context that
+	// raised it ("download"), Kind is what happened there ("download.run_stopped_early"). Like
+	// Source it is a free-form string a producer defines -- this package still names no
+	// feature. Empty is valid and means the producer has no kind to report; a consumer MUST
+	// render that as absent rather than as an empty labelled field.
+	Kind          string
 	CorrelationID string
 	Timestamp     time.Time
 	// Rows optionally attaches one DetailItem per thing this notification concerns. Nil for

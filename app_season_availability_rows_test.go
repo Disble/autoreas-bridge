@@ -93,3 +93,59 @@ func TestNotifySeasonAvailableExactlyAtTheLimitAddsNoSummaryRow(t *testing.T) {
 		}
 	}
 }
+
+// TestNotifySeasonAvailableCollapsesExactlyOneNameIntoASummaryRow pins the collapse threshold at
+// its tightest boundary, mirroring the download side's own `> 1` guard test: with 7 names the
+// remainder is 2, which stays above a `collapsed > 1` mutant either way, so only a batch that
+// leaves exactly ONE name over proves the `> 0` boundary.
+func TestNotifySeasonAvailableCollapsesExactlyOneNameIntoASummaryRow(t *testing.T) {
+	t.Parallel()
+
+	notifier := &recordingAppNotifier{}
+	app := &App{notifier: notifier}
+
+	app.notifySeasonAvailable(context.Background(), []string{"A", "B", "C", "D", "E", "F"})
+
+	rows := notifier.received[0].Rows
+	if len(rows) != 6 {
+		t.Fatalf("rows = %#v, want 5 named rows plus 1 summary row for the single leftover name", rows)
+	}
+	if rows[5].CollapsedCount != 1 {
+		t.Fatalf("summary row = %#v, want CollapsedCount 1 -- a `> 1` mutant must fail here", rows[5])
+	}
+}
+
+// TestBuildSeasonAvailableRowsReturnsNilForAnEmptyBatch pins the nil contract directly, the way
+// TestToDetailRowsAndToActionsReturnNilForEmptyInput does for the center converters: nil and an
+// empty slice are indistinguishable once the notification is persisted (marshalRows treats both
+// as "nothing to store"), so only a unit test on the builder itself can catch the difference.
+func TestBuildSeasonAvailableRowsReturnsNilForAnEmptyBatch(t *testing.T) {
+	t.Parallel()
+
+	if rows := buildSeasonAvailableRows(nil); rows != nil {
+		t.Fatalf("buildSeasonAvailableRows(nil) = %#v, want nil", rows)
+	}
+	if rows := buildSeasonAvailableRows([]string{}); rows != nil {
+		t.Fatalf("buildSeasonAvailableRows([]) = %#v, want nil", rows)
+	}
+}
+
+// TestNotifySeasonAvailableCarriesTheSeasonAnimeAvailableKind pins the kind the Anatomy artboard
+// labels that example block with. Source stays "season" -- the bounded context -- while the kind
+// names what happened in it, so a producer reporting one in the other's place fails here.
+func TestNotifySeasonAvailableCarriesTheSeasonAnimeAvailableKind(t *testing.T) {
+	t.Parallel()
+
+	notifier := &recordingAppNotifier{}
+	app := &App{notifier: notifier}
+
+	app.notifySeasonAvailable(context.Background(), []string{"Sousou no Frieren"})
+
+	sent := notifier.received[0]
+	if sent.Kind != "season.anime_available" {
+		t.Fatalf("Kind = %q, want %q", sent.Kind, "season.anime_available")
+	}
+	if sent.Source != "season" {
+		t.Fatalf("Source = %q, want %q -- the kind must not overwrite it", sent.Source, "season")
+	}
+}

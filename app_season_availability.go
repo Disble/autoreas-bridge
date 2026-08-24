@@ -353,6 +353,7 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 		Body:      fmt.Sprintf("%d anime now available — create them when you want: %s", len(names), joinNamesWithLimit(names, seasonAvailableNamesShownInBody)),
 		Level:     notification.LevelInfo,
 		Source:    "season",
+		Kind:      seasonAvailableKind,
 		Timestamp: time.Now(),
 		Rows:      buildSeasonAvailableRows(names),
 	})

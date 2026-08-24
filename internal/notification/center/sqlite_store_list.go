@@ -25,7 +25,7 @@ const (
 // action bodies it deliberately does not need: it resolves through
 // idx_notification_record_actions_notification, whose leading column is
 // exactly notification_id.
-const notificationRecordSelectColumns = "id, created_at_ms, title, body, level, source, correlation_id, read_at_ms, archived_at_ms, rows_json, " +
+const notificationRecordSelectColumns = "id, created_at_ms, title, body, level, source, kind, correlation_id, read_at_ms, archived_at_ms, rows_json, " +
 	"(SELECT COUNT(*) FROM notification_record_actions WHERE notification_record_actions.notification_id = notification_records.id)"
 
 // List returns a newest-first, keyset-paginated page of records, filtered by
@@ -199,13 +199,19 @@ type notificationRecordRowScanner interface {
 // loadActionsForRecord.
 func scanNotificationRecordRow(scanner notificationRecordRowScanner) (Record, error) {
 	var record Record
-	var correlationID, rowsJSON sql.NullString
+	var kind, correlationID, rowsJSON sql.NullString
 	var readAtMS, archivedAtMS sql.NullInt64
 	if err := scanner.Scan(
 		&record.ID, &record.CreatedAtMS, &record.Title, &record.Body, &record.Level, &record.Source,
-		&correlationID, &readAtMS, &archivedAtMS, &rowsJSON, &record.ActionCount,
+		&kind, &correlationID, &readAtMS, &archivedAtMS, &rowsJSON, &record.ActionCount,
 	); err != nil {
 		return Record{}, err
+	}
+	// kind scans through sql.NullString rather than straight into the string: a record written
+	// before the column existed holds NULL there, and scanning NULL into a string errors out,
+	// which would degrade the whole inbox on the first read after an upgrade.
+	if kind.Valid {
+		record.Kind = kind.String
 	}
 	if correlationID.Valid {
 		record.CorrelationID = correlationID.String

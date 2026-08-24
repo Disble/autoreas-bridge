@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
+	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/notification/center"
 )
 
@@ -87,5 +89,29 @@ func TestNavigationOpenIntentRefusesAnEmptyRouteWithoutEmitting(t *testing.T) {
 	}
 	if len(recorder.names) != 0 {
 		t.Fatalf("emitted %#v, want nothing emitted for a route-less token", recorder.names)
+	}
+}
+
+// TestRegisterNotificationIntentsRegistersExactlyTheKnownIntentKeys pins the intent vocabulary
+// as LITERALS, resolved against the live registry. Every other test here addresses an intent
+// through the same constant the registry registered it under, so both sides of the comparison
+// move together and a rename is invisible to them. It is not invisible in production: an intent
+// key is a persisted string, so a record written last week holds the old spelling and every one
+// of its action tokens would silently stop resolving.
+func TestRegisterNotificationIntentsRegistersExactlyTheKnownIntentKeys(t *testing.T) {
+	t.Parallel()
+
+	recorder := &emitRecorder{}
+	app := &App{
+		downloadService:   download.NewService(download.ServiceDeps{}),
+		downloadScheduler: &fakeAppScheduler{},
+		emitFn:            recorder.emit,
+	}
+
+	keys := app.registerNotificationIntents().Keys()
+
+	want := []string{"download.run_anime", "navigation.open", "schedule.ignore_missed", "schedule.run_missed_now"}
+	if !reflect.DeepEqual(keys, want) {
+		t.Fatalf("registered intent keys = %#v, want exactly %#v (sorted)", keys, want)
 	}
 }

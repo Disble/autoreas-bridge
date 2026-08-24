@@ -19,12 +19,18 @@ const (
 			body           TEXT    NOT NULL,
 			level          TEXT    NOT NULL,
 			source         TEXT    NOT NULL,
+			kind           TEXT,
 			correlation_id TEXT,
 			read_at_ms     INTEGER,
 			archived_at_ms INTEGER,
 			rows_json      TEXT
 		)`
-	notificationRecordActionsDDL = `
+	// notificationRecordsKindAlterDDL adds the kind column to a notification_records table
+	// that predates it. Nullable with no default on purpose: a record written by an earlier
+	// build genuinely HAS no kind, and NULL says that, where an empty-string default would
+	// claim someone recorded one.
+	notificationRecordsKindAlterDDL = `ALTER TABLE notification_records ADD COLUMN kind TEXT`
+	notificationRecordActionsDDL    = `
 		CREATE TABLE IF NOT EXISTS notification_record_actions (
 			id              TEXT    PRIMARY KEY,
 			notification_id INTEGER NOT NULL,
@@ -52,14 +58,18 @@ const (
 )
 
 // SchemaTables returns the notification-center-owned bridge table descriptors:
-// notification_records and notification_record_actions. Both are create-only:
-// no ColumnAdds, no Migrate, no version stamp -- born at their current shape,
-// exactly like runtime_events.
+// notification_records and notification_record_actions. Neither carries a
+// Migrate hook or a version stamp; notification_records grows additively
+// through ColumnAdds, which EnsureTableSchema applies only when the column is
+// actually absent, so calling this on every start stays idempotent.
 func SchemaTables() []persistence.TableSchema {
 	return []persistence.TableSchema{
 		{
 			Name:      "notification_records",
 			CreateDDL: notificationRecordsDDL,
+			ColumnAdds: []persistence.ColumnMigration{
+				{Column: "kind", AlterDDL: notificationRecordsKindAlterDDL},
+			},
 			Indexes: []string{
 				notificationRecordsTimeIndexDDL,
 				notificationRecordsActiveIndexDDL,

@@ -68,12 +68,18 @@ type Action struct {
 
 // Record is one persisted notification.
 type Record struct {
-	ID            int64
-	CreatedAtMS   int64
-	Title         string
-	Body          string
-	Level         Level
-	Source        string
+	ID          int64
+	CreatedAtMS int64
+	Title       string
+	Body        string
+	Level       Level
+	Source      string
+	// Kind is the specific event this record is, WITHIN its Source: Source is the bounded
+	// context that raised it ("download"), Kind is what happened there
+	// ("download.run_stopped_early"). Empty for a record written before the column existed,
+	// and for any producer that has not adopted the vocabulary yet -- an absent kind renders
+	// as absent, never as an empty labelled row.
+	Kind          string
 	CorrelationID string
 	ReadAtMS      int64 // 0 = unread
 	ArchivedAtMS  int64 // 0 = active

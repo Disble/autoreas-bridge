@@ -66,23 +66,27 @@ func (s *Service) publish(event events.Event) {
 // notify sends a user-facing notification without failing the download run. Every download-run
 // notification is ABOUT the download run, so it always carries the run-wide action tokens even
 // when it has nothing to individuate.
-func (s *Service) notify(ctx context.Context, level notification.Level, runID, title, body string) {
-	s.notifyWithRowsAndActions(ctx, level, runID, title, body, nil, runWideActions())
+func (s *Service) notify(ctx context.Context, level notification.Level, kind, runID, title, body string) {
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, nil, runWideActions())
 }
 
 // notifyWithRows sends a user-facing notification carrying individually identified detail rows
 // (e.g. one row per anime that needs attention), plus the action tokens those rows offer -- a
 // per-row "Run this anime again" for each anime it names, alongside the run-wide ones. A nil
 // rows slice is equivalent to notify.
-func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, runID, title, body string, rows []notification.DetailItem) {
-	s.notifyWithRowsAndActions(ctx, level, runID, title, body, rows, buildRunActions(rows))
+func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, kind, runID, title, body string, rows []notification.DetailItem) {
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, rows, buildRunActions(rows))
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing
 // notification carrying explicit rows and explicit action tokens, without failing the download
 // run. It exists for the producers whose rows must NOT grow the default per-row action -- the
 // jd_offline case, where the design canvas draws copy-hoster actions no registered intent backs.
-func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notification.Level, runID, title, body string, rows []notification.DetailItem, actions []notification.ActionSpec) {
+//
+// kind is passed per call site rather than derived from the run status: run_started has no
+// status at all, and deriving the rest would bury the mapping in a switch far from the title and
+// body that were chosen alongside it.
+func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notification.Level, kind, runID, title, body string, rows []notification.DetailItem, actions []notification.ActionSpec) {
 	if s.deps.Notifier == nil {
 		return
 	}
@@ -94,6 +98,7 @@ func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notificati
 		Body:          body,
 		Level:         level,
 		Source:        "download",
+		Kind:          kind,
 		CorrelationID: runID,
 		Timestamp:     s.deps.Clock(),
 		Rows:          rows,

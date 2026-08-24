@@ -20,6 +20,14 @@ type NotificationListRequest struct {
 // NotificationRow is one list/detail-embedded row -- everything the master
 // list renders for one record, and nothing more.
 //
+// Kind and Source are different axes and neither substitutes for the other:
+// Source is the bounded context that raised the record ("download"), Kind is
+// the specific event within it ("download.run_stopped_early"). The detail
+// pane renders Kind in its metadata footer beside CorrelationID. It is
+// omitempty on purpose -- a producer that reports no kind must reach the
+// frontend with the key absent, so the footer skips the row rather than
+// labelling an empty value.
+//
 // RowCount and Subjects are the bounded projection of the record's detail
 // rows, so the list can show a count badge ("3x") and a subject line naming
 // what the record is about without loading its whole row list onto every
@@ -36,6 +44,7 @@ type NotificationRow struct {
 	Body          string   `json:"body"`
 	Level         string   `json:"level"`
 	Source        string   `json:"source"`
+	Kind          string   `json:"kind,omitempty"`
 	CorrelationID string   `json:"correlationId,omitempty"`
 	ReadAtMs      int64    `json:"readAtMs,omitempty"`
 	ArchivedAtMs  int64    `json:"archivedAtMs,omitempty"`

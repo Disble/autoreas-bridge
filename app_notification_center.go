@@ -197,6 +197,7 @@ func toNotificationRow(record center.Record) contracts.NotificationRow {
 		Body:          record.Body,
 		Level:         record.Level,
 		Source:        record.Source,
+		Kind:          record.Kind,
 		CorrelationID: record.CorrelationID,
 		ReadAtMs:      record.ReadAtMS,
 		ArchivedAtMs:  record.ArchivedAtMS,

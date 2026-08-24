@@ -92,10 +92,10 @@ func (s *Store) InsertRecord(ctx context.Context, record Record) (id int64, err 
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO notification_records (
-			created_at_ms, title, body, level, source, correlation_id, rows_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+			created_at_ms, title, body, level, source, kind, correlation_id, rows_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, record.CreatedAtMS, record.Title, record.Body, record.Level, record.Source,
-		nullableString(record.CorrelationID), rowsJSON)
+		nullableString(record.Kind), nullableString(record.CorrelationID), rowsJSON)
 	if err != nil {
 		return 0, err
 	}
