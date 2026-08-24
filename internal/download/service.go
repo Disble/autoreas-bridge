@@ -409,7 +409,11 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)))
+		// Rows without the default per-row re-run token: the Anatomy artboard draws copy-hoster
+		// actions on a jd_offline row, and no registered intent backs those.
+		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, runID, "MyJDownloader offline",
+			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
+			buildRunDetailRows(outcomes), runWideActions())
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
 		s.notifyWithRows(ctx, notification.LevelWarning, runID, "Download run completed with errors",

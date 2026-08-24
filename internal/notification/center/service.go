@@ -53,6 +53,7 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 		createdAtMS = n.Timestamp.UnixMilli()
 	}
 
+	rows, actions := toRecordContent(n.Rows, n.Actions)
 	_, persistErr := s.store.InsertRecord(ctx, Record{
 		CreatedAtMS:   createdAtMS,
 		Title:         n.Title,
@@ -60,8 +61,8 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 		Level:         Level(n.Level),
 		Source:        n.Source,
 		CorrelationID: n.CorrelationID,
-		Rows:          toDetailRows(n.Rows),
-		Actions:       toActions(n.Actions),
+		Rows:          rows,
+		Actions:       actions,
 	})
 	if persistErr != nil && s.log != nil {
 		s.log.Warnf("notification-center", "persist notification record: %v", persistErr)
@@ -69,6 +70,42 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 
 	dispatchErr := s.inner.Notify(ctx, n)
 	return errors.Join(persistErr, dispatchErr)
+}
+
+// toRecordContent converts a producer's rows and actions TOGETHER, because the two conversions
+// are not independent: toActions mints each action's id, and a row-scoped action is only
+// reachable from its row through that generated id (DetailRow.ActionIDs, which is what the
+// detail pane resolves a row's buttons from). Converting them separately would persist a
+// correctly row-bound action that no row can ever address.
+func toRecordContent(items []notification.DetailItem, specs []notification.ActionSpec) ([]DetailRow, []Action) {
+	rows := toDetailRows(items)
+	actions := toActions(specs)
+	bindRowActions(rows, actions)
+	return rows, actions
+}
+
+// bindRowActions fills each row's ActionIDs with the ids of the actions bound to it, matching an
+// Action's RowRef against a DetailRow's entity id.
+//
+// The single guard is what keeps the two levels apart: an action with NO row ref is about the
+// whole notification, so it never enters the index at all. That is deliberately the only guard.
+// A symmetric one skipping rows with no entity id would be inert -- the empty string can no
+// longer be a key here, so nothing can match a collapsed summary row's empty ref -- and a guard
+// that cannot change an outcome cannot be proven by any test, which makes it indistinguishable
+// from protection that has quietly stopped working.
+func bindRowActions(rows []DetailRow, actions []Action) {
+	idsByRowRef := make(map[string][]string, len(actions))
+	for _, action := range actions {
+		if action.RowRef == "" {
+			continue
+		}
+		idsByRowRef[action.RowRef] = append(idsByRowRef[action.RowRef], action.ID)
+	}
+	for i := range rows {
+		if ids, bound := idsByRowRef[rows[i].Ref.ID]; bound {
+			rows[i].ActionIDs = ids
+		}
+	}
 }
 
 // toDetailRows converts a producer's neutral notification.DetailItem rows into the store's
@@ -104,6 +141,7 @@ func toActions(specs []notification.ActionSpec) []Action {
 		actions = append(actions, Action{
 			ID:      uuid.NewString(),
 			Ordinal: ordinal,
+			RowRef:  spec.RowRef,
 			Label:   spec.Label,
 			Intent:  spec.Intent,
 			Args:    spec.Args,

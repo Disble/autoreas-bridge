@@ -25,12 +25,16 @@ import { useTruncationTooltip } from './use-truncation-tooltip';
  * vertical scroll. The leading 40px selection column (design.md §9.2's row
  * grid) is React Aria's own convention: an explicit `Checkbox slot="selection"`
  * in both the header (toggles "select all") and every row cell (toggles that
- * row) -- never hand-rolled selection state.
+ * row) -- never hand-rolled selection state. Pressing the row body instead
+ * raises `onRowAction`, which is how the panel opens that record's detail
+ * pane: React Aria keeps the two intents apart, so a press on the selection
+ * checkbox never also opens the row.
  */
 export function NotificationTable({
   hasNextPage,
   isLoading,
   onLoadMore,
+  onRowAction,
   onSelectionChange,
   renderEmptyState,
   rows,
@@ -43,6 +47,7 @@ export function NotificationTable({
           <Table.Content
             aria-label={NOTIFICATION_TABLE_ARIA_LABEL}
             className="w-full table-fixed"
+            onRowAction={onRowAction}
             onSelectionChange={onSelectionChange}
             selectedKeys={selectedKeys}
             selectionMode="multiple"

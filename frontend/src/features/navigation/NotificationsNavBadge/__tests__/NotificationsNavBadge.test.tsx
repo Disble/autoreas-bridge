@@ -1,11 +1,20 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
 import type { Notification } from '../../../../shared/contracts/notification.types';
+import {
+  resetNotificationStore,
+  setUnreadNotificationCount,
+} from '../../../../shared/store/notification-store/notification-store.helpers';
 import { NotificationsNavBadge } from '../NotificationsNavBadge';
 
 afterEach(cleanup);
+
+// The unread count is shared module state now, so it outlives an unmount.
+// Without this every assertion below would read whatever the previous test
+// left behind instead of what its own source reported.
+beforeEach(resetNotificationStore);
 
 /** A fake source with only `getUnreadCount` wired; every other method is an unused stub. */
 function makeCenterSource(unreadCount: number): NotificationCenterSource {
@@ -68,6 +77,21 @@ describe('NotificationsNavBadge', () => {
 
     await waitFor(() => expect(centerSource.getUnreadCount).toHaveBeenCalledTimes(1));
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('follows an unread count lowered elsewhere, because the count is shared rather than owned here', async () => {
+    // What a mark-read in the notification center does to the store. The
+    // badge must fall with it: owning the count locally is what previously
+    // left the rail contradicting the master list on screen.
+    render(<NotificationsNavBadge centerSource={makeCenterSource(2)} pushSource={makePushSource().source} />);
+    await waitFor(() => expect(screen.getByText('2')).toBeInTheDocument());
+
+    act(() => {
+      setUnreadNotificationCount(1);
+    });
+
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    expect(screen.queryByText('2')).not.toBeInTheDocument();
   });
 
   it('updates the badge count as soon as a notification.push event arrives, without a reload', async () => {

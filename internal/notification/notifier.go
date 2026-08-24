@@ -48,10 +48,17 @@ type DetailItem struct {
 // ActionSpec is one producer-attached action a user can take on a Notification. Intent is a
 // free-form token a registered handler resolves at press time; Args are frozen at creation and
 // never mutated afterward.
+//
+// An action exists at one of TWO levels. RowRef empty means the action is about the whole
+// Notification ("Open Downloads"); RowRef set to one of Rows' RefID values means it is about
+// that single row ("Run this anime again"). It is a plain string, never a DetailItem pointer or
+// index, so this package keeps depending on nothing but internal/logger and a row list that is
+// reordered or truncated downstream can never silently rebind an action to the wrong thing.
 type ActionSpec struct {
 	Label  string
 	Intent string
 	Args   map[string]string
+	RowRef string
 }
 
 // Notification is a domain-agnostic value describing a user-notable moment.

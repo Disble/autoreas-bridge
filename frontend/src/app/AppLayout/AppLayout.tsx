@@ -72,11 +72,22 @@ export function AppLayout() {
                 </p>
                 {group.items.map(({ to, label, icon }) => (
                   <NavLink className={railItemClass} key={to} to={to}>
-                    <Icon aria-hidden="true" className="size-5 shrink-0" icon={icon} />
+                    {/* The unread count sits on the icon, deliberately OUTSIDE
+                        the hover-gated label span below. The rail rests at
+                        md:w-16, so anything inside that span is invisible until
+                        the user hovers -- and a count whose whole job is to
+                        inform without being asked cannot require being asked. */}
+                    <span className="relative shrink-0">
+                      <Icon aria-hidden="true" className="size-5" icon={icon} />
+                      {to === '/notifications' ? (
+                        <span className="absolute -right-2 -top-2">
+                          <NotificationsNavBadge />
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
                       {label}
                       {to === '/season' ? <SeasonNavBadge /> : null}
-                      {to === '/notifications' ? <NotificationsNavBadge /> : null}
                     </span>
                   </NavLink>
                 ))}

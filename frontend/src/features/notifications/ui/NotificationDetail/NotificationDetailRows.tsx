@@ -11,7 +11,7 @@ import { useNotificationDetailCovers } from './use-notification-detail-covers';
  * and each row's cover art via `useNotificationDetailCovers`, then hands
  * both to the dumb `NotificationDetailRow`.
  */
-export function NotificationDetailRows({ actions, notificationId, rows }: Readonly<NotificationDetailRowsProps>) {
+export function NotificationDetailRows({ actions, notificationId, rows, source }: Readonly<NotificationDetailRowsProps>) {
   const covers = useNotificationDetailCovers(rows);
 
   return (
@@ -28,6 +28,7 @@ export function NotificationDetailRows({ actions, notificationId, rows }: Readon
           key={`${row.refType}-${row.refId}`}
           notificationId={notificationId}
           row={row}
+          source={source}
         />
       ))}
     </div>

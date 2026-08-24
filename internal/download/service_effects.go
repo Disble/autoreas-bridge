@@ -63,15 +63,26 @@ func (s *Service) publish(event events.Event) {
 	s.deps.Bus.Publish(event)
 }
 
-// notify sends a user-facing notification without failing the download run.
+// notify sends a user-facing notification without failing the download run. Every download-run
+// notification is ABOUT the download run, so it always carries the run-wide action tokens even
+// when it has nothing to individuate.
 func (s *Service) notify(ctx context.Context, level notification.Level, runID, title, body string) {
-	s.notifyWithRows(ctx, level, runID, title, body, nil)
+	s.notifyWithRowsAndActions(ctx, level, runID, title, body, nil, runWideActions())
 }
 
 // notifyWithRows sends a user-facing notification carrying individually identified detail rows
-// (e.g. one row per anime that needs attention), without failing the download run. A nil rows
-// slice is equivalent to notify -- the same run-wide body is used with nothing to individuate.
+// (e.g. one row per anime that needs attention), plus the action tokens those rows offer -- a
+// per-row "Run this anime again" for each anime it names, alongside the run-wide ones. A nil
+// rows slice is equivalent to notify.
 func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, runID, title, body string, rows []notification.DetailItem) {
+	s.notifyWithRowsAndActions(ctx, level, runID, title, body, rows, buildRunActions(rows))
+}
+
+// notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing
+// notification carrying explicit rows and explicit action tokens, without failing the download
+// run. It exists for the producers whose rows must NOT grow the default per-row action -- the
+// jd_offline case, where the design canvas draws copy-hoster actions no registered intent backs.
+func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notification.Level, runID, title, body string, rows []notification.DetailItem, actions []notification.ActionSpec) {
 	if s.deps.Notifier == nil {
 		return
 	}
@@ -86,6 +97,7 @@ func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, 
 		CorrelationID: runID,
 		Timestamp:     s.deps.Clock(),
 		Rows:          rows,
+		Actions:       actions,
 	}); err != nil {
 		s.logf(logger.LevelWarn, runID, "", "download.notification_failed", nil,
 			"download notification %q failed: %v", title, err)

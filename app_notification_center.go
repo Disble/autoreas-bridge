@@ -22,6 +22,14 @@ const notificationActionRunTrigger = "notification_action"
 // notification-center feature directly.
 const notificationArchivedEventName = "notification.archived"
 
+// notificationNavigateEventName is the Wails runtime event the navigation.open
+// intent emits, carrying the route frozen into the pressed action's args. It
+// follows notificationArchivedEventName's pattern exactly: a backend intent
+// that must cause a frontend effect reaches the frontend as a runtime event,
+// so the notification center never needs a router and the router never needs
+// to know what a notification is.
+const notificationNavigateEventName = "notification.navigate"
+
 // ListNotifications is the Wails-bound keyset-paginated read of the
 // notification center's inbox (design §10). Never panics: a nil store or a
 // query error degrades to an empty, Degraded page.
@@ -176,12 +184,11 @@ func toNotificationPage(page center.Page, totalEver int) contracts.NotificationP
 }
 
 // toNotificationRow maps a center.Record into the shared list/detail row
-// DTO. ActionCount reflects len(record.Actions): populated for
-// GetNotification's single-record read (Store.Record loads the full action
-// set) but always 0 for ListNotifications' rows, because Store.List()
-// deliberately does not load per-row actions (sqlite_store_list.go, kept a
-// lean summary query). Wiring a real per-row action count into the list SQL
-// is a follow-up beyond this slice's scope.
+// DTO, including the bounded projection the master list renders: a real
+// action count, how many things the record is about, and the first few of
+// their names. ActionCount comes from record.ActionCount, never
+// len(record.Actions): the list read deliberately loads no action bodies, so
+// that slice is legitimately empty there while the count is not.
 func toNotificationRow(record center.Record) contracts.NotificationRow {
 	return contracts.NotificationRow{
 		ID:            record.ID,
@@ -193,7 +200,9 @@ func toNotificationRow(record center.Record) contracts.NotificationRow {
 		CorrelationID: record.CorrelationID,
 		ReadAtMs:      record.ReadAtMS,
 		ArchivedAtMs:  record.ArchivedAtMS,
-		ActionCount:   len(record.Actions),
+		ActionCount:   record.ActionCount,
+		RowCount:      countNotificationSubjects(record.Rows),
+		Subjects:      notificationSubjects(record.Rows),
 	}
 }
 
@@ -246,14 +255,19 @@ func toNotificationAction(action center.Action) contracts.NotificationAction {
 // registerNotificationIntents builds the StaticRegistry every action token
 // resolves through at press time. Registration is conditional on purpose
 // (design Decision C): an unwired subsystem surfaces as intent_unregistered
-// rather than an unmodelled fifth refusal reason. download.retry_run is
-// deliberately never registered -- it does not exist (internal/download/
-// service.go exposes only RunOnce and RunAnime).
+// rather than an unmodelled fifth refusal reason -- which is why
+// navigation.open is gated on a.emitFn, the only channel it has to reach the
+// frontend with. download.retry_run is deliberately never registered -- it
+// does not exist (internal/download/service.go exposes only RunOnce and
+// RunAnime).
 func (a *App) registerNotificationIntents() *center.StaticRegistry {
 	registry := center.NewStaticRegistry()
 
 	if a.downloadService != nil {
 		registry.Register(center.IntentDownloadRunAnime, center.SingleFireFunc(a.runAnimeAgainIntent))
+	}
+	if a.emitFn != nil {
+		registry.Register(center.IntentNavigationOpen, center.SingleFireFunc(a.navigationOpenIntent))
 	}
 	if a.downloadScheduler != nil {
 		registry.Register(center.IntentScheduleRunMissedNow, center.SingleFireFunc(func(ctx context.Context, args map[string]string) error {
@@ -295,12 +309,26 @@ func missedStartupActionAsIntentError(result schedule.MissedStartupActionResult)
 // how a deleted target is detected, potentially days after the record was
 // created.
 func (a *App) runAnimeAgainIntent(ctx context.Context, args map[string]string) error {
-	anime := a.GetAnimeDetail(args["animeId"])
+	anime := a.GetAnimeDetail(args[center.ArgKeyAnimeID])
 	if anime == nil {
 		return center.ErrTargetMissing
 	}
 	_, err := a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
 	return err
+}
+
+// navigationOpenIntent is the navigation.open handler: it forwards the route
+// frozen into the action's args to the frontend as a runtime event, the same
+// way ArchiveNotifications reaches the toast layer. A token whose route is
+// missing has nothing to point at, so it maps onto the closed refusal set as
+// target_missing rather than emitting a navigation to nowhere.
+func (a *App) navigationOpenIntent(ctx context.Context, args map[string]string) error {
+	route := args[center.ArgKeyRoute]
+	if route == "" {
+		return center.ErrTargetMissing
+	}
+	a.emitFn(ctx, notificationNavigateEventName, route)
+	return nil
 }
 
 // wireNotificationCenterIntentExecutor constructs a.notificationCenterExecutor

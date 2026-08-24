@@ -20,6 +20,24 @@ const (
 	// IntentScheduleIgnoreMissed resolves to the same scheduler call behind
 	// the pre-existing IgnoreMissedSchedule Wails binding.
 	IntentScheduleIgnoreMissed = "schedule.ignore_missed"
+	// IntentNavigationOpen resolves to a frontend route change, addressed by
+	// the "route" key of the action's frozen args. It is the intent behind a
+	// whole-notification "Open Downloads" button (design-canvas
+	// Intents.dc.html), and the only registered intent whose handler runs no
+	// backend operation at all -- it hands the press to the delivery layer.
+	IntentNavigationOpen = "navigation.open"
+)
+
+// Frozen-args keys, declared beside the intents that read them for the same
+// reason the intent keys are: a producer freezes an argument here and a
+// handler reads it back in the composition root, so a typo on either side
+// would otherwise produce an action that resolves but does nothing. Only the
+// keys with a producer in another package live here.
+const (
+	// ArgKeyRoute is where IntentNavigationOpen reads its destination route.
+	ArgKeyRoute = "route"
+	// ArgKeyAnimeID is where IntentDownloadRunAnime reads its target anime.
+	ArgKeyAnimeID = "animeId"
 )
 
 // StaticRegistry is the default IntentRegistry: an explicit map filled at

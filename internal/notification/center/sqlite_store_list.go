@@ -20,14 +20,20 @@ const (
 )
 
 // notificationRecordSelectColumns is the fixed SELECT column list every
-// notification_records query relies on.
-const notificationRecordSelectColumns = "id, created_at_ms, title, body, level, source, correlation_id, read_at_ms, archived_at_ms, rows_json"
+// notification_records query relies on. The trailing correlated subquery is
+// what lets the master list report a real action count without loading the
+// action bodies it deliberately does not need: it resolves through
+// idx_notification_record_actions_notification, whose leading column is
+// exactly notification_id.
+const notificationRecordSelectColumns = "id, created_at_ms, title, body, level, source, correlation_id, read_at_ms, archived_at_ms, rows_json, " +
+	"(SELECT COUNT(*) FROM notification_record_actions WHERE notification_record_actions.notification_id = notification_records.id)"
 
 // List returns a newest-first, keyset-paginated page of records, filtered by
 // the requested archive view and, optionally, to unread-only. Deliberately
-// does NOT load each item's actions: the master list only needs record
-// fields (design §10's NotificationRow has no action bodies, only a count),
-// while Record loads the full action set for the single-record detail view.
+// does NOT load each item's action BODIES: the master list only needs record
+// fields plus a count (design §10's NotificationRow has no action bodies),
+// which the select column list gets from a correlated COUNT. Record loads the
+// full action set for the single-record detail view.
 func (s *Store) List(ctx context.Context, query ListQuery) (Page, error) {
 	limit := clampListLimit(query.Limit)
 	sqlQuery, args, err := buildListQuery(query, limit)
@@ -188,15 +194,16 @@ type notificationRecordRowScanner interface {
 }
 
 // scanNotificationRecordRow reads one notification_records row into a
-// Record, leaving Actions unset -- callers that need actions load them
-// separately via loadActionsForRecord.
+// Record, including its ActionCount but leaving Actions themselves unset --
+// callers that need the action bodies load them separately via
+// loadActionsForRecord.
 func scanNotificationRecordRow(scanner notificationRecordRowScanner) (Record, error) {
 	var record Record
 	var correlationID, rowsJSON sql.NullString
 	var readAtMS, archivedAtMS sql.NullInt64
 	if err := scanner.Scan(
 		&record.ID, &record.CreatedAtMS, &record.Title, &record.Body, &record.Level, &record.Source,
-		&correlationID, &readAtMS, &archivedAtMS, &rowsJSON,
+		&correlationID, &readAtMS, &archivedAtMS, &rowsJSON, &record.ActionCount,
 	); err != nil {
 		return Record{}, err
 	}

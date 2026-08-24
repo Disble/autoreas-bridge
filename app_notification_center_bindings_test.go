@@ -58,14 +58,14 @@ func TestListNotificationsMapsStoreValuesToContractDTOs(t *testing.T) {
 		row.Level != "success" || row.Source != "download" || row.CreatedAtMs != 1000 {
 		t.Fatalf("unexpected mapped row: %#v", row)
 	}
-	if row.ActionCount != 0 {
-		// Store.List() deliberately does not load per-row actions
-		// (sqlite_store_list.go, Slice 2a) -- ActionCount for LIST rows is
-		// 0 until the list SQL grows a per-record action count, a follow-up
-		// beyond this slice's scope. GetNotification's detail read (below)
-		// DOES report the real count, because Store.Record loads full
-		// actions.
-		t.Fatalf("expected ActionCount 0 for a list row given List() does not load actions, got %d", row.ActionCount)
+	if row.ActionCount != 1 {
+		// This used to assert 0, describing a list query that loaded no
+		// action count at all. Store.List() still deliberately loads no
+		// action BODIES, but the select column list now carries a
+		// correlated COUNT, so a list row reports the real number -- which
+		// is what the master list needs to show that a record is actionable
+		// without opening it.
+		t.Fatalf("expected ActionCount 1 for a list row carrying one action, got %d", row.ActionCount)
 	}
 	if page.TotalEver != 1 {
 		t.Fatalf("expected TotalEver to count the 1 seeded record, got %d", page.TotalEver)

@@ -17,21 +17,31 @@ type NotificationListRequest struct {
 	Limit      int      `json:"limit"`
 }
 
-// NotificationRow is one list/detail-embedded row. ActionCount is 0 for
-// ListNotifications' rows (the store's List query deliberately does not
-// load per-row actions) and the real count for GetNotification's detail row
-// (Store.Record loads the full action set).
+// NotificationRow is one list/detail-embedded row -- everything the master
+// list renders for one record, and nothing more.
+//
+// RowCount and Subjects are the bounded projection of the record's detail
+// rows, so the list can show a count badge ("3x") and a subject line naming
+// what the record is about without loading its whole row list onto every
+// item of every page. RowCount counts THINGS, not rows: a collapsed summary
+// row contributes the number it stands in for, because "3x" has to mean 3
+// anime. Subjects carries at most the first few row names, in row order, and
+// a collapsed row names nothing so it contributes none. ActionCount is the
+// real number of action tokens the record carries, on both the list and the
+// detail read.
 type NotificationRow struct {
-	ID            int64  `json:"id"`
-	CreatedAtMs   int64  `json:"createdAtMs"`
-	Title         string `json:"title"`
-	Body          string `json:"body"`
-	Level         string `json:"level"`
-	Source        string `json:"source"`
-	CorrelationID string `json:"correlationId,omitempty"`
-	ReadAtMs      int64  `json:"readAtMs,omitempty"`
-	ArchivedAtMs  int64  `json:"archivedAtMs,omitempty"`
-	ActionCount   int    `json:"actionCount"`
+	ID            int64    `json:"id"`
+	CreatedAtMs   int64    `json:"createdAtMs"`
+	Title         string   `json:"title"`
+	Body          string   `json:"body"`
+	Level         string   `json:"level"`
+	Source        string   `json:"source"`
+	CorrelationID string   `json:"correlationId,omitempty"`
+	ReadAtMs      int64    `json:"readAtMs,omitempty"`
+	ArchivedAtMs  int64    `json:"archivedAtMs,omitempty"`
+	ActionCount   int      `json:"actionCount"`
+	RowCount      int      `json:"rowCount,omitempty"`
+	Subjects      []string `json:"subjects,omitempty"`
 }
 
 // NotificationPage is one ListNotifications keyset page. TotalEver counts

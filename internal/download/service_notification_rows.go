@@ -7,8 +7,9 @@ import (
 )
 
 // buildRunDetailRows builds one notification.DetailItem per anime that needs attention -- failed,
-// or (defensively; not currently reachable from setRunCompletionStatus's own case ordering, see
-// service.go) still carrying an unresolved manual link -- naming each individually. Every anime
+// or still carrying an unresolved manual link -- naming each individually. The manual-link branch
+// is what the jd_offline producer reaches, which is why that notification can now individuate the
+// anime whose episode needs a hand instead of only summarizing it in the body. Every anime
 // that is neither collapses into a single trailing summary row instead of claiming a row of its
 // own (notification-center spec, "Uneventful rows collapse into a single summary line"). A run
 // where nothing needs attention and nothing was uneventful returns nil.

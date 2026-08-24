@@ -1,12 +1,15 @@
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import type { NotificationDetail as NotificationDetailDTO, NotificationRow } from '../../../../shared/contracts/notification-center.types';
 import type { NotificationEmptyStateConditions } from '../NotificationEmptyState/notification-empty-state.types';
-import type { NotificationTableSelection } from '../NotificationTable/notification-table.types';
+import type { NotificationTableRowAction, NotificationTableSelection } from '../NotificationTable/notification-table.types';
 import type { NotificationCenterSyncView } from './use-notification-center-sync';
 
-/** Props accepted by `NotificationCenterPanel`. Defaults to the runtime-backed singleton source. */
+/** Props accepted by `NotificationCenterPanel`. Both sources default to the runtime-backed singletons. */
 export interface NotificationCenterPanelProps {
   readonly source?: NotificationCenterSource;
+  /** Runtime push stream the master list live-refreshes from, the same one the rail badge listens to. */
+  readonly pushSource?: NotificationSource;
 }
 
 /**
@@ -32,10 +35,20 @@ export interface NotificationCenterPanelResult {
   readonly emptyStateConditions: NotificationEmptyStateConditions;
   readonly searchInput: string;
   readonly onSearchInputChange: (value: string) => void;
+  /** Which archive view the list is currently showing. */
+  readonly view: NotificationCenterSyncView;
+  /** Switches the list to the given view, clearing the selection with it. */
+  readonly onViewChange: (view: NotificationCenterSyncView) => void;
   readonly selectedKeys: NotificationTableSelection;
   readonly onSelectionChange: (keys: NotificationTableSelection) => void;
   readonly selectedCount: number;
   readonly onMarkRead: () => void;
   readonly onArchive: () => void;
+  /** Un-archives every selected row -- what the selection bar offers in place of `onArchive` while the archived view is showing. */
+  readonly onRestore: () => void;
   readonly onClearSelection: () => void;
+  /** The record currently open in the detail pane, or `null` while none is. */
+  readonly openRecord: NotificationDetailDTO | null;
+  /** Opens the pressed master-list row in the detail pane. */
+  readonly onRowAction: NotificationTableRowAction;
 }

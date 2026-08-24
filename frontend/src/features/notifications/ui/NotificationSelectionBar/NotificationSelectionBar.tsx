@@ -6,12 +6,18 @@ import type { NotificationSelectionBarProps } from './notification-selection-bar
  * one or more rows are selected (notification-center spec, "A selection bar
  * appears only while rows are selected") -- returns `null` otherwise, so the
  * caller (`NotificationCenterPanel`) never needs to conditionally mount it.
+ *
+ * The lifecycle action swaps with the view: Archive in the active view,
+ * Restore in the archived one. They are never both on offer, because each is
+ * a no-op in the other's view.
  */
 export function NotificationSelectionBar({
   onArchive,
   onClearSelection,
   onMarkRead,
+  onRestore,
   selectedCount,
+  view,
 }: Readonly<NotificationSelectionBarProps>) {
   if (selectedCount === 0) {
     return null;
@@ -27,9 +33,15 @@ export function NotificationSelectionBar({
           <Button onPress={onMarkRead} size="sm" variant="secondary">
             Mark read
           </Button>
-          <Button onPress={onArchive} size="sm" variant="secondary">
-            Archive
-          </Button>
+          {view === 'archived' ? (
+            <Button onPress={onRestore} size="sm" variant="secondary">
+              Restore
+            </Button>
+          ) : (
+            <Button onPress={onArchive} size="sm" variant="secondary">
+              Archive
+            </Button>
+          )}
           <Button onPress={onClearSelection} size="sm" variant="ghost">
             Clear selection
           </Button>

@@ -23,6 +23,19 @@ export type NotificationTableSelectionChange = NonNullable<Table['ContentProps']
 export type NotificationTableSelection = Parameters<NotificationTableSelectionChange>[0];
 
 /**
+ * The `onRowAction` callback shape `Table.Content` hands the caller when a
+ * row itself is pressed, derived from HeroUI's own props exactly as the
+ * selection types above are. Pressing a row and selecting it are two
+ * different intents: React Aria routes a press on the row body here and a
+ * press on the `slot="selection"` checkbox to `onSelectionChange`, and never
+ * both for the same press.
+ */
+export type NotificationTableRowAction = NonNullable<Table['ContentProps']['onRowAction']>;
+
+/** The row key `onRowAction` hands back -- React Aria widens it to `string | number`, whatever `Table.Row`'s `id` was. */
+export type NotificationTableRowKey = Parameters<NotificationTableRowAction>[0];
+
+/**
  * Everything `NotificationTable` needs from its caller -- a fully dumb
  * render surface (CLAUDE.md frontend constraint #1). Pagination, sorting
  * defaults, and empty-state selection are all owned upstream by the sync
@@ -40,4 +53,11 @@ export interface NotificationTableProps {
   readonly renderEmptyState: () => ReactNode;
   readonly selectedKeys: NotificationTableSelectionKeys;
   readonly onSelectionChange: NotificationTableSelectionChange;
+  /**
+   * Called with a row's key when the row body itself is pressed -- the seam
+   * the panel opens that record's detail pane through. Optional exactly as
+   * React Aria's own `onRowAction` is: a table rendered without a detail
+   * pane beside it has no row action to perform.
+   */
+  readonly onRowAction?: NotificationTableRowAction;
 }

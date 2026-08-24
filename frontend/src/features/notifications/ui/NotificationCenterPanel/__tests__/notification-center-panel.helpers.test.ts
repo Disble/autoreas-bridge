@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toNotificationEmptyStateConditions } from '../notification-center-panel.helpers';
+import { toNotificationEmptyStateConditions, toNotificationRecordId } from '../notification-center-panel.helpers';
 
 describe('toNotificationEmptyStateConditions', () => {
   it('marks the service available when the page is not degraded', () => {
@@ -54,5 +54,31 @@ describe('toNotificationEmptyStateConditions', () => {
     });
 
     expect(conditions.hasFilters).toBe(false);
+  });
+});
+
+describe('toNotificationRecordId', () => {
+  it('resolves a numeric row key straight through', () => {
+    expect(toNotificationRecordId(7)).toBe(7);
+  });
+
+  it('resolves a numeric-string row key, since React Aria widens every key to string | number', () => {
+    expect(toNotificationRecordId('7')).toBe(7);
+  });
+
+  it('resolves a key that names no record at all to null, rather than to NaN', () => {
+    expect(toNotificationRecordId('load-more-sentinel')).toBeNull();
+  });
+
+  it('resolves a fractional key to null, since a record id is always a whole number', () => {
+    expect(toNotificationRecordId('7.5')).toBeNull();
+  });
+
+  it('resolves zero to null, since record ids are the store\u2019s own autoincrement keys and start above it', () => {
+    expect(toNotificationRecordId(0)).toBeNull();
+  });
+
+  it('resolves a negative key to null', () => {
+    expect(toNotificationRecordId(-7)).toBeNull();
   });
 });

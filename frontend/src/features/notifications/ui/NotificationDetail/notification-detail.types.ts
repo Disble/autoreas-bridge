@@ -1,3 +1,4 @@
+import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type {
   NotificationAction,
   NotificationDetail as NotificationDetailDTO,
@@ -7,10 +8,14 @@ import type {
 /**
  * Props accepted by the top-level detail pane. `detail` is `null` before any
  * record has been selected or loaded, mirroring `TransactionDetail.tsx`'s
- * own null-detail prompt.
+ * own null-detail prompt. `source` is the injected notification source a
+ * pressed row action executes against; it is optional and defaults, at the
+ * button that finally consumes it, to the runtime-backed singleton --
+ * exactly the contract `useNotificationAction` already exposes.
  */
 export interface NotificationDetailProps {
   readonly detail: NotificationDetailDTO | null;
+  readonly source?: NotificationCenterSource;
 }
 
 /** Props accepted by the header block: level chip, source/time line, title, body. */
@@ -18,11 +23,12 @@ export interface NotificationDetailHeaderProps {
   readonly detail: NotificationDetailDTO;
 }
 
-/** Props accepted by the single bounded row-list block. */
+/** Props accepted by the single bounded row-list block. `source` is forwarded verbatim to each row's action buttons. */
 export interface NotificationDetailRowsProps {
   readonly actions: readonly NotificationAction[];
   readonly notificationId: number;
   readonly rows: readonly NotificationDetailRowDTO[];
+  readonly source?: NotificationCenterSource;
 }
 
 /**
@@ -40,6 +46,7 @@ export interface NotificationDetailRowProps {
   readonly coverEntry?: NotificationCoverEntry;
   readonly notificationId: number;
   readonly row: NotificationDetailRowDTO;
+  readonly source?: NotificationCenterSource;
 }
 
 /**

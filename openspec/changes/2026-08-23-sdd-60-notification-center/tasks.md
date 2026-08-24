@@ -1626,73 +1626,73 @@ corrected here; a test that stubs the seam it is named after does not count.
 
 ### H.1 R-1 — Mount the detail pane
 
-- [ ] **H.1.1** [RED] Integration test at `NotificationCenterPanel`: render the real panel over the real
+- [x] **H.1.1** [RED] Integration test at `NotificationCenterPanel`: render the real panel over the real
   table with a stub source returning one row; press the row; assert the detail block for that record
   renders (title, body, and its row list). MUST fail today — nothing renders a detail.
-- [ ] **H.1.2** [RED] Integration test: press a row, then press its row action; assert
+- [x] **H.1.2** [RED] Integration test: press a row, then press its row action; assert
   `ExecuteNotificationAction` is called with that record id and action id, and that a refusal renders its
   reason. This is Sequence 2 of `Sequences.dc.html`, reachable by a user for the first time.
-- [ ] **H.1.3** [GREEN] Wire selected-record state and `onRowPress` through
+- [x] **H.1.3** [GREEN] Wire selected-record state and `onRowPress` through
   `use-notification-center-panel`, mount `NotificationDetail` in `NotificationCenterPanel.tsx`, and fetch
   the record via the existing `getNotification` source method. All the pieces exist; none is composed.
-- [ ] **H.1.4** [GREEN] Opening a record marks it read (`Lifecycle.dc.html`: *"Set by opening the
+- [x] **H.1.4** [GREEN] Opening a record marks it read (`Lifecycle.dc.html`: *"Set by opening the
   detail"*). Assert through the same integration test, not a separate unit one.
-- [ ] **H.1.5** [MUTATE] Stryker runs automatically via `lefthook.yml:150-152` on staged frontend files.
+- [x] **H.1.5** [MUTATE] Stryker runs automatically via `lefthook.yml:150-152` on staged frontend files.
 
 ### H.2 R-2 — The master list listens
 
-- [ ] **H.2.1** [RED] Integration test: mount the panel, emit a `notification.push` through the same
+- [x] **H.2.1** [RED] Integration test: mount the panel, emit a `notification.push` through the same
   source the badge already subscribes to, assert a new row appears without a remount or a filter change.
   MUST fail today.
-- [ ] **H.2.2** [RED] Test the guard, not just the happy path: a push arriving mid-fetch, and a push
+- [x] **H.2.2** [RED] Test the guard, not just the happy path: a push arriving mid-fetch, and a push
   arriving while the user has scrolled into a later page, MUST NOT duplicate a row, drop the accumulated
   pages, or reset the scroll position. `use-notification-center-sync` holds `isFetchingRef` and
   `cursorRef` for exactly this reason and neither is exercised against a live insert today.
-- [ ] **H.2.3** [GREEN] Subscribe `use-notification-center-sync` to `notification.push`. Follow
+- [x] **H.2.3** [GREEN] Subscribe `use-notification-center-sync` to `notification.push`. Follow
   CLAUDE.md frontend rule 12: this is a LIVE list, so it must NOT adopt `useProgressiveListWindow` — a
   render-phase reset would snap the user back to the first batch on every event.
-- [ ] **H.2.4** [MUTATE] Automatic via the pre-commit hook.
+- [x] **H.2.4** [MUTATE] Automatic via the pre-commit hook.
 
 ### H.3 R-3 — The badge counts down
 
-- [ ] **H.3.1** [RED] Integration test spanning the rail and the panel: with a badge showing N, mark a
+- [x] **H.3.1** [RED] Integration test spanning the rail and the panel: with a badge showing N, mark a
   record read from the selection bar, assert the badge shows N−1 without a reload. This is the merged
   `desktop-navigation` scenario *"The badge count updates as records are read"* — a spec scenario the
   previous verify report counted as satisfied. It is not, and this test is its first oracle.
-- [ ] **H.3.2** [RED] Assert the badge disappears entirely at zero, not that it renders `0`.
-- [ ] **H.3.3** [GREEN] Make `use-notifications-nav-badge` observe read/archive mutations, not only
+- [x] **H.3.2** [RED] Assert the badge disappears entirely at zero, not that it renders `0`.
+- [x] **H.3.3** [GREEN] Make `use-notifications-nav-badge` observe read/archive mutations, not only
   pushes. Prefer re-reading `GetUnreadNotificationCount` on a mutation over local arithmetic: bulk
   archive marks unread records read as a side effect (`sqlite_store_lifecycle.go:71`, the second update
   carries `WHERE read_at_ms IS NULL`), so the count cannot be derived from the selection size.
-- [ ] **H.3.4** [MUTATE] Automatic. Mutating `current + 1` and the zero-check must both die.
+- [x] **H.3.4** [MUTATE] Automatic. Mutating `current + 1` and the zero-check must both die.
 
 ### H.4 R-4 — The badge is visible while the rail is collapsed
 
-- [ ] **H.4.1** [RED] Test that the badge is not inside the hover-gated `opacity-0` span. Assert on the
+- [x] **H.4.1** [RED] Test that the badge is not inside the hover-gated `opacity-0` span. Assert on the
   computed/collapsed rendering, not on class strings — a class-name assertion pins the implementation and
   proves nothing about visibility.
-- [ ] **H.4.2** [GREEN] Move the badge out of the label span in `AppLayout.tsx:76-79`, or give it a
+- [x] **H.4.2** [GREEN] Move the badge out of the label span in `AppLayout.tsx:76-79`, or give it a
   collapsed presentation (a dot on the icon) that survives the resting `md:w-16` rail. The label may
   stay hover-gated; the count may not.
 
 ### H.5 R-5 — The archived view is reachable
 
-- [ ] **H.5.1** [RED] Integration test: archive a record, switch to the archived view, assert it is
+- [x] **H.5.1** [RED] Integration test: archive a record, switch to the archived view, assert it is
   listed; restore it, assert it returns to Active. `RestoreNotifications` is already wired end to end and
   has never been reachable by a user.
-- [ ] **H.5.2** [GREEN] Add the active/archived toggle and remove the pinned view comment at
+- [x] **H.5.2** [GREEN] Add the active/archived toggle and remove the pinned view comment at
   `use-notification-center-panel.ts:10`. The empty states for both views already exist
   (`notification-empty-state.constants.ts`) and are currently unreachable in the archived case.
-- [ ] **H.5.3** [MUTATE] Automatic.
+- [x] **H.5.3** [MUTATE] Automatic.
 
 ### H.6 Close the route matrix
 
-- [ ] **H.6.1** [RED] Replace `NotificationsRoute.test.tsx`'s panel mock with the real panel over a
+- [x] **H.6.1** [RED] Replace `NotificationsRoute.test.tsx`'s panel mock with the real panel over a
   stubbed source. The route test must exercise the route.
 - [ ] **H.6.2** Walk the workflow-route table in `verify-report.md` §2 and confirm every row marked
   covered names a test that renders both sides of its seam. Any row that cannot be pointed at such a test
   is not covered — say so rather than reclassifying it.
-- [ ] **H.6.3** [DOC] `docs/learning-log.md` via `node scripts/log-lesson.mjs`: a component with perfect
+- [x] **H.6.3** [DOC] `docs/learning-log.md` via `node scripts/log-lesson.mjs`: a component with perfect
   unit tests and zero production importers is indistinguishable from a wired one.
 
 ### H.7 Gate and re-verify
@@ -1711,3 +1711,148 @@ place. They need a spec delta of their own, and the user decides whether that ha
 
 **Rollback:** every task in this slice is additive composition. `git revert` returns the app to the
 rejected-but-shipping state: the Center still persists, still projects, still lists.
+
+---
+
+## Slice L — Ledger Closure: Validate Against The Approved Canvas
+
+**Status: THIS SLICE IS THE APPROVAL GATE.**
+
+On 2026-08-24 the user declared, after the Slice H hotfix was already under way:
+
+> *"no se puede aprobar este sdd hasta que haya pasado una validación contrastada con este artifact"*
+> ("this SDD cannot be approved until it has passed a validation contrasted against this artifact")
+
+The artifact is the design canvas — `design-canvas/*.dc.html`, eight artboards covering UI, patterns
+and architecture, **approved before development started**. Not the spec. Not the test suite. The
+canvas. The spec turned out to be a complete and useless oracle here: all 61 of its scenarios were
+satisfied by code the user could not reach.
+
+A full audit of the canvas against shipped code produced the **promise ledger**: 31 commitments,
+**12 delivered, 3 partial, 1 built-but-unreachable, 15 missing or false**. It is published at
+https://claude.ai/code/artifact/29299dab-1975-4f82-9192-b6426d7f3cd2 and saved to Engram under
+`sdd/2026-08-23-sdd-60-notification-center/promise-ledger`.
+
+Slice H closed five of the 31. This slice closes the rest.
+
+### L.0 The rules this slice inherits
+
+Stated by the user, and binding on every task below:
+
+1. **Do not throw the development away.** The backend is sound — persistence, retention, keyset
+   paging, the executor and its refusal set are all correct and well tested. This is closure, not a
+   rewrite.
+2. **Do not limit the fix to protect what is already built.** A component that exists but was built
+   wrong gets changed. "It would be a bigger diff" is not a reason to ship the artboard's promise
+   half-met.
+3. **Do not limit the fix to avoid breaking functional tests that do not test what they should.** A
+   test pinning behaviour the canvas contradicts is wrong and gets updated deliberately, with the
+   reason written down. `TestListRowActionCountIsAlwaysZero`-style assertions pin the defect, not a
+   requirement. Deleting a test to go green is still forbidden; changing one whose premise was wrong
+   is required.
+4. **Delegate the correction.** Context window is the constraint. The orchestrator reviews, delegates,
+   and validates — it does not implement the bulk itself.
+5. **Validation is contrasted against the canvas**, artboard by artboard, and re-run after each wave.
+6. **HeroUI is the project's primary UI toolkit and every piece of UI in this slice is built with it.**
+   This is not a preference to weigh against convenience: the canvas was explicitly evaluated against
+   HeroUI's component capabilities during design — the toast surface's Option A/B comparison and the
+   truncation-tooltip decision both came out of reading HeroUI's own docs — and it was established
+   then that these screens are buildable with it. So "HeroUI cannot do this" is a claim that
+   contradicts a decision already made, and carrying it requires evidence from HeroUI's current
+   documentation (consult it through the `context7` MCP tool, never from memory), a statement of what
+   exactly is impossible, and the orchestrator's approval before any alternative is written. Reaching
+   for a hand-rolled `<div>` or another library because a HeroUI component's API was not obvious is
+   the failure mode this rule exists to stop. Compose from `shared/ui/` where a suitable wrapper
+   already exists (CLAUDE.md frontend rule 13).
+
+### L.1 Wave A — Actions become real (Go)
+
+The whole action feature is dead at the source. Four independent breaks, all verified:
+
+- [ ] **L.1.1** `notification.ActionSpec` carries no row reference, so a producer cannot express
+  "this action belongs to that row" at all. The stored `center.Action` HAS `RowRef`; the wire
+  `NotificationAction` has `rowRef`; only the port cannot say it. Extend the port, keeping its
+  imports-only-`internal/logger` guarantee intact.
+- [ ] **L.1.2** `toActions` (`center/service.go:98`) never sets `RowRef`; `toDetailRows` never sets
+  `ActionIDs`. Both conversions must run together, because `toActions` is what mints the ids.
+- [ ] **L.1.3** **Zero producers construct an `ActionSpec` anywhere in non-test Go.** Attach the
+  per-row `download.run_anime` action the canvas labels "Run this anime again", with the anime id
+  frozen into `Args`.
+- [ ] **L.1.4** Register `navigation.open`, the intent behind the canvas's "Open Downloads". Keep
+  `download.retry_run` unregistered — that absence is deliberate and pinned by a test.
+- [ ] **L.1.5** `jdownloader_offline` and `season.anime_available` call plain `notify()` and attach
+  nothing, though the Anatomy artboard draws both as row-bearing.
+- [ ] **L.1.6** Project onto the wire `NotificationRow` what the master list needs: the row count and
+  the subject names. The list `SELECT` already loads `rows_json` and `scanNotificationRecordRow`
+  already unmarshals it — the data reaches Go and is dropped at the contract boundary.
+- [ ] **L.1.7** `ActionCount` is hardcoded 0 for list rows, with a test asserting the zero. Make it
+  real; update that test under rule 3.
+
+### L.2 Wave B — The master list becomes readable (frontend)
+
+Delivered today as `Title · Source · When`: structurally a log viewer, which `Anatomy.dc.html`
+explicitly argued against — *"A notification that lists everything is a log, and we already have one
+of those."*
+
+- [ ] **L.2.1** Severity chip per row. `NotificationTable.tsx` contains zero occurrences of `Chip` or
+  `level`; `level` is already on the wire and simply unused.
+- [ ] **L.2.2** Unread dot. `readAtMs` is already on the wire and appears zero times in the table, so
+  read and unread rows are visually identical.
+- [ ] **L.2.3** The subject line naming what the row is about. This was the artboard's central
+  argument: *"A count answers 'how many'. Nobody asks that. They ask which ones."* The list currently
+  answers neither.
+- [ ] **L.2.4** The count badge ("3x") for a record standing for several things.
+- [ ] **L.2.5** One integration test per row affordance, at the seam — not a unit test on a cell.
+
+### L.3 Wave C — Screen chrome (frontend)
+
+- [ ] **L.3.1** The four view tabs: Active · Unread · Read · Archived. Slice H delivers the
+  active/archived half; unread and read remain.
+- [ ] **L.3.2** "All levels" and "All sources" dropdowns. **The backend is already wired and tested**
+  (`stringSetCondition`, plus a test pinning that an empty filter matches everything). The query is
+  ready and nothing can call it.
+- [ ] **L.3.3** "Mark all as read" in the header.
+- [ ] **L.3.4** The live unread count in the subtitle.
+- [ ] **L.3.5** **The page states something untrue about itself.** The subtitle claims "unread first";
+  the query is `ORDER BY created_at_ms DESC, id DESC` (`sqlite_store_list.go:139`) and read state is
+  not in the sort at all. Either sort unread first or stop claiming it — decide deliberately and
+  record which, because the copy and the index have to agree.
+
+### L.4 Wave D — The detail pane's edges (frontend)
+
+The pane's interior is the strongest surface in the change; everything at its edges is missing.
+
+- [ ] **L.4.1** Relative time beside the absolute one — the canvas promises "Sunday 14:32 · 5m ago".
+  `formatNotificationWhen` returns absolute only, and no relative formatter exists. "5m ago" is the
+  half that says whether it still matters.
+- [ ] **L.4.2** The metadata footer: `Kind` and `Correlation ID`. The correlation id is persisted,
+  returned by the binding, and dropped by the pane — the one field that ties a notification to a run.
+- [ ] **L.4.3** Footer actions: "Open Downloads · Archive · Mark unread".
+- [ ] **L.4.4** **Notification-level actions are silently discarded.** `resolveRowActions` resolves
+  strictly from `row.actionIds`, so a whole-notification action is fetched, passed down and dropped —
+  the same silent-drop bug this change fixed in the toast layer, reintroduced in the detail pane.
+- [ ] **L.4.5** "show all in Downloads" out of the collapsed summary line.
+- [ ] **L.4.6** `mark unread` has no backend method. The Lifecycle artboard promises read is
+  *"Reversible — 'mark unread' puts it back"*, so this is unbacked end to end and needs Go too.
+
+### L.5 Validation — the actual gate
+
+- [ ] **L.5.1** Re-audit all 31 ledger commitments against the code, artboard by artboard. Every
+  verdict must cite the file that implements it, not a report.
+- [ ] **L.5.2** Republish the ledger artifact at its existing URL with the new verdicts. Same URL:
+  the ledger's history is part of its value.
+- [ ] **L.5.3** Re-verify against the RUNNING BUILD, not the spec and not the suite. Rebuild, open the
+  app, drive each workflow route by hand. This is what caught the rejection in the first place, and it
+  is the only check that has ever caught anything here.
+- [ ] **L.5.4** Full gate: `go test ./...`, `scripts/lint.ps1 -Profile all`, `checkgofilesize`,
+  `tsc --noEmit`, the whole vitest suite, `render:smoke`, `dharness`, Stryker, then `git commit`.
+- [ ] **L.5.5** Only after L.5.3 passes: merge the delta specs (full-fidelity text) and archive.
+
+**Not in scope, and stated rather than hidden:** `Dismiss` and `mark unread` are drawn on
+`Lifecycle.dc.html`. `mark unread` is pulled INTO scope by L.4.3/L.4.6 because the canvas's detail
+footer shows it. `Dismiss` stays out: it is a third lifecycle axis with its own timestamp and its own
+schema column, it appears in no spec scenario, and bolting it on while closing a rejection is exactly
+how the original seam gap grew. It needs its own delta.
+
+**Rollback:** each wave is additive and independently revertable. Reverting all of them returns the
+app to the rejected-but-shipping state — the Center still persists, still projects, still lists.

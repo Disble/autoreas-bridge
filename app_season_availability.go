@@ -354,6 +354,7 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 		Level:     notification.LevelInfo,
 		Source:    "season",
 		Timestamp: time.Now(),
+		Rows:      buildSeasonAvailableRows(names),
 	})
 }
 

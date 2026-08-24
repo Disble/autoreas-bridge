@@ -1,7 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationPage } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationSource } from '../../../../../infrastructure/notification-source/notification-source.types';
+import type { Notification } from '../../../../../shared/contracts/notification.types';
+import type { NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
 import { useNotificationCenterSync } from '../use-notification-center-sync';
 
 /** A promise plus its own external resolver, so a test controls exactly when a fetch settles. */
@@ -23,6 +25,43 @@ function makeSource(listNotifications: NotificationCenterSource['listNotificatio
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),
+  };
+}
+
+/** Builds one master-list row; only the id and title distinguish the fixtures below. */
+function makeRow(id: number): NotificationRow {
+  return { id, createdAtMs: id * 1000, title: `Row ${id}`, body: '', level: 'info', source: 'download', actionCount: 0 };
+}
+
+/** A controllable stand-in for the `notification.push` runtime stream. */
+function makePushSource(): { readonly source: NotificationSource; emit: () => void } {
+  const listeners: ((notification: Notification) => void)[] = [];
+
+  return {
+    emit() {
+      const pushed: Notification = {
+        Title: 'Download run started',
+        Body: '',
+        Level: 'info',
+        Source: 'download',
+        CorrelationID: 'run-9',
+        Timestamp: '2026-08-24T12:00:00Z',
+      };
+      for (const listener of listeners) {
+        listener(pushed);
+      }
+    },
+    source: {
+      subscribe(listener) {
+        listeners.push(listener);
+        return () => {
+          listeners.splice(listeners.indexOf(listener), 1);
+        };
+      },
+      subscribeArchived() {
+        return () => undefined;
+      },
+    },
   };
 }
 
@@ -202,5 +241,99 @@ describe('useNotificationCenterSync', () => {
 
     await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
     expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '' }));
+  });
+
+  it('merges a push refresh on top of the pages already loaded instead of collapsing them', async () => {
+    // Two pages are loaded first, then a push arrives. The refreshed first
+    // page carries a brand new record plus the page-one rows it already had;
+    // page two's rows must survive it, or a live event would silently undo
+    // the user's paging.
+    const listNotifications = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [makeRow(3), makeRow(2)], nextCursor: 'cursor-1', appliedLimit: 2, totalEver: 3, degraded: false })
+      .mockResolvedValueOnce({ items: [makeRow(1)], appliedLimit: 2, totalEver: 3, degraded: false })
+      .mockResolvedValue({ items: [makeRow(4), makeRow(3), makeRow(2)], nextCursor: 'cursor-1', appliedLimit: 2, totalEver: 4, degraded: false });
+    const push = makePushSource();
+    const source = makeSource(listNotifications);
+    const { result } = renderHook(() =>
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => {
+      result.current.onLoadMore();
+    });
+    await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual([3, 2, 1]));
+
+    act(() => {
+      push.emit();
+    });
+
+    await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual([4, 3, 2, 1]));
+  });
+
+  it('leaves the pagination cursor where the user paged to, so the next load-more does not re-fetch page one', async () => {
+    const listNotifications = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [makeRow(3)], nextCursor: 'cursor-after-3', appliedLimit: 1, totalEver: 3, degraded: false })
+      // The refreshed first page reports its OWN cursor. Adopting it would
+      // rewind pagination to the top of the list.
+      .mockResolvedValue({ items: [makeRow(4), makeRow(3)], nextCursor: 'cursor-after-4', appliedLimit: 1, totalEver: 4, degraded: false });
+    const push = makePushSource();
+    const source = makeSource(listNotifications);
+    const { result } = renderHook(() =>
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      push.emit();
+    });
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
+
+    act(() => {
+      result.current.onLoadMore();
+    });
+
+    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-after-3' }));
+  });
+
+  it('refreshes under the filters currently applied rather than an unfiltered first page', async () => {
+    const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
+    const push = makePushSource();
+    const source = makeSource(listNotifications);
+    const { result } = renderHook(() =>
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: true, view: 'archived', search: 'one piece' }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      push.emit();
+    });
+
+    await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
+    expect(listNotifications).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: '', search: 'one piece', unreadOnly: true, view: 'archived' }),
+    );
+  });
+
+  it('stops listening once unmounted', async () => {
+    const listNotifications = vi.fn().mockResolvedValue({ items: [makeRow(1)], appliedLimit: 25, totalEver: 1, degraded: false });
+    const push = makePushSource();
+    const source = makeSource(listNotifications);
+    const { result, unmount } = renderHook(() =>
+      useNotificationCenterSync({ source, pushSource: push.source, unreadOnly: false, view: 'active' }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    unmount();
+
+    act(() => {
+      push.emit();
+    });
+
+    expect(listNotifications).toHaveBeenCalledTimes(1);
   });
 });

@@ -79,6 +79,11 @@ type Record struct {
 	ArchivedAtMS  int64 // 0 = active
 	Rows          []DetailRow
 	Actions       []Action
+	// ActionCount is how many action tokens this record carries. It is read from SQL on BOTH
+	// read paths, so the master list -- which deliberately never loads action bodies -- still
+	// reports the real number. It is not derived from len(Actions): on a List read that slice
+	// is legitimately empty while the count is not.
+	ActionCount int
 }
 
 // View selects the list's archive axis.
