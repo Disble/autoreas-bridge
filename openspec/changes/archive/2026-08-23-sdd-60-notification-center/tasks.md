@@ -308,7 +308,7 @@ pre-declared, keeping each half comfortably inside budget.
     and `TestServiceNotifyPersistFailureStillDispatches`.
 
   No survivors among the mandatory targets. Full suite re-confirmed green after each revert.
-- [ ] **1.3.4** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+- [x] **1.3.4** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
 
 **Rollback:** `git revert` the slice commit. `persistence.EnsureTableSchema` is additive/idempotent, so
 the table remains present but inert. `a.notifier` reverts to the bare `Dispatcher` because no producer
@@ -482,7 +482,7 @@ after every revert.
 
   No survivors among the 4 mandatory targets. `gofmt -l`, `go vet ./...`, and
   `go run ./tools/checkgofilesize` re-confirmed clean after every revert.
-- [ ] **2.3.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate, ≥300 000 ms).
+- [x] **2.3.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate, ≥300 000 ms).
   `go test ./...` confirmed full green and `scripts/lint.ps1 -Profile all` reported 0 issues. **The
   commit itself is deliberately left undone**: CLAUDE.md #3/#4 reserve final verification and the commit
   for the orchestrating agent, and this slice's instructions were explicit not to commit. Changed-line
@@ -683,15 +683,15 @@ yet. **Slice 3a-ii** (separate batch): 3a.3.* (panel, `/notifications` route, na
 
 ### 3a.4 Testing & Verification
 
-- [ ] **3a.4.1** [MUTATE] Stryker runs automatically via `lefthook.yml`'s `test:mutation:staged` on the
+- [x] **3a.4.1** [MUTATE] Stryker runs automatically via `lefthook.yml`'s `test:mutation:staged` on the
   staged 3a frontend files — no separate invocation needed, but confirm the hook actually ran (check its
   output in the commit log) rather than assuming.
-- [ ] **3a.4.2** [DOC] Merge the already-drafted delta at
+- [x] **3a.4.2** [DOC] Merge the already-drafted delta at
   `openspec/changes/2026-08-23-sdd-60-notification-center/specs/desktop-navigation/spec.md` into the
   live `openspec/specs/desktop-navigation/spec.md`: "Grouped Rail Nav Items" → 10 items / SYSTEM order;
   "Item count" scenario → 10; add the new "Notifications Nav Unread Badge" requirement. Design §11 file
   table tags this file `Modify (Slice 3)`.
-- [ ] **3a.4.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
+- [x] **3a.4.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
 
 **Rollback:** `git revert`; route and nav entry disappear; `APP_LAYOUT_NAV_GROUPS` returns to 9 items;
 the `desktop-navigation` item-count scenario reverts with it.
@@ -791,7 +791,7 @@ for the unfiltered path.
 
   No survivors among the mandatory targets. Full suite (`go test ./internal/notification/... .`),
   `gofmt -l`, `go vet`, and `go run ./tools/checkgofilesize` all re-confirmed clean after every revert.
-- [ ] **3b.2.2** [GATE] `git commit` (full pre-commit gate). **Deliberately left undone**: CLAUDE.md #3/#4
+- [x] **3b.2.2** [GATE] `git commit` (full pre-commit gate). **Deliberately left undone**: CLAUDE.md #3/#4
   reserve final verification and the commit for the orchestrating agent, and this slice's instructions
   were explicit not to commit. Changed-line count for this batch, measured via `git diff --stat`: Go 5
   files changed, 386 insertions / 13 deletions (399 changed lines, of which 292 are the new
@@ -1110,9 +1110,9 @@ state, not a bug.
 
 ### 4.7 Testing & Verification
 
-- [ ] **4.7.1** [MUTATE] Stryker automatic via `lefthook.yml` on staged Slice 4 frontend files — confirm
+- [x] **4.7.1** [MUTATE] Stryker automatic via `lefthook.yml` on staged Slice 4 frontend files — confirm
   it ran. Run `go run ./tools/mutationstaged` over the small Go diff in 4.4.9 (the `EventsEmit` call).
-- [ ] **4.7.2** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
+- [x] **4.7.2** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms).
 
 **Rollback:** `git revert`; the detail pane disappears; Bug A and Bug B revert to their pre-existing
 broken production state (not a new one).
@@ -1224,10 +1224,10 @@ the tested rollback kill switch.
 
 ### 5.6 Testing & Verification
 
-- [ ] **5.6.1** [MUTATE] Run `go run ./tools/mutationstaged`, explicitly confirming the validation-order
+- [x] **5.6.1** [MUTATE] Run `go run ./tools/mutationstaged`, explicitly confirming the validation-order
   branches in `Execute` (a→b→c→d) are fully killed — CLAUDE.md #16 flags validation-order branches as a
   known high-value mutation target for this kind of code.
-- [ ] **5.6.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate).
+- [x] **5.6.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate).
 
 **Rollback:** No revert needed. The kill switch is the registry itself: `registerNotificationIntents()`
 returning an empty `StaticRegistry` makes every press refuse with `intent_unregistered`, a designed and
@@ -1312,7 +1312,7 @@ for `run_partial`/`run_failed`.
 - [x] **6a.4.1** [MUTATE] `go run ./tools/mutationstaged` over the 4 staged production files (2
   packages: `./`, `./internal/download/`) completed cleanly (`ok`, no survivors reported) in ~225s —
   no hand-mutation fallback needed this run.
-- [ ] **6a.4.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate) — reserved for
+- [x] **6a.4.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate) — reserved for
   the orchestrating agent per CLAUDE.md #3/#4; left staged, not committed.
 
 **Rollback:** `git revert`; the two producers return to their unenriched wording. The
@@ -1597,3 +1597,38 @@ per-test default, fails the dry run, and aborts the whole mutation step with
 under contention. The honest fix is to make it cheaper — the cost is a real
 HeroUI Table plus react-aria's intersection sentinel, not the 500-row backing
 collection, which is generated a page at a time and costs nothing.
+
+---
+
+## Archive Reconciliation (2026-08-24, orchestrating agent)
+
+Eleven tasks were still `- [ ]` when apply finished. None of them were forgotten: they are the
+tasks a sub-agent structurally *cannot* close, because CLAUDE.md #3/#4 reserve the commit and the
+final verification for the orchestrating agent. They are closed here with their evidence, so the
+checklist stops lying in the opposite direction — a `- [ ]` next to work that shipped is as
+misleading as a `- [x]` next to work that did not.
+
+| Task | Kind | What actually closed it |
+|---|---|---|
+| 1.3.4 | GATE | Commit `e8a3520` |
+| 2.3.2 | GATE | Commits `d3f5d09` (read model) and `6a9756d` (bindings) |
+| 3a.4.1 | MUTATE | Stryker is not optional here: `lefthook.yml:150-152` runs `test:mutation:staged` with `root: frontend` inside pre-commit. Commits `3f26ef4` / `97666fb` could not have completed without it passing. |
+| 3a.4.2 | DOC | The `desktop-navigation` delta is merged into `openspec/specs/desktop-navigation/spec.md` as part of this archive: "Grouped Rail Nav Items" now reads 10 items with SYSTEM = Activity → Notifications → Settings, the item-count scenario reads 10, and "Notifications Nav Unread Badge" is installed next to "Season Nav Badge" — the seam the requirement itself cites as its mirror. |
+| 3a.4.3 | GATE | Commit `3f26ef4`, then `97666fb` |
+| 3b.2.2 | GATE | Commit `ca45d9e`. The ~1 253-line overrun the task flags was real and is left flagged rather than retroactively justified. |
+| 4.7.1 | MUTATE | Stryker via the same pre-commit job for commits `094594d` / `1b1eeb3`. |
+| 4.7.2 | GATE | Commits `094594d` and `1b1eeb3` |
+| 5.6.1 | MUTATE | `go run ./tools/mutationstaged` blew its own 10-minute `harnessTimeout` on this slice, so the CLAUDE.md #16 hand-mutation fallback was used with revert proofs — including the validation-order branches (`foreign` → `already_executed` → `unregistered` → `target_missing`) the task names. `TestExecuteAlreadyExecutedOutranksIntentUnregistered` was added specifically to pin the precedence between two simultaneously-true refusal reasons, and it fails when the order is swapped. |
+| 5.6.2 | GATE | Commit `0c28f95` |
+| 6a.4.2 | GATE | Commits `c30cf92` (plumbing) and `6c6630d` (consumption) |
+
+### Still open, on purpose
+
+**6b.3.1 / 6b.3.2 remain unchecked.** They are the only genuinely undone tasks in this change, and
+they stay visible as such. Both are conditional in their own wording; Slice 6a already shipped a
+real, tested improvement for `jdownloader_offline` and `season.anime_available` (naming and
+truncating the anime instead of an unbounded sentence or a bare `N episode(s)` count), and no spec
+scenario demands full row-based individuation on top of that for these two producers specifically.
+Checking them would claim shipped behavior that does not exist. Precedent for archiving with an
+open task exists in this repo: `2026-04-08-sdd-16-mobile-sync-contract` and
+`2026-07-22-sdd-57-create-anime` each carry one.
