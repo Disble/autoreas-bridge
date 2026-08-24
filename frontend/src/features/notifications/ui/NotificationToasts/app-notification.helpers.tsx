@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { Toast, ToastActionButton, ToastCloseButton, ToastContent, ToastDescription, ToastTitle } from '@heroui/react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { appToastQueue, resolveToastTimeoutMs } from './app-toast-queue';
-import { SEVERITY_TO_VARIANT } from './notification-resolver.constants';
+import { SEVERITY_TO_VARIANT, VIEW_DETAILS_ACTION_LABEL } from './notification-resolver.constants';
 import type { AppToastPayload } from './app-notification.types';
 
 /**
@@ -28,7 +28,7 @@ export interface AppQueuedToast {
  * `ToastProvider` children render function.
  */
 export function renderAppNotificationToast(notification: AppNotification): string {
-  const { severity, title, description, actions, persistent } = notification;
+  const { severity, title, description, actions, persistent, recordId } = notification;
 
   return appToastQueue.add(
     {
@@ -36,20 +36,36 @@ export function renderAppNotificationToast(notification: AppNotification): strin
       description,
       variant: SEVERITY_TO_VARIANT[severity],
       actions,
+      recordId,
     },
     { timeout: resolveToastTimeoutMs(persistent) },
   );
 }
 
 /**
- * Renders one queued app toast's full content, including every action.
+ * Navigates to the Notification Center scoped to one record (Task-Planning
+ * Note C; notifications delta spec, "The persistedId enables opening the
+ * matching Center record"). `renderAppToastContent` below is invoked as a
+ * plain function -- by `ToastProvider` internally, and directly in tests --
+ * never as a JSX-rendered component, so it cannot call `useNavigate()`
+ * (Rules of Hooks). `HashRouter` (`src/main.tsx`) reacts to
+ * `window.location.hash` directly, so setting it here is a real navigation,
+ * not a workaround.
+ */
+function navigateToNotificationRecord(recordId: number): void {
+  window.location.hash = `/notifications?recordId=${recordId}`;
+}
+
+/**
+ * Renders one queued app toast's full content, including every action, plus
+ * a "View details" action when the toast carries a persisted `recordId`.
  * Passed as `NotificationToasts`' `ToastProvider` children render function
  * (design.md §3 Decision F) -- HeroUI's own default renderer only supports a
  * single `actionProps` slot (`ToastContentValue.actionProps` is singular),
  * which is exactly the shape that produced Bug B.
  */
 export function renderAppToastContent({ toast }: Readonly<{ toast: AppQueuedToast }>): ReactElement {
-  const { title, description, actions, variant } = toast.content;
+  const { title, description, actions, variant, recordId } = toast.content;
 
   return (
     <Toast<AppToastPayload> toast={toast} variant={variant}>
@@ -62,6 +78,9 @@ export function renderAppToastContent({ toast }: Readonly<{ toast: AppQueuedToas
           {action.label}
         </ToastActionButton>
       ))}
+      {recordId === undefined ? null : (
+        <ToastActionButton onPress={() => navigateToNotificationRecord(recordId)}>{VIEW_DETAILS_ACTION_LABEL}</ToastActionButton>
+      )}
       <ToastCloseButton />
     </Toast>
   );

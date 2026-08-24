@@ -11,6 +11,9 @@ export const LEVEL_TO_SEVERITY: Record<string, AppNotificationSeverity> = {
   success: 'success',
 };
 
+/** Label for the toast action that opens a toast's persisted Center record (Task-Planning Note C). */
+export const VIEW_DETAILS_ACTION_LABEL = 'View details';
+
 /** Deduplication key for the missed-schedule decision toast. */
 export const MISSED_DECISION_TOAST_ID = 'missed-schedule-decision';
 

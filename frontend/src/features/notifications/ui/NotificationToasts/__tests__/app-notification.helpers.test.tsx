@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppNotification } from '../../../../../shared/contracts/app-notification.types';
 
 vi.mock('../app-toast-queue', () => ({
@@ -24,6 +24,8 @@ vi.mock('@heroui/react', () => ({
 import { renderAppNotificationToast, renderAppToastContent } from '../app-notification.helpers';
 import { appToastQueue } from '../app-toast-queue';
 
+afterEach(cleanup);
+
 describe('renderAppNotificationToast', () => {
   it('adds the notification to the app-owned queue carrying every action, not just the first', () => {
     const notification: AppNotification = {
@@ -46,6 +48,42 @@ describe('renderAppNotificationToast', () => {
       }),
       { timeout: 0 },
     );
+  });
+
+  it('forwards the notification recordId onto the queued payload, so "View details" can resolve it', () => {
+    const notification: AppNotification = { severity: 'info', title: 'Run completed', recordId: 42 };
+
+    renderAppNotificationToast(notification);
+
+    expect(vi.mocked(appToastQueue.add)).toHaveBeenCalledWith(expect.objectContaining({ recordId: 42 }), expect.anything());
+  });
+});
+
+/**
+ * Task-Planning Note C / notifications delta spec, "The persistedId enables
+ * opening the matching Center record": a toast carrying a non-empty
+ * `recordId` renders a "View details" action that navigates there.
+ */
+describe('renderAppToastContent — "View details" affordance', () => {
+  it('renders a "View details" action for a toast carrying a non-empty recordId', () => {
+    render(renderAppToastContent({ toast: { key: 'r1', content: { title: 'Run completed', recordId: 42 } } }));
+
+    expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument();
+  });
+
+  it('navigates to the Center record scoped by that recordId when the affordance is pressed', () => {
+    window.location.hash = '';
+    render(renderAppToastContent({ toast: { key: 'r1', content: { title: 'Run completed', recordId: 42 } } }));
+
+    screen.getByRole('button', { name: 'View details' }).click();
+
+    expect(window.location.hash).toBe('#/notifications?recordId=42');
+  });
+
+  it('renders no "View details" action for a toast carrying no recordId', () => {
+    render(renderAppToastContent({ toast: { key: 'r2', content: { title: 'No record' } } }));
+
+    expect(screen.queryByRole('button', { name: 'View details' })).not.toBeInTheDocument();
   });
 });
 

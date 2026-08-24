@@ -979,17 +979,17 @@ state, not a bug.
 
 ### 4.5 Implementation — Toast "View Details" Navigation (Task-Planning Note C)
 
-- [ ] **4.5.1** [RED] Write a test asserting a toast carrying a non-empty `recordId` renders a "View
+- [x] **4.5.1** [RED] Write a test asserting a toast carrying a non-empty `recordId` renders a "View
   details" action that, when pressed, navigates to `/notifications` scoped to that `recordId` (e.g. via
   a query param or router state the `NotificationCenterPanel` reads to auto-open the matching row).
   Satisfies notifications delta "The persistedId enables opening the matching Center record."
-- [ ] **4.5.2** [GREEN] Wire the affordance inside `NotificationToasts.tsx`'s render function (bounded
+- [x] **4.5.2** [GREEN] Wire the affordance inside `NotificationToasts.tsx`'s render function (bounded
   cost — this module already owns exactly two `toast.*` call sites per Decision F, and this is additive
   to the same render function, not a new component).
 
 ### 4.6 Implementation — Detail Pane
 
-- [ ] **4.6.1** [RED] Write `NotificationDetail`/`NotificationDetailRow` component tests:
+- [x] **4.6.1** [RED] Write `NotificationDetail`/`NotificationDetailRow` component tests:
   - a row renders cover+name / status / detail / action (the single bounded row-list block). Satisfies
     "A download run's manual links become individually identified rows" at the render level (producer
     side lands in Slice 6; this proves the renderer handles the shape).
@@ -998,11 +998,115 @@ state, not a bug.
   - no row's serialized/rendered model carries an image-byte field — cover resolves at render time via
     `getAnimeCover`, falling back to `CoverPlaceholderScene` when absent. Satisfies "A row never carries
     embedded image bytes."
-- [ ] **4.6.2** [GREEN] Implement `NotificationDetail.tsx` + `NotificationDetailHeader.tsx` +
+- [x] **4.6.2** [GREEN] Implement `NotificationDetail.tsx` + `NotificationDetailHeader.tsx` +
   `NotificationDetailRows.tsx` + `NotificationDetailRow.tsx` + `use-notification-action.ts` (wires the
   press handler to `ExecuteNotificationAction` — the button disables optimistically on press; until
   Slice 5 registers real intents, every press resolves `intent_unregistered`, itself a designed, tested
   state) + `notification-detail.helpers.ts` / `.types.ts`. Design §9.1, §9.2.
+
+> **4-ii APPLY NOTES (2026-08-23).** Implemented ONLY 4.5.1, 4.5.2, 4.6.1, 4.6.2, on
+> `feat/sdd-60-s4ii-detail-pane` off `feat/sdd-60-s4i-toast-layer` (`094594d`). Did NOT build the intent
+> registry, the executor, or `ExecuteNotificationAction` (Slice 5) — `use-notification-action.ts` is
+> deliberately inert here, exactly as scoped.
+>
+> **`ExecuteNotificationAction` genuinely does not exist yet (verified, not assumed)** — Task-Planning
+> Note A's file table adds it to `app_notification_center.go` only in Slice 5, and it is absent from the
+> generated `frontend/wailsjs/go/main/App.d.ts` today. `use-notification-action.ts` therefore never calls
+> a Wails binding at all: it derives `status`/`isDisabled`/`refusalMessage` from the action's own
+> server-known fields (`executedAtMs`/`refusedReason`), and a press on an idle action (a) sets an
+> optimistic local `'pending'` state synchronously (disabling the button before anything resolves), then
+> (b) settles via a bare `Promise.resolve().then(...)` to `'refused'` with reason `'intent_unregistered'`
+> — the exact outcome an empty `IntentRegistry` produces server-side today
+> (notification-actions spec, "An empty registry refuses every action, without crashing"), reached here
+> without ever touching a backend. Slice 5 only needs to replace that settle step's body with the real
+> `ExecuteNotificationAction` call; the hook's public contract (optimistic-disable, permanent-disable-once-
+> settled) does not change.
+>
+> **Real gap found and closed: cover resolution needs a hook the module tree doesn't name.**
+> `NotificationDetailRows.tsx`/`NotificationDetailRow.tsx` must stay dumb UI (CLAUDE.md constraint #1: no
+> Wails call, no `useEffect`, in a `.tsx` under `features/`), but 4.6.1's own third test requires a row to
+> actually resolve a cover via `getAnimeCover`, falling back to `CoverPlaceholderScene`. Design §9.1's
+> module tree names only `use-notification-action.ts` as this folder's hook. Added
+> `use-notification-detail-covers.ts` (not in the task text), mirroring `use-episode-schedule-panel.ts`'s
+> own lazy-fetch, per-session `Map` cache pattern exactly (fetched-ids ref guard, loading/cover/placeholder
+> states), backed by the existing `bridgeRuntimeSource.getAnimeCover` singleton (injectable, mirroring
+> `NotificationsNavBadge`'s own injectable-source pattern) so tests never touch the real Wails runtime.
+> Only `refType === 'anime'` rows attempt a fetch; `episode`/`link` rows fall straight to the placeholder,
+> since neither has its own cover asset today (an explicit, stated assumption — design leaves this
+> unaddressed).
+>
+> **Toast "View details" cannot call `useNavigate()` — verified via the existing test harness, not
+> guessed.** `renderAppToastContent` is invoked as a plain function (`ToastProvider`'s children render
+> function, and directly by name in `app-notification.helpers.test.tsx`), never as a JSX-rendered
+> component, so a `useNavigate()` call inside it would violate the Rules of Hooks. Implemented a private
+> `navigateToNotificationRecord(recordId)` that sets `window.location.hash =
+> '/notifications?recordId=<id>'` directly — `HashRouter` (`src/main.tsx`) reacts to that assignment as a
+> real navigation, confirmed via `window.location.hash` assertions in the RED test, not a workaround.
+> `AppToastPayload` gained an optional `recordId` field threaded through from `AppNotification.recordId`
+> (already on the wire since 4-i's Bug A fix); `renderAppNotificationToast` forwards it, and
+> `renderAppToastContent` renders one more `ToastActionButton` labeled "View details" only when it is
+> defined. **Consuming this query param to auto-open the matching row inside `NotificationCenterPanel` is
+> explicitly OUT OF SCOPE for this slice** — 4.5.2's own text bounds the change to "the same render
+> function, not a new component," and no RED test in 4.5/4.6 exercises the Panel side; left for whichever
+> slice actually wires master/detail selection.
+>
+> **`NotificationDetail.tsx` handles `detail === null`** (a "select a notification to see its details"
+> prompt), mirroring `TransactionDetail.tsx`'s own null-detail precedent (design §9.1 cites
+> `TransactionPanel/` as this feature's structural precedent) — not literally required by any named 4.6.1
+> test, but the obvious, cheap, precedented shape for a component nothing has wired a selection into yet.
+>
+> **Row status chip uses a fixed neutral color, not a per-status mapping.** `NotificationDetailRow.Status`
+> is a free-form producer-owned string (Slice 6 is not built); no enum or color table exists for it
+> anywhere in design.md or the DTOs. Anatomy.dc.html's own rule reads "what happened to it, as a status
+> word, never colour alone" — the word already carries the meaning, so a fixed `color="default"` chip is
+> the honest rendering, not an invented, untested color heuristic.
+>
+> **Two react-doctor/fallow findings closed during apply, not silently worked around:**
+> `react-doctor/no-array-index-as-key` fired on `NotificationDetailRows.tsx`'s original `` `${row.refId}-
+> ${index}` `` key (rows have no wire-level id); fixed to `` `${row.refType}-${row.refId}` ``, dropping the
+> index entirely. `fallow audit` flagged two dead exports: `NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL`
+> (added but never wired) is now the collapsed row's real `aria-label`; `navigateToNotificationRecord` (only
+> exported to make an earlier test-mocking approach work, later replaced by asserting `window.location.hash`
+> directly) is now a private, unexported function.
+>
+> **MUTATE step, run against the real staged diff, not narrated.** `npm run test:mutation:staged` (Stryker,
+> break threshold 80) passed at **81.95%** overall on the first green run after the fixes above (up from an
+> initial 80.67% before this slice's own additional tests). Investigated every survivor specific to this
+> slice's new files via the clear-text report and closed the real gaps: `resolveServerActionStatus` had no
+> test for the wire's `executedAtMs === 0` / `refusedReason === ''` sentinels (both "not yet" values, not
+> "idle" by accident) — added both, which also killed the `&&`→`||` and `>= 0` boundary mutants riding on
+> them. `NotificationDetailRow`'s refusal-message conditional and its actions-wrapper boundary had no
+> row-level test exercising a REFUSED action or the empty/non-empty actions-count boundary — added both,
+> plus a `data-testid="notification-detail-row-actions"` so the boundary is actually observable.
+> `useNotificationAction`'s `useMemo`/status-vs-refusalMessage coupling had no re-render (dependency-array)
+> test — added one via `rerender`. `useNotificationDetailCovers` had no test for a cover source reporting
+> `{ source: 'cover' }` with no `dataUrl` (a malformed-but-real shape) or for a row SET growing across a
+> re-render (the effect's own dependency array) — added both. Two remaining `notification-detail.helpers.ts`
+> survivors are genuine equivalent mutants under this module's real (TypeScript-typed) inputs, not
+> untested gaps: forcing `action.executedAtMs !== undefined` to `true` changes nothing when the real value
+> is `undefined` (`undefined > 0` is always `false` regardless), and Stryker's injected placeholder array
+> value for `actionIds`'s `??` default is filtered out by the very `Map` lookup the function already does,
+> since no real action carries that literal id. Removed two other early-returns entirely (`resolveRowActions`'s
+> `ids.length === 0` guard, `formatLevelLabel`'s `level.length === 0` guard) rather than chasing their
+> survivors with tests, once confirmed each was fully redundant dead code (`[].reduce`/`''.charAt(0)` already
+> produce the exact same output the guard existed to special-case).
+>
+> Full verification: `tsc --noEmit` clean; `eslint` on every staged file in this slice clean (0 errors);
+> `bun --cwd="frontend" run test` (full suite) 1753/1753 green; `dharness check` (react-doctor + fallow
+> audit) exits 0, no issues in changed files. Changed-line count for this batch (`git diff --cached
+> --stat` over `NotificationDetail/**` + the four modified `NotificationToasts/*` files): 20 files changed,
+> 1093 insertions / 7 deletions (1100 changed lines; 16 new files + 4 modified). **Flagged, not silently
+> absorbed:** combined with 4-i's own ~888 lines, Slice 4 as a whole lands at ~1988 changed lines against
+> its 500–700 forecast — consistent with every prior slice landing 2-3x forecast, and still comfortably
+> inside the session's 800-line-per-PR review budget once 4-i and 4-ii ship as the two separate chained
+> PRs they were already split into.
+>
+> **Not done (explicitly out of scope, not mine):** task 4.7 (Stryker-at-commit confirmation, `go run
+> ./tools/mutationstaged` on 4.4.9's Go diff, and the `git commit` GATE step) — reserved for the
+> orchestrating agent per CLAUDE.md #3/#4, since this batch never ran `git commit` and left everything
+> staged as instructed. `NotificationCenterPanel` wiring a selected/auto-opened detail row into the master
+> list is also not done — no task in this slice named it, and Task-Planning Note C's own parenthetical
+> ("e.g. via...") only proposes it as an illustration of 4.5.1's navigation target, not a requirement.
 
 ### 4.7 Testing & Verification
 
