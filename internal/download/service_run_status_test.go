@@ -3,6 +3,7 @@ package download
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -125,6 +126,67 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected Notifier.Notify to be called on jd_offline degradation")
+	}
+}
+
+// The jd_offline notification used to say only "N episode(s) need manual download -- see run
+// details", which could not tell the user which anime that was without opening the run. Each
+// ManualLink already carries its own anime name, so the body must use it directly.
+func TestRunOnceJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	dia := todayDiaName(now)
+
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/anime/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/anime/3/"},
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/anime/3/": {{URL: "http://mediafire.example/3", Hoster: "Mediafire"}},
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+	folder := t.TempDir()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{{
+		ID:        "anime-1",
+		Name:      "Frieren",
+		Active:    1,
+		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
+		SourceURL: ptrStr("https://jkanime.net/anime/"),
+		Folder:    ptrStr(folder),
+	}}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 2}})
+	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+
+	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if result.Status != RunStatusJDOffline {
+		t.Fatalf("status = %q, want %q", result.Status, RunStatusJDOffline)
+	}
+
+	body := ""
+	for _, n := range notifier.notifications() {
+		if n.Level == notification.LevelWarning && n.Title == "MyJDownloader offline" {
+			body = n.Body
+		}
+	}
+	if body == "" {
+		t.Fatal("no jd_offline notification found")
+	}
+	if !strings.Contains(body, "Frieren") {
+		t.Fatalf("jd_offline body = %q, want it to name the affected anime", body)
+	}
+	if strings.Contains(body, "see run details") {
+		t.Fatalf("jd_offline body = %q, still relies on the literal fallback wording", body)
 	}
 }
 

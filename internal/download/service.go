@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -135,6 +136,11 @@ type Service struct {
 	// observe how many run at once. Nil in production.
 	testHookAnimeStarted  func()
 	testHookAnimeFinished func()
+	// testHookOutcomesCollected observes the fully collected per-anime outcomes (with their
+	// animeID/animeName identity) right after the fan-out completes, so a test can assert
+	// identity survived the channel-based collection through a real run instead of only a
+	// synthetic channel. Nil in production.
+	testHookOutcomesCollected func([]animeRunOutcome)
 }
 
 // NewService builds a Service from the given deps, defaulting Clock/NewRunID when unset so
@@ -173,6 +179,13 @@ func defaultRunIDGenerator() func() string {
 // animeRunOutcome is the per-anime fan-out result, isolated from every other anime in the run
 // (download-orchestration spec "Per-Anime Fan-Out With Failure Isolation").
 type animeRunOutcome struct {
+	// animeID and animeName identify which anime this outcome belongs to. They are set once,
+	// where the outcome is first constructed (never mutated afterward), so any producer that
+	// eventually consumes the collected outcomes (see summarizeAnimeOutcomes) can attribute a
+	// failure or a manual link to a specific anime instead of only a run-wide aggregate.
+	animeID   string
+	animeName string
+
 	skipped bool
 	checked bool
 	// upToDate marks an anime that was evaluated but needed no download (nothing newer
@@ -295,8 +308,8 @@ func (s *Service) executeAnimes(ctx context.Context, runID string, run *Run, ani
 
 	gate := s.newJDGateForRun(ctx, runID, run, &progressMu)
 
-	anyFailed, anySucceeded := s.processAnimes(ctx, runID, animes, gate, applyDelta)
-	s.setRunCompletionStatus(ctx, runID, run, gate, anyFailed, anySucceeded)
+	anyFailed, anySucceeded, outcomes := s.processAnimes(ctx, runID, animes, gate, applyDelta)
+	s.setRunCompletionStatus(ctx, runID, run, gate, anyFailed, anySucceeded, outcomes)
 
 	s.finalize(ctx, run)
 	return RunResult{RunID: runID, Status: run.Status}
@@ -327,8 +340,11 @@ func (s *Service) animeConcurrencyLimit() int {
 	return s.deps.MaxConcurrentAnimes()
 }
 
-// processAnimes concurrently processes selected animes and summarizes their outcomes.
-func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, gate *jdGate, applyDelta func(animeProgressDelta)) (bool, bool) {
+// processAnimes concurrently processes selected animes and summarizes their outcomes. The
+// returned slice is every collected per-anime outcome (with its animeID/animeName identity
+// intact) so a caller can attribute a failure or a manual link to a specific anime instead of
+// only the two run-wide booleans.
+func (s *Service) processAnimes(ctx context.Context, runID string, animes []contracts.MobileAnime, gate *jdGate, applyDelta func(animeProgressDelta)) (bool, bool, []animeRunOutcome) {
 	outcomes := make(chan animeRunOutcome, len(animes))
 
 	// slots is a counting semaphore: a nil channel disables the throttle, because a send on
@@ -360,21 +376,33 @@ func (s *Service) processAnimes(ctx context.Context, runID string, animes []cont
 	}
 	wg.Wait()
 	close(outcomes)
-	return summarizeAnimeOutcomes(outcomes)
+	anyFailed, anySucceeded, collected := summarizeAnimeOutcomes(outcomes)
+	if s.testHookOutcomesCollected != nil {
+		s.testHookOutcomesCollected(collected)
+	}
+	return anyFailed, anySucceeded, collected
 }
 
-// summarizeAnimeOutcomes reports whether any anime failed or succeeded.
-func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool) {
+// summarizeAnimeOutcomes reports whether any anime failed or succeeded, alongside every
+// collected per-anime outcome (identity included) for callers that need to attribute the
+// aggregate booleans back to specific animes.
+func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool, []animeRunOutcome) {
 	anyFailed, anySucceeded := false, false
+	collected := make([]animeRunOutcome, 0, cap(outcomes))
 	for outcome := range outcomes {
 		anyFailed = anyFailed || outcome.failed
 		anySucceeded = anySucceeded || outcome.episodesDownloaded > 0 || (!outcome.failed && outcome.episodesFound == 0)
+		collected = append(collected, outcome)
 	}
-	return anyFailed, anySucceeded
+	return anyFailed, anySucceeded, collected
 }
 
-// setRunCompletionStatus assigns the terminal status and related notification.
-func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool) {
+// setRunCompletionStatus assigns the terminal status and related notification. outcomes carries
+// every collected per-anime identity (animeID/animeName) alongside anyFailed/anySucceeded for a
+// producer that needs to name which anime a failure or manual link belongs to; it is currently
+// consumed only by the manual-download naming below (via run.ManualLinks, which already carries
+// its own anime name) -- the anyFailed/anySucceeded branches still speak in aggregate.
+func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool, outcomes []animeRunOutcome) {
 	if s.markCanceled(ctx, runID, run) {
 		return
 	}
@@ -382,7 +410,7 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
+		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)))
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
 		s.notify(ctx, notification.LevelWarning, runID, "Download run completed with errors", "Some animes failed to download -- see run details.")
@@ -433,4 +461,29 @@ func applyProgressDelta(run *Run, delta animeProgressDelta) {
 func cloneRun(run Run) Run {
 	run.ManualLinks = append([]ManualLink(nil), run.ManualLinks...)
 	return run
+}
+
+// manualLinksSummaryLimit caps how many manual-download entries are named verbatim in a
+// jd_offline notification body before the remainder collapses into a "(+N more)" suffix, so a
+// run with many affected animes never grows the body into one unbounded sentence.
+const manualLinksSummaryLimit = 5
+
+// summarizeManualLinks names up to limit manual-download entries as "Anime (ep N)", collapsing
+// any remainder into a "(+N more)" suffix. Each ManualLink already carries its own anime name
+// (design.md's per-anime fan-out never lets JD-offline degradation lose that), so this needs no
+// outside identity lookup.
+func summarizeManualLinks(links []ManualLink, limit int) string {
+	shown := links
+	if len(links) > limit {
+		shown = links[:limit]
+	}
+	parts := make([]string, 0, len(shown))
+	for _, link := range shown {
+		parts = append(parts, fmt.Sprintf("%s (ep %d)", link.Anime, link.Episode))
+	}
+	joined := strings.Join(parts, ", ")
+	if len(links) > limit {
+		joined = fmt.Sprintf("%s (+%d more)", joined, len(links)-limit)
+	}
+	return joined
 }

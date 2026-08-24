@@ -37,7 +37,7 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
 		s.notify(ctx, notification.LevelWarning, runID,
-			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download -- see run details.", len(run.ManualLinks)))
+			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)))
 	case outcome.failed && run.EpisodesDownloaded > 0:
 		run.Status = RunStatusPartial
 		s.notify(ctx, notification.LevelWarning, runID,

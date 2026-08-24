@@ -338,6 +338,11 @@ func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhm
 	})
 }
 
+// seasonAvailableNamesShownInBody caps how many anime names are listed verbatim in the
+// notification body before the remainder collapses into a "(+N more)" suffix, so a large batch
+// never grows the body into one unbounded, un-truncatable sentence.
+const seasonAvailableNamesShownInBody = 5
+
 // notifySeasonAvailable informs the user about newly available season anime.
 func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 	if a.notifier == nil {
@@ -345,11 +350,21 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 	}
 	_ = a.notifier.Notify(ctx, notification.Notification{
 		Title:     "Available to create",
-		Body:      fmt.Sprintf("%d anime now available — create them when you want: %s", len(names), strings.Join(names, ", ")),
+		Body:      fmt.Sprintf("%d anime now available — create them when you want: %s", len(names), joinNamesWithLimit(names, seasonAvailableNamesShownInBody)),
 		Level:     notification.LevelInfo,
 		Source:    "season",
 		Timestamp: time.Now(),
 	})
+}
+
+// joinNamesWithLimit joins up to limit names with a comma, collapsing any remainder into a
+// "(+N more)" suffix instead of growing an unbounded, un-truncatable sentence.
+func joinNamesWithLimit(names []string, limit int) string {
+	if len(names) <= limit {
+		return strings.Join(names, ", ")
+	}
+	shown := strings.Join(names[:limit], ", ")
+	return fmt.Sprintf("%s (+%d more)", shown, len(names)-limit)
 }
 
 // triggerDownloadsForSeason starts the download scheduler for a season batch.

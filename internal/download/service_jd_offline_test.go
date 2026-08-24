@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/download/sites"
+	"autoreas-bridge/internal/notification"
 )
 
 // jdOfflineScenario wires one anime that is 8 episodes behind (4 on disk, 12
@@ -128,6 +130,42 @@ func TestRunOnceStopsWhenAnEpisodePageCannotBeResolved(t *testing.T) {
 	}
 	if got := events.count("download.failed"); got != 1 {
 		t.Fatalf("download.failed logged %d times, want 1", got)
+	}
+}
+
+// The single-anime path (RunAnime) shares the same jd_offline enrichment as the fan-out path:
+// the notification must name the anime whose episode needs a manual download, not just say
+// "see run details".
+func TestRunAnimeJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
+	t.Parallel()
+
+	deps, _ := jdOfflineScenario(t)
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+	anime := deps.Animes.(*svcFakeAnimeQuery).animes[0]
+
+	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
+	if err != nil {
+		t.Fatalf("RunAnime: %v", err)
+	}
+	if result.Status != RunStatusJDOffline {
+		t.Fatalf("status = %q, want %q", result.Status, RunStatusJDOffline)
+	}
+
+	body := ""
+	for _, n := range notifier.notifications() {
+		if n.Level == notification.LevelWarning && n.Title == "MyJDownloader offline" {
+			body = n.Body
+		}
+	}
+	if body == "" {
+		t.Fatal("no jd_offline notification found")
+	}
+	if !strings.Contains(body, "NegaPosi Angler") {
+		t.Fatalf("jd_offline body = %q, want it to name the affected anime", body)
+	}
+	if strings.Contains(body, "see run details") {
+		t.Fatalf("jd_offline body = %q, still relies on the literal fallback wording", body)
 	}
 }
 

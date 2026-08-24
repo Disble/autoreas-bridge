@@ -66,7 +66,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.skipped", map[string]any{"reason": string(decision.SkipReason)}, "anime %s skipped: %s", anime.Name, decision.SkipReason)
 		s.publish(events.DownloadSkippedEvent{RunID: runID, AnimeID: anime.ID, SkipReason: string(decision.SkipReason), CorrelationID: runID})
 		emitProgress(animeProgressDelta{skipped: true})
-		return animeDownloadPreparation{}, animeRunOutcome{skipped: true}, true
+		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, skipped: true}, true
 	}
 
 	anime.Folder = &decision.Destination
@@ -76,7 +76,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 	if anime.TotalEpisodes != nil && *anime.TotalEpisodes > 0 && *anime.TotalEpisodes == onDiskEpisode {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{"reason": "season_complete_on_disk", "totalcap": *anime.TotalEpisodes, "onDiskCount": onDiskEpisode}, "anime %s up to date: season already complete on disk (%d/%d)", anime.Name, onDiskEpisode, *anime.TotalEpisodes)
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
-		return animeDownloadPreparation{}, animeRunOutcome{checked: true, upToDate: true}, true
+		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, upToDate: true}, true
 	}
 
 	listing, err := decision.Source.ListEpisodes(ctx, sourceURL)
@@ -86,7 +86,7 @@ func (s *Service) prepareAnimeDownload(ctx context.Context, runID string, anime 
 	if !NeedsDownload(listing.LatestEpisode, onDiskEpisode) {
 		s.logf(logger.LevelInfo, runID, anime.ID, "download.up_to_date", map[string]any{"reason": "no_new_episode", "latestOnline": listing.LatestEpisode, "onDiskCount": onDiskEpisode}, "anime %s up to date: latest online %d not greater than on disk %d", anime.Name, listing.LatestEpisode, onDiskEpisode)
 		emitProgress(animeProgressDelta{checked: true, upToDate: true})
-		return animeDownloadPreparation{}, animeRunOutcome{checked: true, upToDate: true}, true
+		return animeDownloadPreparation{}, animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, upToDate: true}, true
 	}
 	return animeDownloadPreparation{source: decision.Source, listing: listing, onDiskEpisode: onDiskEpisode, destination: decision.Destination, sourceURL: sourceURL}, animeRunOutcome{}, false
 }
@@ -97,7 +97,7 @@ func (s *Service) configurationFailure(runID string, anime contracts.MobileAnime
 	s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": FailureKindConfiguration}, "anime %s: read download root failed: %v", anime.Name, err)
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindConfiguration, CorrelationID: runID})
 	emitProgress(animeProgressDelta{checked: true})
-	return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindConfiguration}
+	return animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, failed: true, failureKind: FailureKindConfiguration}
 }
 
 // episodeListFailure records an episode-listing failure and its progress outcome.
@@ -109,7 +109,7 @@ func (s *Service) episodeListFailure(runID string, anime contracts.MobileAnime, 
 	}
 	s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: FailureKindHosterDown, CorrelationID: runID})
 	emitProgress(animeProgressDelta{checked: true})
-	return animeRunOutcome{checked: true, failed: true, failureKind: FailureKindHosterDown}
+	return animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, failed: true, failureKind: FailureKindHosterDown}
 }
 
 // downloadAvailableEpisodes processes every episode missing from the prepared listing. This is
@@ -120,7 +120,7 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 	gate.online(ctx)
 
 	missingEpisodes := preparation.listing.LatestEpisode - preparation.onDiskEpisode
-	outcome := animeRunOutcome{checked: true, episodesFound: missingEpisodes}
+	outcome := animeRunOutcome{animeID: anime.ID, animeName: anime.Name, checked: true, episodesFound: missingEpisodes}
 	emitProgress(animeProgressDelta{checked: true, episodesFound: missingEpisodes})
 	current := preparation.onDiskEpisode
 	for current < preparation.listing.LatestEpisode {

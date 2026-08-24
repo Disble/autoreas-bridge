@@ -1235,99 +1235,204 @@ already-tested state (5.1.1, 5.3.1).
 
 ---
 
-## Slice 6 — Producer Enrichment + Spec Reconciliation
+## Slice 6a — Run Outcome Identity Plumbing + Two Body-Only Producer Enrichments
+
+**Leaves the app working because:** this only changes what a notification's `Body` says (plus adds
+outcome-identity plumbing 6b will consume but this slice does not); delivery is untouched.
+**Forecast:** ~150-200 lines measured (8 files changed, 4 production + 4 test, ~230 net new lines).
+
+**Slice 6a/6b split (found mid-apply by the orchestrating agent, NOT pre-declared in this doc):**
+Slice 6 as originally written above (now moved to Slice 6b) cannot be built as specified.
+`animeRunOutcome` (`internal/download/service.go`), the per-anime fan-out result, carried no anime
+identity (no id, no name) — only counters and a failure kind. `summarizeAnimeOutcomes` reduced the
+entire outcome channel to two booleans (`anyFailed`, `anySucceeded`) and discarded everything else
+before `setRunCompletionStatus` ever saw it. So the run knew "3 episodes failed" but not which
+anime — the `run_partial`/`run_failed`/`run_completed` producers 6.2/6.3 originally targeted
+(together with the `Notification.Rows`/`DetailItem` struct extension from Task-Planning Note B)
+could not be built from what existed. This slice (6a) lays the missing plumbing — `animeID`/
+`animeName` on `animeRunOutcome`, and `summarizeAnimeOutcomes`/`processAnimes`/
+`setRunCompletionStatus` now threading the full collected `[]animeRunOutcome` alongside the two
+booleans (additive; both booleans behave identically to before) — AND ships the two producer sites
+that needed NEITHER that plumbing NOR the `Notification.Rows` struct extension to improve right
+now: jd_offline (`ManualLink.Anime` already names the anime) and season availability (`names
+[]string` is already a parameter). Both are BODY-TEXT-ONLY improvements, not the `Rows`-based
+per-anime identification the original 6.2/6.3 wording specified — that fuller treatment, and the
+`Notification.Rows` extension it depends on, remains 6b's job for these same two sites as well as
+for `run_partial`/`run_failed`.
+
+### 6a.1 Infrastructure — Per-Anime Outcome Identity
+
+- [x] **6a.1.1** [RED/GREEN] `animeRunOutcome` gains `animeID`/`animeName` fields
+  (`internal/download/service.go`), stamped once at construction — never mutated afterward — at
+  every constructor: `prepareAnimeDownload`'s skipped/up-to-date branches, `configurationFailure`,
+  `episodeListFailure`, `downloadAvailableEpisodes` (all in `internal/download/service_pipeline.go`).
+- [x] **6a.1.2** [RED/GREEN] `summarizeAnimeOutcomes` now returns the collected `[]animeRunOutcome`
+  alongside the existing `anyFailed`/`anySucceeded` booleans; threaded through `processAnimes` ->
+  `executeAnimes` -> `setRunCompletionStatus` (new `outcomes []animeRunOutcome` parameter,
+  documented in-code as not yet consumed there — that is 6b's job). Covering unit test:
+  `TestSummarizeAnimeOutcomesCollectsEveryOutcomeWithItsAnimeIdentity`
+  (`internal/download/service_outcome_identity_test.go`). Integration proof through the real
+  construction sites (not a synthetic channel), so a regression at either the reducer or an origin
+  site fails a test: `TestProcessAnimesCollectedOutcomesCarryAnimeIdentityThroughARealFanOut`.
+
+### 6a.2 Implementation — jd_offline Producers (Zero New Plumbing)
+
+- [x] **6a.2.1** [RED/GREEN] `internal/download/service.go`'s jd_offline branch
+  (`setRunCompletionStatus`) and `internal/download/service_single_anime.go`'s jd_offline branch
+  (`executeAnimeLive`) both build the body from `run.ManualLinks` via the new
+  `summarizeManualLinks(links, manualLinksSummaryLimit)` helper (`"Anime (ep N)"`, comma-joined,
+  collapsing past `manualLinksSummaryLimit=5` into a `"(+N more)"` suffix) instead of
+  `"N episode(s) need manual download -- see run details."`. Covering tests:
+  `TestRunOnceJDOfflineNotificationNamesTheAffectedAnime` (fan-out path,
+  `service_run_status_test.go`), `TestRunAnimeJDOfflineNotificationNamesTheAffectedAnime`
+  (single-anime path, `service_jd_offline_test.go`),
+  `TestSummarizeManualLinksNamesEachAnimeAndTruncatesPastTheLimit` (helper unit test,
+  `service_outcome_identity_test.go`).
+  **Deviation from the original 6.2 wording:** plain Body-string composition, NOT
+  `notification.DetailItem`/`Notification.Rows` — Decision I's struct extension stays 6b's job. The
+  original scenario "A download run's manual links become individually identified rows" is only
+  PARTIALLY satisfied (the anime is named in the body; there are still no individual `Rows`) — full
+  satisfaction is still 6b's.
+
+### 6a.3 Implementation — Season Availability Producer (Zero New Plumbing)
+
+- [x] **6a.3.1** [RED/GREEN] `app_season_availability.go`'s `notifySeasonAvailable` now joins names
+  via the new `joinNamesWithLimit(names, seasonAvailableNamesShownInBody=5)` helper, collapsing past
+  the limit into a `"(+N more)"` suffix instead of one unbounded comma-joined sentence. Covering
+  test: `TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit`
+  (`app_season_availability_test.go`).
+  **Deviation from the original 6.3 wording:** a body-text truncation fix, not per-anime `Rows` with
+  `RefType`/`RefID`. The original scenario "Season availability produces one row per anime instead
+  of one comma-joined sentence" is only PARTIALLY satisfied (the sentence now truncates instead of
+  growing unboundedly; it is still one sentence, not one row per anime, and still not individually
+  actionable) — full satisfaction is still 6b's, once `Notification.Rows` exists.
+
+### 6a.4 Testing & Verification
+
+- [x] **6a.4.1** [MUTATE] `go run ./tools/mutationstaged` over the 4 staged production files (2
+  packages: `./`, `./internal/download/`) completed cleanly (`ok`, no survivors reported) in ~225s —
+  no hand-mutation fallback needed this run.
+- [ ] **6a.4.2** [GATE] `go test ./...` full green; `git commit` (full pre-commit gate) — reserved for
+  the orchestrating agent per CLAUDE.md #3/#4; left staged, not committed.
+
+**Rollback:** `git revert`; the two producers return to their unenriched wording. The
+outcome-identity plumbing (`animeRunOutcome.animeID`/`animeName`, `summarizeAnimeOutcomes`'s third
+return value) has no observable effect on its own until 6b consumes it, so reverting it independently
+is safe at any point.
+
+---
+
+## Slice 6b — Notification Struct Extension + Remaining Producer Enrichment + Spec Reconciliation
 
 **Leaves the app working because:** this only changes what a notification's `Body`/`Rows` say, never
 its delivery mechanism.
-**Forecast:** 450–650 lines (the Notification struct extension from Task-Planning Note B adds ~60-100
-lines beyond the original 400-600 estimate).
+**Forecast:** 300–450 lines remaining (down from the original 450–650 estimate — 6a already shipped
+the identity plumbing and 2 of the 5 originally-planned producer sites).
 
-### 6.1 Infrastructure — Notification Struct Extension (Task-Planning Note B)
+**Everything below is the NOT-YET-DONE remainder of the original Slice 6** (Notification struct
+extension, `run_partial`/`run_failed` enrichment in both `service.go` and
+`service_single_anime.go` — now able to consume the `outcomes []animeRunOutcome` 6a threads through
+`setRunCompletionStatus` — full `Rows`-based individuation for jd_offline and season availability if
+still wanted beyond 6a's body-text truncation fix, docs, and cross-cutting verification), renumbered
+under 6b so the checklist stays honest about what shipped in which commit. **6a's jd_offline and
+season-availability body-text carve-out is COMPLETE — do not redo it; extend it with `Rows` instead
+if full per-anime individuation is still desired.**
 
-- [ ] **6.1.1** [RED] Write `internal/notification/notifier_test.go` (or extend the existing test file
+### 6b.1 Infrastructure — Notification Struct Extension (Task-Planning Note B)
+
+- [ ] **6b.1.1** [RED] Write `internal/notification/notifier_test.go` (or extend the existing test file
   if one exists — check first): `TestNotificationZeroValueRowsAndActionsAreNil` — a `Notification{}`
   zero value has `Rows == nil` and `Actions == nil`. Regression coverage: run the FULL existing
   `internal/notification` test suite unmodified to confirm the four adapter files still compile and
   behave identically with the new optional fields present but unset.
-- [ ] **6.1.2** [GREEN] Modify `internal/notification/notifier.go`: add `DetailItem` struct (`RefType`,
+- [ ] **6b.1.2** [GREEN] Modify `internal/notification/notifier.go`: add `DetailItem` struct (`RefType`,
   `RefID`, `Name`, `Status`, `Detail`, `CollapsedCount`), `ActionSpec` struct (`Label`, `Intent`,
   `Args`), and two new optional fields on `Notification`: `Rows []DetailItem`, `Actions []ActionSpec`.
   Per Task-Planning Note B, these are neutral in-package types — no new import for
   `internal/notification`.
-- [ ] **6.1.3** [RED] Write `internal/notification/center/service_test.go` (extend):
+- [ ] **6b.1.3** [RED] Write `internal/notification/center/service_test.go` (extend):
   `TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord` — a `Notification` carrying 2
   `DetailItem`s and 1 `ActionSpec` persists a `Record` whose `Rows`/`Actions` reflect them, with a
   freshly generated `Action.ID`.
-- [ ] **6.1.4** [GREEN] Modify `internal/notification/center/service.go`'s `Notify`: convert
+- [ ] **6b.1.4** [GREEN] Modify `internal/notification/center/service.go`'s `Notify`: convert
   `n.Rows`/`n.Actions` into `Record.Rows`/`Record.Actions` before calling `InsertRecord`.
 
-### 6.2 Implementation — Download Producer Sites
+### 6b.2 Implementation — Remaining Download Producer Sites (run_partial / run_failed)
 
-- [ ] **6.2.1** [RED] Write a test (new file or extend `internal/download/service_test.go`): a completed
-  run with `ManualLinks` entries (`internal/download/store.go:76-86`) produces `Notification.Rows` with
-  one `DetailItem` per manual-link entry naming the specific anime and episode; `Body` no longer relies
-  on "see run details" as the only identification. Covers the three sites at `service.go:385,388,391`.
-  Satisfies "A download run's manual links become individually identified rows."
-- [ ] **6.2.2** [GREEN] Modify `internal/download/service.go` lines 385, 388, 391: build
-  `[]notification.DetailItem` from `run.ManualLinks` and the failed-episode list; attach via
-  `Notification.Rows` alongside the existing `Title`/`Body` composition (wording may stay similar, but
-  MUST NOT be the sole identification mechanism).
-- [ ] **6.2.3** [RED] Write a test on `internal/download/service_single_anime.go`'s failure ladder (lines
-  43-48): the single-anime path attaches an equivalent `DetailItem` for the one anime/episode involved.
-- [ ] **6.2.4** [GREEN] Modify `internal/download/service_single_anime.go` lines 43-48 accordingly.
-- [ ] **6.2.5** [RED] Write a test: uneventful anime collapse into ONE summary row (`CollapsedCount > 0`,
+- [ ] **6b.2.1** [RED] Write a test (new file or extend `internal/download/service_test.go`): a
+  completed run with per-anime failures produces `Notification.Rows` with one `DetailItem` per
+  failed/manual anime naming it specifically; `Body` no longer relies on "see run details" as the
+  only identification. Covers the two remaining sites in `setRunCompletionStatus`
+  (`internal/download/service.go`, the `anyFailed && anySucceeded` / `anyFailed`-only branches —
+  jd_offline is DONE, consume the `outcomes []animeRunOutcome` parameter 6a already threads in).
+  Satisfies "A download run's manual links become individually identified rows" (jd_offline's
+  remaining `Rows` half) and the equivalent for failed animes.
+- [ ] **6b.2.2** [GREEN] Modify those two branches: build `[]notification.DetailItem` from
+  `outcomes` (failed/manual animes) and attach via `Notification.Rows` alongside the existing
+  `Title`/`Body` composition (wording may stay similar, but MUST NOT be the sole identification
+  mechanism).
+- [ ] **6b.2.3** [RED] Write a test on `internal/download/service_single_anime.go`'s remaining
+  failure ladder (the `outcome.failed && run.EpisodesDownloaded > 0` / `outcome.failed`-only
+  branches, below the now-enriched jd_offline branch): the single-anime path attaches an equivalent
+  `DetailItem` for the one anime/episode involved.
+- [ ] **6b.2.4** [GREEN] Modify those two branches accordingly.
+- [ ] **6b.2.5** [RED] Write a test: uneventful anime collapse into ONE summary row (`CollapsedCount > 0`,
   literal expected count) while failed/manual anime each keep their own row. Satisfies "Uneventful rows
   collapse into a single summary line."
-- [ ] **6.2.6** [GREEN] Implement the collapse helper (e.g. `buildRunDetailRows(run)` colocated in
-  `internal/download`, since `internal/download` already imports `internal/notification` and MAY depend
-  on the neutral `notification.DetailItem` type without creating a new dependency direction).
+- [ ] **6b.2.6** [GREEN] Implement the collapse helper (e.g. `buildRunDetailRows(run, outcomes)`
+  colocated in `internal/download`, since `internal/download` already imports `internal/notification`
+  and MAY depend on the neutral `notification.DetailItem` type without creating a new dependency
+  direction).
 
-### 6.3 Implementation — Season Availability Producer Site
+### 6b.3 Implementation — Full Per-Anime Rows (jd_offline and Season Availability, If Still Wanted)
 
-- [ ] **6.3.1** [RED] Write a test on `app_season_availability.go` (new colocated test file or extend the
-  existing one): an N-anime-available notification produces N individually-referenceable `DetailItem`
-  rows (`{RefType: "anime", RefID: ...}`) instead of the single comma-joined sentence at line 348;
-  neither `Body` nor `Rows` relies on `strings.Join(names, ", ")` as the sole identification. Satisfies
-  "Season availability produces one row per anime instead of one comma-joined sentence."
-- [ ] **6.3.2** [GREEN] Modify `app_season_availability.go` lines 342-353 to build
-  `[]notification.DetailItem` (one per anime) and attach via `Notification.Rows`.
+- [ ] **6b.3.1** [RED] If individual actionability per anime is still desired beyond 6a's body-text
+  truncation fix: extend jd_offline's notification (both files) with one `DetailItem` per
+  `ManualLink`, and season availability's notification with one `DetailItem` per anime
+  (`{RefType: "anime", RefID: ...}`) instead of (or alongside) `app_season_availability.go`'s
+  `joinNamesWithLimit`-truncated sentence. Satisfies "Season availability produces one row per anime
+  instead of one comma-joined sentence" (the row-based half 6a's truncation fix does not cover).
+- [ ] **6b.3.2** [GREEN] Implement accordingly.
 
-### 6.4 Documentation And Spec Reconciliation
+### 6b.4 Documentation And Spec Reconciliation
 
-- [ ] **6.4.1** [DOC] Merge the already-drafted delta at
+- [ ] **6b.4.1** [DOC] Merge the already-drafted delta at
   `openspec/changes/2026-08-23-sdd-60-notification-center/specs/notifications/notifications.md` into the
   live `openspec/specs/notifications/notifications.md` at lines 66 and 77 — replace the file-path-literal
   wording with the structural-invariant wording already fixed in this change's delta spec. This is the
   proposal §4 mandatory drift reconciliation (S-16 / R-8).
-- [ ] **6.4.2** [DOC] Add a superseded-sections banner to `docs/notification-center-proposal.md` over
+- [ ] **6b.4.2** [DOC] Add a superseded-sections banner to `docs/notification-center-proposal.md` over
   §7, §8, §16.3, §19.1, §37, pointing readers to `design.md` instead (R-8 mitigation).
-- [ ] **6.4.3** [DOC] Run `node scripts/log-lesson.mjs "<one-line lesson>"` to append
+- [ ] **6b.4.3** [DOC] Run `node scripts/log-lesson.mjs "<one-line lesson>"` to append
   `docs/learning-log.md` — NEVER hand-edit the file (CLAUDE.md #17). Suggested lesson content: the
-  design gap found and resolved for producer-attached rows/actions (Task-Planning Note B), stated in
-  ≤300 characters.
+  design gap found and resolved for producer-attached rows/actions (Task-Planning Note B), and the
+  6a/6b split it forced, stated in ≤300 characters.
 
-### 6.5 Testing & Verification
+### 6b.5 Testing & Verification
 
-- [ ] **6.5.1** [TEST] Write a table test over the four enriched producer sites plus season availability
-  asserting no emitted `Notification.Body` string contains the literal substring "see run details"
-  anymore.
-- [ ] **6.5.2** [MUTATE] Run `go run ./tools/mutationstaged` over Slice 6's staged Go lines — the
+- [ ] **6b.5.1** [TEST] Write a table test over every enriched producer site (including 6a's
+  already-enriched jd_offline x2 and season availability) plus the newly-enriched run_partial/
+  run_failed sites, asserting no emitted `Notification.Body` string contains the literal substring
+  "see run details" anymore.
+- [ ] **6b.5.2** [MUTATE] Run `go run ./tools/mutationstaged` over Slice 6b's staged Go lines — the
   row-building and collapse-threshold branches are the natural mutation targets.
-- [ ] **6.5.3** [VERIFY] Confirm `docs/openapi.yaml` and the mobile-sync contract show NO diff across the
-  entire six-slice chain (`git diff main -- docs/openapi.yaml` and the equivalent mobile contract path);
-  record this as a POSITIVE finding in the slice report (R-7), not as an omission.
-- [ ] **6.5.4** [GATE] `go test ./...` full green; `bun --cwd="frontend" run render:smoke`; `git commit`
+- [ ] **6b.5.3** [VERIFY] Confirm `docs/openapi.yaml` and the mobile-sync contract show NO diff across the
+  entire seven-slice chain (`git diff main -- docs/openapi.yaml` and the equivalent mobile contract path);
+  record this as a POSITIVE finding in the slice report (R-7), not as an omission. (6a's own diff already
+  confirmed clean against both paths.)
+- [ ] **6b.5.4** [GATE] `go test ./...` full green; `bun --cwd="frontend" run render:smoke`; `git commit`
   (full pre-commit gate, ≥300 000 ms).
 
-**Rollback:** `git revert`; producers return to their `"see run details"` wording. Rows already
-persisted by earlier slices keep whatever structure they were written with — no migration is performed
-or undone.
+**Rollback:** `git revert`; producers return to their `"see run details"` wording (or, for jd_offline
+and season availability, to 6a's already-shipped body-text truncation, whichever this reverts past).
+Rows already persisted by earlier slices keep whatever structure they were written with — no
+migration is performed or undone.
 
 ---
 
 ## Whole-Change Rollback
 
-Revert the six (seven, counting the 3a/3b split) slice commits in reverse order. The only durable
+Revert the six (eight, counting the 3a/3b and 6a/6b splits) slice commits in reverse order. The only durable
 residue is the inert `notification_records`/`notification_record_actions` tables and their accumulated
 rows — harmless, droppable later via an explicit, separately-reviewed migration if ever desired. No
 existing table, column, or wire contract is modified by this change at any point in the chain.

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
@@ -252,6 +253,47 @@ func TestSeasonAnimeGatewayCreateFailsBeforeCreatorWhenOrderCannotBeRead(t *test
 			}
 		})
 	}
+}
+
+// notifySeasonAvailable used to comma-join every name into one unbounded sentence that could
+// neither truncate nor be acted on individually. This proves the body still names every anime
+// when the batch is small, and collapses the remainder into a "(+N more)" suffix instead of
+// growing without bound when it is not.
+func TestNotifySeasonAvailableNamesAnimesAndTruncatesPastTheLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("small batch names every anime", func(t *testing.T) {
+		t.Parallel()
+		notifier := &recordingAppNotifier{}
+		app := &App{notifier: notifier}
+
+		app.notifySeasonAvailable(context.Background(), []string{"Frieren", "Dandadan"})
+
+		if len(notifier.received) != 1 {
+			t.Fatalf("received %d notifications, want 1", len(notifier.received))
+		}
+		body := notifier.received[0].Body
+		if !strings.Contains(body, "Frieren") || !strings.Contains(body, "Dandadan") {
+			t.Fatalf("body = %q, want both anime named", body)
+		}
+	})
+
+	t.Run("large batch truncates instead of growing without bound", func(t *testing.T) {
+		t.Parallel()
+		notifier := &recordingAppNotifier{}
+		app := &App{notifier: notifier}
+		names := []string{"A", "B", "C", "D", "E", "F", "G"}
+
+		app.notifySeasonAvailable(context.Background(), names)
+
+		body := notifier.received[0].Body
+		if !strings.Contains(body, "(+2 more)") {
+			t.Fatalf("body = %q, want a \"(+2 more)\" suffix for the 2 names past the limit", body)
+		}
+		if strings.Contains(body, "F") || strings.Contains(body, "G") {
+			t.Fatalf("body = %q, want the collapsed names omitted, not spelled out", body)
+		}
+	})
 }
 
 func TestSeasonScheduleStoreFixedConfig(t *testing.T) {
