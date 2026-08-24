@@ -8,6 +8,7 @@ import {
   resetDownloadRuntimeStore,
 } from '../download-runtime-store/download-runtime-store.helpers';
 
+/** Schedule snapshot the stubbed port returns unless a case overrides it. */
 const scheduleConfig: ScheduleConfig = {
   mode: 'in_process',
   dailyTimeHHMM: '03:30',
@@ -20,6 +21,7 @@ const scheduleConfig: ScheduleConfig = {
   missedNotice: undefined,
 };
 
+/** One-run history the stubbed port returns unless a case overrides it. */
 const runHistory: readonly DownloadRunView[] = [
   {
     runId: 'run-1',
@@ -38,6 +40,7 @@ const runHistory: readonly DownloadRunView[] = [
   },
 ];
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -56,6 +59,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn().mockResolvedValue(runHistory),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
@@ -165,15 +169,90 @@ describe('download-runtime-store', () => {
     await vi.waitFor(() => expect(getDownloadRuntimeStoreState().scheduleConfig.missedNotice?.localDate).toBe('2026-07-27'));
   });
 
+  it('a backend missed-schedule settlement refreshes the schedule read-model', async () => {
+    let settled: (() => void) | undefined;
+    const source = createSource({
+      getScheduleConfig: vi
+        .fn()
+        .mockResolvedValueOnce({ ...scheduleConfig, missedNotice: { localDate: '2026-07-26', dueAtMs: 1_721_000_000_000 } })
+        .mockResolvedValueOnce({ ...scheduleConfig, missedNotice: undefined }),
+      subscribeMissedScheduleSettled: vi.fn().mockImplementation((listener: () => void) => {
+        settled = listener;
+        return () => undefined;
+      }),
+    });
+
+    await getDownloadRuntimeStoreState().refreshSchedule(source);
+    connectDownloadRuntimeStore(source);
+    settled?.();
+
+    // Pressing "Run now"/"Ignore" on the persisted notification record settles
+    // the day in the backend, but that carrier has no return value to hand the
+    // store the way the Wails binding does. Without this the schedule panel and
+    // its persistent toast keep showing a day that is already settled.
+    await vi.waitFor(() => expect(getDownloadRuntimeStoreState().scheduleConfig.missedNotice).toBeUndefined());
+  });
+
+  it('a settlement arriving before the schedule has ever loaded does not force a read nobody asked for', async () => {
+    let settled: (() => void) | undefined;
+    const source = createSource({
+      // Never resolves, so `scheduleHasLoaded` stays false for the whole test
+      // and the not-yet-loaded branch is the one actually exercised.
+      getScheduleConfig: vi.fn().mockReturnValue(new Promise<never>(() => undefined)),
+      subscribeMissedScheduleSettled: vi.fn().mockImplementation((listener: () => void) => {
+        settled = listener;
+        return () => undefined;
+      }),
+    });
+
+    connectDownloadRuntimeStore(source);
+    settled?.();
+    settled?.();
+
+    // The single call is the one connecting made on its own. A read-model no
+    // panel has mounted yet has nothing to correct, and refreshing it here
+    // would load the schedule on a screen that never asked for it.
+    expect(source.getScheduleConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('a backend missed-schedule settlement leaves the run history alone', async () => {
+    let settled: (() => void) | undefined;
+    const source = createSource({
+      subscribeMissedScheduleSettled: vi.fn().mockImplementation((listener: () => void) => {
+        settled = listener;
+        return () => undefined;
+      }),
+    });
+
+    await getDownloadRuntimeStoreState().refreshSchedule(source);
+    await getDownloadRuntimeStoreState().refreshRunHistory(source);
+    connectDownloadRuntimeStore(source);
+    settled?.();
+
+    await vi.waitFor(() => expect(source.getScheduleConfig).toHaveBeenCalledTimes(2));
+    // Settling a missed day is not a run. "Run now" that actually downloads
+    // emits its own run lifecycle events, which already refresh the history
+    // through subscribeRunEvents; "Ignore" starts nothing at all.
+    expect(source.listDownloadRuns).toHaveBeenCalledTimes(1);
+  });
+
   it('resetDownloadRuntimeStore disconnects and clears state', () => {
     const unsubscribe = vi.fn();
-    const source = createSource({ subscribeRunEvents: vi.fn().mockReturnValue(unsubscribe) });
+    const unsubscribeSettled = vi.fn();
+    const source = createSource({
+      subscribeRunEvents: vi.fn().mockReturnValue(unsubscribe),
+      subscribeMissedScheduleSettled: vi.fn().mockReturnValue(unsubscribeSettled),
+    });
 
     connectDownloadRuntimeStore(source);
     getDownloadRuntimeStoreState().selectRun('run-1');
     resetDownloadRuntimeStore();
 
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+    // Both subscriptions are released, not just the first one opened. A
+    // half-released connection survives a reset and keeps writing into the
+    // store the next test just cleared.
+    expect(unsubscribeSettled).toHaveBeenCalledTimes(1);
     expect(getDownloadRuntimeStoreState().selectedRunId).toBeUndefined();
     expect(getDownloadRuntimeStoreState().runHistory).toEqual([]);
     expect(getDownloadRuntimeStoreState().shownMissedFailureDates).toEqual([]);

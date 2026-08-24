@@ -5,6 +5,7 @@ import { useHosterPriorityEditor } from '../use-hoster-priority-editor';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
 
+/** Download config every case starts from, carrying the hoster list under edit. */
 const baseConfig: DownloadConfig = {
   jd: {
     email: '',
@@ -34,6 +35,7 @@ const baseConfig: DownloadConfig = {
   renameEpisodes: false,
 };
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn().mockResolvedValue(baseConfig),
@@ -52,6 +54,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
@@ -60,6 +63,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
 // Real pointer drags are not exercisable under jsdom, so the boundary is mocked.
 vi.mock('@dnd-kit/helpers', () => ({ move: vi.fn() }));
 
+/** Typed handle on the mocked dnd-kit `move`, so a case can assert how a drag was applied. */
 const mockedMove = vi.mocked(move);
 
 /** Minimal structural stand-in for a dnd-kit `dragend` event. */

@@ -7,6 +7,7 @@ import type { DownloadReadinessSnapshot, ScheduleConfig } from '../../../../../s
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { resetPreferencesStore } from '../../../../../shared/store/preferences-store/preferences-store.helpers';
 
+/** Schedule config every case starts from, with no missed day pending. */
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',
   dailyTimeHHMM: '03:30',
@@ -19,6 +20,7 @@ const baseConfig: ScheduleConfig = {
   missedNotice: undefined,
 };
 
+/** Readiness snapshot with nothing in it, the default the stubbed port returns. */
 const emptyReadiness: DownloadReadinessSnapshot = {
   items: [],
   scheduledTotal: 0,
@@ -26,6 +28,7 @@ const emptyReadiness: DownloadReadinessSnapshot = {
   scheduledBlocked: 0,
 };
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -44,10 +47,12 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn().mockResolvedValue(emptyReadiness),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
 
+/** Builds a fully stubbed preferences port, overridable per case. */
 function createPreferencesSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
     getSeasonMode: vi.fn().mockResolvedValue(false),

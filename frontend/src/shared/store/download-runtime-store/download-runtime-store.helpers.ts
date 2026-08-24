@@ -6,8 +6,18 @@ import type { DownloadRuntimeSource } from '../../../infrastructure/download-run
 import { DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE } from './download-runtime-store.constants';
 import type { DownloadRuntimeStoreState } from './download-runtime-store.types';
 
-/** Vanilla backing store for the shared Downloads runtime read-model. */
-export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((set) => ({
+/**
+ * Vanilla backing store for the shared Downloads runtime read-model.
+ *
+ * `notification-store` keeps its instance in `.constants.ts`, which is where
+ * this one belongs too. It stays here for now because this file's own
+ * `.constants.ts` holds `DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE`, which the
+ * connect/reset functions below mutate -- moving the store across would put the
+ * initializer and the subscription state on opposite sides of an import this
+ * bugfix has no reason to rearrange. Suppressed in place so the debt is visible
+ * rather than silently disabled repo-wide.
+ */
+export const downloadRuntimeStore = createStore<DownloadRuntimeStoreState>()((set) => ({ // eslint-disable-line dharness/role-file-shape -- see the block above: pending the same move notification-store already made
   scheduleConfig: EMPTY_SCHEDULE_CONFIG,
   scheduleHasLoaded: false,
   scheduleErrorMessage: undefined,
@@ -93,6 +103,18 @@ export function connectDownloadRuntimeStore(source: DownloadRuntimeSource = down
     }
   });
 
+  // A missed day settled somewhere this store cannot see the answer of -- a
+  // "Run now"/"Ignore" token pressed on the persisted notification record,
+  // which returns to the notification center and not to us. Only the schedule
+  // is re-read: settling a day is not a run.
+  const unsubscribeMissedScheduleSettled = source.subscribeMissedScheduleSettled(() => {
+    const state = getDownloadRuntimeStoreState();
+
+    if (state.scheduleHasLoaded) {
+      void state.refreshSchedule(source);
+    }
+  });
+
   const state = getDownloadRuntimeStoreState();
 
   if (!state.scheduleHasLoaded) {
@@ -105,6 +127,7 @@ export function connectDownloadRuntimeStore(source: DownloadRuntimeSource = down
 
   DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = () => {
     unsubscribe();
+    unsubscribeMissedScheduleSettled();
     DOWNLOAD_RUNTIME_STORE_RUNTIME_STATE.runtimeUnsubscribe = null;
   };
 

@@ -146,6 +146,26 @@ describe('useBackendEventResolver', () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
+  it('still renders a toast for a producer that reports no kind at all', () => {
+    const push = vi.fn();
+    const remove = vi.fn();
+    const notification: Notification = {
+      Title: 'Pairing complete',
+      Body: 'A device finished pairing.',
+      Level: 'info',
+      Source: 'device',
+      CorrelationID: '',
+      Timestamp: '2026-08-23T14:32:00Z',
+    };
+
+    renderHook(() => useBackendEventResolver(push, remove, createFakeSource(notification, undefined)));
+
+    // An empty kind means "this producer has not adopted the vocabulary yet",
+    // never "some resolver has claimed this". Reading absence as a claim would
+    // silently mute every producer that has not been given a kind.
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
   it('a notification.archived event calls remove(...) for each archived record id (Decision G)', () => {
     const push = vi.fn();
     const remove = vi.fn();

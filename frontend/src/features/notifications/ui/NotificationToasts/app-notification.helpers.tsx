@@ -43,6 +43,24 @@ export function renderAppNotificationToast(notification: AppNotification): strin
 }
 
 /**
+ * Closes a toast `renderAppNotificationToast` opened, on the SAME app-owned
+ * queue it was added to.
+ *
+ * It lives here, beside the add, rather than in the controller that calls it,
+ * because the two must never again drift onto different queues.
+ * `appToastQueue` is an app-owned `ToastQueue` INSTANCE while `@heroui/react`
+ * also exports a module-level `toast.*` singleton wrapping a DIFFERENT
+ * instance of the same class -- each with its own key space, and each
+ * silently ignoring a key belonging to the other. Closing an app-owned toast
+ * through `toast.close` therefore looks completely correct and does nothing:
+ * a persistent toast (timeout 0) then stays on screen for the rest of the
+ * session, long after the notice it warns about has been settled.
+ */
+export function closeAppNotificationToast(toastId: string): void {
+  appToastQueue.close(toastId);
+}
+
+/**
  * Navigates to the Notification Center scoped to one record (Task-Planning
  * Note C; notifications delta spec, "The persistedId enables opening the
  * matching Center record"). `renderAppToastContent` below is invoked as a

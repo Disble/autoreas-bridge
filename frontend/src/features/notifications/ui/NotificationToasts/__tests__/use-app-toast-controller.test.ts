@@ -1,16 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@heroui/react', () => ({
-  toast: { close: vi.fn() },
-}));
-
 vi.mock('../app-notification.helpers', () => ({
   renderAppNotificationToast: vi.fn(),
+  closeAppNotificationToast: vi.fn(),
 }));
 
-import { toast } from '@heroui/react';
-import { renderAppNotificationToast } from '../app-notification.helpers';
+import { closeAppNotificationToast, renderAppNotificationToast } from '../app-notification.helpers';
 import { useAppToastController } from '../use-app-toast-controller';
 
 /**
@@ -18,6 +14,15 @@ import { useAppToastController } from '../use-app-toast-controller';
  * (design.md §3 Decision H): a push sharing an already-tracked `dedupeKey`
  * or `recordId` is a no-op, and `remove` closes and forgets the tracked
  * toast regardless of which kind of key it was addressed by.
+ *
+ * These assertions used to name `toast.close` from `@heroui/react` -- the
+ * module-level singleton, which is a DIFFERENT queue instance from the
+ * app-owned `appToastQueue` every toast is actually added to. The whole file
+ * was green while `remove` closed nothing at all, because a mocked close
+ * cannot tell you it addressed the wrong queue. That outcome is now pinned
+ * against the real queue in `app-toast-queue.test.ts` and end to end in
+ * `NotificationToasts.missed-schedule.integration.test.tsx`; what stays here
+ * is the ledger bookkeeping those two cannot see.
  */
 describe('useAppToastController', () => {
   beforeEach(() => {
@@ -34,7 +39,7 @@ describe('useAppToastController', () => {
 
     // Closing an id the ledger does not hold would close whatever toast the
     // runtime happens to have under that id.
-    expect(toast.close).not.toHaveBeenCalled();
+    expect(closeAppNotificationToast).not.toHaveBeenCalled();
   });
 
   it('tracks a push carrying both keys under one toast id, removable by either', () => {
@@ -48,7 +53,7 @@ describe('useAppToastController', () => {
       result.current.remove(7);
     });
 
-    expect(toast.close).toHaveBeenCalledWith('toast-both');
+    expect(closeAppNotificationToast).toHaveBeenCalledWith('toast-both');
 
     // The dedupe ledger still holds the string key, so the same notification
     // cannot re-open itself just because it was closed by its other key.
@@ -107,7 +112,7 @@ describe('useAppToastController', () => {
       result.current.remove('y');
     });
 
-    expect(toast.close).toHaveBeenCalledWith('toast-3');
+    expect(closeAppNotificationToast).toHaveBeenCalledWith('toast-3');
   });
 
   it('removes a toast by recordId, independent of any dedupeKey', () => {
@@ -119,7 +124,7 @@ describe('useAppToastController', () => {
       result.current.remove(7);
     });
 
-    expect(toast.close).toHaveBeenCalledWith('toast-4');
+    expect(closeAppNotificationToast).toHaveBeenCalledWith('toast-4');
   });
 
   it('a push with neither dedupeKey nor recordId is never deduped', () => {

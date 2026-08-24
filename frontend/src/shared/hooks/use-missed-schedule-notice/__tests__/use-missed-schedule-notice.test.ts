@@ -5,6 +5,7 @@ import type { ScheduleConfig } from '../../../contracts/download.types';
 import { resetDownloadRuntimeStore, getDownloadRuntimeStoreState } from '../../../store/download-runtime-store/download-runtime-store.helpers';
 import { useMissedScheduleNotice } from '../use-missed-schedule-notice';
 
+/** Schedule snapshot every case starts from, with no missed day pending. */
 const baseConfig: ScheduleConfig = {
   mode: 'in_process',
   dailyTimeHHMM: '03:30',
@@ -20,6 +21,7 @@ const baseConfig: ScheduleConfig = {
   },
 };
 
+/** A promise plus its resolver, so a case can hold a binding in flight and settle it on purpose. */
 function createDeferred<T>() {
   let resolvePromise!: (value: T) => void;
 
@@ -33,6 +35,7 @@ function createDeferred<T>() {
   };
 }
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -51,10 +54,12 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn().mockResolvedValue([]),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
 
+/** Loads the schedule read-model once so a case starts from a connected store. */
 async function seedSchedule(source: DownloadRuntimeSource): Promise<void> {
   await getDownloadRuntimeStoreState().refreshSchedule(source);
 }

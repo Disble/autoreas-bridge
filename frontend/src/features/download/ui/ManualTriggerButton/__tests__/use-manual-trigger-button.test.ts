@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useManualTriggerButton } from '../use-manual-trigger-button';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -21,6 +22,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }

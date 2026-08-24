@@ -20,6 +20,7 @@ import type { contracts } from '../../../wailsjs/go/models';
 import {
   DOWNLOAD_RUN_EVENT_NAMES,
   DOWNLOAD_RUNTIME_SOURCE_STATE,
+  MISSED_SCHEDULE_SETTLED_EVENT_NAME,
   EMPTY_DOWNLOAD_CONFIG,
   EMPTY_JD_STATUS,
   EMPTY_SCHEDULE_CONFIG,
@@ -39,6 +40,10 @@ function normalizeDownloadConfig(config: import('../../shared/contracts/download
   };
 }
 
+/**
+ * Narrows a backend readiness reason string onto the closed frontend union,
+ * throwing on an unknown one rather than widening the union silently.
+ */
 function mapDownloadReadinessReason(reason: string): DownloadReadinessReason {
   switch (reason) {
     case 'missing_source':
@@ -51,6 +56,7 @@ function mapDownloadReadinessReason(reason: string): DownloadReadinessReason {
   }
 }
 
+/** Maps one Wails readiness row onto its frontend contract shape. */
 function mapDownloadReadinessItem(item: contracts.AnimeDownloadReadiness): AnimeDownloadReadiness {
   return {
     animeId: item.animeId,
@@ -84,6 +90,10 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
 
   const runSubscription = createRuntimeSubscription<void>((emit) => {
     return DOWNLOAD_RUN_EVENT_NAMES.map((eventName) => EventsOn(eventName, () => emit(undefined)));
+  });
+
+  const missedScheduleSettledSubscription = createRuntimeSubscription<void>((emit) => {
+    return EventsOn(MISSED_SCHEDULE_SETTLED_EVENT_NAME, () => emit(undefined));
   });
 
   const source: DownloadRuntimeSource = {
@@ -137,11 +147,23 @@ export function createDownloadRuntimeSource(): DownloadRuntimeSource {
     subscribeRunEvents(listener) {
       return runSubscription.subscribe(listener);
     },
+    subscribeMissedScheduleSettled(listener) {
+      return missedScheduleSettledSubscription.subscribe(listener);
+    },
   };
 
   DOWNLOAD_RUNTIME_SOURCE_STATE.sharedSource = source;
   return source;
 }
 
-/** Shared download source singleton used across hooks and stores. */
-export const downloadRuntimeSource = createDownloadRuntimeSource();
+/**
+ * Shared download source singleton used across hooks and stores.
+ *
+ * Same placement as every other infrastructure source module's singleton --
+ * `notification-source.helpers.ts` carries the identical suppression for the
+ * identical reason. It cannot move to `.constants.ts` either: that file holds
+ * the state container this one imports, so the move would introduce a cycle.
+ * The rule stays on for genuinely new violations; this one is suppressed in
+ * place so the debt is visible rather than silently disabled repo-wide.
+ */
+export const downloadRuntimeSource = createDownloadRuntimeSource(); // eslint-disable-line dharness/role-file-shape

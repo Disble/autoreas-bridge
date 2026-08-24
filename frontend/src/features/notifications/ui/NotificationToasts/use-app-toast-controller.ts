@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react';
-import { toast } from '@heroui/react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
-import { renderAppNotificationToast } from './app-notification.helpers';
+import { closeAppNotificationToast, renderAppNotificationToast } from './app-notification.helpers';
 
 /** What `useAppToastController` exposes to `NotificationToasts`. */
 export interface AppToastController {
@@ -39,7 +38,7 @@ export function useAppToastController(): AppToastController {
       if (!toastId) {
         return;
       }
-      toast.close(toastId);
+      closeAppNotificationToast(toastId);
       recordIdToToastIdRef.current.delete(key);
       return;
     }
@@ -48,7 +47,7 @@ export function useAppToastController(): AppToastController {
     if (!toastId) {
       return;
     }
-    toast.close(toastId);
+    closeAppNotificationToast(toastId);
     dedupeKeyToToastIdRef.current.delete(key);
   }, []);
 

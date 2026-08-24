@@ -35,4 +35,16 @@ export interface DownloadRuntimeSource {
 	readonly listDownloadRuns: () => Promise<readonly DownloadRunView[]>;
 	readonly listDownloadReadiness: () => Promise<DownloadReadinessSnapshot>;
   readonly subscribeRunEvents: (listener: () => void) => () => void;
+  /**
+   * Fires when the backend settles a startup-missed selected day, whichever
+   * carrier settled it. `runMissedScheduleNow`/`ignoreMissedSchedule` above
+   * hand their caller the answer directly, but a "Run now"/"Ignore" token
+   * pressed on the persisted notification record has no such return channel --
+   * without this the Downloads schedule read-model keeps showing a day the
+   * backend already settled.
+   *
+   * It is deliberately NOT folded into `subscribeRunEvents`: a settlement is
+   * not a download run, and "Ignore" starts nothing whose history could change.
+   */
+  readonly subscribeMissedScheduleSettled: (listener: () => void) => () => void;
 }

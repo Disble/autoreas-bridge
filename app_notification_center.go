@@ -30,6 +30,18 @@ const notificationArchivedEventName = "notification.archived"
 // to know what a notification is.
 const notificationNavigateEventName = "notification.navigate"
 
+// missedScheduleSettledEventName is the Wails runtime event a settled
+// missed-schedule action emits, carrying the local date that settled.
+//
+// It is named for the SCHEDULE, not for the notification, because it announces
+// what the operation did rather than which carrier fired it. That is the whole
+// point of the token pattern: RunMissedScheduleNow tells its caller the answer
+// through a return value, a pressed action token has no such channel, and a
+// future carrier (tray, deep link) would have none either. One event at the
+// operation's own convergence point serves all three, so the Downloads
+// read-model converges on the truth no matter who pressed what.
+const missedScheduleSettledEventName = "schedule.missed_settled"
+
 // ListNotifications is the Wails-bound keyset-paginated read of the
 // notification center's inbox (design §10). Never panics: a nil store or a
 // query error degrades to an empty, Degraded page.
@@ -311,8 +323,24 @@ func (a *App) registerNotificationIntents() *center.StaticRegistry {
 // converge on one operation rather than becoming two independent code
 // paths for the same action (notification-actions spec, "Existing Wails
 // Bindings Become Carriers Of Registered Intents").
+//
+// A settlement announces itself here rather than in the intent closures, so
+// every carrier of this operation -- present and future -- refreshes the
+// frontend's schedule read-model, not just the one that happened to need it
+// first. The emit is best-effort and deliberately NOT a registration
+// condition: unlike navigation.open, whose entire job is the emit, these two
+// intents still settle the day with no runtime attached.
+//
+// Only a settlement is announced. The event reports what the operation DID,
+// so a refused, racing or unavailable press stays silent -- which also means a
+// screen already stale before the press stays stale until its next ordinary
+// refresh.
 func (a *App) resolveMissedStartupAction(ctx context.Context, localDate string, action schedule.MissedStartupAction) schedule.MissedStartupActionResult {
-	return a.downloadScheduler.ResolveMissedStartupDate(ctx, localDate, action)
+	result := a.downloadScheduler.ResolveMissedStartupDate(ctx, localDate, action)
+	if result.Kind == schedule.MissedStartupActionSettled && a.emitFn != nil {
+		a.emitFn(ctx, missedScheduleSettledEventName, result.LocalDate)
+	}
+	return result
 }
 
 // missedStartupActionAsIntentError maps a scheduler missed-startup result

@@ -4,6 +4,7 @@ import type { DownloadRuntimeSource } from '../../../../../infrastructure/downlo
 import type { AnimeDownloadReadiness, DownloadReadinessSnapshot } from '../../../../../shared/contracts/download.types';
 import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 
+/** A readiness snapshot with nothing in it, the starting point most cases narrow from. */
 const snapshot: DownloadReadinessSnapshot = {
   items: [
     { animeId: 'blocked', name: 'Blocked Anime', ready: false, reasons: ['destination_unresolved'], scheduledToday: false },
@@ -14,10 +15,12 @@ const snapshot: DownloadReadinessSnapshot = {
   scheduledBlocked: 0,
 };
 
+/** Wraps readiness items into the snapshot envelope the binding returns. */
 function createSnapshot(items: readonly AnimeDownloadReadiness[]): DownloadReadinessSnapshot {
   return { items, scheduledTotal: 0, scheduledReady: 0, scheduledBlocked: 0 };
 }
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createDownloadSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -36,6 +39,7 @@ function createDownloadSource(overrides: Partial<DownloadRuntimeSource> = {}): D
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn().mockResolvedValue(snapshot),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }

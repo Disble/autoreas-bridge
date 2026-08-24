@@ -4,6 +4,7 @@ import { useJDConfigPanel } from '../use-jdconfig-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { JDStatus } from '../../../../../shared/contracts/download.types';
 
+/** JDownloader status every case starts from. */
 const baseStatus: JDStatus = {
   email: 'user@example.com',
   hasPassword: true,
@@ -14,6 +15,7 @@ const baseStatus: JDStatus = {
   lastSeenAtMs: 1_700_000_000_000,
 };
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -32,6 +34,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }

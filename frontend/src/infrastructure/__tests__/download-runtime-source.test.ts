@@ -147,6 +147,63 @@ describe('download-runtime-source', () => {
     unsubscribe();
   });
 
+  it('subscribes to the backend missed-schedule settlement event and forwards it to listeners', async () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      });
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const source = createDownloadRuntimeSource();
+    const listener = vi.fn();
+    const unsubscribe = source.subscribeMissedScheduleSettled(listener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The literal name, not the production constant: this string is the wire
+    // contract with `resolveMissedStartupAction`'s emit, and asserting through
+    // the constant would let a rename move both sides here while every shipped
+    // renderer stopped hearing the settlement.
+    handlers.get('schedule.missed_settled')?.('2026-07-26');
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('schedule.missed_settled', expect.any(Function), -1);
+
+    unsubscribe();
+  });
+
+  it('keeps the settlement subscription separate from the run-event one', async () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    window.runtime = {
+      EventsOnMultiple: vi.fn().mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      }),
+    } as never;
+
+    const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
+    const source = createDownloadRuntimeSource();
+    const runListener = vi.fn();
+    const settledListener = vi.fn();
+    source.subscribeRunEvents(runListener);
+    source.subscribeMissedScheduleSettled(settledListener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    handlers.get('schedule.missed_settled')?.('2026-07-26');
+
+    // Settling a missed day is not a download run. Folding it into the run
+    // subscription would also re-read the run history on every "Ignore", which
+    // starts nothing.
+    expect(settledListener).toHaveBeenCalledTimes(1);
+    expect(runListener).not.toHaveBeenCalled();
+  });
+
   it('forwards getDownloadConfig to the live Wails binding once the runtime is ready', async () => {
     const config = {
       jd: {

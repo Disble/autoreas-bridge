@@ -4,6 +4,7 @@ import { useEpisodeRenamePanel } from '../use-episode-rename-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadConfig } from '../../../../../shared/contracts/download.types';
 
+/** Download config every case starts from, with the rename opt-in off. */
 const baseConfig: DownloadConfig = {
   jd: {
     email: '',
@@ -30,6 +31,7 @@ const baseConfig: DownloadConfig = {
   renameEpisodes: false,
 };
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn().mockResolvedValue(baseConfig),
@@ -48,6 +50,7 @@ function createFakeSource(overrides: Partial<DownloadRuntimeSource> = {}): Downl
     listDownloadRuns: vi.fn(),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn(),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   } as unknown as DownloadRuntimeSource;
 }

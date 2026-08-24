@@ -6,6 +6,7 @@ import type { DownloadRuntimeSource } from '../../../../../infrastructure/downlo
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 
+/** Builds one run history row, numbered so ordering assertions read plainly. */
 function createRun(index: number, overrides: Partial<DownloadRunView> = {}): DownloadRunView {
   return {
     runId: `run-${index}`,
@@ -25,6 +26,7 @@ function createRun(index: number, overrides: Partial<DownloadRunView> = {}): Dow
   };
 }
 
+/** Small run history the stubbed port returns unless a case overrides it. */
 const runs: readonly DownloadRunView[] = [
   createRun(2, {
     trigger: 'scheduled',
@@ -35,8 +37,10 @@ const runs: readonly DownloadRunView[] = [
   createRun(1),
 ];
 
+/** Newest-first history long enough to exercise the progressive list window. */
 const manyRuns = Array.from({ length: 25 }, (_, index) => createRun(25 - index));
 
+/** Builds a fully stubbed download runtime port, overridable per case. */
 function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadRuntimeSource {
   return {
     getDownloadConfig: vi.fn(),
@@ -55,6 +59,7 @@ function createSource(overrides: Partial<DownloadRuntimeSource> = {}): DownloadR
     listDownloadRuns: vi.fn().mockResolvedValue(runs),
     listDownloadReadiness: vi.fn(),
     subscribeRunEvents: vi.fn().mockReturnValue(() => undefined),
+    subscribeMissedScheduleSettled: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
 }
