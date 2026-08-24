@@ -74,6 +74,153 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 	}
 }
 
+// The run_partial notification used to say only "Some animes failed to download -- see run
+// details", which could not tell the user which anime that was without opening the run. Every
+// failed anime must now be individually named as its own row, and every uneventful anime must
+// collapse into ONE trailing summary row instead of each claiming a row (notification-center
+// spec, "Uneventful rows collapse into a single summary line").
+func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	dia := todayDiaName(now)
+
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listEpisodes: map[string]sites.EpisodeListing{
+			"https://jkanime.net/ok-one/": {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-one/5/"},
+			"https://jkanime.net/ok-two/": {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-two/5/"},
+		},
+		listErr: map[string]error{
+			"https://jkanime.net/broken/": errors.New("boom: site scrape failed"),
+		},
+		extractLinks: map[string][]sites.DownloadLink{
+			"https://jkanime.net/ok-one/5/": {{URL: "http://mediafire.example/1", Hoster: "Mediafire"}},
+			"https://jkanime.net/ok-two/5/": {{URL: "http://mediafire.example/2", Hoster: "Mediafire"}},
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+
+	okOneFolder, okTwoFolder := t.TempDir(), t.TempDir()
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
+		{ID: "anime-ok-1", Name: "OK Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-one/"), Folder: ptrStr(okOneFolder)},
+		{ID: "anime-ok-2", Name: "OK Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-two/"), Folder: ptrStr(okTwoFolder)},
+		{ID: "anime-broken", Name: "Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken/"), Folder: ptrStr(t.TempDir())},
+	}}
+	setSvcFakeCounter(&deps, &svcFakeCounter{
+		atRoot:    map[string]int{okOneFolder: 4, okTwoFolder: 4},
+		recursive: map[string]int{okOneFolder: 5, okTwoFolder: 5},
+	})
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+
+	result, err := NewService(deps).RunOnce(context.Background(), "manual")
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if result.Status != RunStatusPartial {
+		t.Fatalf("status = %q, want %q", result.Status, RunStatusPartial)
+	}
+
+	got := findNotificationByTitle(notifier, "Download run completed with errors")
+	if got == nil {
+		t.Fatal("no run-partial notification found")
+	}
+	if strings.Contains(got.Body, "see run details") {
+		t.Fatalf("body = %q, still relies on the literal fallback wording", got.Body)
+	}
+	if len(got.Rows) != 2 {
+		t.Fatalf("rows = %#v, want exactly 2 (1 failed anime + 1 collapsed summary) -- an off-by-one here must fail this test", got.Rows)
+	}
+
+	var failedRow, collapsedRow *notification.DetailItem
+	for i := range got.Rows {
+		if got.Rows[i].CollapsedCount > 0 {
+			collapsedRow = &got.Rows[i]
+		} else {
+			failedRow = &got.Rows[i]
+		}
+	}
+	if failedRow == nil || failedRow.RefID != "anime-broken" || failedRow.Name != "Broken Anime" || failedRow.Status != "failed" {
+		t.Fatalf("failed row = %#v, want it to name Broken Anime", failedRow)
+	}
+	if collapsedRow == nil || collapsedRow.CollapsedCount != 2 {
+		t.Fatalf("collapsed row = %#v, want CollapsedCount == 2", collapsedRow)
+	}
+}
+
+// When every anime fails, the run_failed notification must name each one individually too --
+// with nothing uneventful to fold, no collapsed row is expected.
+func TestRunOnceRunFailedNotificationNamesEveryFailedAnime(t *testing.T) {
+	t.Parallel()
+
+	deps := baseDeps(t)
+	now := deps.Clock()
+	dia := todayDiaName(now)
+
+	registry := NewStaticRegistry()
+	source := &svcFakeEpisodeSource{
+		name: "jkanime",
+		listErr: map[string]error{
+			"https://jkanime.net/broken-one/": errors.New("boom: site scrape failed"),
+			"https://jkanime.net/broken-two/": errors.New("boom: site scrape failed"),
+		},
+	}
+	registry.Register(source)
+	deps.Sites = registry
+
+	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
+		{ID: "anime-broken-1", Name: "Broken Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken-one/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-broken-2", Name: "Broken Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken-two/"), Folder: ptrStr(t.TempDir())},
+	}}
+	notifier := &svcFakeNotifier{}
+	deps.Notifier = notifier
+
+	result, err := NewService(deps).RunOnce(context.Background(), "manual")
+	if err != nil {
+		t.Fatalf("RunOnce: %v", err)
+	}
+	if result.Status != RunStatusError {
+		t.Fatalf("status = %q, want %q", result.Status, RunStatusError)
+	}
+
+	got := findNotificationByTitle(notifier, "Download run failed")
+	if got == nil {
+		t.Fatal("no run-failed notification found")
+	}
+	if strings.Contains(got.Body, "see run details") {
+		t.Fatalf("body = %q, still relies on the literal fallback wording", got.Body)
+	}
+	if len(got.Rows) != 2 {
+		t.Fatalf("rows = %#v, want exactly 2 (one per failed anime, nothing to collapse)", got.Rows)
+	}
+	byRefID := map[string]notification.DetailItem{}
+	for _, row := range got.Rows {
+		byRefID[row.RefID] = row
+	}
+	if byRefID["anime-broken-1"].Name != "Broken Anime One" || byRefID["anime-broken-1"].Status != "failed" {
+		t.Fatalf("row for anime-broken-1 = %#v, want it to name Broken Anime One", byRefID["anime-broken-1"])
+	}
+	if byRefID["anime-broken-2"].Name != "Broken Anime Two" || byRefID["anime-broken-2"].Status != "failed" {
+		t.Fatalf("row for anime-broken-2 = %#v, want it to name Broken Anime Two", byRefID["anime-broken-2"])
+	}
+}
+
+// findNotificationByTitle returns the first captured notification with the given title, or nil
+// if none matches.
+func findNotificationByTitle(notifier *svcFakeNotifier, title string) *notification.Notification {
+	notifications := notifier.notifications()
+	for i := range notifications {
+		if notifications[i].Title == title {
+			return &notifications[i]
+		}
+	}
+	return nil
+}
+
 func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 	t.Parallel()
 

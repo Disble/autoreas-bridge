@@ -297,6 +297,10 @@ Examples:
 
 ## 7. Target component architecture
 
+> **Superseded by `design.md` (SDD-60, 2026-08-23).** This section predates the design phase; where
+> it disagrees with `openspec/changes/2026-08-23-sdd-60-notification-center/design.md`, the design
+> document is authoritative. Kept here for historical context only.
+
 ```mermaid
 flowchart LR
     subgraph Producers[Bounded contexts]
@@ -354,6 +358,10 @@ flowchart LR
 ```
 
 ## 8. Persist-first sequence
+
+> **Superseded by `design.md` (SDD-60, 2026-08-23).** This section predates the design phase; where
+> it disagrees with `openspec/changes/2026-08-23-sdd-60-notification-center/design.md`, the design
+> document is authoritative. Kept here for historical context only.
 
 ```mermaid
 sequenceDiagram
@@ -827,6 +835,10 @@ Every command defines and validates its exact argument schema.
 
 ### 16.3 Action execution sequence
 
+> **Superseded by `design.md` (SDD-60, 2026-08-23).** This section predates the design phase; where
+> it disagrees with `openspec/changes/2026-08-23-sdd-60-notification-center/design.md`, the design
+> document is authoritative. Kept here for historical context only.
+
 ```mermaid
 sequenceDiagram
     actor User
@@ -933,6 +945,10 @@ The current `notification.push` event remains temporarily as a compatibility pro
 ## 19. Startup and reconnect consistency
 
 ### 19.1 Subscribe-first merge
+
+> **Superseded by `design.md` (SDD-60, 2026-08-23).** This section predates the design phase; where
+> it disagrees with `openspec/changes/2026-08-23-sdd-60-notification-center/design.md`, the design
+> document is authoritative. Kept here for historical context only.
 
 The frontend initialization sequence must prevent a gap between snapshot and subscription:
 
@@ -1700,6 +1716,10 @@ For Go, delete each guard manually, run the focused test, confirm failure, and r
 | Privacy | Implicit | Sensitivity and redaction policy |
 
 ## 37. Implementation impact
+
+> **Superseded by `design.md` (SDD-60, 2026-08-23).** This section predates the design phase; where
+> it disagrees with `openspec/changes/2026-08-23-sdd-60-notification-center/design.md`, the design
+> document is authoritative. Kept here for historical context only.
 
 ### Backend additions
 

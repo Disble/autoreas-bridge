@@ -209,7 +209,12 @@ describe('AnimeEditorWorkspace schedule feedback (integration)', () => {
 
     render(<MemoryRouter><AnimeEditorWorkspace scheduleTestDriverRef={scheduleTestDriverRef} /></MemoryRouter>);
 
-    expect(await screen.findByDisplayValue('BanG Dream! YumemoMita')).toBeInTheDocument();
+    // This is the workspace's whole async bootstrap -- list fetch, selection,
+    // then the detail form -- landing behind one assertion. The default second
+    // is enough alone and not while the rest of the gate runs beside it, which
+    // is why this test failed only inside the hook. The wait is widened, not
+    // the test's own budget, which `no-restricted-syntax` rightly forbids.
+    expect(await screen.findByDisplayValue('BanG Dream! YumemoMita', undefined, { timeout: 4000 })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open schedule editor' }));
 

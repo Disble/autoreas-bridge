@@ -65,6 +65,13 @@ func (s *Service) publish(event events.Event) {
 
 // notify sends a user-facing notification without failing the download run.
 func (s *Service) notify(ctx context.Context, level notification.Level, runID, title, body string) {
+	s.notifyWithRows(ctx, level, runID, title, body, nil)
+}
+
+// notifyWithRows sends a user-facing notification carrying individually identified detail rows
+// (e.g. one row per anime that needs attention), without failing the download run. A nil rows
+// slice is equivalent to notify -- the same run-wide body is used with nothing to individuate.
+func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, runID, title, body string, rows []notification.DetailItem) {
 	if s.deps.Notifier == nil {
 		return
 	}
@@ -78,6 +85,7 @@ func (s *Service) notify(ctx context.Context, level notification.Level, runID, t
 		Source:        "download",
 		CorrelationID: runID,
 		Timestamp:     s.deps.Clock(),
+		Rows:          rows,
 	}); err != nil {
 		s.logf(logger.LevelWarn, runID, "", "download.notification_failed", nil,
 			"download notification %q failed: %v", title, err)

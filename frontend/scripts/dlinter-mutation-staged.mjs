@@ -116,5 +116,27 @@ try {
 mkdirSync(cacheDir, { recursive: true });
 rmSync(path.join(cwd, '.dlinter-mutation-tmp'), { recursive: true, force: true });
 /** Outcome of the scoped Stryker run; its exit status becomes the hook's. */
-const result = spawnSync(process.execPath, [strykerEntrypoint, 'run', 'stryker.dlinter.json', '--incremental', '--incrementalFile', cacheFile, '--mutate', ranges.join(','), '--cleanTempDir', 'always'], { cwd, stdio: 'inherit' });
+const result = spawnSync(process.execPath, [strykerEntrypoint, 'run', 'stryker.dlinter.json', '--incremental', '--incrementalFile', cacheFile, '--mutate', ranges.join(','), '--cleanTempDir', 'always'], { cwd, encoding: 'utf8' });
+
+/** Everything Stryker printed, echoed on so piping it does not hide the run. */
+const strykerOutput = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+process.stdout.write(result.stdout ?? '');
+process.stderr.write(result.stderr ?? '');
+
+// A diff can consist entirely of type declarations -- an interface gaining a
+// field, a union gaining a member. Types carry no runtime behaviour, so the
+// instrumenter finds nothing to mutate and Stryker exits non-zero complaining
+// that no tests ran. That is a true statement and not a failure: there was
+// nothing to prove. Narrowly scoped on purpose -- it requires BOTH that
+// Stryker instrumented zero mutants AND that this is the reason it stopped, so
+// a real run that merely fails to cover its mutants still fails the gate.
+/** Whether the instrumenter found no mutable runtime code in the staged ranges. */
+const instrumentedNothing = /Instrumented \d+ source file\(s\) with 0 mutant\(s\)/u.test(strykerOutput);
+/** Whether that, rather than a real failure, is why Stryker stopped. */
+const stoppedForNoTests = strykerOutput.includes('No tests were executed');
+if (result.status !== 0 && instrumentedNothing && stoppedForNoTests) {
+  console.log('dlinter mutation guard: staged production lines declare types only, so there is nothing to mutate.');
+  process.exit(0);
+}
+
 process.exit(result.status ?? 1);

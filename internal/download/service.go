@@ -398,10 +398,9 @@ func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool, []anim
 }
 
 // setRunCompletionStatus assigns the terminal status and related notification. outcomes carries
-// every collected per-anime identity (animeID/animeName) alongside anyFailed/anySucceeded for a
-// producer that needs to name which anime a failure or manual link belongs to; it is currently
-// consumed only by the manual-download naming below (via run.ManualLinks, which already carries
-// its own anime name) -- the anyFailed/anySucceeded branches still speak in aggregate.
+// every collected per-anime identity (animeID/animeName) alongside anyFailed/anySucceeded, so the
+// run_partial/run_failed branches can name which anime needs attention as an individual row
+// instead of relying on the run-wide body alone.
 func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool, outcomes []animeRunOutcome) {
 	if s.markCanceled(ctx, runID, run) {
 		return
@@ -413,10 +412,12 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 		s.notify(ctx, notification.LevelWarning, runID, "MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)))
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
-		s.notify(ctx, notification.LevelWarning, runID, "Download run completed with errors", "Some animes failed to download -- see run details.")
+		s.notifyWithRows(ctx, notification.LevelWarning, runID, "Download run completed with errors",
+			"Some animes failed to download.", buildRunDetailRows(outcomes))
 	case anyFailed:
 		run.Status = RunStatusError
-		s.notify(ctx, notification.LevelError, runID, "Download run failed", "All animes failed to download -- see run details.")
+		s.notifyWithRows(ctx, notification.LevelError, runID, "Download run failed",
+			"All animes failed to download.", buildRunDetailRows(outcomes))
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {

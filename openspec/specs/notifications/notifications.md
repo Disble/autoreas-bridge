@@ -12,6 +12,8 @@ This capability is distinct from the in-process event bus (`events.Bus`). The bu
 
 The system MUST expose a generic `Notifier` port with a single method `Notify(ctx, Notification) error`, where `Notification` is a domain-agnostic value carrying `Title`, `Body`, `Level` (one of `info`, `success`, `warning`, `error`), `Source` (a free-form domain string such as `"download"`, `"sync"`, `"anime"`), `CorrelationID`, and `Timestamp`. The port and the value MUST NOT reference any specific feature (e.g. download) — any bounded context MUST be able to inject and call the same `Notifier`.
 
+`Notification` additionally carries two OPTIONAL fields, added by `notification-center`'s producer enrichment (SDD-60): `Rows` (a list of neutral `DetailItem` values, each naming one thing the notification concerns) and `Actions` (a list of neutral `ActionSpec` values, each an action a user can take). Both are nil for every producer that has nothing to attach, and neither type may reference any specific feature — same constraint as `Notification` itself.
+
 #### Scenario: Any feature can emit a notification
 - GIVEN a bounded context that has been injected with the shared `Notifier`
 - WHEN it calls `Notify(ctx, Notification{Source: "<its-domain>", Level: <level>, Title, Body})`
@@ -63,18 +65,27 @@ The UI-toast adapter MUST deliver a notification to the frontend by emitting a W
 
 ### Requirement: Frontend Renders notification.push Via a Shared Toast Surface
 
-The frontend MUST render incoming `notification.push` events as toasts through a SHARED toast surface that lives in the app-shell (`frontend/src/app/**`), reusable by every feature, NOT inside any single feature folder. The subscription/effect logic MUST live in a `use-*.ts` hook following the strict hook anatomy; the `.tsx` surface MUST render only.
+The frontend MUST render incoming `notification.push` events as toasts through a toast-rendering module that is reusable by every feature and MUST NOT be specialized to any single consuming feature's business logic. Reusability MUST be satisfied structurally, not by physical file location under `frontend/src/app/**`: the app-shell (`frontend/src/App.tsx`, `frontend/src/app/**`) is delivery/composition-only by project convention and MUST NOT itself contain hooks or business logic (CLAUDE.md project note #4), so the module's actual implementation (the `use-*.ts` subscription hook and its rendering `.tsx`) MAY live outside `frontend/src/app/**` PROVIDED it is:
+
+1. Mounted from the app-shell through exactly one thin re-export/composition seam;
+2. Domain-agnostic in its own code — it MUST branch only on generic `Notification` fields (`Level`, `Title`, `Body`, `Source` as an opaque string), and MUST NOT contain a conditional that special-cases any one feature's `Source` value or domain type; and
+3. Reachable by any feature without that feature importing another feature directly — no feature-to-feature import is introduced by this module's existence.
+
+The subscription/effect logic MUST live in a `use-*.ts` hook following the strict hook anatomy; the `.tsx` surface MUST render only.
+(Previously: required the implementation to physically reside inside `frontend/src/app/**` — in tension with CLAUDE.md project note #4, which forbids business logic there; replaced with the structural invariants that wording was actually protecting. Drift logged to `docs/learning-log.md` on 2026-08-23.)
 
 #### Scenario: An incoming notification renders a toast
-- GIVEN the app-shell shared toast surface is mounted and subscribed to `notification.push`
+- GIVEN the shared toast surface is mounted (through the app-shell's re-export seam) and subscribed to `notification.push`
 - WHEN a `notification.push` event arrives with a given `Level`, `Title`, and `Body`
 - THEN the frontend MUST render a toast reflecting that level and content (e.g. mapping `success`/`warning`/`error`/`info` to the corresponding toast style)
 - AND the subscription logic MUST reside in a `use-*.ts` hook, not in a `.tsx` file
 
-#### Scenario: Shared surface is not feature-scoped
-- GIVEN the toast surface
-- WHEN its location is reviewed
-- THEN it MUST reside in the app-shell/infrastructure layers, NOT inside `features/download` (or any other feature), so other features can reuse it
+#### Scenario: Shared surface is domain-agnostic and reusable, wherever its files live
+- GIVEN the toast-rendering module's implementation files
+- WHEN they are reviewed for feature-scoping
+- THEN they MUST contain no conditional branching on a specific consuming feature's identity or domain type
+- AND the app-shell MUST mount the module through exactly one re-export/composition seam that itself contains no subscription or business logic
+- AND any other feature MUST be able to trigger a toast (by causing a `notification.push` event) without importing the toast module's feature folder directly as a dependency of ITS OWN feature code
 
 ### Requirement: Proper Windows Desktop-Toast Adapter Behind a Build-Tag Seam
 
@@ -96,3 +107,44 @@ The Windows desktop-toast adapter MUST deliver a proper native/OS desktop notifi
 - GIVEN the desktop-toast adapter fails to deliver a notification on a Windows build
 - WHEN it is invoked as part of dispatch
 - THEN the failure MUST NOT block the UI-toast adapter or fail the calling feature (see "Fan-Out With Adapter Failure Isolation")
+
+### Requirement: Persist-Then-ALWAYS-Project Is A Port-Level Invariant For Any Notifier Decorator
+
+Any component that decorates the `Notifier` port to add a side effect before delegating (such as a persisting decorator) MUST perform its own side effect first and THEN unconditionally delegate to the wrapped `Notifier` — even when its own side effect failed. A decorator MUST NOT allow its own failure to suppress the wrapped `Notifier`'s delivery. This generalizes, at the port level, the concrete decorator behavior specified in `notification-center`'s "Every Notification Is Persisted Then ALWAYS Projected" requirement, so that this invariant is discoverable from the shared port contract and not only from the one capability that currently implements it.
+
+#### Scenario: A decorator's own side-effect failure never suppresses delegation
+- GIVEN a `Notifier` decorator whose own side effect (e.g. a persistence write) fails
+- WHEN the decorator's `Notify` is called
+- THEN it MUST still call the wrapped `Notifier`'s `Notify` with the same `Notification` value
+- AND the wrapped `Notifier`'s adapters MUST still run
+
+### Requirement: The Toast Carrier Renders Every Notification's Primary Action, And MUST NOT Silently Drop Non-Primary Actions
+
+`AppNotification.actions` is an ordered list; the primary action (`actions[0]`) MUST render as the toast's default action. Actions at index 1 and beyond MUST NOT be silently discarded — the rendering MECHANISM (e.g. a custom-content toast carrying multiple buttons, or a deterministic "+N more" affordance opening the matching Center row) is an implementation choice; the CONTRACT fixed here is behavioral: no action beyond the primary MUST vanish without a trace.
+
+#### Scenario: A single-action notification renders its one action normally
+- GIVEN an `AppNotification` with exactly one action
+- WHEN its toast renders
+- THEN that action MUST render as the toast's primary action
+
+#### Scenario: A second action is never silently dropped
+- GIVEN an `AppNotification` with two or more actions
+- WHEN its toast renders
+- THEN `actions[0]` MUST render as the primary action
+- AND every action from `actions[1]` onward MUST be reachable through the toast (either rendered directly or through a deterministic affordance that leads to them) — none MUST simply disappear
+- AND a test asserting this MUST fail if a second action's `label`/`onPress` becomes unreachable from the rendered toast
+
+### Requirement: The Frontend Resolver Preserves Full Notification Fields And A Correlation Identifier
+
+The frontend resolver that turns an incoming `notification.push` event into a pushed toast/notification value MUST carry `Source`, `CorrelationID`, `Timestamp`, and a `persistedId` (when the event carries a persisted record identifier) through to that pushed value — none of these four fields MUST be silently dropped, so a toast can be correlated to its persisted Notification Center record (enabling "View details" on a toast to open the matching Center row, and enabling deduplication between a toast and its record).
+
+#### Scenario: A backend event's identifying fields reach the pushed notification
+- GIVEN a `notification.push` event carrying `Source`, `CorrelationID`, `Timestamp`, and a persisted record identifier
+- WHEN the frontend resolver processes it
+- THEN the value it pushes MUST include that `Source`, `CorrelationID`, `Timestamp`, and a `persistedId` intact
+- AND none of these four fields MUST be silently dropped
+
+#### Scenario: The persistedId enables opening the matching Center record
+- GIVEN a toast rendered from a `notification.push` event carrying a `persistedId`
+- WHEN the user activates a "view details" affordance on that toast
+- THEN the system MUST be able to navigate to the Center record identified by that `persistedId`

@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -54,7 +55,9 @@ func TestUIToastAdapterEmitsNotificationPushWithFullPayload(t *testing.T) {
 		t.Fatalf("expected payload of type Notification, got %T", got.data[0])
 	}
 
-	if payload != n {
+	// Rows/Actions are slices, so Notification is no longer comparable via == -- DeepEqual is the
+	// direct replacement.
+	if !reflect.DeepEqual(payload, n) {
 		t.Fatalf("expected payload to carry the full Notification fields, got %+v want %+v", payload, n)
 	}
 }

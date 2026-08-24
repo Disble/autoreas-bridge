@@ -31,6 +31,29 @@ const (
 	LevelError Level = "error"
 )
 
+// DetailItem is one producer-attached thing a Notification concerns -- e.g. one anime a download
+// run touched. It stays neutral on purpose: RefType/RefID are free-form strings a producer
+// defines (such as "anime"), never a feature-specific type, so this package still references no
+// specific feature. CollapsedCount, when greater than zero, marks this item as a summary
+// standing in for that many uneventful items instead of naming one of them individually.
+type DetailItem struct {
+	RefType        string
+	RefID          string
+	Name           string
+	Status         string
+	Detail         string
+	CollapsedCount int
+}
+
+// ActionSpec is one producer-attached action a user can take on a Notification. Intent is a
+// free-form token a registered handler resolves at press time; Args are frozen at creation and
+// never mutated afterward.
+type ActionSpec struct {
+	Label  string
+	Intent string
+	Args   map[string]string
+}
+
 // Notification is a domain-agnostic value describing a user-notable moment.
 // Source is a free-form domain string such as "download", "sync", or "anime"
 // -- the type itself MUST NOT reference any specific feature.
@@ -41,6 +64,12 @@ type Notification struct {
 	Source        string
 	CorrelationID string
 	Timestamp     time.Time
+	// Rows optionally attaches one DetailItem per thing this notification concerns. Nil for
+	// every notification that has nothing to individuate -- most producers never set it.
+	Rows []DetailItem
+	// Actions optionally attaches one or more actions a user can take on this notification. Nil
+	// for every notification that offers none.
+	Actions []ActionSpec
 }
 
 // Notifier is the shared port any bounded context depends on to surface a

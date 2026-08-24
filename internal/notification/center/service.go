@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"autoreas-bridge/internal/notification"
+
+	"github.com/google/uuid"
 )
 
 // Service decorates a notification.Notifier with durable persistence: every
@@ -58,6 +60,8 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 		Level:         Level(n.Level),
 		Source:        n.Source,
 		CorrelationID: n.CorrelationID,
+		Rows:          toDetailRows(n.Rows),
+		Actions:       toActions(n.Actions),
 	})
 	if persistErr != nil && s.log != nil {
 		s.log.Warnf("notification-center", "persist notification record: %v", persistErr)
@@ -65,6 +69,47 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 
 	dispatchErr := s.inner.Notify(ctx, n)
 	return errors.Join(persistErr, dispatchErr)
+}
+
+// toDetailRows converts a producer's neutral notification.DetailItem rows into the store's
+// DetailRow shape. A nil/empty input stays nil, so a Notification that attaches nothing persists
+// no rows_json (marshalRows' own nil-means-NULL contract).
+func toDetailRows(items []notification.DetailItem) []DetailRow {
+	if len(items) == 0 {
+		return nil
+	}
+	rows := make([]DetailRow, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, DetailRow{
+			Ref:            EntityRef{Type: item.RefType, ID: item.RefID},
+			Name:           item.Name,
+			Status:         item.Status,
+			Detail:         item.Detail,
+			CollapsedCount: item.CollapsedCount,
+		})
+	}
+	return rows
+}
+
+// toActions converts a producer's neutral notification.ActionSpec actions into the store's
+// Action shape, minting a fresh globally-unique token id for each -- a producer names WHAT an
+// action does (Label/Intent/Args), never the id it is addressed by at press time. Ordinal is the
+// action's position in the producer's own list, matching the store's ORDER BY ordinal ASC read.
+func toActions(specs []notification.ActionSpec) []Action {
+	if len(specs) == 0 {
+		return nil
+	}
+	actions := make([]Action, 0, len(specs))
+	for ordinal, spec := range specs {
+		actions = append(actions, Action{
+			ID:      uuid.NewString(),
+			Ordinal: ordinal,
+			Label:   spec.Label,
+			Intent:  spec.Intent,
+			Args:    spec.Args,
+		})
+	}
+	return actions
 }
 
 var _ notification.Notifier = (*Service)(nil)

@@ -40,12 +40,12 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 			"MyJDownloader offline", fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)))
 	case outcome.failed && run.EpisodesDownloaded > 0:
 		run.Status = RunStatusPartial
-		s.notify(ctx, notification.LevelWarning, runID,
-			"Download run completed with errors", "Some episodes failed to download -- see run details.")
+		s.notifyWithRows(ctx, notification.LevelWarning, runID,
+			"Download run completed with errors", "Some episodes failed to download.", buildRunDetailRows([]animeRunOutcome{outcome}))
 	case outcome.failed:
 		run.Status = RunStatusError
-		s.notify(ctx, notification.LevelError, runID,
-			"Download run failed", "The selected anime failed to download -- see run details.")
+		s.notifyWithRows(ctx, notification.LevelError, runID,
+			"Download run failed", "The selected anime failed to download.", buildRunDetailRows([]animeRunOutcome{outcome}))
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {

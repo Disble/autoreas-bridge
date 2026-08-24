@@ -1340,88 +1340,187 @@ if full per-anime individuation is still desired.**
 
 ### 6b.1 Infrastructure — Notification Struct Extension (Task-Planning Note B)
 
-- [ ] **6b.1.1** [RED] Write `internal/notification/notifier_test.go` (or extend the existing test file
-  if one exists — check first): `TestNotificationZeroValueRowsAndActionsAreNil` — a `Notification{}`
-  zero value has `Rows == nil` and `Actions == nil`. Regression coverage: run the FULL existing
-  `internal/notification` test suite unmodified to confirm the four adapter files still compile and
-  behave identically with the new optional fields present but unset.
-- [ ] **6b.1.2** [GREEN] Modify `internal/notification/notifier.go`: add `DetailItem` struct (`RefType`,
+- [x] **6b.1.1** [RED] Write `internal/notification/notifier_test.go` (no existing test file to
+  extend -- confirmed before creating it): `TestNotificationZeroValueRowsAndActionsAreNil` — a
+  `Notification{}` zero value has `Rows == nil` and `Actions == nil`. **Found beyond the task's
+  literal scope**: adding a slice field makes `Notification` non-comparable via `==`/`!=`, breaking
+  compilation of three pre-existing tests that compared full `Notification` values directly --
+  `internal/notification/ui_toast_test.go` (`payload != n`) and two in
+  `internal/notification/center/service_test.go` (`spy.calls[0] != want`, both in
+  `TestServiceNotifyPersistFailureStillDispatches`/`TestServiceNotifyPersistSuccessDispatchesAndReturnsNil`).
+  Fixed all three to `reflect.DeepEqual` as part of this task's GREEN step (a broken build is not a
+  valid GREEN state) -- confirmed via `go vet ./...` across the whole module that no other
+  comparison site was missed. Full existing `internal/notification` suite re-confirmed green.
+- [x] **6b.1.2** [GREEN] Modify `internal/notification/notifier.go`: add `DetailItem` struct (`RefType`,
   `RefID`, `Name`, `Status`, `Detail`, `CollapsedCount`), `ActionSpec` struct (`Label`, `Intent`,
   `Args`), and two new optional fields on `Notification`: `Rows []DetailItem`, `Actions []ActionSpec`.
   Per Task-Planning Note B, these are neutral in-package types — no new import for
-  `internal/notification`.
-- [ ] **6b.1.3** [RED] Write `internal/notification/center/service_test.go` (extend):
+  `internal/notification` (`TestNotificationPackageGainsNoNewImport` re-confirmed passing).
+- [x] **6b.1.3** [RED] Write `internal/notification/center/service_test.go` (extend):
   `TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord` — a `Notification` carrying 2
   `DetailItem`s and 1 `ActionSpec` persists a `Record` whose `Rows`/`Actions` reflect them, with a
   freshly generated `Action.ID`.
-- [ ] **6b.1.4** [GREEN] Modify `internal/notification/center/service.go`'s `Notify`: convert
-  `n.Rows`/`n.Actions` into `Record.Rows`/`Record.Actions` before calling `InsertRecord`.
+- [x] **6b.1.4** [GREEN] Modify `internal/notification/center/service.go`'s `Notify`: convert
+  `n.Rows`/`n.Actions` into `Record.Rows`/`Record.Actions` (`toDetailRows`/`toActions` helpers) before
+  calling `InsertRecord`. Action ids are minted via `github.com/google/uuid` (already a repo
+  dependency, newly imported by this package only -- `TestCenterPackageNeverImportsDownload`
+  re-confirmed passing; the import-boundary test only forbids `internal/download`, not external
+  deps). `Action.Ordinal` is the spec's position in the producer's own `Actions` slice, matching the
+  store's `ORDER BY ordinal ASC` read. `Action.RowRef` is left empty for every producer-attached
+  action converted this way: neither `DetailItem` nor `ActionSpec` (Task-Planning Note B's shape)
+  carries a field linking one to the other, so a producer-attached action is record-level, not
+  row-scoped, until a future slice adds that linkage -- flagged here as a known limitation of the
+  Note B shape, not silently absorbed.
 
 ### 6b.2 Implementation — Remaining Download Producer Sites (run_partial / run_failed)
 
-- [ ] **6b.2.1** [RED] Write a test (new file or extend `internal/download/service_test.go`): a
-  completed run with per-anime failures produces `Notification.Rows` with one `DetailItem` per
-  failed/manual anime naming it specifically; `Body` no longer relies on "see run details" as the
-  only identification. Covers the two remaining sites in `setRunCompletionStatus`
-  (`internal/download/service.go`, the `anyFailed && anySucceeded` / `anyFailed`-only branches —
-  jd_offline is DONE, consume the `outcomes []animeRunOutcome` parameter 6a already threads in).
-  Satisfies "A download run's manual links become individually identified rows" (jd_offline's
-  remaining `Rows` half) and the equivalent for failed animes.
-- [ ] **6b.2.2** [GREEN] Modify those two branches: build `[]notification.DetailItem` from
-  `outcomes` (failed/manual animes) and attach via `Notification.Rows` alongside the existing
-  `Title`/`Body` composition (wording may stay similar, but MUST NOT be the sole identification
-  mechanism).
-- [ ] **6b.2.3** [RED] Write a test on `internal/download/service_single_anime.go`'s remaining
-  failure ladder (the `outcome.failed && run.EpisodesDownloaded > 0` / `outcome.failed`-only
-  branches, below the now-enriched jd_offline branch): the single-anime path attaches an equivalent
-  `DetailItem` for the one anime/episode involved.
-- [ ] **6b.2.4** [GREEN] Modify those two branches accordingly.
-- [ ] **6b.2.5** [RED] Write a test: uneventful anime collapse into ONE summary row (`CollapsedCount > 0`,
-  literal expected count) while failed/manual anime each keep their own row. Satisfies "Uneventful rows
-  collapse into a single summary line."
-- [ ] **6b.2.6** [GREEN] Implement the collapse helper (e.g. `buildRunDetailRows(run, outcomes)`
-  colocated in `internal/download`, since `internal/download` already imports `internal/notification`
-  and MAY depend on the neutral `notification.DetailItem` type without creating a new dependency
-  direction).
+- [x] **6b.2.1** [RED] Write `internal/download/service_run_status_test.go` (extend):
+  `TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest` and
+  `TestRunOnceRunFailedNotificationNamesEveryFailedAnime` — a completed fan-out run with per-anime
+  failures produces `Notification.Rows` with one `DetailItem` per failed anime naming it
+  specifically; `Body` no longer relies on "see run details" as the only identification. Covers the
+  two remaining sites in `setRunCompletionStatus` (`internal/download/service.go`, the
+  `anyFailed && anySucceeded` / `anyFailed`-only branches — jd_offline was already DONE in 6a,
+  consuming the `outcomes []animeRunOutcome` parameter it threads in). Satisfies "A download run's
+  manual links become individually identified rows" (the failed-anime half) and the equivalent for
+  the all-failed case.
+- [x] **6b.2.2** [GREEN] Modified those two branches (`internal/download/service.go`): build
+  `[]notification.DetailItem` from `outcomes` via `buildRunDetailRows` and attach through the new
+  `notifyWithRows` helper (`internal/download/service_effects.go`) alongside the existing
+  `Title`/`Body` composition -- `Body` wording changed from `"...download -- see run details."` to
+  `"...download."` (the trailing sentence fragment made no sense once the rows themselves carry the
+  identification).
+- [x] **6b.2.3** [RED] Write `internal/download/service_single_anime_test.go` (NEW file --
+  none existed for this production file before): `TestRunAnimeRunFailedNotificationNamesTheAffectedAnimeAsARow`
+  and `TestRunAnimeRunPartialNotificationNamesTheAffectedAnimeAsARow`, covering
+  `internal/download/service_single_anime.go`'s remaining failure ladder (the
+  `outcome.failed && run.EpisodesDownloaded > 0` / `outcome.failed`-only branches, below the
+  already-enriched jd_offline branch): the single-anime path attaches an equivalent single-item
+  `DetailItem` slice for the one anime/episode involved (never a collapsed row -- a single failed
+  outcome is never "uneventful").
+- [x] **6b.2.4** [GREEN] Modified those two branches accordingly
+  (`internal/download/service_single_anime.go`), reusing `buildRunDetailRows([]animeRunOutcome{outcome})`
+  rather than a separate single-anime helper -- passing a 1-element slice naturally produces exactly
+  one named row with no collapse, so no second code path was needed.
+- [x] **6b.2.5** [RED] Write `internal/download/service_notification_rows_test.go` (NEW file):
+  `TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest` -- 2 uneventful animes
+  collapse into ONE summary row (`CollapsedCount == 2`, literal expected count) while a failed anime
+  and a (defensively-covered, see 6b.1.4's RowRef note) manual-link anime each keep their own row.
+  Satisfies "Uneventful rows collapse into a single summary line." Also
+  `TestBuildRunDetailRowsReturnsNilWhenEveryAnimeIsUneventfulAndThereIsNothingToCollapse` (added,
+  not literally named by this task) pinning the nil-vs-empty-slice boundary for an empty input.
+- [x] **6b.2.6** [GREEN] Implemented the collapse helper as `buildRunDetailRows(outcomes []animeRunOutcome)
+  []notification.DetailItem` in NEW file `internal/download/service_notification_rows.go` (deviates
+  from the task's literal `buildRunDetailRows(run, outcomes)` two-arg signature -- `run` was never
+  needed, every field the helper reads lives on `animeRunOutcome`), colocated in `internal/download`
+  since it already imports `internal/notification` and MAY depend on the neutral
+  `notification.DetailItem` type without creating a new dependency direction. Kept
+  `internal/download/service.go` under revive's `file-length-limit` (400 code lines, comments
+  excluded) by placing the helper in its own file rather than growing `service.go` further --
+  confirmed via `scripts/lint.ps1 -Profile all` (0 issues) and `go run ./tools/checkgofilesize`
+  (no new warnings).
 
 ### 6b.3 Implementation — Full Per-Anime Rows (jd_offline and Season Availability, If Still Wanted)
 
-- [ ] **6b.3.1** [RED] If individual actionability per anime is still desired beyond 6a's body-text
-  truncation fix: extend jd_offline's notification (both files) with one `DetailItem` per
-  `ManualLink`, and season availability's notification with one `DetailItem` per anime
-  (`{RefType: "anime", RefID: ...}`) instead of (or alongside) `app_season_availability.go`'s
-  `joinNamesWithLimit`-truncated sentence. Satisfies "Season availability produces one row per anime
-  instead of one comma-joined sentence" (the row-based half 6a's truncation fix does not cover).
-- [ ] **6b.3.2** [GREEN] Implement accordingly.
+- [ ] **6b.3.1** [RED] **Deliberately DEFERRED, not silently dropped** -- this task is explicitly
+  conditional in its own wording ("if individual actionability per anime is still desired beyond
+  6a's body-text truncation fix"), unlike every other 6b task. 6a already shipped a real, tested
+  improvement for both sites (naming/truncating instead of an unbounded sentence or the bare "N
+  episode(s)" count); this task would additionally attach `Rows` on top of that. Left undone because
+  it is optional scope with no spec scenario demanding full row-based individuation on top of 6a's
+  body-text fix specifically for these two sites (unlike run_partial/run_failed, which 6b.2 closes
+  because "see run details" is the literal fallback wording that must disappear). Cheap to pick up
+  later: `buildRunDetailRows`-equivalent construction for jd_offline would map each `ManualLink` to a
+  `DetailItem{RefType: "anime", RefID: <needs an anime id per link -- ManualLink doesn't carry one
+  today>, Name: link.Anime, Status: "manual", Detail: fmt.Sprintf("ep %d", link.Episode)}`; season
+  availability would need `notifySeasonAvailable`'s caller to pass per-anime `{id, name}` pairs
+  instead of a bare `names []string`, a signature change beyond this task's own scope.
+- [ ] **6b.3.2** [GREEN] Deferred alongside 6b.3.1 for the same reason.
 
 ### 6b.4 Documentation And Spec Reconciliation
 
-- [ ] **6b.4.1** [DOC] Merge the already-drafted delta at
+- [x] **6b.4.1** [DOC] Merged the already-drafted delta at
   `openspec/changes/2026-08-23-sdd-60-notification-center/specs/notifications/notifications.md` into the
-  live `openspec/specs/notifications/notifications.md` at lines 66 and 77 — replace the file-path-literal
-  wording with the structural-invariant wording already fixed in this change's delta spec. This is the
-  proposal §4 mandatory drift reconciliation (S-16 / R-8).
-- [ ] **6b.4.2** [DOC] Add a superseded-sections banner to `docs/notification-center-proposal.md` over
+  live `openspec/specs/notifications/notifications.md`: replaced the "Frontend Renders notification.push
+  Via a Shared Toast Surface" requirement's file-path-literal wording with the delta's structural-
+  invariant wording (kept a terse one-line "(Previously: ...)" note, matching the precedent already
+  established at `openspec/specs/frontend/spec.md:22,43`, rather than the delta's longer paragraph);
+  appended the delta's 3 ADDED requirements (persist-then-always-project port invariant, toast-carrier
+  primary-action contract, frontend-resolver field preservation) at the end of the file. **Extended
+  beyond the task's literal two-line-number scope**: also amended "Generic Notifier Port and
+  Notification Model" to document the new optional `Rows`/`Actions` fields -- the delta spec itself
+  never covered this (it was drafted before Task-Planning Note B's struct-extension gap was found),
+  and leaving it undocumented would have left the live spec inaccurate about `Notification`'s actual
+  shape (CLAUDE.md #2, docs must match code as runtime truth). This is the proposal §4 mandatory drift
+  reconciliation (S-16 / R-8).
+- [x] **6b.4.2** [DOC] Added a superseded-sections banner to `docs/notification-center-proposal.md` over
   §7, §8, §16.3, §19.1, §37, pointing readers to `design.md` instead (R-8 mitigation).
-- [ ] **6b.4.3** [DOC] Run `node scripts/log-lesson.mjs "<one-line lesson>"` to append
-  `docs/learning-log.md` — NEVER hand-edit the file (CLAUDE.md #17). Suggested lesson content: the
-  design gap found and resolved for producer-attached rows/actions (Task-Planning Note B), and the
-  6a/6b split it forced, stated in ≤300 characters.
+- [x] **6b.4.3** [DOC] Ran `node scripts/log-lesson.mjs "..."` to append `docs/learning-log.md` --
+  content: the `Notification` struct extension breaking 3 pre-existing `==`/`!=` comparisons across
+  two packages (Task-Planning Note B's downstream compile-break, 6b.1.1's finding).
 
 ### 6b.5 Testing & Verification
 
-- [ ] **6b.5.1** [TEST] Write a table test over every enriched producer site (including 6a's
-  already-enriched jd_offline x2 and season availability) plus the newly-enriched run_partial/
-  run_failed sites, asserting no emitted `Notification.Body` string contains the literal substring
-  "see run details" anymore.
-- [ ] **6b.5.2** [MUTATE] Run `go run ./tools/mutationstaged` over Slice 6b's staged Go lines — the
-  row-building and collapse-threshold branches are the natural mutation targets.
-- [ ] **6b.5.3** [VERIFY] Confirm `docs/openapi.yaml` and the mobile-sync contract show NO diff across the
-  entire seven-slice chain (`git diff main -- docs/openapi.yaml` and the equivalent mobile contract path);
-  record this as a POSITIVE finding in the slice report (R-7), not as an omission. (6a's own diff already
+- [x] **6b.5.1** [TEST] Wrote `internal/download/service_notification_wording_test.go`:
+  `TestNoProducerNotificationBodyStillSaysSeeRunDetails`, a table test over all 6 enriched producer
+  sites (6a's already-enriched jd_offline x2, plus 6b's run_partial/run_failed x2 fan-out + x2
+  single-anime), asserting no emitted `Notification.Body` string contains the literal substring
+  "see run details" anymore. All 6 subtests pass.
+- [x] **6b.5.2** [MUTATE] `go run ./tools/mutationstaged` completed in 344.68s over the 6 staged
+  production files (3 packages) but scored **0.69 (below the 0.80 threshold, 42/61 killed, 19
+  survived)**. Investigated rather than accepted at face value: cross-checking the printed survivor
+  sample against this slice's actual diff showed several survivors on lines this slice never
+  touched at all (`internal/download/service_single_anime.go`'s pre-existing `default:` OK branch
+  and its pre-existing `gate.knownOffline() && len(run.ManualLinks) > 0` jd_offline case, both
+  untouched since 6a). This is the SAME `computeScope` full-file-collapse defect Slice 1's own
+  investigation already diagnosed and logged (`tools/mutationstaged/changedbytes.go` merging
+  multiple staged files' byte ranges into one shared coordinate space whenever a brand-new file --
+  here, `service_notification_rows.go` -- is in the staged set), not a real gap in this slice's
+  code; out of scope to fix here, same as Slice 1's precedent.
+
+  Filtered the survivor list down to mutants that DO fall on lines this slice actually changed, and
+  hand-verified each individually via CLAUDE.md #16's `perl -0pi -e` path (confirmed applied via
+  `git diff`, reverted via `git checkout --` with a clean `git diff --quiet` after every one):
+  - **`internal/download/service_notification_rows.go`, `buildRunDetailRows`'s
+    `if collapsedCount > 0`** (the mandatory collapse-boundary target) → mutated to `> 1` →
+    **SURVIVED against the test suite as it stood at that point** (neither
+    `TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest` nor either
+    fan-out/single-anime integration test ever produces EXACTLY 1 uneventful anime, only 2 or 0) --
+    a genuine gap, not tool noise. Closed by adding
+    `TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow` (1 failed + 1
+    uneventful anime, asserting `CollapsedCount == 1`); re-ran the same mutation afterward and
+    confirmed it now KILLS.
+  - **`internal/notification/center/service.go`, `toDetailRows`'s `if len(items) == 0`** (part of
+    the mandatory port-conversion target) → mutated to both `== -1` and `== 1` → **SURVIVED**
+    against `TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord` (which only ever
+    passes a non-empty `Rows`, so the guard's condition never matters to that test) -- also
+    genuine: the nil-vs-non-nil-empty-slice distinction the guard's own doc comment claims
+    ("A nil/empty input stays nil") is unobservable through the store round trip (`marshalRows`
+    treats both as "nothing to store"), so only a direct unit test on the converter can pin it.
+    Closed by adding `TestToDetailRowsAndToActionsReturnNilForEmptyInput`; re-ran and confirmed
+    KILLED.
+  - **`internal/notification/center/service.go`, `toActions`'s `if len(specs) == 0`** → mutated to
+    `== -1` → same gap, same fix, confirmed KILLED by the same new test.
+  - The mandatory "dropping rows/actions must kill a test" case itself (mutating the conversion
+    loops/appends, as opposed to the empty-input guard) reported NO survivor in the automated run --
+    `TestNotifyConvertsProducerAttachedRowsAndActionsIntoPersistedRecord`'s `len(record.Rows) != 2`
+    / `len(record.Actions) != 1` assertions already cover it by construction.
+
+  No survivors remain among the mandatory targets after the two test additions above (both
+  re-confirmed hand-killed). `go build ./...`, `go vet ./...`, `gofmt -l .` (empty), and the full
+  `go test ./...` all re-confirmed clean after every revert.
+- [x] **6b.5.3** [VERIFY] Confirmed `docs/openapi.yaml` and the mobile-sync contract show NO diff across
+  the entire eight-slice chain: `git diff main -- docs/openapi.yaml` is empty, `git log main..HEAD
+  --oneline -- docs/openapi.yaml` is empty, and `git diff main -- openspec/specs/mobile-sync-contract/`
+  is empty. Recorded here as a POSITIVE finding (R-7), not as an omission. (6a's own diff already
   confirmed clean against both paths.)
-- [ ] **6b.5.4** [GATE] `go test ./...` full green; `bun --cwd="frontend" run render:smoke`; `git commit`
-  (full pre-commit gate, ≥300 000 ms).
+- [x] **6b.5.4** [GATE] `go build ./...`, `go vet ./...`, full `go test ./...`, `scripts/lint.ps1
+  -Profile all` (0 issues x2), `go run ./tools/checkgofilesize` (clean; the 2 warnings reported are
+  pre-existing and unrelated to this slice), `bun --cwd="frontend" run typecheck`, `bunx eslint
+  frontend/src/shared/contracts/notification.types.ts` (clean), and `bun --cwd="frontend" run
+  render:smoke` all re-confirmed green after the mutation-fix additions. **The commit itself is
+  deliberately left undone**: CLAUDE.md #3/#4 reserve final verification and the commit for the
+  orchestrating agent, matching every prior slice's own instruction not to commit.
 
 **Rollback:** `git revert`; producers return to their `"see run details"` wording (or, for jd_offline
 and season availability, to 6a's already-shipped body-text truncation, whichever this reverts past).

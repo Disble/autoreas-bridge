@@ -40,14 +40,27 @@ export default defineConfig(
         //
         // Measured on the reference machine (i7-12700K, 12c/20t), 171 files /
         // 1450 tests green throughout: 186s sequential, 48s at 4 workers, 31s
-        // at 8, 28s at 12. Eight is the knee — 12 buys 3s while pushing
-        // cumulative environment cost from 111s to 154s, which is contention
-        // being paid for nothing. Keep `maxWorkers` pinned: unbounded workers
+        // at 8, 28s at 12. Eight looked like the knee — 12 bought 3s while
+        // pushing cumulative environment cost from 111s to 154s.
+        //
+        // That benchmark ran vitest ALONE, which is not how the gate runs it.
+        // `lefthook.yml` puts `frontend-heavy` beside `go-heavy` and
+        // `dharness`, so eight workers land on top of four Go threads plus
+        // react-doctor. Re-measured 2026-08-24 at 211 files / 1767 tests: the
+        // suite still passes standalone at 8, but inside the gate four
+        // integration tests starve past Vitest's 5s per-test budget and fail —
+        // two in AnimeEditorWorkspace, one in the episode editor, one in the
+        // notification table. At 4 workers the gate is green: 58.66s
+        // standalone, 66s inside the hook. The ~17s the cap costs when vitest
+        // runs alone is what buys a gate that does not fail on contention, and
+        // it restores the value CLAUDE.md documented all along.
+        //
+        // Keep `maxWorkers` pinned: unbounded workers
         // reintroduce exactly the desktop starvation the cap exists to prevent.
         // `isolate: false` was measured and REJECTED: the suite fails without
         // per-file isolation, so that speedup is not available here.
         fileParallelism: true,
-        maxWorkers: 8,
+        maxWorkers: 4,
         projects: [
           {
             extends: true,
