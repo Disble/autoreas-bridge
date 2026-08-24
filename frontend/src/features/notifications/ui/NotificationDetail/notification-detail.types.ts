@@ -121,3 +121,14 @@ export interface UseNotificationArchiveResult {
   readonly archive: () => void;
   readonly isDisabled: boolean;
 }
+
+/**
+ * Return value of `useNotificationMarkUnread`. `isDisabled` covers only the
+ * in-flight window, not a settled outcome: unlike archiving, putting a record
+ * back to unread is idempotent and the pane can re-mark the same record read
+ * behind the button by re-opening it.
+ */
+export interface UseNotificationMarkUnreadResult {
+  readonly isDisabled: boolean;
+  readonly markUnread: () => void;
+}

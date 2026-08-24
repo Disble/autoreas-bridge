@@ -334,6 +334,7 @@ func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhm
 		Body:      body,
 		Level:     notification.LevelWarning,
 		Source:    "season",
+		Kind:      seasonPastDownloadWindowKind,
 		Timestamp: time.Now(),
 	})
 }

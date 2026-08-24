@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationActionResult, NotificationDetail, NotificationPage } from '../../../../../shared/contracts/notification-center.types';
+import { getNotificationStoreState, resetNotificationStore } from '../../../../../shared/store/notification-store/notification-store.helpers';
 import { NotificationCenterPanel } from '../NotificationCenterPanel';
 
 afterEach(cleanup);
+beforeEach(resetNotificationStore);
 
 /** The one row the master list returns in every case here. */
 const LISTED_PAGE: NotificationPage = {
@@ -39,6 +41,7 @@ function makeSource(overrides: Partial<NotificationCenterSource> = {}): Notifica
     getNotification: vi.fn().mockResolvedValue({ found: true, item: RECORD, degraded: false }),
     getUnreadCount: vi.fn().mockResolvedValue(1),
     markRead: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
+    markUnread: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 1, degraded: false }),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),
@@ -115,6 +118,41 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Run this anime again' }));
 
     await waitFor(() => expect(executeAction).toHaveBeenCalledWith(7, 'act-1'));
+  });
+
+  // Opening a record marks it read; pressing "Mark unread" inside that very
+  // pane has to survive it. This is the obvious way the feature breaks: a pane
+  // that re-marked its open record read would put the badge straight back down
+  // and quietly undo the press.
+  it('leaves the record unread after mark unread, without the open pane re-marking it read', async () => {
+    const source = makeSource();
+
+    render(<NotificationCenterPanel source={source} />);
+    await pressListedRow();
+    await waitFor(() => expect(source.markRead).toHaveBeenCalledWith([7]));
+    await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(0));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark unread' }));
+
+    await waitFor(() => expect(source.markUnread).toHaveBeenCalledWith([7]));
+    // The count is the assertion, not the call: it must CLIMB, and it must
+    // still be up once everything the press set in motion has settled.
+    await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(1));
+    expect(source.markRead).toHaveBeenCalledTimes(1);
+    expect(getNotificationStoreState().unreadCount).toBe(1);
+  });
+
+  // The header subtitle and the nav rail badge read the same store value, so
+  // asserting the rendered copy proves the number reached a surface the user
+  // can see rather than only the store.
+  it('shows the climbed count in the page subtitle after mark unread', async () => {
+    render(<NotificationCenterPanel source={makeSource()} />);
+    await pressListedRow();
+    await waitFor(() => expect(screen.getByText(/No unread/)).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark unread' }));
+
+    await waitFor(() => expect(screen.getByText(/1 unread/)).toBeInTheDocument());
   });
 
   it('shows the refusal reason when the pressed action is refused', async () => {

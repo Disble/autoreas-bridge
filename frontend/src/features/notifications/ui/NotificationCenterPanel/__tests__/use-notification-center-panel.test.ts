@@ -37,6 +37,7 @@ function makeSource(): NotificationCenterSource {
     getNotification: vi.fn().mockResolvedValue({ found: false, item: null, degraded: false }),
     getUnreadCount: vi.fn().mockResolvedValue(0),
     markRead: vi.fn(),
+    markUnread: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),

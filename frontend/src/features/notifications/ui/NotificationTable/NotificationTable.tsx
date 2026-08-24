@@ -1,6 +1,7 @@
 import { Badge, Checkbox, Chip, Table, Tooltip } from '@heroui/react';
 import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
-import { formatLevelLabel, resolveLevelChipColor } from '../NotificationDetail/notification-detail.helpers';
+import { formatRelativeTimeAgo } from '../../../../shared/datetime/datetime.helpers';
+import { formatDetailWhenLabel, formatLevelLabel, resolveLevelChipColor } from '../NotificationDetail/notification-detail.helpers';
 import {
   NOTIFICATION_TABLE_ARIA_LABEL,
   NOTIFICATION_TABLE_DEFAULT_SORT,
@@ -106,11 +107,42 @@ function NotificationTableRow({ row }: Readonly<{ row: NotificationRow }>) {
         <span className="block truncate text-default-500">{row.source}</span>
       </Table.Cell>
       <Table.Cell>
-        <span className="block truncate font-mono text-[11px] text-default-500">
-          {formatNotificationWhen(row.createdAtMs)}
-        </span>
+        <NotificationTableWhenCell createdAtMs={row.createdAtMs} />
       </Table.Cell>
     </Table.Row>
+  );
+}
+
+/**
+ * The "When" cell: how long ago the record arrived, with the exact local
+ * timestamp behind it.
+ *
+ * The column used to render the absolute stamp inline and it did not fit --
+ * an 84px column truncated `2026-08-24 14:32:05` down to `2026-08...`, which
+ * answers nothing at all. Relative time is what the Main artboard draws
+ * ("5m ago", "yesterday") and it is the half that says whether the record
+ * still matters; the absolute one is kept because "when exactly" is a real
+ * question, just not the one a list column should spend its width on.
+ *
+ * The stamp is reachable two ways, because one of them is not enough here. On
+ * hover it is the `Tooltip` this table already uses for the truncated title
+ * (unconditional rather than truncation-gated: nothing here is truncated, and
+ * what it reveals is a different rendering of the same instant, not the same
+ * string again). But a tooltip trigger sitting inside a React Aria grid row
+ * can never be FOCUSED -- the grid's own selection manager moves focus from
+ * the trigger up to the row the moment it lands -- so the keyboard and
+ * screen-reader path is the accessible name instead, which carries both
+ * halves through the same `formatDetailWhenLabel` the detail pane's header
+ * renders.
+ */
+function NotificationTableWhenCell({ createdAtMs }: Readonly<{ createdAtMs: number }>) {
+  return (
+    <Tooltip>
+      <Tooltip.Trigger aria-label={formatDetailWhenLabel(createdAtMs)}>
+        <span className="block truncate text-xs text-default-500">{formatRelativeTimeAgo(createdAtMs)}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{formatNotificationWhen(createdAtMs)}</Tooltip.Content>
+    </Tooltip>
   );
 }
 

@@ -20,6 +20,12 @@ const (
 	// IntentScheduleIgnoreMissed resolves to the same scheduler call behind
 	// the pre-existing IgnoreMissedSchedule Wails binding.
 	IntentScheduleIgnoreMissed = "schedule.ignore_missed"
+	// IntentClipboardCopy resolves to the desktop clipboard writer, copying
+	// the text frozen under ArgKeyText. It is the intent behind a
+	// jdownloader_offline row's "Copy hoster N" actions (design-canvas
+	// Anatomy.dc.html), which are the reason that producer attaches rows
+	// WITHOUT the default per-row re-run token.
+	IntentClipboardCopy = "clipboard.copy"
 	// IntentNavigationOpen resolves to a frontend route change, addressed by
 	// the "route" key of the action's frozen args. It is the intent behind a
 	// whole-notification "Open Downloads" button (design-canvas
@@ -38,6 +44,11 @@ const (
 	ArgKeyRoute = "route"
 	// ArgKeyAnimeID is where IntentDownloadRunAnime reads its target anime.
 	ArgKeyAnimeID = "animeId"
+	// ArgKeyText is where IntentClipboardCopy reads the text to copy. A hoster
+	// URL lands here when the notification is WRITTEN and is copied verbatim
+	// at press time -- the run that produced it is long over, so a link
+	// re-derived later would be a different link.
+	ArgKeyText = "text"
 )
 
 // StaticRegistry is the default IntentRegistry: an explicit map filled at
@@ -101,4 +112,33 @@ func (singleFireHandler) Repeatable() bool { return false }
 // SingleFireFunc adapts a plain function to a non-repeatable IntentHandler.
 func SingleFireFunc(fn func(ctx context.Context, args map[string]string) error) IntentHandler {
 	return singleFireHandler{fn: fn}
+}
+
+// repeatableHandler adapts a plain function to a repeatable IntentHandler:
+// one whose second press is as meaningful as its first.
+//
+// The distinction is not cosmetic. `Executor` stamps every executed action and
+// refuses a second press with already_executed, which is right for an operation
+// that changes the world -- running an anime again after it already ran is a
+// second download, not a repeat. It is wrong for an idempotent one: copying a
+// hoster link to the clipboard leaves nothing behind to spend, and a button that
+// grays out after one press fails the user the moment they paste somewhere else
+// and want it again.
+type repeatableHandler struct {
+	fn func(ctx context.Context, args map[string]string) error
+}
+
+// Execute delegates to the wrapped function.
+func (h repeatableHandler) Execute(ctx context.Context, args map[string]string) error {
+	return h.fn(ctx, args)
+}
+
+// Repeatable is always true: RepeatableFunc only ever adapts idempotent operations.
+func (repeatableHandler) Repeatable() bool { return true }
+
+// RepeatableFunc adapts a plain function to a repeatable IntentHandler. Reach
+// for it only when a second press genuinely costs nothing; SingleFireFunc stays
+// the default, because an operation that acts on the world should be spent once.
+func RepeatableFunc(fn func(ctx context.Context, args map[string]string) error) IntentHandler {
+	return repeatableHandler{fn: fn}
 }

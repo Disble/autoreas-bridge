@@ -71,11 +71,12 @@ describe('notification-center-source', () => {
     await expect(countPromise).resolves.toBe(0);
   });
 
-  it('degrades markRead/archive/restore to a degraded mutation result when the bindings are absent', async () => {
+  it('degrades markRead/markUnread/archive/restore to a degraded mutation result when the bindings are absent', async () => {
     const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
     const source = createNotificationCenterSource();
 
     const markPromise = source.markRead([1]);
+    const markUnreadPromise = source.markUnread([1]);
     const archivePromise = source.archive([1]);
     const restorePromise = source.restore([1]);
 
@@ -83,6 +84,7 @@ describe('notification-center-source', () => {
 
     const degradedResult = { affected: 0, unreadCount: 0, degraded: true };
     await expect(markPromise).resolves.toEqual(degradedResult);
+    await expect(markUnreadPromise).resolves.toEqual(degradedResult);
     await expect(archivePromise).resolves.toEqual(degradedResult);
     await expect(restorePromise).resolves.toEqual(degradedResult);
   });
@@ -144,16 +146,18 @@ describe('notification-center-source', () => {
     expect(getMock).toHaveBeenCalledWith(1);
   });
 
-  it('calls MarkNotificationsRead/ArchiveNotifications/RestoreNotifications with the given ids once bindings become ready', async () => {
+  it('calls MarkNotificationsRead/MarkNotificationsUnread/ArchiveNotifications/RestoreNotifications with the given ids once bindings become ready', async () => {
     const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');
     const source = createNotificationCenterSource();
     const mutationResult = { affected: 1, unreadCount: 0, degraded: false };
     const markMock = vi.fn().mockResolvedValue(mutationResult);
+    const markUnreadMock = vi.fn().mockResolvedValue(mutationResult);
     const archiveMock = vi.fn().mockResolvedValue(mutationResult);
     const restoreMock = vi.fn().mockResolvedValue(mutationResult);
 
     const markPromise = source.markRead([7]);
+    const markUnreadPromise = source.markUnread([7]);
     const archivePromise = source.archive([7]);
     const restorePromise = source.restore([7]);
 
@@ -161,6 +165,7 @@ describe('notification-center-source', () => {
       main: {
         App: {
           MarkNotificationsRead: markMock,
+          MarkNotificationsUnread: markUnreadMock,
           ArchiveNotifications: archiveMock,
           RestoreNotifications: restoreMock,
         },
@@ -168,11 +173,31 @@ describe('notification-center-source', () => {
     } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-    await Promise.all([markPromise, archivePromise, restorePromise]);
+    await Promise.all([markPromise, markUnreadPromise, archivePromise, restorePromise]);
 
     expect(markMock).toHaveBeenCalledWith([7]);
+    expect(markUnreadMock).toHaveBeenCalledWith([7]);
     expect(archiveMock).toHaveBeenCalledWith([7]);
     expect(restoreMock).toHaveBeenCalledWith([7]);
+  });
+
+  // `markUnread` returns a FRESH unread count that has climbed, not the zero
+  // every other mutation's fixture happens to carry. The rail badge consumes
+  // exactly this number, so an adapter that dropped the envelope and
+  // synthesised one would be invisible to a fixture pinned at 0.
+  it('returns the climbed unread count MarkNotificationsUnread reports, verbatim', async () => {
+    const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');
+    const source = createNotificationCenterSource();
+    const markUnreadMock = vi.fn().mockResolvedValue({ affected: 1, unreadCount: 4, degraded: false });
+
+    const markUnreadPromise = source.markUnread([7]);
+
+    window.go = { main: { App: { MarkNotificationsUnread: markUnreadMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(markUnreadPromise).resolves.toEqual({ affected: 1, unreadCount: 4, degraded: false });
   });
 
   it('degrades executeAction to the intent_unregistered refusal when the bindings are absent', async () => {
@@ -224,6 +249,7 @@ describe('notification-center-source', () => {
           GetNotification: vi.fn(),
           GetUnreadNotificationCount: vi.fn(),
           MarkNotificationsRead: vi.fn(),
+          MarkNotificationsUnread: vi.fn(),
           ArchiveNotifications: vi.fn(),
           RestoreNotifications: vi.fn(),
           ExecuteNotificationAction: vi.fn(),

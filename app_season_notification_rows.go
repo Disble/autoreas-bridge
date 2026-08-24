@@ -7,10 +7,6 @@ import (
 )
 
 const (
-	// seasonAvailableKind is the notification kind the design canvas labels this producer's
-	// example block with (Anatomy.dc.html). It is a second axis next to Source: the source
-	// stays "season" -- the bounded context -- while the kind names the event within it.
-	seasonAvailableKind = "season.anime_available"
 	// seasonAvailableRefType marks a detail row that references an anime which is available
 	// this season but is NOT in the catalog yet. Deliberately not "anime": there is no catalog
 	// id behind it, so cover art cannot resolve and no anime-scoped action could freeze a

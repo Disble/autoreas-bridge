@@ -75,8 +75,15 @@ export const NOTIFICATION_DETAIL_META_TESTID = 'notification-detail-meta';
  */
 export const NOTIFICATION_DETAIL_FOOTER_TESTID = 'notification-detail-footer';
 
-/** Label of the footer's archive button, the one lifecycle verb the pane itself carries out. */
+/** Label of the footer's archive button, one of the two lifecycle verbs the pane itself carries out. */
 export const NOTIFICATION_DETAIL_ARCHIVE_LABEL = 'Archive';
+
+/**
+ * Label of the footer's mark-unread button, the other one. The read axis is
+ * reversible in both directions (design-canvas `Lifecycle.dc.html`), and this
+ * is the only control anywhere that reverses it.
+ */
+export const NOTIFICATION_DETAIL_MARK_UNREAD_LABEL = 'Mark unread';
 
 /**
  * Copy of the collapsed summary line's way out (design-canvas

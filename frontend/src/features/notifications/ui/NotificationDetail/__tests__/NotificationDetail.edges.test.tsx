@@ -82,13 +82,17 @@ describe('NotificationDetail edges (design-canvas/Main.dc.html)', () => {
     expect(screen.getAllByRole('button', { name: 'Open Downloads' })).toHaveLength(1);
   });
 
-  // NOTE: this one passes VACUOUSLY today -- there is no footer at all, so of
-  // course there is no empty one. It is written now because it is the way the
-  // obvious fix goes wrong, and it has to be in place before that fix exists.
-  it('renders no footer action area at all when the record carries none', () => {
-    // A record with nothing to do must not grow an empty toolbar.
+  // This used to assert that a record carrying no action renders no footer at
+  // all, guarding against an empty toolbar. `Mark unread` made that premise
+  // false: the two lifecycle verbs apply to every record, so the toolbar can
+  // no longer be empty, and mark-unread exists on no other surface. What is
+  // still worth guarding is that the record does not sprout an action of its
+  // own -- so the count is pinned, not the absence.
+  it('renders only the two lifecycle verbs when the record carries no action of its own', () => {
     render(<NotificationDetail detail={buildDetail({ actionCount: 0, actions: [] })} />);
 
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark unread' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(2);
   });
 });

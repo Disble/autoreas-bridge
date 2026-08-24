@@ -55,6 +55,7 @@ export const NOTIFICATION_CENTER_BINDING_NAMES = [
   'GetNotification',
   'GetUnreadNotificationCount',
   'MarkNotificationsRead',
+  'MarkNotificationsUnread',
   'ArchiveNotifications',
   'RestoreNotifications',
   'ExecuteNotificationAction',

@@ -2,13 +2,18 @@ import { useEffect, useRef } from 'react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import { LEVEL_TO_SEVERITY } from './notification-resolver.constants';
+import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER, LEVEL_TO_SEVERITY } from './notification-resolver.constants';
 
 /**
  * Subscribes to the backend `notification.push` event stream and pushes
  * ephemeral AppNotification toast(s) for each event received, and to the
  * `notification.archived` event stream to close a live toast for a record
  * that just got archived elsewhere (design.md §3 Decision G).
+ *
+ * A kind listed in `KINDS_OWNED_BY_A_DEDICATED_RESOLVER` is skipped here:
+ * another resolver already renders it, with affordances this generic path
+ * cannot reproduce. The record still exists in the Center either way — only
+ * the toast is claimed.
  *
  * Bug A fix: `Source`, `CorrelationID`, `Timestamp`, and the event's
  * persisted record id (`RecordID`) are forwarded unchanged instead of being
@@ -34,6 +39,10 @@ export function useBackendEventResolver(
 
   useEffect(() => {
     return source.subscribe((notification) => {
+      if (KINDS_OWNED_BY_A_DEDICATED_RESOLVER.has(notification.Kind ?? '')) {
+        return;
+      }
+
       pushRef.current({
         severity: LEVEL_TO_SEVERITY[notification.Level] ?? 'info',
         title: notification.Title,

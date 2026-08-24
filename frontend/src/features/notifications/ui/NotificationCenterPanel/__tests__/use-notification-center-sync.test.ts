@@ -22,6 +22,7 @@ function makeSource(listNotifications: NotificationCenterSource['listNotificatio
     getNotification: vi.fn(),
     getUnreadCount: vi.fn(),
     markRead: vi.fn(),
+    markUnread: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),

@@ -28,7 +28,7 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 
 	outcome := s.processAnime(ctx, runID, anime, gate, applyDelta)
 
-	if s.markCanceled(ctx, runID, run) {
+	if s.markCanceled(ctx, runID, run, []animeRunOutcome{outcome}) {
 		s.finalize(ctx, run)
 		return RunResult{RunID: runID, Status: run.Status}
 	}
@@ -36,10 +36,11 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		// Same asymmetry as the fan-out path: rows, but no per-row re-run token (service.go).
+		// Same asymmetry as the fan-out path: copy-hoster tokens instead of the per-row re-run
+		// token, because re-running against a downloader that is still offline changes nothing.
 		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
 			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
-			buildRunDetailRows([]animeRunOutcome{outcome}), runWideActions())
+			buildRunDetailRows([]animeRunOutcome{outcome}), buildJDOfflineActions([]animeRunOutcome{outcome}))
 	case outcome.failed && run.EpisodesDownloaded > 0:
 		run.Status = RunStatusPartial
 		s.notifyWithRows(ctx, notification.LevelWarning, kindRunStoppedEarly, runID,
@@ -51,8 +52,9 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notify(ctx, notification.LevelSuccess, kindRunCompleted, runID,
-				"Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
+			s.notifyWithRows(ctx, notification.LevelSuccess, kindRunCompleted, runID,
+				"Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded),
+				buildRunDetailRows([]animeRunOutcome{outcome}))
 		}
 	}
 

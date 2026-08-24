@@ -195,10 +195,19 @@ type animeRunOutcome struct {
 	upToDate           bool
 	episodesFound      int
 	episodesDownloaded int
-	episodesFailed     int
-	manualLinks        []ManualLink
-	failed             bool
-	failureKind        string
+	// firstEpisodeDownloaded and lastEpisodeDownloaded record which episode numbers this run
+	// actually put on disk for this anime, so a notification row can say "Episodes 14-16"
+	// instead of only "3 episodes". They are episode NUMBERS, not indexes: zero means nothing
+	// was downloaded. The loop walks episodes in ascending order and stops at the first one
+	// that does not land, so the pair normally describes a contiguous run -- but the cursor is
+	// re-derived from the folder after every success, so it can legitimately skip. Nothing here
+	// assumes contiguity; the row builder checks it before phrasing a range.
+	firstEpisodeDownloaded int
+	lastEpisodeDownloaded  int
+	episodesFailed         int
+	manualLinks            []ManualLink
+	failed                 bool
+	failureKind            string
 }
 
 type animeProgressDelta = animeRunOutcome
@@ -402,18 +411,19 @@ func summarizeAnimeOutcomes(outcomes <-chan animeRunOutcome) (bool, bool, []anim
 // run_partial/run_failed branches can name which anime needs attention as an individual row
 // instead of relying on the run-wide body alone.
 func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run *Run, gate *jdGate, anyFailed, anySucceeded bool, outcomes []animeRunOutcome) {
-	if s.markCanceled(ctx, runID, run) {
+	if s.markCanceled(ctx, runID, run, outcomes) {
 		return
 	}
 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		// Rows without the default per-row re-run token: the Anatomy artboard draws copy-hoster
-		// actions on a jd_offline row, and no registered intent backs those.
+		// Copy-hoster tokens instead of the default per-row re-run token: re-running an anime
+		// whose downloader is still offline only reproduces the block, so what the row offers is
+		// the link itself (Anatomy.dc.html, "Copy hoster 1" / "Copy hoster 2").
 		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
 			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
-			buildRunDetailRows(outcomes), runWideActions())
+			buildRunDetailRows(outcomes), buildJDOfflineActions(outcomes))
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
 		s.notifyWithRows(ctx, notification.LevelWarning, kindRunStoppedEarly, runID, "Download run completed with errors",
@@ -425,7 +435,8 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notify(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded))
+			s.notifyWithRows(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed",
+				fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded), buildRunDetailRows(outcomes))
 		}
 	}
 }
@@ -435,13 +446,19 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 // every other terminal status: the partial failures a stop leaves behind are a
 // consequence of stopping, not the story worth telling. Shared by the fan-out and
 // single-anime status ladders so a stopped run reads the same either way.
-func (s *Service) markCanceled(ctx context.Context, runID string, run *Run) bool {
+//
+// outcomes carries whatever the run managed before the stop. A stopped run is NOT one of the
+// six kinds the design canvas leaves without a detail block, and "what did it get before I
+// stopped it" is the first thing a user asks -- so it names its anime like every other terminal
+// status. Both call sites already hold the outcomes, so there is nothing to thread through.
+func (s *Service) markCanceled(ctx context.Context, runID string, run *Run, outcomes []animeRunOutcome) bool {
 	if ctx.Err() == nil {
 		return false
 	}
 	run.Status = RunStatusCanceled
-	s.notify(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
-		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded))
+	s.notifyWithRows(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
+		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded),
+		buildRunDetailRows(outcomes))
 	return true
 }
 

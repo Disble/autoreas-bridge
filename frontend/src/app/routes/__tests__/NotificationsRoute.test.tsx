@@ -8,16 +8,15 @@ vi.mock('../../../features/notifications/ui/NotificationCenterPanel/Notification
 
 afterEach(cleanup);
 
+// The "page header equals nav label" assertion that used to live here moved
+// with the header itself: it is now rendered by the panel, because "Mark all
+// as read" acts on the rows the master list holds. It is pinned by
+// `NotificationCenterHeader.test.tsx` and, at the seam, by
+// `NotificationCenterPanel.chrome.integration.test.tsx`.
 describe('NotificationsRoute', () => {
   it('renders NotificationCenterPanel without throwing', () => {
     render(<NotificationsRoute />);
 
     expect(screen.getByText('notification center panel')).toBeInTheDocument();
-  });
-
-  it('renders the page header matching its nav label', () => {
-    render(<NotificationsRoute />);
-
-    expect(screen.getByRole('heading', { level: 1, name: 'Notifications' })).toBeInTheDocument();
   });
 });

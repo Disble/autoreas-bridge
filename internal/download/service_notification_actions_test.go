@@ -152,6 +152,10 @@ func TestBuildRunActionsIgnoresAnAnimeRowWithNoID(t *testing.T) {
 // TestPartialRunNotificationCarriesAPerRowRetryToken proves the wiring end to end rather than
 // only at the builder: a real partial run must ship a notification whose actions include a
 // re-run token bound to the anime row that failed.
+//
+// It scans for that specific binding rather than demanding the run carry exactly ONE re-run
+// token. That old count described the collapse rule as it was, not a requirement: a partial run
+// now names the anime that downloaded too, and every named anime row carries its own token.
 func TestPartialRunNotificationCarriesAPerRowRetryToken(t *testing.T) {
 	t.Parallel()
 
@@ -165,9 +169,17 @@ func TestPartialRunNotificationCarriesAPerRowRetryToken(t *testing.T) {
 	if !found {
 		t.Fatalf("no partial-run notification in %#v", notifier.notifications())
 	}
-	retry := findActionByIntent(t, sent.Actions, "download.run_anime")
-	if retry.RowRef != "anime-broken" || retry.Args["animeId"] != "anime-broken" {
-		t.Fatalf("retry token = %#v, want it bound to the anime row that failed", retry)
+	var retries []notification.ActionSpec
+	for _, action := range sent.Actions {
+		if action.Intent == "download.run_anime" && action.RowRef == "anime-broken" {
+			retries = append(retries, action)
+		}
+	}
+	if len(retries) != 1 {
+		t.Fatalf("re-run tokens bound to the failed anime = %#v, want exactly 1", retries)
+	}
+	if retries[0].Args["animeId"] != "anime-broken" {
+		t.Fatalf("retry token = %#v, want it frozen on the anime row that failed", retries[0])
 	}
 	findActionByIntent(t, sent.Actions, "navigation.open")
 }
@@ -508,7 +520,7 @@ func TestStoppedRunCarriesTheStoppedEarlyKind(t *testing.T) {
 	cancel()
 
 	run := Run{RunID: "run-1", EpisodesDownloaded: 3}
-	if !NewService(deps).markCanceled(ctx, "run-1", &run) {
+	if !NewService(deps).markCanceled(ctx, "run-1", &run, nil) {
 		t.Fatal("markCanceled reported no cancellation for an already-cancelled context")
 	}
 

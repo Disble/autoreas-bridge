@@ -1,30 +1,35 @@
 import { Button, Card, Toolbar } from '@heroui/react';
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import { NOTIFICATION_DETAIL_ARCHIVE_LABEL, NOTIFICATION_DETAIL_FOOTER_TESTID } from './notification-detail.constants';
+import {
+  NOTIFICATION_DETAIL_ARCHIVE_LABEL,
+  NOTIFICATION_DETAIL_FOOTER_TESTID,
+  NOTIFICATION_DETAIL_MARK_UNREAD_LABEL,
+} from './notification-detail.constants';
 import { NotificationDetailActionButton } from './NotificationDetailActionButton';
 import type { NotificationDetailFooterProps } from './notification-detail.types';
 import { useNotificationArchive } from './use-notification-archive';
+import { useNotificationMarkUnread } from './use-notification-mark-unread';
 
 /**
- * The pane's footer action area (design-canvas `Main.dc.html`): the record's
- * own whole-notification actions, plus archive. These are the actions the
- * artboard draws as `Open Downloads · Archive`, and until now the pane
- * fetched the first kind and threw it away — `resolveRowActions` resolved
- * strictly from `row.actionIds`, which a whole-notification action has no
- * entry in.
+ * The pane's footer action area, exactly as the artboard draws it
+ * (design-canvas `Main.dc.html`): `Open Downloads · Archive · Mark unread` —
+ * the record's own whole-notification actions first, then the two lifecycle
+ * verbs the app itself owns.
  *
- * A record carrying no whole-notification action renders NO footer at all,
- * archive included: an action area that appears empty is worse than no action
- * area, and archiving stays reachable from the master list's own selection
- * bar. `Mark unread`, the artboard's third footer button, is deliberately
- * absent — no backend method puts a read record back (task L.4.6), and a
- * button that only pretends to is worse than a missing one.
+ * The footer used to disappear entirely for a record carrying no
+ * whole-notification action, on the argument that an action area which appears
+ * empty is worse than none and that archiving stays reachable from the master
+ * list's selection bar. That premise died with `Mark unread`. The two
+ * lifecycle verbs apply to EVERY record, so the toolbar is never empty; and
+ * unlike archive, mark-unread has no second surface anywhere — there is no
+ * bulk mark-unread in the selection bar. Keeping the old rule would have made
+ * the artboard's reversible read axis unreachable for every notification that
+ * carries no action of its own, which is every `season`, `sync` and `device`
+ * record this app produces (`app_season_availability.go`,
+ * `app_startup_runtime.go`). Built-but-unreachable is the exact defect class
+ * this slice exists to close.
  */
 export function NotificationDetailFooter({ actions, notificationId, source }: Readonly<NotificationDetailFooterProps>) {
-  if (actions.length === 0) {
-    return null;
-  }
-
   return (
     <Card.Footer data-testid={NOTIFICATION_DETAIL_FOOTER_TESTID}>
       <Toolbar aria-label="Notification actions" className="flex flex-wrap gap-2">
@@ -32,6 +37,7 @@ export function NotificationDetailFooter({ actions, notificationId, source }: Re
           <NotificationDetailActionButton action={action} key={action.id} notificationId={notificationId} source={source} variant="primary" />
         ))}
         <NotificationDetailArchiveButton notificationId={notificationId} source={source} />
+        <NotificationDetailMarkUnreadButton notificationId={notificationId} source={source} />
       </Toolbar>
     </Card.Footer>
   );
@@ -52,6 +58,27 @@ function NotificationDetailArchiveButton({
   return (
     <Button isDisabled={isDisabled} onPress={archive} size="sm" variant="secondary">
       {NOTIFICATION_DETAIL_ARCHIVE_LABEL}
+    </Button>
+  );
+}
+
+/**
+ * The footer's mark-unread button, driven by `useNotificationMarkUnread`
+ * against the `MarkNotificationsUnread` binding. It sits beside archive
+ * because both are lifecycle verbs the app owns rather than stored intent
+ * tokens, but the two move different axes: archiving takes the record off the
+ * active list (and marks it read on the way), while this one only puts the
+ * read state back — an archived record marked unread stays archived.
+ */
+function NotificationDetailMarkUnreadButton({
+  notificationId,
+  source,
+}: Readonly<{ readonly notificationId: number; readonly source?: NotificationCenterSource }>) {
+  const { isDisabled, markUnread } = useNotificationMarkUnread(notificationId, source);
+
+  return (
+    <Button isDisabled={isDisabled} onPress={markUnread} size="sm" variant="secondary">
+      {NOTIFICATION_DETAIL_MARK_UNREAD_LABEL}
     </Button>
   );
 }

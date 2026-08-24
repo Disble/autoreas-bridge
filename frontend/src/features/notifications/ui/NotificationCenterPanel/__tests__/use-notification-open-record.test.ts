@@ -34,6 +34,7 @@ function makeSource(overrides: Partial<NotificationCenterSource> = {}): Notifica
     getNotification: vi.fn().mockResolvedValue({ found: true, item: buildRecord(), degraded: false }),
     getUnreadCount: vi.fn(),
     markRead: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
+    markUnread: vi.fn().mockResolvedValue({ affected: 1, unreadCount: 0, degraded: false }),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),

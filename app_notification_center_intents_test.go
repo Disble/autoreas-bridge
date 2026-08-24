@@ -127,3 +127,20 @@ func TestIgnoreMissedScheduleAndEquivalentActionTokenInvokeSameHandler(t *testin
 		t.Fatalf("expected both carriers to invoke the exact same scheduler operation with equivalent args, got %#v", sched.resolveMissedCalls)
 	}
 }
+
+// TestRunAnimeIntentStaysSingleFire pins the other side of that choice. Only
+// idempotent operations may be repeatable; re-running an anime is a second
+// download, not a repeat, so it must keep refusing a second press.
+func TestRunAnimeIntentStaysSingleFire(t *testing.T) {
+	app := &App{downloadService: &download.Service{}}
+	registry := app.registerNotificationIntents()
+
+	handler, registered := registry.Resolve("download.run_anime")
+
+	if !registered {
+		t.Fatal("expected download.run_anime to be registered when the download service exists")
+	}
+	if handler.Repeatable() {
+		t.Fatal("expected download.run_anime to stay single-fire: a second press would start a second download")
+	}
+}

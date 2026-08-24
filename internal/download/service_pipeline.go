@@ -192,6 +192,13 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded", map[string]any{"episode": nextEpisode}, "anime %s: episode %d downloaded", anime.Name, nextEpisode)
 	s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	outcome.episodesDownloaded++
+	// Record which episode numbers landed, not just how many, so the notification row can say
+	// "Episodes 14-16" instead of "3 episodes". first is stamped once; last moves with every
+	// success, so the pair brackets exactly what this run put on disk for this anime.
+	if outcome.firstEpisodeDownloaded == 0 {
+		outcome.firstEpisodeDownloaded = nextEpisode
+	}
+	outcome.lastEpisodeDownloaded = nextEpisode
 	emitProgress(animeProgressDelta{episodesDownloaded: 1})
 	return s.downloadedEpisodeBaseline(*anime.Folder), false
 }

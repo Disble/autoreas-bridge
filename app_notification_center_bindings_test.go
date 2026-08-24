@@ -24,6 +24,18 @@ func notificationCenterAppTestDB(t *testing.T) *App {
 	return &App{bridgeDB: db, notificationCenterStore: center.NewStore(db, center.StoreConfig{})}
 }
 
+// findWireNotificationRow returns the row with the given id from a wire page,
+// so a lifecycle assertion can name the row it cares about instead of
+// carrying its own search loop.
+func findWireNotificationRow(page contracts.NotificationPage, id int64) (contracts.NotificationRow, bool) {
+	for _, row := range page.Items {
+		if row.ID == id {
+			return row, true
+		}
+	}
+	return contracts.NotificationRow{}, false
+}
+
 // TestListNotificationsMapsStoreValuesToContractDTOs asserts ListNotifications
 // maps a persisted center.Record into the wire NotificationRow/NotificationPage
 // shape.
@@ -356,11 +368,89 @@ func TestBindingsReturnDegradedTrueWhenStoreNilNeverPanic(t *testing.T) {
 		t.Fatal("expected MarkNotificationsRead to degrade when the store is nil")
 	}
 
+	if result := app.MarkNotificationsUnread([]int64{1}); !result.Degraded {
+		t.Fatal("expected MarkNotificationsUnread to degrade when the store is nil")
+	}
+
 	if result := app.ArchiveNotifications([]int64{1}); !result.Degraded {
 		t.Fatal("expected ArchiveNotifications to degrade when the store is nil")
 	}
 
 	if result := app.RestoreNotifications([]int64{1}); !result.Degraded {
 		t.Fatal("expected RestoreNotifications to degrade when the store is nil")
+	}
+}
+
+// TestMarkNotificationsUnreadRaisesUnreadCountExactlyOnce asserts the binding
+// wraps Store.MarkUnread/UnreadCount end to end: a read record marked unread
+// raises the envelope's UnreadCount -- the value the rail badge consumes --
+// and marking it unread a second time is a no-op.
+func TestMarkNotificationsUnreadRaisesUnreadCountExactlyOnce(t *testing.T) {
+	t.Parallel()
+	app := notificationCenterAppTestDB(t)
+
+	id, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), center.Record{CreatedAtMS: 1000, Title: "t", Body: "b", Level: "info", Source: "seed"})
+	if err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+	if read := app.MarkNotificationsRead([]int64{id}); read.Degraded || read.UnreadCount != 0 {
+		t.Fatalf("expected the seeded record to be read with 0 unread left, got %#v", read)
+	}
+
+	result := app.MarkNotificationsUnread([]int64{id})
+	if result.Degraded {
+		t.Fatal("expected a successful mark-unread not to be degraded")
+	}
+	if result.Affected != 1 || result.UnreadCount != 1 {
+		t.Fatalf("expected Affected=1 UnreadCount=1 after putting the only record back to unread, got %#v", result)
+	}
+
+	again := app.MarkNotificationsUnread([]int64{id})
+	if again.Affected != 0 || again.UnreadCount != 1 {
+		t.Fatalf("expected marking an already-unread record unread again to be a no-op, got %#v", again)
+	}
+}
+
+// TestMarkNotificationsUnreadKeepsAnArchivedRecordArchived asserts the
+// binding carries the store's axis separation through to the wire: a record
+// archived (and therefore read) that is then marked unread stays out of the
+// active view and keeps its archived stamp, while its ReadAtMs clears. Read
+// and archive compose; neither reverses the other (design-canvas
+// Lifecycle.dc.html).
+func TestMarkNotificationsUnreadKeepsAnArchivedRecordArchived(t *testing.T) {
+	t.Parallel()
+	app := notificationCenterAppTestDB(t)
+
+	id, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), center.Record{CreatedAtMS: 1000, Title: "t", Body: "b", Level: "info", Source: "seed"})
+	if err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+	if archived := app.ArchiveNotifications([]int64{id}); archived.Degraded {
+		t.Fatalf("expected archive to succeed: %#v", archived)
+	}
+
+	result := app.MarkNotificationsUnread([]int64{id})
+	if result.Degraded || result.Affected != 1 {
+		t.Fatalf("expected a successful mark-unread of 1 archived record, got %#v", result)
+	}
+	if result.UnreadCount != 1 {
+		t.Fatalf("expected an archived-but-unread record to count toward the rail badge, got UnreadCount=%d", result.UnreadCount)
+	}
+
+	activePage := app.ListNotifications(contracts.NotificationListRequest{View: "active", Limit: 10})
+	if _, onActiveList := findWireNotificationRow(activePage, id); onActiveList {
+		t.Fatal("expected mark unread NOT to pull the record back onto the active view -- that is Restore's job")
+	}
+
+	archivedPage := app.ListNotifications(contracts.NotificationListRequest{View: "archived", Limit: 10})
+	row, found := findWireNotificationRow(archivedPage, id)
+	if !found {
+		t.Fatal("expected the archived record to remain queryable through the archived view")
+	}
+	if row.ReadAtMs != 0 {
+		t.Fatalf("expected read_at_ms cleared on the wire row after mark unread, got %d", row.ReadAtMs)
+	}
+	if row.ArchivedAtMs == 0 {
+		t.Fatal("expected the record to keep its archived stamp after being marked unread")
 	}
 }

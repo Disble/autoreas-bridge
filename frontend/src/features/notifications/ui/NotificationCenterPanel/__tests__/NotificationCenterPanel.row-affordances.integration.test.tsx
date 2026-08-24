@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
@@ -54,6 +54,7 @@ function makeSource(items: readonly NotificationRow[]): NotificationCenterSource
     getNotification: vi.fn(),
     getUnreadCount: vi.fn().mockResolvedValue(1),
     markRead: vi.fn(),
+    markUnread: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),
@@ -74,10 +75,15 @@ describe('NotificationCenterPanel master list row affordances (integration)', ()
   it('renders the row severity as a chip beside the title', async () => {
     await renderSeededList([RICH_ROW, BARE_ROW]);
 
+    // Scoped to the grid: the level filter dropdown beside the table renders
+    // the same four words into React Aria's hidden autofill <select>, so an
+    // unscoped text query would match the filter rather than the row.
     // Written as literals: asserting against SEVERITY_TO_CHIP_COLOR or
     // formatLevelLabel would still pass with either emptied (CLAUDE.md #16).
-    expect(screen.getByText('Warning')).toBeInTheDocument();
-    expect(screen.getByText('Success')).toBeInTheDocument();
+    const table = within(screen.getByRole('grid'));
+
+    expect(table.getByText('Warning')).toBeInTheDocument();
+    expect(table.getByText('Success')).toBeInTheDocument();
   });
 
   it('grows no chip at all for a producer that reported no level', async () => {

@@ -1,21 +1,12 @@
-import { Typography } from '@heroui/react';
 import { NotificationCenterPanel } from '../../features/notifications/ui/NotificationCenterPanel/NotificationCenterPanel';
 
 /**
  * NotificationsRoute mounts the notification center panel as its own routed
- * surface, with the page header the "page header equals nav label"
- * convention every other routed page follows.
+ * surface. The page header lives inside the panel rather than here: its
+ * "Mark all as read" acts on the rows the master list is holding and
+ * refetches them afterwards, which this composition-only layer must not do
+ * (CLAUDE.md frontend constraint #4).
  */
 export function NotificationsRoute() {
-  return (
-    <div className="flex flex-col gap-4">
-      <header className="space-y-1">
-        <Typography type="h1">Notifications</Typography>
-        <Typography color="muted" type="body-sm">
-          Every notification the bridge has recorded, unread first
-        </Typography>
-      </header>
-      <NotificationCenterPanel />
-    </div>
-  );
+  return <NotificationCenterPanel />;
 }

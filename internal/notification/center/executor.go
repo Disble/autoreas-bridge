@@ -68,11 +68,25 @@ func (e *Executor) Execute(ctx context.Context, notificationID int64, actionID s
 		return e.refuse(ctx, actionID, RefusalForeignAction)
 	}
 
-	if action.ExecutedAtMS != 0 {
+	// Resolution moves above the already-executed gate because only the handler
+	// knows whether a second press is meaningful. `IntentHandler.Repeatable` had
+	// been on the port since the model was designed and was never consulted, so
+	// that gate fired unconditionally and the method governed nothing -- a dead
+	// contract whose cost was user-facing: copying a hoster link is idempotent, and
+	// "Copy hoster 1" refused with already_executed the second time it was pressed.
+	handler, registered := e.registry.Resolve(action.Intent)
+
+	// Resolving earlier deliberately does NOT reorder the refusals. An action that
+	// already ran still refuses already_executed even when its intent has since
+	// disappeared, which is what TestExecuteAlreadyExecutedOutranksIntentUnregistered
+	// pins and why: the press did happen, and reporting the state of the registry
+	// instead would be a true statement about the process and a false one about
+	// their notification. Only a REGISTERED handler that declares itself repeatable
+	// widens this gate; an unregistered one cannot, since nothing is there to ask.
+	if action.ExecutedAtMS != 0 && (!registered || !handler.Repeatable()) {
 		return e.refuse(ctx, actionID, RefusalAlreadyExecuted)
 	}
 
-	handler, registered := e.registry.Resolve(action.Intent)
 	if !registered {
 		return e.refuse(ctx, actionID, RefusalIntentUnregistered)
 	}

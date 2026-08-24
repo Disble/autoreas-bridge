@@ -62,6 +62,15 @@ export interface Notification {
   readonly Body: string;
   readonly Level: NotificationLevel;
   readonly Source: string;
+  /**
+   * `Kind` names the specific event this notification is, WITHIN its
+   * `Source`: the source is the bounded context that raised it
+   * (`download`), the kind is what happened there
+   * (`download.run_stopped_early`). Optional because the Go struct treats
+   * an empty kind as valid — a producer that has not adopted the vocabulary
+   * yet arrives with `''`, which a consumer must read as absent.
+   */
+  readonly Kind?: string;
   readonly CorrelationID: string;
   readonly Timestamp: string;
   readonly RecordID?: number;

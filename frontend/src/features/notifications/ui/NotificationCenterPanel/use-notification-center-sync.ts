@@ -10,6 +10,14 @@ const NOTIFICATION_CENTER_SYNC_PAGE_LIMIT = 25;
 /** Which archive view the caller currently has selected. */
 export type NotificationCenterSyncView = 'active' | 'archived';
 
+/**
+ * The empty set both facet filters default to. It is a module constant rather
+ * than an inline `[]` because it feeds a `useCallback` dependency list: a
+ * fresh literal on every render would rebuild `fetchPage` and re-fetch the
+ * first page forever.
+ */
+const NO_FACET_FILTER: readonly string[] = [];
+
 /** Everything `useNotificationCenterSync` needs from its caller. */
 export interface NotificationCenterSyncInput {
   readonly source: NotificationCenterSource;
@@ -17,8 +25,21 @@ export interface NotificationCenterSyncInput {
   readonly unreadOnly: boolean;
   /** Debounced free-text search (Slice 3b's filter bar); defaults to no filter for callers that predate it. */
   readonly search?: string;
+  /** Levels the query is narrowed to; an empty set applies no level filter at all, never "match nothing". */
+  readonly levels?: readonly string[];
+  /** Sources the query is narrowed to, under the same empty-means-everything contract as `levels`. */
+  readonly sources?: readonly string[];
   /** Runtime push stream the list live-refreshes from; defaults to the runtime-backed singleton. */
   readonly pushSource?: NotificationSource;
+}
+
+/** The filters one page request is built from, independent of where in the keyset the cursor sits. */
+interface NotificationPageFilters {
+  readonly view: NotificationCenterSyncView;
+  readonly unreadOnly: boolean;
+  readonly search: string;
+  readonly levels: readonly string[];
+  readonly sources: readonly string[];
 }
 
 /** The accumulated master-list state `useNotificationCenterSync` exposes. */
@@ -38,18 +59,13 @@ export interface NotificationCenterSyncResult {
  * by the paginating fetch and the live refresh so the two can never drift
  * into asking the backend different questions.
  */
-function toNotificationPageRequest(
-  view: NotificationCenterSyncView,
-  unreadOnly: boolean,
-  search: string,
-  cursor: string,
-): NotificationListRequest {
+function toNotificationPageRequest(filters: Readonly<NotificationPageFilters>, cursor: string): NotificationListRequest {
   return {
-    view,
-    unreadOnly,
-    search,
-    sources: [],
-    levels: [],
+    view: filters.view,
+    unreadOnly: filters.unreadOnly,
+    search: filters.search,
+    sources: filters.sources,
+    levels: filters.levels,
     cursor,
     limit: NOTIFICATION_CENTER_SYNC_PAGE_LIMIT,
   };
@@ -98,7 +114,15 @@ function mergeRefreshedRows(
  * screen.
  */
 export function useNotificationCenterSync(input: Readonly<NotificationCenterSyncInput>): NotificationCenterSyncResult {
-  const { source, view, unreadOnly, search = '', pushSource = notificationSource } = input;
+  const {
+    source,
+    view,
+    unreadOnly,
+    search = '',
+    levels = NO_FACET_FILTER,
+    sources = NO_FACET_FILTER,
+    pushSource = notificationSource,
+  } = input;
 
   // 1. Refs
   const isFetchingRef = useRef(false);
@@ -118,7 +142,7 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
       setIsLoading(true);
 
       return source
-        .listNotifications(toNotificationPageRequest(view, unreadOnly, search, cursor))
+        .listNotifications(toNotificationPageRequest({ view, unreadOnly, search, levels, sources }, cursor))
         .then((page) => {
           setRows((current) => (mode === 'replace' ? page.items : [...current, ...page.items]));
           cursorRef.current = page.nextCursor ?? '';
@@ -129,19 +153,19 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
           isFetchingRef.current = false;
         });
     },
-    [source, unreadOnly, view, search],
+    [source, unreadOnly, view, search, levels, sources],
   );
 
   const refreshLiveRows = useCallback(() => {
     // No loading flag and no in-flight guard on purpose: this is a
     // background refresh the user did not ask for, so it must neither blank
     // the table nor interfere with the near-bottom pagination guard.
-    void source.listNotifications(toNotificationPageRequest(view, unreadOnly, search, '')).then((page) => {
+    void source.listNotifications(toNotificationPageRequest({ view, unreadOnly, search, levels, sources }, '')).then((page) => {
       setRows((current) => mergeRefreshedRows(page.items, current));
       setTotalEverRecorded(page.totalEver);
       setDegraded(page.degraded);
     });
-  }, [source, unreadOnly, view, search]);
+  }, [source, unreadOnly, view, search, levels, sources]);
 
   const onLoadMore = useCallback(() => {
     if (isFetchingRef.current || !hasNextPage) {

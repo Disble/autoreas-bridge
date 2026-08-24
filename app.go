@@ -245,6 +245,10 @@ func (a *App) startup(ctx context.Context) {
 	a.reconcileAutoStart(ctx)
 	a.startDownloadOrchestration(ctx)
 	a.wireNotificationCenterIntentExecutor()
+	// After the executor, so the two tokens this record carries already have their handlers
+	// registered by the time it can be pressed -- and once only, because startup is the single
+	// moment a missed selected day can begin to exist (app_missed_schedule_notification.go).
+	a.notifyMissedSchedule(ctx)
 	a.startSeasonAvailability(ctx)
 }
 

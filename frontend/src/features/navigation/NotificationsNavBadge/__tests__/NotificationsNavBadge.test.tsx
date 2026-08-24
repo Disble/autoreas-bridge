@@ -23,6 +23,7 @@ function makeCenterSource(unreadCount: number): NotificationCenterSource {
     getNotification: vi.fn(),
     getUnreadCount: vi.fn().mockResolvedValue(unreadCount),
     markRead: vi.fn(),
+    markUnread: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
     executeAction: vi.fn(),

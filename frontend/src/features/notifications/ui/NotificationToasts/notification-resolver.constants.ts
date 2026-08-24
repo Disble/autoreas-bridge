@@ -21,6 +21,25 @@ export const MISSED_DECISION_TOAST_ID = 'missed-schedule-decision';
 export const MISSED_FAILURE_TOAST_ID = 'missed-schedule-failure';
 
 /**
+ * Backend notification kinds a dedicated resolver already renders, which
+ * `useBackendEventResolver` therefore must not render a second time.
+ *
+ * `missed_schedule` is now raised by the Go producer so it becomes a durable
+ * Center record instead of a toast that cannot be found again — but the
+ * toast for it stays with `useMissedScheduleResolver`, which is the only
+ * resolver that can render it properly: it is persistent until the day is
+ * settled and carries "Run now"/"Ignore" buttons wired to the scheduler.
+ * The generic backend path can reproduce neither — the `notification.push`
+ * payload carries an `ActionSpec` without the persisted action ids a press
+ * needs, and `RecordID` is never populated — so it would only add a poorer
+ * duplicate beside the real one.
+ *
+ * This is a set of kinds rather than a hardcoded branch so the next
+ * dedicated resolver is one entry, not another `if`.
+ */
+export const KINDS_OWNED_BY_A_DEDICATED_RESOLVER: ReadonlySet<string> = new Set(['missed_schedule']);
+
+/**
  * Maps each `AppNotificationSeverity` to the HeroUI toast variant it renders
  * as. Pinned by `app-toast-queue.test.ts` against the four convenience
  * methods (`toast.success/warning/danger/info`) the app-owned queue

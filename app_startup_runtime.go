@@ -90,6 +90,7 @@ func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 				Level:     notification.LevelWarning,
 				Title:     "Device sync warning",
 				Body:      "A paired device has not synced recently. If it does not reconnect soon, Bridge will stop preserving old sync changes for it.",
+				Kind:      syncHealthWarningKind,
 				Timestamp: time.Now(),
 			})
 		case bridgeSync.DeviceSyncStatusStale:
@@ -98,6 +99,7 @@ func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 				Level:     notification.LevelWarning,
 				Title:     "Device marked stale",
 				Body:      "A paired device has been offline long enough that it no longer blocks changelog cleanup. It may need a full refresh when it reconnects.",
+				Kind:      syncHealthWarningKind,
 				Timestamp: time.Now(),
 			})
 		}
@@ -230,6 +232,7 @@ func (a *App) onPairingTokenConsumed() func() {
 				Level:     notification.LevelSuccess,
 				Title:     "Device paired",
 				Body:      "A mobile device successfully paired with this bridge.",
+				Kind:      devicePairedKind,
 				Timestamp: time.Now(),
 			})
 		}

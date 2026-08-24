@@ -62,6 +62,36 @@ func (s *Store) MarkRead(ctx context.Context, ids []int64, atMS int64) (int, err
 	return int(affected), err
 }
 
+// MarkUnread clears read_at_ms on the given ids, but only where it IS NOT
+// NULL -- so marking the same record unread twice cannot increment the
+// unread count twice, the exact mirror of MarkRead's own guard. Returns the
+// number of rows actually transitioned from read back to unread.
+//
+// It touches read_at_ms and nothing else. Read and archive are separate
+// axes that compose rather than overwrite each other (design-canvas
+// Lifecycle.dc.html -- "Each keeps its own timestamp"), so marking an
+// archived record unread leaves it archived; pulling it back onto the active
+// list is Restore's job, on the other axis. This is deliberately the shape
+// of Restore, which clears one column, and NOT the shape of Archive, whose
+// transaction exists only because archiving carries the one documented
+// cross-axis effect ("Marks it read if it was not").
+func (s *Store) MarkUnread(ctx context.Context, ids []int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders, args := idPlaceholders(ids)
+	result, err := s.db.ExecContext(ctx, `
+		UPDATE notification_records
+		SET read_at_ms = NULL
+		WHERE read_at_ms IS NOT NULL AND id IN (`+placeholders+`)
+	`, args...)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	return int(affected), err
+}
+
 // Archive stamps archived_at_ms on the given ids and, in the same
 // transaction, stamps read_at_ms on any of those rows still unread --
 // archiving an unread record marks it read (design §5.6, notification-center

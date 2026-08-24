@@ -95,6 +95,27 @@ func (a *App) MarkNotificationsRead(ids []int64) contracts.NotificationMutationR
 	return a.notificationMutationResult(ctx, affected)
 }
 
+// MarkNotificationsUnread puts the given ids back to unread, the reverse of
+// MarkNotificationsRead (design-canvas Lifecycle.dc.html -- read is
+// "Reversible -- 'mark unread' puts it back"). It returns the same envelope
+// every lifecycle mutation does, so the fresh UnreadCount the rail badge
+// consumes climbs in the same round trip.
+//
+// It emits no event, unlike ArchiveNotifications: archiving has to reach the
+// toast layer because it closes a live toast, while a read-state flip changes
+// nothing any other surface is showing.
+func (a *App) MarkNotificationsUnread(ids []int64) contracts.NotificationMutationResult {
+	if a.notificationCenterStore == nil {
+		return contracts.NotificationMutationResult{Degraded: true}
+	}
+	ctx := a.notificationCenterCtx()
+	affected, err := a.notificationCenterStore.MarkUnread(ctx, ids)
+	if err != nil {
+		return contracts.NotificationMutationResult{Degraded: true}
+	}
+	return a.notificationMutationResult(ctx, affected)
+}
+
 // ArchiveNotifications archives the given ids -- also marking any of them
 // still unread as read, in the same store operation (design §5.6). On
 // success it also emits notificationArchivedEventName carrying ids, so a
@@ -269,6 +290,9 @@ func (a *App) registerNotificationIntents() *center.StaticRegistry {
 	}
 	if a.emitFn != nil {
 		registry.Register(center.IntentNavigationOpen, center.SingleFireFunc(a.navigationOpenIntent))
+	}
+	if a.copyText != nil {
+		registry.Register(center.IntentClipboardCopy, center.RepeatableFunc(a.clipboardCopyIntent))
 	}
 	if a.downloadScheduler != nil {
 		registry.Register(center.IntentScheduleRunMissedNow, center.SingleFireFunc(func(ctx context.Context, args map[string]string) error {

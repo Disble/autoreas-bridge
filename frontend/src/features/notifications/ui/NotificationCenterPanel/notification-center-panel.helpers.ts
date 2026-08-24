@@ -1,6 +1,12 @@
+import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
 import type { NotificationEmptyStateConditions } from '../NotificationEmptyState/notification-empty-state.types';
+import { isNotificationRowUnread } from '../NotificationTable/notification-table.helpers';
 import type { NotificationTableRowKey } from '../NotificationTable/notification-table.types';
-import type { NotificationCenterPanelEmptyStateInput } from './notification-center-panel.types';
+import type {
+  NotificationCenterPanelEmptyStateInput,
+  NotificationCenterQuery,
+  NotificationCenterView,
+} from './notification-center-panel.types';
 
 /**
  * Resolves the row key a pressed master-list row hands back into the numeric
@@ -20,20 +26,69 @@ export function toNotificationRecordId(key: NotificationTableRowKey): number | n
 }
 
 /**
+ * Collapses one of the four view tabs onto the archive/read-state pair the
+ * backend query actually understands.
+ *
+ * Three of the four map cleanly. `read` does not: the store exposes
+ * `UnreadOnly` and has no read-only counterpart, so the query it issues is
+ * the unfiltered active one and the narrowing happens after the page arrives
+ * (`filterNotificationRowsForView`). Asking for `unreadOnly: true` there
+ * would return the exact complement of what the tab means.
+ */
+export function toNotificationCenterQuery(view: NotificationCenterView): NotificationCenterQuery {
+  if (view === 'archived') {
+    return { view: 'archived', unreadOnly: false };
+  }
+  return { view: 'active', unreadOnly: view === 'unread' };
+}
+
+/**
+ * Narrows an already-fetched page to what the selected view means, which is
+ * only ever needed for the `read` tab -- see `toNotificationCenterQuery` for
+ * why that one cannot be expressed as a query. Every other view is filtered
+ * by the backend and is handed its rows back by identity, so the store's own
+ * answer stays authoritative and nothing is filtered twice.
+ */
+export function filterNotificationRowsForView(
+  rows: readonly NotificationRow[],
+  view: NotificationCenterView,
+): readonly NotificationRow[] {
+  if (view !== 'read') {
+    return rows;
+  }
+  return rows.filter((row) => !isNotificationRowUnread(row));
+}
+
+/** Collects the ids of every loaded record nobody has read yet -- what "Mark all as read" acts on. */
+export function toUnreadNotificationIds(rows: readonly NotificationRow[]): number[] {
+  return rows.reduce<number[]>((ids, row) => {
+    if (isNotificationRowUnread(row)) {
+      ids.push(row.id);
+    }
+    return ids;
+  }, []);
+}
+
+/**
  * Derives `NotificationEmptyState`'s condition tuple from the sync hook's
- * page-level fields plus whether a search is currently applied. `hasFilters`
- * mirrors `hasSearch`: Sources/Levels are wired into the store (Slice 3b) but
- * have no UI control yet, so they can never independently narrow a query
- * this panel builds.
+ * page-level fields plus whatever is currently narrowing the list.
+ *
+ * The `read` tab counts as a filter, and the `unread` tab deliberately does
+ * not. A filter outranks `unreadOnly` in `selectNotificationEmptyState`'s
+ * priority order, so reporting the unread tab as one would hide the
+ * "All caught up" rendering behind "No matches" -- while an empty `read` tab
+ * genuinely is "nothing matches", never the "All archived" state an
+ * unnarrowed empty active view means.
  */
 export function toNotificationEmptyStateConditions(
   input: Readonly<NotificationCenterPanelEmptyStateInput>,
 ): NotificationEmptyStateConditions {
+  const query = toNotificationCenterQuery(input.view);
   return {
     totalEverRecorded: input.totalEverRecorded,
-    view: input.view,
-    unreadOnly: input.unreadOnly,
-    hasFilters: input.hasSearch,
+    view: query.view,
+    unreadOnly: query.unreadOnly,
+    hasFilters: input.hasSearch || input.hasFacetFilters || input.view === 'read',
     serviceAvailable: !input.degraded,
   };
 }

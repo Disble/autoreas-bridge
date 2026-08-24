@@ -5,6 +5,7 @@ import {
   GetUnreadNotificationCount,
   ListNotifications,
   MarkNotificationsRead,
+  MarkNotificationsUnread,
   RestoreNotifications,
 } from '../../../wailsjs/go/main/App';
 import type {
@@ -61,6 +62,13 @@ export function createNotificationCenterSource(): NotificationCenterSource {
       return invokeGoBinding<NotificationMutationResult>(
         'MarkNotificationsRead',
         () => MarkNotificationsRead([...ids]),
+        () => DEGRADED_NOTIFICATION_MUTATION_RESULT,
+      );
+    },
+    markUnread(ids: readonly number[]): Promise<NotificationMutationResult> {
+      return invokeGoBinding<NotificationMutationResult>(
+        'MarkNotificationsUnread',
+        () => MarkNotificationsUnread([...ids]),
         () => DEGRADED_NOTIFICATION_MUTATION_RESULT,
       );
     },

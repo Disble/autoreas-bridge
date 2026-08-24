@@ -74,7 +74,7 @@ describe('NotificationCenterPanel live refresh (integration)', () => {
       .mockResolvedValueOnce(makePage([makeRow(1, 'Episode ready')]))
       .mockResolvedValue(makePage([makeRow(2, 'Download run started'), makeRow(1, 'Episode ready')]));
     const push = makePushSource();
-    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
+    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), markUnread: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
 
     render(<NotificationCenterPanel pushSource={push.source} source={source} />);
     await waitFor(() => expect(screen.getByText('Episode ready')).toBeInTheDocument());
@@ -90,7 +90,7 @@ describe('NotificationCenterPanel live refresh (integration)', () => {
     const page = makePage([makeRow(2, 'Download run started'), makeRow(1, 'Episode ready')]);
     const listNotifications = vi.fn().mockResolvedValue(page);
     const push = makePushSource();
-    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
+    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), markUnread: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
 
     render(<NotificationCenterPanel pushSource={push.source} source={source} />);
     await waitFor(() => expect(screen.getByText('Download run started')).toBeInTheDocument());
@@ -112,7 +112,7 @@ describe('NotificationCenterPanel live refresh (integration)', () => {
   it('stops listening once unmounted, so a later push cannot update a dead panel', async () => {
     const listNotifications = vi.fn().mockResolvedValue(makePage([makeRow(1, 'Episode ready')]));
     const push = makePushSource();
-    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
+    const source = { listNotifications, getNotification: vi.fn(), getUnreadCount: vi.fn(), markRead: vi.fn(), markUnread: vi.fn(), archive: vi.fn(), restore: vi.fn(), executeAction: vi.fn() } satisfies NotificationCenterSource;
 
     const view = render(<NotificationCenterPanel pushSource={push.source} source={source} />);
     await waitFor(() => expect(screen.getByText('Episode ready')).toBeInTheDocument());

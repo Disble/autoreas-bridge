@@ -76,9 +76,10 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 
 // The run_partial notification used to say only "Some animes failed to download -- see run
 // details", which could not tell the user which anime that was without opening the run. Every
-// failed anime must now be individually named as its own row, and every uneventful anime must
-// collapse into ONE trailing summary row instead of each claiming a row (notification-center
-// spec, "Uneventful rows collapse into a single summary line").
+// failed anime must now be individually named as its own row, so must every anime that actually
+// downloaded episodes, and every uneventful anime (checked, nothing new) must collapse into ONE
+// trailing summary row instead of each claiming a row (notification-center spec, "Uneventful
+// rows collapse into a single summary line").
 func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *testing.T) {
 	t.Parallel()
 
@@ -90,8 +91,10 @@ func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *tes
 	source := &svcFakeEpisodeSource{
 		name: "jkanime",
 		listEpisodes: map[string]sites.EpisodeListing{
-			"https://jkanime.net/ok-one/": {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-one/5/"},
-			"https://jkanime.net/ok-two/": {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-two/5/"},
+			"https://jkanime.net/ok-one/":      {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-one/5/"},
+			"https://jkanime.net/ok-two/":      {LatestEpisode: 5, EpisodePageURL: "https://jkanime.net/ok-two/5/"},
+			"https://jkanime.net/current-one/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/current-one/3/"},
+			"https://jkanime.net/current-two/": {LatestEpisode: 3, EpisodePageURL: "https://jkanime.net/current-two/3/"},
 		},
 		listErr: map[string]error{
 			"https://jkanime.net/broken/": errors.New("boom: site scrape failed"),
@@ -105,14 +108,17 @@ func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *tes
 	deps.Sites = registry
 
 	okOneFolder, okTwoFolder := t.TempDir(), t.TempDir()
+	currentOneFolder, currentTwoFolder := t.TempDir(), t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
 		{ID: "anime-ok-1", Name: "OK Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-one/"), Folder: ptrStr(okOneFolder)},
 		{ID: "anime-ok-2", Name: "OK Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-two/"), Folder: ptrStr(okTwoFolder)},
 		{ID: "anime-broken", Name: "Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-current-1", Name: "Current Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/current-one/"), Folder: ptrStr(currentOneFolder)},
+		{ID: "anime-current-2", Name: "Current Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/current-two/"), Folder: ptrStr(currentTwoFolder)},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
-		atRoot:    map[string]int{okOneFolder: 4, okTwoFolder: 4},
-		recursive: map[string]int{okOneFolder: 5, okTwoFolder: 5},
+		atRoot:    map[string]int{okOneFolder: 4, okTwoFolder: 4, currentOneFolder: 3, currentTwoFolder: 3},
+		recursive: map[string]int{okOneFolder: 5, okTwoFolder: 5, currentOneFolder: 3, currentTwoFolder: 3},
 	})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -132,20 +138,27 @@ func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *tes
 	if strings.Contains(got.Body, "see run details") {
 		t.Fatalf("body = %q, still relies on the literal fallback wording", got.Body)
 	}
-	if len(got.Rows) != 2 {
-		t.Fatalf("rows = %#v, want exactly 2 (1 failed anime + 1 collapsed summary) -- an off-by-one here must fail this test", got.Rows)
+	if len(got.Rows) != 4 {
+		t.Fatalf("rows = %#v, want exactly 4 (1 failed + 2 downloaded + 1 collapsed summary) -- an off-by-one here must fail this test", got.Rows)
 	}
 
 	var failedRow, collapsedRow *notification.DetailItem
+	downloadedRows := 0
 	for i := range got.Rows {
-		if got.Rows[i].CollapsedCount > 0 {
+		switch {
+		case got.Rows[i].CollapsedCount > 0:
 			collapsedRow = &got.Rows[i]
-		} else {
+		case got.Rows[i].Status == "downloaded":
+			downloadedRows++
+		default:
 			failedRow = &got.Rows[i]
 		}
 	}
 	if failedRow == nil || failedRow.RefID != "anime-broken" || failedRow.Name != "Broken Anime" || failedRow.Status != "failed" {
 		t.Fatalf("failed row = %#v, want it to name Broken Anime", failedRow)
+	}
+	if downloadedRows != 2 {
+		t.Fatalf("rows = %#v, want both anime that downloaded episode 5 named individually", got.Rows)
 	}
 	if collapsedRow == nil || collapsedRow.CollapsedCount != 2 {
 		t.Fatalf("collapsed row = %#v, want CollapsedCount == 2", collapsedRow)

@@ -356,3 +356,145 @@ func TestActionValidatedIdenticallyRegardlessOfElapsedTime(t *testing.T) {
 		t.Fatal("expected the ancient action to stamp executedAtMs exactly as a fresh one would -- no elapsed-time check refused it")
 	}
 }
+
+// TestMarkUnreadClearsReadAtAndRaisesUnreadCountExactlyOnce asserts the read
+// axis is reversible in both directions (design-canvas Lifecycle.dc.html --
+// read is "Reversible -- 'mark unread' puts it back"): marking a read record
+// unread clears read_at_ms and raises the unread count by exactly 1, and a
+// second mark-unread on the same record does not raise it again.
+func TestMarkUnreadClearsReadAtAndRaisesUnreadCountExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	seedNotificationRecords(t, db, 3, 1000)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	targetID := notificationRecordIDAt(t, db, 1000)
+
+	if _, err := store.MarkRead(ctx, []int64{targetID}, 5000); err != nil {
+		t.Fatalf("mark read: %v", err)
+	}
+	readCount, err := store.UnreadCount(ctx)
+	if err != nil {
+		t.Fatalf("unread count after mark read: %v", err)
+	}
+	if readCount != 2 {
+		t.Fatalf("expected 2 unread of the 3 seeded records after marking one read, got %d", readCount)
+	}
+
+	affected, err := store.MarkUnread(ctx, []int64{targetID})
+	if err != nil {
+		t.Fatalf("mark unread: %v", err)
+	}
+	if affected != 1 {
+		t.Fatalf("expected exactly 1 row transitioned back to unread, got %d", affected)
+	}
+	afterFirst, err := store.UnreadCount(ctx)
+	if err != nil {
+		t.Fatalf("unread count after mark unread: %v", err)
+	}
+	if afterFirst != 3 {
+		t.Fatalf("expected the unread count to climb back to 3, got %d", afterFirst)
+	}
+
+	record, found, err := store.Record(ctx, targetID)
+	if err != nil || !found {
+		t.Fatalf("load record: found=%v err=%v", found, err)
+	}
+	if record.ReadAtMS != 0 {
+		t.Fatalf("expected read_at_ms cleared after mark unread, got %d", record.ReadAtMS)
+	}
+
+	// Marking an already-unread record unread must not raise the count again,
+	// mirroring MarkRead's own "cannot decrement twice" guard.
+	affectedAgain, err := store.MarkUnread(ctx, []int64{targetID})
+	if err != nil {
+		t.Fatalf("mark unread again: %v", err)
+	}
+	if affectedAgain != 0 {
+		t.Fatalf("expected 0 rows affected on the second mark-unread, got %d", affectedAgain)
+	}
+	afterSecond, err := store.UnreadCount(ctx)
+	if err != nil {
+		t.Fatalf("unread count after second mark unread: %v", err)
+	}
+	if afterSecond != 3 {
+		t.Fatalf("expected the unread count unchanged by the second mark-unread, got %d", afterSecond)
+	}
+}
+
+// TestMarkUnreadLeavesArchivedUntouched asserts read and archive stay
+// separate axes that compose rather than overwrite each other
+// (design-canvas Lifecycle.dc.html -- "Each keeps its own timestamp, so they
+// compose instead of overwriting each other"; a record can be off the active
+// list and still unread). MarkUnread is the mirror image of Restore, which
+// clears only archived_at_ms and deliberately leaves read_at_ms alone.
+func TestMarkUnreadLeavesArchivedUntouched(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	seedNotificationRecords(t, db, 1, 1000)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	targetID := notificationRecordIDAt(t, db, 1000)
+
+	// Archiving stamps read_at_ms as a side effect, so this record is both
+	// archived and read before the mark-unread under test.
+	if _, err := store.Archive(ctx, []int64{targetID}, 5000); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	if _, err := store.MarkUnread(ctx, []int64{targetID}); err != nil {
+		t.Fatalf("mark unread: %v", err)
+	}
+
+	record, found, err := store.Record(ctx, targetID)
+	if err != nil || !found {
+		t.Fatalf("load record: found=%v err=%v", found, err)
+	}
+	if record.ReadAtMS != 0 {
+		t.Fatalf("expected read_at_ms cleared after mark unread, got %d", record.ReadAtMS)
+	}
+	if record.ArchivedAtMS != 5000 {
+		t.Fatalf("expected archived_at_ms left exactly as archiving stamped it (5000), got %d", record.ArchivedAtMS)
+	}
+
+	activePage, err := store.List(ctx, ListQuery{View: ViewActive, Limit: 10})
+	if err != nil {
+		t.Fatalf("list active view: %v", err)
+	}
+	if containsRecordID(activePage.Items, targetID) {
+		t.Fatal("expected mark unread NOT to pull an archived record back onto the active list -- that is Restore's job, on the other axis")
+	}
+}
+
+// TestMarkUnreadWithNoIDsIsANoOp asserts the empty-batch guard: an empty id
+// list reports 0 affected with no error and issues no statement, mirroring
+// MarkRead/Archive/Restore's identical guard.
+func TestMarkUnreadWithNoIDsIsANoOp(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	seedNotificationRecords(t, db, 2, 1000)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	if _, err := store.MarkRead(ctx, []int64{notificationRecordIDAt(t, db, 1000)}, 5000); err != nil {
+		t.Fatalf("mark read: %v", err)
+	}
+
+	affected, err := store.MarkUnread(ctx, nil)
+	if err != nil {
+		t.Fatalf("mark unread with no ids: %v", err)
+	}
+	if affected != 0 {
+		t.Fatalf("expected 0 rows affected for an empty id batch, got %d", affected)
+	}
+
+	unread, err := store.UnreadCount(ctx)
+	if err != nil {
+		t.Fatalf("unread count: %v", err)
+	}
+	if unread != 1 {
+		t.Fatalf("expected the empty batch to leave the 1 remaining unread record alone, got %d", unread)
+	}
+}
