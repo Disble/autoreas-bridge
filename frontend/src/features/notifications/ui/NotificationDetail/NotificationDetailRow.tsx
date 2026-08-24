@@ -1,11 +1,10 @@
-import { Button, Chip } from '@heroui/react';
-import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
-import type { NotificationAction } from '../../../../shared/contracts/notification-center.types';
+import { Chip } from '@heroui/react';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
-import { NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL, NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID } from './notification-detail.constants';
+import { NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL } from './notification-detail.constants';
 import { isCollapsedRow } from './notification-detail.helpers';
+import { NotificationDetailActionButton } from './NotificationDetailActionButton';
 import type { NotificationDetailRowProps } from './notification-detail.types';
-import { useNotificationAction } from './use-notification-action';
+import { NotificationDetailShowAllLink } from './NotificationDetailShowAllLink';
 
 /**
  * One row of the detail pane's single bounded row-list block. A row carrying
@@ -25,7 +24,7 @@ export function NotificationDetailRow({ actions, coverEntry, notificationId, row
   if (isCollapsedRow(row)) {
     return (
       <div aria-label={NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL} className="rounded-xl border border-dashed border-default-200 px-3 py-2 text-center text-xs text-default-400" role="status">
-        {row.detail}
+        <span>{row.detail}</span> &mdash; <NotificationDetailShowAllLink />
       </div>
     );
   }
@@ -44,7 +43,7 @@ export function NotificationDetailRow({ actions, coverEntry, notificationId, row
         {actions.length > 0 ? (
           <div className="flex flex-wrap gap-1.5" data-testid="notification-detail-row-actions">
             {actions.map((action) => (
-              <NotificationDetailRowActionButton action={action} key={action.id} notificationId={notificationId} source={source} />
+              <NotificationDetailActionButton action={action} key={action.id} notificationId={notificationId} source={source} variant="secondary" />
             ))}
           </div>
         ) : null}
@@ -62,35 +61,6 @@ function NotificationDetailRowCover({ dataUrl, name }: Readonly<{ readonly dataU
   return (
     <div className="relative size-11 shrink-0 overflow-hidden rounded-lg">
       {dataUrl === undefined ? <CoverPlaceholderScene className="absolute inset-0 size-full" /> : <img alt={name} className="absolute inset-0 size-full object-cover" src={dataUrl} />}
-    </div>
-  );
-}
-
-/**
- * One row action button, driven by `useNotificationAction` against the real
- * `ExecuteNotificationAction` binding. `source` is forwarded straight
- * through: `useNotificationAction` falls back to the runtime-backed
- * singleton when it is `undefined`, so an omitted prop is the production
- * wiring rather than a missing one.
- */
-function NotificationDetailRowActionButton({
-  action,
-  notificationId,
-  source,
-}: Readonly<{ readonly action: NotificationAction; readonly notificationId: number; readonly source?: NotificationCenterSource }>) {
-  const { isDisabled, press, refusalMessage } = useNotificationAction(notificationId, action, source);
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <Button isDisabled={isDisabled} onPress={press} size="sm" variant="secondary">
-        {action.label}
-      </Button>
-      {/* refusalMessage is only ever set while status === 'refused' (useNotificationAction's own invariant), so checking it alone is equivalent to the compound check and covers the one case that actually differs: a refused press whose server result omitted its reason. */}
-      {refusalMessage !== undefined ? (
-        <span className="text-[11px] text-danger" data-testid={NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID}>
-          {refusalMessage}
-        </span>
-      ) : null}
     </div>
   );
 }

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { NotificationAction, NotificationDetailRow } from '../../../../../shared/contracts/notification-center.types';
+import type { NotificationAction, NotificationDetail, NotificationDetailRow } from '../../../../../shared/contracts/notification-center.types';
 import {
+  buildNotificationMetaEntries,
+  formatDetailWhenLabel,
   formatLevelLabel,
   isCollapsedRow,
   resolveLevelChipColor,
+  resolveNotificationActions,
   resolveRefusalMessage,
   resolveRowActions,
   resolveServerActionStatus,
@@ -17,6 +20,22 @@ function buildRow(overrides: Partial<NotificationDetailRow> = {}): NotificationD
 /** Minimal action fixture builder, mirroring `buildRow` above. */
 function buildAction(overrides: Partial<NotificationAction> = {}): NotificationAction {
   return { id: 'action-1', intent: 'download.run_anime', label: 'Run this anime again', ...overrides };
+}
+
+/** Minimal detail fixture builder for the metadata-footer cases below. */
+function buildDetail(overrides: Partial<NotificationDetail> = {}): NotificationDetail {
+  return {
+    actionCount: 0,
+    actions: [],
+    body: 'Everything after the failed episode was never attempted.',
+    createdAtMs: 1_700_000_000_000,
+    id: 1,
+    level: 'warning',
+    rows: [],
+    source: 'download',
+    title: 'Download stopped before the season finished',
+    ...overrides,
+  };
 }
 
 describe('isCollapsedRow', () => {
@@ -125,5 +144,81 @@ describe('resolveRefusalMessage', () => {
 
   it('falls back to a generic message for a reason outside the closed set', () => {
     expect(resolveRefusalMessage('unheard_of_reason')).toBe('This action was refused.');
+  });
+});
+
+describe('resolveNotificationActions', () => {
+  it('keeps an action carrying no rowRef, which `Intents.dc.html` defines as the whole-notification level', () => {
+    const wholeNotification = buildAction({ id: 'open', intent: 'navigation.open', label: 'Open Downloads' });
+
+    expect(resolveNotificationActions([wholeNotification])).toStrictEqual([wholeNotification]);
+  });
+
+  it('drops an action bound to a row, so the footer never repeats a button the row already renders', () => {
+    const rowAction = buildAction({ id: 'run', rowRef: 'anime-1' });
+
+    expect(resolveNotificationActions([rowAction])).toStrictEqual([]);
+  });
+
+  it('treats an empty-string rowRef as no row reference at all, the wire sentinel for an omitted field', () => {
+    const wholeNotification = buildAction({ id: 'open', rowRef: '' });
+
+    expect(resolveNotificationActions([wholeNotification])).toStrictEqual([wholeNotification]);
+  });
+
+  it('preserves the order the record listed its whole-notification actions in', () => {
+    const first = buildAction({ id: 'a', label: 'First' });
+    const second = buildAction({ id: 'b', label: 'Second' });
+
+    expect(resolveNotificationActions([first, buildAction({ id: 'c', rowRef: 'anime-1' }), second])).toStrictEqual([first, second]);
+  });
+
+  it('returns an empty list for a record carrying no actions at all', () => {
+    expect(resolveNotificationActions([])).toStrictEqual([]);
+  });
+});
+
+describe('formatDetailWhenLabel', () => {
+  it('renders the absolute timestamp and the relative age together, in that order', () => {
+    const createdAtMs = 1_800_000_000_000;
+
+    expect(formatDetailWhenLabel(createdAtMs, createdAtMs + 5 * 60_000)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} · 5m ago$/);
+  });
+
+  it('carries the relative half at every scale, since that is the half that says whether it still matters', () => {
+    const createdAtMs = 1_800_000_000_000;
+
+    expect(formatDetailWhenLabel(createdAtMs, createdAtMs + 3 * 60 * 60_000).endsWith('· 3h ago')).toBe(true);
+  });
+});
+
+describe('buildNotificationMetaEntries', () => {
+  it('renders both identifying fields the artboard puts at the foot of the pane', () => {
+    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: 'run-8f21c4', kind: 'download.run_stopped_early' }));
+
+    expect(entries).toStrictEqual([
+      { label: 'Kind', value: 'download.run_stopped_early' },
+      { label: 'Correlation ID', value: 'run-8f21c4' },
+    ]);
+  });
+
+  it('omits the kind row entirely for a record written before the column existed', () => {
+    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: 'run-8f21c4', kind: undefined }));
+
+    expect(entries).toStrictEqual([{ label: 'Correlation ID', value: 'run-8f21c4' }]);
+  });
+
+  it('omits the correlation row for a record that belongs to no run', () => {
+    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: undefined, kind: 'download.run_stopped_early' }));
+
+    expect(entries).toStrictEqual([{ label: 'Kind', value: 'download.run_stopped_early' }]);
+  });
+
+  it('treats an empty string as absent, so neither ever renders as an empty labelled row', () => {
+    expect(buildNotificationMetaEntries(buildDetail({ correlationId: '', kind: '' }))).toStrictEqual([]);
+  });
+
+  it('returns nothing at all when the record identifies itself by neither field', () => {
+    expect(buildNotificationMetaEntries(buildDetail())).toStrictEqual([]);
   });
 });

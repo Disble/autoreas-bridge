@@ -1,14 +1,26 @@
-import { Checkbox, Table, Tooltip } from '@heroui/react';
+import { Badge, Checkbox, Chip, Table, Tooltip } from '@heroui/react';
 import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import { formatLevelLabel, resolveLevelChipColor } from '../NotificationDetail/notification-detail.helpers';
 import {
   NOTIFICATION_TABLE_ARIA_LABEL,
   NOTIFICATION_TABLE_DEFAULT_SORT,
+  NOTIFICATION_TABLE_LEVEL_CHIP_TESTID,
   NOTIFICATION_TABLE_LOAD_MORE_LABEL,
+  NOTIFICATION_TABLE_READ_TITLE_CLASS,
+  NOTIFICATION_TABLE_ROW_COUNT_TESTID,
   NOTIFICATION_TABLE_SELECTION_COLUMN_WIDTH,
   NOTIFICATION_TABLE_SOURCE_COLUMN_WIDTH,
+  NOTIFICATION_TABLE_SUBJECTS_TESTID,
+  NOTIFICATION_TABLE_UNREAD_LABEL,
+  NOTIFICATION_TABLE_UNREAD_TITLE_CLASS,
   NOTIFICATION_TABLE_WHEN_COLUMN_WIDTH,
 } from './notification-table.constants';
-import { formatNotificationWhen } from './notification-table.helpers';
+import {
+  formatNotificationRowCount,
+  formatNotificationSubjects,
+  formatNotificationWhen,
+  isNotificationRowUnread,
+} from './notification-table.helpers';
 import type { NotificationTableProps } from './notification-table.types';
 import { useTruncationTooltip } from './use-truncation-tooltip';
 
@@ -80,24 +92,15 @@ export function NotificationTable({
   );
 }
 
-/** One notification row: a selection checkbox, a truncation-tooltipped title, source, and formatted timestamp. */
+/** One notification row: a selection checkbox, the notification block, source, and formatted timestamp. */
 function NotificationTableRow({ row }: Readonly<{ row: NotificationRow }>) {
-  const { isDisabled, ref } = useTruncationTooltip();
-
   return (
     <Table.Row id={row.id}>
       <Table.Cell>
         <NotificationTableSelectionCheckbox ariaLabel={`Select ${row.title}`} />
       </Table.Cell>
       <Table.Cell>
-        <Tooltip isDisabled={isDisabled}>
-          <Tooltip.Trigger>
-            <span className="block truncate" ref={ref}>
-              {row.title}
-            </span>
-          </Tooltip.Trigger>
-          <Tooltip.Content>{row.title}</Tooltip.Content>
-        </Tooltip>
+        <NotificationTableNotificationCell row={row} />
       </Table.Cell>
       <Table.Cell>
         <span className="block truncate text-default-500">{row.source}</span>
@@ -108,6 +111,81 @@ function NotificationTableRow({ row }: Readonly<{ row: NotificationRow }>) {
         </span>
       </Table.Cell>
     </Table.Row>
+  );
+}
+
+/**
+ * The "Notification" cell -- the one the Main artboard turned from a bare
+ * title into a block. Line one carries the unread dot, the
+ * truncation-tooltipped title, the severity chip and the count badge; line
+ * two names the things the record is about.
+ *
+ * The unread mark is HeroUI's own `Badge`, which renders as a dot exactly
+ * when its children are omitted. `Badge` is always absolutely positioned --
+ * every `placement` variant resolves to `position: absolute`, and an omitted
+ * `placement` still defaults to `top-right` -- so it MUST be composed inside
+ * a `Badge.Anchor`, which is the anchored-indicator usage its docs describe.
+ * Anchoring the title line (rather than the whole cell) puts the dot at that
+ * line's leading edge; the anchor carries `min-w-0` so the title inside it
+ * still truncates, and its own `flex-shrink: 0` only governs height here
+ * because the anchor is a flex item in a COLUMN.
+ *
+ * The `pl-1` / `pl-3.5` pair is what keeps that overlay off the text.
+ * `placement="top-left"` pins the badge to the anchor's corner and then
+ * translates it by -25% of its own 16px box, so it spans from 4px OUTSIDE the
+ * anchor to 12px inside it. The outer `pl-1` gives it those 4px inside the
+ * cell, and the inner `pl-3.5` starts the title past the other 12 -- with the
+ * subject line carrying the same 3.5 so both text lines share one left edge,
+ * as the artboard draws them.
+ *
+ * Every affordance is conditional, and absence renders NOTHING rather than an
+ * empty one: a read row carries no dot at all (the overlay occupies no space,
+ * so nothing shifts when it goes), a record with no subjects grows no second
+ * line, a record standing for one thing grows no "1x", and a producer that
+ * reported no level grows no blank chip. A list where every row carries every
+ * slot whether it has content or not is the log viewer `Anatomy.dc.html`
+ * argued against.
+ */
+function NotificationTableNotificationCell({ row }: Readonly<{ row: NotificationRow }>) {
+  const { isDisabled, ref } = useTruncationTooltip();
+  const isUnread = isNotificationRowUnread(row);
+  const subjects = formatNotificationSubjects(row);
+  const rowCount = formatNotificationRowCount(row);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 pl-1">
+      <Badge.Anchor className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2 pl-3.5">
+          <Tooltip isDisabled={isDisabled}>
+            <Tooltip.Trigger>
+              <span
+                className={`min-w-0 truncate ${isUnread ? NOTIFICATION_TABLE_UNREAD_TITLE_CLASS : NOTIFICATION_TABLE_READ_TITLE_CLASS}`}
+                ref={ref}
+              >
+                {row.title}
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>{row.title}</Tooltip.Content>
+          </Tooltip>
+          {row.level === '' ? null : (
+            <Chip color={resolveLevelChipColor(row.level)} data-testid={NOTIFICATION_TABLE_LEVEL_CHIP_TESTID} size="sm" variant="soft">
+              <Chip.Label>{formatLevelLabel(row.level)}</Chip.Label>
+            </Chip>
+          )}
+          {rowCount === undefined ? null : (
+            <Chip color="default" data-testid={NOTIFICATION_TABLE_ROW_COUNT_TESTID} size="sm" variant="secondary">
+              <Chip.Label>{rowCount}</Chip.Label>
+            </Chip>
+          )}
+        </div>
+        {isUnread ? <Badge aria-label={NOTIFICATION_TABLE_UNREAD_LABEL} color="accent" placement="top-left" role="img" size="sm" /> : null}
+      </Badge.Anchor>
+      {subjects === undefined ? null : (
+        <p className="truncate pl-3.5 text-xs text-default-500" data-testid={NOTIFICATION_TABLE_SUBJECTS_TESTID}>
+          {subjects}
+        </p>
+      )}
+    </div>
   );
 }
 

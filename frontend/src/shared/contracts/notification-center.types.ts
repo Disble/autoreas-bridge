@@ -16,9 +16,18 @@ export interface NotificationListRequest {
 }
 
 /**
- * One list/detail-embedded notification row. `actionCount` is always 0 on
- * `ListNotifications` rows (the store's list query does not load per-row
- * actions) and the real count on `GetNotification`'s detail row.
+ * One list/detail-embedded notification row.
+ *
+ * `kind` names the specific event (`download.run_stopped_early`), where
+ * `source` names the bounded context that raised it (`download`). It is
+ * optional because records written before the column existed carry none, and
+ * an absent kind must render as absent rather than as an empty labelled row.
+ *
+ * `rowCount` and `subjects` are what let the master list say WHICH things a
+ * notification is about instead of only how many -- the argument the
+ * `Anatomy.dc.html` artboard opens with. `subjects` is deliberately a bounded
+ * excerpt of the detail rows' names, not the whole list: a run can touch fifty
+ * anime, and a list row that carries all of them is a log entry.
  */
 export interface NotificationRow {
   readonly id: number;
@@ -27,10 +36,13 @@ export interface NotificationRow {
   readonly body: string;
   readonly level: string;
   readonly source: string;
+  readonly kind?: string;
   readonly correlationId?: string;
   readonly readAtMs?: number;
   readonly archivedAtMs?: number;
   readonly actionCount: number;
+  readonly rowCount?: number;
+  readonly subjects?: readonly string[];
 }
 
 /**

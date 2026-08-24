@@ -73,3 +73,51 @@ export interface UseNotificationActionResult {
   readonly refusalMessage?: string;
   readonly status: NotificationActionUIStatus;
 }
+
+/**
+ * One labelled value of the pane's metadata footer (`Kind`, `Correlation
+ * ID`). Built by `buildNotificationMetaEntries`, which drops an absent field
+ * outright rather than emitting an entry with an empty value — an absent
+ * value must render as absent, never as an empty labelled row.
+ */
+export interface NotificationDetailMetaEntry {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** Props accepted by the metadata footer block. An empty `entries` renders no block at all. */
+export interface NotificationDetailMetaProps {
+  readonly entries: readonly NotificationDetailMetaEntry[];
+}
+
+/**
+ * Props accepted by the pane's footer action area. `actions` are already
+ * narrowed to the record's whole-notification level (via
+ * `resolveNotificationActions`); the row-level ones render inside their own
+ * rows instead. `source` is forwarded verbatim, exactly as
+ * `NotificationDetailRowsProps` forwards it.
+ */
+export interface NotificationDetailFooterProps {
+  readonly actions: readonly NotificationAction[];
+  readonly notificationId: number;
+  readonly source?: NotificationCenterSource;
+}
+
+/**
+ * Props accepted by one action button, whether it sits in a row or in the
+ * footer. `variant` is the only thing that differs between the two: the
+ * artboard fills the footer's leading action and leaves a row's action
+ * outlined.
+ */
+export interface NotificationDetailActionButtonProps {
+  readonly action: NotificationAction;
+  readonly notificationId: number;
+  readonly source?: NotificationCenterSource;
+  readonly variant: 'primary' | 'secondary';
+}
+
+/** Return value of `useNotificationArchive`. */
+export interface UseNotificationArchiveResult {
+  readonly archive: () => void;
+  readonly isDisabled: boolean;
+}

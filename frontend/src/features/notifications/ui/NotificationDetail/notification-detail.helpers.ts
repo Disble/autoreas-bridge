@@ -1,7 +1,15 @@
-import type { NotificationAction, NotificationDetailRow } from '../../../../shared/contracts/notification-center.types';
+import type { NotificationAction, NotificationDetail, NotificationDetailRow } from '../../../../shared/contracts/notification-center.types';
+import { formatRelativeTimeAgo } from '../../../../shared/datetime/datetime.helpers';
+import { formatNotificationWhen } from '../NotificationTable/notification-table.helpers';
 import { LEVEL_TO_SEVERITY } from '../NotificationToasts/notification-resolver.constants';
-import { REFUSAL_REASON_MESSAGES, SEVERITY_TO_CHIP_COLOR, UNKNOWN_REFUSAL_MESSAGE } from './notification-detail.constants';
-import type { NotificationActionUIStatus } from './notification-detail.types';
+import {
+  NOTIFICATION_DETAIL_CORRELATION_LABEL,
+  NOTIFICATION_DETAIL_KIND_LABEL,
+  REFUSAL_REASON_MESSAGES,
+  SEVERITY_TO_CHIP_COLOR,
+  UNKNOWN_REFUSAL_MESSAGE,
+} from './notification-detail.constants';
+import type { NotificationActionUIStatus, NotificationDetailMetaEntry } from './notification-detail.types';
 
 /**
  * True when a row is the bounded, uneventful cohort collapsed into a single
@@ -71,4 +79,54 @@ export function resolveRefusalMessage(reason: string | undefined): string | unde
     return undefined;
   }
   return REFUSAL_REASON_MESSAGES[reason] ?? UNKNOWN_REFUSAL_MESSAGE;
+}
+
+/**
+ * Narrows the detail's flat `actions` list to the ones about the WHOLE
+ * notification — the level `Intents.dc.html` draws as the record's own
+ * `"actions"`, beside each row's. On the wire both levels arrive in one
+ * array, and `rowRef` is what tells them apart, so an action carrying none
+ * belongs to the record itself.
+ *
+ * This is the counterpart of {@link resolveRowActions}: together the two
+ * account for every action a record carries. Resolving only from
+ * `row.actionIds`, as the pane used to, fetched a whole-notification action
+ * and dropped it without a trace — the same silent-drop defect this change
+ * already fixed once in the toast layer.
+ */
+export function resolveNotificationActions(actions: readonly NotificationAction[]): readonly NotificationAction[] {
+  return actions.filter((action) => action.rowRef === undefined || action.rowRef === '');
+}
+
+/**
+ * Formats a record's creation time at BOTH scales the artboard shows —
+ * `2026-08-24 14:32:11 · 5m ago`. The absolute half says when it happened
+ * and the relative half says whether it still matters; either alone leaves
+ * the reader doing arithmetic. `now` is overridable so the label is
+ * deterministic under test.
+ */
+export function formatDetailWhenLabel(createdAtMs: number, now: number = Date.now()): string {
+  return `${formatNotificationWhen(createdAtMs)} · ${formatRelativeTimeAgo(createdAtMs, now)}`;
+}
+
+/**
+ * Builds the pane's metadata footer: the `Kind` and `Correlation ID` rows the
+ * artboard foots it with, in that order. Both fields are optional on the
+ * wire — records written before either column existed carry neither — and an
+ * absent one is dropped outright rather than rendered as an empty labelled
+ * row. An empty string counts as absent, since that is what an omitted Go
+ * string field decodes to when `omitempty` is not in play.
+ */
+export function buildNotificationMetaEntries(detail: Readonly<NotificationDetail>): readonly NotificationDetailMetaEntry[] {
+  const entries: NotificationDetailMetaEntry[] = [];
+
+  if (detail.kind !== undefined && detail.kind !== '') {
+    entries.push({ label: NOTIFICATION_DETAIL_KIND_LABEL, value: detail.kind });
+  }
+
+  if (detail.correlationId !== undefined && detail.correlationId !== '') {
+    entries.push({ label: NOTIFICATION_DETAIL_CORRELATION_LABEL, value: detail.correlationId });
+  }
+
+  return entries;
 }

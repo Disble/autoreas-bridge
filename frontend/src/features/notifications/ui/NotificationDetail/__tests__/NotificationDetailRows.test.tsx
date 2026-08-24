@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationAction, NotificationDetailRow as NotificationDetailRowDTO } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationDetailRows } from '../NotificationDetailRows';
@@ -41,7 +42,11 @@ describe('NotificationDetailRows', () => {
   it('renders a collapsed row inline among ordinary rows, still as a single block', () => {
     const rows = [buildRow({ name: 'Ordinary' }), buildRow({ collapsedCount: 6, detail: '6 more downloaded without incident', refId: 'collapsed-1' })];
 
-    render(<NotificationDetailRows actions={[]} notificationId={1} rows={rows} />);
+    render(
+      <MemoryRouter>
+        <NotificationDetailRows actions={[]} notificationId={1} rows={rows} />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('Ordinary')).toBeInTheDocument();
     expect(screen.getByText('6 more downloaded without incident')).toBeInTheDocument();

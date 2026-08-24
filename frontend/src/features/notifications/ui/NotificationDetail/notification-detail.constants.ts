@@ -45,3 +45,52 @@ export const NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL = 'Collapsed rows';
  * text-based query.
  */
 export const NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID = 'notification-detail-row-refusal-message';
+
+/**
+ * Label of the metadata footer's kind row (design-canvas `Main.dc.html`).
+ * `kind` names the specific event (`download.run_stopped_early`) where
+ * `source` names the bounded context that raised it (`download`).
+ */
+export const NOTIFICATION_DETAIL_KIND_LABEL = 'Kind';
+
+/**
+ * Label of the metadata footer's correlation row. The correlation id is the
+ * only field tying a notification back to the run that produced it, which is
+ * why the artboard puts it on screen rather than leaving it to the log.
+ */
+export const NOTIFICATION_DETAIL_CORRELATION_LABEL = 'Correlation ID';
+
+/**
+ * `data-testid` for the metadata footer block. Presence of the block itself
+ * is what a test needs: an empty `<dl>` satisfies every text-absence
+ * assertion too, and an empty labelled area is exactly the wrong fix for a
+ * record that identifies itself by neither field.
+ */
+export const NOTIFICATION_DETAIL_META_TESTID = 'notification-detail-meta';
+
+/**
+ * `data-testid` for the pane's footer action area, for the same
+ * presence-not-text reason as {@link NOTIFICATION_DETAIL_META_TESTID}: a
+ * record with nothing to do must not grow an empty toolbar.
+ */
+export const NOTIFICATION_DETAIL_FOOTER_TESTID = 'notification-detail-footer';
+
+/** Label of the footer's archive button, the one lifecycle verb the pane itself carries out. */
+export const NOTIFICATION_DETAIL_ARCHIVE_LABEL = 'Archive';
+
+/**
+ * Copy of the collapsed summary line's way out (design-canvas
+ * `Main.dc.html`/`Anatomy.dc.html`). The collapsed cohort is the part of a
+ * run the pane deliberately does not enumerate, so the line has to say where
+ * the rest of it can be read.
+ */
+export const NOTIFICATION_DETAIL_SHOW_ALL_LABEL = 'show all in Downloads';
+
+/**
+ * Route the collapsed summary line navigates to. Not derived from the
+ * record's `source`, because `internal/download/service_notification_rows.go`
+ * is the only writer of `CollapsedCount` in the whole backend — a collapsed
+ * row is a download run's, and no other producer can currently reach this
+ * line to be sent somewhere wrong.
+ */
+export const NOTIFICATION_DETAIL_SHOW_ALL_ROUTE = '/downloads';

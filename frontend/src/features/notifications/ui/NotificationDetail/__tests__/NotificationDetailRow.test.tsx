@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { NotificationAction, NotificationDetailRow as NotificationDetailRowDTO } from '../../../../../shared/contracts/notification-center.types';
 import { NotificationDetailRow } from '../NotificationDetailRow';
@@ -57,13 +58,39 @@ describe('NotificationDetailRow', () => {
     expect(screen.queryByTestId('notification-detail-row-refusal-message')).not.toBeInTheDocument();
   });
 
+  // Wrapped in a router because the collapsed line now carries the artboard's
+  // "show all in Downloads" way out of it, and that link navigates for real.
   it('renders a collapsed row as exactly ONE summary line, never one row per collapsed item', () => {
-    render(<NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ collapsedCount: 7, detail: '7 other anime finished without incident' })} />);
+    render(
+      <MemoryRouter>
+        <NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ collapsedCount: 7, detail: '7 other anime finished without incident' })} />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText('7 other anime finished without incident')).toBeInTheDocument();
     expect(screen.queryAllByRole('img')).toHaveLength(0);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('Stopped')).not.toBeInTheDocument();
+  });
+
+  it('carries the way out of a collapsed line, which the artboard draws beside its summary sentence', () => {
+    render(
+      <MemoryRouter>
+        <NotificationDetailRow actions={[]} notificationId={1} row={buildRow({ collapsedCount: 7, detail: '7 other anime finished without incident' })} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'show all in Downloads' })).toBeInTheDocument();
+  });
+
+  it('carries no such link on an ordinary row, which stands for one thing and already names it', () => {
+    render(
+      <MemoryRouter>
+        <NotificationDetailRow actions={[]} notificationId={1} row={buildRow()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('falls back to the placeholder cover art when no cover entry resolved, and never renders a real <img>', () => {
