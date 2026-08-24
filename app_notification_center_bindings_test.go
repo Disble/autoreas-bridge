@@ -74,6 +74,37 @@ func TestListNotificationsMapsStoreValuesToContractDTOs(t *testing.T) {
 	}
 }
 
+// TestListNotificationsAppliesSearchAndSourceFilters asserts toListQuery
+// really forwards Search/Sources/Levels through to the store (Slice 3b):
+// only the record matching BOTH the search text and the requested source is
+// returned, proving the wiring end to end rather than only at the store's
+// own unit tests.
+func TestListNotificationsAppliesSearchAndSourceFilters(t *testing.T) {
+	t.Parallel()
+	app := notificationCenterAppTestDB(t)
+	ctx := app.notificationCenterCtx()
+
+	matchID, err := app.notificationCenterStore.InsertRecord(ctx, center.Record{CreatedAtMS: 3000, Title: "Download finished", Body: "b", Level: "success", Source: "download"})
+	if err != nil {
+		t.Fatalf("insert matching record: %v", err)
+	}
+	if _, err := app.notificationCenterStore.InsertRecord(ctx, center.Record{CreatedAtMS: 2000, Title: "Download finished", Body: "b", Level: "success", Source: "season"}); err != nil {
+		t.Fatalf("insert wrong-source record: %v", err)
+	}
+	if _, err := app.notificationCenterStore.InsertRecord(ctx, center.Record{CreatedAtMS: 1000, Title: "Season sync", Body: "b", Level: "success", Source: "download"}); err != nil {
+		t.Fatalf("insert wrong-title record: %v", err)
+	}
+
+	page := app.ListNotifications(contracts.NotificationListRequest{Search: "Download", Sources: []string{"download"}, Limit: 10})
+
+	if page.Degraded {
+		t.Fatal("expected a populated filtered page not to be degraded")
+	}
+	if len(page.Items) != 1 || page.Items[0].ID != matchID {
+		t.Fatalf("expected exactly the record matching both the search text and the source filter, got %#v", page.Items)
+	}
+}
+
 // TestGetNotificationFoundMapsRowsAndActions asserts GetNotification maps a
 // persisted record's detail rows and actions into the wire DTO shape,
 // including the real ActionCount (Store.Record loads full actions, unlike

@@ -13,7 +13,9 @@ export const NOTIFICATION_TABLE_DEFAULT_SORT: Table['ContentProps']['sortDescrip
   direction: 'descending',
 };
 
-/** "Source" column width, part of the row grid `minmax(0,1fr) 100px 84px` (design.md §9.2; selection is Slice 3b's leading 40px). */
+/** Leading selection-checkbox column width: the `40px` design.md §9.2's row grid reserves. */
+export const NOTIFICATION_TABLE_SELECTION_COLUMN_WIDTH = 'w-10';
+/** "Source" column width, part of the row grid `40px minmax(0,1fr) 100px 84px` (design.md §9.2). */
 export const NOTIFICATION_TABLE_SOURCE_COLUMN_WIDTH = 'w-[100px]';
 /** "When" column width, part of the same row grid. */
 export const NOTIFICATION_TABLE_WHEN_COLUMN_WIDTH = 'w-[84px]';

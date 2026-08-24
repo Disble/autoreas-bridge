@@ -13,6 +13,8 @@ export interface NotificationCenterSyncInput {
   readonly source: NotificationCenterSource;
   readonly view: NotificationCenterSyncView;
   readonly unreadOnly: boolean;
+  /** Debounced free-text search (Slice 3b's filter bar); defaults to no filter for callers that predate it. */
+  readonly search?: string;
 }
 
 /** The accumulated master-list state `useNotificationCenterSync` exposes. */
@@ -23,18 +25,20 @@ export interface NotificationCenterSyncResult {
   readonly totalEverRecorded: number;
   readonly degraded: boolean;
   readonly onLoadMore: () => void;
+  /** Re-fetches the first page from scratch -- used after a bulk mutation (mark read / archive) commits. */
+  readonly refetch: () => void;
 }
 
 /**
  * Owns the notification master list's keyset-cursor pagination: the initial
- * page fetch, its reload when the view/unread filter changes, and the
- * `Table.LoadMore` near-bottom trigger -- guarded so a second near-bottom
+ * page fetch, its reload when the view/unread/search filters change, and
+ * the `Table.LoadMore` near-bottom trigger -- guarded so a second near-bottom
  * signal while a fetch is already in flight, or one that arrives after the
  * backend reported no further cursor, never issues a second request
  * (design.md §9.2, task 3a.2.4).
  */
 export function useNotificationCenterSync(input: Readonly<NotificationCenterSyncInput>): NotificationCenterSyncResult {
-  const { source, view, unreadOnly } = input;
+  const { source, view, unreadOnly, search = '' } = input;
 
   // 1. Refs
   const isFetchingRef = useRef(false);
@@ -57,7 +61,7 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
         .listNotifications({
           view,
           unreadOnly,
-          search: '',
+          search,
           sources: [],
           levels: [],
           cursor,
@@ -73,7 +77,7 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
           isFetchingRef.current = false;
         });
     },
-    [source, unreadOnly, view],
+    [source, unreadOnly, view, search],
   );
 
   const onLoadMore = useCallback(() => {
@@ -83,10 +87,14 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
     void fetchPage(cursorRef.current, 'append');
   }, [fetchPage, hasNextPage]);
 
+  const refetch = useCallback(() => {
+    void fetchPage('', 'replace');
+  }, [fetchPage]);
+
   // 7. Effects
   useEffect(() => {
     void fetchPage('', 'replace');
   }, [fetchPage]);
 
-  return { degraded, hasNextPage, isLoading, onLoadMore, rows, totalEverRecorded };
+  return { degraded, hasNextPage, isLoading, onLoadMore, refetch, rows, totalEverRecorded };
 }

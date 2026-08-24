@@ -18,8 +18,10 @@ describe('NotificationTable', () => {
         hasNextPage={false}
         isLoading={false}
         onLoadMore={vi.fn()}
+        onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
+        selectedKeys={new Set()}
       />,
     );
 
@@ -34,8 +36,10 @@ describe('NotificationTable', () => {
         hasNextPage={false}
         isLoading={false}
         onLoadMore={vi.fn()}
+        onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
+        selectedKeys={new Set()}
       />,
     );
 
@@ -49,11 +53,72 @@ describe('NotificationTable', () => {
         hasNextPage={false}
         isLoading={false}
         onLoadMore={vi.fn()}
+        onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Nothing here yet</span>}
         rows={[]}
+        selectedKeys={new Set()}
       />,
     );
 
     expect(screen.getByText('Nothing here yet')).toBeInTheDocument();
+  });
+
+  it('renders one selection checkbox per data row plus a "select all" checkbox in the header (task 3b.1.5)', () => {
+    render(
+      <NotificationTable
+        hasNextPage={false}
+        isLoading={false}
+        onLoadMore={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={ROWS}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    // 2 data rows + 1 header "select all" checkbox.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+  });
+
+  it('marks a row selected when its id is present in selectedKeys', () => {
+    render(
+      <NotificationTable
+        hasNextPage={false}
+        isLoading={false}
+        onLoadMore={vi.fn()}
+        onSelectionChange={vi.fn()}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={ROWS}
+        selectedKeys={new Set([1])}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    // The first checkbox is the header "select all"; row order after that
+    // follows ROWS' order (id 1, then id 2).
+    expect(checkboxes[1]?.checked).toBe(true);
+    expect(checkboxes[2]?.checked).toBe(false);
+  });
+
+  it('forwards a row toggle to onSelectionChange', () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <NotificationTable
+        hasNextPage={false}
+        isLoading={false}
+        onLoadMore={vi.fn()}
+        onSelectionChange={onSelectionChange}
+        renderEmptyState={() => <span>Empty</span>}
+        rows={ROWS}
+        selectedKeys={new Set()}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    checkboxes[1]?.click();
+
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange.mock.calls[0]?.[0]).toBeInstanceOf(Set);
+    expect([...(onSelectionChange.mock.calls[0]?.[0] as Set<number>)]).toEqual([1]);
   });
 });

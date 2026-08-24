@@ -121,11 +121,9 @@ func (a *App) notificationCenterCtx() context.Context {
 }
 
 // toListQuery maps a NotificationListRequest into the store's ListQuery.
-// Search, Sources, and Levels are deliberately NOT wired: Slice 2a's
-// sqlite_store_list.go leaves ListQuery.Search/Sources/Levels unimplemented
-// (no RED test anywhere in Slice 2 exercises them), and mapping them here
-// would silently promise filtering the store does not perform. The filter
-// bar slice wires them.
+// Search, Sources, and Levels are forwarded as-is (Slice 3b): the store's
+// buildListQuery now honors all three, ANDed together ahead of the keyset
+// cursor predicate (internal/notification/center/sqlite_store_list.go).
 func toListQuery(request contracts.NotificationListRequest) center.ListQuery {
 	view := center.ViewActive
 	if request.View == string(center.ViewArchived) {
@@ -134,6 +132,9 @@ func toListQuery(request contracts.NotificationListRequest) center.ListQuery {
 	return center.ListQuery{
 		View:       view,
 		UnreadOnly: request.UnreadOnly,
+		Search:     request.Search,
+		Sources:    request.Sources,
+		Levels:     request.Levels,
 		Cursor:     request.Cursor,
 		Limit:      request.Limit,
 	}

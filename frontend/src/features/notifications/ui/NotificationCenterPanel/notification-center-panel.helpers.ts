@@ -3,9 +3,10 @@ import type { NotificationCenterPanelEmptyStateInput } from './notification-cent
 
 /**
  * Derives `NotificationEmptyState`'s condition tuple from the sync hook's
- * page-level fields. `hasFilters` is hardcoded `false`: no search or
- * source/level filters are wired into the panel until Slice 3b adds the
- * filter bar and selection toolbar.
+ * page-level fields plus whether a search is currently applied. `hasFilters`
+ * mirrors `hasSearch`: Sources/Levels are wired into the store (Slice 3b) but
+ * have no UI control yet, so they can never independently narrow a query
+ * this panel builds.
  */
 export function toNotificationEmptyStateConditions(
   input: Readonly<NotificationCenterPanelEmptyStateInput>,
@@ -14,7 +15,7 @@ export function toNotificationEmptyStateConditions(
     totalEverRecorded: input.totalEverRecorded,
     view: input.view,
     unreadOnly: input.unreadOnly,
-    hasFilters: false,
+    hasFilters: input.hasSearch,
     serviceAvailable: !input.degraded,
   };
 }

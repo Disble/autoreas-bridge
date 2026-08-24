@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -81,9 +82,10 @@ func clampListLimit(limit int) int {
 }
 
 // buildListQuery assembles the newest-first paginated query and its bind
-// arguments, composing the view filter, the optional unread-only filter, and
-// the keyset cursor as a conjunction. It requests limit+1 rows so the caller
-// can detect a further page without a second round trip.
+// arguments, composing the view filter, the optional unread-only filter, the
+// search/source/level filters (Slice 3b), and the keyset cursor as a
+// conjunction. It requests limit+1 rows so the caller can detect a further
+// page without a second round trip.
 //
 // The view filter is deliberately the FIRST WHERE condition: it matches
 // idx_notification_records_active's leading column
@@ -91,7 +93,11 @@ func clampListLimit(limit int) int {
 // -- every list query's common case -- resolves through that index for both
 // the filter and the ORDER BY, never a separate sort step (design §4's index
 // justification: "_active serves the active/archived split that every
-// default list query filters on").
+// default list query filters on"). Search/Sources/Levels sit AFTER the
+// existing view/unread-only conditions but still BEFORE the keyset cursor
+// predicate, so paging keeps working over the narrowed result set exactly
+// like the unfiltered path (proven by
+// TestListFilteredKeysetPageNeverRepeatsOrSkips).
 func buildListQuery(query ListQuery, limit int) (string, []any, error) {
 	sqlQuery := "SELECT " + notificationRecordSelectColumns + " FROM notification_records"
 	var conditions []string
@@ -105,6 +111,21 @@ func buildListQuery(query ListQuery, limit int) (string, []any, error) {
 	if query.UnreadOnly {
 		conditions = append(conditions, "read_at_ms IS NULL")
 	}
+	if trimmedSearch := strings.TrimSpace(query.Search); trimmedSearch != "" {
+		likePattern := "%" + escapeLikePattern(trimmedSearch) + "%"
+		conditions = append(conditions, "(title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\')")
+		args = append(args, likePattern, likePattern)
+	}
+	if len(query.Sources) > 0 {
+		condition, sourceArgs := stringSetCondition("source", query.Sources)
+		conditions = append(conditions, condition)
+		args = append(args, sourceArgs...)
+	}
+	if len(query.Levels) > 0 {
+		condition, levelArgs := stringSetCondition("level", query.Levels)
+		conditions = append(conditions, condition)
+		args = append(args, levelArgs...)
+	}
 	if query.Cursor != "" {
 		cursor, decodeErr := decodeRecordCursor(query.Cursor)
 		if decodeErr != nil {
@@ -117,6 +138,33 @@ func buildListQuery(query ListQuery, limit int) (string, []any, error) {
 	sqlQuery += " WHERE " + joinListConditions(conditions)
 	sqlQuery += " ORDER BY created_at_ms DESC, id DESC LIMIT ?"
 	return sqlQuery, append(args, limit+1), nil
+}
+
+// escapeLikePattern escapes SQLite LIKE metacharacters -- '%', '_', and the
+// escape character itself -- in a raw user-typed substring, so
+// buildListQuery's search filter matches the literal text the user typed
+// (e.g. a search for "100%" matches only that literal substring) rather than
+// treating '%'/'_' as wildcards. Paired with the query's explicit
+// ESCAPE '\' clause: SQLite's LIKE has no escape character by default.
+func escapeLikePattern(raw string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+	return replacer.Replace(raw)
+}
+
+// stringSetCondition builds a "column IN (?, ?, ...)" WHERE fragment and its
+// bind args for a non-empty set of string values, mirroring
+// sqlite_store_lifecycle.go's idPlaceholders shape. Callers MUST only invoke
+// this for a non-empty slice: an empty Sources/Levels filter means "no
+// filter requested," never "match nothing," and that guard lives in
+// buildListQuery, one level up, not here.
+func stringSetCondition(column string, values []string) (string, []any) {
+	placeholders := make([]string, len(values))
+	args := make([]any, len(values))
+	for i, value := range values {
+		placeholders[i] = "?"
+		args[i] = value
+	}
+	return column + " IN (" + strings.Join(placeholders, ",") + ")", args
 }
 
 // joinListConditions ANDs a set of already-parenthesized-as-needed WHERE

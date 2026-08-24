@@ -2,10 +2,11 @@ package contracts
 
 // NotificationListRequest is the ListNotifications query DTO (design.md §10):
 // a keyset page request plus the archive/read filters and the search/source/
-// level filters the filter bar will wire in a later slice. Search, Sources,
-// and Levels are accepted on the wire today but NOT yet honored by the store
-// (internal/notification/center's ListQuery leaves them unimplemented until
-// the filter bar slice defines their matching semantics).
+// level filters the filter bar wires (Slice 3b). Search matches title OR
+// body, case-insensitively, as an escaped substring; Sources and Levels each
+// filter to an IN (...) set. An empty Search/Sources/Levels means that
+// filter is simply not applied -- never "match nothing." All three combine
+// with the archive/read filters as a conjunction (AND).
 type NotificationListRequest struct {
 	View       string   `json:"view"` // "active" | "archived"
 	UnreadOnly bool     `json:"unreadOnly"`

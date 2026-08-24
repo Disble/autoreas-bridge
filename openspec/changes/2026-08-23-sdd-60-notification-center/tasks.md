@@ -706,30 +706,105 @@ filtering on top.
 
 ### 3b.1 Implementation
 
-- [ ] **3b.1.1** [RED] Write
+- [x] **3b.1.1** [RED] Write
   `frontend/src/features/notifications/ui/NotificationSelectionBar/__tests__/NotificationSelectionBar.test.tsx`:
   the bar renders ONLY while `selectedKeys.size > 0`, shows the selected count and bulk actions (mark
   read, archive, clear selection); it disappears once the selection is cleared. Satisfies "A selection
   bar appears only while rows are selected."
-- [ ] **3b.1.2** [GREEN] Implement `NotificationSelectionBar.tsx` +
+- [x] **3b.1.2** [GREEN] Implement `NotificationSelectionBar.tsx` +
   `notification-selection-bar.types.ts` + `use-notification-selection.ts` (added to
   `NotificationCenterPanel/`, per design §9.1's tree — holds `selectedKeys` state and the bulk-action
-  callbacks calling `MarkNotificationsRead`/`ArchiveNotifications`).
-- [ ] **3b.1.3** [RED] Write `use-notification-filters.test.ts`: an app-owned debounce — typed input only
+  callbacks calling `MarkNotificationsRead`/`ArchiveNotifications`). **Extended beyond the task's literal
+  text**, under strict TDD: added `use-notification-selection.test.ts` (7 cases — not named by this task)
+  since the hook has real branching logic (empty-selection no-op, `'all'` resolution, clear-after-mutate)
+  that a component-only test can't reach. Also added a `refetch` callback to `use-notification-center-sync.ts`
+  and wired it as `onMutated`, so a successful mark-read/archive actually refreshes the list instead of
+  leaving it showing stale, already-mutated rows — the task text named only the mutation calls, not the
+  refresh; leaving it out would have made the bulk actions "look like they work" while silently not
+  updating the table, the same failure class the filter-wiring gap below was called out for.
+- [x] **3b.1.3** [RED] Write `use-notification-filters.test.ts`: an app-owned debounce — typed input only
   triggers a query after the debounce window elapses (`SearchField` itself has no built-in debounce).
-- [ ] **3b.1.4** [GREEN] Implement `NotificationFilterBar.tsx` (`SearchField.Root/.Group/.Input
+  Reuses the existing app-wide `shared/hooks/use-debounce.ts` rather than reimplementing debounce logic.
+- [x] **3b.1.4** [GREEN] Implement `NotificationFilterBar.tsx` (`SearchField.Root/.Group/.Input
   /.SearchIcon/.ClearButton` `variant="secondary"` inside a `Card`) + `use-notification-filters.ts` +
-  `notification-filter-bar.types.ts`.
-- [ ] **3b.1.5** [GREEN] Wire `NotificationTable`'s `selectionMode="multiple"` +
+  `notification-filter-bar.types.ts`. **Added** `NotificationFilterBar.test.tsx` (dumb-render smoke test,
+  not named by this task) since 3b.1.3's test only covers the hook, not the component's own value/onChange
+  wiring.
+- [x] **3b.1.5** [GREEN] Wire `NotificationTable`'s `selectionMode="multiple"` +
   `selectedKeys`/`onSelectionChange` + `Checkbox slot="selection"`; wire `NotificationCenterPanel` to
-  compose `NotificationSelectionBar` + `NotificationFilterBar` alongside `NotificationTable`.
+  compose `NotificationSelectionBar` + `NotificationFilterBar` alongside `NotificationTable`. Added 4 new
+  RED tests to `NotificationTable.test.tsx` (checkbox count, selected-row marking, toggle forwarding) —
+  strict TDD, since this task changes the table's public prop contract. Wired `useNotificationCenterPanel`
+  to also forward the filter bar's debounced search into `useNotificationCenterSync` (extended with an
+  optional `search` input) and derive `NotificationEmptyStateConditions.hasFilters` from it, replacing the
+  hardcoded `false` 3a shipped. Added an integration test in `NotificationCenterPanel.test.tsx` that types
+  into the real search box, advances the debounce, and asserts the "No matches" (`filters-empty`) empty
+  state renders — proving that empty state (built in 3a, unreachable until now) is genuinely reachable.
+
+**3b.1.6 and 3b.1.7 close a design gap found during this slice's apply, not in the original task text.**
+`ListQuery.Search`/`Sources`/`Levels` were accepted by the Go store's `NotificationListRequest` wire DTO
+but never wired into `buildListQuery`'s WHERE clause (Slice 2a's `sqlite_store_list.go` and Slice 2b's
+`app_notification_center.go` both left them deliberately unimplemented, flagged in each slice's own
+completion notes as "the filter bar slice wires them"). Left as-is, 3b's filter bar would render a working
+-looking search box that silently filtered nothing — the exact class of failure this feature exists to
+prevent. Matching semantics (decided here, since design left them undefined): `Search` is a
+case-insensitive substring match against title OR body, with `%`/`_`/the escape character escaped via an
+explicit `ESCAPE` clause so literal wildcard characters in user input never act as SQL wildcards; empty or
+whitespace-only search is a no-op. `Sources`/`Levels` are `IN (...)` filters; an empty/nil slice means "no
+filter," never "match nothing." All three combine with AND and sit ahead of the keyset cursor predicate in
+the WHERE clause, preserving the paging guarantee `TestListKeysetPageNeverRepeatsOrSkips` already proves
+for the unfiltered path.
+
+- [x] **3b.1.6** [RED] Write `internal/notification/center/sqlite_store_list_filters_test.go`: search
+  (title/body, case-insensitive, LIKE-metacharacter-escaped, empty-is-no-op), sources/levels (`IN (...)`,
+  empty-slice-matches-everything), an AND-conjunction test, and
+  `TestListFilteredKeysetPageNeverRepeatsOrSkips` (the filtered equivalent of Slice 2a's own keyset-paging
+  proof, seeded with a mixed-source/mixed-timestamp set so a filter narrowing the result set still walks
+  every matching page without repeating or skipping a row). Also extended
+  `app_notification_center_bindings_test.go` with `TestListNotificationsAppliesSearchAndSourceFilters`,
+  proving `toListQuery` really forwards Search/Sources/Levels end to end, not only at the store's own unit
+  level.
+- [x] **3b.1.7** [GREEN] Modify `internal/notification/center/sqlite_store_list.go`'s `buildListQuery`:
+  add the Search/Sources/Levels conditions (new `escapeLikePattern` and `stringSetCondition` helpers) ahead
+  of the cursor predicate. Modify `app_notification_center.go`'s `toListQuery` to forward
+  `Search`/`Sources`/`Levels` from the wire DTO instead of dropping them. Updated the stale "not yet
+  honored" comments on `internal/api/contracts/notification_center.go`'s `NotificationListRequest` and
+  `toListQuery` to describe the real, now-wired behavior.
 
 ### 3b.2 Testing & Verification
 
-- [ ] **3b.2.1** [MUTATE] Stryker automatic via `lefthook.yml` on staged 3b files; confirm it ran.
-- [ ] **3b.2.2** [GATE] `git commit` (full pre-commit gate).
+- [x] **3b.2.1** [MUTATE] Frontend: Stryker runs automatically via `lefthook.yml`'s `test:mutation:staged`
+  at commit time — deferred to the orchestrator's commit step per this slice's instructions (not run here).
+  Go: `go run ./tools/mutationstaged` completed normally (~111s, exit 0, passed the mutation-score
+  threshold) over the staged filter-wiring diff. Additionally ran the 3 mandatory hand-mutation targets
+  named for this slice via direct `Edit`, each confirmed applied via `git diff`, each reverted via
+  `git checkout --` with `git diff --quiet` confirming a clean revert:
+  - LIKE escaping: dropped the `"%", `\%`` pair from `escapeLikePattern`'s replacer — KILLED by
+    `TestListSearchEscapesLikeMetacharacters/percent` (the wildcard-title row started matching too).
+  - Sources empty-slice guard: `len(query.Sources) > 0` → `>= 0` — KILLED by
+    `TestListSourcesEmptySliceMatchesEverything` (an empty filter turned into `IN ()`, dropping the
+    expected 2 rows to 0).
+  - Filtered keyset boundary: removed the Sources/Levels condition block entirely (proving the filter's
+    placement/application, not just its guard, is covered) — KILLED by
+    `TestListFilteredKeysetPageNeverRepeatsOrSkips` (7 rows visited instead of the expected 5
+    download-sourced ones).
 
-**Rollback:** `git revert`; selection bar and search disappear; 3a's base list keeps working unaffected.
+  No survivors among the mandatory targets. Full suite (`go test ./internal/notification/... .`),
+  `gofmt -l`, `go vet`, and `go run ./tools/checkgofilesize` all re-confirmed clean after every revert.
+- [ ] **3b.2.2** [GATE] `git commit` (full pre-commit gate). **Deliberately left undone**: CLAUDE.md #3/#4
+  reserve final verification and the commit for the orchestrating agent, and this slice's instructions
+  were explicit not to commit. Changed-line count for this batch, measured via `git diff --stat`: Go 5
+  files changed, 386 insertions / 13 deletions (399 changed lines, of which 292 are the new
+  `sqlite_store_list_filters_test.go`); frontend 23 files changed, 810 insertions / 44 deletions (854
+  changed lines, 6 of those files new). **Combined ~1 253 changed lines, well over both this slice's own
+  200–300 forecast and the session's 800-line review budget** — flagged explicitly rather than silently
+  absorbed. The overrun is almost entirely the mandatory backend gap closure (3b.1.6/3b.1.7, ~400 Go
+  lines, most of it test code) plus the selection-refresh wiring (task 3b.1.2's deviation note) that a
+  narrower reading of the task text would have skipped. The orchestrator may want to weigh this against
+  `proposal.md`/`design.md`'s chained-PR strategy before the gate step.
+
+**Rollback:** `git revert`; selection bar, search box, and the backend filter wiring all disappear; 3a's
+base list keeps working unaffected.
 
 ---
 

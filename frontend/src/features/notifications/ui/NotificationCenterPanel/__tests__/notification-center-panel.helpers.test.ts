@@ -8,6 +8,7 @@ describe('toNotificationEmptyStateConditions', () => {
       view: 'active',
       unreadOnly: false,
       degraded: false,
+      hasSearch: false,
     });
 
     expect(conditions).toEqual({
@@ -25,17 +26,31 @@ describe('toNotificationEmptyStateConditions', () => {
       view: 'archived',
       unreadOnly: true,
       degraded: true,
+      hasSearch: false,
     });
 
     expect(conditions.serviceAvailable).toBe(false);
   });
 
-  it('never reports filters, since no search or source/level filters are wired until Slice 3b', () => {
+  it('reports hasFilters true once a non-empty search is applied (Slice 3b)', () => {
     const conditions = toNotificationEmptyStateConditions({
       totalEverRecorded: 5,
       view: 'active',
       unreadOnly: false,
       degraded: false,
+      hasSearch: true,
+    });
+
+    expect(conditions.hasFilters).toBe(true);
+  });
+
+  it('reports hasFilters false when no search is applied', () => {
+    const conditions = toNotificationEmptyStateConditions({
+      totalEverRecorded: 5,
+      view: 'active',
+      unreadOnly: false,
+      degraded: false,
+      hasSearch: false,
     });
 
     expect(conditions.hasFilters).toBe(false);

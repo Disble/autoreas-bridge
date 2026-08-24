@@ -156,4 +156,50 @@ describe('useNotificationCenterSync', () => {
     await waitFor(() => expect(result.current.rows).toEqual([expect.objectContaining({ id: 9 })]));
     expect(listNotifications).toHaveBeenCalledTimes(2);
   });
+
+  it('forwards the search filter to every listNotifications call, and re-fetches from scratch when it changes', async () => {
+    const listNotifications = vi.fn().mockResolvedValue({
+      items: [{ id: 1, createdAtMs: 1000, title: 'A', body: '', level: 'info', source: 'download', actionCount: 0 }],
+      appliedLimit: 25,
+      totalEver: 1,
+      degraded: false,
+    });
+    const source = makeSource(listNotifications);
+
+    const { rerender, result } = renderHook<ReturnType<typeof useNotificationCenterSync>, { search: string }>(
+      ({ search }) => useNotificationCenterSync({ source, unreadOnly: false, view: 'active', search }),
+      { initialProps: { search: '' } },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ search: '' }));
+
+    rerender({ search: 'one piece' });
+
+    await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
+    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'one piece' }));
+  });
+
+  it('refetch re-fetches the first page from scratch', async () => {
+    const page: NotificationPage = {
+      items: [{ id: 1, createdAtMs: 1000, title: 'A', body: '', level: 'info', source: 'download', actionCount: 0 }],
+      appliedLimit: 25,
+      totalEver: 1,
+      degraded: false,
+    };
+    const listNotifications = vi.fn().mockResolvedValue(page);
+    const source = makeSource(listNotifications);
+
+    const { result } = renderHook(() => useNotificationCenterSync({ source, unreadOnly: false, view: 'active' }));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(listNotifications).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => expect(listNotifications).toHaveBeenCalledTimes(2));
+    expect(listNotifications).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: '' }));
+  });
 });

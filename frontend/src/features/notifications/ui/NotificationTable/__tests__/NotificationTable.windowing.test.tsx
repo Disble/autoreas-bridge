@@ -62,8 +62,10 @@ function NotificationTableHarness({ source }: Readonly<{ source: NotificationCen
       hasNextPage={sync.hasNextPage}
       isLoading={sync.isLoading}
       onLoadMore={sync.onLoadMore}
+      onSelectionChange={vi.fn()}
       renderEmptyState={() => <span>Empty</span>}
       rows={sync.rows}
+      selectedKeys={new Set()}
     />
   );
 }
