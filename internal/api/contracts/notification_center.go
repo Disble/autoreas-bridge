@@ -100,3 +100,17 @@ type NotificationMutationResult struct {
 	UnreadCount int  `json:"unreadCount"`
 	Degraded    bool `json:"degraded"`
 }
+
+// NotificationActionResult is the ExecuteNotificationAction result envelope
+// (design.md §5.7's ExecuteResult, mapped onto the wire). Reason is the
+// empty string on success; otherwise one of the four closed refusal
+// reasons. Deliberately carries no Degraded flag: an executor that is not
+// wired yet degrades to the same intent_unregistered refusal an empty
+// IntentRegistry already produces -- a refusal is always a first-class,
+// closed-set outcome, never an out-of-band signal.
+type NotificationActionResult struct {
+	Executed     bool   `json:"executed"`
+	Reason       string `json:"reason,omitempty"`
+	Message      string `json:"message,omitempty"`
+	ExecutedAtMs int64  `json:"executedAtMs,omitempty"`
+}

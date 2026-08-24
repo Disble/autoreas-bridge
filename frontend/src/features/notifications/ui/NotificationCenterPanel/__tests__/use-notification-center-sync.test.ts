@@ -22,6 +22,7 @@ function makeSource(listNotifications: NotificationCenterSource['listNotificatio
     markRead: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
+    executeAction: vi.fn(),
   };
 }
 

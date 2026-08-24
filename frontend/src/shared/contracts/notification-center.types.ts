@@ -2,8 +2,6 @@
  * Frontend mirror of `internal/api/contracts/notification_center.go`'s DTOs
  * (design.md §10), following `capture.types.ts`'s shape. Field names follow
  * the Go structs' JSON tags (camelCase); every property is `readonly`.
- * `NotificationActionResult` is deferred to Slice 5, where the PendingIntent
- * action-execution binding lands.
  */
 
 /** ListNotifications query DTO: a keyset page request plus the view/read filters. */
@@ -98,4 +96,20 @@ export interface NotificationMutationResult {
   readonly affected: number;
   readonly unreadCount: number;
   readonly degraded: boolean;
+}
+
+/**
+ * The `ExecuteNotificationAction` result envelope (design.md §5.7's
+ * `ExecuteResult`, mapped onto the wire). `reason` is absent on success;
+ * otherwise one of the four closed refusal reasons. Deliberately carries no
+ * `degraded` flag: an executor that is not wired yet degrades to the same
+ * `intent_unregistered` refusal an empty `IntentRegistry` already produces
+ * -- a refusal is always a first-class, closed-set outcome, never an
+ * out-of-band signal.
+ */
+export interface NotificationActionResult {
+  readonly executed: boolean;
+  readonly reason?: string;
+  readonly message?: string;
+  readonly executedAtMs?: number;
 }

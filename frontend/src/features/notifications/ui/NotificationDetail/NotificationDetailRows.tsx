@@ -11,7 +11,7 @@ import { useNotificationDetailCovers } from './use-notification-detail-covers';
  * and each row's cover art via `useNotificationDetailCovers`, then hands
  * both to the dumb `NotificationDetailRow`.
  */
-export function NotificationDetailRows({ actions, rows }: Readonly<NotificationDetailRowsProps>) {
+export function NotificationDetailRows({ actions, notificationId, rows }: Readonly<NotificationDetailRowsProps>) {
   const covers = useNotificationDetailCovers(rows);
 
   return (
@@ -22,7 +22,13 @@ export function NotificationDetailRows({ actions, rows }: Readonly<NotificationD
         // `{refType, refId}` reference the row itself is defined by --
         // never an array index, which would misattribute local hook/DOM
         // state across rows if the backend ever reorders or inserts a row.
-        <NotificationDetailRow actions={resolveRowActions(row, actions)} coverEntry={covers.get(row.refId)} key={`${row.refType}-${row.refId}`} row={row} />
+        <NotificationDetailRow
+          actions={resolveRowActions(row, actions)}
+          coverEntry={covers.get(row.refId)}
+          key={`${row.refType}-${row.refId}`}
+          notificationId={notificationId}
+          row={row}
+        />
       ))}
     </div>
   );

@@ -1,29 +1,35 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { NotificationAction } from '../../../../shared/contracts/notification-center.types';
+import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
+import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import { resolveRefusalMessage, resolveServerActionStatus } from './notification-detail.helpers';
 import type { NotificationActionUIStatus, UseNotificationActionResult } from './notification-detail.types';
 
 /** The optimistic local settlement a press enters before it resolves, layered over the action's server-known fields. */
 interface LocalPressState {
   readonly reason: string;
-  readonly status: 'pending' | 'refused';
+  readonly status: 'executed' | 'pending' | 'refused';
 }
 
 /**
- * Drives one detail row's per-action button. Slice 5 is the slice that
- * registers real intents behind a live `ExecuteNotificationAction` Wails
- * binding (Task-Planning Note A) -- that binding does not exist yet, so
- * pressing here is DELIBERATELY inert: the button disables optimistically
- * on press, then settles on `intent_unregistered`, the exact refusal an
- * empty `IntentRegistry` produces server-side today (notification-actions
- * spec, "An empty registry refuses every action, without crashing"),
- * without this hook ever calling a backend. Slice 5 only needs to replace
- * the body of the settle step below with the real binding call; the
- * optimistic-disable / permanently-disabled-once-settled contract this hook
- * exposes does not change.
+ * Drives one detail row's per-action button through the real, Slice-5-wired
+ * `ExecuteNotificationAction` binding (`source.executeAction`, injectable so
+ * tests can supply a fake -- mirrors `use-notification-detail-covers.ts`'s
+ * own injectable-source pattern). A press disables the button optimistically
+ * (`'pending'`), then settles to `'executed'` or `'refused'` once the
+ * backend answers; an in-flight press is guarded by a ref rather than the
+ * `isDisabled` state alone, since two synchronous presses in the same event
+ * can both read the same stale `isDisabled` before React re-renders.
  */
-export function useNotificationAction(action: NotificationAction): UseNotificationActionResult {
-  // 2. State
+export function useNotificationAction(
+  notificationId: number,
+  action: NotificationAction,
+  source: NotificationCenterSource = createNotificationCenterSource(),
+): UseNotificationActionResult {
+  // 3. Refs
+  const isPressInFlightRef = useRef(false);
+
+  // 4. State
   const [localPress, setLocalPress] = useState<LocalPressState | null>(null);
 
   // 5. Derived state
@@ -35,17 +41,20 @@ export function useNotificationAction(action: NotificationAction): UseNotificati
 
   // 6. Callbacks
   const press = useCallback(() => {
-    if (isDisabled) {
+    if (isDisabled || isPressInFlightRef.current) {
       // Notification-actions spec: a refused action's button is permanently
-      // disabled and is never retryable by pressing again.
+      // disabled and is never retryable by pressing again; a press already
+      // in flight must not fire the handler a second time either.
       return;
     }
 
+    isPressInFlightRef.current = true;
     setLocalPress({ reason: '', status: 'pending' });
-    void Promise.resolve().then(() => {
-      setLocalPress({ reason: 'intent_unregistered', status: 'refused' });
+    void source.executeAction(notificationId, action.id).then((result) => {
+      isPressInFlightRef.current = false;
+      setLocalPress(result.executed ? { reason: '', status: 'executed' } : { reason: result.reason ?? '', status: 'refused' });
     });
-  }, [isDisabled]);
+  }, [action.id, isDisabled, notificationId, source]);
 
   return { isDisabled, press, refusalMessage, status };
 }

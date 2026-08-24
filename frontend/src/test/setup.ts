@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { afterEach } from 'vitest';
 
 /** Extends the test-time `Window` with the Wails-injected globals adapters check for. */
 declare global {
@@ -96,6 +97,15 @@ export function triggerIntersectionObservers(isIntersecting = true): void {
         instance.reportIntersection(isIntersecting);
     }
 }
+
+// The registry is static, so it outlives any one test and every test file
+// sharing a worker. A component that unmounts without disconnecting leaves its
+// observer behind, and the next test's trigger then fires a callback belonging
+// to a component that no longer exists -- which is exactly how the load-more
+// windowing test came to pass alone and fail inside the full suite.
+afterEach(() => {
+    IntersectionObserverMock.instances = [];
+});
 
 if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'ResizeObserver', {

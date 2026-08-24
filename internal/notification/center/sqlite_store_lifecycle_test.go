@@ -3,7 +3,9 @@ package center
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"testing"
+	"time"
 )
 
 // notificationRecordIDAt returns the id of the single seeded row at
@@ -218,5 +220,139 @@ func TestTotalEverRecordedCountsAllRowsRegardlessOfView(t *testing.T) {
 	}
 	if total != 3 {
 		t.Fatalf("expected TotalEverRecorded to count all 3 rows regardless of archived/active split, got %d", total)
+	}
+}
+
+// seedLifecycleAction inserts one record carrying one action at the given
+// createdAtMS and returns the action's frozen-at-creation Args, so a test
+// can compare a later LoadAction read against them byte-for-byte.
+func seedLifecycleAction(t *testing.T, store *Store, actionID string, createdAtMS int64) map[string]string {
+	t.Helper()
+	args := map[string]string{"animeId": "42", "trigger": "notification_action"}
+	if _, err := store.InsertRecord(context.Background(), Record{
+		CreatedAtMS: createdAtMS, Title: "t", Body: "b", Level: "info", Source: "seed",
+		Actions: []Action{{ID: actionID, Ordinal: 0, Label: "Run this anime again", Intent: IntentDownloadRunAnime, Args: args}},
+	}); err != nil {
+		t.Fatalf("seed lifecycle action: %v", err)
+	}
+	return args
+}
+
+// TestStampExecutedTwiceKeepsTheFirstTimestamp asserts the store-level
+// guard directly: a second StampExecuted call on an already-stamped action
+// does NOT overwrite the first execution's timestamp. This is defense in
+// depth (the Executor's own already_executed check already prevents ever
+// reaching a second StampExecuted call in production), so it is exercised
+// here at the store level rather than only implied by executor_test.go.
+func TestStampExecutedTwiceKeepsTheFirstTimestamp(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	seedLifecycleAction(t, store, "act-1", 1000)
+
+	if err := store.StampExecuted(ctx, "act-1", 5000); err != nil {
+		t.Fatalf("first stamp executed: %v", err)
+	}
+	if err := store.StampExecuted(ctx, "act-1", 9000); err != nil {
+		t.Fatalf("second stamp executed: %v", err)
+	}
+
+	action, found, err := store.LoadAction(ctx, "act-1")
+	if err != nil || !found {
+		t.Fatalf("load action: found=%v err=%v", found, err)
+	}
+	if action.ExecutedAtMS != 5000 {
+		t.Fatalf("expected the second StampExecuted call to leave the first timestamp (5000) untouched, got %d", action.ExecutedAtMS)
+	}
+}
+
+// TestStampRefusedPersistsReasonAcrossRestart asserts a refusal reason
+// survives a process restart: StampRefused, then a NEW Store over the same
+// DB (simulated restart), LoadAction returns the same RefusedReason -- this
+// is what makes "permanently disabled" true even across a reload (design
+// Decision D).
+func TestStampRefusedPersistsReasonAcrossRestart(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	seedLifecycleAction(t, store, "act-1", 1000)
+
+	if err := store.StampRefused(ctx, "act-1", RefusalTargetMissing); err != nil {
+		t.Fatalf("stamp refused: %v", err)
+	}
+
+	restarted := NewStore(db, StoreConfig{})
+	action, found, err := restarted.LoadAction(ctx, "act-1")
+	if err != nil {
+		t.Fatalf("load action after restart: %v", err)
+	}
+	if !found {
+		t.Fatal("expected the action to still be found after restart")
+	}
+	if action.RefusedReason != RefusalTargetMissing {
+		t.Fatalf("expected the refusal reason to survive a restart, got %q", action.RefusedReason)
+	}
+}
+
+// TestArgsJSONNeverUpdatedByAnyStatement round-trips: an action's Args after
+// StampExecuted is byte-identical to the Args at creation time
+// (notification-actions spec, "An action's args cannot be altered after
+// creation").
+func TestArgsJSONNeverUpdatedByAnyStatement(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	originalArgs := seedLifecycleAction(t, store, "act-1", 1000)
+
+	if err := store.StampExecuted(ctx, "act-1", 5000); err != nil {
+		t.Fatalf("stamp executed: %v", err)
+	}
+
+	action, found, err := store.LoadAction(ctx, "act-1")
+	if err != nil {
+		t.Fatalf("load action: %v", err)
+	}
+	if !found {
+		t.Fatal("expected the action to be found")
+	}
+	if !reflect.DeepEqual(action.Args, originalArgs) {
+		t.Fatalf("expected Args to be byte-identical to their creation-time value after StampExecuted, got %#v (want %#v)", action.Args, originalArgs)
+	}
+}
+
+// TestActionValidatedIdenticallyRegardlessOfElapsedTime asserts an action
+// created with an artificially old CreatedAtMS on its owning record still
+// loads and stamps identically to a freshly-created one -- no elapsed-time
+// check exists anywhere in this path (notification-actions spec, "An action
+// pressed long after creation, with its record still present, resolves
+// normally").
+func TestActionValidatedIdenticallyRegardlessOfElapsedTime(t *testing.T) {
+	t.Parallel()
+
+	db := openBootstrappedTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	ctx := context.Background()
+	const ancientCreatedAtMS = 1 // far in the past relative to any real clock
+	seedLifecycleAction(t, store, "act-1", ancientCreatedAtMS)
+
+	if err := store.StampExecuted(ctx, "act-1", time.Now().UnixMilli()); err != nil {
+		t.Fatalf("stamp executed on an ancient action: %v", err)
+	}
+
+	action, found, err := store.LoadAction(ctx, "act-1")
+	if err != nil {
+		t.Fatalf("load action: %v", err)
+	}
+	if !found {
+		t.Fatal("expected an ancient action to still be found and stampable")
+	}
+	if action.ExecutedAtMS == 0 {
+		t.Fatal("expected the ancient action to stamp executedAtMs exactly as a fresh one would -- no elapsed-time check refused it")
 	}
 }

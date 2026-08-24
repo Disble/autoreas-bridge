@@ -1,7 +1,7 @@
 import { Button, Chip } from '@heroui/react';
 import type { NotificationAction } from '../../../../shared/contracts/notification-center.types';
 import { CoverPlaceholderScene } from '../../../../shared/ui/CoverPlaceholderScene';
-import { NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL } from './notification-detail.constants';
+import { NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL, NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID } from './notification-detail.constants';
 import { isCollapsedRow } from './notification-detail.helpers';
 import type { NotificationDetailRowProps } from './notification-detail.types';
 import { useNotificationAction } from './use-notification-action';
@@ -20,7 +20,7 @@ import { useNotificationAction } from './use-notification-action';
  * per-row actions -- some rows (e.g. a plain "run completed" row) carry
  * none.
  */
-export function NotificationDetailRow({ actions, coverEntry, row }: Readonly<NotificationDetailRowProps>) {
+export function NotificationDetailRow({ actions, coverEntry, notificationId, row }: Readonly<NotificationDetailRowProps>) {
   if (isCollapsedRow(row)) {
     return (
       <div aria-label={NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL} className="rounded-xl border border-dashed border-default-200 px-3 py-2 text-center text-xs text-default-400" role="status">
@@ -43,7 +43,7 @@ export function NotificationDetailRow({ actions, coverEntry, row }: Readonly<Not
         {actions.length > 0 ? (
           <div className="flex flex-wrap gap-1.5" data-testid="notification-detail-row-actions">
             {actions.map((action) => (
-              <NotificationDetailRowActionButton action={action} key={action.id} />
+              <NotificationDetailRowActionButton action={action} key={action.id} notificationId={notificationId} />
             ))}
           </div>
         ) : null}
@@ -65,16 +65,21 @@ function NotificationDetailRowCover({ dataUrl, name }: Readonly<{ readonly dataU
   );
 }
 
-/** One row action button, driven by `useNotificationAction` (inert until Slice 5 registers real intents). */
-function NotificationDetailRowActionButton({ action }: Readonly<{ readonly action: NotificationAction }>) {
-  const { isDisabled, press, refusalMessage, status } = useNotificationAction(action);
+/** One row action button, driven by `useNotificationAction` against the real `ExecuteNotificationAction` binding. */
+function NotificationDetailRowActionButton({ action, notificationId }: Readonly<{ readonly action: NotificationAction; readonly notificationId: number }>) {
+  const { isDisabled, press, refusalMessage } = useNotificationAction(notificationId, action);
 
   return (
     <div className="flex flex-col gap-0.5">
       <Button isDisabled={isDisabled} onPress={press} size="sm" variant="secondary">
         {action.label}
       </Button>
-      {status === 'refused' && refusalMessage !== undefined ? <span className="text-[11px] text-danger">{refusalMessage}</span> : null}
+      {/* refusalMessage is only ever set while status === 'refused' (useNotificationAction's own invariant), so checking it alone is equivalent to the compound check and covers the one case that actually differs: a refused press whose server result omitted its reason. */}
+      {refusalMessage !== undefined ? (
+        <span className="text-[11px] text-danger" data-testid={NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID}>
+          {refusalMessage}
+        </span>
+      ) : null}
     </div>
   );
 }

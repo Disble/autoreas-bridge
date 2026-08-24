@@ -2,6 +2,8 @@ package center
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 )
 
@@ -127,4 +129,50 @@ func (s *Store) Restore(ctx context.Context, ids []int64) (int, error) {
 	}
 	affected, err := result.RowsAffected()
 	return int(affected), err
+}
+
+// LoadAction loads one persisted action by id. found is false, with a nil
+// error, when no row matches actionID -- distinguished from a query error
+// exactly like Store.Record does for a missing notification id.
+func (s *Store) LoadAction(ctx context.Context, actionID string) (Action, bool, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, notification_id, row_ref, ordinal, label, intent, args_json, executed_at_ms, refused_reason
+		FROM notification_record_actions
+		WHERE id = ?
+	`, actionID)
+	action, err := scanNotificationActionRow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Action{}, false, nil
+		}
+		return Action{}, false, err
+	}
+	return action, true, nil
+}
+
+// StampExecuted stamps executed_at_ms on actionID, but only WHERE it IS
+// NULL -- mirroring MarkRead's guard so a redundant call cannot silently
+// overwrite the FIRST execution's timestamp (single-fire semantics, design
+// §5.2). The Executor already refuses a second press via already_executed
+// before ever calling this, so the guard here is defense in depth, not the
+// primary enforcement.
+func (s *Store) StampExecuted(ctx context.Context, actionID string, atMS int64) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE notification_record_actions
+		SET executed_at_ms = ?
+		WHERE id = ? AND executed_at_ms IS NULL
+	`, atMS, actionID)
+	return err
+}
+
+// StampRefused persists actionID's refusal reason so the button stays
+// permanently disabled across a restart (design Decision D -- a refusal
+// living only in React state would not survive a reload).
+func (s *Store) StampRefused(ctx context.Context, actionID string, reason RefusalReason) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE notification_record_actions
+		SET refused_reason = ?
+		WHERE id = ?
+	`, string(reason), actionID)
+	return err
 }

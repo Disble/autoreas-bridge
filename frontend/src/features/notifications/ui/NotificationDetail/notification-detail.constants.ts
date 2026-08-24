@@ -35,3 +35,13 @@ export const UNKNOWN_REFUSAL_MESSAGE = 'This action was refused.';
 
 /** Accessible label for the collapsed-row summary block. */
 export const NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL = 'Collapsed rows';
+
+/**
+ * `data-testid` for one action button's inline refusal message. Rendering
+ * is keyed on `refusalMessage !== undefined` alone (not also `status`), so a
+ * test needs an element-presence check independent of any specific message
+ * text to prove the "no message" branch actually renders nothing -- an
+ * empty `<span>` would otherwise look identical to no span at all to a
+ * text-based query.
+ */
+export const NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID = 'notification-detail-row-refusal-message';

@@ -21,6 +21,7 @@ export interface NotificationDetailHeaderProps {
 /** Props accepted by the single bounded row-list block. */
 export interface NotificationDetailRowsProps {
   readonly actions: readonly NotificationAction[];
+  readonly notificationId: number;
   readonly rows: readonly NotificationDetailRowDTO[];
 }
 
@@ -30,10 +31,14 @@ export interface NotificationDetailRowsProps {
  * `coverEntry` is `undefined` while a cover fetch is still in flight or has
  * not started -- the row falls back to the placeholder art in that case,
  * exactly as when the entry resolves to `{ status: 'placeholder' }`.
+ * `notificationId` identifies the owning record so a pressed action can be
+ * validated as belonging to it (`ExecuteNotificationAction`'s foreign_action
+ * check).
  */
 export interface NotificationDetailRowProps {
   readonly actions: readonly NotificationAction[];
   readonly coverEntry?: NotificationCoverEntry;
+  readonly notificationId: number;
   readonly row: NotificationDetailRowDTO;
 }
 

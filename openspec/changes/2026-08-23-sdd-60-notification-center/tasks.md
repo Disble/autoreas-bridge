@@ -1127,7 +1127,7 @@ the tested rollback kill switch.
 
 ### 5.1 Infrastructure
 
-- [ ] **5.1.1** [RED] Write `internal/notification/center/intent_registry_test.go`:
+- [x] **5.1.1** [RED] Write `internal/notification/center/intent_registry_test.go`:
   - `TestEmptyRegistryResolveReturnsNotFoundWithoutPanic` — `Resolve` on a fresh `StaticRegistry` with
     zero registrations returns not-found for any key.
   - **`TestDownloadRetryRunAbsentFromRegistryKeys`** [[MANDATORY]] — build a `StaticRegistry` with the
@@ -1138,12 +1138,12 @@ the tested rollback kill switch.
   - `TestDownloadCompletionActionResolvesToRunAnime` — an action labeled "Run this anime again" carries
     intent key `download.run_anime`, not any retry-shaped key. Satisfies "A download completion action
     resolves to `download.run_anime`."
-- [ ] **5.1.2** [GREEN] Implement `internal/notification/center/intent_registry.go`: `StaticRegistry`,
+- [x] **5.1.2** [GREEN] Implement `internal/notification/center/intent_registry.go`: `StaticRegistry`,
   `NewStaticRegistry`, `Register`, `Resolve`, `Keys()` (sorted), `SingleFireFunc`. Design §5.4.
 
 ### 5.2 Implementation — Store Extensions (Decision D)
 
-- [ ] **5.2.1** [RED] Extend `sqlite_store_lifecycle_test.go`:
+- [x] **5.2.1** [RED] Extend `sqlite_store_lifecycle_test.go`:
   - `TestStampRefusedPersistsReasonAcrossRestart` — `StampRefused`, construct a NEW `Store` over the
     same DB (simulated restart), `LoadAction` returns the same `RefusedReason` — proves "permanently
     disabled" survives a restart (Decision D).
@@ -1154,12 +1154,12 @@ the tested rollback kill switch.
     `CreatedAtMS` on its owning record still executes/refuses exactly as a freshly-created one would; no
     elapsed-time check causes a refusal. Satisfies "An action pressed long after creation, with its
     record still present, resolves normally."
-- [ ] **5.2.2** [GREEN] Extend `internal/notification/center/sqlite_store_lifecycle.go`: `LoadAction`,
+- [x] **5.2.2** [GREEN] Extend `internal/notification/center/sqlite_store_lifecycle.go`: `LoadAction`,
   `StampExecuted`, `StampRefused`.
 
 ### 5.3 Implementation — Executor
 
-- [ ] **5.3.1** [RED] Write `internal/notification/center/executor_test.go` — one test per refusal
+- [x] **5.3.1** [RED] Write `internal/notification/center/executor_test.go` — one test per refusal
   reason, each using a spy `IntentHandler` asserting INVOCATION COUNTS:
   - `TestExecuteForeignActionRefusedPreResolution` — `actionID` belongs to record A, pressed as B;
     refused `foreign_action`; the spy registry/handler records ZERO calls (no registry lookup, no
@@ -1184,7 +1184,7 @@ the tested rollback kill switch.
   - `TestRefusalReasonIsAlwaysOneOfExactlyFour` — a table test iterating every failure path above and
     asserting the returned `Reason` is always a member of the closed 4-value set. Satisfies "A refusal
     is always one of exactly four reasons."
-- [ ] **5.3.2** [GREEN] Implement `internal/notification/center/executor.go`: `ExecuteResult`,
+- [x] **5.3.2** [GREEN] Implement `internal/notification/center/executor.go`: `ExecuteResult`,
   `Executor`, `NewExecutor(store, registry)`, `Execute` implementing the fixed validation order per
   design §5.7's note — (a) foreign-action check, (b) already-executed check (answerable from the same
   loaded row as (a)), (c) registry resolve, (d) handler invocation with unrecognised-error mapping to
@@ -1192,12 +1192,12 @@ the tested rollback kill switch.
 
 ### 5.4 Implementation — Composition Root Wiring
 
-- [ ] **5.4.1** [RED] Write `app_notification_center_intents_test.go`: `registerNotificationIntents()`
+- [x] **5.4.1** [RED] Write `app_notification_center_intents_test.go`: `registerNotificationIntents()`
   registers `download.run_anime` only when `a.downloadService != nil`; registers
   `schedule.run_missed_now`/`schedule.ignore_missed` only when `a.downloadScheduler != nil`. Assert
   absence when the field is `nil`, presence when non-nil, against stub/fake subsystems. Design §3
   Decision C.
-- [ ] **5.4.2** [GREEN] Implement `registerNotificationIntents() *center.StaticRegistry` in
+- [x] **5.4.2** [GREEN] Implement `registerNotificationIntents() *center.StaticRegistry` in
   `app_notification_center.go`; add `ExecuteNotificationAction(notificationID int64, actionID string)
   contracts.NotificationActionResult` binding (constructs the result from `Executor.Execute`). Add
   `notificationCenterExecutor *center.Executor` to `app.go`, constructed AFTER `app.go:243`'s
@@ -1205,19 +1205,19 @@ the tested rollback kill switch.
   their intents can be registered). Add `NotificationActionResult` to
   `internal/api/contracts/notification_center.go` and its frontend mirror
   `notification-center.types.ts` (deferred from Slice 2 per Task-Planning Note A).
-- [ ] **5.4.3** [RED] Write `app_download_test.go` (or a colocated new test file):
+- [x] **5.4.3** [RED] Write `app_download_test.go` (or a colocated new test file):
   `TestRunMissedScheduleNowAndEquivalentActionTokenInvokeSameHandler` — a shared spy handler is invoked
   identically whether triggered via the pre-existing `RunMissedScheduleNow` binding or via a pressed
   action token carrying `schedule.run_missed_now` with equivalent args. Satisfies "The same token
   resolves identically from every carrier" and "The existing binding and an equivalent action token
   invoke the same handler."
-- [ ] **5.4.4** [GREEN] Modify `app_download.go`'s `RunMissedScheduleNow` (lines 293-298) and
+- [x] **5.4.4** [GREEN] Modify `app_download.go`'s `RunMissedScheduleNow` (lines 293-298) and
   `IgnoreMissedSchedule` (lines 300-306) to route through the registered handler (via the registry) so
   both paths converge on one handler — never a second, independent code path.
 
 ### 5.5 Implementation — Frontend Refusal Rendering
 
-- [ ] **5.5.1** [GREEN] Modify `NotificationDetailRow.tsx` / `use-notification-action.ts` (built inert
+- [x] **5.5.1** [GREEN] Modify `NotificationDetailRow.tsx` / `use-notification-action.ts` (built inert
   in Slice 4) to render the real `refusedReason`/`executedAtMs` now meaningfully returned by
   `ExecuteNotificationAction`, permanently disabling the button on any non-empty `refusedReason` or
   `executedAtMs`.
@@ -1359,3 +1359,37 @@ Cheap and safe to add later: the store, the contract and the binding already
 carry both filters end to end, with `TestListSourcesEmptySliceMatchesEverything`
 pinning the empty-slice-means-no-filter behaviour. What is missing is two HeroUI
 `Select`s in `NotificationFilterBar` and their spec scenarios.
+
+---
+
+## Documented exception — mutation runner excludes one test (2026-08-23, Slice 5)
+
+`NotificationTable.windowing.test.tsx` is excluded from the Stryker suite in
+`frontend/vitest.dlinter-mutation.mts`. **Only from the mutation runner.** It
+still runs in `bun run test` and therefore in the gate's `frontend-test` job,
+so the mandatory DOM-count windowing guard (task 3a.2.3) is not weakened.
+
+**Why.** Stryker executes the entire suite once, instrumented, before mutating
+anything — at `concurrency: 4` against a config already at `maxWorkers: '50%'`.
+That test drives real react-aria intersection machinery through a real HeroUI
+Table. Alone it takes ~2s; under that contention it exceeds Vitest's 5s
+per-test default, fails the dry run, and aborts the whole mutation step with
+`Initial test run timed out` — an error that never names the test.
+
+**What was tried first, and why each was rejected:**
+
+| Attempt | Outcome |
+|---|---|
+| Clear the shared `IntersectionObserver` registry between tests | A real bug, fixed and kept — static state was leaking across test files. Did not fix the timeout. |
+| Poke the sentinel inside the `waitFor` retry | Made it worse: every poll fired another trigger, so contention made the test spin rather than wait. Reverted. |
+| Cut the third page load | Kept — genuinely cheaper, and one load-more still proves the window grows on demand. Not enough on its own. |
+| Raise the per-test timeout to 20s | **Forbidden by the repo**: `no-restricted-syntax` rejects per-test timeout overrides because they hide performance regressions rather than removing them. Correct rule; reverted. |
+| Raise `dryRunTimeoutMinutes` to 15 | No effect — the timeout is per-test *inside* the run, not the run's own budget. Reverted. |
+
+**Result.** With this one file excluded the dry run completes and the score is
+**82.14** against a break threshold of 80.
+
+**Exit condition.** Remove the exclusion as soon as the test finishes inside 5s
+under contention. The honest fix is to make it cheaper — the cost is a real
+HeroUI Table plus react-aria's intersection sentinel, not the 500-row backing
+collection, which is generated a page at a time and costs nothing.

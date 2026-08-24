@@ -23,7 +23,7 @@ describe('NotificationDetailRows', () => {
   it('renders every row it is given, in order', () => {
     const rows = [buildRow({ name: 'First', refId: 'anime-1' }), buildRow({ name: 'Second', refId: 'anime-2' })];
 
-    render(<NotificationDetailRows actions={[]} rows={rows} />);
+    render(<NotificationDetailRows actions={[]} notificationId={1} rows={rows} />);
 
     const rendered = screen.getAllByText(/^(First|Second)$/);
     expect(rendered.map((element) => element.textContent)).toStrictEqual(['First', 'Second']);
@@ -33,7 +33,7 @@ describe('NotificationDetailRows', () => {
     const action = buildAction({ id: 'run-1', label: 'Run this anime again' });
     const rows = [buildRow({ actionIds: ['run-1'] })];
 
-    render(<NotificationDetailRows actions={[action]} rows={rows} />);
+    render(<NotificationDetailRows actions={[action]} notificationId={1} rows={rows} />);
 
     expect(screen.getByRole('button', { name: 'Run this anime again' })).toBeInTheDocument();
   });
@@ -41,14 +41,14 @@ describe('NotificationDetailRows', () => {
   it('renders a collapsed row inline among ordinary rows, still as a single block', () => {
     const rows = [buildRow({ name: 'Ordinary' }), buildRow({ collapsedCount: 6, detail: '6 more downloaded without incident', refId: 'collapsed-1' })];
 
-    render(<NotificationDetailRows actions={[]} rows={rows} />);
+    render(<NotificationDetailRows actions={[]} notificationId={1} rows={rows} />);
 
     expect(screen.getByText('Ordinary')).toBeInTheDocument();
     expect(screen.getByText('6 more downloaded without incident')).toBeInTheDocument();
   });
 
   it('renders nothing when there are no rows at all', () => {
-    render(<NotificationDetailRows actions={[]} rows={[]} />);
+    render(<NotificationDetailRows actions={[]} notificationId={1} rows={[]} />);
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });

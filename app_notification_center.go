@@ -2,10 +2,18 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/notification/center"
+	"autoreas-bridge/internal/schedule"
 )
+
+// notificationActionRunTrigger distinguishes a notification-center-triggered
+// re-run from the pre-existing "manual_anime" solo-download trigger
+// (app_download.go:358) so both stay independently attributable in run
+// history.
+const notificationActionRunTrigger = "notification_action"
 
 // notificationArchivedEventName is the Wails runtime event ArchiveNotifications
 // emits after a successful archive, carrying the archived ids (design.md §3
@@ -232,5 +240,96 @@ func toNotificationAction(action center.Action) contracts.NotificationAction {
 		Intent:        action.Intent,
 		ExecutedAtMs:  action.ExecutedAtMS,
 		RefusedReason: string(action.RefusedReason),
+	}
+}
+
+// registerNotificationIntents builds the StaticRegistry every action token
+// resolves through at press time. Registration is conditional on purpose
+// (design Decision C): an unwired subsystem surfaces as intent_unregistered
+// rather than an unmodelled fifth refusal reason. download.retry_run is
+// deliberately never registered -- it does not exist (internal/download/
+// service.go exposes only RunOnce and RunAnime).
+func (a *App) registerNotificationIntents() *center.StaticRegistry {
+	registry := center.NewStaticRegistry()
+
+	if a.downloadService != nil {
+		registry.Register(center.IntentDownloadRunAnime, center.SingleFireFunc(a.runAnimeAgainIntent))
+	}
+	if a.downloadScheduler != nil {
+		registry.Register(center.IntentScheduleRunMissedNow, center.SingleFireFunc(func(ctx context.Context, args map[string]string) error {
+			return missedStartupActionAsIntentError(a.resolveMissedStartupAction(ctx, args["localDate"], schedule.MissedStartupActionRunNow))
+		}))
+		registry.Register(center.IntentScheduleIgnoreMissed, center.SingleFireFunc(func(ctx context.Context, args map[string]string) error {
+			return missedStartupActionAsIntentError(a.resolveMissedStartupAction(ctx, args["localDate"], schedule.MissedStartupActionIgnore))
+		}))
+	}
+	return registry
+}
+
+// resolveMissedStartupAction is the single production call-site both
+// RunMissedScheduleNow/IgnoreMissedSchedule (app_download.go) and their
+// registered notification-action intents above invoke, so both carriers
+// converge on one operation rather than becoming two independent code
+// paths for the same action (notification-actions spec, "Existing Wails
+// Bindings Become Carriers Of Registered Intents").
+func (a *App) resolveMissedStartupAction(ctx context.Context, localDate string, action schedule.MissedStartupAction) schedule.MissedStartupActionResult {
+	return a.downloadScheduler.ResolveMissedStartupDate(ctx, localDate, action)
+}
+
+// missedStartupActionAsIntentError maps a scheduler missed-startup result
+// into the IntentHandler error contract: nil on a settled action, a generic
+// error otherwise. Decision C's defense in depth (center.Executor) maps any
+// non-nil error into RefusalTargetMissing, so an in-progress/unavailable/
+// unresolved outcome surfaces as "target_missing" rather than inventing a
+// fifth refusal reason for a rare press-time race.
+func missedStartupActionAsIntentError(result schedule.MissedStartupActionResult) error {
+	if result.Kind == schedule.MissedStartupActionSettled {
+		return nil
+	}
+	return fmt.Errorf("missed startup action not settled: %s", result.Kind)
+}
+
+// runAnimeAgainIntent is the download.run_anime handler: it re-resolves the
+// anime fresh at press time via GetAnimeDetail (app_runtime.go:147) rather
+// than trusting a frozen snapshot -- GetAnimeDetail returning nil is exactly
+// how a deleted target is detected, potentially days after the record was
+// created.
+func (a *App) runAnimeAgainIntent(ctx context.Context, args map[string]string) error {
+	anime := a.GetAnimeDetail(args["animeId"])
+	if anime == nil {
+		return center.ErrTargetMissing
+	}
+	_, err := a.downloadService.RunAnime(ctx, notificationActionRunTrigger, *anime)
+	return err
+}
+
+// wireNotificationCenterIntentExecutor constructs a.notificationCenterExecutor
+// once the subsystems its intents close over exist -- called from startup
+// AFTER startDownloadOrchestration, never before, since a.downloadService
+// and a.downloadScheduler are only assigned there (design §5.8). A nil
+// notificationCenterStore (bridge DB unusable) leaves the executor nil;
+// ExecuteNotificationAction degrades that to the same intent_unregistered
+// outcome an empty registry already produces.
+func (a *App) wireNotificationCenterIntentExecutor() {
+	if a.notificationCenterStore == nil {
+		return
+	}
+	a.notificationCenterExecutor = center.NewExecutor(a.notificationCenterStore, a.registerNotificationIntents())
+}
+
+// ExecuteNotificationAction is the Wails-bound press-time entry point
+// (design §5.8/§5.7). A nil executor (store unavailable, or called before
+// wireNotificationCenterIntentExecutor ran) degrades to the same
+// intent_unregistered outcome an empty IntentRegistry already produces.
+func (a *App) ExecuteNotificationAction(notificationID int64, actionID string) contracts.NotificationActionResult {
+	if a.notificationCenterExecutor == nil {
+		return contracts.NotificationActionResult{Reason: string(center.RefusalIntentUnregistered)}
+	}
+	result := a.notificationCenterExecutor.Execute(a.notificationCenterCtx(), notificationID, actionID)
+	return contracts.NotificationActionResult{
+		Executed:     result.Executed,
+		Reason:       string(result.Reason),
+		Message:      result.Message,
+		ExecutedAtMs: result.ExecutedAtMS,
 	}
 }

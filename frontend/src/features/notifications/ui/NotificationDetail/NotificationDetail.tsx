@@ -24,7 +24,7 @@ export function NotificationDetail({ detail }: Readonly<NotificationDetailProps>
     <Card>
       <Card.Content className="flex flex-col gap-4 p-5">
         <NotificationDetailHeader detail={detail} />
-        <NotificationDetailRows actions={detail.actions} rows={detail.rows} />
+        <NotificationDetailRows actions={detail.actions} notificationId={detail.id} rows={detail.rows} />
       </Card.Content>
     </Card>
   );

@@ -33,91 +33,92 @@ import (
 
 // App struct
 type App struct {
-	ctx                      context.Context
-	bridgeDB                 *sql.DB
-	bridgeDBCloser           interface{ Close() error }
-	startupErr               error
-	startupFatal             bool
-	sharedLogger             *sharedlogger.FanoutLogger
-	memLogger                *sharedlogger.MemLogger
-	syncTrigger              *bridgeSync.TriggerService
-	bootstrapBridgeDB        func() (*sql.DB, error)
-	newSelfEchoRegistry      func() anime.SelfEchoRegistry
-	newUpdateWriter          func(config anime.UpdateWriterConfig) anime.UpdateWriter
-	newChangelogStore        func(db *sql.DB) changelogPendingStore
-	newChangelogRecorder     func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
-	newDeviceStore           func(db *sql.DB) device.Store
-	newDeviceService         func(store device.Store) device.AuthService
-	newNotifier              func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
-	newRealtimeHub           func(ctx context.Context) realtime.Hub
-	newHTTPServer            func(config api.Config) api.Server
-	newCaptureStore          func(db *sql.DB) requestcapture.Store
-	newCaptureQueue          func(db *sql.DB) captureQueue
-	newCaptureReader         func(db *sql.DB) *requestcapture.Reader
-	newTrayManager           func() tray.Manager
-	newAutoStartReconciler   func() autoStartReconciler
-	newTracerBulletRunner    func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
-	newTracerBulletSink      func() tracerbullet.TraceSink
-	emitFn                   func(ctx context.Context, eventName string, optionalData ...interface{})
-	hideWindow               func(context.Context)
-	showWindow               func(context.Context)
-	unminimiseWindow         func(context.Context)
-	quitApp                  func(context.Context)
-	eventBus                 events.Bus
-	animeUpdateWriter        anime.UpdateWriter
-	episodeService           episodeCommandService
-	syncChangelogRecorder    changelogRecorder
-	realtimeHub              realtime.Hub
-	httpServer               api.Server
-	captureQueue             captureQueue
-	captureReader            *requestcapture.Reader
-	captureStore             requestcapture.Store
-	eventSink                *eventlog.Sink
-	newEventQueue            func(db *sql.DB) eventLogQueue
-	eventQueue               eventLogQueue
-	trayManager              tray.Manager
-	tracerBulletRunner       tracerBulletRunner
-	catchUpContext           context.Context
-	catchUpCancel            context.CancelFunc
-	animeSelfEchoRegistry    anime.SelfEchoRegistry
-	deviceStore              device.Store
-	newToken                 func() (string, error)
-	animeQuery               contracts.AnimeQueryService
-	animeEditorQuery         *anime.QueryService
-	animeEditorWrite         *anime.EditorService
-	animeEditorScheduleQuery *anime.ScheduleQueryService
-	animeEditorScheduleWrite *anime.ScheduleService
-	coverResolver            coverResolver
-	notifier                 notification.Notifier
-	notificationCenterStore  *center.Store
-	newDownloadStore         func(db *sql.DB) download.Store
-	newDownloadService       func(deps download.ServiceDeps) *download.Service
-	newDownloadScheduler     func(deps schedule.Deps) schedule.Scheduler
-	downloadStore            download.Store
-	downloadService          *download.Service
-	readinessService         *download.ReadinessService
-	downloadScheduler        schedule.Scheduler
-	soloDownloadMu           sync.Mutex
-	soloDownloadCancelMu     sync.Mutex
-	soloDownloadCancel       context.CancelFunc
-	newSeasonStore           func(db *sql.DB) season.Repository
-	seasonService            *season.Service
-	settingsStore            appSettingsStore
-	animeWrite               *anime.WriteService
-	animeCreate              anime.Creator
-	animeCreateBatch         anime.BatchCreator
-	seasonScheduler          schedule.Scheduler
-	openURL                  func(ctx context.Context, url string)
-	openFolder               func(path string) error
-	pickFolder               func(ctx context.Context, title string) (string, error)
-	pickFile                 func(ctx context.Context, title string) (string, error)
-	pickBundle               func(ctx context.Context, title string) (string, error)
-	saveFile                 func(ctx context.Context, title, defaultFilename string) (string, error)
-	resolveBridgeDBPath      func() (string, error)
-	pendingBackupImport      *pendingBackupImport
-	copyText                 func(ctx context.Context, value string) error
-	nowTime                  func() time.Time
-	processStartedAt         time.Time
+	ctx                        context.Context
+	bridgeDB                   *sql.DB
+	bridgeDBCloser             interface{ Close() error }
+	startupErr                 error
+	startupFatal               bool
+	sharedLogger               *sharedlogger.FanoutLogger
+	memLogger                  *sharedlogger.MemLogger
+	syncTrigger                *bridgeSync.TriggerService
+	bootstrapBridgeDB          func() (*sql.DB, error)
+	newSelfEchoRegistry        func() anime.SelfEchoRegistry
+	newUpdateWriter            func(config anime.UpdateWriterConfig) anime.UpdateWriter
+	newChangelogStore          func(db *sql.DB) changelogPendingStore
+	newChangelogRecorder       func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
+	newDeviceStore             func(db *sql.DB) device.Store
+	newDeviceService           func(store device.Store) device.AuthService
+	newNotifier                func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
+	newRealtimeHub             func(ctx context.Context) realtime.Hub
+	newHTTPServer              func(config api.Config) api.Server
+	newCaptureStore            func(db *sql.DB) requestcapture.Store
+	newCaptureQueue            func(db *sql.DB) captureQueue
+	newCaptureReader           func(db *sql.DB) *requestcapture.Reader
+	newTrayManager             func() tray.Manager
+	newAutoStartReconciler     func() autoStartReconciler
+	newTracerBulletRunner      func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
+	newTracerBulletSink        func() tracerbullet.TraceSink
+	emitFn                     func(ctx context.Context, eventName string, optionalData ...interface{})
+	hideWindow                 func(context.Context)
+	showWindow                 func(context.Context)
+	unminimiseWindow           func(context.Context)
+	quitApp                    func(context.Context)
+	eventBus                   events.Bus
+	animeUpdateWriter          anime.UpdateWriter
+	episodeService             episodeCommandService
+	syncChangelogRecorder      changelogRecorder
+	realtimeHub                realtime.Hub
+	httpServer                 api.Server
+	captureQueue               captureQueue
+	captureReader              *requestcapture.Reader
+	captureStore               requestcapture.Store
+	eventSink                  *eventlog.Sink
+	newEventQueue              func(db *sql.DB) eventLogQueue
+	eventQueue                 eventLogQueue
+	trayManager                tray.Manager
+	tracerBulletRunner         tracerBulletRunner
+	catchUpContext             context.Context
+	catchUpCancel              context.CancelFunc
+	animeSelfEchoRegistry      anime.SelfEchoRegistry
+	deviceStore                device.Store
+	newToken                   func() (string, error)
+	animeQuery                 contracts.AnimeQueryService
+	animeEditorQuery           *anime.QueryService
+	animeEditorWrite           *anime.EditorService
+	animeEditorScheduleQuery   *anime.ScheduleQueryService
+	animeEditorScheduleWrite   *anime.ScheduleService
+	coverResolver              coverResolver
+	notifier                   notification.Notifier
+	notificationCenterStore    *center.Store
+	notificationCenterExecutor *center.Executor
+	newDownloadStore           func(db *sql.DB) download.Store
+	newDownloadService         func(deps download.ServiceDeps) *download.Service
+	newDownloadScheduler       func(deps schedule.Deps) schedule.Scheduler
+	downloadStore              download.Store
+	downloadService            *download.Service
+	readinessService           *download.ReadinessService
+	downloadScheduler          schedule.Scheduler
+	soloDownloadMu             sync.Mutex
+	soloDownloadCancelMu       sync.Mutex
+	soloDownloadCancel         context.CancelFunc
+	newSeasonStore             func(db *sql.DB) season.Repository
+	seasonService              *season.Service
+	settingsStore              appSettingsStore
+	animeWrite                 *anime.WriteService
+	animeCreate                anime.Creator
+	animeCreateBatch           anime.BatchCreator
+	seasonScheduler            schedule.Scheduler
+	openURL                    func(ctx context.Context, url string)
+	openFolder                 func(path string) error
+	pickFolder                 func(ctx context.Context, title string) (string, error)
+	pickFile                   func(ctx context.Context, title string) (string, error)
+	pickBundle                 func(ctx context.Context, title string) (string, error)
+	saveFile                   func(ctx context.Context, title, defaultFilename string) (string, error)
+	resolveBridgeDBPath        func() (string, error)
+	pendingBackupImport        *pendingBackupImport
+	copyText                   func(ctx context.Context, value string) error
+	nowTime                    func() time.Time
+	processStartedAt           time.Time
 }
 
 const observabilityEventName = "observability.log"
@@ -243,6 +244,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.reconcileAutoStart(ctx)
 	a.startDownloadOrchestration(ctx)
+	a.wireNotificationCenterIntentExecutor()
 	a.startSeasonAvailability(ctx)
 }
 

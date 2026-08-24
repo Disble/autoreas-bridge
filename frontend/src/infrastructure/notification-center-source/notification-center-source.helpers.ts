@@ -1,5 +1,6 @@
 import {
   ArchiveNotifications,
+  ExecuteNotificationAction,
   GetNotification,
   GetUnreadNotificationCount,
   ListNotifications,
@@ -7,6 +8,7 @@ import {
   RestoreNotifications,
 } from '../../../wailsjs/go/main/App';
 import type {
+  NotificationActionResult,
   NotificationDetailResult,
   NotificationListRequest,
   NotificationMutationResult,
@@ -15,6 +17,7 @@ import type {
 import { hasGoBinding, invokeGoBinding } from '../wails-bindings.helpers';
 import {
   DEGRADED_EMPTY_NOTIFICATION_PAGE,
+  DEGRADED_NOTIFICATION_ACTION_RESULT,
   DEGRADED_NOTIFICATION_DETAIL_RESULT,
   DEGRADED_NOTIFICATION_MUTATION_RESULT,
   NOTIFICATION_CENTER_BINDING_NAMES,
@@ -73,6 +76,13 @@ export function createNotificationCenterSource(): NotificationCenterSource {
         'RestoreNotifications',
         () => RestoreNotifications([...ids]),
         () => DEGRADED_NOTIFICATION_MUTATION_RESULT,
+      );
+    },
+    executeAction(notificationId: number, actionId: string): Promise<NotificationActionResult> {
+      return invokeGoBinding<NotificationActionResult>(
+        'ExecuteNotificationAction',
+        () => ExecuteNotificationAction(notificationId, actionId),
+        () => DEGRADED_NOTIFICATION_ACTION_RESULT,
       );
     },
   };

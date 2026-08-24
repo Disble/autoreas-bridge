@@ -1,3 +1,4 @@
+import type { NotificationActionResult } from '../../shared/contracts/notification-center.types';
 import type { NotificationCenterSource } from './notification-center-source.types';
 
 /** Degraded-empty page returned when the Wails bindings are unavailable. */
@@ -32,6 +33,17 @@ export const DEGRADED_NOTIFICATION_MUTATION_RESULT = {
   degraded: true,
 } as const;
 
+/**
+ * Degraded action result returned when the `ExecuteNotificationAction`
+ * binding is unavailable -- mirrors the backend's own "no executor wired"
+ * outcome (app_notification_center.go), the same `intent_unregistered`
+ * refusal an empty `IntentRegistry` already produces server-side.
+ */
+export const DEGRADED_NOTIFICATION_ACTION_RESULT: NotificationActionResult = {
+  executed: false,
+  reason: 'intent_unregistered',
+};
+
 /** Module-local singleton container for the shared notification center source. */
 export const NOTIFICATION_CENTER_SOURCE_STATE: { sharedSource: NotificationCenterSource | null } = {
   sharedSource: null,
@@ -45,4 +57,5 @@ export const NOTIFICATION_CENTER_BINDING_NAMES = [
   'MarkNotificationsRead',
   'ArchiveNotifications',
   'RestoreNotifications',
+  'ExecuteNotificationAction',
 ] as const;

@@ -175,6 +175,33 @@ describe('notification-center-source', () => {
     expect(restoreMock).toHaveBeenCalledWith([7]);
   });
 
+  it('degrades executeAction to the intent_unregistered refusal when the bindings are absent', async () => {
+    const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
+    const source = createNotificationCenterSource();
+
+    const resultPromise = source.executeAction(1, 'action-1');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(resultPromise).resolves.toEqual({ executed: false, reason: 'intent_unregistered' });
+  });
+
+  it('maps a successful ExecuteNotificationAction call to the typed result once bindings become ready', async () => {
+    const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');
+    const source = createNotificationCenterSource();
+    const executeMock = vi.fn().mockResolvedValue({ executed: true, executedAtMs: 1_700_000_000_000 });
+
+    const resultPromise = source.executeAction(1, 'action-1');
+
+    window.go = { main: { App: { ExecuteNotificationAction: executeMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(resultPromise).resolves.toEqual({ executed: true, executedAtMs: 1_700_000_000_000 });
+    expect(executeMock).toHaveBeenCalledWith(1, 'action-1');
+  });
+
   it('shares a single singleton across multiple createNotificationCenterSource calls', async () => {
     const { createNotificationCenterSource } = await import('../notification-center-source.helpers');
 
@@ -199,6 +226,7 @@ describe('notification-center-source', () => {
           MarkNotificationsRead: vi.fn(),
           ArchiveNotifications: vi.fn(),
           RestoreNotifications: vi.fn(),
+          ExecuteNotificationAction: vi.fn(),
         },
       },
     } as never;

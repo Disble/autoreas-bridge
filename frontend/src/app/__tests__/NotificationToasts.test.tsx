@@ -13,10 +13,16 @@ import { describe, expect, it } from 'vitest';
 describe('NotificationToasts re-export', () => {
   it('stays a one-line domain-agnostic re-export, never gaining hooks or business logic', () => {
     const filePath = path.resolve(__dirname, '../NotificationToasts.tsx');
-    const contents = readFileSync(filePath, 'utf-8').trim();
+    // Mutation runs instrument sources in place and prepend their own
+    // pragma, so byte equality against the raw file fails under Stryker while
+    // passing everywhere else. Judge the lines that are actually the module.
+    const sourceLines = readFileSync(filePath, 'utf-8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('//'));
 
-    expect(contents).toBe(
+    expect(sourceLines).toEqual([
       "export { NotificationToasts } from '../features/notifications/ui/NotificationToasts/NotificationToasts';",
-    );
+    ]);
   });
 });

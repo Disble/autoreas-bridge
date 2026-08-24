@@ -294,7 +294,7 @@ func (a *App) RunMissedScheduleNow(localDate string) contracts.ScheduleMissedAct
 	if a.downloadScheduler == nil {
 		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
 	}
-	return toContractsMissedActionResult(a.downloadScheduler.ResolveMissedStartupDate(a.downloadCtx(), localDate, schedule.MissedStartupActionRunNow))
+	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionRunNow))
 }
 
 // IgnoreMissedSchedule settles the startup-missed selected date without rewriting actual run facts.
@@ -302,7 +302,7 @@ func (a *App) IgnoreMissedSchedule(localDate string) contracts.ScheduleMissedAct
 	if a.downloadScheduler == nil {
 		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
 	}
-	return toContractsMissedActionResult(a.downloadScheduler.ResolveMissedStartupDate(a.downloadCtx(), localDate, schedule.MissedStartupActionIgnore))
+	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionIgnore))
 }
 
 // TriggerDownloadCheck asks the scheduler to run an immediate out-of-band download check.

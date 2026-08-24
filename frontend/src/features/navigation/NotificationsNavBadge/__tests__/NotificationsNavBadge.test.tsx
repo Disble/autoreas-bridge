@@ -16,6 +16,7 @@ function makeCenterSource(unreadCount: number): NotificationCenterSource {
     markRead: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
+    executeAction: vi.fn(),
   };
 }
 

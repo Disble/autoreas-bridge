@@ -1,4 +1,5 @@
 import type {
+  NotificationActionResult,
   NotificationDetailResult,
   NotificationListRequest,
   NotificationMutationResult,
@@ -7,11 +8,13 @@ import type {
 
 /**
  * In-process read/write source over the notification center inbox, backed by
- * the six Wails-bound `ListNotifications`/`GetNotification`/
+ * the seven Wails-bound `ListNotifications`/`GetNotification`/
  * `GetUnreadNotificationCount`/`MarkNotificationsRead`/`ArchiveNotifications`/
- * `RestoreNotifications` methods (design.md §10). Every method degrades to
- * an empty/not-found, `degraded: true` result instead of throwing when the
- * bindings are unavailable.
+ * `RestoreNotifications`/`ExecuteNotificationAction` methods (design.md §10).
+ * Every method degrades to an empty/not-found, `degraded: true` result (or,
+ * for `executeAction`, the same `intent_unregistered` refusal an empty
+ * `IntentRegistry` already produces server-side) instead of throwing when
+ * the bindings are unavailable.
  */
 export interface NotificationCenterSource {
   readonly listNotifications: (request: NotificationListRequest) => Promise<NotificationPage>;
@@ -20,4 +23,5 @@ export interface NotificationCenterSource {
   readonly markRead: (ids: readonly number[]) => Promise<NotificationMutationResult>;
   readonly archive: (ids: readonly number[]) => Promise<NotificationMutationResult>;
   readonly restore: (ids: readonly number[]) => Promise<NotificationMutationResult>;
+  readonly executeAction: (notificationId: number, actionId: string) => Promise<NotificationActionResult>;
 }

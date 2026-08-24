@@ -15,6 +15,7 @@ function makeSource(page: NotificationPage): NotificationCenterSource {
     markRead: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
+    executeAction: vi.fn(),
   };
 }
 
@@ -70,6 +71,7 @@ describe('NotificationCenterPanel', () => {
       markRead: vi.fn(),
       archive: vi.fn(),
       restore: vi.fn(),
+      executeAction: vi.fn(),
     };
 
     render(<NotificationCenterPanel source={source} />);
