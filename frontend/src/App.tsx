@@ -9,9 +9,13 @@ import { HistoryRoute } from './app/routes/HistoryRoute';
 import { EpisodesRoute } from './app/routes/EpisodesRoute';
 import { DownloadsRoute } from './app/routes/DownloadsRoute';
 import { NotFoundRoute } from './app/routes/NotFoundRoute';
+import { NotificationsRoute } from './app/routes/NotificationsRoute';
 import { PreferencesRoute } from './app/routes/PreferencesRoute/PreferencesRoute';
 import { SeasonRoute } from './app/routes/SeasonRoute';
 
+/**
+ * App declares every routed surface inside the shared `AppLayout` shell.
+ */
 function App() {
     return (
         <Routes>
@@ -34,6 +38,7 @@ function App() {
                 <Route path="/network" element={<Navigate replace to="/activity" />} />
                 <Route path="/status" element={<Navigate replace to="/activity" />} />
                 <Route path="/season" element={<SeasonRoute />} />
+                <Route path="/notifications" element={<NotificationsRoute />} />
                 <Route path="/settings" element={<PreferencesRoute />} />
                 <Route path="/preferences" element={<Navigate replace to="/settings" />} />
                 <Route path="*" element={<NotFoundRoute />} />

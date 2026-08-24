@@ -611,43 +611,75 @@ yet. **Slice 3a-ii** (separate batch): 3a.3.* (panel, `/notifications` route, na
 
 ### 3a.3 Implementation — Panel, Route, Nav
 
-- [ ] **3a.3.1** [GREEN] Implement `NotificationCenterPanel.tsx` + `use-notification-center-panel.ts` +
+- [x] **3a.3.1** [GREEN] Implement `NotificationCenterPanel.tsx` + `use-notification-center-panel.ts` +
   `notification-center-panel.helpers.ts` / `.types.ts` / `.constants.ts` — composes `NotificationTable` +
   `NotificationEmptyState`, wired to the `notification-center-source` adapter; NO selection/search yet
-  (3b adds that). Design §9.1.
-- [ ] **3a.3.2** [RED] Write `frontend/src/app/routes/__tests__/NotificationsRoute.test.tsx`: renders
-  `NotificationCenterPanel` without throwing.
-- [ ] **3a.3.3** [GREEN] Create `frontend/src/app/routes/NotificationsRoute.tsx` (composition only, no
+  (3b adds that). Design §9.1. **Deviation:** no `.constants.ts` — the two fixed filter defaults
+  (`view: 'active'`, `unreadOnly: false`) are local consts in `use-notification-center-panel.ts` itself,
+  mirroring how `use-notification-center-sync.ts` already keeps its own page-limit constant inline rather
+  than in a shared file. **Added beyond the task's literal single GREEN step**, under strict TDD: a RED
+  `notification-center-panel.helpers.test.ts` for the one real branch this slice introduces
+  (`toNotificationEmptyStateConditions`'s `serviceAvailable = !degraded` mapping and the hardcoded
+  `hasFilters: false`), plus a `NotificationCenterPanel.test.tsx` mounting the real panel end-to-end
+  (fetched rows render, never-recorded empty state, degraded → unavailable empty state) — without it,
+  Stryker's mutation gate would have had nothing exercising the panel/hook at all, since 3a.3.2 mocks the
+  panel out of `NotificationsRoute.test.tsx`.
+- [x] **3a.3.2** [RED] Write `frontend/src/app/routes/__tests__/NotificationsRoute.test.tsx`: renders
+  `NotificationCenterPanel` without throwing. **Added** a second case asserting the page `<h1>` (see
+  3a.3.3's deviation note).
+- [x] **3a.3.3** [GREEN] Create `frontend/src/app/routes/NotificationsRoute.tsx` (composition only, no
   hooks/business logic per CLAUDE.md constraint #4). Modify `frontend/src/App.tsx`: add
   `<Route path="/notifications" element={<NotificationsRoute />} />` inside the existing `AppLayout`
-  outlet (lines 18-40).
-- [ ] **3a.3.4** [RED] Write a constant test for `APP_LAYOUT_NAV_GROUPS` asserting the CURRENT (9-item)
+  outlet (lines 18-40), placed between `/season` and `/settings` to mirror the SYSTEM nav order.
+  **Deviation, found gap:** every other registered route in this app carries a page `<h1>` equal to its
+  nav label, enforced app-wide by `src/app/__tests__/App.test.tsx`'s "page header equals nav label"
+  `it.each`. `NotificationsRoute` had none, which would have been the first silent exception to that
+  invariant. Added a `<Typography type="h1">Notifications</Typography>` header (mirrors
+  `ActivityRoute.tsx`'s pattern exactly — still composition-only, no hooks) and added the
+  `['/notifications', 'Notifications']` case to that shared test.
+- [x] **3a.3.4** [RED] Write a constant test for `APP_LAYOUT_NAV_GROUPS` asserting the CURRENT (9-item)
   shape — this test is expected to FAIL once 3a.3.5 lands, proving the change is observed, not silently
   passing before and after. Then update the assertion to the new literal expectation: SYSTEM =
   `[Activity, Notifications, Settings]`, total = 10 items across 3 groups. Satisfies desktop-navigation
-  delta "Group order and membership" and "Item count."
-- [ ] **3a.3.5** [GREEN] Modify `frontend/src/shared/navigation/app-layout.constants.ts`: insert the
-  Notifications `NavItem` into SYSTEM, between Activity and Settings.
-- [ ] **3a.3.6** [RED] Write
+  delta "Group order and membership" and "Item count." Ran the RED→edit→RED-fails→GREEN cycle for real
+  (not just narrated): confirmed the new `app-layout.constants.test.ts` and the pre-existing
+  `app-layout.helpers.test.ts` both passed against the old 9-item shape, then both failed once 3a.3.5
+  landed, then updated both to the new 10-item literal expectation and confirmed green. **Found gap:**
+  `src/app/__tests__/App.test.tsx`'s own "grouped rail navigation" tests hardcode the same 9-item
+  shape/labels independently (not discovered until the full suite ran) — updated those two assertions and
+  the "page header" `it.each` list too (see 3a.3.3).
+- [x] **3a.3.5** [GREEN] Modify `frontend/src/shared/navigation/app-layout.constants.ts`: insert the
+  Notifications `NavItem` into SYSTEM, between Activity and Settings. Icon: `solar/bell-bold-duotone`
+  (distinct from the empty-state's `bell-bing-bold-duotone`).
+- [x] **3a.3.6** [RED] Write
   `frontend/src/features/navigation/NotificationsNavBadge/__tests__/NotificationsNavBadge.test.tsx`:
   - shows a badge reflecting the unread count while it is `> 0`
   - shows NO badge while unread count is `0`
   - after a `notification.push` event arrives (or a mutation reduces the count), the badge updates
     without a full page reload
   Satisfies desktop-navigation delta "Badge shows the unread count while unread records exist," "No
-  badge when nothing is unread," "The badge count updates as records are read."
-- [ ] **3a.3.7** [GREEN] Implement `NotificationsNavBadge.tsx` + `use-notifications-nav-badge.ts`
+  badge when nothing is unread," "The badge count updates as records are read." **Deviation:** unlike
+  `SeasonNavBadge` (zero props, backed by a globally-settable Zustand store), `NotificationsNavBadge`
+  accepts optional `centerSource`/`pushSource` props defaulting to the runtime singletons — needed to
+  inject fakes for both the initial `getUnreadCount()` fetch and the `notification.push` subscription
+  without exercising the real Wails-binding poll in tests, mirroring `TransactionPanel`'s/
+  `useSyncStatusChip`'s existing injectable-source pattern rather than `SeasonNavBadge`'s.
+- [x] **3a.3.7** [GREEN] Implement `NotificationsNavBadge.tsx` + `use-notifications-nav-badge.ts`
   (mirrors `SeasonNavBadge/`; fetches `GetUnreadNotificationCount` on mount and subscribes to
   `notification.push` to increment locally — design §15's resolved open question, "the subscription is
   the cheaper answer"). Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add the render seam mirroring
   line 77's `{to === '/season' ? <SeasonNavBadge /> : null}` for `/notifications`.
-- [ ] **3a.3.8** [GREEN] [[MANDATORY ROUTE_MARKERS ENTRY]] Modify `frontend/scripts/render-smoke.mjs`:
+- [x] **3a.3.8** [GREEN] [[MANDATORY ROUTE_MARKERS ENTRY]] Modify `frontend/scripts/render-smoke.mjs`:
   add `'/#/notifications'` to BOTH the `ROUTE_MARKERS` map (currently only `/#/downloads` at lines
   46-48) AND the iterated route array at line 218 (currently `['/', '/#/downloads']`). CLAUDE.md #18b —
   a route is not covered by the smoke test until it is present in both places; the 1.2.0 regression
-  shipped exactly this gap.
-- [ ] **3a.3.9** [VERIFY] Run `bun --cwd="frontend" run render:smoke` and confirm `/#/notifications`
-  paints a non-empty `#root`.
+  shipped exactly this gap. Markers used: `'Notifications unavailable'` (the panel's own "unavailable"
+  empty-state title) — deterministic in this context since the static-served smoke bundle has no live
+  Wails runtime, so every notification-center binding degrades every time, unlike `/#/downloads`'s
+  data-independent static card titles.
+- [x] **3a.3.9** [VERIFY] Run `bun --cwd="frontend" run render:smoke` and confirm `/#/notifications`
+  paints a non-empty `#root`. PASSED: `render-smoke: the production bundle renders (Today, Catalog,
+  Downloads present on every checked route).`
 
 ### 3a.4 Testing & Verification
 

@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react';
 import { NavLink, Outlet } from 'react-router';
 import { NotificationToasts } from '../NotificationToasts';
+import { NotificationsNavBadge } from '../../features/navigation/NotificationsNavBadge/NotificationsNavBadge';
 import { SeasonNavBadge } from '../../features/navigation/SeasonNavBadge/SeasonNavBadge';
 import { SyncStatusChip } from '../../features/navigation/SyncStatusChip/SyncStatusChip';
 import { APP_LAYOUT_BRIDGE_MARK_PATHS, APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
@@ -75,6 +76,7 @@ export function AppLayout() {
                     <span className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">
                       {label}
                       {to === '/season' ? <SeasonNavBadge /> : null}
+                      {to === '/notifications' ? <NotificationsNavBadge /> : null}
                     </span>
                   </NavLink>
                 ))}

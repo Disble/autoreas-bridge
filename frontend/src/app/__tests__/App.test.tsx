@@ -194,7 +194,7 @@ describe('App routing', () => {
   });
 
   describe('grouped rail navigation', () => {
-    it('renders exactly 9 nav items across 3 groups in the documented order', async () => {
+    it('renders exactly 10 nav items across 3 groups in the documented order', async () => {
       render(
         <MemoryRouter initialEntries={['/today']}>
           <App />
@@ -203,7 +203,7 @@ describe('App routing', () => {
 
       const nav = await screen.findByRole('navigation', { name: 'Bridge primary navigation' });
 
-      expect(within(nav).getAllByRole('link')).toHaveLength(9);
+      expect(within(nav).getAllByRole('link')).toHaveLength(10);
       expect(APP_LAYOUT_NAV_GROUPS).toHaveLength(3);
       expect(APP_LAYOUT_NAV_GROUPS[0]?.items.map((item) => item.label)).toEqual([
         'Today',
@@ -214,14 +214,18 @@ describe('App routing', () => {
         'Season',
       ]);
       expect(APP_LAYOUT_NAV_GROUPS[1]?.items.map((item) => item.label)).toEqual(['Devices']);
-      expect(APP_LAYOUT_NAV_GROUPS[2]?.items.map((item) => item.label)).toEqual(['Activity', 'Settings']);
+      expect(APP_LAYOUT_NAV_GROUPS[2]?.items.map((item) => item.label)).toEqual([
+        'Activity',
+        'Notifications',
+        'Settings',
+      ]);
       expect(APP_LAYOUT_NAV_GROUPS[2]?.pinned).toBe(true);
     });
 
-    it('flattens to 9 items preserving group order for the mobile tab bar', () => {
+    it('flattens to 10 items preserving group order for the mobile tab bar', () => {
       const flat = flattenNavItems(APP_LAYOUT_NAV_GROUPS);
 
-      expect(flat).toHaveLength(9);
+      expect(flat).toHaveLength(10);
       expect(flat.map((item) => item.label)).toEqual([
         'Today',
         'Downloads',
@@ -231,6 +235,7 @@ describe('App routing', () => {
         'Season',
         'Devices',
         'Activity',
+        'Notifications',
         'Settings',
       ]);
     });
@@ -246,6 +251,7 @@ describe('App routing', () => {
       ['/season', 'Season'],
       ['/devices', 'Devices'],
       ['/activity', 'Activity'],
+      ['/notifications', 'Notifications'],
         ['/settings', 'Settings'],
       ])('the %s page h1 equals its nav label %s', async (path, label) => {
       render(

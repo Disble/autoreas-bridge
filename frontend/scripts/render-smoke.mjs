@@ -45,6 +45,10 @@ const REQUIRED_MARKERS = ['Today', 'Catalog', 'Downloads'];
 /** Route-specific markers, proving the route actually rendered its own content. */
 const ROUTE_MARKERS = {
   '/#/downloads': ['Configuration', 'Manual check'],
+  // No Wails runtime backs this static-served bundle, so every notification
+  // center binding degrades and the panel settles on the "unavailable"
+  // empty state -- a deterministic marker, not one that depends on live data.
+  '/#/notifications': ['Notifications unavailable'],
 };
 
 /** Extension-to-MIME map for the throwaway static server. */
@@ -215,7 +219,7 @@ try {
   // Requesting "/downloads" would silently serve index.html with an empty hash
   // and render the default route instead -- a check that looks like it covers
   // Downloads while never leaving Today.
-  for (const route of ['/', '/#/downloads']) {
+  for (const route of ['/', '/#/downloads', '/#/notifications']) {
     const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
     failures.push(...checkDom(dom, route));
   }
@@ -236,4 +240,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`render-smoke: the production bundle renders (${REQUIRED_MARKERS.join(', ')} present on / and /downloads).`);
+console.log(`render-smoke: the production bundle renders (${REQUIRED_MARKERS.join(', ')} present on every checked route).`);
