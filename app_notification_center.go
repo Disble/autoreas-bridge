@@ -7,6 +7,13 @@ import (
 	"autoreas-bridge/internal/notification/center"
 )
 
+// notificationArchivedEventName is the Wails runtime event ArchiveNotifications
+// emits after a successful archive, carrying the archived ids (design.md §3
+// Decision G). Lets a live toast for one of those ids close itself through
+// the shared event bus rather than the toast module importing the
+// notification-center feature directly.
+const notificationArchivedEventName = "notification.archived"
+
 // ListNotifications is the Wails-bound keyset-paginated read of the
 // notification center's inbox (design §10). Never panics: a nil store or a
 // query error degrades to an empty, Degraded page.
@@ -73,7 +80,9 @@ func (a *App) MarkNotificationsRead(ids []int64) contracts.NotificationMutationR
 }
 
 // ArchiveNotifications archives the given ids -- also marking any of them
-// still unread as read, in the same store operation (design §5.6).
+// still unread as read, in the same store operation (design §5.6). On
+// success it also emits notificationArchivedEventName carrying ids, so a
+// live toast for one of them can close itself (design §3 Decision G).
 func (a *App) ArchiveNotifications(ids []int64) contracts.NotificationMutationResult {
 	if a.notificationCenterStore == nil {
 		return contracts.NotificationMutationResult{Degraded: true}
@@ -82,6 +91,9 @@ func (a *App) ArchiveNotifications(ids []int64) contracts.NotificationMutationRe
 	affected, err := a.notificationCenterStore.Archive(ctx, ids, a.currentTime().UnixMilli())
 	if err != nil {
 		return contracts.NotificationMutationResult{Degraded: true}
+	}
+	if a.emitFn != nil {
+		a.emitFn(ctx, notificationArchivedEventName, ids)
 	}
 	return a.notificationMutationResult(ctx, affected)
 }

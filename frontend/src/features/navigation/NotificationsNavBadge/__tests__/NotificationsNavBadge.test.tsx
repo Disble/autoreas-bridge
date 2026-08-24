@@ -29,6 +29,9 @@ function makePushSource(): { source: NotificationSource; push: (notification: No
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      subscribeArchived() {
+        return () => undefined;
+      },
     },
     push(notification) {
       for (const listener of listeners) {

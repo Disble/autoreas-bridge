@@ -1,42 +1,22 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
 
-vi.mock('../../features/notifications/ui/NotificationToasts/use-backend-event-resolver', () => ({
-  useBackendEventResolver: vi.fn(),
-}));
+/**
+ * `frontend/src/app/NotificationToasts.tsx` is the app-shell's ONE
+ * mounting seam for the toast surface (notifications delta spec: "mounted
+ * from the app-shell through exactly one thin re-export seam"). This pins
+ * that structurally, rather than by rendering through a mocked HeroUI --
+ * CLAUDE.md forbids hooks or business logic inside `frontend/src/app/**`,
+ * so the file itself must never grow beyond a one-line re-export.
+ */
+describe('NotificationToasts re-export', () => {
+  it('stays a one-line domain-agnostic re-export, never gaining hooks or business logic', () => {
+    const filePath = path.resolve(__dirname, '../NotificationToasts.tsx');
+    const contents = readFileSync(filePath, 'utf-8').trim();
 
-vi.mock('../../features/notifications/ui/NotificationToasts/use-missed-schedule-resolver', () => ({
-  useMissedScheduleResolver: vi.fn(),
-}));
-
-vi.mock('@heroui/react', () => ({
-  ToastProvider: ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid="toast-provider">{children}</div>
-  ),
-  toast: {
-    close: vi.fn(),
-    info: vi.fn().mockReturnValue('info-id'),
-    success: vi.fn().mockReturnValue('success-id'),
-    warning: vi.fn().mockReturnValue('warning-id'),
-    danger: vi.fn().mockReturnValue('danger-id'),
-  },
-}));
-
-describe('NotificationToasts', () => {
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
-
-  it('mounts the HeroUI toast provider', async () => {
-    const { NotificationToasts } = await import('../NotificationToasts');
-    render(
-      <MemoryRouter>
-        <NotificationToasts />
-      </MemoryRouter>,
+    expect(contents).toBe(
+      "export { NotificationToasts } from '../features/notifications/ui/NotificationToasts/NotificationToasts';",
     );
-
-    expect(screen.getByTestId('toast-provider')).toBeInTheDocument();
   });
 });

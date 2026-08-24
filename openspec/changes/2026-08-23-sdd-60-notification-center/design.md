@@ -237,14 +237,35 @@ that `actions.map(...)` emits one `ToastActionButton` per action.
 | A **"+N more" affordance opening the matching Center row** (the proposal's stated fallback) | **Rejected as structurally impossible for the case Bug B is about.** `use-missed-schedule-resolver.ts` pushes the two actions that are being dropped in production today — "Run now"/"Ignore" and "Open Downloads"/"Ignore this date". Those are live closures on toasts whose id is a hard-coded client literal; **no Center record exists to open**. A fallback that cannot cover the one production bug it exists to fix is not a fallback. |
 | **App-owned queue + render function (chosen)** | The only mechanism in 3.2.4 that renders N buttons. Cost is bounded: `toast.*` has exactly two call sites in the notifications module — `renderAppNotificationToast` and `NotificationToasts.tsx:19`'s `toast.close`. |
 
-**Bounded unknown, named rather than asserted.** HeroUI's `timeout: 0 === persistent` convention is a
-property of its `toast()` wrapper. Going direct to `ToastQueue.add(content, options)` hands those
-options to react-aria-components, whose own semantics are *omit `timeout` = persistent*. The design
-therefore specifies the app-owned mapping — `persistent: true` → omit `timeout`; otherwise
-`timeout: DEFAULT_TOAST_TIMEOUT_MS = 4000` — and Slice 4 opens with a **RED characterization test**
-pinning both behaviours plus the four `severity → variant` mappings before the queue swap lands. This
-is a spike inside Slice 4, not a Slice 4 blocker: the existing single-action path keeps working until
-the characterization test is green.
+**Bounded unknown — RESOLVED during Slice 4-i, and the design's hedge was backwards.**
+
+The original reasoning: HeroUI's `timeout: 0 === persistent` convention is a property of its `toast()`
+wrapper, so going direct to `ToastQueue.add(content, options)` would hand those options to
+react-aria-components, whose own semantics are *omit `timeout` = persistent*. On that reading the
+app-owned mapping would have been `persistent: true` → **omit** `timeout`.
+
+That never applies, because the app never reaches raw react-aria. Read from the installed
+`@heroui/react` 3.2.4 **dist source** (`components/toast/toast-queue.js:58-59`, and again at `:95-96`),
+carrying the library's own comment:
+
+```js
+// Apply default timeout if not provided, but respect explicit 0 (persistent toast)
+const timeout = options?.timeout !== undefined ? options.timeout : DEFAULT_TOAST_TIMEOUT;
+```
+
+`ToastQueue` is the same exported class behind both the `toast.*` singleton and an app-owned instance,
+and it normalises `timeout` **before** anything reaches the underlying RAC queue. There is no path
+through it where omitting `timeout` yields persistence — only an explicit `0` does.
+
+**Corrected mapping, implemented and pinned by `app-toast-queue.test.ts`:** `persistent: true` →
+explicit `timeout: 0`; otherwise explicit `timeout: DEFAULT_TOAST_TIMEOUT_MS = 4000`. Never omitted.
+
+Shipping the original mapping would have been a real, user-visible regression: the missed-schedule
+toasts are persistent precisely because they are waiting on a decision, and they would have
+auto-dismissed after four seconds. No existing test covered it. This is the whole reason Slice 4 opens
+with a **RED characterization test** — pinning the timeout polarity and the four `severity → variant`
+mappings — before the queue swap lands, with the existing single-action path left working until that
+test is green. The spike paid for itself.
 
 ### Decision G: archive closes a live toast through a Wails event, not a cross-feature import
 

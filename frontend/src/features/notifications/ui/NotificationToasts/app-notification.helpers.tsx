@@ -1,37 +1,68 @@
-import { toast } from '@heroui/react';
+import type { ReactElement } from 'react';
+import { Toast, ToastActionButton, ToastCloseButton, ToastContent, ToastDescription, ToastTitle } from '@heroui/react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
-import type { ToastOptions } from './app-notification.types';
+import { appToastQueue, resolveToastTimeoutMs } from './app-toast-queue';
+import { SEVERITY_TO_VARIANT } from './notification-resolver.constants';
+import type { AppToastPayload } from './app-notification.types';
 
 /**
- * Renders an AppNotification as a HeroUI toast using the positional
- * `toast.warning(message, options)` / `toast.danger(...)` API.
- * Returns the toast id so the controller can track it for deduplication.
+ * A structural mirror of react-aria-components' `QueuedToast<AppToastPayload>`
+ * -- kept local, naming only the fields `renderAppToastContent` and HeroUI's
+ * `<Toast>` wrapper actually read (`content`, `key`), rather than importing
+ * the type from `react-aria-components` directly. `@heroui/react` only
+ * declares that package as a peer dependency, and this module already
+ * depends on it solely through `@heroui/react`'s own public surface.
+ */
+export interface AppQueuedToast {
+  readonly content: AppToastPayload;
+  readonly key: string;
+}
+
+/**
+ * Adds a notification to the app-owned toast queue (`appToastQueue`).
+ * Carries EVERY action from `notification.actions` on the payload -- unlike
+ * the old `toast.success/warning/danger/info(...)` calls this replaces,
+ * which truncated to a single `actionProps` slot and silently dropped any
+ * action after the first (Bug B, notifications delta spec). Rendering all
+ * of them is `renderAppToastContent`'s job, wired as `NotificationToasts`'
+ * `ToastProvider` children render function.
  */
 export function renderAppNotificationToast(notification: AppNotification): string {
   const { severity, title, description, actions, persistent } = notification;
 
-  const options: Omit<ToastOptions, 'variant'> = {};
-  if (description) {
-    options.description = description;
-  }
-  if (actions?.length) {
-    options.actionProps = {
-      children: actions[0].label,
-      onPress: actions[0].onPress,
-    };
-  }
-  if (persistent) {
-    options.timeout = 0;
-  }
+  return appToastQueue.add(
+    {
+      title,
+      description,
+      variant: SEVERITY_TO_VARIANT[severity],
+      actions,
+    },
+    { timeout: resolveToastTimeoutMs(persistent) },
+  );
+}
 
-  switch (severity) {
-    case 'success':
-      return toast.success(title, options);
-    case 'warning':
-      return toast.warning(title, options);
-    case 'error':
-      return toast.danger(title, options);
-    default:
-      return toast.info(title, options);
-  }
+/**
+ * Renders one queued app toast's full content, including every action.
+ * Passed as `NotificationToasts`' `ToastProvider` children render function
+ * (design.md §3 Decision F) -- HeroUI's own default renderer only supports a
+ * single `actionProps` slot (`ToastContentValue.actionProps` is singular),
+ * which is exactly the shape that produced Bug B.
+ */
+export function renderAppToastContent({ toast }: Readonly<{ toast: AppQueuedToast }>): ReactElement {
+  const { title, description, actions, variant } = toast.content;
+
+  return (
+    <Toast<AppToastPayload> toast={toast} variant={variant}>
+      <ToastContent>
+        <ToastTitle>{title}</ToastTitle>
+        {description ? <ToastDescription>{description}</ToastDescription> : null}
+      </ToastContent>
+      {(actions ?? []).map((action) => (
+        <ToastActionButton key={action.label} variant={action.variant} onPress={action.onPress}>
+          {action.label}
+        </ToastActionButton>
+      ))}
+      <ToastCloseButton />
+    </Toast>
+  );
 }

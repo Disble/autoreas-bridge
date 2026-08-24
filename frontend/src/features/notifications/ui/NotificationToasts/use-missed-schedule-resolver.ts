@@ -11,17 +11,22 @@ import { MISSED_DECISION_TOAST_ID, MISSED_FAILURE_TOAST_ID } from './notificatio
  */
 export function useMissedScheduleResolver(
   push: (notification: AppNotification) => void,
-  remove: (id: string) => void,
+  remove: (key: string | number) => void,
 ): void {
   const navigate = useNavigate();
   const notice = useMissedScheduleNotice();
   const noticeRef = useRef(notice);
-  noticeRef.current = notice;
-
   const pushRef = useRef(push);
-  pushRef.current = push;
   const removeRef = useRef(remove);
-  removeRef.current = remove;
+
+  // Refreshed in an effect rather than during render: React may discard a
+  // render pass, and a ref written during one that never commits leaves the
+  // effects below acting on a stale notice or callback.
+  useEffect(() => {
+    noticeRef.current = notice;
+    pushRef.current = push;
+    removeRef.current = remove;
+  });
 
   useEffect(() => {
     const { decisionNotice, runNow, ignore } = noticeRef.current;
@@ -47,7 +52,7 @@ export function useMissedScheduleResolver(
           },
         ],
         persistent: true,
-        persistedId: MISSED_DECISION_TOAST_ID,
+        dedupeKey: MISSED_DECISION_TOAST_ID,
       });
     } else {
       removeRef.current(MISSED_DECISION_TOAST_ID);
@@ -78,7 +83,7 @@ export function useMissedScheduleResolver(
           },
         ],
         persistent: true,
-        persistedId: MISSED_FAILURE_TOAST_ID,
+        dedupeKey: MISSED_FAILURE_TOAST_ID,
       });
     } else {
       removeRef.current(MISSED_FAILURE_TOAST_ID);

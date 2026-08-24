@@ -85,6 +85,55 @@ describe('notification-source', () => {
     unsubscribe();
   });
 
+  it('forwards notification.archived events to archived subscribers', async () => {
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      });
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const source = createNotificationSource();
+    const archivedListener = vi.fn();
+    const pushListener = vi.fn();
+    const unsubscribeArchived = source.subscribeArchived(archivedListener);
+    const unsubscribePush = source.subscribe(pushListener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    handlers.get('notification.archived')?.([7, 9]);
+
+    expect(archivedListener).toHaveBeenCalledWith([7, 9]);
+    // The two streams are independent: an archive must not reach the toast
+    // push listener, which would render a toast for a record being closed.
+    expect(pushListener).not.toHaveBeenCalled();
+
+    unsubscribeArchived();
+    unsubscribePush();
+  });
+
+  it('subscribes to the exact "notification.archived" event name', async () => {
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
+    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const source = createNotificationSource();
+    const unsubscribe = source.subscribeArchived(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Spelled as a literal on purpose: the backend emits this exact string,
+    // so reading the constant under test would pin nothing.
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.archived', expect.any(Function), -1);
+
+    unsubscribe();
+  });
+
   it('subscribes to the exact "notification.push" event name', async () => {
     const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
     const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);

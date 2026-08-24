@@ -1,42 +1,27 @@
-import { useCallback, useRef } from 'react';
-import { toast, ToastProvider } from '@heroui/react';
-import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
-import { renderAppNotificationToast } from './app-notification.helpers';
+import { ToastProvider } from '@heroui/react';
+import { renderAppToastContent } from './app-notification.helpers';
+import { appToastQueue } from './app-toast-queue';
+import { useAppToastController } from './use-app-toast-controller';
 import { useBackendEventResolver } from './use-backend-event-resolver';
 import { useMissedScheduleResolver } from './use-missed-schedule-resolver';
 
 /**
- * Hosts every app notification through a single HeroUI ToastProvider pipeline.
- * Resolver hooks drive push/remove; the controller owns the toast-id ledger
- * and renders everything.
+ * Hosts every app notification through a single HeroUI `ToastProvider`
+ * backed by the app-owned `appToastQueue` (design.md §3 Decision F), so a
+ * toast renders every one of its actions instead of truncating to one
+ * (Bug B). Resolver hooks drive `push`/`remove`; `useAppToastController`
+ * owns the toast-id ledger (Decision H) -- this component stays dumb UI
+ * (CLAUDE.md constraint #1).
  */
 export function NotificationToasts() {
-  const toastIdsRef = useRef<Map<string, string>>(new Map());
+  const { push, remove } = useAppToastController();
 
-  const remove = useCallback((persistedId: string) => {
-    const toastId = toastIdsRef.current.get(persistedId);
-    if (toastId) {
-      toast.close(toastId);
-      toastIdsRef.current.delete(persistedId);
-    }
-  }, []);
-
-  const push = useCallback(
-    (notification: AppNotification) => {
-      const { persistedId } = notification;
-      if (persistedId && toastIdsRef.current.has(persistedId)) {
-        return;
-      }
-      const toastId = renderAppNotificationToast(notification);
-      if (persistedId) {
-        toastIdsRef.current.set(persistedId, toastId);
-      }
-    },
-    [],
-  );
-
-  useBackendEventResolver(push);
+  useBackendEventResolver(push, remove);
   useMissedScheduleResolver(push, remove);
 
-  return <ToastProvider placement="top end" />;
+  return (
+    <ToastProvider placement="top end" queue={appToastQueue}>
+      {renderAppToastContent}
+    </ToastProvider>
+  );
 }

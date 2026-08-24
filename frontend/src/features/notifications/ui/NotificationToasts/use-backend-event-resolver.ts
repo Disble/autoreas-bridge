@@ -6,14 +6,31 @@ import { LEVEL_TO_SEVERITY } from './notification-resolver.constants';
 
 /**
  * Subscribes to the backend `notification.push` event stream and pushes
- * ephemeral AppNotification toast(s) for each event received.
+ * ephemeral AppNotification toast(s) for each event received, and to the
+ * `notification.archived` event stream to close a live toast for a record
+ * that just got archived elsewhere (design.md §3 Decision G).
+ *
+ * Bug A fix: `Source`, `CorrelationID`, `Timestamp`, and the event's
+ * persisted record id (`RecordID`) are forwarded unchanged instead of being
+ * dropped -- a dropped `CorrelationID`/`Source` made every backend event an
+ * uncorrelatable, deduplication-less ephemeral toast.
  */
 export function useBackendEventResolver(
   push: (notification: AppNotification) => void,
+  remove: (key: string | number) => void,
   source: NotificationSource = notificationSource,
 ): void {
   const pushRef = useRef(push);
-  pushRef.current = push;
+  const removeRef = useRef(remove);
+
+  // Refreshed in an effect rather than during render: React may discard a
+  // render pass, and a ref written during one that never commits leaves the
+  // subscription below calling a stale callback. The subscription itself must
+  // stay keyed on `source` alone, which is why the refs exist at all.
+  useEffect(() => {
+    pushRef.current = push;
+    removeRef.current = remove;
+  });
 
   useEffect(() => {
     return source.subscribe((notification) => {
@@ -22,7 +39,19 @@ export function useBackendEventResolver(
         title: notification.Title,
         description: notification.Body || undefined,
         persistent: false,
+        source: notification.Source,
+        correlationId: notification.CorrelationID,
+        timestamp: notification.Timestamp,
+        recordId: notification.RecordID,
       });
+    });
+  }, [source]);
+
+  useEffect(() => {
+    return source.subscribeArchived((recordIds) => {
+      for (const recordId of recordIds) {
+        removeRef.current(recordId);
+      }
     });
   }, [source]);
 

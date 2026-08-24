@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -232,6 +233,63 @@ func TestArchiveNotificationsRemovesFromDefaultListAndMarksRead(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected the archived record to remain queryable through the archived view")
+	}
+}
+
+// TestArchiveNotificationsEmitsArchivedEvent asserts a successful archive
+// emits notificationArchivedEventName carrying the archived ids, through the
+// existing a.emitFn test-double seam (see app_lifecycle_test.go /
+// app_capture_realtime_test.go for precedent) -- design.md §3 Decision G, so
+// a live toast for one of those ids can be closed client-side without the
+// toast module importing the notification-center feature directly.
+func TestArchiveNotificationsEmitsArchivedEvent(t *testing.T) {
+	t.Parallel()
+	app := notificationCenterAppTestDB(t)
+
+	id, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), center.Record{CreatedAtMS: 1000, Title: "t", Body: "b", Level: "info", Source: "seed"})
+	if err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+
+	var gotEventName string
+	var gotData []interface{}
+	app.emitFn = func(_ context.Context, eventName string, optionalData ...interface{}) {
+		gotEventName = eventName
+		gotData = optionalData
+	}
+
+	result := app.ArchiveNotifications([]int64{id})
+	if result.Degraded || result.Affected != 1 {
+		t.Fatalf("expected a successful archive of 1 record, got %#v", result)
+	}
+
+	if gotEventName != notificationArchivedEventName {
+		t.Fatalf("expected the %q event to be emitted, got %q", notificationArchivedEventName, gotEventName)
+	}
+	if len(gotData) != 1 {
+		t.Fatalf("expected exactly one data argument (the archived ids), got %#v", gotData)
+	}
+	ids, ok := gotData[0].([]int64)
+	if !ok || len(ids) != 1 || ids[0] != id {
+		t.Fatalf("expected the archived ids to be emitted, got %#v", gotData[0])
+	}
+}
+
+// TestArchiveNotificationsNilEmitFnNeverPanics asserts a nil a.emitFn (the
+// zero value most tests construct) degrades the event emission to a silent
+// no-op rather than panicking.
+func TestArchiveNotificationsNilEmitFnNeverPanics(t *testing.T) {
+	t.Parallel()
+	app := notificationCenterAppTestDB(t)
+
+	id, err := app.notificationCenterStore.InsertRecord(app.notificationCenterCtx(), center.Record{CreatedAtMS: 1000, Title: "t", Body: "b", Level: "info", Source: "seed"})
+	if err != nil {
+		t.Fatalf("insert record: %v", err)
+	}
+
+	result := app.ArchiveNotifications([]int64{id})
+	if result.Degraded || result.Affected != 1 {
+		t.Fatalf("expected a successful archive of 1 record even with a nil emitFn, got %#v", result)
 	}
 }
 

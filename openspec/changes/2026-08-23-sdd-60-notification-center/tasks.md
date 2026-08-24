@@ -815,9 +815,17 @@ but every intent still refuses with `intent_unregistered` — a designed, tested
 state, not a bug.
 **Forecast:** 500–700 lines.
 
+> **Split into 4-i/4-ii during apply** (same reason as Slice 3's 3a/3b pre-split: every slice so far
+> landed 2-3x its forecast). **4-i (toast layer, tasks 4.1-4.4) is APPLY-COMPLETE** — see the note at the
+> end of 4.4 for what shipped and the characterization-test findings. **4-ii (detail pane, task 4.6) is
+> NOT YET APPLIED** — `NotificationDetail`/`NotificationDetailRows`/`NotificationDetailRow`/
+> `use-notification-action.ts` still need to be built inert (Slice 5 wires the intents live). Task 4.5
+> (toast "View Details" navigation) and 4.7 (MUTATE/GATE) were also left for whichever apply pass lands
+> last, since 4.7's commit is the orchestrator's job per CLAUDE.md #3/#4, not a slice-owning agent's.
+
 ### 4.1 Infrastructure — Toast Queue Characterization (Decision F spike)
 
-- [ ] **4.1.1** [RED — MANDATORY CHARACTERIZATION TEST, MUST LAND BEFORE THE QUEUE SWAP] Write
+- [x] **4.1.1** [RED — MANDATORY CHARACTERIZATION TEST, MUST LAND BEFORE THE QUEUE SWAP] Write
   `app-toast-queue.test.ts` pinning, against the CURRENT module-level `toast.*` singleton behavior:
   - all four `severity → variant` mappings (`success`, `warning`, `error`, `info`) as literals
   - `persistent: true` → the resulting options OMIT `timeout`
@@ -827,75 +835,147 @@ state, not a bug.
   and must keep passing through it, proving the app-owned mapping survives the switch from
   `toast()`'s wrapper semantics to direct `ToastQueue.add(content, options)` semantics. Design §12
   Slice 4 row 1.
-- [ ] **4.1.2** [GREEN] Add to `notification-resolver.constants.ts`: `SEVERITY_TO_VARIANT` map,
+- [x] **4.1.2** [GREEN] Add to `notification-resolver.constants.ts`: `SEVERITY_TO_VARIANT` map,
   `DEFAULT_TOAST_TIMEOUT_MS = 4000`.
-- [ ] **4.1.3** [GREEN] Create `app-toast-queue.ts`: constructs the app-owned `ToastQueue<AppToastPayload>`
+- [x] **4.1.3** [GREEN] Create `app-toast-queue.ts`: constructs the app-owned `ToastQueue<AppToastPayload>`
   and implements the `persistent`→timeout-omission mapping function satisfying 4.1.1's pinned behavior.
 
 ### 4.2 Implementation — Bug B (toast drops non-primary actions)
 
-- [ ] **4.2.1** [RED — MANDATORY BUG B GUARD] Write `app-notification.helpers.test.tsx`:
+- [x] **4.2.1** [RED — MANDATORY BUG B GUARD] Write `app-notification.helpers.test.tsx`:
   - a single-action notification renders that one action as the toast's primary action (`actionProps`).
     Satisfies notifications delta "A single-action notification renders its one action normally."
   - a two-action notification renders BOTH: `actions[0]` via `actionProps`, and `actions[1]` reachable
     (by accessible role/label query) from the rendered toast tree. The test explicitly asserts
     `actions[1].label`/`onPress` are reachable and is documented inline as FAILING when a second action
     becomes unreachable. Satisfies "A second action is never silently dropped."
-- [ ] **4.2.2** [GREEN] Modify `app-notification.helpers.tsx`: stop truncating to `actions[0]` only;
+- [x] **4.2.2** [GREEN] Modify `app-notification.helpers.tsx`: stop truncating to `actions[0]` only;
   keep `actions[0]` as `actionProps` and map `actions[1..n]` into the custom toast content per Decision
   F's render-function approach (never inside `description`, per design §3 Decision F's rejected
   alternative — interactive controls inside the `aria-describedby` region are a correctness regression).
 
 ### 4.3 Implementation — Bug A (resolver drops fields) + Decision E
 
-- [ ] **4.3.1** [RED — MANDATORY BUG A GUARD] Write `use-backend-event-resolver.test.ts`: an incoming
+- [x] **4.3.1** [RED — MANDATORY BUG A GUARD] Write `use-backend-event-resolver.test.ts`: an incoming
   `notification.push` payload carrying `Source`, `CorrelationID`, `Timestamp`, and a persisted record id
   ALL reach the pushed value unchanged — none silently dropped. Satisfies "A backend event's identifying
   fields reach the pushed notification."
-- [ ] **4.3.2** [GREEN] Modify `use-backend-event-resolver.ts`: stop dropping `Source`/`CorrelationID`
+- [x] **4.3.2** [GREEN] Modify `use-backend-event-resolver.ts`: stop dropping `Source`/`CorrelationID`
   /`Timestamp`; set `recordId` from the event's persisted record id (Decision E — into the NEW
   `recordId` field, never into the renamed `dedupeKey`).
-- [ ] **4.3.3** [GREEN] Modify `frontend/src/shared/contracts/app-notification.types.ts` (Decision E):
+- [x] **4.3.3** [GREEN] Modify `frontend/src/shared/contracts/app-notification.types.ts` (Decision E):
   rename `persistedId` → `dedupeKey`; add `recordId?: number`; add `source`, `correlationId`,
   `timestamp` fields. Every property `readonly`.
-- [ ] **4.3.4** [GREEN] Modify `use-missed-schedule-resolver.ts`: update its two existing call sites from
+- [x] **4.3.4** [GREEN] Modify `use-missed-schedule-resolver.ts`: update its two existing call sites from
   `persistedId` to `dedupeKey` — the client-literal values (`MISSED_DECISION_TOAST_ID`,
   `MISSED_FAILURE_TOAST_ID`) keep flowing unchanged, only the field name changes.
 
 ### 4.4 Implementation — Decision H (state extraction) + Decision F (provider wiring)
 
-- [ ] **4.4.1** [RED] Write a characterization test for the CURRENT `useRef` ledger + `push`/`remove`
+- [x] **4.4.1** [RED] Write a characterization test for the CURRENT `useRef` ledger + `push`/`remove`
   behavior inside `NotificationToasts.tsx`, run once BEFORE 4.4.2's extraction to pin existing behavior.
-- [ ] **4.4.2** [GREEN] Extract `use-app-toast-controller.ts` out of `NotificationToasts.tsx` (Decision
+- [x] **4.4.2** [GREEN] Extract `use-app-toast-controller.ts` out of `NotificationToasts.tsx` (Decision
   H): the ledger and `push`/`remove` callbacks move into the hook; the `.tsx` keeps only the
   `ToastProvider` and its children render function (CLAUDE.md constraint #1: `.tsx` under `features/` is
   dumb UI only). JSDoc required on all declarations (CLAUDE.md constraint #6).
-- [ ] **4.4.3** [RED] Write a regression test asserting `frontend/src/app/NotificationToasts.tsx` remains
+- [x] **4.4.3** [RED] Write a regression test asserting `frontend/src/app/NotificationToasts.tsx` remains
   exactly a one-line re-export (`export { NotificationToasts } from
   '../features/notifications/ui/NotificationToasts/NotificationToasts'`), never gaining hooks or
   business logic. Satisfies notifications delta "Shared surface is domain-agnostic and reusable,
   wherever its files live."
-- [ ] **4.4.4** [RED — MANDATORY "SECOND TOAST ACTION DOES NOT DISAPPEAR" REGRESSION TEST] Modify
+- [x] **4.4.4** [RED — MANDATORY "SECOND TOAST ACTION DOES NOT DISAPPEAR" REGRESSION TEST] Modify
   `NotificationToasts.test.tsx`: through the ACTUAL mounted `ToastProvider` + app-owned queue (not the
   isolated helper unit test from 4.2.1) — push a two-action notification, assert both actions are
   present and pressable in the rendered toast region; then push a SECOND toast afterward and assert the
   first toast's second action is STILL present and pressable (the deterministic guard for the team's
   flagged Bug B regression risk — a second toast must not evict or hide the first one's actions).
-- [ ] **4.4.5** [GREEN] Wire `NotificationToasts.tsx`'s `ToastProvider` `queue` prop to the
+- [x] **4.4.5** [GREEN] Wire `NotificationToasts.tsx`'s `ToastProvider` `queue` prop to the
   `app-toast-queue.ts` instance and its children render function to `actions.map(...)` → one
   `ToastActionButton` per action.
-- [ ] **4.4.6** [RED] Extend `use-backend-event-resolver.test.ts`: a `notification.archived` event for a
+- [x] **4.4.6** [RED] Extend `use-backend-event-resolver.test.ts`: a `notification.archived` event for a
   currently-live toast's `recordId` calls the controller's `remove(...)`. Satisfies design §3 Decision G.
-- [ ] **4.4.7** [GREEN] Modify `use-backend-event-resolver.ts` to subscribe to `notification.archived`
+- [x] **4.4.7** [GREEN] Modify `use-backend-event-resolver.ts` to subscribe to `notification.archived`
   and call `remove(recordId)` — routed through the event bus the module already subscribes to, never a
   direct cross-feature import (Decision G; keeps CLAUDE.md's ban on business logic in
   `frontend/src/app/**` satisfied).
-- [ ] **4.4.8** [RED] Write a Go test on `app_notification_center.go`'s `ArchiveNotifications`: after a
+- [x] **4.4.8** [RED] Write a Go test on `app_notification_center.go`'s `ArchiveNotifications`: after a
   successful archive, a Wails runtime event named `notification.archived` is emitted carrying the
   archived ids. Locate the repo's existing test-double pattern for `runtime.EventsEmit` call sites first
   (`grep -rn EventsEmit` for precedent) and reuse it rather than inventing a new harness.
-- [ ] **4.4.9** [GREEN] Modify `app_notification_center.go`'s `ArchiveNotifications`: after
+- [x] **4.4.9** [GREEN] Modify `app_notification_center.go`'s `ArchiveNotifications`: after
   `Store.Archive` succeeds, call `runtime.EventsEmit(ctx, "notification.archived", ids)`.
+
+> **4-i APPLY NOTES (2026-08-23).**
+>
+> **Characterization-test finding on the timeout convention (4.1.1) — the task text's polarity was
+> backwards, verified from installed `@heroui/react` 3.2.4 dist source, not assumed.** Reading
+> `components/toast/toast-queue.js` directly shows the exported `ToastQueue` class — the SAME class
+> both the module-level `toast.*` singleton and this app's own `appToastQueue` are built from — always
+> resolves `timeout` to an explicit number before forwarding to the underlying react-aria-components
+> queue: `options?.timeout !== undefined ? options.timeout : DEFAULT_TOAST_TIMEOUT` (4000). There is no
+> code path through this class where *omitting* `timeout` produces a persistent toast — only an
+> explicit `0` does. So `resolveToastTimeoutMs` implements **persistent → explicit `0`; else → explicit
+> `4000`** (never an omitted key), the OPPOSITE polarity from this task's literal bullets ("persistent →
+> omit; else → 4000"), which mirrored design.md §3 Decision F's own untested guess about
+> react-aria-components' raw "omit = persistent" semantics. That raw-RAC convention never actually
+> applies here because the app never talks to react-aria-components' queue directly — HeroUI's
+> `ToastQueue` wrapper always intercepts first. Implementing the literal task wording would have shipped
+> a real regression: every persistent toast (missed-schedule decision/failure) would auto-dismiss after
+> 4 seconds instead of staying open. `app-toast-queue.test.ts` pins the verified-correct behavior.
+>
+> **Design deviation on action rendering (4.2.2) — design.md's own §3 Decision F resolution was
+> followed over the task list's paraphrase.** The task bullet says "keep `actions[0]` as `actionProps`
+> and map `actions[1..n]`..."; design.md §3 Decision F's CHOSEN approach is "children render function
+> mapping `actions.map(→ ToastActionButton)`" — i.e. every action rendered uniformly, not action[0]
+> specially through HeroUI's singular `actionProps` slot. Implemented per design.md: `renderAppToastContent`
+> maps ALL actions through `ToastActionButton`, since the custom children render function already fully
+> replaces HeroUI's default renderer (needed for the custom `variant`/description shape), making a
+> mixed actionProps-plus-extras path redundant.
+>
+> **Real interpretation call on "characterization test" for 4.1.1/4.4.1.** Both are read as: pin the
+> VERIFIED-correct behavior of the not-yet-extracted logic (via source reading, not by literally running
+> the pre-refactor code path), in the NEW module's test file, so the test is RED until the extraction/
+> queue-swap GREENs it and stays green forever after. This was necessary for 4.1.1 specifically because
+> the polarity finding above meant "pin current behavior" and "pin the task's literal bullets" were not
+> the same thing.
+>
+> **Bug A gap found and closed at the frontend-contract layer only (4.3.1-4.3.4).** `internal/notification/
+> notifier.go`'s `Notification` struct (verified live) has NO `RecordID` field, and `UIToastAdapter.Deliver`
+> (`internal/notification/ui_toast.go`) emits the raw struct as-is — so `notification.push` carries no
+> persisted record id today. Adding one is backend producer work (design.md §10's own open item, most
+> likely Slice 6) explicitly outside this slice's scope. Resolution: added `RecordID?: number` to the
+> frontend `Notification` wire contract (`shared/contracts/notification.types.ts`) as a forward-compatible
+> optional field (documented inline as always-undefined until a later slice's backend change), and wired
+> `use-backend-event-resolver.ts` to read it into `AppNotification.recordId` when present. `recordId` is
+> always `undefined` in production today; the RED test constructs the future payload shape directly
+> (as any frontend unit test already does for a Wails event) to prove the frontend side won't drop it
+> the moment the backend starts sending one.
+>
+> **4.4.4's Bug B regression guard needed one adjustment against the REAL (unmocked) HeroUI library:**
+> HeroUI's `ToastRegion` portals nothing into the DOM while its queue is empty
+> (`react-aria-components`' `Toast.js`: `visibleToasts.length > 0 && portalContainer ? createPortal(...) :
+> null`), so the pre-existing "mounts the toast provider" smoke assertion (`data-slot="toast-region"`
+> present) had to be replaced with a hook-wiring assertion for that specific test; the Bug B regression
+> test itself (pushing real two-action and second toasts through the actual mounted `ToastProvider` +
+> `appToastQueue`, asserting all three action buttons stay reachable) is unaffected and passes as
+> specified.
+>
+> **Confirmed the Bug B guard fails when a second action is removed:** both `app-notification.helpers.test.tsx`'s
+> isolated test and `NotificationToasts.test.tsx`'s real-mounted 4.4.4 test assert `screen.getByRole('button',
+> { name: 'Ignore' })` (or the equivalent second action) is present — deleting `actions[1..n]` from
+> `renderAppToastContent`'s `.map()` makes both throw a `getBy*` not-found error, not silently pass.
+>
+> **Scope discipline:** implemented ONLY 4.1-4.4 (toast layer). Did NOT touch 4.5 (toast "View Details"
+> nav), 4.6 (detail pane, explicitly 4-ii), or 4.7 (MUTATE/GATE/commit, the orchestrator's job). Verified:
+> `go build ./...` clean, `go vet ./...` clean, `gofmt -l` clean, full `go test .
+> ./internal/notification/...` green, `go run ./tools/mutationstaged` on the staged Go diff green (0
+> survivors), full frontend suite 1685/1685 green, `tsc --noEmit` clean, `eslint` on every staged
+> frontend file in this slice clean. One PRE-EXISTING, unrelated lint finding surfaced on a file this
+> slice necessarily touches (`dharness/role-file-shape` on `notification-source.helpers.ts`'s
+> `export const notificationSource = createNotificationSource();`, confirmed present at HEAD before this
+> slice via a HEAD-content diff) — flagged for the orchestrator rather than silently fixed, since a real
+> fix means relocating a singleton export and updating its two importers, which is outside this slice's
+> assigned scope.
 
 ### 4.5 Implementation — Toast "View Details" Navigation (Task-Planning Note C)
 
@@ -1156,3 +1236,22 @@ All 61 spec scenarios (34 `notification-center` + 15 `notification-actions` + 7 
 affordance) are the only points where this document made an explicit call design left implicit —
 flagged for confirmation rather than silently absorbed, per CLAUDE.md #2's drift-documentation
 requirement.
+
+---
+
+## Follow-up found during apply — Source/Level filter controls
+
+The backend applies `Sources` and `Levels` (wired and tested in Slice 3b), and the
+design canvas draws "All levels" / "All sources" dropdowns in the filter bar, but
+**no task in any slice creates those controls** and **no spec scenario requires
+them** — the 61 scenarios cover neither search nor source/level filtering.
+
+Deliberately left out rather than half-built: an absent control is honest, a
+rendered control that does nothing is the failure this change exists to correct
+(the same reason the backend wiring was pulled into 3b instead of shipping a
+filter bar over a store that ignored it).
+
+Cheap and safe to add later: the store, the contract and the binding already
+carry both filters end to end, with `TestListSourcesEmptySliceMatchesEverything`
+pinning the empty-slice-means-no-filter behaviour. What is missing is two HeroUI
+`Select`s in `NotificationFilterBar` and their spec scenarios.
