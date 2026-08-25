@@ -99,6 +99,69 @@ failures: `buildRunDetailRows` gives eventful anime their own row first, then
 one summary row heading the quiet ones, capped at `runDetailRowsLimit` (50).
 That is precisely why keying on the kind is wrong.
 
+## Table C — the projection matrix, by surface
+
+Tables A and B say what a notification offers. This one says how each surface
+expresses it. The rule is one policy, three translations — never three policies.
+See `docs/adr/016-notification-adapters-project-not-truncate.md` for why.
+
+Read a row as "this element, in that medium's terms". A dash means the medium
+cannot express it and the content travels by another row, never that it is
+silently lost.
+
+| Element | Center | HeroUI toast | Windows | Log forward |
+|---|---|---|---|---|
+| `Title` | heading | `ToastTitle` | `Title` | message |
+| `Body` | body line | `ToastDescription` | `Body` | message |
+| `Level` | severity chip | toast `variant` | `Audio` selection — the medium has no severity styling | log level |
+| `Kind` | — not shown | — | — | fixed `EventType: "notification"` |
+| `CorrelationID` | — not shown; it becomes the `See this run` verb | carried, not shown | `ActivationArguments` | `Fields.CorrelationID` |
+| `Rows` | bounded row block with cover art | same block | collapse into `Body`; a single-subject record lends its cover to `Icon` | — |
+| Row cover art | `GetAnimeCover` at render | `GetAnimeCover` at render | `Icon` (single subject) or the app icon | — |
+| **L1 verbs** (`RowRef` empty) | footer buttons | one `ToastActionButton` each | `Actions`, capped at 5 by the OS | — |
+| **L2 verbs** (`RowRef` set) | button inside its row | — the row is identity here | — no row concept | — |
+| Record identity | it *is* the record | "View details" deep link | `ActivationArguments` | — |
+
+Three cells carry the decisions worth stating out loud.
+
+**The toast drops L2.** A surface measured in seconds should not ask the user to
+choose between per-row verbs. The row is there to say WHICH anime; the record is
+one press away for anything finer.
+
+**Windows collapses rows into the body.** Its toast has images, buttons and
+inputs but no repeatable row. Collapsing is a translation; dropping is not.
+
+**The log forward ignores rows and actions, and that is correct.** A forensic log
+line has no affordances, so ignoring them is already a complete projection. It is
+what separates "this medium cannot express it" from "this adapter did not
+bother" — identical behaviour, and only one of the two is a defect.
+
+## Metadata is not content
+
+The detail pane used to foot every record with two labelled, monospaced values:
+`Kind` and `Correlation ID`. Both are gone from the UI. Neither is gone from the
+record, and both remain in the forensic log.
+
+**`Kind` earned nothing.** `run_completed` restates the title the user is already
+reading, in wire vocabulary rather than English. It is not the key to anything
+either: the filter bar narrows by level and source, and kind filters nothing. If
+it ever earns a place back, it will be as a filter facet — behaviour, not a row
+of text.
+
+**`Correlation ID` had real value and the wrong shape.** It is the only field
+tying a notification back to the run that produced it — which is an argument for
+a link, not for an opaque token the user cannot paste anywhere in the app. For a
+download notification the correlation id IS the run id, so it becomes a
+whole-notification verb: `See this run`.
+
+That verb has a destination and no address yet. `RunHistoryPanel` already selects
+a run by id, but the selection is component-local state; `/downloads` accepts no
+run selector, and `resolveSelectedRunId` falls back to the newest run. The route
+needs to honour a run parameter before the verb can point anywhere.
+
+The design canvas draws that metadata footer. It was the starting point, not the
+ceiling — this supersedes it deliberately.
+
 ## Defects this closes
 
 Before this policy landed, `notifyWithRows` always called `buildRunActions(rows)`
