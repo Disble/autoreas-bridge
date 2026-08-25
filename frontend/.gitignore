@@ -1,3 +1,6 @@
 .fallow/
 # dlinter: mutation testing runtime artifacts
 .dlinter-mutation-tmp/
+
+# Layout-smoke fixture bundle (scripts/layout-smoke.mjs rebuilds it every run).
+dist-layout/

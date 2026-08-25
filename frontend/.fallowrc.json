@@ -18,7 +18,17 @@
     // same JSON-reference blind spot as the `ignoreDependencies` entries
     // below. It is a real entry point, not dead code: deleting it breaks the
     // staged mutation gate, so it is declared rather than ignored.
-    "vitest.dlinter-mutation.mts"
+    "vitest.dlinter-mutation.mts",
+    // The layout-smoke fixture page: a real entry point, built by
+    // `vite.layout.config.ts` rather than by the app's own build, so the app's
+    // import graph cannot reach it. Deleting it breaks the layout gate.
+    "scripts/layout-fixtures/main.tsx",
+    // Named as a string in package.json's `layout:smoke` script, the same
+    // JSON-reference blind spot as the entries above.
+    "vite.layout.config.ts",
+    // Another ESM script test outside `src`, and the only importer of
+    // `layout-smoke.mjs`'s verdict parser.
+    "scripts/__tests__/layout-smoke.test.mjs"
   ],
   "ignoreDependencies": [
     // `eslint` is imported only by `scripts/check-file-size-warnings.mjs`, a

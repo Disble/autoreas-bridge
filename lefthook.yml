@@ -146,6 +146,14 @@ pre-commit:
           - name: frontend-render-smoke
             run: bun --cwd="frontend" run render:smoke
 
+          # Mounts the real notification toast in the same headless browser and
+          # fails when its BOXES are wrong. render-smoke above proves the app
+          # paints; this proves what it paints is not overflowing. jsdom has no
+          # layout engine, so a title that ran off the toast and buttons that
+          # took half the card both shipped through a fully green suite.
+          - name: frontend-layout-smoke
+            run: bun --cwd="frontend" run layout:smoke
+
           # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
           - name: test:mutation:staged
             run: npm run test:mutation:staged

@@ -1,27 +1,2 @@
 @import "tailwindcss";
 @import "@heroui/styles";
-
-/*
- * HeroUI sizes the toast region to its content on anything wider than `sm`
- * (`.toast-region { @apply sm:w-auto sm:min-w-(--toast-width) }`) and sets no
- * upper bound, and `.toast__content` is a column flex container with no
- * `min-inline-size: 0`. Together those mean one unbreakable string -- an anime
- * title is routinely sixty characters with no space to break at -- sets the
- * toast's width, and it grows until the window clips it.
- *
- * The cap belongs here rather than on a component: it is a property of the
- * surface, not of whatever is being announced on it, and every toast in the app
- * shares it. `min-inline-size: 0` on the content is the other half -- without
- * it a flex item's automatic minimum size is its longest unbreakable word, so
- * no amount of wrapping inside the item can shrink it.
- *
- * Logical properties rather than width/min-width: these follow the writing mode
- * the way the rest of HeroUI's own toast CSS does (`inset-inline-start`).
- */
-.toast-region {
-  max-inline-size: min(28rem, calc(100vw - 2rem));
-}
-
-.toast__content {
-  min-inline-size: 0;
-}
