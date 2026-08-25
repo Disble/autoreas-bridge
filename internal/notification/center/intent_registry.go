@@ -32,6 +32,20 @@ const (
 	// Intents.dc.html), and the only registered intent whose handler runs no
 	// backend operation at all -- it hands the press to the delivery layer.
 	IntentNavigationOpen = "navigation.open"
+	// IntentSeasonDownloadNow resolves to the same manual season download the
+	// Daily Board's own "Download now" button triggers.
+	//
+	// It is registered because season.past_download_window is the one notice
+	// whose body names an action the user cannot otherwise reach from it: the
+	// batch missed today's scheduled window, so nothing will download it
+	// automatically, and the Daily Board banner that carries the button is
+	// ephemeral local state cleared on navigation. The durable record was left
+	// telling the user to do something with no way to do it.
+	//
+	// Single-fire like IntentScheduleRunMissedNow, and for the same reason: it
+	// settles one moment, and once that batch has downloaded the moment is
+	// closed.
+	IntentSeasonDownloadNow = "season.download_now"
 )
 
 // Frozen-args keys, declared beside the intents that read them for the same

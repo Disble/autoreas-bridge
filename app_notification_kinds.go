@@ -53,3 +53,23 @@ const (
 	// producer to freeze tokens against them.
 	missedScheduleKind = "missed_schedule"
 )
+
+// The whole-notification destinations and copy the app-level producers freeze into their tokens.
+//
+// They live here beside the kinds rather than in each producer file because two producers now
+// share one destination: both device.paired and sync_health_warning send the user to the same
+// screen, and a second literal would be a second thing to keep in step with the router.
+const (
+	// seasonRoute is where both season notices send the user: the screen where a season anime is
+	// created, graded and sent to Ver hoy.
+	seasonRoute = "/season"
+	// openSeasonActionLabel is the copy on that token.
+	openSeasonActionLabel = "Open Season"
+	// downloadNowActionLabel is the copy on the past-download-window token, matching the Daily
+	// Board button it now mirrors word for word.
+	downloadNowActionLabel = "Download now"
+	// devicesRoute is where both device notices send the user.
+	devicesRoute = "/devices"
+	// openDevicesActionLabel is the copy on that token.
+	openDevicesActionLabel = "Open Devices"
+)

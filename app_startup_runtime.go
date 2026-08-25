@@ -67,6 +67,20 @@ func (a *App) canUseBridgeDB(ctx context.Context) (ok bool) {
 	return a.bridgeDB.PingContext(ctx) == nil
 }
 
+// openDevicesActions returns the whole-notification token every device notice carries.
+//
+// Both producers that use it -- the two sync-health branches and the pairing success -- are about
+// one paired device and none of them individuate anything, so there is nothing for a row-level
+// verb to bind to. The success case gets one too: a notification with nowhere to go is a dead
+// end, whichever way it went.
+func openDevicesActions() []notification.ActionSpec {
+	return []notification.ActionSpec{{
+		Label:  openDevicesActionLabel,
+		Intent: center.IntentNavigationOpen,
+		Args:   map[string]string{center.ArgKeyRoute: devicesRoute},
+	}}
+}
+
 // notifyDeviceSyncHealth reports device staleness and prunes acknowledged changes.
 func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 	EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) ([]bridgeSync.DeviceSyncState, error)
@@ -92,6 +106,7 @@ func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 				Body:      "A paired device has not synced recently. If it does not reconnect soon, Bridge will stop preserving old sync changes for it.",
 				Kind:      syncHealthWarningKind,
 				Timestamp: time.Now(),
+				Actions:   openDevicesActions(),
 			})
 		case bridgeSync.DeviceSyncStatusStale:
 			_ = a.notifier.Notify(ctx, notification.Notification{
@@ -101,6 +116,7 @@ func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
 				Body:      "A paired device has been offline long enough that it no longer blocks changelog cleanup. It may need a full refresh when it reconnects.",
 				Kind:      syncHealthWarningKind,
 				Timestamp: time.Now(),
+				Actions:   openDevicesActions(),
 			})
 		}
 	}
@@ -234,6 +250,7 @@ func (a *App) onPairingTokenConsumed() func() {
 				Body:      "A mobile device successfully paired with this bridge.",
 				Kind:      devicePairedKind,
 				Timestamp: time.Now(),
+				Actions:   openDevicesActions(),
 			})
 		}
 	}

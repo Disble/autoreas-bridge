@@ -8,6 +8,7 @@ import (
 	"autoreas-bridge/internal/download"
 	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/schedule"
+	"autoreas-bridge/internal/season"
 )
 
 // TestRegisterNotificationIntentsDownloadRunAnimeConditionalOnDownloadService
@@ -142,5 +143,38 @@ func TestRunAnimeIntentStaysSingleFire(t *testing.T) {
 	}
 	if handler.Repeatable() {
 		t.Fatal("expected download.run_anime to stay single-fire: a second press would start a second download")
+	}
+}
+
+// TestSeasonDownloadNowIntentIsRegisteredWithTheSeasonSubsystem pins the half of the token that
+// is easy to forget: a producer can freeze an intent nobody registered, and the button then
+// refuses `intent_unregistered` the moment it is pressed -- looking, from the user's side,
+// exactly like the missing button it replaced.
+func TestSeasonDownloadNowIntentIsRegisteredWithTheSeasonSubsystem(t *testing.T) {
+	t.Parallel()
+
+	app := &App{seasonService: &season.Service{}}
+
+	registry := app.registerNotificationIntents()
+
+	handler, ok := registry.Resolve(center.IntentSeasonDownloadNow)
+	if !ok {
+		t.Fatal("season.download_now resolves to nothing, so every Download now press would refuse")
+	}
+	if handler.Repeatable() {
+		t.Fatal("season.download_now is repeatable; it settles one missed window, like schedule.run_missed_now")
+	}
+}
+
+// TestSeasonDownloadNowIntentIsAbsentWithoutTheSubsystem is the other half of the registry
+// contract: an intent whose subsystem is not live must stay UNREGISTERED, so the press surfaces
+// as intent_unregistered rather than reaching a nil dependency (design Decision C).
+func TestSeasonDownloadNowIntentIsAbsentWithoutTheSubsystem(t *testing.T) {
+	t.Parallel()
+
+	registry := (&App{}).registerNotificationIntents()
+
+	if _, ok := registry.Resolve(center.IntentSeasonDownloadNow); ok {
+		t.Fatal("season.download_now is registered with no season service behind it")
 	}
 }

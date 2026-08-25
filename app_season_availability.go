@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/download/sites/jkanime"
 	"autoreas-bridge/internal/events"
 	"autoreas-bridge/internal/notification"
+	"autoreas-bridge/internal/notification/center"
 	"autoreas-bridge/internal/schedule"
 )
 
@@ -336,7 +337,35 @@ func (a *App) notifySeasonPastDownloadWindow(ctx context.Context, count int, hhm
 		Source:    "season",
 		Kind:      seasonPastDownloadWindowKind,
 		Timestamp: time.Now(),
+		Actions:   pastDownloadWindowActions(),
 	})
+}
+
+// openSeasonActions returns the whole-notification token the season producer's notices carry.
+//
+// It sits at the notification level rather than on each row deliberately. The rows of
+// season.anime_available name what is available to create, and every one of them is created on
+// the same screen -- a per-row token would freeze the identical route N times, which is the
+// notification's own verb wearing a row's clothes (docs/notification-cta-policy.md).
+func openSeasonActions() []notification.ActionSpec {
+	return []notification.ActionSpec{{
+		Label:  openSeasonActionLabel,
+		Intent: center.IntentNavigationOpen,
+		Args:   map[string]string{center.ArgKeyRoute: seasonRoute},
+	}}
+}
+
+// pastDownloadWindowActions returns the token that lets the notice do what its own body asks.
+//
+// Alone among the season tokens this one is an OPERATION, not navigation. The batch missed
+// today's scheduled window, so nothing downloads it automatically; the Daily Board offers exactly
+// this button, but that banner is ephemeral local state cleared the moment the user navigates
+// away, which left the durable record naming an action it could not take.
+func pastDownloadWindowActions() []notification.ActionSpec {
+	return []notification.ActionSpec{{
+		Label:  downloadNowActionLabel,
+		Intent: center.IntentSeasonDownloadNow,
+	}}
 }
 
 // seasonAvailableNamesShownInBody caps how many anime names are listed verbatim in the
@@ -357,6 +386,7 @@ func (a *App) notifySeasonAvailable(ctx context.Context, names []string) {
 		Kind:      seasonAvailableKind,
 		Timestamp: time.Now(),
 		Rows:      buildSeasonAvailableRows(names),
+		Actions:   openSeasonActions(),
 	})
 }
 

@@ -318,6 +318,9 @@ func (a *App) registerNotificationIntents() *center.StaticRegistry {
 	if a.copyText != nil {
 		registry.Register(center.IntentClipboardCopy, center.RepeatableFunc(a.clipboardCopyIntent))
 	}
+	if a.seasonService != nil {
+		registry.Register(center.IntentSeasonDownloadNow, center.SingleFireFunc(a.seasonDownloadNowIntent))
+	}
 	if a.downloadScheduler != nil {
 		registry.Register(center.IntentScheduleRunMissedNow, center.SingleFireFunc(func(ctx context.Context, args map[string]string) error {
 			return missedStartupActionAsIntentError(a.resolveMissedStartupAction(ctx, args["localDate"], schedule.MissedStartupActionRunNow))
@@ -366,6 +369,19 @@ func missedStartupActionAsIntentError(result schedule.MissedStartupActionResult)
 		return nil
 	}
 	return fmt.Errorf("missed startup action not settled: %s", result.Kind)
+}
+
+// seasonDownloadNowIntent is the season.download_now handler: it runs the same manual season
+// download the Daily Board's own "Download now" button triggers.
+//
+// It reports no error because the operation it wraps reports none -- triggerDownloadsForSeason
+// hands the work to the download orchestration and returns. That is the whole reason the intent
+// is registered conditionally on the season subsystem being live: an unwired subsystem must
+// surface as intent_unregistered, never as a handler that cannot say what went wrong (design
+// Decision C, IntentHandler's error contract).
+func (a *App) seasonDownloadNowIntent(ctx context.Context, _ map[string]string) error {
+	a.triggerDownloadsForSeason(ctx)
+	return nil
 }
 
 // runAnimeAgainIntent is the download.run_anime handler: it re-resolves the
