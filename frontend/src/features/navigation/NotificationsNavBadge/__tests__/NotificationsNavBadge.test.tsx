@@ -43,6 +43,9 @@ function makePushSource(): { source: NotificationSource; push: (notification: No
       subscribeArchived() {
         return () => undefined;
       },
+      subscribeNavigate() {
+        return () => undefined;
+      },
     },
     push(notification) {
       for (const listener of listeners) {

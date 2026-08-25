@@ -6,12 +6,16 @@ import (
 	"autoreas-bridge/internal/notification"
 )
 
-// TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest is the mandatory collapse-
-// boundary mutation target: an off-by-one in what gets folded into the summary row must fail
-// this test. Two uneventful animes (checked, with nothing new to fetch) must fold into exactly
-// one trailing row with CollapsedCount == 2, while the failed and manual animes each keep their
-// own row.
-func TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest(t *testing.T) {
+// TestBuildRunDetailRowsNamesFailedAndManualAnimesAheadOfTheQuietGroup is the mandatory group-
+// boundary mutation target: an off-by-one in what the summary row heads must fail this test.
+// Two uneventful animes (checked, with nothing new to fetch) must sit under exactly one summary
+// row with CollapsedCount == 2, while the failed and manual animes each keep their own row above
+// it.
+//
+// This test used to require exactly 3 rows, because the two uneventful animes were counted and
+// then DISCARDED -- their ids and names never reached the record. That is the defect this slice
+// removes, so the expectation moved from 3 to 5 deliberately.
+func TestBuildRunDetailRowsNamesFailedAndManualAnimesAheadOfTheQuietGroup(t *testing.T) {
 	t.Parallel()
 
 	outcomes := []animeRunOutcome{
@@ -23,9 +27,10 @@ func TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest(t *test
 
 	rows := buildRunDetailRows(outcomes)
 
-	if len(rows) != 3 {
-		t.Fatalf("rows = %#v, want exactly 3 (1 failed + 1 manual + 1 collapsed) -- an off-by-one here must fail this test", rows)
+	if len(rows) != 5 {
+		t.Fatalf("rows = %#v, want exactly 5 (1 failed + 1 manual + 1 summary + the 2 anime it heads) -- an off-by-one here must fail this test", rows)
 	}
+	requireRowsName(t, rows, "anime-ok-1", "anime-ok-2")
 
 	var failedRow, manualRow, collapsedRow *notification.DetailItem
 	for i := range rows {
@@ -75,14 +80,13 @@ func TestBuildRunDetailRowsReturnsNilForAnEmptyOutcomeSlice(t *testing.T) {
 	}
 }
 
-// TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow pins the collapse
-// threshold at its tightest boundary: a `CollapsedCount > 1` mutant (dropping the summary row
-// when there is only ONE uneventful anime to fold) would survive against
-// TestBuildRunDetailRowsNamesFailedAndManualAnimesAndCollapsesTheRest above, because that test's
-// 2 uneventful animes stay > 1 either way -- this is the test that actually pins the `> 0`
-// boundary, confirmed by hand-mutation (`collapsedCount > 0` -> `collapsedCount > 1`) before this
-// test existed.
-func TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow(t *testing.T) {
+// TestBuildRunDetailRowsHeadsExactlyOneUneventfulAnimeWithASummaryRow pins the group threshold
+// at its tightest boundary: a `> 1` mutant (emitting no summary row when there is only ONE quiet
+// anime under it) would survive against
+// TestBuildRunDetailRowsNamesFailedAndManualAnimesAheadOfTheQuietGroup above, because that
+// test's 2 quiet animes stay > 1 either way -- this is the test that actually pins the `> 0`
+// boundary, confirmed by hand-mutation before it existed.
+func TestBuildRunDetailRowsHeadsExactlyOneUneventfulAnimeWithASummaryRow(t *testing.T) {
 	t.Parallel()
 
 	outcomes := []animeRunOutcome{
@@ -92,8 +96,8 @@ func TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow(t *
 
 	rows := buildRunDetailRows(outcomes)
 
-	if len(rows) != 2 {
-		t.Fatalf("rows = %#v, want exactly 2 (1 failed + 1 collapsed summary for the single uneventful anime)", rows)
+	if len(rows) != 3 {
+		t.Fatalf("rows = %#v, want exactly 3 (1 failed + 1 summary + the single quiet anime it heads)", rows)
 	}
 
 	var collapsedRow *notification.DetailItem
@@ -103,10 +107,18 @@ func TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow(t *
 		}
 	}
 	if collapsedRow == nil {
-		t.Fatal("no collapsed summary row for the single uneventful anime -- a `> 1` boundary mutant must fail this test")
+		t.Fatal("no summary row for the single uneventful anime -- a `> 1` boundary mutant must fail this test")
 	}
 	if collapsedRow.CollapsedCount != 1 {
 		t.Fatalf("collapsedRow.CollapsedCount = %d, want exactly 1", collapsedRow.CollapsedCount)
+	}
+	// The sentence has its own boundary at one: the heading must speak for the anime it lists,
+	// not report it as an anime the record could not carry.
+	if collapsedRow.Detail != "1 anime finished without incident" {
+		t.Fatalf("collapsedRow.Detail = %q, want %q", collapsedRow.Detail, "1 anime finished without incident")
+	}
+	if rows[2].RefID != "anime-ok" || rows[2].Name != "OK Anime" {
+		t.Fatalf("rows[2] = %#v, want the quiet anime named under its own heading", rows[2])
 	}
 }
 
@@ -114,7 +126,7 @@ func TestBuildRunDetailRowsCollapsesExactlyOneUneventfulAnimeIntoASummaryRow(t *
 // used to get backwards. An anime that actually fetched episodes is the eventful one -- folding
 // it away left a fully successful run with nothing but a trailing summary line, which is what
 // made the detail pane read as empty. Only "checked and there was nothing new", "already
-// current" and "skipped" collapse.
+// current" and "skipped" go under the quiet heading -- and now they go there NAMED.
 func TestBuildRunDetailRowsGivesAnAnimeThatDownloadedEpisodesItsOwnRow(t *testing.T) {
 	t.Parallel()
 
@@ -130,8 +142,8 @@ func TestBuildRunDetailRowsGivesAnAnimeThatDownloadedEpisodesItsOwnRow(t *testin
 
 	rows := buildRunDetailRows(outcomes)
 
-	if len(rows) != 2 {
-		t.Fatalf("rows = %#v, want exactly 2 (the downloaded anime + one collapsed summary)", rows)
+	if len(rows) != 4 {
+		t.Fatalf("rows = %#v, want exactly 4 (the downloaded anime + 1 summary + the 2 quiet anime it heads)", rows)
 	}
 	if rows[0].RefType != "anime" || rows[0].RefID != "anime-downloaded" {
 		t.Fatalf("rows[0] = %#v, want the downloaded anime referenced as an anime row", rows[0])
@@ -144,6 +156,12 @@ func TestBuildRunDetailRowsGivesAnAnimeThatDownloadedEpisodesItsOwnRow(t *testin
 	}
 	if rows[1].CollapsedCount != 2 {
 		t.Fatalf("rows[1].CollapsedCount = %d, want exactly 2 (the up-to-date and the skipped anime)", rows[1].CollapsedCount)
+	}
+	if rows[2].RefID != "anime-current" || rows[2].Status != "up to date" {
+		t.Fatalf("rows[2] = %#v, want the up-to-date anime named, not counted away", rows[2])
+	}
+	if rows[3].RefID != "anime-skipped" || rows[3].Status != "skipped" {
+		t.Fatalf("rows[3] = %#v, want the skipped anime named, not counted away", rows[3])
 	}
 }
 

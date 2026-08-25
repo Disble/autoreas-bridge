@@ -83,6 +83,19 @@ export interface NotificationAction {
   readonly intent: string;
   readonly executedAtMs?: number;
   readonly refusedReason?: string;
+  /**
+   * Whether the registered handler behind `intent` may be re-invoked by a
+   * second press, resolved from the live registry at read time rather than
+   * persisted on the token.
+   *
+   * The pane disables an action as soon as `executedAtMs` is set, and
+   * `center.Executor` stamps that for repeatable and single-fire presses
+   * alike — so without this the backend's repeatable gate is unreachable: the
+   * button grays out on the first press and the second one never leaves the
+   * frontend. Absent means single-fire, which is the safe reading for a
+   * record served by a backend that predates the field.
+   */
+  readonly repeatable?: boolean;
 }
 
 /** The single-record detail read: the list row fields plus its rows/actions. */

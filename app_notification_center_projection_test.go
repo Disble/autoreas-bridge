@@ -70,6 +70,68 @@ func TestListNotificationsCountsACollapsedRowAsEveryThingItStandsFor(t *testing.
 	}
 }
 
+// TestListNotificationsCountsAGroupHeadingOnlyOnce pins the other kind of summary row. Since the
+// download producer stopped discarding the anime it collapsed, a summary row can HEAD a group
+// whose rows are right there under it -- and those rows already count themselves. Counting the
+// heading as well would badge a 3-anime run as "5x".
+func TestListNotificationsCountsAGroupHeadingOnlyOnce(t *testing.T) {
+	t.Parallel()
+
+	row := listOneNotification(t, center.Record{
+		CreatedAtMS: 1000, Title: "Download run completed", Body: "b", Level: "success", Source: "download",
+		Rows: []center.DetailRow{
+			{Ref: center.EntityRef{Type: "anime", ID: "anime-1"}, Name: "Tensei shitara Slime Datta Ken", Status: "downloaded"},
+			{Status: "ok", Detail: "2 anime finished without incident", CollapsedCount: 2},
+			{Ref: center.EntityRef{Type: "anime", ID: "anime-2"}, Name: "Sousou no Frieren", Status: "up to date"},
+			{Ref: center.EntityRef{Type: "anime", ID: "anime-3"}, Name: "Tenmaku no Jaadugar", Status: "skipped"},
+		},
+	})
+
+	if row.RowCount != 3 {
+		t.Fatalf("RowCount = %d, want 3 -- the heading's 2 anime are present rows, not extra ones", row.RowCount)
+	}
+	if len(row.Subjects) != 3 {
+		t.Fatalf("Subjects = %#v, want all 3 named anime", row.Subjects)
+	}
+}
+
+// TestListNotificationsCountsTheAnimeAGroupHeadingCouldNotCarry pins the mixed case a
+// pathological run produces: the heading stands for more anime than the record could list, so
+// the remainder -- and only the remainder -- is what it still contributes.
+func TestListNotificationsCountsTheAnimeAGroupHeadingCouldNotCarry(t *testing.T) {
+	t.Parallel()
+
+	row := listOneNotification(t, center.Record{
+		CreatedAtMS: 1000, Title: "Download run completed", Body: "b", Level: "success", Source: "download",
+		Rows: []center.DetailRow{
+			{Status: "ok", Detail: "1 anime finished without incident -- 4 more this run touched are not listed", CollapsedCount: 5},
+			{Ref: center.EntityRef{Type: "anime", ID: "anime-2"}, Name: "Sousou no Frieren", Status: "up to date"},
+		},
+	})
+
+	if row.RowCount != 5 {
+		t.Fatalf("RowCount = %d, want 5 (the 1 listed anime + the 4 the record could not carry)", row.RowCount)
+	}
+}
+
+// TestCountNotificationSubjectsNeverGoesNegative covers the clamp directly. No producer emits a
+// heading standing for fewer anime than the rows following it, so only a direct call can reach
+// the branch -- and a summary row that undercounts itself must still never subtract from the
+// badge (AGENTS.md: a branch the scheduler cannot reach needs direct invocation).
+func TestCountNotificationSubjectsNeverGoesNegative(t *testing.T) {
+	t.Parallel()
+
+	total := countNotificationSubjects([]center.DetailRow{
+		{Status: "ok", Detail: "understated heading", CollapsedCount: 1},
+		{Ref: center.EntityRef{Type: "anime", ID: "a-1"}, Name: "One", Status: "up to date"},
+		{Ref: center.EntityRef{Type: "anime", ID: "a-2"}, Name: "Two", Status: "up to date"},
+	})
+
+	if total != 2 {
+		t.Fatalf("countNotificationSubjects() = %d, want 2 -- the two present rows, with nothing subtracted", total)
+	}
+}
+
 // TestListNotificationsProjectsABoundedSubjectLine pins the "what is this about" line: it names
 // the rows, capped, so a run touching fifty anime does not ship fifty strings on every item of
 // every page. A collapsed row names nothing, so it contributes no subject.

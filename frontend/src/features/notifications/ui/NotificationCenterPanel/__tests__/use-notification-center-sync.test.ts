@@ -62,6 +62,9 @@ function makePushSource(): { readonly source: NotificationSource; emit: () => vo
       subscribeArchived() {
         return () => undefined;
       },
+      subscribeNavigate() {
+        return () => undefined;
+      },
     },
   };
 }

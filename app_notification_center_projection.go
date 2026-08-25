@@ -11,17 +11,31 @@ import (
 const notificationSubjectLimit = 3
 
 // countNotificationSubjects reports how many THINGS a record is about, which is not the same as
-// how many rows it has: a collapsed summary row stands in for the anime it deliberately does not
-// name, so it contributes that number rather than one. The list badge reads "3x" as three anime.
+// how many rows it has. The list badge reads "3x" as three anime, so a summary row -- which
+// stands for several things rather than one -- has to contribute what it stands for MINUS
+// whatever is already in the record under its own name.
 //
-// Written as a clamp rather than an `if row.CollapsedCount > 0` branch because that branch is
-// unprovable: at a collapsed count of exactly 1 both arms add 1, and above it both take the same
-// arm, so no test can tell `> 0` from `> 1`. "Every row counts as what it stands for, minimum
-// one" is the same rule with no boundary to get wrong.
+// There are two shapes of summary row, and that subtraction is what tells them apart:
+//
+//   - A TRAILING one stands in for things the record does not carry at all (a season batch past
+//     its name limit, a readiness list past its row limit). Nothing follows it, so it contributes
+//     its full count.
+//   - A LEADING one HEADS a group whose rows are right there under it, since
+//     internal/download/service_notification_rows.go stopped discarding the anime it collapsed.
+//     Those rows count themselves, so the heading contributes only the remainder -- zero for a
+//     run that fits, and the anime it could not carry for one that does not.
+//
+// The producers' shared layout is what makes that decidable on the wire: a summary row owns every
+// row that follows it. The clamp keeps an understated heading -- one standing for fewer things
+// than the rows beneath it, which no producer emits -- from subtracting from the badge.
 func countNotificationSubjects(rows []center.DetailRow) int {
 	total := 0
-	for _, row := range rows {
-		total += max(row.CollapsedCount, 1)
+	for i, row := range rows {
+		if row.CollapsedCount == 0 {
+			total++
+			continue
+		}
+		total += max(row.CollapsedCount-(len(rows)-i-1), 0)
 	}
 	return total
 }

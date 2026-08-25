@@ -76,7 +76,7 @@ func (a *App) GetNotification(id int64) contracts.NotificationDetailResult {
 	if !found {
 		return contracts.NotificationDetailResult{}
 	}
-	return contracts.NotificationDetailResult{Found: true, Item: toNotificationDetail(record)}
+	return contracts.NotificationDetailResult{Found: true, Item: toNotificationDetail(record, a.isRepeatableIntent)}
 }
 
 // GetUnreadNotificationCount is the Wails-bound read the nav rail badge
@@ -242,15 +242,16 @@ func toNotificationRow(record center.Record) contracts.NotificationRow {
 
 // toNotificationDetail maps a fully-loaded center.Record (Store.Record,
 // including its detail rows and actions) into the wire NotificationDetail
-// DTO.
-func toNotificationDetail(record center.Record) contracts.NotificationDetail {
+// DTO. isRepeatable answers each action's repeatability against the live
+// registry -- see toNotificationAction.
+func toNotificationDetail(record center.Record, isRepeatable func(intent string) bool) contracts.NotificationDetail {
 	rows := make([]contracts.NotificationDetailRow, 0, len(record.Rows))
 	for _, row := range record.Rows {
 		rows = append(rows, toNotificationDetailRow(row))
 	}
 	actions := make([]contracts.NotificationAction, 0, len(record.Actions))
 	for _, action := range record.Actions {
-		actions = append(actions, toNotificationAction(action))
+		actions = append(actions, toNotificationAction(action, isRepeatable))
 	}
 	return contracts.NotificationDetail{
 		NotificationRow: toNotificationRow(record),
@@ -275,7 +276,12 @@ func toNotificationDetailRow(row center.DetailRow) contracts.NotificationDetailR
 // toNotificationAction maps one center.Action into its wire shape. Args are
 // deliberately NOT included -- the frontend presses a token by id and never
 // sees, and therefore can never propose, the frozen arguments.
-func toNotificationAction(action center.Action) contracts.NotificationAction {
+//
+// Repeatable is resolved here rather than read off the token because it is a
+// property of the handler wired TODAY, not of the record frozen last week: an
+// intent whose subsystem is unwired resolves to nothing, and must not reach
+// the pane promising a second press that cannot happen.
+func toNotificationAction(action center.Action, isRepeatable func(intent string) bool) contracts.NotificationAction {
 	return contracts.NotificationAction{
 		ID:            action.ID,
 		RowRef:        action.RowRef,
@@ -283,6 +289,7 @@ func toNotificationAction(action center.Action) contracts.NotificationAction {
 		Intent:        action.Intent,
 		ExecutedAtMs:  action.ExecutedAtMS,
 		RefusedReason: string(action.RefusedReason),
+		Repeatable:    isRepeatable(action.Intent),
 	}
 }
 
@@ -294,6 +301,11 @@ func toNotificationAction(action center.Action) contracts.NotificationAction {
 // frontend with. download.retry_run is deliberately never registered -- it
 // does not exist (internal/download/service.go exposes only RunOnce and
 // RunAnime).
+//
+// navigation.open is repeatable for the same reason clipboard.copy is: a press
+// leaves nothing behind to spend. Registered single-fire it was spent by its
+// own first press and refused already_executed forever after, which made an
+// "Open Downloads" button a one-shot on a record the user may open many times.
 func (a *App) registerNotificationIntents() *center.StaticRegistry {
 	registry := center.NewStaticRegistry()
 
@@ -301,7 +313,7 @@ func (a *App) registerNotificationIntents() *center.StaticRegistry {
 		registry.Register(center.IntentDownloadRunAnime, center.SingleFireFunc(a.runAnimeAgainIntent))
 	}
 	if a.emitFn != nil {
-		registry.Register(center.IntentNavigationOpen, center.SingleFireFunc(a.navigationOpenIntent))
+		registry.Register(center.IntentNavigationOpen, center.RepeatableFunc(a.navigationOpenIntent))
 	}
 	if a.copyText != nil {
 		registry.Register(center.IntentClipboardCopy, center.RepeatableFunc(a.clipboardCopyIntent))
@@ -395,7 +407,22 @@ func (a *App) wireNotificationCenterIntentExecutor() {
 	if a.notificationCenterStore == nil {
 		return
 	}
-	a.notificationCenterExecutor = center.NewExecutor(a.notificationCenterStore, a.registerNotificationIntents())
+	a.notificationCenterIntents = a.registerNotificationIntents()
+	a.notificationCenterExecutor = center.NewExecutor(a.notificationCenterStore, a.notificationCenterIntents)
+}
+
+// isRepeatableIntent reports whether the handler registered under intent
+// declares a second press meaningful. An intent nobody registered is single-
+// fire by construction: nothing is there to ask, and the press it would offer
+// refuses with intent_unregistered anyway. A nil registry (GetNotification
+// called before wireNotificationCenterIntentExecutor ran) degrades to the
+// same answer rather than panicking, exactly as the nil-executor path does.
+func (a *App) isRepeatableIntent(intent string) bool {
+	if a.notificationCenterIntents == nil {
+		return false
+	}
+	handler, registered := a.notificationCenterIntents.Resolve(intent)
+	return registered && handler.Repeatable()
 }
 
 // ExecuteNotificationAction is the Wails-bound press-time entry point

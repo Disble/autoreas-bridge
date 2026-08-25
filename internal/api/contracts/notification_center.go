@@ -90,6 +90,17 @@ type NotificationAction struct {
 	Intent        string `json:"intent"`
 	ExecutedAtMs  int64  `json:"executedAtMs,omitempty"`
 	RefusedReason string `json:"refusedReason,omitempty"`
+	// Repeatable reports whether the registered handler behind Intent may be
+	// re-invoked by a second press. It is resolved from the live IntentRegistry
+	// at read time, never persisted: repeatability is a property of the handler
+	// wired today, not of the token frozen last week.
+	//
+	// The pane disables an action as soon as ExecutedAtMs is set, and
+	// center.Executor stamps that for repeatable and single-fire presses alike.
+	// Without this field the Executor.Repeatable gate is unreachable from the
+	// UI: the button grays out on the first press and the second one never
+	// leaves the frontend.
+	Repeatable bool `json:"repeatable,omitempty"`
 }
 
 // NotificationDetail is the single-record detail read: the list row fields

@@ -33,6 +33,9 @@ vi.mock('../../../../../infrastructure/notification-source/notification-source.h
       ports.archivedListeners.add(listener);
       return () => ports.archivedListeners.delete(listener);
     },
+    // The toast surface has nothing to do with routing: navigation is owned by
+    // `NotificationNavigationListener`, mounted separately in `AppLayout`.
+    subscribeNavigate: () => () => undefined,
   };
   return { notificationSource: source, createNotificationSource: () => source };
 });

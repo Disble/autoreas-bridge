@@ -22,6 +22,9 @@ function createFakeSource(
       }
       return () => undefined;
     },
+    // Routing is not this resolver's stream: `NotificationNavigationListener`
+    // owns `notification.navigate`, mounted separately in `AppLayout`.
+    subscribeNavigate: () => () => undefined,
   };
 }
 
@@ -42,6 +45,9 @@ function createDeferredSource(): {
         return () => undefined;
       },
       subscribeArchived() {
+        return () => undefined;
+      },
+      subscribeNavigate() {
         return () => undefined;
       },
     },

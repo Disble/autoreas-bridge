@@ -76,11 +76,10 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 
 // The run_partial notification used to say only "Some animes failed to download -- see run
 // details", which could not tell the user which anime that was without opening the run. Every
-// failed anime must now be individually named as its own row, so must every anime that actually
-// downloaded episodes, and every uneventful anime (checked, nothing new) must collapse into ONE
-// trailing summary row instead of each claiming a row (notification-center spec, "Uneventful
-// rows collapse into a single summary line").
-func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *testing.T) {
+// anime the run touched must now be individually named: the failed one, the ones that actually
+// downloaded episodes, and the already-current ones, which sit under ONE summary row that heads
+// them rather than being counted into it and discarded.
+func TestRunOnceRunPartialNotificationNamesEveryAnimeItTouched(t *testing.T) {
 	t.Parallel()
 
 	deps := baseDeps(t)
@@ -138,18 +137,22 @@ func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *tes
 	if strings.Contains(got.Body, "see run details") {
 		t.Fatalf("body = %q, still relies on the literal fallback wording", got.Body)
 	}
-	if len(got.Rows) != 4 {
-		t.Fatalf("rows = %#v, want exactly 4 (1 failed + 2 downloaded + 1 collapsed summary) -- an off-by-one here must fail this test", got.Rows)
+	// Six, not four: the two already-current anime are named under the summary row now, not
+	// counted into it and thrown away.
+	if len(got.Rows) != 6 {
+		t.Fatalf("rows = %#v, want exactly 6 (1 failed + 2 downloaded + 1 summary + the 2 anime it heads) -- an off-by-one here must fail this test", got.Rows)
 	}
 
 	var failedRow, collapsedRow *notification.DetailItem
-	downloadedRows := 0
+	downloadedRows, upToDateRows := 0, 0
 	for i := range got.Rows {
 		switch {
 		case got.Rows[i].CollapsedCount > 0:
 			collapsedRow = &got.Rows[i]
 		case got.Rows[i].Status == "downloaded":
 			downloadedRows++
+		case got.Rows[i].Status == "up to date":
+			upToDateRows++
 		default:
 			failedRow = &got.Rows[i]
 		}
@@ -160,13 +163,16 @@ func TestRunOnceRunPartialNotificationNamesFailedAnimeAndCollapsesTheRest(t *tes
 	if downloadedRows != 2 {
 		t.Fatalf("rows = %#v, want both anime that downloaded episode 5 named individually", got.Rows)
 	}
+	if upToDateRows != 2 {
+		t.Fatalf("rows = %#v, want both already-current anime named too", got.Rows)
+	}
 	if collapsedRow == nil || collapsedRow.CollapsedCount != 2 {
 		t.Fatalf("collapsed row = %#v, want CollapsedCount == 2", collapsedRow)
 	}
 }
 
 // When every anime fails, the run_failed notification must name each one individually too --
-// with nothing uneventful to fold, no collapsed row is expected.
+// with nothing quiet to head, no summary row is expected.
 func TestRunOnceRunFailedNotificationNamesEveryFailedAnime(t *testing.T) {
 	t.Parallel()
 

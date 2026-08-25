@@ -136,6 +136,79 @@ describe('useNotificationAction', () => {
     expect(source.executeAction).not.toHaveBeenCalledWith(1, 'action-1');
   });
 
+  // The four below are the frontend half of `center.Executor`'s repeatable
+  // gate. That gate is unreachable from the UI on its own: the Executor stamps
+  // executedAtMs for repeatable and single-fire presses alike, so a pane that
+  // disables on executedAtMs alone grays the button out after the first press
+  // and the second one never leaves the frontend.
+  it('returns a repeatable action to idle once its press settles, so it can be pressed again', async () => {
+    const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+
+    await act(async () => {
+      result.current.press();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.isDisabled).toBe(false);
+  });
+
+  it('actually invokes executeAction a second time for a repeatable action', async () => {
+    const source = buildActionSource({ executed: true, executedAtMs: 1_700_000_000_000 });
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+
+    await act(async () => {
+      result.current.press();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      result.current.press();
+      await Promise.resolve();
+    });
+
+    expect(source.executeAction).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves a repeatable action pressable when it arrives already stamped executed from the store', () => {
+    // This is the state a record is in on the SECOND visit: the backend
+    // persisted the first press, so the re-read carries executedAtMs.
+    const source = buildActionSource({ executed: true, executedAtMs: 1 });
+    const { result } = renderHook(() =>
+      useNotificationAction(1, buildAction({ executedAtMs: 1_700_000_000_000, intent: 'navigation.open', repeatable: true }), source),
+    );
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.isDisabled).toBe(false);
+  });
+
+  it('keeps a repeatable action disabled while its press is still in flight', () => {
+    // Repeatability widens exactly one gate, mirroring the Executor: an
+    // in-flight press must still not fire the handler a second time.
+    const source = buildActionSource({ executed: true, executedAtMs: 1 });
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+
+    act(() => {
+      result.current.press();
+    });
+
+    expect(result.current.status).toBe('pending');
+    expect(result.current.isDisabled).toBe(true);
+  });
+
+  it('keeps a refused repeatable action disabled, because repeatability widens only the executed gate', async () => {
+    const source = buildActionSource({ executed: false, reason: 'target_missing' });
+    const { result } = renderHook(() => useNotificationAction(1, buildAction({ intent: 'navigation.open', repeatable: true }), source));
+
+    await act(async () => {
+      result.current.press();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toBe('refused');
+    expect(result.current.isDisabled).toBe(true);
+  });
+
   it('ignores a second press received while the first is still pending, invoking executeAction exactly once', async () => {
     const source = buildActionSource({ executed: false, reason: 'intent_unregistered' });
     const { result } = renderHook(() => useNotificationAction(1, buildAction(), source));

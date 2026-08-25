@@ -11,6 +11,7 @@ afterEach(cleanup);
 const SILENT_PUSH: NotificationSource = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
+  subscribeNavigate: () => () => undefined,
 };
 
 /** The one record living in the active view. */

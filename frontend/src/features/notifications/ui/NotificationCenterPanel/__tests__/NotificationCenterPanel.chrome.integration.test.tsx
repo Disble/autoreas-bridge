@@ -16,6 +16,7 @@ beforeEach(resetNotificationStore);
 const SILENT_PUSH: NotificationSource = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
+  subscribeNavigate: () => () => undefined,
 };
 
 /** The whole store, which the fake source below filters exactly as the SQL does. */

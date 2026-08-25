@@ -32,6 +32,7 @@ const PAGE: NotificationPage = {
 const SILENT_PUSH = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
+  subscribeNavigate: () => () => undefined,
 };
 
 /**

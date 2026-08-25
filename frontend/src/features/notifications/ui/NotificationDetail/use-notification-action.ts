@@ -34,7 +34,16 @@ export function useNotificationAction(
 
   // 5. Derived state
   const serverStatus = useMemo(() => resolveServerActionStatus(action), [action]);
-  const status: NotificationActionUIStatus = localPress?.status ?? serverStatus;
+  const settledStatus: NotificationActionUIStatus = localPress?.status ?? serverStatus;
+  // A repeatable action returns to idle once its press settles, so it can be
+  // pressed again. This mirrors `center.Executor` exactly, including which
+  // gate it widens: the Executor consults `Repeatable()` ONLY at the
+  // already-executed check, so `'pending'` still disables an in-flight press
+  // and `'refused'` still disables permanently. Applied here rather than in
+  // `resolveServerActionStatus` because it has to cover both routes into
+  // `'executed'` -- the optimistic local settlement AND the persisted
+  // `executedAtMs` a re-read carries -- and the helper only sees the second.
+  const status: NotificationActionUIStatus = settledStatus === 'executed' && action.repeatable === true ? 'idle' : settledStatus;
   const isDisabled = status !== 'idle';
   const refusalReason = localPress?.status === 'refused' ? localPress.reason : action.refusedReason;
   const refusalMessage = status === 'refused' ? resolveRefusalMessage(refusalReason) : undefined;

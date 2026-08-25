@@ -89,8 +89,8 @@ func TestRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) {
 	if !found {
 		t.Fatalf("no run_completed notification in %#v", notifier.notifications())
 	}
-	if len(sent.Rows) != 2 {
-		t.Fatalf("Rows = %#v, want exactly 2 (the downloaded anime + one collapsed summary)", sent.Rows)
+	if len(sent.Rows) != 3 {
+		t.Fatalf("Rows = %#v, want exactly 3 (the downloaded anime + 1 summary + the up-to-date anime it heads)", sent.Rows)
 	}
 
 	downloaded, ok := rowByRefID(sent.Rows, "anime-ok")
@@ -112,10 +112,21 @@ func TestRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) {
 
 	summary, ok := collapsedRow(sent.Rows)
 	if !ok {
-		t.Fatalf("no collapsed summary row for the up-to-date anime: %#v", sent.Rows)
+		t.Fatalf("no summary row heading the up-to-date anime: %#v", sent.Rows)
 	}
 	if summary.CollapsedCount != 1 {
-		t.Fatalf("collapsed row CollapsedCount = %d, want exactly 1 (only the up-to-date anime folds)", summary.CollapsedCount)
+		t.Fatalf("summary row CollapsedCount = %d, want exactly 1 (only the up-to-date anime is under it)", summary.CollapsedCount)
+	}
+
+	// The point of the whole slice, asserted end to end: the quiet anime reaches the record by
+	// name. It used to be counted into the summary line and discarded, and the "show all in
+	// Downloads" way out pointed at a screen that persists only aggregate run counters.
+	current, ok := rowByRefID(sent.Rows, "anime-current")
+	if !ok {
+		t.Fatalf("no row for the up-to-date anime: %#v", sent.Rows)
+	}
+	if current.Name != "Current Anime" || current.Status != "up to date" {
+		t.Fatalf("up-to-date row = %#v, want Name=%q Status=%q", current, "Current Anime", "up to date")
 	}
 }
 
@@ -204,6 +215,11 @@ func TestStoppedRunNotificationNamesWhatItDownloadedBeforeStopping(t *testing.T)
 	sent, found := notificationWithTitle(notifier, "Download run stopped")
 	if !found {
 		t.Fatalf("no stopped-run notification in %#v", notifier.notifications())
+	}
+	// First row, above any heading: a stop leaves an anime with episodes on disk but no
+	// episodesFound recorded, and "finished without incident" is not what happened to it.
+	if sent.Rows[0].RefID != "anime-stopped" {
+		t.Fatalf("Rows = %#v, want the anime that downloaded before the stop named first, not filed under the quiet heading", sent.Rows)
 	}
 	stopped, ok := rowByRefID(sent.Rows, "anime-stopped")
 	if !ok {

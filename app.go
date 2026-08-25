@@ -91,6 +91,7 @@ type App struct {
 	notifier                   notification.Notifier
 	notificationCenterStore    *center.Store
 	notificationCenterExecutor *center.Executor
+	notificationCenterIntents  *center.StaticRegistry
 	newDownloadStore           func(db *sql.DB) download.Store
 	newDownloadService         func(deps download.ServiceDeps) *download.Service
 	newDownloadScheduler       func(deps schedule.Deps) schedule.Scheduler

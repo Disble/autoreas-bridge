@@ -9,6 +9,7 @@ import { useNotificationCenterPanel } from '../use-notification-center-panel';
 const SILENT_PUSH: NotificationSource = {
   subscribe: () => () => undefined,
   subscribeArchived: () => () => undefined,
+  subscribeNavigate: () => () => undefined,
 };
 
 /** The active view's page, whose single row is what gets selected below. */

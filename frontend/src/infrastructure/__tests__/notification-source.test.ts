@@ -171,6 +171,88 @@ describe('notification-source', () => {
     expect(runtimeUnsubscribeMock).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards notification.navigate events to navigate subscribers, without crossing the other streams', async () => {
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      });
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const source = createNotificationSource();
+    const navigateListener = vi.fn();
+    const pushListener = vi.fn();
+    const unsubscribeNavigate = source.subscribeNavigate(navigateListener);
+    const unsubscribePush = source.subscribe(pushListener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    handlers.get('notification.navigate')?.('/downloads');
+
+    expect(navigateListener).toHaveBeenCalledWith('/downloads');
+    // A navigation must not reach the toast push listener: it carries a route,
+    // not a notification, and rendering it as one would toast a bare path.
+    expect(pushListener).not.toHaveBeenCalled();
+
+    unsubscribeNavigate();
+    unsubscribePush();
+  });
+
+  it('subscribes to the exact "notification.navigate" event name', async () => {
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
+    const eventsOnMultipleMock = vi.fn().mockReturnValue(() => undefined);
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const source = createNotificationSource();
+    const unsubscribe = source.subscribeNavigate(vi.fn());
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Spelled as a literal on purpose: app_notification_center.go emits this
+    // exact string, so reading the constant under test would pin nothing --
+    // and a mismatch here is precisely the bug that shipped, where the backend
+    // emitted and no frontend name matched.
+    expect(eventsOnMultipleMock).toHaveBeenCalledWith('notification.navigate', expect.any(Function), -1);
+
+    unsubscribe();
+  });
+
+  it('drops a navigate payload that is not a usable route', async () => {
+    const { createNotificationSource } = await import('../notification-source/notification-source.helpers');
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const eventsOnMultipleMock = vi
+      .fn()
+      .mockImplementation((eventName: string, callback: (payload: unknown) => void) => {
+        handlers.set(eventName, callback);
+        return () => undefined;
+      });
+
+    window.runtime = { EventsOnMultiple: eventsOnMultipleMock } as never;
+
+    const source = createNotificationSource();
+    const navigateListener = vi.fn();
+    const unsubscribeNavigate = source.subscribeNavigate(navigateListener);
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The backend refuses a route-less token rather than emitting one, so
+    // neither of these can arrive from the intent. The boundary still refuses
+    // to forward them: navigating to '' resolves to the current route's
+    // directory, which would move the user somewhere nobody asked for.
+    handlers.get('notification.navigate')?.('');
+    handlers.get('notification.navigate')?.(undefined);
+    handlers.get('notification.navigate')?.({ route: '/downloads' });
+
+    expect(navigateListener).not.toHaveBeenCalled();
+
+    unsubscribeNavigate();
+  });
+
   it('keeps source-adapter declarations in colocated sibling modules', () => {
     const sourceRoot = join(process.cwd(), 'src/infrastructure/notification-source');
     const indexPath = join(sourceRoot, 'index.ts');

@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import { NavLink, Outlet } from 'react-router';
+import { NotificationNavigationListener } from '../NotificationNavigationListener';
 import { NotificationToasts } from '../NotificationToasts';
 import { NotificationsNavBadge } from '../../features/navigation/NotificationsNavBadge/NotificationsNavBadge';
 import { SeasonNavBadge } from '../../features/navigation/SeasonNavBadge/SeasonNavBadge';
@@ -45,6 +46,10 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <NotificationToasts />
+      {/* Mounted beside the toast host, and inside the layout rather than
+          around it, because it needs the router context the routed outlet
+          below already sits in. It renders nothing. */}
+      <NotificationNavigationListener />
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-divider/60 bg-background/85 px-4 backdrop-blur md:hidden">
         <div className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
           <span className="size-4">{bridgeMark}</span>
