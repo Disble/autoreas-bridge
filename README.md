@@ -29,7 +29,7 @@ This project strictly adheres to **Hexagonal Architecture (Ports & Adapters)** o
 
 For architectural deep dives, see:
 - [Architecture Overview](docs/architecture.md)
-- [Design Document](docs/autoreas-bridge-design-doc.md)
+- [Original RFC (historical design rationale)](docs/autoreas-bridge-rfc.md)
 
 ## Tech Stack
 

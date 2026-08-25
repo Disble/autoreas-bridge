@@ -318,8 +318,8 @@ mistaken for a complete one.
 
 ## 11. Related
 
-- [`docs/pre-commit-performance.md`](pre-commit-performance.md) — the current
+- [`docs/pre-commit-performance.md`](../pre-commit-performance.md) — the current
   gate's shape, tuning data, and rejected options
-- [`docs/learning-log.md`](learning-log.md) — running log of non-obvious calls
-- [`docs/postmortem-fallow-barrel-false-positives.md`](postmortem-fallow-barrel-false-positives.md)
+- [`docs/learning-log.md`](../learning-log.md) — running log of non-obvious calls
+- [`docs/postmortems/postmortem-fallow-barrel-false-positives.md`](postmortem-fallow-barrel-false-positives.md)
   — a prior postmortem on suppressing linter findings

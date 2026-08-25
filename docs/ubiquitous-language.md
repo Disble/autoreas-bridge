@@ -34,7 +34,7 @@ See [ADR 007: Code in English; Spanish Only at Explicit Boundaries](./adr/007-en
 
 The older change folders under `openspec/changes/` are historical planning records, even when they are still outside `archive/`. For SDD-52, that means `2026-07-05-sdd-38-chapters-covers-parity`, `2026-07-05-sdd-39-season-selection-program`, `2026-07-05-sdd-40-estado-labels`, `2026-07-05-sdd-41b-season-mode-derived`, `2026-07-05-sdd-43-availability`, and `2026-07-13-sdd-48-reconcile-preserve-bridge-native-animes` stay untouched; only living specs under `openspec/specs/**` are updated to today’s vocabulary.
 
-`docs/anime-chapter-management-plan.md` is also treated as a historical planning artifact. It captures the pre-SDD-52 planning language for the feature that now ships as **Episodes**. Keep it for provenance; do not rewrite it in this slice.
+SDD-52 also left the pre-SDD-52 chapter-management planning document untouched, as a historical artifact capturing the planning language for the feature that now ships as **Episodes**. That document was removed in the 2026-08-25 documentation cleanup: it described planning for shipped work, and the vocabulary decision it preceded is recorded here.
 
 ## API consumer impact
 

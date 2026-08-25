@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-04
 - **Supersedes**: nothing
-- **Related**: `docs/adr/002-smart-hooks-dumb-ui.md`, `.claude/skills/autoreas-theme/SKILL.md`
+- **Related**: `docs/adr/015-frontend-architecture-rails.md`, `.claude/skills/autoreas-theme/SKILL.md`
 
 ## Context
 

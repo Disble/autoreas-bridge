@@ -16,7 +16,7 @@ Frontend runtime screens that render shared backend process state use a central 
 5. Feature `.tsx` files stay dumb: they render hook outputs only.
 
 ## Current application
-`frontend/src/shared/store/download-runtime-store.ts` is the read-model for Downloads. It owns:
+`frontend/src/shared/store/download-runtime-store/download-runtime-store.ts` is the read-model for Downloads. It owns:
 
 - `scheduleConfig`
 - `runHistory`

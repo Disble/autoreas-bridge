@@ -143,5 +143,5 @@ go test ./... -cover
 
 ## Resources
 
-- **Docs**: `docs/architecture.md`, `docs/sdd-tree.md`, `docs/autoreas-bridge-design-doc.md`
+- **Docs**: `docs/architecture.md`, `docs/autoreas-bridge-rfc.md`
 - **Real fixtures**: `resources/autoreas-data/animes.dat`, `resources/autoreas-data/pendientes.dat`

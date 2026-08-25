@@ -129,15 +129,10 @@ document.
 
 ## 5. How the decision got made
 
-We priced both coherent end states rather than debating taste:
-
-| | Every module concrete | Every module behind a barrel |
-|---|---|---|
-| Imports to rewrite | **124** (45 prod / 79 test) | 201 (all production) |
-| Files created | 0 | one per module lacking one |
-| Files deleted | 67 | 0 |
-| Holds without enforcement? | **Yes** — a deleted file cannot be imported | No — needs a permanent no-deep-import rule |
-| Fights existing habit? | No, 62% already do it | Yes, on all 201 |
+We priced both coherent end states rather than debating taste: every module
+concrete (124 imports to rewrite, 67 files deleted, none created) against
+every module behind a barrel (201 imports to rewrite, none deleted, one file
+created per module lacking one).
 
 The deciding row is *enforcement*, not cost. Going concrete is
 **self-enforcing**: once the file is gone there is no door to skip and no rule
@@ -145,7 +140,8 @@ to remember. Going all-barrel would require a lint rule holding back 201
 existing imports and every future one — the same enforcement gap that created
 the mess.
 
-Full rationale: [`docs/adr/011-no-barrel-files.md`](adr/011-no-barrel-files.md).
+Full comparison table and rationale:
+[`docs/adr/011-no-barrel-files.md`](../adr/011-no-barrel-files.md) §"Decision".
 
 ## 6. What we changed
 
@@ -208,36 +204,24 @@ findings.** Noise does not just annoy; it conceals.
 
 ## 9. Related
 
-- [`docs/adr/011-no-barrel-files.md`](adr/011-no-barrel-files.md) — the decision
-- [`docs/fallow-usage.md`](fallow-usage.md) — how Fallow is run in this repo
-- [`docs/learning-log.md`](learning-log.md) — running log of non-obvious calls
+- [`docs/adr/011-no-barrel-files.md`](../adr/011-no-barrel-files.md) — the decision
+- [`docs/fallow-usage.md`](../fallow-usage.md) — how Fallow is run in this repo
+- [`docs/learning-log.md`](../learning-log.md) — running log of non-obvious calls
 
 ---
 
 ## Addendum — 2026-08-11: one of the two guards was withdrawn
 
 Everything above is left as written; it records what was decided and measured
-in July 2026. This note only reports what changed afterwards.
+in July 2026. Afterwards, during the `dharness` harness adoption, the
+filesystem check named in §6.3 — `check:no-barrels` — was deleted, together
+with its `package.json` script and its `frontend-no-barrels` pre-commit job.
+The ESLint half of the pair stays.
 
-During the `dharness` harness adoption, the filesystem check named in §6.3 —
-`check:no-barrels` — was deleted, together with its `package.json` script and
-its `frontend-no-barrels` pre-commit job. The ESLint half of the pair stays.
-
-It was first proposed for deletion on the grounds that
-`dharness/pure-index-barrel` had replaced it. That premise was wrong, and the
-deletion went ahead anyway as an explicit decision: the plugin rule enforces a
-*Pure Barrel Contract* (a barrel may only re-export from siblings), so a pure
-re-export `index.ts` **passes** it — which is precisely the file this
-postmortem's incident was about. It also runs only over staged changes, while
-the deleted script scanned all of `src/` on every commit.
-
-The consequence for §8's lesson 9 ("when a guard cannot see the failure, add a
-guard that can") is that this repository no longer has such a guard for
-barrels. ADR-011 is now enforced by review. Restoring it needs a rule that
-forbids the file rather than its contents, which would live in
-`Disble/dharness-eslint-plugin`, outside this repository.
-
-One correction to §6.3's reasoning, which was repeated from the deleted
-script's header: "no lint rule can see it" is not accurate. ESLint lints by
-glob, not by import graph, so it does see a barrel nobody imports. The right
-statement is that no available rule **fails** a pure barrel.
+That leaves §8's lesson 9 ("when a guard cannot see the failure, add a guard
+that can") unsatisfied for barrels: ADR-011 is now enforced by review alone.
+Why `dharness/pure-index-barrel` is not an equivalent replacement, and the
+correction to the deleted script's own "no lint rule can see it" reasoning,
+are recorded once in
+[`docs/adr/011-no-barrel-files.md`](../adr/011-no-barrel-files.md) §"Enforcement
+status", updated the same day.

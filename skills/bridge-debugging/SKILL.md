@@ -96,5 +96,5 @@ go test ./internal/sync/... -run TestSQLite -v
 
 ## Resources
 
-- **Docs**: `docs/architecture.md`, `docs/sdd-tree.md`, `docs/tracer-bullet-plan.md`
+- **Docs**: `docs/architecture.md`, `docs/autoreas-bridge-rfc.md`
 - **Fixtures**: `resources/autoreas-data/animes.dat`, `resources/autoreas-data/pendientes.dat`
