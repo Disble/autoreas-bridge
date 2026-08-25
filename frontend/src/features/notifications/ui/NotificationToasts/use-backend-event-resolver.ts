@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER, LEVEL_TO_SEVERITY } from './notification-resolver.constants';
+import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
+import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
+import { toBackendAppNotification } from './backend-toast.helpers';
+import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER } from './notification-resolver.constants';
 
 /**
  * Subscribes to the backend `notification.push` event stream and pushes
@@ -19,11 +22,18 @@ import { KINDS_OWNED_BY_A_DEDICATED_RESOLVER, LEVEL_TO_SEVERITY } from './notifi
  * persisted record id (`RecordID`) are forwarded unchanged instead of being
  * dropped -- a dropped `CorrelationID`/`Source` made every backend event an
  * uncorrelatable, deduplication-less ephemeral toast.
+ *
+ * The mapping itself lives in `toBackendAppNotification`, which also forwards
+ * the rows and the whole-notification verbs this hook used to drop. A press
+ * goes back through `ExecuteNotificationAction`, the SAME executor the detail
+ * pane presses through -- one gate, more than one door
+ * (docs/adr/016-notification-adapters-project-not-truncate.md).
  */
 export function useBackendEventResolver(
   push: (notification: AppNotification) => void,
   remove: (key: string | number) => void,
   source: NotificationSource = notificationSource,
+  centerSource: NotificationCenterSource = createNotificationCenterSource(),
 ): void {
   const pushRef = useRef(push);
   const removeRef = useRef(remove);
@@ -43,18 +53,13 @@ export function useBackendEventResolver(
         return;
       }
 
-      pushRef.current({
-        severity: LEVEL_TO_SEVERITY[notification.Level] ?? 'info',
-        title: notification.Title,
-        description: notification.Body || undefined,
-        persistent: false,
-        source: notification.Source,
-        correlationId: notification.CorrelationID,
-        timestamp: notification.Timestamp,
-        recordId: notification.RecordID,
-      });
+      pushRef.current(
+        toBackendAppNotification(notification, (recordId, actionId) => {
+          void centerSource.executeAction(recordId, actionId);
+        }),
+      );
     });
-  }, [source]);
+  }, [centerSource, source]);
 
   useEffect(() => {
     return source.subscribeArchived((recordIds) => {

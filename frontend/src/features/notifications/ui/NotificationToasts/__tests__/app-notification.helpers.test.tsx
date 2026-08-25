@@ -125,3 +125,34 @@ describe('renderAppToastContent (Bug B guard)', () => {
     expect(secondAction).toBeInTheDocument();
   });
 });
+
+describe('renderAppToastContent rows', () => {
+  it('names what the toast is about when the notification carries rows', () => {
+    renderToast({
+      title: 'Download run completed',
+      rows: [{ refType: 'anime', refId: 'a-1', name: 'Frieren', status: 'downloaded', detail: 'Episode 19' }],
+    });
+
+    expect(screen.getByTestId('notification-toast-rows')).toBeInTheDocument();
+    expect(screen.getByText('Frieren')).toBeInTheDocument();
+  });
+
+  // An empty block is worse than none: it reserves space in a card measured in pixels for a list
+  // with nothing in it.
+  it('renders no row block at all when the notification names nothing', () => {
+    renderToast({ title: 'Download run started' });
+
+    expect(screen.queryByTestId('notification-toast-rows')).not.toBeInTheDocument();
+  });
+
+  it('renders no row block for an empty row list either', () => {
+    renderToast({ title: 'Download run started', rows: [] });
+
+    expect(screen.queryByTestId('notification-toast-rows')).not.toBeInTheDocument();
+  });
+});
+
+/** Renders one queued toast's content from a partial payload. */
+function renderToast(content: Record<string, unknown>): void {
+  render(renderAppToastContent({ toast: { content, key: 'k' } as never }));
+}

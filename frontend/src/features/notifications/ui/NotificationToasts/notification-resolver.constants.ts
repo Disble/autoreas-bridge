@@ -62,3 +62,15 @@ export const SEVERITY_TO_VARIANT: Record<AppNotificationSeverity, AppToastVarian
  * `toast.*` singleton wrapper.
  */
 export const DEFAULT_TOAST_TIMEOUT_MS = 4000;
+
+/**
+ * How many rows a toast names before the rest collapse into a "+N more" line.
+ *
+ * Far below the Center's own 50: a toast is a glance, and a run that touched
+ * nine anime must not become a nine-row card that outlives its own timeout on
+ * screen. The Center record carries all of them.
+ */
+export const NOTIFICATION_TOAST_ROWS_LIMIT = 3;
+
+/** Test id for the toast's row block. */
+export const NOTIFICATION_TOAST_ROWS_TESTID = 'notification-toast-rows';

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Toast, ToastActionButton, ToastCloseButton, ToastContent, ToastDescription, ToastTitle } from '@heroui/react';
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { appToastQueue, resolveToastTimeoutMs } from './app-toast-queue';
+import { NotificationToastRows } from './NotificationToastRows';
 import { SEVERITY_TO_VARIANT, VIEW_DETAILS_ACTION_LABEL } from './notification-resolver.constants';
 import type { AppToastPayload } from './app-notification.types';
 
@@ -28,7 +29,7 @@ export interface AppQueuedToast {
  * `ToastProvider` children render function.
  */
 export function renderAppNotificationToast(notification: AppNotification): string {
-  const { severity, title, description, actions, persistent, recordId } = notification;
+  const { severity, title, description, actions, rows, persistent, recordId } = notification;
 
   return appToastQueue.add(
     {
@@ -36,6 +37,7 @@ export function renderAppNotificationToast(notification: AppNotification): strin
       description,
       variant: SEVERITY_TO_VARIANT[severity],
       actions,
+      rows,
       recordId,
     },
     { timeout: resolveToastTimeoutMs(persistent) },
@@ -75,21 +77,23 @@ function navigateToNotificationRecord(recordId: number): void {
 }
 
 /**
- * Renders one queued app toast's full content, including every action, plus
- * a "View details" action when the toast carries a persisted `recordId`.
+ * Renders one queued app toast's full content: the title and body, the rows
+ * saying WHICH things it is about, every whole-notification action, and a
+ * "View details" action when the toast carries a persisted `recordId`.
  * Passed as `NotificationToasts`' `ToastProvider` children render function
  * (design.md §3 Decision F) -- HeroUI's own default renderer only supports a
  * single `actionProps` slot (`ToastContentValue.actionProps` is singular),
  * which is exactly the shape that produced Bug B.
  */
 export function renderAppToastContent({ toast }: Readonly<{ toast: AppQueuedToast }>): ReactElement {
-  const { title, description, actions, variant, recordId } = toast.content;
+  const { title, description, actions, rows, variant, recordId } = toast.content;
 
   return (
     <Toast<AppToastPayload> toast={toast} variant={variant}>
       <ToastContent>
         <ToastTitle>{title}</ToastTitle>
         {description ? <ToastDescription>{description}</ToastDescription> : null}
+        {rows === undefined || rows.length === 0 ? null : <NotificationToastRows rows={rows} />}
       </ToastContent>
       {(actions ?? []).map((action) => (
         <ToastActionButton key={action.label} variant={action.variant} onPress={action.onPress}>

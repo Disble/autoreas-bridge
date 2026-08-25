@@ -182,3 +182,19 @@ describe('useBackendEventResolver', () => {
     expect(remove).toHaveBeenCalledWith(9);
   });
 });
+
+// The subscription is keyed on the sources, and pinning it to the first render would leave the
+// hook listening to a stream nobody pushes to -- silently, since a resolver that receives nothing
+// looks exactly like one with nothing to report.
+it('re-subscribes when the push source it was given changes', async () => {
+  const first = { subscribe: vi.fn().mockReturnValue(() => undefined), subscribeArchived: () => () => undefined, subscribeNavigate: () => () => undefined };
+  const second = { subscribe: vi.fn().mockReturnValue(() => undefined), subscribeArchived: () => () => undefined, subscribeNavigate: () => () => undefined };
+
+  const { rerender } = renderHook(({ source }) => useBackendEventResolver(vi.fn(), vi.fn(), source), {
+    initialProps: { source: first as never },
+  });
+  rerender({ source: second as never });
+
+  expect(first.subscribe).toHaveBeenCalledTimes(1);
+  expect(second.subscribe).toHaveBeenCalledTimes(1);
+});

@@ -29,9 +29,26 @@ export interface DetailItem {
  * free-form token a registered handler resolves at press time.
  */
 export interface ActionSpec {
+  /**
+   * The persisted token's id, which is what a press addresses through
+   * `ExecuteNotificationAction`. Empty when nothing persisted this delivery --
+   * a bare dispatcher, or a machine whose bridge database will not open -- in
+   * which case the action must render without a press rather than refuse on
+   * one.
+   */
+  readonly ID: string;
   readonly Label: string;
   readonly Intent: string;
   readonly Args: Readonly<Record<string, string>>;
+  /**
+   * Which of the two CTA levels this action belongs to: empty means it is
+   * about the whole notification, set means it is about the row carrying that
+   * `RefID` (docs/notification-cta-policy.md).
+   *
+   * This mirror omitted it, so a consumer could not tell a footer verb from a
+   * row verb even once it started receiving them.
+   */
+  readonly RowRef: string;
 }
 
 /**
@@ -41,13 +58,9 @@ export interface ActionSpec {
  * consumed by `infrastructure/notification-source.ts` and the app-shell
  * toast hook.
  *
- * `RecordID` is forward-compatible and OPTIONAL: as of Slice 4-i,
- * `internal/notification.Notification` (the Go struct actually serialized
- * onto this event, `internal/notification/notifier.go`) carries no such
- * field, so it always arrives `undefined` today. Reading it here now (rather
- * than dropping it, Bug A) lets `use-backend-event-resolver.ts` forward a
- * real persisted record id the moment a later slice's producer wiring
- * starts sending one, without another frontend contract change.
+ * `RecordID` is the persisted Center record id. It is OPTIONAL because a
+ * delivery nothing persisted carries none -- which is also the only state it
+ * ever had until the delivery envelope started passing one through.
  *
  * `Rows`/`Actions` are OPTIONAL for the same reason: the Go struct always
  * carries the fields (so the wire payload always includes them, `null` when

@@ -1,4 +1,4 @@
-import type { AppNotificationAction } from '../../../../shared/contracts/app-notification.types';
+import type { AppNotificationAction, AppNotificationRow } from '../../../../shared/contracts/app-notification.types';
 
 /**
  * The visual variant HeroUI's toast primitives accept, mapped from
@@ -22,5 +22,7 @@ export interface AppToastPayload {
   readonly description?: string;
   readonly variant?: AppToastVariant;
   readonly actions?: readonly AppNotificationAction[];
+  /** What the notification is about, rendered as identity above the actions. */
+  readonly rows?: readonly AppNotificationRow[];
   readonly recordId?: number;
 }
