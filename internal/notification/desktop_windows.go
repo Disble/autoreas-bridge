@@ -118,9 +118,39 @@ func desktopToastBody(n Notification) string {
 			lines = append(lines, row.Detail)
 			continue
 		}
-		lines = append(lines, strings.TrimSpace(row.Name+" -- "+row.Detail))
+		if line := desktopToastRowLine(n.Body, row); line != "" {
+			lines = append(lines, line)
+		}
 	}
 	return strings.Join(lines, lineBreak)
+}
+
+// desktopToastRowLine folds ONE row into a body line, saying only what the body does not.
+//
+// A single-anime run's body already reads "Download check started for <name>.", and repeating
+// that name on the next line is not a cosmetic duplicate on this medium: Windows shows a handful
+// of lines and clips the rest, so the repeat pushes the row's actual detail off the notification.
+// The first real capture showed exactly that. Where the body already names the row, the line
+// carries the detail alone; where it does not -- a fan-out run's body says how many, not which --
+// the row still names itself.
+//
+// The separator is added only when both halves exist. Trimming the outside of "Name -- " leaves
+// the separator attached, so a row carrying no detail used to read "Frieren --".
+func desktopToastRowLine(body string, row DetailItem) string {
+	name := strings.TrimSpace(row.Name)
+	detail := strings.TrimSpace(row.Detail)
+
+	if name != "" && strings.Contains(body, name) {
+		return detail
+	}
+	switch {
+	case name != "" && detail != "":
+		return name + " -- " + detail
+	case name != "":
+		return name
+	default:
+		return detail
+	}
 }
 
 // desktopToastActions projects the notification's whole-notification verbs onto Windows buttons.

@@ -151,3 +151,59 @@ func TestWindowsToastKeepsAPlainNotificationUnchanged(t *testing.T) {
 		t.Fatalf("a row-less notification lost its body:\n%s", xml)
 	}
 }
+
+// TestWindowsToastDoesNotSayTheSameNameTwice is what the first real Windows capture showed. A
+// single-anime run's body already reads "Download check started for <name>.", and folding its row
+// in repeated that name verbatim on the next line -- which on a medium that shows four lines and
+// then clips is not a cosmetic repeat, it is the detail being pushed off the notification.
+//
+// The row still contributes what the body does NOT carry: its detail line.
+func TestWindowsToastDoesNotSayTheSameNameTwice(t *testing.T) {
+	xml := deliverToastXML(t, Delivery{Notification: Notification{
+		Title: "Anime download started",
+		Body:  "Download check started for Honzuki no Gekokujou.",
+		Rows: []DetailItem{
+			{RefType: "anime", RefID: "a-1", Name: "Honzuki no Gekokujou", Status: "queued", Detail: "waiting for this run to reach it"},
+		},
+	}})
+
+	if strings.Count(xml, "Honzuki no Gekokujou") != 1 {
+		t.Fatalf("the anime is named %d times, want once:\n%s", strings.Count(xml, "Honzuki no Gekokujou"), xml)
+	}
+	if !strings.Contains(xml, "waiting for this run to reach it") {
+		t.Fatalf("dropping the repeated name took the row's detail with it:\n%s", xml)
+	}
+}
+
+// TestWindowsToastStillNamesARowTheBodyDoesNotMention: a fan-out run's body says how many, not
+// which, so every row still has to name itself.
+func TestWindowsToastStillNamesARowTheBodyDoesNotMention(t *testing.T) {
+	xml := deliverToastXML(t, Delivery{Notification: Notification{
+		Title: "Download run started",
+		Body:  "Download check started (scheduled).",
+		Rows: []DetailItem{
+			{RefType: "anime", RefID: "a-1", Name: "Frieren", Status: "queued", Detail: "waiting for this run to reach it"},
+		},
+	}})
+
+	if !strings.Contains(xml, "Frieren") {
+		t.Fatalf("a row the body never mentioned lost its name:\n%s", xml)
+	}
+}
+
+// TestWindowsToastLeavesNoDanglingSeparator: a row carrying no detail line produced "Name --",
+// because trimming the outside of "Name -- " leaves the separator attached.
+func TestWindowsToastLeavesNoDanglingSeparator(t *testing.T) {
+	xml := deliverToastXML(t, Delivery{Notification: Notification{
+		Title: "Download run started",
+		Body:  "Download check started (scheduled).",
+		Rows:  []DetailItem{{RefType: "anime", RefID: "a-1", Name: "Frieren", Status: "queued"}},
+	}})
+
+	if strings.Contains(xml, "Frieren --") {
+		t.Fatalf("a detail-less row kept its separator:\n%s", xml)
+	}
+	if !strings.Contains(xml, "Frieren") {
+		t.Fatalf("the row lost its name along with the separator:\n%s", xml)
+	}
+}
