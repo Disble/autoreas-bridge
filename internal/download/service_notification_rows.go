@@ -1,6 +1,7 @@
 package download
 
 import (
+	"autoreas-bridge/internal/api/contracts"
 	"fmt"
 
 	"autoreas-bridge/internal/notification"
@@ -51,6 +52,52 @@ func buildRunDetailRows(outcomes []animeRunOutcome) []notification.DetailItem {
 	}
 	if len(rows) == 0 {
 		return nil
+	}
+	return rows
+}
+
+// runStartedRowStatus is the status word a row carries before the run has processed it.
+//
+// It is deliberately outside the vocabulary outcomeRowStatus writes. "downloaded", "failed",
+// "manual", "up to date", "checked" and "skipped" each claim something that HAS happened, and a
+// run that has only just begun has done none of them -- borrowing one would be how a detail pane
+// starts lying quietly.
+const runStartedRowStatus = "queued"
+
+// buildRunStartedRows names the anime a run is about to process, so "Download run started" has a
+// subject instead of being a sentence about nothing.
+//
+// It cannot reuse buildRunDetailRows: that one reads animeRunOutcome, and at this point no anime
+// has an outcome. There is nothing to partition into eventful and quiet either, because nothing
+// has happened yet -- so every addressable anime is named in selection order, and the overflow
+// collapses into the same summary row a finished run uses, under the same 50-row bound.
+//
+// An anime with no id is skipped: the pane addresses a row by its RefID to resolve its cover, so a
+// row that names no record renders as art that never arrives.
+func buildRunStartedRows(animes []contracts.MobileAnime) []notification.DetailItem {
+	addressable := make([]contracts.MobileAnime, 0, len(animes))
+	for _, anime := range animes {
+		if anime.ID != "" {
+			addressable = append(addressable, anime)
+		}
+	}
+	if len(addressable) == 0 {
+		return nil
+	}
+
+	named := addressable[:min(len(addressable), runDetailRowsLimit)]
+	rows := make([]notification.DetailItem, 0, len(named)+1)
+	for _, anime := range named {
+		rows = append(rows, notification.DetailItem{
+			RefType: animeRefType,
+			RefID:   anime.ID,
+			Name:    anime.Name,
+			Status:  runStartedRowStatus,
+			Detail:  "waiting for this run to reach it",
+		})
+	}
+	if unlisted := len(addressable) - len(named); unlisted > 0 {
+		rows = append(rows, runDetailSummaryRow(0, unlisted))
 	}
 	return rows
 }

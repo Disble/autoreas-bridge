@@ -212,15 +212,17 @@ func TestEveryRunNotificationCanBeOpenedInDownloads(t *testing.T) {
 	if len(sent) < 2 {
 		t.Fatalf("notifications = %#v, want at least the run-started and terminal ones", sent)
 	}
-	rowLess := 0
+	kinds := make(map[string]bool, len(sent))
 	for _, notified := range sent {
 		findRunWideActionByIntent(t, notified.Actions, "navigation.open")
-		if len(notified.Rows) == 0 {
-			rowLess++
-		}
+		kinds[notified.Kind] = true
 	}
-	if rowLess == 0 {
-		t.Fatal("no row-less notification in this run, so the guard this test exists for was never exercised")
+	// This used to require a row-LESS notification in the sweep, on the argument that run_started
+	// was one. It is not any more -- a started run names the anime it is about -- and the guard
+	// would now pass vacuously on a single kind. What it was reaching for is that the sweep
+	// crossed more than one producer branch, so more than one kind is what it asks for.
+	if len(kinds) < 2 {
+		t.Fatalf("kinds swept = %#v, want more than one so this is not asserting about a single branch", kinds)
 	}
 }
 

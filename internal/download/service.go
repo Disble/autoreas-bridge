@@ -252,13 +252,20 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	s.logf(logger.LevelInfo, runID, "", "download.run_started", nil,
 		"download run %s started (trigger=%s)", runID, trigger)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notify(ctx, notification.LevelInfo, kindRunStarted, runID,
-		"Download run started", fmt.Sprintf("Download check started (%s).", trigger))
+	// The selection is resolved here rather than inside execute so the notification can name the
+	// anime it is about. Deliberately NOT by moving the notify below execute: the run announces
+	// itself even when the catalog query fails or nothing is scheduled, and that has to survive --
+	// a run that errors on selection still started. A failed query therefore degrades to the
+	// subject-less sentence this notification used to be, never to silence.
+	animes, selectionErr := s.listActiveAnimesToday(ctx)
+	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
+		"Download run started", fmt.Sprintf("Download check started (%s).", trigger),
+		buildRunStartedRows(animes), runWideActions(kindRunStarted))
 	// Raised before the pipeline runs, not after: this is the one notification that warns about
 	// what is about to happen rather than reporting what did.
 	s.raiseReadinessAttention(ctx, runID, trigger)
 
-	result := s.execute(ctx, runID, startedAt, trigger, &run)
+	result := s.execute(ctx, runID, startedAt, trigger, &run, animes, selectionErr)
 	s.finishRunLog(runID, &run)
 
 	return result, nil
@@ -287,8 +294,9 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", nil,
 		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notify(ctx, notification.LevelInfo, kindRunStarted, runID,
-		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name))
+	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
+		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name),
+		buildRunStartedRows([]contracts.MobileAnime{anime}), runWideActions(kindRunStarted))
 
 	result := s.executeAnimeLive(ctx, runID, &run, anime)
 	s.finishRunLog(runID, &run)
@@ -301,8 +309,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 // (a defer would be more idiomatic, but explicit finalize calls at each early-return keep the
 // terminal status selection readable per branch -- design §5's four sequence diagrams each have
 // a distinct terminal status).
-func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *Run) RunResult {
-	animes, err := s.listActiveAnimesToday(ctx)
+func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *Run, animes []contracts.MobileAnime, err error) RunResult {
 	if err != nil {
 		run.Status = RunStatusError
 		run.ErrorSummary = err.Error()
