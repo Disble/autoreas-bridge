@@ -309,10 +309,16 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 // (a defer would be more idiomatic, but explicit finalize calls at each early-return keep the
 // terminal status selection readable per branch -- design §5's four sequence diagrams each have
 // a distinct terminal status).
-func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *Run, animes []contracts.MobileAnime, err error) RunResult {
-	if err != nil {
+//
+// It receives the selection and that selection's error rather than querying for them, because
+// RunOnce has to resolve both BEFORE it announces the run: a "Download run started" notification
+// that cannot name the anime it is about is a sentence with no subject. The query stays a single
+// call either way -- it simply happens one step earlier -- and the failure is carried down here
+// so the terminal-status ladder still owns what a failed selection means.
+func (s *Service) execute(ctx context.Context, runID string, startedAt time.Time, trigger string, run *Run, animes []contracts.MobileAnime, selectionErr error) RunResult {
+	if selectionErr != nil {
 		run.Status = RunStatusError
-		run.ErrorSummary = err.Error()
+		run.ErrorSummary = selectionErr.Error()
 		s.finalize(ctx, run)
 		return RunResult{RunID: runID, Status: run.Status}
 	}

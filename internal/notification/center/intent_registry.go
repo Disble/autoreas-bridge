@@ -21,10 +21,11 @@ const (
 	// the pre-existing IgnoreMissedSchedule Wails binding.
 	IntentScheduleIgnoreMissed = "schedule.ignore_missed"
 	// IntentClipboardCopy resolves to the desktop clipboard writer, copying
-	// the text frozen under ArgKeyText. It is the intent behind a
-	// jdownloader_offline row's "Copy hoster N" actions (design-canvas
-	// Anatomy.dc.html), which are the reason that producer attaches rows
-	// WITHOUT the default per-row re-run token.
+	// the text frozen under ArgKeyText. It is the intent behind the "Copy
+	// hoster N" actions a hoster-blocked row offers (design-canvas
+	// Anatomy.dc.html) -- the verb that row gets INSTEAD of a retry, because
+	// re-running an anime whose downloader is still offline only reproduces
+	// the block.
 	IntentClipboardCopy = "clipboard.copy"
 	// IntentNavigationOpen resolves to a frontend route change, addressed by
 	// the "route" key of the action's frozen args. It is the intent behind a

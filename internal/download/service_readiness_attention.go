@@ -136,10 +136,13 @@ func buildReadinessAttentionRows(blocked []contracts.AnimeDownloadReadiness) []n
 // buildReadinessAttentionActions binds one "Open in editor" token to every row that names a single
 // anime, with that anime's editor route frozen into its own Args map.
 //
-// The default per-row token is wrong here for the same reason it is wrong on a jd_offline row:
-// "Run this anime again" against an anime with no source only reproduces the skip. What the user
-// needs is the screen where the missing field lives, which is exactly what the canvas draws on
-// this row.
+// A retry would be wrong here for the same reason it is wrong on a hoster-blocked row: "Run this
+// anime again" against an anime with no source only reproduces the skip. What the user needs is
+// the screen where the missing field lives, which is exactly what the canvas draws on this row.
+//
+// These rows describe anime the run has not reached yet, so there is no animeRunOutcome to read
+// the verb from -- which is why this producer builds its tokens itself rather than going through
+// buildOutcomeActions. The verb it picks is the same one that builder gives a `skipped` row.
 //
 // The summary row is skipped, because it stands in for anime it does not name -- there is no
 // single editor route a token could be frozen to. Each row gets its own Args map rather than a

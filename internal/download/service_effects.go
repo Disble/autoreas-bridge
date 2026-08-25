@@ -69,15 +69,20 @@ func (s *Service) publish(event events.Event) {
 // It takes outcomes rather than already-built rows because the two cannot be derived
 // independently. A row's verb comes from what happened to that anime, and one of those verbs --
 // the hoster links a blocked anime offers -- lives on the outcome and never reaches the row. An
-// empty outcome slice is equivalent to notify.
+// empty outcome slice produces a notification with no rows and its whole-notification tokens
+// alone, which is exactly what a run that selected nothing should say.
 func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Level, kind, runID, title, body string, outcomes []animeRunOutcome) {
 	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(kind, outcomes))
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing
 // notification carrying explicit rows and explicit action tokens, without failing the download
-// run. It exists for the producers whose rows must NOT grow the default per-row action -- the
-// jd_offline case, where the design canvas draws copy-hoster actions no registered intent backs.
+// run.
+//
+// It exists for the producers whose rows do not come from run outcomes, and therefore cannot go
+// through notifyWithOutcomes: run_started names anime the run has not processed yet, and
+// readiness_attention names anime it is about to skip. Both describe a state rather than a
+// result, so neither has an animeRunOutcome to read a verb from.
 //
 // kind is passed per call site rather than derived from the run status: run_started has no
 // status at all, and deriving the rest would bury the mapping in a switch far from the title and

@@ -16,8 +16,8 @@ const (
 	openDownloadsActionLabel = "Open Downloads"
 	// runAnimeActionLabel is the copy the design canvas gives a row's own re-run action.
 	runAnimeActionLabel = "Run this anime again"
-	// animeRefType marks a detail row that references one anime, and is therefore the only kind
-	// of row a download.run_anime token can be bound to.
+	// animeRefType marks a detail row that references one anime. Every row-bound token this
+	// package mints addresses an anime, so it is the only RefType any of them carries.
 	animeRefType = "anime"
 	// copyHosterActionLabelFormat is the copy the design canvas gives a jd_offline row's own
 	// actions: "Copy hoster 1", "Copy hoster 2". The number is the link's position within its
