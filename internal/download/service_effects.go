@@ -70,12 +70,15 @@ func (s *Service) notify(ctx context.Context, level notification.Level, kind, ru
 	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, nil, runWideActions())
 }
 
-// notifyWithRows sends a user-facing notification carrying individually identified detail rows
-// (e.g. one row per anime that needs attention), plus the action tokens those rows offer -- a
-// per-row "Run this anime again" for each anime it names, alongside the run-wide ones. A nil
-// rows slice is equivalent to notify.
-func (s *Service) notifyWithRows(ctx context.Context, level notification.Level, kind, runID, title, body string, rows []notification.DetailItem) {
-	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, rows, buildRunActions(rows))
+// notifyWithOutcomes sends a user-facing notification about a run that touched named anime: it
+// derives both the detail rows and their action tokens from the same outcomes.
+//
+// It takes outcomes rather than already-built rows because the two cannot be derived
+// independently. A row's verb comes from what happened to that anime, and one of those verbs --
+// the hoster links a blocked anime offers -- lives on the outcome and never reaches the row. An
+// empty outcome slice is equivalent to notify.
+func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Level, kind, runID, title, body string, outcomes []animeRunOutcome) {
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(outcomes))
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing

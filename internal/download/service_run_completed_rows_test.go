@@ -130,10 +130,15 @@ func TestRunCompletedNotificationNamesWhatItDownloaded(t *testing.T) {
 	}
 }
 
-// TestRunCompletedNotificationCarriesAPerRowRerunAction proves the rows are wired through the
-// row-aware notify helper, not attached by hand: the helper is what mints the per-row token, so
-// a run_completed that named its anime but offered nothing to do with them would fail here.
-func TestRunCompletedNotificationCarriesAPerRowRerunAction(t *testing.T) {
+// TestRunCompletedNotificationOffersToWatchWhatItDownloaded proves the rows are wired through the
+// outcome-aware notify helper, not attached by hand: the helper is what mints the per-row token,
+// so a run_completed that named its anime but offered nothing to do with them would fail here.
+//
+// It used to assert the opposite. A run that finished cleanly offered "Run this anime again" on
+// the very anime whose episode was already on disk, and this test held that in place -- which is
+// how a category error survives a green suite. The episode is downloaded; the verb is to go watch
+// it (docs/notification-cta-policy.md).
+func TestRunCompletedNotificationOffersToWatchWhatItDownloaded(t *testing.T) {
 	t.Parallel()
 
 	deps, notifier := cleanMixedRunScenario(t)
@@ -148,12 +153,18 @@ func TestRunCompletedNotificationCarriesAPerRowRerunAction(t *testing.T) {
 
 	bound := 0
 	for _, action := range sent.Actions {
-		if action.RowRef == "anime-ok" && action.Label == "Run this anime again" {
+		if action.RowRef != "anime-ok" {
+			continue
+		}
+		if action.Label == "Run this anime again" {
+			t.Fatalf("a clean run offers to re-download what it just downloaded: %#v", action)
+		}
+		if action.Label == "Watch" && action.Args["route"] == "/catalog/detail/anime-ok" {
 			bound++
 		}
 	}
 	if bound != 1 {
-		t.Fatalf("Actions = %#v, want exactly one re-run token bound to anime-ok", sent.Actions)
+		t.Fatalf("Actions = %#v, want exactly one watch token bound to anime-ok", sent.Actions)
 	}
 }
 

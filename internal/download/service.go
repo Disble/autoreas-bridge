@@ -436,25 +436,27 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		// Copy-hoster tokens instead of the default per-row re-run token: re-running an anime
-		// whose downloader is still offline only reproduces the block, so what the row offers is
-		// the link itself (Anatomy.dc.html, "Copy hoster 1" / "Copy hoster 2").
-		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
+		// The hoster-blocked rows offer the link rather than a re-run, because re-running an anime
+		// whose downloader is still offline only reproduces the block (Anatomy.dc.html, "Copy
+		// hoster 1" / "Copy hoster 2"). That is no longer this branch's business to arrange: the
+		// verb follows each row's own outcome, so a run that ALSO failed on some other anime hands
+		// that row its retry instead of leaving it with nothing.
+		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
 			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
-			buildRunDetailRows(outcomes), buildJDOfflineActions(outcomes))
+			outcomes)
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
-		s.notifyWithRows(ctx, notification.LevelWarning, kindRunStoppedEarly, runID, "Download run completed with errors",
-			"Some animes failed to download.", buildRunDetailRows(outcomes))
+		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindRunStoppedEarly, runID, "Download run completed with errors",
+			"Some animes failed to download.", outcomes)
 	case anyFailed:
 		run.Status = RunStatusError
-		s.notifyWithRows(ctx, notification.LevelError, kindRunStoppedEarly, runID, "Download run failed",
-			"All animes failed to download.", buildRunDetailRows(outcomes))
+		s.notifyWithOutcomes(ctx, notification.LevelError, kindRunStoppedEarly, runID, "Download run failed",
+			"All animes failed to download.", outcomes)
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notifyWithRows(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed",
-				fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded), buildRunDetailRows(outcomes))
+			s.notifyWithOutcomes(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed",
+				fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded), outcomes)
 		}
 	}
 }
@@ -474,9 +476,9 @@ func (s *Service) markCanceled(ctx context.Context, runID string, run *Run, outc
 		return false
 	}
 	run.Status = RunStatusCanceled
-	s.notifyWithRows(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
+	s.notifyWithOutcomes(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
 		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded),
-		buildRunDetailRows(outcomes))
+		outcomes)
 	return true
 }
 

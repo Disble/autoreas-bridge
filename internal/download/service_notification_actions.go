@@ -28,6 +28,14 @@ const (
 	// that a notification listing everything is a log, not a notification. Same bound as
 	// manualLinksSummaryLimit, which caps the body sentence for the same reason.
 	copyHosterActionsPerRowLimit = 5
+	// watchActionLabel is the copy a row whose episodes are already on disk offers. Bridge has
+	// no player, so "watch" means "take me to where this anime is", not "play it".
+	watchActionLabel = "Watch"
+	// watchRouteFormat is the anime-scoped destination a downloaded row freezes. It is the
+	// anime's own screen rather than the day view: the row is about ONE anime, and /today is
+	// scoped to a day that may not be the one this anime is scheduled on
+	// (docs/notification-cta-policy.md, "L2 never navigates to a generic context").
+	watchRouteFormat = "/catalog/detail/%s"
 )
 
 // runWideActions returns the action tokens every download-run notification carries about itself
@@ -44,73 +52,67 @@ func runWideActions() []notification.ActionSpec {
 	}}
 }
 
-// buildRunActions returns the full action set for a run notification carrying rows: the
-// whole-notification tokens, plus one "Run this anime again" token bound to every row that
-// names a single anime.
+// buildOutcomeActions returns the full action set for a run notification: the whole-notification
+// tokens, plus the ONE verb each named anime's own outcome calls for.
 //
-// A collapsed summary row is deliberately skipped: it stands in for anime it does not name, so
-// there is no single target a re-run token could freeze. So is any row referencing something
-// other than an anime, because download.run_anime resolves its target through GetAnimeDetail.
-func buildRunActions(rows []notification.DetailItem) []notification.ActionSpec {
-	actions := runWideActions()
-	for _, row := range rows {
-		if row.RefType != animeRefType || row.RefID == "" {
-			continue
-		}
-		actions = append(actions, notification.ActionSpec{
-			Label:  runAnimeActionLabel,
-			Intent: center.IntentDownloadRunAnime,
-			Args:   map[string]string{center.ArgKeyAnimeID: row.RefID},
-			RowRef: row.RefID,
-		})
-	}
-	return actions
-}
-
-// ============================================================================
-// UNWIRED SEAM -- buildJDOfflineActions has NO production caller yet.
+// The verb is chosen from the OUTCOME, never from the notification's kind, because one run holds
+// rows that each want a different one -- a run can fail on one anime, download another, and find a
+// third already current. Keying on the kind bound "Run this anime again" to all three at once: it
+// invited the user to re-download finished work, offered a retry instead of the link to an anime
+// whose downloader was still offline, and left a failed row inside a jd_offline notification with
+// no verb at all. See docs/notification-cta-policy.md, Table B.
 //
-// The two jd_offline notification call sites still pass runWideActions():
-//
-//   internal/download/service.go        -> Service.setRunCompletionStatus,
-//                                          the gate.knownOffline() branch
-//   internal/download/service_single_anime.go
-//                                       -> the single-anime jd_offline branch
-//
-// Both must be changed to pass buildJDOfflineActions(outcomes) instead, and
-// the "Rows without the default per-row re-run token" comment above the first
-// one deleted -- it explains an absence that will no longer exist. Until that
-// happens, a jdownloader_offline row still renders with no copy-hoster button
-// even though the intent behind it is registered and working
-// (clipboard.copy, app_notification_center.go).
-//
-// Those two files were being refactored concurrently when this landed, so the
-// edit was deliberately left out rather than made against a signature that was
-// about to change. This block is the handoff.
-// ============================================================================
-
-// buildJDOfflineActions returns the action set for a jd_offline notification: the
-// whole-notification tokens, plus one "Copy hoster N" token per hoster link on the row of the
-// anime that link belongs to.
-//
-// It exists because the default per-row action is wrong here. buildRunActions binds "Run this
-// anime again" to every named anime row, but re-running an anime whose downloader is still
-// offline only reproduces the same block -- what the user actually needs is the link, to hand to
-// JDownloader themselves. That is exactly what the design canvas draws on this row
-// (Anatomy.dc.html: "Copy hoster 1", "Copy hoster 2"), and why this producer attaches rows
-// WITHOUT the re-run token.
-//
-// Each link is frozen into its own Args map at creation. A link resolved at press time would be
-// a different link: the run that found it is over, and hosters rotate their URLs.
-func buildJDOfflineActions(outcomes []animeRunOutcome) []notification.ActionSpec {
+// An outcome with no id is skipped outright: every verb below addresses a record, so a token
+// frozen against no id would refuse the moment it was pressed.
+func buildOutcomeActions(outcomes []animeRunOutcome) []notification.ActionSpec {
 	actions := runWideActions()
 	for _, outcome := range outcomes {
 		if outcome.animeID == "" {
 			continue
 		}
-		actions = append(actions, copyHosterActions(outcome)...)
+		actions = append(actions, outcomeRowActions(outcome)...)
 	}
 	return actions
+}
+
+// outcomeRowActions returns the tokens one anime row offers, chosen by what actually happened to
+// that anime.
+//
+// The order is a precedence, not a sequence of independent checks, and it is deliberately the same
+// one outcomeRowStatus applies to the row's status word: an anime can download two episodes and
+// then lose the third on every hoster, and the row carries ONE verb, so it has to be the one that
+// needs a human. Failure outranks the manual link, which outranks the success.
+//
+// A quiet outcome returns nothing. An anime that was already current has no next step, and a button
+// that means nothing is worse than no button -- it teaches the user that the buttons are noise.
+func outcomeRowActions(outcome animeRunOutcome) []notification.ActionSpec {
+	switch {
+	case outcome.failed:
+		return []notification.ActionSpec{{
+			Label:  runAnimeActionLabel,
+			Intent: center.IntentDownloadRunAnime,
+			Args:   map[string]string{center.ArgKeyAnimeID: outcome.animeID},
+			RowRef: outcome.animeID,
+		}}
+	case len(outcome.manualLinks) > 0:
+		return copyHosterActions(outcome)
+	case outcome.episodesDownloaded > 0:
+		return []notification.ActionSpec{{
+			Label:  watchActionLabel,
+			Intent: center.IntentNavigationOpen,
+			Args:   map[string]string{center.ArgKeyRoute: fmt.Sprintf(watchRouteFormat, outcome.animeID)},
+			RowRef: outcome.animeID,
+		}}
+	case outcome.skipped:
+		return []notification.ActionSpec{{
+			Label:  openInEditorActionLabel,
+			Intent: center.IntentNavigationOpen,
+			Args:   map[string]string{center.ArgKeyRoute: fmt.Sprintf(editorRouteFormat, outcome.animeID)},
+			RowRef: outcome.animeID,
+		}}
+	default:
+		return nil
+	}
 }
 
 // copyHosterActions builds one copy token per hoster link of a single anime, numbered across

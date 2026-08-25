@@ -27,6 +27,24 @@ func findActionByIntent(t *testing.T, actions []notification.ActionSpec, intent 
 	return found[0]
 }
 
+// findRunWideActionByIntent is findActionByIntent narrowed to the whole-notification level: it
+// ignores anything bound to a row.
+//
+// The narrowing is the point. Row tokens now navigate too -- a downloaded anime offers "Watch" --
+// so counting every navigation.open in a notification stopped meaning "it can be opened in
+// Downloads" and started meaning "no row happens to navigate", which is not a contract anyone
+// wants to hold.
+func findRunWideActionByIntent(t *testing.T, actions []notification.ActionSpec, intent string) notification.ActionSpec {
+	t.Helper()
+	var runWide []notification.ActionSpec
+	for _, action := range actions {
+		if action.RowRef == "" {
+			runWide = append(runWide, action)
+		}
+	}
+	return findActionByIntent(t, runWide, intent)
+}
+
 // TestRunWideActionsIsTheOpenDownloadsTokenAlone pins the whole-notification half of the two
 // levels: a token with NO row binding, addressed at the downloads route.
 func TestRunWideActionsIsTheOpenDownloadsTokenAlone(t *testing.T) {
@@ -48,104 +66,6 @@ func TestRunWideActionsIsTheOpenDownloadsTokenAlone(t *testing.T) {
 	}
 	if actions[0].RowRef != "" {
 		t.Fatalf("RowRef = %q, want empty -- this action is about the whole notification", actions[0].RowRef)
-	}
-}
-
-// TestBuildRunActionsBindsARetryTokenToEveryNamedAnimeRow is the core of Slice D: every anime a
-// run named individually must carry its own re-run token, with that anime's id frozen into the
-// args and the row binding pointing back at the row.
-func TestBuildRunActionsBindsARetryTokenToEveryNamedAnimeRow(t *testing.T) {
-	t.Parallel()
-
-	rows := []notification.DetailItem{
-		{RefType: "anime", RefID: "anime-failed", Name: "Failed Anime", Status: "failed"},
-		{RefType: "anime", RefID: "anime-manual", Name: "Manual Anime", Status: "manual"},
-		{Status: "ok", Detail: "6 other anime finished without incident", CollapsedCount: 6},
-	}
-
-	actions := buildRunActions(rows)
-
-	var retryRefs []string
-	for _, action := range actions {
-		if action.Intent != "download.run_anime" {
-			continue
-		}
-		if action.Label != "Run this anime again" {
-			t.Fatalf("retry label = %q, want %q", action.Label, "Run this anime again")
-		}
-		if action.Args["animeId"] != action.RowRef {
-			t.Fatalf("action %#v freezes an animeId that does not match its own row binding", action)
-		}
-		retryRefs = append(retryRefs, action.RowRef)
-	}
-
-	if len(retryRefs) != 2 {
-		t.Fatalf("retry tokens bound to %#v, want exactly the 2 named anime rows", retryRefs)
-	}
-	if retryRefs[0] != "anime-failed" || retryRefs[1] != "anime-manual" {
-		t.Fatalf("retry tokens bound to %#v, want [anime-failed anime-manual] in row order", retryRefs)
-	}
-	// The whole-notification token rides along with the per-row ones.
-	findActionByIntent(t, actions, "navigation.open")
-}
-
-// TestBuildRunActionsNeverBindsARetryTokenToACollapsedRow pins the guard that keeps a summary
-// line from growing a button: a collapsed row stands in for anime it does not name, so there is
-// no single anime a re-run token could address.
-func TestBuildRunActionsNeverBindsARetryTokenToACollapsedRow(t *testing.T) {
-	t.Parallel()
-
-	rows := []notification.DetailItem{
-		{Status: "ok", Detail: "6 other anime finished without incident", CollapsedCount: 6},
-	}
-
-	actions := buildRunActions(rows)
-
-	for _, action := range actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("collapsed-only rows produced a retry token %#v, want none", action)
-		}
-	}
-	if len(actions) != 1 {
-		t.Fatalf("actions = %#v, want only the whole-notification token", actions)
-	}
-}
-
-// TestBuildRunActionsIgnoresANamedRowThatIsNotAnAnime pins the ref-type guard: download.run_anime
-// freezes an animeId, so a row referencing anything else must not receive one.
-func TestBuildRunActionsIgnoresANamedRowThatIsNotAnAnime(t *testing.T) {
-	t.Parallel()
-
-	rows := []notification.DetailItem{
-		{RefType: "link", RefID: "link-1", Name: "A hoster link", Status: "manual"},
-	}
-
-	actions := buildRunActions(rows)
-
-	for _, action := range actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("a non-anime row produced a retry token %#v, want none", action)
-		}
-	}
-}
-
-// TestBuildRunActionsIgnoresAnAnimeRowWithNoID pins the other half of the same guard. An anime
-// row whose id is missing would mint a token frozen on an empty animeId, and GetAnimeDetail("")
-// resolves to nothing -- a button that can only ever refuse, which is exactly what the token
-// pattern exists to make impossible ("you cannot hold a token to something that does not exist").
-func TestBuildRunActionsIgnoresAnAnimeRowWithNoID(t *testing.T) {
-	t.Parallel()
-
-	rows := []notification.DetailItem{
-		{RefType: "anime", RefID: "", Name: "Anime With No ID", Status: "failed"},
-	}
-
-	actions := buildRunActions(rows)
-
-	for _, action := range actions {
-		if action.Intent == "download.run_anime" {
-			t.Fatalf("an anime row with no id produced a retry token %#v, want none", action)
-		}
 	}
 }
 
@@ -181,7 +101,7 @@ func TestPartialRunNotificationCarriesAPerRowRetryToken(t *testing.T) {
 	if retries[0].Args["animeId"] != "anime-broken" {
 		t.Fatalf("retry token = %#v, want it frozen on the anime row that failed", retries[0])
 	}
-	findActionByIntent(t, sent.Actions, "navigation.open")
+	findRunWideActionByIntent(t, sent.Actions, "navigation.open")
 }
 
 // TestJDOfflineNotificationIndividuatesTheAnimeAsARow closes the second gap in Slice D: the
@@ -214,7 +134,7 @@ func TestJDOfflineNotificationIndividuatesTheAnimeAsARow(t *testing.T) {
 			t.Fatalf("jd_offline attached a re-run token %#v; the canvas draws copy-hoster actions there", action)
 		}
 	}
-	findActionByIntent(t, sent.Actions, "navigation.open")
+	findRunWideActionByIntent(t, sent.Actions, "navigation.open")
 }
 
 // notificationWithTitle returns the last notification the fake notifier received under title.
@@ -294,7 +214,7 @@ func TestEveryRunNotificationCanBeOpenedInDownloads(t *testing.T) {
 	}
 	rowLess := 0
 	for _, notified := range sent {
-		findActionByIntent(t, notified.Actions, "navigation.open")
+		findRunWideActionByIntent(t, notified.Actions, "navigation.open")
 		if len(notified.Rows) == 0 {
 			rowLess++
 		}

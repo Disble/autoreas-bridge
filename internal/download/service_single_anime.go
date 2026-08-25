@@ -36,25 +36,25 @@ func (s *Service) executeAnimeLive(ctx context.Context, runID string, run *Run, 
 	switch {
 	case gate.knownOffline() && len(run.ManualLinks) > 0:
 		run.Status = RunStatusJDOffline
-		// Same asymmetry as the fan-out path: copy-hoster tokens instead of the per-row re-run
-		// token, because re-running against a downloader that is still offline changes nothing.
-		s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
+		// Same as the fan-out path: the row's verb follows its own outcome, so a hoster-blocked
+		// anime offers the link rather than a re-run against a downloader that is still offline.
+		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
 			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
-			buildRunDetailRows([]animeRunOutcome{outcome}), buildJDOfflineActions([]animeRunOutcome{outcome}))
+			[]animeRunOutcome{outcome})
 	case outcome.failed && run.EpisodesDownloaded > 0:
 		run.Status = RunStatusPartial
-		s.notifyWithRows(ctx, notification.LevelWarning, kindRunStoppedEarly, runID,
-			"Download run completed with errors", "Some episodes failed to download.", buildRunDetailRows([]animeRunOutcome{outcome}))
+		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindRunStoppedEarly, runID,
+			"Download run completed with errors", "Some episodes failed to download.", []animeRunOutcome{outcome})
 	case outcome.failed:
 		run.Status = RunStatusError
-		s.notifyWithRows(ctx, notification.LevelError, kindRunStoppedEarly, runID,
-			"Download run failed", "The selected anime failed to download.", buildRunDetailRows([]animeRunOutcome{outcome}))
+		s.notifyWithOutcomes(ctx, notification.LevelError, kindRunStoppedEarly, runID,
+			"Download run failed", "The selected anime failed to download.", []animeRunOutcome{outcome})
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notifyWithRows(ctx, notification.LevelSuccess, kindRunCompleted, runID,
+			s.notifyWithOutcomes(ctx, notification.LevelSuccess, kindRunCompleted, runID,
 				"Download run completed", fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded),
-				buildRunDetailRows([]animeRunOutcome{outcome}))
+				[]animeRunOutcome{outcome})
 		}
 	}
 
