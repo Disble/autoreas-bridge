@@ -37,20 +37,32 @@ function buildDetail(overrides: Partial<NotificationDetailDTO> = {}): Notificati
 // four-part row, the collapsed line -- already matches it. Everything at its
 // EDGES is missing: how you identify the record, and how you leave the pane.
 describe('NotificationDetail edges (design-canvas/Main.dc.html)', () => {
-  it('shows the correlation id, which is the only thing tying a notification to its run', () => {
+  // These two used to assert the opposite. `Kind` restates the title in wire
+  // vocabulary and keys no filter, and a correlation id the user cannot paste
+  // anywhere in the app is an argument for a link, not for a printed token --
+  // so both leave the pane (docs/notification-cta-policy.md, "Metadata is not
+  // content"). Neither leaves the RECORD: the store still holds them and the
+  // forensic log still carries the correlation id in its fields.
+  it('does not print the correlation id at the user', () => {
     render(<NotificationDetail detail={buildDetail()} />);
 
-    expect(screen.getByText('run-8f21c4')).toBeInTheDocument();
+    expect(screen.queryByText('run-8f21c4')).not.toBeInTheDocument();
+    expect(screen.queryByText('Correlation ID')).not.toBeInTheDocument();
   });
 
-  // The canvas footer's other half. `kind` reached the wire with the backend
-  // half of L.4.2, so the assertion that was deferred lands here now. `source`
-  // is not it: `source` is "download", the bounded context; `kind` is the
-  // specific event within it.
-  it('shows the kind, which names the event the notification is actually about', () => {
+  it('does not print the kind at the user', () => {
     render(<NotificationDetail detail={buildDetail({ kind: 'download.run_stopped_early' })} />);
 
-    expect(screen.getByText('download.run_stopped_early')).toBeInTheDocument();
+    expect(screen.queryByText('download.run_stopped_early')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kind')).not.toBeInTheDocument();
+  });
+
+  // The title is what the record says it is about, in the user's language. It
+  // has to survive the footer going.
+  it('still says what the notification is, in words', () => {
+    render(<NotificationDetail detail={buildDetail()} />);
+
+    expect(screen.getByText('Download stopped before the season finished')).toBeInTheDocument();
   });
 
   it('renders a whole-notification action instead of silently dropping it', () => {

@@ -47,31 +47,9 @@ export const NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL = 'Collapsed rows';
 export const NOTIFICATION_DETAIL_ROW_REFUSAL_MESSAGE_TESTID = 'notification-detail-row-refusal-message';
 
 /**
- * Label of the metadata footer's kind row (design-canvas `Main.dc.html`).
- * `kind` names the specific event (`download.run_stopped_early`) where
- * `source` names the bounded context that raised it (`download`).
- */
-export const NOTIFICATION_DETAIL_KIND_LABEL = 'Kind';
-
-/**
- * Label of the metadata footer's correlation row. The correlation id is the
- * only field tying a notification back to the run that produced it, which is
- * why the artboard puts it on screen rather than leaving it to the log.
- */
-export const NOTIFICATION_DETAIL_CORRELATION_LABEL = 'Correlation ID';
-
-/**
- * `data-testid` for the metadata footer block. Presence of the block itself
- * is what a test needs: an empty `<dl>` satisfies every text-absence
- * assertion too, and an empty labelled area is exactly the wrong fix for a
- * record that identifies itself by neither field.
- */
-export const NOTIFICATION_DETAIL_META_TESTID = 'notification-detail-meta';
-
-/**
- * `data-testid` for the pane's footer action area, for the same
- * presence-not-text reason as {@link NOTIFICATION_DETAIL_META_TESTID}: a
- * record with nothing to do must not grow an empty toolbar.
+ * `data-testid` for the pane's footer action area. Presence of the block
+ * itself is what a test needs: an empty toolbar satisfies every text-absence
+ * assertion too, and a record with nothing to do must not grow one.
  */
 export const NOTIFICATION_DETAIL_FOOTER_TESTID = 'notification-detail-footer';
 

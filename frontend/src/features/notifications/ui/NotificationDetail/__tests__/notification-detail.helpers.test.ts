@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NotificationAction, NotificationDetail, NotificationDetailRow } from '../../../../../shared/contracts/notification-center.types';
 import {
-  buildNotificationMetaEntries,
   formatDetailWhenLabel,
   formatLevelLabel,
   isCollapsedRow,
@@ -192,33 +191,3 @@ describe('formatDetailWhenLabel', () => {
   });
 });
 
-describe('buildNotificationMetaEntries', () => {
-  it('renders both identifying fields the artboard puts at the foot of the pane', () => {
-    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: 'run-8f21c4', kind: 'download.run_stopped_early' }));
-
-    expect(entries).toStrictEqual([
-      { label: 'Kind', value: 'download.run_stopped_early' },
-      { label: 'Correlation ID', value: 'run-8f21c4' },
-    ]);
-  });
-
-  it('omits the kind row entirely for a record written before the column existed', () => {
-    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: 'run-8f21c4', kind: undefined }));
-
-    expect(entries).toStrictEqual([{ label: 'Correlation ID', value: 'run-8f21c4' }]);
-  });
-
-  it('omits the correlation row for a record that belongs to no run', () => {
-    const entries = buildNotificationMetaEntries(buildDetail({ correlationId: undefined, kind: 'download.run_stopped_early' }));
-
-    expect(entries).toStrictEqual([{ label: 'Kind', value: 'download.run_stopped_early' }]);
-  });
-
-  it('treats an empty string as absent, so neither ever renders as an empty labelled row', () => {
-    expect(buildNotificationMetaEntries(buildDetail({ correlationId: '', kind: '' }))).toStrictEqual([]);
-  });
-
-  it('returns nothing at all when the record identifies itself by neither field', () => {
-    expect(buildNotificationMetaEntries(buildDetail())).toStrictEqual([]);
-  });
-});

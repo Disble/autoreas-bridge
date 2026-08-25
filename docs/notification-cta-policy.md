@@ -139,7 +139,10 @@ bother" — identical behaviour, and only one of the two is a defect.
 ## Metadata is not content
 
 The detail pane used to foot every record with two labelled, monospaced values:
-`Kind` and `Correlation ID`. Both are gone from the UI. Neither is gone from the
+`Kind` and `Correlation ID`. Both are gone from the UI, and so is the footer
+that held them -- with nothing left to put in it, `NotificationDetailMeta` and
+`buildNotificationMetaEntries` would only ever have rendered nothing, so they
+were deleted rather than kept as an empty shell. Neither field is gone from the
 record, and both remain in the forensic log.
 
 **`Kind` earned nothing.** `run_completed` restates the title the user is already
@@ -154,10 +157,12 @@ a link, not for an opaque token the user cannot paste anywhere in the app. For a
 download notification the correlation id IS the run id, so it becomes a
 whole-notification verb: `See this run`.
 
-That verb has a destination and no address yet. `RunHistoryPanel` already selects
-a run by id, but the selection is component-local state; `/downloads` accepts no
-run selector, and `resolveSelectedRunId` falls back to the newest run. The route
-needs to honour a run parameter before the verb can point anywhere.
+That verb has a destination and no address yet, so it is **not shipped**.
+`RunHistoryPanel` already selects a run by id, but the selection is
+component-local state; `/downloads` accepts no run selector, and
+`resolveSelectedRunId` falls back to the newest run. The route needs to honour a
+run parameter first -- an action that quietly opens the wrong run is worse than
+the opaque token it replaces.
 
 The design canvas draws that metadata footer. It was the starting point, not the
 ceiling — this supersedes it deliberately.
