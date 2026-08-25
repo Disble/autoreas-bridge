@@ -66,13 +66,20 @@ func countReadinessRows(rows []notification.DetailItem) (named, collapsed int) {
 	return named, collapsed
 }
 
-// rowActionsByRowRef indexes a notification's row-bound actions by the row they belong to.
-func rowActionsByRowRef(actions []notification.ActionSpec) map[string]notification.ActionSpec {
-	byRowRef := make(map[string]notification.ActionSpec, len(actions))
+// partitionActionsByLevel splits a notification's tokens into the two levels the detail pane
+// renders them at: the ones bound to a row, and the whole-notification ones the footer shows.
+//
+// It exists because asserting on a raw count stopped meaning anything once a notification could
+// carry both -- "one action" was only ever shorthand for "one row-bound action".
+func partitionActionsByLevel(actions []notification.ActionSpec) (rowBound, unbound []notification.ActionSpec) {
 	for _, action := range actions {
-		byRowRef[action.RowRef] = action
+		if action.RowRef == "" {
+			unbound = append(unbound, action)
+			continue
+		}
+		rowBound = append(rowBound, action)
 	}
-	return byRowRef
+	return rowBound, unbound
 }
 
 // TestScheduledRunWarnsAboutBlockedScheduledAnime is the notification's whole anatomy on the
@@ -114,10 +121,11 @@ func TestScheduledRunWarnsAboutBlockedScheduledAnime(t *testing.T) {
 	if row.Detail != "Missing source -- it will be skipped on every scheduled run until you set one" {
 		t.Fatalf("row Detail = %q, want the canvas sentence for a missing source", row.Detail)
 	}
-	if len(got.Actions) != 1 {
-		t.Fatalf("Actions = %#v, want exactly one -- the row's own", got.Actions)
+	rowBound, _ := partitionActionsByLevel(got.Actions)
+	if len(rowBound) != 1 {
+		t.Fatalf("row-bound actions = %#v, want exactly one -- the row's own", got.Actions)
 	}
-	action := got.Actions[0]
+	action := rowBound[0]
 	if action.Label != "Open in editor" || action.Intent != "navigation.open" {
 		t.Fatalf("action = %#v, want an Open in editor navigation token", action)
 	}
@@ -279,8 +287,9 @@ func TestReadinessAttentionRowsAreBounded(t *testing.T) {
 			if hasSummaryRow := len(got.Rows) > named; hasSummaryRow != scenario.wantSummaryRow {
 				t.Fatalf("summary row present = %v, want %v", hasSummaryRow, scenario.wantSummaryRow)
 			}
-			if len(got.Actions) != scenario.wantNamed {
-				t.Fatalf("actions = %d, want one per named row (%d) and none for the summary", len(got.Actions), scenario.wantNamed)
+			rowBound, _ := partitionActionsByLevel(got.Actions)
+			if len(rowBound) != scenario.wantNamed {
+				t.Fatalf("row-bound actions = %d, want one per named row (%d) and none for the summary", len(rowBound), scenario.wantNamed)
 			}
 		})
 	}
@@ -308,8 +317,13 @@ func TestReadinessAttentionCollapsedRowNamesItsCohort(t *testing.T) {
 	if summary.RefID != "" || summary.RefType != "" {
 		t.Fatalf("summary row = %#v, want it to reference no single anime", summary)
 	}
-	if _, bound := rowActionsByRowRef(got.Actions)[""]; bound {
-		t.Fatalf("actions = %#v, want none bound to the summary row", got.Actions)
+	// The summary row references no anime, so an action bound to it would land in the same
+	// unbound bucket as the notice's own whole-notification token. The bucket must therefore hold
+	// exactly that one token and nothing else -- checking only that it is non-empty stopped
+	// meaning anything once readiness_attention gained an L1 verb.
+	_, unbound := partitionActionsByLevel(got.Actions)
+	if len(unbound) != 1 || unbound[0].Label != "Open Downloads" {
+		t.Fatalf("unbound actions = %#v, want only the whole-notification token", unbound)
 	}
 }
 

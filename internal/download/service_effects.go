@@ -67,7 +67,7 @@ func (s *Service) publish(event events.Event) {
 // notification is ABOUT the download run, so it always carries the run-wide action tokens even
 // when it has nothing to individuate.
 func (s *Service) notify(ctx context.Context, level notification.Level, kind, runID, title, body string) {
-	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, nil, runWideActions())
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, nil, runWideActions(kind))
 }
 
 // notifyWithOutcomes sends a user-facing notification about a run that touched named anime: it
@@ -78,7 +78,7 @@ func (s *Service) notify(ctx context.Context, level notification.Level, kind, ru
 // the hoster links a blocked anime offers -- lives on the outcome and never reaches the row. An
 // empty outcome slice is equivalent to notify.
 func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Level, kind, runID, title, body string, outcomes []animeRunOutcome) {
-	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(outcomes))
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(kind, outcomes))
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing

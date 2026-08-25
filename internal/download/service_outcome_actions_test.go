@@ -66,7 +66,7 @@ func rowActionArgs(t *testing.T, actions []notification.ActionSpec, rowRef strin
 func TestBuildOutcomeActionsGivesAFailedRowTheRetryToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-1", animeName: "Failed One", checked: true, failed: true,
 	}})
 
@@ -80,7 +80,7 @@ func TestBuildOutcomeActionsGivesAFailedRowTheRetryToken(t *testing.T) {
 func TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-2", animeName: "Downloaded One", checked: true, episodesDownloaded: 1,
 	}})
 
@@ -99,7 +99,7 @@ func TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken(t *testing.T) {
 func TestBuildOutcomeActionsGivesAManualRowTheCopyTokens(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-3", animeName: "Manual One", checked: true,
 		manualLinks: []ManualLink{{
 			Anime: "Manual One", Episode: 7,
@@ -117,7 +117,7 @@ func TestBuildOutcomeActionsGivesAManualRowTheCopyTokens(t *testing.T) {
 func TestBuildOutcomeActionsGivesASkippedRowTheEditorToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-4", animeName: "Skipped One", skipped: true,
 	}})
 
@@ -143,7 +143,7 @@ func TestBuildOutcomeActionsLeavesAQuietRowWithoutAToken(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			actions := buildOutcomeActions([]animeRunOutcome{testCase.outcome})
+			actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{testCase.outcome})
 
 			if got := rowTokens(actions, testCase.outcome.animeID); got != nil {
 				t.Fatalf("quiet row carries %#v, want no per-row token at all", got)
@@ -157,7 +157,7 @@ func TestBuildOutcomeActionsLeavesAQuietRowWithoutAToken(t *testing.T) {
 func TestBuildOutcomeActionsResolvesEveryRowOnItsOwnStatus(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{
 		{animeID: "a-failed", checked: true, failed: true},
 		{animeID: "a-downloaded", checked: true, episodesDownloaded: 2},
 		{animeID: "a-current", checked: true, upToDate: true},
@@ -176,7 +176,7 @@ func TestBuildOutcomeActionsResolvesEveryRowOnItsOwnStatus(t *testing.T) {
 func TestBuildOutcomeActionsAppliesTheStatusPrecedence(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-7", checked: true, failed: true, episodesDownloaded: 2,
 		manualLinks: []ManualLink{{Anime: "Mixed", Episode: 3, Links: []string{"https://hoster.example/ep3"}}},
 	}})
@@ -189,7 +189,7 @@ func TestBuildOutcomeActionsAppliesTheStatusPrecedence(t *testing.T) {
 func TestBuildOutcomeActionsKeepsTheWholeNotificationToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{animeID: "anime-8", checked: true, failed: true}})
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{animeID: "anime-8", checked: true, failed: true}})
 
 	var runWide int
 	for _, action := range actions {
@@ -210,7 +210,7 @@ func TestBuildOutcomeActionsKeepsTheWholeNotificationToken(t *testing.T) {
 func TestBuildOutcomeActionsIgnoresAnAnimeItCannotAddress(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{animeName: "No ID", checked: true, failed: true}})
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{animeName: "No ID", checked: true, failed: true}})
 
 	for _, action := range actions {
 		if action.RowRef != "" {
@@ -224,7 +224,7 @@ func TestBuildOutcomeActionsIgnoresAnAnimeItCannotAddress(t *testing.T) {
 func TestBuildOutcomeActionsFreezesArgsPerToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{
 		{animeID: "anime-9", checked: true, failed: true},
 		{animeID: "anime-10", checked: true, failed: true},
 	})

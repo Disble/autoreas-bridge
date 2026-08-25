@@ -21,7 +21,7 @@ func TestOutcomeActionsCopyHosterGivesEveryHosterLinkItsOwnCopyToken(t *testing.
 		}},
 	}}
 
-	actions := buildOutcomeActions(outcomes)
+	actions := buildOutcomeActions(kindJDownloaderOffline, outcomes)
 
 	var copies []string
 	for _, action := range actions {
@@ -53,7 +53,7 @@ func TestOutcomeActionsCopyHosterGivesEveryHosterLinkItsOwnCopyToken(t *testing.
 func TestOutcomeActionsCopyHosterKeepsTheWholeNotificationToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID:     "anime-7",
 		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://hoster.example/ep1"}}},
 	}})
@@ -79,7 +79,7 @@ func TestOutcomeActionsCopyHosterKeepsTheWholeNotificationToken(t *testing.T) {
 func TestOutcomeActionsCopyHosterNeverBindsTheRerunToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID:     "anime-7",
 		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://hoster.example/ep1"}}},
 	}})
@@ -97,7 +97,7 @@ func TestOutcomeActionsCopyHosterNeverBindsTheRerunToken(t *testing.T) {
 func TestOutcomeActionsCopyHosterNumbersHostersAcrossEveryEpisodeOfOneRow(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID: "anime-7",
 		manualLinks: []ManualLink{
 			{Episode: 7, Links: []string{"https://a.example/ep7"}},
@@ -128,7 +128,7 @@ func TestOutcomeActionsCopyHosterBoundsTheButtonsPerRow(t *testing.T) {
 		links = append(links, "https://hoster.example/"+string(rune('a'+i)))
 	}
 
-	actions := buildOutcomeActions([]animeRunOutcome{{animeID: "anime-7", manualLinks: []ManualLink{{Episode: 1, Links: links}}}})
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{animeID: "anime-7", manualLinks: []ManualLink{{Episode: 1, Links: links}}}})
 
 	copies := 0
 	for _, action := range actions {
@@ -147,7 +147,7 @@ func TestOutcomeActionsCopyHosterBoundsTheButtonsPerRow(t *testing.T) {
 func TestOutcomeActionsCopyHosterSkipsWhatCannotBeAddressed(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{
 		{animeID: "", manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://hoster.example/ep1"}}}},
 		{animeID: "anime-9", manualLinks: []ManualLink{{Episode: 2, Links: []string{"", "https://hoster.example/ep2"}}}},
 		{animeID: "anime-ok", failed: true},
@@ -173,7 +173,7 @@ func TestOutcomeActionsCopyHosterSkipsWhatCannotBeAddressed(t *testing.T) {
 func TestOutcomeActionsCopyHosterFreezesArgsPerToken(t *testing.T) {
 	t.Parallel()
 
-	actions := buildOutcomeActions([]animeRunOutcome{{
+	actions := buildOutcomeActions(kindRunStoppedEarly, []animeRunOutcome{{
 		animeID:     "anime-7",
 		manualLinks: []ManualLink{{Episode: 1, Links: []string{"https://one.example", "https://two.example"}}},
 	}})

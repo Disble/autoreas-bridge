@@ -50,10 +50,10 @@ func findRunWideActionByIntent(t *testing.T, actions []notification.ActionSpec, 
 func TestRunWideActionsIsTheOpenDownloadsTokenAlone(t *testing.T) {
 	t.Parallel()
 
-	actions := runWideActions()
+	actions := runWideActions(kindRunStarted)
 
 	if len(actions) != 1 {
-		t.Fatalf("runWideActions() = %#v, want exactly 1 whole-notification token", actions)
+		t.Fatalf("runWideActions(kindRunStarted) = %#v, want exactly 1 whole-notification token", actions)
 	}
 	if actions[0].Intent != "navigation.open" {
 		t.Fatalf("intent = %q, want %q", actions[0].Intent, "navigation.open")

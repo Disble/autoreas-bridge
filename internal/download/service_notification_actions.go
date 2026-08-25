@@ -36,20 +36,39 @@ const (
 	// scoped to a day that may not be the one this anime is scheduled on
 	// (docs/notification-cta-policy.md, "L2 never navigates to a generic context").
 	watchRouteFormat = "/catalog/detail/%s"
+	// watchTodayActionLabel is the copy a completed run's whole-notification action offers, and
+	// todayRoute is where it points. This is the run-scoped half of the same argument the per-row
+	// verbs settle: the body says how many episodes landed, so the event's own destination is the
+	// day view where they are watched.
+	watchTodayActionLabel = "Watch today"
+	todayRoute            = "/today"
 )
 
-// runWideActions returns the action tokens every download-run notification carries about itself
-// rather than about one of its rows. Today that is exactly one: "Open Downloads".
+// runWideActions returns the action tokens a download-run notification carries about ITSELF
+// rather than about one of its rows. Every run notification is about the run, so all of them
+// carry "Open Downloads"; a completed one also offers where to go watch what it landed.
+//
+// This is the one place a notification's KIND decides a verb, and that is the level split doing
+// its job: L1 answers "where does this event live", which is a property of the event. The rows
+// underneath ask a different question and answer it from their own outcomes.
 //
 // Kept as a function rather than a package-level slice because an ActionSpec carries a mutable
 // Args map -- a shared literal would let one notification's frozen arguments be rewritten
 // through another's, which is precisely the immutability the token pattern exists to provide.
-func runWideActions() []notification.ActionSpec {
-	return []notification.ActionSpec{{
+func runWideActions(kind string) []notification.ActionSpec {
+	actions := []notification.ActionSpec{{
 		Label:  openDownloadsActionLabel,
 		Intent: center.IntentNavigationOpen,
 		Args:   map[string]string{center.ArgKeyRoute: downloadsRoute},
 	}}
+	if kind == kindRunCompleted {
+		actions = append(actions, notification.ActionSpec{
+			Label:  watchTodayActionLabel,
+			Intent: center.IntentNavigationOpen,
+			Args:   map[string]string{center.ArgKeyRoute: todayRoute},
+		})
+	}
+	return actions
 }
 
 // buildOutcomeActions returns the full action set for a run notification: the whole-notification
@@ -64,8 +83,8 @@ func runWideActions() []notification.ActionSpec {
 //
 // An outcome with no id is skipped outright: every verb below addresses a record, so a token
 // frozen against no id would refuse the moment it was pressed.
-func buildOutcomeActions(outcomes []animeRunOutcome) []notification.ActionSpec {
-	actions := runWideActions()
+func buildOutcomeActions(kind string, outcomes []animeRunOutcome) []notification.ActionSpec {
+	actions := runWideActions(kind)
 	for _, outcome := range outcomes {
 		if outcome.animeID == "" {
 			continue

@@ -145,7 +145,7 @@ func buildReadinessAttentionRows(blocked []contracts.AnimeDownloadReadiness) []n
 // single editor route a token could be frozen to. Each row gets its own Args map rather than a
 // shared one, so one row's frozen route can never be rewritten through another's.
 func buildReadinessAttentionActions(rows []notification.DetailItem) []notification.ActionSpec {
-	actions := make([]notification.ActionSpec, 0, len(rows))
+	actions := runWideActions(kindReadinessAttention)
 	for _, row := range rows {
 		if row.RefType != animeRefType || row.RefID == "" {
 			continue
