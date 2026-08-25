@@ -32,7 +32,7 @@ export function NotificationToastRows({
   }
 
   return (
-    <div className="flex flex-col gap-1.5" data-testid={NOTIFICATION_TOAST_ROWS_TESTID}>
+    <div className="flex max-w-full flex-col gap-1.5 [min-inline-size:0]" data-testid={NOTIFICATION_TOAST_ROWS_TESTID}>
       {shown.map((row) => (
         <NotificationToastRow key={`${row.refType}:${row.refId}:${row.name}`} dataUrl={covers.get(row.refId)} row={row} />
       ))}
@@ -48,11 +48,11 @@ export function NotificationToastRows({
  */
 function NotificationToastRow({ dataUrl, row }: Readonly<{ readonly dataUrl?: string; readonly row: AppNotificationRow }>) {
   if ((row.collapsedCount ?? 0) > 0) {
-    return <p className="text-xs text-default-400">{row.detail}</p>;
+    return <p className="text-xs text-default-400 [overflow-wrap:anywhere]">{row.detail}</p>;
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex items-center gap-2 [min-inline-size:0]">
       <div className="relative size-8 shrink-0 overflow-hidden rounded-md">
         {dataUrl === undefined ? (
           <CoverPlaceholderScene className="absolute inset-0 size-full" />
@@ -60,9 +60,9 @@ function NotificationToastRow({ dataUrl, row }: Readonly<{ readonly dataUrl?: st
           <img alt={row.name} className="absolute inset-0 size-full object-cover" src={dataUrl} />
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold text-foreground">{row.name}</p>
-        <p className="truncate text-[11px] text-default-500">{row.detail}</p>
+      <div className="flex-1 [min-inline-size:0]">
+        <p className="text-xs font-semibold text-foreground line-clamp-2 [overflow-wrap:anywhere]">{row.name}</p>
+        <p className="text-[11px] text-default-500 line-clamp-2 [overflow-wrap:anywhere]">{row.detail}</p>
       </div>
     </div>
   );
