@@ -97,6 +97,21 @@ type ServiceDeps struct {
 	// config.FilesystemCompletionPollTimeout (30 minutes).
 	PollSleep func(d time.Duration)
 
+	// Readiness reports, per catalog anime, whether it can actually download and why not
+	// (contracts.DownloadReadinessSnapshot). It is what lets a scheduled run warn about the
+	// anime it is ABOUT to skip, instead of skipping them silently.
+	//
+	// Injected as a func -- like SeasonMode, RenameEpisodes and every other seam here -- rather
+	// than as *ReadinessService, so this orchestrator depends on a snapshot producer instead of
+	// on a sibling service, and the composition root can supply one that does not exist yet at
+	// the moment Service is constructed (app_startup_runtime.go builds ReadinessService AFTER
+	// the download Service).
+	//
+	// Nil means the warning is never raised, which is the same degradation every other optional
+	// dependency here takes: an unwired advisory stays quiet, it never panics and it never fails
+	// the run.
+	Readiness func(ctx context.Context) (contracts.DownloadReadinessSnapshot, error)
+
 	// SeasonMode reports whether "modo temporada" is enabled. When nil (or in tests that do not
 	// set it) it defaults to always-false, i.e. normal weekday selection. Injected as a func —
 	// like every other ServiceDeps seam — so download never imports the preferences context
@@ -239,6 +254,9 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	s.notify(ctx, notification.LevelInfo, kindRunStarted, runID,
 		"Download run started", fmt.Sprintf("Download check started (%s).", trigger))
+	// Raised before the pipeline runs, not after: this is the one notification that warns about
+	// what is about to happen rather than reporting what did.
+	s.raiseReadinessAttention(ctx, runID, trigger)
 
 	result := s.execute(ctx, runID, startedAt, trigger, &run)
 	s.finishRunLog(runID, &run)

@@ -26,4 +26,8 @@ const (
 	// kindJDownloaderOffline marks a run blocked by an offline MyJDownloader, leaving episodes
 	// that need a manual download.
 	kindJDownloaderOffline = "jdownloader_offline"
+	// kindReadinessAttention marks the scheduled anime a scheduled run is about to skip because
+	// they cannot download at all. Alone among the kinds here it reports something that has NOT
+	// happened yet -- see service_readiness_attention.go for the firing policy behind it.
+	kindReadinessAttention = "readiness_attention"
 )

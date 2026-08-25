@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 
@@ -378,34 +377,6 @@ func (a *App) ListDownloadRuns() []contracts.DownloadRunView {
 		out = append(out, toContractsDownloadRunView(run))
 	}
 	return out
-}
-
-// ListDownloadReadiness returns the current local readiness snapshot. Query failures are
-// returned to Wails so the frontend cannot mistake an unavailable snapshot for an empty catalog.
-func (a *App) ListDownloadReadiness() (contracts.DownloadReadinessSnapshot, error) {
-	if a.readinessService == nil {
-		// Logged, not just returned: a nil service means startup never reached
-		// startDownloadOrchestration, and without this line the failure is
-		// invisible on both sides -- Wails rejects with a bare string and the
-		// UI used to replace it with a generic sentence.
-		a.logReadinessFailure("download readiness service was never wired during startup")
-		return contracts.DownloadReadinessSnapshot{}, errors.New("download readiness unavailable: service not wired at startup")
-	}
-	snapshot, err := a.readinessService.BuildSnapshot(a.downloadCtx())
-	if err != nil {
-		a.logReadinessFailure(err.Error())
-		return contracts.DownloadReadinessSnapshot{}, err
-	}
-	return snapshot, nil
-}
-
-// logReadinessFailure records why a readiness snapshot could not be built, so the
-// cause survives even when the caller only shows a generic message.
-func (a *App) logReadinessFailure(reason string) {
-	if a.sharedLogger == nil {
-		return
-	}
-	a.sharedLogger.Warnf("download", "list download readiness failed: %s", reason)
 }
 
 // downloadCtx returns a.ctx, falling back to context.Background() before startup has set it

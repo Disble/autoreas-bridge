@@ -278,6 +278,11 @@ func (a *App) startDownloadOrchestration(ctx context.Context) {
 		// Read per episode rather than captured here, so toggling the setting takes
 		// effect on the next download instead of the next Bridge restart.
 		RenameEpisodes: a.episodeRenameEnabled,
+		// A method value, not a.readinessService.BuildSnapshot: the readiness service is
+		// constructed a few lines BELOW this call, so binding the method directly would
+		// capture a nil receiver forever. Going through the App resolves the field on the
+		// call instead of on the wiring.
+		Readiness: a.downloadReadinessSnapshot,
 	})
 	a.readinessService = download.NewReadinessService(download.ReadinessServiceDeps{
 		Animes:        a.animeQuery,
