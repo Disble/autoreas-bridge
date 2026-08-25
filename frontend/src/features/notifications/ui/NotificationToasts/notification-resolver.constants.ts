@@ -74,3 +74,6 @@ export const NOTIFICATION_TOAST_ROWS_LIMIT = 3;
 
 /** Test id for the toast's row block. */
 export const NOTIFICATION_TOAST_ROWS_TESTID = 'notification-toast-rows';
+
+/** Test id for the toast's footer action row. */
+export const NOTIFICATION_TOAST_ACTIONS_TESTID = 'notification-toast-actions';

@@ -3,7 +3,7 @@ import { Toast, ToastActionButton, ToastCloseButton, ToastContent, ToastDescript
 import type { AppNotification } from '../../../../shared/contracts/app-notification.types';
 import { appToastQueue, resolveToastTimeoutMs } from './app-toast-queue';
 import { NotificationToastRows } from './NotificationToastRows';
-import { SEVERITY_TO_VARIANT, VIEW_DETAILS_ACTION_LABEL } from './notification-resolver.constants';
+import { NOTIFICATION_TOAST_ACTIONS_TESTID, SEVERITY_TO_VARIANT, VIEW_DETAILS_ACTION_LABEL } from './notification-resolver.constants';
 import type { AppToastPayload } from './app-notification.types';
 
 /**
@@ -78,8 +78,17 @@ function navigateToNotificationRecord(recordId: number): void {
 
 /**
  * Renders one queued app toast's full content: the title and body, the rows
- * saying WHICH things it is about, every whole-notification action, and a
- * "View details" action when the toast carries a persisted `recordId`.
+ * saying WHICH things it is about, and a footer carrying every
+ * whole-notification action plus a "View details" action when the toast
+ * carries a persisted `recordId`.
+ *
+ * The actions sit INSIDE `ToastContent`, below the rows, rather than as
+ * siblings of it. HeroUI's own anatomy puts them beside the content --
+ * `.toast` is a row and `.toast__action` only stacks below the `sm`
+ * breakpoint -- which splits a toast carrying rows into two narrow columns and
+ * squeezes an anime title into a four-word-wide ribbon. The approved
+ * `Toast.dc.html` artboard draws them as a footer under the row block, and
+ * that is the layout a toast with content needs.
  * Passed as `NotificationToasts`' `ToastProvider` children render function
  * (design.md §3 Decision F) -- HeroUI's own default renderer only supports a
  * single `actionProps` slot (`ToastContentValue.actionProps` is singular),
@@ -88,21 +97,28 @@ function navigateToNotificationRecord(recordId: number): void {
 export function renderAppToastContent({ toast }: Readonly<{ toast: AppQueuedToast }>): ReactElement {
   const { title, description, actions, rows, variant, recordId } = toast.content;
 
+  const verbs = actions ?? [];
+  const hasFooter = verbs.length > 0 || recordId !== undefined;
+
   return (
     <Toast<AppToastPayload> toast={toast} variant={variant}>
       <ToastContent>
         <ToastTitle>{title}</ToastTitle>
         {description ? <ToastDescription>{description}</ToastDescription> : null}
         {rows === undefined || rows.length === 0 ? null : <NotificationToastRows rows={rows} />}
+        {hasFooter ? (
+          <div className="mt-2 flex flex-wrap gap-2" data-testid={NOTIFICATION_TOAST_ACTIONS_TESTID}>
+            {verbs.map((action) => (
+              <ToastActionButton key={action.label} variant={action.variant} onPress={action.onPress}>
+                {action.label}
+              </ToastActionButton>
+            ))}
+            {recordId === undefined ? null : (
+              <ToastActionButton onPress={() => navigateToNotificationRecord(recordId)}>{VIEW_DETAILS_ACTION_LABEL}</ToastActionButton>
+            )}
+          </div>
+        ) : null}
       </ToastContent>
-      {(actions ?? []).map((action) => (
-        <ToastActionButton key={action.label} variant={action.variant} onPress={action.onPress}>
-          {action.label}
-        </ToastActionButton>
-      ))}
-      {recordId === undefined ? null : (
-        <ToastActionButton onPress={() => navigateToNotificationRecord(recordId)}>{VIEW_DETAILS_ACTION_LABEL}</ToastActionButton>
-      )}
       <ToastCloseButton />
     </Toast>
   );

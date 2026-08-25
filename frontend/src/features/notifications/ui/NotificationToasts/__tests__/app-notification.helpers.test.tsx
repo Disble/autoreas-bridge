@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppNotification } from '../../../../../shared/contracts/app-notification.types';
 
@@ -149,6 +149,37 @@ describe('renderAppToastContent rows', () => {
     renderToast({ title: 'Download run started', rows: [] });
 
     expect(screen.queryByTestId('notification-toast-rows')).not.toBeInTheDocument();
+  });
+});
+
+describe('renderAppToastContent actions', () => {
+  // HeroUI's own anatomy puts the action beside the content -- `.toast` is a row and
+  // `.toast__action` only stacks below the sm breakpoint. With rows present that splits the toast
+  // into two narrow columns and squeezes an anime title into a four-word ribbon. The approved
+  // artboard draws them as a footer instead.
+  it('groups every verb into one footer rather than leaving them beside the content', () => {
+    renderToast({
+      title: 'Download run completed',
+      actions: [{ label: 'Open Downloads', onPress: vi.fn() }],
+      recordId: 42,
+    });
+
+    const footer = screen.getByTestId('notification-toast-actions');
+    expect(within(footer).getByText('Open Downloads')).toBeInTheDocument();
+    expect(within(footer).getByText('View details')).toBeInTheDocument();
+  });
+
+  // An empty footer would reserve space under the rows for nothing.
+  it('renders no footer when the toast offers nothing to press', () => {
+    renderToast({ title: 'Download run started' });
+
+    expect(screen.queryByTestId('notification-toast-actions')).not.toBeInTheDocument();
+  });
+
+  it('renders the footer for a record that offers only the details link', () => {
+    renderToast({ title: 'Device paired', recordId: 7 });
+
+    expect(within(screen.getByTestId('notification-toast-actions')).getByText('View details')).toBeInTheDocument();
   });
 });
 

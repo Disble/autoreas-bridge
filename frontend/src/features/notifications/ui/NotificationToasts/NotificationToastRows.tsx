@@ -32,7 +32,7 @@ export function NotificationToastRows({
   }
 
   return (
-    <div className="flex max-w-full flex-col gap-1.5 [min-inline-size:0]" data-testid={NOTIFICATION_TOAST_ROWS_TESTID}>
+    <div className="flex w-full max-w-full flex-col gap-1.5 [min-inline-size:0]" data-testid={NOTIFICATION_TOAST_ROWS_TESTID}>
       {shown.map((row) => (
         <NotificationToastRow key={`${row.refType}:${row.refId}:${row.name}`} dataUrl={covers.get(row.refId)} row={row} />
       ))}
