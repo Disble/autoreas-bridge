@@ -54,7 +54,7 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 	}
 
 	rows, actions := toRecordContent(n.Rows, n.Actions)
-	_, persistErr := s.store.InsertRecord(ctx, Record{
+	recordID, persistErr := s.store.InsertRecord(ctx, Record{
 		CreatedAtMS:   createdAtMS,
 		Title:         n.Title,
 		Body:          n.Body,
@@ -69,8 +69,44 @@ func (s *Service) Notify(ctx context.Context, n notification.Notification) error
 		s.log.Warnf("notification-center", "persist notification record: %v", persistErr)
 	}
 
-	dispatchErr := s.inner.Notify(ctx, n)
+	dispatchErr := s.dispatch(ctx, n, recordID, actions, persistErr)
 	return errors.Join(persistErr, dispatchErr)
+}
+
+// dispatch hands the wrapped sink what it can use: the full delivery when the sink offers the
+// wider door, and the bare notification when it does not.
+//
+// The identity is deliberately dropped when the persist failed. InsertRecord returns 0 on every
+// error path, and toActions minted its ids before the write was attempted -- so passing them on
+// would hand an adapter a button addressing a token that does not exist, which refuses on press
+// and looks exactly like the missing button it replaced.
+func (s *Service) dispatch(ctx context.Context, n notification.Notification, recordID int64, actions []Action, persistErr error) error {
+	deliverer, ok := s.inner.(notification.Deliverer)
+	if !ok {
+		return s.inner.Notify(ctx, n)
+	}
+
+	delivery := notification.Delivery{Notification: n}
+	if persistErr == nil {
+		delivery.RecordID = recordID
+		delivery.ActionIDs = actionIDs(actions)
+	}
+	return deliverer.Deliver(ctx, delivery)
+}
+
+// actionIDs lifts the persisted ids out in the order toActions minted them, which is the order of
+// the specs they came from -- toActions walks the specs and stamps each one's index as its
+// Ordinal, so index and ordinal are the same number by construction. That is what makes
+// Delivery.ActionIDs' parallel-slice invariant hold rather than merely be asserted.
+func actionIDs(actions []Action) []string {
+	if len(actions) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(actions))
+	for _, action := range actions {
+		ids = append(ids, action.ID)
+	}
+	return ids
 }
 
 // toRecordContent converts a producer's rows and actions TOGETHER, because the two conversions

@@ -41,10 +41,11 @@ func NewDesktopToastAdapter() *DesktopToastAdapter {
 // Notification.Push() would build, then calls wintoast.Push with no
 // options -- so a COM failure surfaces as an error rather than ever
 // shelling out to PowerShell.
-func (a *DesktopToastAdapter) Deliver(ctx context.Context, n Notification) error {
+func (a *DesktopToastAdapter) Deliver(ctx context.Context, delivery Delivery) error {
 	if a == nil {
 		return nil
 	}
+	n := delivery.Notification
 
 	if err := setDesktopToastAppData(toast.AppData{AppID: desktopToastAppID}); err != nil {
 		a.delivered = false

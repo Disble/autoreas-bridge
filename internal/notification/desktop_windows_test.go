@@ -39,7 +39,7 @@ func TestWindowsDesktopAdapterSetsAppDataBeforePush(t *testing.T) {
 	}
 
 	adapter := NewDesktopToastAdapter()
-	err := adapter.Deliver(context.Background(), Notification{Title: "Download run started", Body: "Download check started."})
+	err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "Download run started", Body: "Download check started."}})
 	if err != nil {
 		t.Fatalf("expected deliver to succeed, got %v", err)
 	}
@@ -68,7 +68,7 @@ func TestWindowsDesktopAdapterDoesNotPushWhenAppDataFails(t *testing.T) {
 	}
 
 	adapter := NewDesktopToastAdapter()
-	err := adapter.Deliver(context.Background(), Notification{Title: "Download run started"})
+	err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "Download run started"}})
 	if err == nil {
 		t.Fatal("expected deliver to return app data error")
 	}

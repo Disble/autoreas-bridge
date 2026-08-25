@@ -20,7 +20,7 @@ func TestNonWindowsDesktopAdapterIsANoOpThatNeverCountsAsDelivered(t *testing.T)
 		t.Fatal("expected a freshly constructed non-Windows fake to report Delivered()==false")
 	}
 
-	if err := adapter.Deliver(context.Background(), sampleNotification()); err != nil {
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: sampleNotification()}); err != nil {
 		t.Fatalf("expected the non-Windows no-op fake to never error, got %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestWindowsDesktopAdapterDeliversAProperNativeToast(t *testing.T) {
 	// crashing/shelling out; actual OS toast rendering is not asserted in a
 	// headless CI environment, but the call MUST go through pushCOM (no
 	// PowerShell) per design ADR-NOTIF-3.
-	err := adapter.Deliver(context.Background(), sampleNotification())
+	err := adapter.Deliver(context.Background(), Delivery{Notification: sampleNotification()})
 	if err != nil {
 		t.Logf("desktop toast delivery returned an error in this (possibly headless) environment: %v", err)
 	}

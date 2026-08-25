@@ -71,7 +71,7 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 		Timestamp:     time.Now(),
 	}
 
-	if err := adapter.Deliver(context.Background(), n); err != nil {
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: n}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
@@ -105,7 +105,7 @@ func TestLogForwardAdapterMapsNotificationLevels(t *testing.T) {
 	} {
 		t.Run(test.source, func(t *testing.T) {
 			logger := &fakeForwardLogger{}
-			if err := NewLogForwardAdapter(logger).Deliver(context.Background(), Notification{Title: "t", Body: "b", Level: test.level, Source: test.source}); err != nil {
+			if err := NewLogForwardAdapter(logger).Deliver(context.Background(), Delivery{Notification: Notification{Title: "t", Body: "b", Level: test.level, Source: test.source}}); err != nil {
 				t.Fatalf("Deliver: %v", err)
 			}
 			if got := logger.totalCalls(); got != 1 {
@@ -126,7 +126,7 @@ func TestLogForwardAdapterCarriesSourceAsDomainAndMessageFromTitleBody(t *testin
 
 	n := Notification{Title: "Pairing succeeded", Body: "device paired", Level: LevelSuccess, Source: "device"}
 
-	if err := adapter.Deliver(context.Background(), n); err != nil {
+	if err := adapter.Deliver(context.Background(), Delivery{Notification: n}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
@@ -144,7 +144,7 @@ func TestLogForwardAdapterNilLoggerIsSafeNoOp(t *testing.T) {
 
 	adapter := NewLogForwardAdapter(nil)
 
-	err := adapter.Deliver(context.Background(), Notification{Title: "x", Level: LevelInfo})
+	err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "x", Level: LevelInfo}})
 	if err != nil {
 		t.Fatalf("expected nil-logger degrade to be a no-op without error, got %v", err)
 	}

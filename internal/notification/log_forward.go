@@ -37,10 +37,15 @@ func NewLogForwardAdapter(logger sharedlogger.Logger) *logForwardAdapter {
 //   - CorrelationID -> Fields.CorrelationID; EventType is fixed to
 //     "notification" so forwarded entries are identifiable in the log
 //     stream.
-func (a *logForwardAdapter) Deliver(ctx context.Context, n Notification) error {
+func (a *logForwardAdapter) Deliver(ctx context.Context, delivery Delivery) error {
 	if a == nil || a.logger == nil {
 		return nil
 	}
+
+	// A forensic log line has no affordances, so this adapter reads the notification and ignores
+	// the envelope's identity. That is a COMPLETE projection here, not the truncation ADR-016
+	// forbids: there is no button to address.
+	n := delivery.Notification
 
 	level := mapNotificationLevelToLogLevel(n.Level)
 	message := formatNotificationLogMessage(n)

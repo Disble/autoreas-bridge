@@ -21,7 +21,7 @@ func NewDesktopToastAdapter() *DesktopToastAdapter {
 
 // Deliver is a no-op on non-Windows builds. It never errors and never
 // delivers a real desktop notification.
-func (a *DesktopToastAdapter) Deliver(ctx context.Context, n Notification) error {
+func (a *DesktopToastAdapter) Deliver(ctx context.Context, delivery Delivery) error {
 	return nil
 }
 

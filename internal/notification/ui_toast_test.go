@@ -33,7 +33,7 @@ func TestUIToastAdapterEmitsNotificationPushWithFullPayload(t *testing.T) {
 	}
 
 	ctx := context.WithValue(context.Background(), struct{ key string }{key: "test"}, "value")
-	if err := adapter.Deliver(ctx, n); err != nil {
+	if err := adapter.Deliver(ctx, Delivery{Notification: n}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
@@ -50,15 +50,18 @@ func TestUIToastAdapterEmitsNotificationPushWithFullPayload(t *testing.T) {
 		t.Fatalf("expected exactly 1 payload argument, got %d", len(got.data))
 	}
 
-	payload, ok := got.data[0].(Notification)
+	// The payload is no longer the Notification itself: it embeds one and adds the identity the
+	// surfaces need to address a token. The embedded value must still be the producer's own,
+	// which is what this test has always been about.
+	payload, ok := got.data[0].(uiToastPayload)
 	if !ok {
-		t.Fatalf("expected payload of type Notification, got %T", got.data[0])
+		t.Fatalf("expected a uiToastPayload, got %T", got.data[0])
 	}
 
 	// Rows/Actions are slices, so Notification is no longer comparable via == -- DeepEqual is the
 	// direct replacement.
-	if !reflect.DeepEqual(payload, n) {
-		t.Fatalf("expected payload to carry the full Notification fields, got %+v want %+v", payload, n)
+	if !reflect.DeepEqual(payload.Notification, n) {
+		t.Fatalf("expected payload to carry the full Notification fields, got %+v want %+v", payload.Notification, n)
 	}
 }
 
@@ -67,7 +70,7 @@ func TestUIToastAdapterDegradesGracefullyWhenEmitIsNil(t *testing.T) {
 
 	adapter := NewUIToastAdapter(nil)
 
-	err := adapter.Deliver(context.Background(), Notification{Title: "x", Level: LevelInfo})
+	err := adapter.Deliver(context.Background(), Delivery{Notification: Notification{Title: "x", Level: LevelInfo}})
 	if err != nil {
 		t.Fatalf("expected nil-emit degrade to be a no-op without error, got %v", err)
 	}

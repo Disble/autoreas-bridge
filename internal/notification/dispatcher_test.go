@@ -14,7 +14,8 @@ type fakeAdapter struct {
 	received *[]Notification
 }
 
-func (f *fakeAdapter) Deliver(ctx context.Context, n Notification) error {
+func (f *fakeAdapter) Deliver(ctx context.Context, delivery Delivery) error {
+	n := delivery.Notification
 	if f.calls != nil {
 		*f.calls = append(*f.calls, f.name)
 	}
