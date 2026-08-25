@@ -30,3 +30,8 @@ func (a *DesktopToastAdapter) Deliver(ctx context.Context, delivery Delivery) er
 func (a *DesktopToastAdapter) Delivered() bool {
 	return false
 }
+
+// SetDesktopActivationHandler is a no-op on non-Windows builds: there is no OS toast to press, so
+// there is no activation to route. It exists so the composition root wires the same call on every
+// platform rather than growing a build-tagged branch of its own.
+func SetDesktopActivationHandler(handler func(recordID int64, actionID string)) {}
