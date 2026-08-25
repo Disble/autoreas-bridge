@@ -1090,7 +1090,8 @@ hand-writing another label/control block (CLAUDE.md frontend constraint #13).
 
 ### 9.3 The five empty states
 
-Canonical, from `docs/notification-center-proposal.md` §21.6. Selected by a pure helper in
+Canonical, carried forward from §21.6 of the retired notification-center proposal (deleted
+2026-08-25; the table below is now the record). Selected by a pure helper in
 `notification-empty-state.helpers.ts` from `(totalEverRecorded, view, unreadOnly, hasFilters, serviceAvailable)`:
 
 | # | Condition | Rendering intent |
@@ -1252,7 +1253,7 @@ The one wire-adjacent change is the existing `notification.push` payload gaining
 | `frontend/src/app/routes/NotificationsRoute.tsx` | Create | Composition only |
 | `openspec/specs/notifications/notifications.md` | Modify (Slice 6) | Drift reconciliation at lines 66, 77 |
 | `openspec/specs/desktop-navigation/spec.md` | Modify (Slice 3) | Item count 9 → 10 + unread-badge requirement |
-| `docs/notification-center-proposal.md` | Modify (Slice 6) | Superseded-sections banner over §7, §8, §16.3, §19.1, §37 |
+| the notification-center proposal document | Delete (Slice 6) | Retired 2026-08-25. Superseded-sections banner first, then removed outright; rationale extracted to `docs/adr/013-notification-center-boundaries.md` |
 | `docs/learning-log.md` | Append | Via `node scripts/log-lesson.mjs`, never by hand |
 
 `tools/checkgofilesize/baseline.yaml` stays `files: []` — every new Go file above is sized to land

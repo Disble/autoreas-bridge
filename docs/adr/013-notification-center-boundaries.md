@@ -4,7 +4,7 @@
 - **Date**: 2026-08-25
 - **Supersedes**: nothing
 - **Implementing change**: `openspec/changes/2026-08-23-sdd-60-notification-center/`
-  (SDD-60, in progress)
+  (SDD-60)
 - **Related**: `.claude/skills/app-notification-pipeline/SKILL.md`
 
 ## Context

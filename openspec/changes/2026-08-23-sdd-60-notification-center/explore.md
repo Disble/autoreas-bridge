@@ -86,7 +86,7 @@ All five non-download producers discard the `Notify` error outright (`_ =`); onl
 
 ### 2.3 No persistence layer exists yet
 
-`grep -rn notification_records` across the whole tree returns **zero hits in code** (15 hits, all in `docs/notification-center-proposal.md` — an aspirational document, not shipped state). No `/notifications` route exists in `frontend/src/App.tsx`.
+`grep -rn notification_records` across the whole tree returns **zero hits in code** (15 hits, all in the notification-center proposal document — aspirational, not shipped state; that document was retired 2026-08-25). No `/notifications` route exists in `frontend/src/App.tsx`.
 
 ### 2.4 Frontend rendering surface — two real, still-present bugs
 
@@ -228,7 +228,9 @@ Confirmed shipped reality: the real implementation (`NotificationToasts.tsx`, `u
 
 Already logged to `docs/learning-log.md` on 2026-08-23. **The delta spec produced by `sdd-spec` MUST reconcile this** — either by amending the requirement to describe the re-export pattern as the shared surface, or by relocating the implementation. This exploration does not decide which; that is a proposal/spec-phase call, but the drift must not be silently re-asserted.
 
-### 3.3 `docs/notification-center-proposal.md` (1926 lines) — origin document, partially stale
+### 3.3 The notification-center proposal document (1926 lines) — origin document, partially stale
+
+> Retired 2026-08-25. Its durable rationale is now `docs/adr/013-notification-center-boundaries.md`.
 
 - §5.1–5.3 (backend contract), §5.5 (frontend bugs), §5.6 (no table) — verified accurate, see §2 above.
 - §24.4 (UI claim that terminated runs render unattempted episodes as "Downloading") — **stale**, already fixed (`run-history-panel.helpers.ts:15`, `RunProgressBar.tsx:27`). The contract-level gap (`app_download_contracts.go:59`) it originally complained about is still real, just no longer visible in the UI.
@@ -480,7 +482,7 @@ sequenceDiagram
 - Frontend: new `frontend/src/features/notifications` additions (or a new feature folder, design-phase call) — HeroUI Table master list, detail pane with the single row-list block, Tooltip-based truncation, new `/notifications` route + nav entry with unread badge.
 - Existing frontend bugs (§2.4) are pre-existing and not caused by this change, but the Center's persisted-record path is the natural place to also fix Bug A (carry `Source`/`CorrelationID`/`Timestamp`/`persistedId` through) since the Center needs a stable ID to correlate toast↔record anyway. Bug B (single-action toast) is unrelated to persistence and can be fixed independently; flag both to the proposal phase as candidate in-scope fixes, not silently bundled.
 - `openspec/specs/notifications/notifications.md:66,77` — needs reconciliation per drift §3.2.
-- `docs/notification-center-proposal.md` — superseded sections (§7, §8, §16.3, §19.1, §37) should not be used as an implementation source once `design.md` exists.
+- The notification-center proposal document — superseded sections (§7, §8, §16.3, §19.1, §37) should not be used as an implementation source once `design.md` exists. Retired outright 2026-08-25.
 
 ## 8. Approaches Considered
 
@@ -500,7 +502,7 @@ Approach A (decorator over the existing `Dispatcher`, child package `internal/no
 - **Persist-then-always-project ordering bug is easy to reintroduce**: an "obvious" early return on a persist error is the single most likely regression path (§5.3) and was already caught once in review of this very design. Needs an explicit test asserting dispatch still happens when persistence fails.
 - **Nil/unopened DB handle in tests** (`app_test_helpers_test.go:30`): persist-first code must go through `canUseBridgeDB`/`recover()` guards already established elsewhere, or it will panic existing startup test suites.
 - **Spec drift** (§3.2): delta spec must explicitly address the `frontend/src/app/**` requirement vs. the shipped re-export pattern, or ship a second, larger drift.
-- **`docs/notification-center-proposal.md` staleness**: anyone reading it without this exploration/the design canvas risks re-implementing the rejected §37 plan (import cycle) or the discarded 4-block vocabulary.
+- **Notification-center proposal staleness**: anyone reading that document without this exploration/the design canvas risks re-implementing the rejected §37 plan (import cycle) or the discarded 4-block vocabulary. Closed 2026-08-25 by retiring the document.
 - **HeroUI Table truncation cost is accepted, not eliminated** (§4.3/§4.4) — user chose this knowingly; do not "fix" it later by reverting to Card rows without another explicit decision.
 - **Frontend bugs A and B (§2.4) are adjacent, not identical, scope** — decide explicitly in the proposal whether they're in-scope fixes bundled with the Center (natural, since Bug A needs the same `persistedId` plumbing the Center requires anyway) or deferred; do not silently fix or silently ignore either.
 

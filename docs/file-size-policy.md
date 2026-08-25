@@ -1,179 +1,107 @@
-# Política de Tamaño de Archivo (File Size Policy)
+# File Size Policy — Implementation
 
-## Objetivo
+Warn at 400 effective lines, hard-fail above 500, Go and frontend alike, production code
+and tests. **The operational rule is `AGENTS.md` → "Cross-Cutting File Size Policy"**;
+this file carries only the implementation it delegates.
 
-Mantener la complejidad de cada archivo fuente bajo control mediante una regla transversal que aplica tanto a Go como a TypeScript/TSX:
+## What "effective line" means
 
-- **Advertencia a 400 líneas efectivas.**
-- **Falla dura (hard failure) por encima de 500 líneas efectivas.**
+Three counters enforce the policy and **none of them count the same thing**:
 
-La regla incluye archivos de producción y tests. El objetivo final es **cero deuda permanente por encima de 500 líneas efectivas**.
+| Counter | Counts |
+|---|---|
+| `tools/checkgofilesize` (Go) | distinct lines that *start* a non-comment token |
+| ESLint `max-lines` (TS/TSX) | physical lines, minus blanks and comments |
+| `dharness/max-file-lines` | every physical line, blanks and comments included |
 
-## Qué significa "línea efectiva"
+The Go counter keys on the line where each token begins (`main.go:283`), so a token
+spanning lines is charged once — verified: a raw string across 5 physical lines adds **1**.
+Skipping `token.COMMENT` and `token.SEMICOLON` is what drops blank and comment-only lines.
+`dharness/max-file-lines` is deliberately the strictest — a file long because it is
+documented is still long to read, and excluding comments would reward padding.
 
-Una línea efectiva es una línea que contiene código o datos real. Se excluyen:
+## Go implementation
 
-- Líneas en blanco.
-- Líneas que solo contienen comentarios.
+`tools/checkgofilesize/{doc,main}.go` + `baseline.yaml`. Per file (`main.go:147-205`):
 
-Esto aplica tanto al conteo de ESLint (`skipBlankLines: true`, `skipComments: true`) como al conteo del validador Go (`go/scanner` tokenizando el archivo y descartando comentarios).
+- `400 <= n <= default_max_effective_lines` → **warning** on stdout, exit 0. The 400 is a
+  literal in the source (`main.go:165`); only the 500 comes from the manifest.
+- `n > default`, not baselined → **`new file over 500`**, stderr, exit 1.
+- `n > entry.max_effective_lines` → **`baseline growth`**, exit 1.
+- baselined and at or under its ceiling → passes silently.
 
-## Arquitectura del enforcement
+Warnings and violations can appear in the same run. The walk skips `.git`, `node_modules`
+and `vendor` by name (`main.go:262`) *before* applying `exclude_paths` /
+`exclude_file_patterns`. Glob matching is repo-owned, not `filepath.Match`: `**`→`.*`,
+`*`→`[^/]*`, `?`→`[^/]` (`main.go:341`).
 
-El repo usa dos herramientas independientes que comparten la misma semántica de conteo:
+In `lefthook.yml` the `go-filesize` job sits in the `quick` group with `glob: "*.go"`,
+after `gofmt` and before `golangci-lint`. The glob only decides *whether the job runs* —
+once it runs it walks the whole repository, not the staged set.
 
-| Stack | Hard fail (>500) | Advertencia (400) | Comando |
-|---|---|---|---|
-| Go | `tools/checkgofilesize` | `tools/checkgofilesize` | `go run ./tools/checkgofilesize` |
-| TS/TSX | ESLint `max-lines` | **ninguna automática** — ver abajo | `bun --cwd="frontend" run filesize:warning` (manual) |
+### baseline.yaml
 
-El lado Go corre en `lefthook.yml`:
+Keys: `version` (must be `1`), `default_max_effective_lines` (must be `> 0`),
+`exclude_paths`, `exclude_file_patterns`, `files[]` of `{path, max_effective_lines,
+reason}`. The maintenance rules are also comments at the top of the file itself.
 
-```yml
-pre-commit:
-  jobs:
-    - name: frontend-lint
-      run: bun x eslint {staged_files}
+Entries are validated at load, before any scanning (`main.go:114-144`), and rejected when
+the path is missing, contains glob metacharacters, is a duplicate, has
+`max_effective_lines <= default_max_effective_lines`, points at a file that does not
+exist, or points at a file that is *not* actually oversized under deterministic counting.
+`TestRepositoryBaselineTracksExactlyCurrentOversizedFiles` goes further: the baseline must
+list **exactly** the currently oversized files, each ceiling **equal to that file's current
+count**. A ceiling is a freeze at today's size, never headroom.
 
-    - name: go-filesize
-      run: go run ./tools/checkgofilesize
+## Frontend implementation
 
-    - name: golangci-lint
-      run: powershell -File scripts/lint.ps1 -Profile all
-```
+- `frontend/eslint.config.js:71` — `'max-lines': ['error', { max: 500, skipBlankLines:
+  true, skipComments: true }]`, scoped to `src/**/*.{ts,tsx}`. A Go test asserts this exact
+  string; do not reformat the line.
+- `.dharness/eslint.config.js` is spliced into that same config between the
+  `// dharness:eslint-layer` markers by `dharness sync` (edits inside are overwritten),
+  turning on `dharness/max-file-lines` with the threshold from `.dharness/rules.json`
+  (`maxFileLines: 500`). It declares no `files:` key, so it covers everything
+  `frontend-lint` lints (`**/*.{js,cjs,mjs,ts,tsx,mts,cts}`) — wider than repo `max-lines`.
+- `frontend-lint` runs `bun x eslint {staged_files}` with `root: frontend`, judging only
+  the staged set; whole tree is `bun --cwd="frontend" run lint` (`eslint .`).
+- `frontend/scripts/check-file-size-warnings.mjs` (`filesize:warning`) is the 400 warning.
+  It scans `src/**/*.{ts,tsx}` and sets `overrideConfigFile: true`, deliberately **not**
+  inheriting `eslint.config.js`: that dragged in the type-aware preset and cost 47s of an
+  88s gate, versus ~2s standalone with identical output. It never exits non-zero.
 
-`go-filesize` corre **antes** de `golangci-lint` para fallar rápido en archivos nuevos o en crecimiento.
-
-### Cambio 2026-08-11 — el frontend se quedó sin advertencia automática
-
-`frontend-filesize-warning` salió de `lefthook.yml` porque se esperaba que
-`dharness/max-file-lines` lo reemplazara, con el umbral declarado en
-`.dharness/rules.json` (`maxFileLines: 500`).
-
-Lo reemplaza **a medias**, y hay una nota de dharness fácil de malinterpretar.
-`dharness sync` lista esa regla — y las otras cinco de `dharness-eslint-plugin`
-— bajo *residue*, con este motivo:
-
-> the gate's react-doctor invocation runs with `--staged`, and a plugin's rules
-> do not fire under that flag (measured against react-doctor 0.5.7)
-
-Eso es cierto **solo para la pasada de react-doctor**. Desde dharness 1.3.0 el
-sync ademas splicea una capa en `frontend/eslint.config.js`
-(`// dharness:eslint-layer`), y por ahí las reglas **sí corren**, dentro del job
-`frontend-lint`. Comprobado: `dharness check` reporta 30 errores de
-`dharness/require-jsdoc` y `dharness/require-variable-jsdoc`.
-
-Entonces, hoy, del lado TS/TSX:
-
-- El **techo de 500** se chequea dos veces: `max-lines` de ESLint y
-  `dharness/max-file-lines` (umbral en `.dharness/rules.json`).
-- La **advertencia a 400 no la corre nadie**. El script
-  `check-file-size-warnings.mjs` sigue existiendo y funciona
-  (`bun --cwd="frontend" run filesize:warning`), pero es manual y a mano.
-
-Para cerrar el hueco de los 400 hay dos caminos, ninguno tomado: volver a poner
-el job en el gate, o aceptar de forma explícita que el aviso sea manual.
-
-El hard-fail no cambió: sigue siendo `max-lines` de ESLint en
-`frontend/eslint.config.js`, alcanzado por el job `frontend-lint`, y
-`tools/checkgofilesize/repository_policy_test.go` asserta esa línea textual.
-
-## Implementación Go
-
-### Ubicación
-
-- `tools/checkgofilesize/main.go`
-- `tools/checkgofilesize/main_test.go`
-- `tools/checkgofilesize/baseline.yaml`
-
-### Semántica
-
-1. Carga `tools/checkgofilesize/baseline.yaml`.
-2. Recorre el repo buscando archivos `.go`, excluyendo `.git`, `node_modules`, `vendor`, paths del manifiesto y patrones como `*.pb.go` o `*_generated.go`.
-3. Cuenta líneas efectivas con `go/scanner`, ignorando comentarios.
-4. Si un archivo está entre 400 y 500 líneas efectivas, emite una **advertencia**.
-5. Si un archivo supera las 500 líneas efectivas:
-   - y NO está en baseline → falla como `new file over 500`.
-   - y SÍ está en baseline pero supera su techo → falla como `baseline growth`.
-   - y SÍ está en baseline y está dentro de su techo → pasa.
-
-### Baseline
-
-`tools/checkgofilesize/baseline.yaml` es un manifiesto temporal para deuda preexistente. El estado esperado es `files: []`. Si alguna entrada existe, debe:
-
-- Tener un techo de no-crecimiento (`max_effective_lines`).
-- Reducirse en el mismo PR donde el archivo se achica.
-- Eliminarse en cuanto el archivo llegue a `<=500` líneas efectivas.
-
-No se permite agregar entradas para archivos nuevos, renombrados o que ya cumplan la política.
-
-## Implementación frontend
-
-### Ubicación
-
-- `frontend/eslint.config.js`
-- `frontend/scripts/check-file-size-warnings.mjs`
-- `frontend/scripts/__tests__/check-file-size-warnings.test.mjs`
-- `frontend/package.json`
-
-### Semántica
-
-- `frontend/eslint.config.js` define la regla dura:
-
-  ```js
-  'max-lines': ['error', { max: 500, skipBlankLines: true, skipComments: true }]
-  ```
-
-- `frontend/scripts/check-file-size-warnings.mjs` ejecuta ESLint con una configuración override que pone `max-lines` en `warn` con `max: 400`, y reporta solo advertencias `>=400`.
-
-- `frontend/package.json` expone el script:
-
-  ```json
-  "filesize:warning": "node ./scripts/check-file-size-warnings.mjs"
-  ```
-
-El script es **advisory-only**: nunca devuelve código de salida distinto de cero por advertencias de tamaño. La falla dura sigue siendo responsabilidad de ESLint en `bun --cwd="frontend" run lint`.
-
-## Verificación manual
-
-Comandos para probar la política localmente:
+## Manual verification
 
 ```bash
-# Go: advertencias + validación
-$ go run ./tools/checkgofilesize
-
-# Go: tests del validador
-$ go test ./tools/checkgofilesize
-
-# Frontend: advertencias
-$ bun --cwd="frontend" run filesize:warning
-
-# Frontend: falla dura ESLint
-$ bun --cwd="frontend" run lint
-
-# Todo
-$ go test ./...
-$ bun --cwd="frontend" run test
+go run ./tools/checkgofilesize            # Go: warnings + hard fail
+go test ./tools/checkgofilesize           # Go: the checker's own suite
+bun --cwd="frontend" run filesize:warning # frontend: 400 warnings, whole tree
+bun --cwd="frontend" run lint             # frontend: 500 hard fail, whole tree
 ```
 
-## Casos de prueba vivos
+## Tests that pin this behavior
 
-Para comprobar que los umbrales funcionan realmente:
+- `tools/checkgofilesize/main_test.go` — counting (blank/comment/CRLF/inline-block), 501
+  `new file over 500`, 504 `baseline growth`, 503 at-ceiling passing, generated files
+  excluded, 400 and 500 warning without failing, live repo baseline passing.
+- `tools/checkgofilesize/baseline_validation_test.go` — the four entry rejections.
+- `tools/checkgofilesize/hook_order_test.go` — the `gofmt` → `go-filesize` →
+  `golangci-lint` order and the exact `run` string.
+- `tools/checkgofilesize/repository_policy_test.go` — `frontend-lint` still exists, the
+  exact ESLint `max-lines` line, the `package.json` scripts, the `baseline.yaml` comments.
+- `frontend/scripts/__tests__/check-file-size-warnings.test.mjs` — collection/formatting.
 
-- Un archivo TS de **401 líneas efectivas** debe aparecer en `bun --cwd="frontend" run filesize:warning`.
-- Un archivo TS de **501 líneas efectivas** debe fallar `bun --cwd="frontend" run lint`.
-- Un archivo Go de **502 líneas efectivas** debe fallar `go run ./tools/checkgofilesize` con `new file over 500`.
+## Maintenance
 
-Después de probar, eliminar los archivos temporales.
+Shrink the file, or shrink its ceiling to the new count, in the same PR; remove the entry
+once counting reaches `<=500`, since the baseline test fails on any drift. Comment padding
+does nothing to the Go count and makes the dharness count worse. Plan the refactor at the
+400 warning, not at the 500 failure.
 
-## Reglas de mantenimiento
+## Change history
 
-- No aceptar archivos nuevos por encima de 500 líneas efectivas.
-- No usar comentarios de relleno para bajar el conteo.
-- No renombrar archivos para fingir que son generados.
-- No agregar flags ad-hoc al hook para saltear la validación.
-- Si un archivo excede 400 líneas efectivas, planear su refactor antes de que cruce 500.
-
-## Historial de cambios
-
-- 2026-06-27: Se agregó el umbral de advertencia a 400 y se eliminó toda la deuda Go por encima de 500. Ver commit `c8a7a3b`.
+- **2026-06-27** (`c8a7a3b`) — 400-line warning added, all Go `>500` debt eliminated. This
+  is why `files: []` is the expected baseline state.
+- **2026-08-11** (`c8aaa4d`) — the frontend gate moved to dharness and
+  `frontend-filesize-warning` left `lefthook.yml`. The 500 ceiling gained a second checker
+  (`dharness/max-file-lines`); the 400 warning became manual.

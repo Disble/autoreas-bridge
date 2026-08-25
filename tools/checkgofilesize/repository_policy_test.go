@@ -2,8 +2,6 @@ package main
 
 import (
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -102,26 +100,4 @@ func TestRepositoryBaselineDocumentsMaintenanceRule(t *testing.T) {
 		"Shrink ceilings in the same PR when a legacy file gets smaller.",
 		"Remove the entry as soon as deterministic counting reaches 500 effective lines or fewer.",
 	}...)
-}
-
-func TestRepositoryVerificationEvidenceCapturesDirectInspectionAndNegativeCases(t *testing.T) {
-	t.Parallel()
-
-	root := repoRootFromTest(t)
-	content := readRepoFile(t, root, filepath.Join("docs", "verification", "global-go-file-size-policy-slice-2.md"))
-	requireFileContainsAll(t, content, "docs/verification/global-go-file-size-policy-slice-2.md", []string{
-		"# Verification Evidence — Global Go File Size Policy Slice 2",
-		"Direct inspection is mandatory.",
-		"go run ./tools/checkgofilesize",
-		"new file over 500",
-		"baseline growth",
-		"app.go",
-		"internal/anime/domain/anime_raw.go",
-		"internal/download/service_test.go",
-		"lefthook.yml",
-	}...)
-
-	if !strings.Contains(string(content), strconv.Quote("Go file size check failed:")) {
-		t.Fatalf("verification evidence missing quoted negative validator output header")
-	}
 }

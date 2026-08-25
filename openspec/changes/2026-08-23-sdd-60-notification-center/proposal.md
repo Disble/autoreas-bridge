@@ -77,7 +77,7 @@ A user opens `/notifications`, sees every notable moment Bridge raised, sorted n
 | Pushing Center records to the mobile app | This change adds **zero** REST/WS surface. Only Wails bindings, which are desktop-local. `docs/openapi.yaml` is untouched (see risk R-7). |
 | Windows toast enrichment (`Level`/`Source` reaching the OS toast) | `desktop_windows.go` is deliberately untouched — the decorator pattern's whole point is that no adapter file changes. |
 | Reverting the Table to Card rows | The user chose the Table after a side-by-side artboard comparison, knowingly accepting the truncation cost. Not reopenable without another explicit decision. |
-| Migrating existing `docs/notification-center-proposal.md` §37 layout | Rejected: proven import cycle (`notification → download → notification`), and `Glob("internal/**/{app,sqlite,projection}")` matches nothing in this tree. |
+| Migrating the notification-center proposal document's §37 layout | Rejected: proven import cycle (`notification → download → notification`), and `Glob("internal/**/{app,sqlite,projection}")` matches nothing in this tree. |
 
 ---
 
@@ -288,9 +288,9 @@ Approach **A** from the exploration's table (§8): **`center.Service` decorates 
 |---|---|
 | **A. Decorator over the existing Dispatcher** | **Chosen.** Zero changes to the four adapter files (`dispatcher.go`, `ui_toast.go`, `desktop_windows.go`, `log_forward.go`); zero producer call-site changes — every `a.notifier.Notify(...)` keeps working, only the concrete value behind `a.notifier` changes. Reuses the schema-registry pattern already proven twice (`eventlog`, `download/dbschema`). Child→parent import is legal and the parent gains no dependency (`internal/notification` still imports only `internal/logger`). |
 | **B. Replace `Notifier` with a persisted-first interface, migrate all producers** | Rejected. Touches 5+ producer files for zero functional gain over A, and abandons working, tested Dispatcher/adapter code. |
-| **C. `docs/notification-center-proposal.md` §37 layout** | Rejected outright. **Does not compile** — an action executor inside `internal/notification` importing `internal/download` is a proven import cycle (`notification → download → notification`, because `service.go`, `service_effects.go`, `service_single_anime.go`, and `internal/anime/write_service.go` all already import `internal/notification`). The nested `domain/app/sqlite/projection/` shape has zero precedent: `Glob("internal/**/{app,sqlite,projection}")` matches nothing in this tree. |
+| **C. The notification-center proposal document's §37 layout** | Rejected outright. **Does not compile** — an action executor inside `internal/notification` importing `internal/download` is a proven import cycle (`notification → download → notification`, because `service.go`, `service_effects.go`, `service_single_anime.go`, and `internal/anime/write_service.go` all already import `internal/notification`). The nested `domain/app/sqlite/projection/` shape has zero precedent: `Glob("internal/**/{app,sqlite,projection}")` matches nothing in this tree. |
 
-The full component diagram and both sequence diagrams (raise-a-notification, press-an-action) are carried verbatim in `explore.md` §6.1-6.3 and MUST be regenerated into `design.md` from **that** document, not from `docs/notification-center-proposal.md` (whose §7, §8, §16.3, §19.1, §37 are superseded).
+The full component diagram and both sequence diagrams (raise-a-notification, press-an-action) are carried verbatim in `explore.md` §6.1-6.3 and MUST be regenerated into `design.md` from **that** document, not from the notification-center proposal document (whose §7, §8, §16.3, §19.1, §37 are superseded; retired 2026-08-25).
 
 ---
 
@@ -343,7 +343,7 @@ graph LR
 | `frontend/src/shared/contracts/app-notification.types.ts` | **Modified** | `persistedId`, `source`, `correlationId`, `timestamp`; ordered `actions` contract. All props `readonly`. |
 | `openspec/specs/notifications/notifications.md` | **Modified** | Drift at lines 66 and 77 reconciled (§4). |
 | `openspec/specs/desktop-navigation/spec.md` | **Modified** | `Scenario: Item count` (line 20) + new unread-badge scenario. |
-| `docs/notification-center-proposal.md` | **Superseded** | §7, §8, §16.3, §19.1, §37 must not be used as an implementation source once `design.md` exists. |
+| the notification-center proposal document | **Retired 2026-08-25** | Superseded by `design.md`, then deleted; its durable rationale is `docs/adr/013-notification-center-boundaries.md`. |
 | `docs/learning-log.md` | **Appended** | Via `node scripts/log-lesson.mjs`, never by hand (CLAUDE.md #17). |
 
 ---
@@ -359,7 +359,7 @@ graph LR
 | R-5 | A registered intent resolving to a deleted entity, or a stale token, crashes or silently no-ops. | Medium | Medium | D-4: closed refusal set, first-class inline refusal, permanent button disable. An empty `IntentRegistry` is itself a designed, tested state — it doubles as the Slice 5 kill switch. |
 | R-6 | Slice 3 overruns the 800-line budget (a full HeroUI Table + selection bar + search + 5 empty states + tests). | **High** | Low | Pre-declared 3a/3b split: 3a = route + Table + empty states; 3b = selection bar + bulk actions + search/filter. `sdd-tasks` MUST forecast this explicitly. |
 | R-7 | A wire-adjacent change slips into mobile-visible surface without a doc announcement (CLAUDE.md / `feedback_api_consumers_doc_updates`). | Low | Medium | This change adds **only** Wails bindings, which are desktop-local. `sdd-verify` must confirm `docs/openapi.yaml` and the mobile sync contract are untouched, and record that as a positive finding rather than an omission. |
-| R-8 | Anyone reading `docs/notification-center-proposal.md` (1 926 lines) without this proposal re-implements the rejected §37 plan (import cycle) or the discarded 4-block vocabulary. | Medium | Medium | §5 above names the rejection and its proof. Slice 6 adds a superseded-sections banner to that document. |
+| R-8 | Anyone reading the notification-center proposal document (1 926 lines) without this proposal re-implements the rejected §37 plan (import cycle) or the discarded 4-block vocabulary. | Medium | Medium | §5 above names the rejection and its proof. Slice 6 added a superseded-sections banner; the document was retired outright on 2026-08-25, closing this risk. |
 | R-9 | The HeroUI Table's accepted truncation cost gets "fixed" later by silently reverting to Card rows. | Low | Medium | The Table was the user's explicit choice after a side-by-side artboard comparison. Recorded in §2.2 as not reopenable without another explicit decision. |
 | R-10 | A new `/notifications` route ships blank in the built app — a Wails binary logs a complete, healthy Go startup with an empty WebView (1.2.0 shipped exactly that). | Medium | High | `ROUTE_MARKERS` entry in Slice 3 (CLAUDE.md #18b); `bun --cwd="frontend" run render:smoke` before claiming the build works. |
 | R-11 | Frontend files exceed the 500-line hard fail (Table + detail pane + block component are all large). | Medium | Low | Strict colocation splits by construction (`.tsx` / `use-*.ts` / `*.helpers.ts` / `*.types.ts` / `*.constants.ts`); ESLint `max-lines` and `dharness/max-file-lines` are the deterministic gate. Compose `shared/ui` primitives rather than hand-writing label/input blocks. |

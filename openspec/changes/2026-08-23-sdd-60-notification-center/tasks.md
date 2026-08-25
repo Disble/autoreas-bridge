@@ -1453,7 +1453,7 @@ if full per-anime individuation is still desired.**
   and leaving it undocumented would have left the live spec inaccurate about `Notification`'s actual
   shape (CLAUDE.md #2, docs must match code as runtime truth). This is the proposal §4 mandatory drift
   reconciliation (S-16 / R-8).
-- [x] **6b.4.2** [DOC] Added a superseded-sections banner to `docs/notification-center-proposal.md` over
+- [x] **6b.4.2** [DOC] Added a superseded-sections banner to the notification-center proposal document over
   §7, §8, §16.3, §19.1, §37, pointing readers to `design.md` instead (R-8 mitigation).
 - [x] **6b.4.3** [DOC] Ran `node scripts/log-lesson.mjs "..."` to append `docs/learning-log.md` --
   content: the `Notification` struct extension breaking 3 pre-existing `==`/`!=` comparisons across
