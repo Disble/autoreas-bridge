@@ -6,6 +6,12 @@ import { applyNotificationMutationUnreadCount } from '../../../../shared/store/n
 /** Everything `useNotificationOpenRecord` needs from its caller. */
 export interface NotificationOpenRecordInput {
   readonly source: NotificationCenterSource;
+  /**
+   * Told which records the opening mark-read committed, so the master list
+   * can drop their unread dot in place. Absent for callers that render no
+   * list beside the pane.
+   */
+  readonly onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void;
 }
 
 /** The open-record state `useNotificationOpenRecord` exposes. */
@@ -26,9 +32,16 @@ export interface NotificationOpenRecordResult {
  * That mark-read's own fresh `unreadCount` goes into the shared
  * notification store, so opening a record lowers the rail badge the same way
  * the selection bar's bulk mark-read does.
+ *
+ * The badge was the only thing it moved, though: the master-list row the user
+ * had just pressed kept its unread dot until a remount, so the same screen
+ * showed one record as both read and unread. `onReadStateChanged` closes that,
+ * and fires only for a mutation that actually committed -- a degraded
+ * mark-read left the record unread in the store, and clearing its dot would
+ * make the list state the opposite of what the store holds.
  */
 export function useNotificationOpenRecord(input: Readonly<NotificationOpenRecordInput>): NotificationOpenRecordResult {
-  const { source } = input;
+  const { onReadStateChanged, source } = input;
 
   // 1. Refs
   const openedIdRef = useRef<number | null>(null);
@@ -51,9 +64,14 @@ export function useNotificationOpenRecord(input: Readonly<NotificationOpenRecord
         setOpenRecord(result.found ? result.item : null);
       });
 
-      void source.markRead([id]).then(applyNotificationMutationUnreadCount);
+      void source.markRead([id]).then((result) => {
+        applyNotificationMutationUnreadCount(result);
+        if (!result.degraded) {
+          onReadStateChanged?.([id], true);
+        }
+      });
     },
-    [source],
+    [onReadStateChanged, source],
   );
 
   return { onOpenRecord, openRecord };

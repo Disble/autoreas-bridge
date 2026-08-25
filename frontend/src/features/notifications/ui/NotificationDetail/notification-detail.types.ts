@@ -16,6 +16,12 @@ import type {
 export interface NotificationDetailProps {
   readonly detail: NotificationDetailDTO | null;
   readonly source?: NotificationCenterSource;
+  /**
+   * Told which records a lifecycle verb in this pane just committed, and the
+   * read state they are now in, so the master list beside it can follow
+   * without a re-fetch. Absent for callers that render no list.
+   */
+  readonly onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void;
 }
 
 /** Props accepted by the header block: level chip, source/time line, title, body. */
@@ -101,6 +107,8 @@ export interface NotificationDetailFooterProps {
   readonly actions: readonly NotificationAction[];
   readonly notificationId: number;
   readonly source?: NotificationCenterSource;
+  /** Forwarded verbatim to the mark-unread button, the one footer verb that moves read state. */
+  readonly onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void;
 }
 
 /**

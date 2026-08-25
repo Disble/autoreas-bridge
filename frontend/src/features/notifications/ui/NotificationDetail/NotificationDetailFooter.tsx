@@ -29,7 +29,7 @@ import { useNotificationMarkUnread } from './use-notification-mark-unread';
  * `app_startup_runtime.go`). Built-but-unreachable is the exact defect class
  * this slice exists to close.
  */
-export function NotificationDetailFooter({ actions, notificationId, source }: Readonly<NotificationDetailFooterProps>) {
+export function NotificationDetailFooter({ actions, notificationId, onReadStateChanged, source }: Readonly<NotificationDetailFooterProps>) {
   return (
     <Card.Footer data-testid={NOTIFICATION_DETAIL_FOOTER_TESTID}>
       <Toolbar aria-label="Notification actions" className="flex flex-wrap gap-2">
@@ -37,7 +37,7 @@ export function NotificationDetailFooter({ actions, notificationId, source }: Re
           <NotificationDetailActionButton action={action} key={action.id} notificationId={notificationId} source={source} variant="primary" />
         ))}
         <NotificationDetailArchiveButton notificationId={notificationId} source={source} />
-        <NotificationDetailMarkUnreadButton notificationId={notificationId} source={source} />
+        <NotificationDetailMarkUnreadButton notificationId={notificationId} onReadStateChanged={onReadStateChanged} source={source} />
       </Toolbar>
     </Card.Footer>
   );
@@ -72,9 +72,14 @@ function NotificationDetailArchiveButton({
  */
 function NotificationDetailMarkUnreadButton({
   notificationId,
+  onReadStateChanged,
   source,
-}: Readonly<{ readonly notificationId: number; readonly source?: NotificationCenterSource }>) {
-  const { isDisabled, markUnread } = useNotificationMarkUnread(notificationId, source);
+}: Readonly<{
+  readonly notificationId: number;
+  readonly onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void;
+  readonly source?: NotificationCenterSource;
+}>) {
+  const { isDisabled, markUnread } = useNotificationMarkUnread(notificationId, source, onReadStateChanged);
 
   return (
     <Button isDisabled={isDisabled} onPress={markUnread} size="sm" variant="secondary">

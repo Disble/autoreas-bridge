@@ -113,4 +113,53 @@ describe('useNotificationOpenRecord', () => {
 
     await waitFor(() => expect(getNotificationStoreState().unreadCount).toBe(4));
   });
+
+  // The rail badge fell on open from the first version of this hook, but the
+  // master-list row it was standing on kept its unread dot until a remount.
+  it('reports the record it just marked read, so the master-list row can drop its unread dot', async () => {
+    const onReadStateChanged = vi.fn();
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource(), onReadStateChanged }));
+
+    act(() => {
+      result.current.onOpenRecord(7);
+    });
+
+    await waitFor(() => expect(onReadStateChanged).toHaveBeenCalledWith([7], true));
+  });
+
+  // Same shape as the mark-unread hook's own currently-open-record test: this
+  // hook keeps its instance while the panel re-renders around it, so a
+  // callback pinned to the first render would report to a listener the panel
+  // has already replaced.
+  it('reports to the callback it currently has, not the one it first rendered with', async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const source = makeSource();
+    const { rerender, result } = renderHook(
+      ({ onReadStateChanged }: { onReadStateChanged: (recordIds: readonly number[], isRead: boolean) => void }) =>
+        useNotificationOpenRecord({ source, onReadStateChanged }),
+      { initialProps: { onReadStateChanged: first } },
+    );
+
+    rerender({ onReadStateChanged: second });
+    act(() => {
+      result.current.onOpenRecord(7);
+    });
+
+    await waitFor(() => expect(second).toHaveBeenCalledWith([7], true));
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  it('reports nothing when the mark-read degraded, rather than clearing a dot the store still stands behind', async () => {
+    const markRead = vi.fn().mockResolvedValue({ affected: 0, unreadCount: 0, degraded: true });
+    const onReadStateChanged = vi.fn();
+    const { result } = renderHook(() => useNotificationOpenRecord({ source: makeSource({ markRead }), onReadStateChanged }));
+
+    act(() => {
+      result.current.onOpenRecord(7);
+    });
+
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith([7]));
+    expect(onReadStateChanged).not.toHaveBeenCalled();
+  });
 });

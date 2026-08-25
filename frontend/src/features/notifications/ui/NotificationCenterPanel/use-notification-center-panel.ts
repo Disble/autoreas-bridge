@@ -62,7 +62,7 @@ export function useNotificationCenterPanel(
   const { searchInput, debouncedSearch, onSearchInputChange, levels, onLevelsChange, sources, onSourcesChange, hasFacetFilters } =
     useNotificationFilters();
   const query = toNotificationCenterQuery(view);
-  const { rows, isLoading, hasNextPage, totalEverRecorded, degraded, onLoadMore, refetch } = useNotificationCenterSync({
+  const { rows, isLoading, hasNextPage, totalEverRecorded, degraded, onLoadMore, refetch, applyReadState } = useNotificationCenterSync({
     source,
     pushSource,
     unreadOnly: query.unreadOnly,
@@ -98,7 +98,7 @@ export function useNotificationCenterPanel(
     onMutated: refetch,
   });
   const { canMarkAllRead, onMarkAllRead } = useNotificationMarkAllRead({ source, rows: visibleRows, onMutated: refetch });
-  const { openRecord, onOpenRecord } = useNotificationOpenRecord({ source });
+  const { openRecord, onOpenRecord } = useNotificationOpenRecord({ source, onReadStateChanged: applyReadState });
 
   // 6. Callbacks
   const onViewChange = useCallback(
@@ -148,5 +148,6 @@ export function useNotificationCenterPanel(
     canMarkAllRead,
     openRecord,
     onRowAction,
+    onReadStateChanged: applyReadState,
   };
 }

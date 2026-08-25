@@ -156,4 +156,31 @@ describe('useNotificationMarkUnread', () => {
       expect(source.markUnread).toHaveBeenCalledWith([9]);
     });
   });
+
+  // The badge climbed from the first version of this hook, but the row beside
+  // the pane kept rendering as read -- the button moved a number and left the
+  // list telling the opposite story.
+  it('reports the record it just put back to unread, so the master-list row regains its dot', async () => {
+    const onReadStateChanged = vi.fn();
+    const { result } = renderHook(() => useNotificationMarkUnread(7, buildMarkUnreadSource(), onReadStateChanged));
+
+    act(() => {
+      result.current.markUnread();
+    });
+
+    await waitFor(() => expect(onReadStateChanged).toHaveBeenCalledWith([7], false));
+  });
+
+  it('reports nothing when the mutation degraded, rather than showing a dot for a record still marked read', async () => {
+    const onReadStateChanged = vi.fn();
+    const source = buildMarkUnreadSource({ affected: 0, degraded: true, unreadCount: 0 });
+    const { result } = renderHook(() => useNotificationMarkUnread(7, source, onReadStateChanged));
+
+    act(() => {
+      result.current.markUnread();
+    });
+
+    await waitFor(() => expect(result.current.isDisabled).toBe(false));
+    expect(onReadStateChanged).not.toHaveBeenCalled();
+  });
 });

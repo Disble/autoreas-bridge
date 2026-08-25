@@ -89,4 +89,9 @@ export interface NotificationCenterPanelResult {
   readonly openRecord: NotificationDetailDTO | null;
   /** Opens the pressed master-list row in the detail pane. */
   readonly onRowAction: NotificationTableRowAction;
+  /**
+   * Handed to the detail pane so a read-state verb pressed there lands on the
+   * master-list row beside it, in place and without re-fetching a page.
+   */
+  readonly onReadStateChanged: (recordIds: readonly number[], isRead: boolean) => void;
 }

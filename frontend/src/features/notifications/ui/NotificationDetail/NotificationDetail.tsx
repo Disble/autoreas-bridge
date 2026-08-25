@@ -15,7 +15,7 @@ import type { NotificationDetailProps } from './notification-detail.types';
  * Renders a "nothing selected" prompt when `detail` is `null`, mirroring
  * `TransactionDetail.tsx`'s own null-detail prompt.
  */
-export function NotificationDetail({ detail, source }: Readonly<NotificationDetailProps>) {
+export function NotificationDetail({ detail, onReadStateChanged, source }: Readonly<NotificationDetailProps>) {
   if (detail === null) {
     return (
       <Card>
@@ -33,7 +33,12 @@ export function NotificationDetail({ detail, source }: Readonly<NotificationDeta
         <NotificationDetailRows actions={detail.actions} notificationId={detail.id} rows={detail.rows} source={source} />
         <NotificationDetailMeta entries={buildNotificationMetaEntries(detail)} />
       </Card.Content>
-      <NotificationDetailFooter actions={resolveNotificationActions(detail.actions)} notificationId={detail.id} source={source} />
+      <NotificationDetailFooter
+        actions={resolveNotificationActions(detail.actions)}
+        notificationId={detail.id}
+        onReadStateChanged={onReadStateChanged}
+        source={source}
+      />
     </Card>
   );
 }

@@ -155,6 +155,73 @@ describe('NotificationCenterPanel -> NotificationDetail (integration)', () => {
     await waitFor(() => expect(screen.getByText(/1 unread/)).toBeInTheDocument());
   });
 
+  // Every read-state hook below was already correct on its own. What was
+  // missing was the wiring between them: the selection bar got its
+  // `onMutated` and the pane got nothing, so the pane's verbs moved the store
+  // and left the row beside them telling the opposite story. These press the
+  // real buttons through the real panel, which is the only level a forgotten
+  // prop shows up at.
+  it('clears the master-list unread dot when a record is opened, and restores it on mark unread', async () => {
+    render(<NotificationCenterPanel source={makeSource()} />);
+
+    expect(await screen.findByRole('img', { name: 'Unread' })).toBeInTheDocument();
+
+    await pressListedRow();
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Unread' })).not.toBeInTheDocument());
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark unread' }));
+
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Unread' })).toBeInTheDocument());
+  });
+
+  it('leaves the unread dot alone when the opening mark-read degraded', async () => {
+    const markRead = vi.fn().mockResolvedValue({ affected: 0, unreadCount: 0, degraded: true });
+
+    render(<NotificationCenterPanel source={makeSource({ markRead })} />);
+    await pressListedRow();
+
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith([7]));
+    // The store never recorded the read, so the list must not claim it did.
+    expect(screen.getByRole('img', { name: 'Unread' })).toBeInTheDocument();
+  });
+
+  it('drops the row from the master list when it is archived from the detail pane', async () => {
+    // The reported defect, end to end: the store archived the record and the
+    // active list went on showing it. `archive` fires the runtime event here
+    // exactly as `App.ArchiveNotifications` does after its store write.
+    const archivedListeners: ((recordIds: readonly number[]) => void)[] = [];
+    const archive = vi.fn().mockImplementation((ids: readonly number[]) => {
+      for (const listener of archivedListeners) {
+        listener(ids);
+      }
+      return Promise.resolve({ affected: ids.length, unreadCount: 0, degraded: false });
+    });
+    const pushSource = {
+      subscribe: () => () => undefined,
+      subscribeArchived(listener: (recordIds: readonly number[]) => void) {
+        archivedListeners.push(listener);
+        return () => {
+          archivedListeners.splice(archivedListeners.indexOf(listener), 1);
+        };
+      },
+      subscribeNavigate: () => () => undefined,
+    };
+
+    render(<NotificationCenterPanel pushSource={pushSource} source={makeSource({ archive })} />);
+    await pressListedRow();
+
+    // The title renders twice while the record is open: once as the master-list
+    // row, once as the detail header. Archiving must take the ROW away and
+    // leave the pane showing what the user just acted on, so the count is what
+    // separates the two -- plain absence would demand the pane clear as well.
+    await waitFor(() => expect(screen.getAllByText('Download run finished')).toHaveLength(2));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archive' }));
+
+    await waitFor(() => expect(archive).toHaveBeenCalledWith([7]));
+    await waitFor(() => expect(screen.getAllByText('Download run finished')).toHaveLength(1));
+  });
+
   it('shows the refusal reason when the pressed action is refused', async () => {
     const executeAction = vi.fn().mockResolvedValue({ executed: false, reason: 'target_missing' } satisfies Partial<NotificationActionResult> as NotificationActionResult);
     const source = makeSource({ executeAction });

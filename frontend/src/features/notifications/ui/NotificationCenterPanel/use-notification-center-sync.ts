@@ -1,22 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import { notificationSource } from '../../../../infrastructure/notification-source/notification-source.helpers';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
-import type { NotificationListRequest, NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
+import { NO_FACET_FILTER, useNotificationCenterPage } from './use-notification-center-page';
+import type { NotificationCenterPageResult, NotificationCenterSyncView } from './use-notification-center-page';
 
-/** Master-list page size requested per fetch (mirrors the store's own `defaultListLimit`). */
-const NOTIFICATION_CENTER_SYNC_PAGE_LIMIT = 25;
-
-/** Which archive view the caller currently has selected. */
-export type NotificationCenterSyncView = 'active' | 'archived';
-
-/**
- * The empty set both facet filters default to. It is a module constant rather
- * than an inline `[]` because it feeds a `useCallback` dependency list: a
- * fresh literal on every render would rebuild `fetchPage` and re-fetch the
- * first page forever.
- */
-const NO_FACET_FILTER: readonly string[] = [];
+export type { NotificationCenterSyncView } from './use-notification-center-page';
 
 /** Everything `useNotificationCenterSync` needs from its caller. */
 export interface NotificationCenterSyncInput {
@@ -33,73 +23,72 @@ export interface NotificationCenterSyncInput {
   readonly pushSource?: NotificationSource;
 }
 
-/** The filters one page request is built from, independent of where in the keyset the cursor sits. */
-interface NotificationPageFilters {
-  readonly view: NotificationCenterSyncView;
-  readonly unreadOnly: boolean;
-  readonly search: string;
-  readonly levels: readonly string[];
-  readonly sources: readonly string[];
-}
-
 /** The accumulated master-list state `useNotificationCenterSync` exposes. */
-export interface NotificationCenterSyncResult {
-  readonly rows: readonly NotificationRow[];
-  readonly isLoading: boolean;
-  readonly hasNextPage: boolean;
-  readonly totalEverRecorded: number;
-  readonly degraded: boolean;
-  readonly onLoadMore: () => void;
-  /** Re-fetches the first page from scratch -- used after a bulk mutation (mark read / archive) commits. */
-  readonly refetch: () => void;
+export interface NotificationCenterSyncResult extends Omit<NotificationCenterPageResult, 'refreshTopPage' | 'transformRows'> {
+  /**
+   * Stamps a committed read state onto the loaded rows in place, for the
+   * detail pane's own single-record verbs. `isRead` is the state the records
+   * are now IN, not the verb that got them there.
+   */
+  readonly applyReadState: (recordIds: readonly number[], isRead: boolean) => void;
 }
 
 /**
- * Builds one keyset page request for the filters currently applied. Shared
- * by the paginating fetch and the live refresh so the two can never drift
- * into asking the backend different questions.
- */
-function toNotificationPageRequest(filters: Readonly<NotificationPageFilters>, cursor: string): NotificationListRequest {
-  return {
-    view: filters.view,
-    unreadOnly: filters.unreadOnly,
-    search: filters.search,
-    sources: filters.sources,
-    levels: filters.levels,
-    cursor,
-    limit: NOTIFICATION_CENTER_SYNC_PAGE_LIMIT,
-  };
-}
-
-/**
- * Merges a freshly refreshed first page on top of the rows already
- * accumulated, de-duplicated by record id. Rows arrive newest-first, so the
- * refreshed page is the newest slice and leads; every accumulated row it
- * does not already carry keeps its place behind it.
+ * Removes the records a `notification.archived` event just named from the rows
+ * currently on screen.
  *
- * Merging rather than replacing is the whole point: a user who has paged
- * three times must not be thrown back to one page because a notification
- * arrived. De-duplicating by id is the other half -- the push that triggers
- * this refresh races the fetch, so the refreshed page usually already
- * contains the very record that announced itself.
+ * Dropping them in place rather than re-fetching is deliberate: the archived
+ * ids are exactly what left the active list, so the list already knows the
+ * answer, and a first-page re-fetch would throw a user who has paged three
+ * times back to one page -- the same reason `mergeRefreshedRows` exists.
  */
-function mergeRefreshedRows(
-  refreshed: readonly NotificationRow[],
+function dropArchivedRows(accumulated: readonly NotificationRow[], archivedIds: readonly number[]): readonly NotificationRow[] {
+  const archived = new Set(archivedIds);
+  return accumulated.filter((row) => !archived.has(row.id));
+}
+
+/**
+ * Stamps a read state the caller has just committed onto the rows already on
+ * screen, so a record read or put back to unread from the detail pane stops
+ * disagreeing with the row beside it.
+ *
+ * The stamp is a local clock reading, not the store's own `read_at_ms`: the
+ * lifecycle mutations answer with an affected count and a fresh unread total
+ * and never hand back the timestamp they wrote. Nothing renders the value --
+ * `isNotificationRowUnread` only asks whether it is there -- and the next
+ * page load replaces it with the authoritative one, so a few milliseconds of
+ * drift buys the dot being right immediately.
+ *
+ * Returns `accumulated` by identity when nothing actually moved, which is what
+ * keeps a mutation on an off-screen record, or one landing on the state the
+ * rows already carry, from re-rendering the table.
+ */
+function patchRowsReadState(
   accumulated: readonly NotificationRow[],
+  recordIds: readonly number[],
+  readAtMs: number | undefined,
 ): readonly NotificationRow[] {
-  const refreshedIds = new Set(refreshed.map((row) => row.id));
-  return [...refreshed, ...accumulated.filter((row) => !refreshedIds.has(row.id))];
+  const targeted = new Set(recordIds);
+  let changed = false;
+
+  const patched = accumulated.map((row) => {
+    if (!targeted.has(row.id) || row.readAtMs === readAtMs) {
+      return row;
+    }
+    changed = true;
+    return { ...row, readAtMs };
+  });
+
+  return changed ? patched : accumulated;
 }
 
 /**
- * Owns the notification master list's keyset-cursor pagination: the initial
- * page fetch, its reload when the view/unread/search filters change, and
- * the `Table.LoadMore` near-bottom trigger -- guarded so a second near-bottom
- * signal while a fetch is already in flight, or one that arrives after the
- * backend reported no further cursor, never issues a second request
- * (design.md §9.2, task 3a.2.4).
+ * Layers the notification master list's live updates over
+ * `useNotificationCenterPage`'s keyset pagination: the runtime events that
+ * change what is on screen without the user asking, and the read state the
+ * detail pane commits beside it.
  *
- * It also subscribes to the `notification.push` runtime event the rail badge
+ * It subscribes to the `notification.push` runtime event the rail badge
  * already listens to, so a record that arrives while the panel is open shows
  * up without a remount. The pushed payload is deliberately NOT appended: it
  * is a `Notification`, carrying no persisted record id, and a list keyed by
@@ -107,11 +96,18 @@ function mergeRefreshedRows(
  * the current filters and merges it in, which is also what keeps the
  * backend's own ordering and read state authoritative.
  *
- * That live refresh deliberately leaves the cursor and `hasNextPage`
- * untouched. They describe how far the user has paged, and a top-of-list
- * refresh does not move that boundary -- overwriting the cursor with page
- * one's would make the next near-bottom trigger re-fetch a page already on
- * screen.
+ * It subscribes to `notification.archived` for a sharper reason -- that one
+ * closes a real defect rather than adding a nicety. Archiving from the detail
+ * pane went straight to `ArchiveNotifications` and told nobody, so the record
+ * left the store and stayed on screen: the Archived tab showed it while the
+ * active list still did too. Listening to the event rather than threading a
+ * callback down through the pane covers every archive origin at once (the
+ * pane's button, the selection bar, a toast), because the store emits it on
+ * every commit.
+ *
+ * Read state gets no event and wants none. It is a local outcome of a button
+ * the user just pressed, not something other surfaces need announced, so the
+ * pane reports what it committed and `applyReadState` stamps it on.
  */
 export function useNotificationCenterSync(input: Readonly<NotificationCenterSyncInput>): NotificationCenterSyncResult {
   const {
@@ -124,68 +120,41 @@ export function useNotificationCenterSync(input: Readonly<NotificationCenterSync
     pushSource = notificationSource,
   } = input;
 
-  // 1. Refs
-  const isFetchingRef = useRef(false);
-  const cursorRef = useRef('');
+  // 4. Queries
+  const { refreshTopPage, transformRows, ...page } = useNotificationCenterPage({ source, view, unreadOnly, search, levels, sources });
 
-  // 2. State
-  const [rows, setRows] = useState<readonly NotificationRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [totalEverRecorded, setTotalEverRecorded] = useState(0);
-  const [degraded, setDegraded] = useState(false);
-
-  // 6. Callbacks (useCallback calling pure helpers)
-  const fetchPage = useCallback(
-    (cursor: string, mode: 'replace' | 'append') => {
-      isFetchingRef.current = true;
-      setIsLoading(true);
-
-      return source
-        .listNotifications(toNotificationPageRequest({ view, unreadOnly, search, levels, sources }, cursor))
-        .then((page) => {
-          setRows((current) => (mode === 'replace' ? page.items : [...current, ...page.items]));
-          cursorRef.current = page.nextCursor ?? '';
-          setHasNextPage(Boolean(page.nextCursor));
-          setTotalEverRecorded(page.totalEver);
-          setDegraded(page.degraded);
-          setIsLoading(false);
-          isFetchingRef.current = false;
-        });
+  // 6. Callbacks
+  const applyArchivedRecords = useCallback(
+    (recordIds: readonly number[]) => {
+      // The same event means opposite things on either side of the archive
+      // boundary: in the active list the records have LEFT, in the archive
+      // they have just ARRIVED. Filtering in the archived view would hide the
+      // very row the user switched there to find, so that side refreshes
+      // instead -- it has no id-keyed row to synthesise from a bare id list.
+      if (view === 'archived') {
+        refreshTopPage();
+        return;
+      }
+      transformRows((current) => dropArchivedRows(current, recordIds));
     },
-    [source, unreadOnly, view, search, levels, sources],
+    [refreshTopPage, transformRows, view],
   );
 
-  const refreshLiveRows = useCallback(() => {
-    // No loading flag and no in-flight guard on purpose: this is a
-    // background refresh the user did not ask for, so it must neither blank
-    // the table nor interfere with the near-bottom pagination guard.
-    void source.listNotifications(toNotificationPageRequest({ view, unreadOnly, search, levels, sources }, '')).then((page) => {
-      setRows((current) => mergeRefreshedRows(page.items, current));
-      setTotalEverRecorded(page.totalEver);
-      setDegraded(page.degraded);
-    });
-  }, [source, unreadOnly, view, search, levels, sources]);
-
-  const onLoadMore = useCallback(() => {
-    if (isFetchingRef.current || !hasNextPage) {
-      return;
-    }
-    void fetchPage(cursorRef.current, 'append');
-  }, [fetchPage, hasNextPage]);
-
-  const refetch = useCallback(() => {
-    void fetchPage('', 'replace');
-  }, [fetchPage]);
+  const applyReadState = useCallback(
+    (recordIds: readonly number[], isRead: boolean) => {
+      transformRows((current) => patchRowsReadState(current, recordIds, isRead ? Date.now() : undefined));
+    },
+    [transformRows],
+  );
 
   // 7. Effects
   useEffect(() => {
-    void fetchPage('', 'replace');
-  }, [fetchPage]);
+    return pushSource.subscribe(refreshTopPage);
+  }, [pushSource, refreshTopPage]);
 
   useEffect(() => {
-    return pushSource.subscribe(refreshLiveRows);
-  }, [pushSource, refreshLiveRows]);
+    return pushSource.subscribeArchived(applyArchivedRecords);
+  }, [applyArchivedRecords, pushSource]);
 
-  return { degraded, hasNextPage, isLoading, onLoadMore, refetch, rows, totalEverRecorded };
+  return { ...page, applyReadState };
 }

@@ -17,6 +17,13 @@ import type { UseNotificationMarkUnreadResult } from './notification-detail.type
  * derived from how many records were affected, exactly as every other
  * lifecycle mutation feeds it.
  *
+ * `onReadStateChanged` is the second half of that, and it is what makes the
+ * verb visible where the user is actually looking. Moving only the badge left
+ * the master-list row beside the pane still rendered as read, so one screen
+ * told both stories at once. It fires only when the mutation committed: a
+ * degraded result changed nothing in the store, and a dot restored over it
+ * would be the shape of a success that did not happen.
+ *
  * Unlike archive, this button does NOT latch down once it settles. Marking an
  * already-unread record unread lands on exactly the same state, and opening
  * the pane's record marks it read again behind the button — a latched button
@@ -28,6 +35,7 @@ import type { UseNotificationMarkUnreadResult } from './notification-detail.type
 export function useNotificationMarkUnread(
   notificationId: number,
   source: NotificationCenterSource = createNotificationCenterSource(),
+  onReadStateChanged?: (recordIds: readonly number[], isRead: boolean) => void,
 ): UseNotificationMarkUnreadResult {
   // 1. Refs
   const isMarkUnreadInFlightRef = useRef(false);
@@ -47,8 +55,11 @@ export function useNotificationMarkUnread(
       isMarkUnreadInFlightRef.current = false;
       setIsDisabled(false);
       applyNotificationMutationUnreadCount(result);
+      if (!result.degraded) {
+        onReadStateChanged?.([notificationId], false);
+      }
     });
-  }, [notificationId, source]);
+  }, [notificationId, onReadStateChanged, source]);
 
   return { isDisabled, markUnread };
 }

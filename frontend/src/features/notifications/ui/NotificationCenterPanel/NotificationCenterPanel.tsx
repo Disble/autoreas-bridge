@@ -54,6 +54,7 @@ export function NotificationCenterPanel({ pushSource, source }: Readonly<Notific
     canMarkAllRead,
     openRecord,
     onRowAction,
+    onReadStateChanged,
   } = useNotificationCenterPanel(source, pushSource);
 
   return (
@@ -89,7 +90,7 @@ export function NotificationCenterPanel({ pushSource, source }: Readonly<Notific
           rows={rows}
           selectedKeys={selectedKeys}
         />
-        <NotificationDetail detail={openRecord} source={source} />
+        <NotificationDetail detail={openRecord} onReadStateChanged={onReadStateChanged} source={source} />
       </div>
     </div>
   );
