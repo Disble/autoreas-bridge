@@ -1,6 +1,6 @@
 # Notification CTA Policy — what button a notification offers, and why
 
-- **Status**: Accepted, not yet implemented
+- **Status**: Accepted and implemented (2026-08-25)
 - **Date**: 2026-08-25
 - **Related**: `docs/adr/013-notification-center-boundaries.md` (what counts as a
   notification), `openspec/changes/2026-08-23-sdd-60-notification-center/`
@@ -54,25 +54,26 @@ Three corollaries, each of which decides a real case below:
 
 ## Table A — by notification kind
 
-Legend: ✅ correct today · 🔧 must change or be added
+Every row below is what ships today. What each one replaced is recorded under
+"Defects this closes".
 
 | Kind | What it is | Severity | L1 — footer | L2 — per row |
 |---|---|---|---|---|
-| `run_started` · `RunOnce` | A scheduled or manual run began | info | `Open Downloads` → `/downloads` ✅ | 🔧 add the anime card, no CTA † |
-| `run_started` · `RunAnime` | A single anime's download began | info | `Open Downloads` → `/downloads` ✅ | 🔧 add the anime card, no CTA † |
-| `run_completed` | The run finished cleanly and downloaded episodes | success | 🔧 `Watch today` → `/today`, keeping `Open Downloads` | 🔧 **by row status** (Table B) |
-| `download.run_stopped_early` | Finished without doing everything: partial, wholly failed, or user-stopped | warning · error · info | `Open Downloads` → `/downloads` ✅ | 🔧 **by row status** (Table B) |
-| `jdownloader_offline` | Blocked with MyJDownloader down; episodes need manual handling | warning | `Open Downloads` → `/downloads` ✅ | 🔧 **by row status** (Table B) |
-| `readiness_attention` | Scheduled anime the run is **about to** skip | warning | 🔧 `Open Downloads` → `/downloads` | `Open in editor` → `/editor/{id}` ✅ |
-| `season.anime_available` | Season anime now available to create in the catalog | info | 🔧 `Open Season` → `/season` | — identity only, no CTA ✅ |
-| `season.past_download_window` | A "Ver hoy" batch landed after the auto-download; **it will not download today** | warning | 🔧 `Download now` → **new intent** `season.download_now` | — no rows |
-| `sync_health_warning` | A paired device's sync has degraded | warning | 🔧 `Open Devices` → `/devices` | — no rows |
-| `device.paired` | A mobile device completed pairing | success | 🔧 `Open Devices` → `/devices` | — no rows |
-| `missed_schedule` | A selected day never ran because Bridge was closed | warning | `Run now` + `Ignore` ✅ | — no rows |
+| `run_started` · `RunOnce` | A scheduled or manual run began | info | `Open Downloads` → `/downloads` | the anime card, no CTA † |
+| `run_started` · `RunAnime` | A single anime's download began | info | `Open Downloads` → `/downloads` | the anime card, no CTA † |
+| `run_completed` | The run finished cleanly and downloaded episodes | success | `Watch today` → `/today`, keeping `Open Downloads` | **by row status** (Table B) |
+| `download.run_stopped_early` | Finished without doing everything: partial, wholly failed, or user-stopped | warning · error · info | `Open Downloads` → `/downloads` | **by row status** (Table B) |
+| `jdownloader_offline` | Blocked with MyJDownloader down; episodes need manual handling | warning | `Open Downloads` → `/downloads` | **by row status** (Table B) |
+| `readiness_attention` | Scheduled anime the run is **about to** skip | warning | `Open Downloads` → `/downloads` | `Open in editor` → `/editor/{id}` |
+| `season.anime_available` | Season anime now available to create in the catalog | info | `Open Season` → `/season` | — identity only, no CTA |
+| `season.past_download_window` | A "Ver hoy" batch landed after the auto-download; **it will not download today** | warning | `Download now` → `season.download_now` | — no rows |
+| `sync_health_warning` | A paired device's sync has degraded | warning | `Open Devices` → `/devices` | — no rows |
+| `device.paired` | A mobile device completed pairing | success | `Open Devices` → `/devices` | — no rows |
+| `missed_schedule` | A selected day never ran because Bridge was closed | warning | `Run now` + `Ignore` | — no rows |
 
 † `run_started` fires before the run produces any `animeRunOutcome`, so its rows
-carry anime identity and no result status. It needs its own row builder;
-`buildRunDetailRows` cannot serve it.
+carry anime identity and no result status — `buildRunStartedRows`, not
+`buildRunDetailRows`, and a `queued` status word outside the outcome vocabulary.
 
 Kind constants live in `internal/download/service_notification_kinds.go` and
 `app_notification_kinds.go`. Routes are verified against `frontend/src/App.tsx`.
@@ -100,7 +101,7 @@ That is precisely why keying on the kind is wrong.
 
 ## Defects this closes
 
-Today `notifyWithRows` always calls `buildRunActions(rows)`
+Before this policy landed, `notifyWithRows` always called `buildRunActions(rows)`
 (`internal/download/service_effects.go:78`), which binds *"Run this anime
 again"* to every row carrying a `RefID`, regardless of how that anime fared.
 One builder serves opposite outcomes. Three consequences:
@@ -115,31 +116,32 @@ One builder serves opposite outcomes. Three consequences:
    `buildJDOfflineActions` emits copy tokens only for outcomes that carry manual
    links; an outcome with none contributes nothing.
 
-## Implementation consequences
+## How it is built
 
 - **One action builder, keyed on `animeRunOutcome`.** `buildRunActions` and
-  `buildJDOfflineActions` merge. It must take `[]animeRunOutcome` rather than
-  `[]notification.DetailItem`, because a `manual` row's hoster links live on the
-  outcome and never reach the row. `notifyWithRows` takes outcomes accordingly.
-  Every call site already holds them (`service.go:442,447,451,456`,
-  `markCanceled` at `:477`, `service_single_anime.go:41,46,50,55`), so nothing
-  needs threading through.
-- **`RunOnce` must resolve its anime before announcing the run.**
-  `listActiveAnimesToday` currently runs inside `execute`
-  (`internal/download/service.go:305`), after the `run_started` notify at
-  `:255`. Hoist the query above the notify and pass the result into `execute` —
-  it is already unconditional there, so the query count is unchanged. Do **not**
-  move the notify below `execute` instead: the run currently announces itself
-  even when the catalog query fails or nothing is scheduled, and that must
-  survive.
-- **One new intent: `season.download_now`.** Every other 🔧 above is
-  `navigation.open` (`internal/notification/center/intent_registry.go:34`),
-  already registered and repeatable, with a route frozen into its args. This one
-  is an operation, so it needs registering in `registerNotificationIntents`
-  (`app_notification_center.go:309`), gated on the season subsystem being live,
-  wrapping `triggerDownloadsForSeason`. Register it **single-fire**, following
-  `schedule.run_missed_now`: it settles one moment, and once the batch has
-  downloaded that moment is closed.
+  `buildJDOfflineActions` merged into `buildOutcomeActions`. It takes
+  `[]animeRunOutcome` rather than `[]notification.DetailItem`, because a `manual`
+  row's hoster links live on the outcome and never reach the row.
+  `notifyWithRows` became `notifyWithOutcomes` and derives both halves from one
+  source; every call site already held the outcomes.
+- **L1 is the one place a kind picks a verb**, in `runWideActions(kind)`. That is
+  the level split working rather than leaking: L1 answers "where does this event
+  live", which is a property of the event.
+- **`RunOnce` resolves its anime before announcing the run.**
+  `listActiveAnimesToday` used to run inside `execute`, after the notify, so the
+  announcement had no subject. The query is hoisted above it and handed to
+  `execute`, which already ran it unconditionally, leaving the query count
+  unchanged. Moving the notify below `execute` instead was rejected: a run
+  announces itself even when the catalog query fails or nothing is scheduled, and
+  a run that errors on selection still started. A failed query degrades to the
+  subject-less sentence, never to silence.
+- **One new intent: `season.download_now`.** Every other destination above is
+  `navigation.open`, already registered and repeatable, with a route frozen into
+  its args. This one is an operation, so it is registered in
+  `registerNotificationIntents` gated on the season subsystem being live —
+  an unwired subsystem must surface as `intent_unregistered`, never reach a nil
+  dependency. It is **single-fire**, following `schedule.run_missed_now`: it
+  settles one moment, and once the batch has downloaded that moment is closed.
 
 ### Why `season.past_download_window` needs an operation, not a link
 
