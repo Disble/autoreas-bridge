@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRunHistoryPanel } from '../use-run-history-panel';
 import type { DownloadRuntimeSource } from '../../../../../infrastructure/download-runtime-source/download-runtime-source.types';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
-import { resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { getDownloadRuntimeStoreState, resetDownloadRuntimeStore } from '../../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
+import { atRoute } from './run-history-router';
 
 /** Builds one run history row, numbered so ordering assertions read plainly. */
 function createRun(index: number, overrides: Partial<DownloadRunView> = {}): DownloadRunView {
@@ -71,14 +72,14 @@ describe('useRunHistoryPanel', () => {
 
   it('starts in the loading status', () => {
     const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     expect(result.current.viewModel.status).toBe('loading');
   });
 
   it('loads runs and exposes them as rows', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -89,21 +90,21 @@ describe('useRunHistoryPanel', () => {
 
   it('surfaces the "empty" status when there are no runs', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue([]) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('empty'));
   });
 
   it('surfaces an error status when listDownloadRuns rejects', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockRejectedValue(new Error('boom')) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('error'));
   });
 
   it('selectRun resolves the selected run by id in the view model', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -116,7 +117,7 @@ describe('useRunHistoryPanel', () => {
 
   it('shows only the newest 20 runs at first and exposes load more for older history', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -129,7 +130,7 @@ describe('useRunHistoryPanel', () => {
 
   it('loadMore reveals older runs while preserving the current selection', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -148,7 +149,7 @@ describe('useRunHistoryPanel', () => {
 
   it('reveals older runs when the rail is scrolled near its bottom', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
     expect(result.current.viewModel.visibleRows).toHaveLength(20);
@@ -164,7 +165,7 @@ describe('useRunHistoryPanel', () => {
 
   it('ignores a scroll that is still far from the bottom', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -179,7 +180,7 @@ describe('useRunHistoryPanel', () => {
 
   it('does not expose load more when fewer than 20 runs exist', async () => {
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(manyRuns.slice(0, 12)) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
 
@@ -201,7 +202,7 @@ describe('useRunHistoryPanel', () => {
     });
     const source = createSource({ listDownloadRuns, subscribeRunEvents });
 
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.rows).toHaveLength(25));
 
@@ -234,7 +235,7 @@ describe('useRunHistoryPanel stop control', () => {
 
   it('exposes no stop control when every run has finished', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.status).toBe('ready'));
     expect(result.current.viewModel.runInProgress).toBe(false);
@@ -244,7 +245,7 @@ describe('useRunHistoryPanel stop control', () => {
     const source = createSource({
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
     });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
   });
@@ -255,7 +256,7 @@ describe('useRunHistoryPanel stop control', () => {
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
       cancelDownloadRun,
     });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
     await act(async () => {
@@ -270,7 +271,7 @@ describe('useRunHistoryPanel stop control', () => {
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { status: 'running' }), ...runs]),
       cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
     });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
     await act(async () => {
@@ -293,7 +294,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
   it('reports the stop as pending from the press until the run actually ends', async () => {
     const runningRuns = [createRun(3, { runId: 'run-live', status: 'running' }), ...runs];
     const source = createSource({ listDownloadRuns: vi.fn().mockResolvedValue(runningRuns) });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
     expect(result.current.viewModel.isStopping).toBe(false);
@@ -318,7 +319,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
         return () => undefined;
       }),
     });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
     await act(async () => {
@@ -341,7 +342,7 @@ describe('useRunHistoryPanel stopping feedback', () => {
       listDownloadRuns: vi.fn().mockResolvedValue([createRun(3, { runId: 'run-live', status: 'running' }), ...runs]),
       cancelDownloadRun: vi.fn().mockResolvedValue('no download run in progress'),
     });
-    const { result } = renderHook(() => useRunHistoryPanel(source));
+    const { result } = renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
 
     await waitFor(() => expect(result.current.viewModel.runInProgress).toBe(true));
     await act(async () => {
@@ -350,5 +351,32 @@ describe('useRunHistoryPanel stopping feedback', () => {
 
     expect(result.current.viewModel.isStopping).toBe(false);
     expect(result.current.viewModel.errorMessage).toBe('no download run in progress');
+  });
+
+  // The whole point of the run parameter: a notification's "See this run" verb
+  // is a route change, and it must land on the run it names rather than on the
+  // newest one. Before this, the correlation id was a token printed in the
+  // notification pane that nobody could act on.
+  it('selects the run the route asked for', async () => {
+    const source = createSource();
+
+    renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute('?runId=run-2') });
+
+    await waitFor(() => {
+      expect(getDownloadRuntimeStoreState().selectedRunId).toBe('run-2');
+    });
+  });
+
+  // No parameter must leave the panel's own default alone rather than clearing
+  // whatever the user had selected.
+  it('leaves the selection alone when the route names no run', async () => {
+    const source = createSource();
+    getDownloadRuntimeStoreState().selectRun('run-1');
+
+    renderHook(() => useRunHistoryPanel(source), { wrapper: atRoute() });
+
+    await waitFor(() => {
+      expect(getDownloadRuntimeStoreState().selectedRunId).toBe('run-1');
+    });
   });
 });

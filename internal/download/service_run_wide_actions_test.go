@@ -30,16 +30,16 @@ func TestRunWideActionsOffersToWatchOnlyOnACompletedRun(t *testing.T) {
 		kind string
 		want []string
 	}{
-		{kind: "run_completed", want: []string{"Open Downloads", "Watch today"}},
-		{kind: "run_started", want: []string{"Open Downloads"}},
-		{kind: "download.run_stopped_early", want: []string{"Open Downloads"}},
-		{kind: "jdownloader_offline", want: []string{"Open Downloads"}},
-		{kind: "readiness_attention", want: []string{"Open Downloads"}},
+		{kind: "run_completed", want: []string{"See this run", "Watch today"}},
+		{kind: "run_started", want: []string{"See this run"}},
+		{kind: "download.run_stopped_early", want: []string{"See this run"}},
+		{kind: "jdownloader_offline", want: []string{"See this run"}},
+		{kind: "readiness_attention", want: []string{"See this run"}},
 	} {
 		t.Run(testCase.kind, func(t *testing.T) {
 			t.Parallel()
 
-			got := runWideLabels(runWideActions(testCase.kind))
+			got := runWideLabels(runWideActions(testCase.kind, "run-1"))
 
 			if len(got) != len(testCase.want) {
 				t.Fatalf("run-wide labels for %q = %#v, want %#v", testCase.kind, got, testCase.want)
@@ -58,7 +58,7 @@ func TestRunWideActionsOffersToWatchOnlyOnACompletedRun(t *testing.T) {
 func TestRunWideWatchTokenIsAddressedAtToday(t *testing.T) {
 	t.Parallel()
 
-	for _, action := range runWideActions("run_completed") {
+	for _, action := range runWideActions("run_completed", "run-1") {
 		if action.Label != "Watch today" {
 			continue
 		}
@@ -87,8 +87,8 @@ func TestCompletedRunNotificationCarriesTheWatchTodayToken(t *testing.T) {
 	}
 
 	got := runWideLabels(sent.Actions)
-	if len(got) != 2 || got[0] != "Open Downloads" || got[1] != "Watch today" {
-		t.Fatalf("run-wide labels = %#v, want [Open Downloads Watch today]", got)
+	if len(got) != 2 || got[0] != "See this run" || got[1] != "Watch today" {
+		t.Fatalf("run-wide labels = %#v, want [See this run, Watch today]", got)
 	}
 }
 
@@ -101,10 +101,10 @@ func TestReadinessAttentionCarriesTheRunWideToken(t *testing.T) {
 
 	rows := []notification.DetailItem{{RefType: "anime", RefID: "anime-1", Name: "Blocked One"}}
 
-	got := runWideLabels(buildReadinessAttentionActions(rows))
+	got := runWideLabels(buildReadinessAttentionActions("run-1", rows))
 
-	if len(got) != 1 || got[0] != "Open Downloads" {
-		t.Fatalf("run-wide labels = %#v, want [Open Downloads]", got)
+	if len(got) != 1 || got[0] != "See this run" {
+		t.Fatalf("run-wide labels = %#v, want [See this run]", got)
 	}
 }
 
@@ -115,7 +115,7 @@ func TestReadinessAttentionKeepsItsPerRowEditorToken(t *testing.T) {
 
 	rows := []notification.DetailItem{{RefType: "anime", RefID: "anime-1", Name: "Blocked One"}}
 
-	got := rowTokens(buildReadinessAttentionActions(rows), "anime-1")
+	got := rowTokens(buildReadinessAttentionActions("run-1", rows), "anime-1")
 
 	assertTokens(t, got, []string{"Open in editor=navigation.open"})
 }

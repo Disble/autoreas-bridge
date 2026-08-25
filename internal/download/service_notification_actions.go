@@ -8,12 +8,18 @@ import (
 )
 
 const (
-	// downloadsRoute is the frontend route a run notification's whole-notification action opens.
-	// It is frozen into the action's args at creation and resolved only at press time, so a run
-	// notification from days ago still opens the right screen (design-canvas Intents.dc.html).
-	downloadsRoute = "/downloads"
-	// openDownloadsActionLabel is the copy the design canvas gives that whole-notification action.
-	openDownloadsActionLabel = "Open Downloads"
+	// seeThisRunRouteFormat is the frontend route a run notification's whole-notification action
+	// opens: the Downloads screen with THIS run selected. Frozen into the action's args at
+	// creation and resolved only at press time, so a run notification from days ago still opens
+	// the right screen and the right run.
+	//
+	// The run id is what the record already carries as its correlation id, which is the whole
+	// reason that field stopped being printed in the notification pane as an opaque token: it is
+	// an argument for a link, not for text (docs/notification-cta-policy.md).
+	seeThisRunRouteFormat = "/downloads?runId=%s"
+	// seeThisRunActionLabel is the copy on that action. It replaced a plain "Open Downloads",
+	// which landed on the same screen showing whichever run happened to be newest.
+	seeThisRunActionLabel = "See this run"
 	// runAnimeActionLabel is the copy the design canvas gives a row's own re-run action.
 	runAnimeActionLabel = "Run this anime again"
 	// animeRefType marks a detail row that references one anime. Every row-bound token this
@@ -55,11 +61,11 @@ const (
 // Kept as a function rather than a package-level slice because an ActionSpec carries a mutable
 // Args map -- a shared literal would let one notification's frozen arguments be rewritten
 // through another's, which is precisely the immutability the token pattern exists to provide.
-func runWideActions(kind string) []notification.ActionSpec {
+func runWideActions(kind string, runID string) []notification.ActionSpec {
 	actions := []notification.ActionSpec{{
-		Label:  openDownloadsActionLabel,
+		Label:  seeThisRunActionLabel,
 		Intent: center.IntentNavigationOpen,
-		Args:   map[string]string{center.ArgKeyRoute: downloadsRoute},
+		Args:   map[string]string{center.ArgKeyRoute: fmt.Sprintf(seeThisRunRouteFormat, runID)},
 	}}
 	if kind == kindRunCompleted {
 		actions = append(actions, notification.ActionSpec{
@@ -83,8 +89,8 @@ func runWideActions(kind string) []notification.ActionSpec {
 //
 // An outcome with no id is skipped outright: every verb below addresses a record, so a token
 // frozen against no id would refuse the moment it was pressed.
-func buildOutcomeActions(kind string, outcomes []animeRunOutcome) []notification.ActionSpec {
-	actions := runWideActions(kind)
+func buildOutcomeActions(kind string, runID string, outcomes []animeRunOutcome) []notification.ActionSpec {
+	actions := runWideActions(kind, runID)
 	for _, outcome := range outcomes {
 		if outcome.animeID == "" {
 			continue

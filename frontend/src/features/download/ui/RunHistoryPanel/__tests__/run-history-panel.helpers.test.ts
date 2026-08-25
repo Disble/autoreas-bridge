@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { findRunningRunId, pendingEpisodesLabel, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
+import { findRunningRunId, pendingEpisodesLabel, readRequestedRunId, toRunHistoryPanelViewModel } from '../run-history-panel.helpers';
 import type { DownloadRunView } from '../../../../../shared/contracts/download.types';
 
+/**
+ * Builds a run whose every counter is derived from its index, so a list of them is varied
+ * without any single value being meaningful. Used where the test cares about ordering or
+ * volume rather than about what a particular run contains.
+ *
+ * @param index Position of the run in the generated list.
+ * @returns A run view with distinct, reproducible values.
+ */
 function createRun(index: number): DownloadRunView {
   return {
     runId: `run-${index}`,
@@ -20,6 +28,7 @@ function createRun(index: number): DownloadRunView {
   };
 }
 
+/** A run that finished cleanly, with seven anime skipped as already up to date. */
 const okRun: DownloadRunView = {
   runId: 'run-1',
   startedAtMs: 1_700_000_000_000,
@@ -36,6 +45,7 @@ const okRun: DownloadRunView = {
   status: 'ok',
 };
 
+/** A run that ended with JDownloader offline, so nothing downloaded and links await the user. */
 const jdOfflineRun: DownloadRunView = {
   runId: 'run-2',
   startedAtMs: 1_700_086_400_000,
@@ -146,5 +156,31 @@ describe('findRunningRunId', () => {
 
   it('does not mistake a canceled run for a running one', () => {
     expect(findRunningRunId([{ ...okRun, status: 'canceled' }])).toBeUndefined();
+  });
+});
+
+describe('readRequestedRunId', () => {
+  // The correlation id on a download notification IS its run id, which is what
+  // lets a notification's "See this run" verb address one run rather than
+  // dropping the user on the newest (docs/notification-cta-policy.md).
+  it('reads the run a caller asked for', () => {
+    expect(readRequestedRunId('?runId=run-dkxpla04beok')).toBe('run-dkxpla04beok');
+  });
+
+  it('reads it alongside other parameters', () => {
+    expect(readRequestedRunId('?tab=downloads&runId=run-7')).toBe('run-7');
+  });
+
+  // Absent means "no one asked", which must leave the panel's own default
+  // selection alone rather than clearing it.
+  it('reports nothing when no run was asked for', () => {
+    expect(readRequestedRunId('')).toBeUndefined();
+    expect(readRequestedRunId('?tab=downloads')).toBeUndefined();
+  });
+
+  // An empty value addresses no run. Selecting "" would look like a selection
+  // and resolve to nothing, which is worse than falling back to the newest run.
+  it('treats an empty value as nothing asked for', () => {
+    expect(readRequestedRunId('?runId=')).toBeUndefined();
   });
 });

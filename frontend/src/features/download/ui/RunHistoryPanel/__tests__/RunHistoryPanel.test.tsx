@@ -2,13 +2,16 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RunHistoryPanel } from '../RunHistoryPanel';
 import { useRunHistoryPanel } from '../use-run-history-panel';
+import { atRoute } from './run-history-router';
 
 vi.mock('../use-run-history-panel', () => ({
   useRunHistoryPanel: vi.fn(),
 }));
 
+/** The mocked hook, so these tests judge the rendered panel and not the data it derives. */
 const mockedUseRunHistoryPanel = vi.mocked(useRunHistoryPanel);
 
+/** Two history rows, the first selected, covering both the ok and jd_offline status labels. */
 const rows = [
   {
     runId: 'run-1',
@@ -30,6 +33,7 @@ const rows = [
   },
 ];
 
+/** Detail for a run that ended with JDownloader offline, so its episodes are manual links instead. */
 const jdOfflineRun = {
   runId: 'run-2',
   startedAtMs: 1_700_086_400_000,
@@ -47,6 +51,7 @@ const jdOfflineRun = {
   manualLinks: [{ anime: 'Frieren', episode: 12, links: ['https://example.com/a'] }],
 };
 
+/** Detail for a run that finished cleanly, the baseline the other fixtures are read against. */
 const okRun = {
   runId: 'run-1',
   startedAtMs: 1_700_000_000_000,
@@ -78,7 +83,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByLabelText('Loading download run history')).toBeInTheDocument();
   });
@@ -93,7 +98,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByText(/no download runs yet/i)).toBeInTheDocument();
   });
@@ -108,7 +113,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByRole('alert')).toHaveTextContent('network down');
   });
@@ -123,7 +128,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByRole('button', { name: /1\/1\/2024.*ok/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /1\/2\/2024.*jd_offline/i })).toBeInTheDocument();
@@ -140,7 +145,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     fireEvent.click(screen.getByRole('button', { name: /1\/2\/2024.*jd_offline/i }));
 
@@ -157,7 +162,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByText('Frieren')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /example\.com/i })).toHaveAttribute(
@@ -178,7 +183,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByText('Not attempted')).toBeInTheDocument();
     expect(screen.queryByText('Downloading')).not.toBeInTheDocument();
@@ -203,7 +208,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByText('Downloading')).toBeInTheDocument();
     expect(screen.queryByText('Not attempted')).not.toBeInTheDocument();
@@ -219,7 +224,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     const label = screen.getByText('Up to date');
     expect(label).toBeInTheDocument();
@@ -236,7 +241,7 @@ describe('RunHistoryPanel', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByText(/select a run/i)).toBeInTheDocument();
   });
@@ -278,7 +283,7 @@ describe('RunHistoryPanel', () => {
       onScroll,
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.queryByRole('button', { name: /load .* more runs/i })).not.toBeInTheDocument();
 
@@ -304,7 +309,7 @@ describe('RunHistoryPanel stop control', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.queryByRole('button', { name: /stop run/i })).not.toBeInTheDocument();
   });
@@ -320,7 +325,7 @@ describe('RunHistoryPanel stop control', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
     fireEvent.click(screen.getByRole('button', { name: /stop run/i }));
 
     expect(cancelRun).toHaveBeenCalledTimes(1);
@@ -345,7 +350,7 @@ describe('RunHistoryPanel stop control', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     expect(screen.getByRole('alert')).toHaveTextContent('no download run in progress');
     expect(screen.getByRole('button', { name: /stop run/i })).toBeInTheDocument();
@@ -377,7 +382,7 @@ describe('RunHistoryPanel stopping feedback', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
 
     const stopButton = screen.getByRole('button', { name: /stopping/i });
     expect(stopButton).toBeDisabled();
@@ -403,7 +408,7 @@ describe('RunHistoryPanel stopping feedback', () => {
       onScroll: vi.fn(),
     });
 
-    render(<RunHistoryPanel />);
+    render(<RunHistoryPanel />, { wrapper: atRoute() });
     fireEvent.click(screen.getByRole('button', { name: /stopping/i }));
 
     expect(cancelRun).not.toHaveBeenCalled();

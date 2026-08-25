@@ -72,7 +72,7 @@ func (s *Service) publish(event events.Event) {
 // empty outcome slice produces a notification with no rows and its whole-notification tokens
 // alone, which is exactly what a run that selected nothing should say.
 func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Level, kind, runID, title, body string, outcomes []animeRunOutcome) {
-	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(kind, outcomes))
+	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(kind, runID, outcomes))
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing

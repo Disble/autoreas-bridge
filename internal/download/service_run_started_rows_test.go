@@ -109,7 +109,7 @@ func TestBuildRunStartedRowsIsEmptyWhenNothingWasSelected(t *testing.T) {
 func TestStartedRowsCarryNoPerRowToken(t *testing.T) {
 	t.Parallel()
 
-	for _, action := range runWideActions(kindRunStarted) {
+	for _, action := range runWideActions(kindRunStarted, "run-1") {
 		if action.RowRef != "" {
 			t.Fatalf("a started notification carries a row-bound token %#v", action)
 		}

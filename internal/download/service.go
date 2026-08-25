@@ -260,7 +260,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	animes, selectionErr := s.listActiveAnimesToday(ctx)
 	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
 		"Download run started", fmt.Sprintf("Download check started (%s).", trigger),
-		buildRunStartedRows(animes), runWideActions(kindRunStarted))
+		buildRunStartedRows(animes), runWideActions(kindRunStarted, runID))
 	// Raised before the pipeline runs, not after: this is the one notification that warns about
 	// what is about to happen rather than reporting what did.
 	s.raiseReadinessAttention(ctx, runID, trigger)
@@ -296,7 +296,7 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
 	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
 		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name),
-		buildRunStartedRows([]contracts.MobileAnime{anime}), runWideActions(kindRunStarted))
+		buildRunStartedRows([]contracts.MobileAnime{anime}), runWideActions(kindRunStarted, runID))
 
 	result := s.executeAnimeLive(ctx, runID, &run, anime)
 	s.finishRunLog(runID, &run)

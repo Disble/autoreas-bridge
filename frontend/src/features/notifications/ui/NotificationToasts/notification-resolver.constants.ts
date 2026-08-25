@@ -24,15 +24,19 @@ export const MISSED_FAILURE_TOAST_ID = 'missed-schedule-failure';
  * Backend notification kinds a dedicated resolver already renders, which
  * `useBackendEventResolver` therefore must not render a second time.
  *
- * `missed_schedule` is now raised by the Go producer so it becomes a durable
+ * `missed_schedule` is raised by the Go producer so it becomes a durable
  * Center record instead of a toast that cannot be found again — but the
- * toast for it stays with `useMissedScheduleResolver`, which is the only
- * resolver that can render it properly: it is persistent until the day is
- * settled and carries "Run now"/"Ignore" buttons wired to the scheduler.
- * The generic backend path can reproduce neither — the `notification.push`
- * payload carries an `ActionSpec` without the persisted action ids a press
- * needs, and `RecordID` is never populated — so it would only add a poorer
- * duplicate beside the real one.
+ * toast for it stays with `useMissedScheduleResolver`, because that toast is
+ * PERSISTENT: it stays on screen until the day is settled, and a decision the
+ * user has not made yet must not expire on a four-second timer.
+ *
+ * That is now the whole reason. This comment used to give two more — that the
+ * `notification.push` payload carried actions without the persisted ids a
+ * press needs, and that `RecordID` was never populated — and both stopped
+ * being true when the delivery envelope started carrying identity
+ * (docs/adr/016-notification-adapters-project-not-truncate.md). The generic
+ * path could render pressable buttons for this kind today; what it still
+ * cannot do is keep them on screen until they are answered.
  *
  * This is a set of kinds rather than a hardcoded branch so the next
  * dedicated resolver is one entry, not another `if`.

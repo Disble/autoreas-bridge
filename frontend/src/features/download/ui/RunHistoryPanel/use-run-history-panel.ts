@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router';
 import type { UIEvent } from 'react';
 import { downloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.helpers';
 import type { DownloadRuntimeSource } from '../../../../infrastructure/download-runtime-source/download-runtime-source.types';
@@ -6,7 +7,7 @@ import { isNearListBottom } from '../../../../shared/helpers/progressive-list.he
 import { connectDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store.helpers';
 import { useDownloadRuntimeStore } from '../../../../shared/store/download-runtime-store/download-runtime-store';
 import { RUN_HISTORY_PAGE_SIZE } from './run-history-panel.constants';
-import { findRunningRunId, getNextVisibleRunCount, reconcileVisibleRunCount, toRunHistoryPanelViewModel } from './run-history-panel.helpers';
+import { findRunningRunId, getNextVisibleRunCount, readRequestedRunId, reconcileVisibleRunCount, toRunHistoryPanelViewModel } from './run-history-panel.helpers';
 
 /**
  * useRunHistoryPanel loads the download run history and exposes a
@@ -25,6 +26,7 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   const [stopRequestedRunId, setStopRequestedRunId] = useState<string | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
+  const { search } = useLocation();
   const runs = useDownloadRuntimeStore((state) => state.runHistory);
   const hasLoaded = useDownloadRuntimeStore((state) => state.runHistoryHasLoaded);
   const errorMessage = useDownloadRuntimeStore((state) => state.runHistoryErrorMessage);
@@ -76,6 +78,22 @@ export function useRunHistoryPanel(source: DownloadRuntimeSource = downloadRunti
   useEffect(() => {
     connectDownloadRuntimeStore(source);
   }, [source]);
+
+  // A caller that named a run gets that run selected. It runs on every change to
+  // the query rather than once on mount, because a notification pressed while
+  // Downloads is already open changes the route without remounting the panel --
+  // which is the ordinary case, not the edge one.
+  //
+  // Keyed on the requested id rather than on `runs`: re-selecting on every
+  // history refresh would fight the user's own clicks for the rest of the
+  // session, and the panel already falls back to the newest run when the id
+  // names nothing it holds.
+  const requestedRunId = readRequestedRunId(search);
+  useEffect(() => {
+    if (requestedRunId !== undefined) {
+      storeSelectRun(requestedRunId);
+    }
+  }, [requestedRunId, storeSelectRun]);
 
   useEffect(() => {
     setVisibleCount((currentVisibleCount) =>

@@ -96,6 +96,25 @@ function resolveSelectedRunId(
   return runs[0]?.runId;
 }
 
+/**
+ * Reads the run a caller asked the route to open, from its query string.
+ *
+ * A download notification's correlation id IS its run id, so a "See this run"
+ * verb can address one run rather than dropping the user on the newest one.
+ * That verb is the reason this exists: the correlation id used to be printed in
+ * the notification pane as an opaque token nobody could paste anywhere, and it
+ * only becomes useful once a route can act on it
+ * (docs/notification-cta-policy.md, "Metadata is not content").
+ *
+ * An absent or empty value reports nothing rather than an empty string: the
+ * panel must fall back to its own default selection, and selecting "" would
+ * look like a choice while resolving to no run at all.
+ */
+export function readRequestedRunId(search: string): string | undefined {
+  const requested = new URLSearchParams(search).get('runId');
+  return requested === null || requested === '' ? undefined : requested;
+}
+
 /** Returns the bounded initial list size for the current history snapshot. */
 function getInitialVisibleRunCount(totalRuns: number): number {
   return Math.min(totalRuns, RUN_HISTORY_PAGE_SIZE);

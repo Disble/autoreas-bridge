@@ -322,7 +322,7 @@ func TestReadinessAttentionCollapsedRowNamesItsCohort(t *testing.T) {
 	// exactly that one token and nothing else -- checking only that it is non-empty stopped
 	// meaning anything once readiness_attention gained an L1 verb.
 	_, unbound := partitionActionsByLevel(got.Actions)
-	if len(unbound) != 1 || unbound[0].Label != "Open Downloads" {
+	if len(unbound) != 1 || unbound[0].Label != "See this run" {
 		t.Fatalf("unbound actions = %#v, want only the whole-notification token", unbound)
 	}
 }

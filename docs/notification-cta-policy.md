@@ -59,12 +59,12 @@ Every row below is what ships today. What each one replaced is recorded under
 
 | Kind | What it is | Severity | L1 — footer | L2 — per row |
 |---|---|---|---|---|
-| `run_started` · `RunOnce` | A scheduled or manual run began | info | `Open Downloads` → `/downloads` | the anime card, no CTA † |
-| `run_started` · `RunAnime` | A single anime's download began | info | `Open Downloads` → `/downloads` | the anime card, no CTA † |
-| `run_completed` | The run finished cleanly and downloaded episodes | success | `Watch today` → `/today`, keeping `Open Downloads` | **by row status** (Table B) |
-| `download.run_stopped_early` | Finished without doing everything: partial, wholly failed, or user-stopped | warning · error · info | `Open Downloads` → `/downloads` | **by row status** (Table B) |
-| `jdownloader_offline` | Blocked with MyJDownloader down; episodes need manual handling | warning | `Open Downloads` → `/downloads` | **by row status** (Table B) |
-| `readiness_attention` | Scheduled anime the run is **about to** skip | warning | `Open Downloads` → `/downloads` | `Open in editor` → `/editor/{id}` |
+| `run_started` · `RunOnce` | A scheduled or manual run began | info | `See this run` → `/downloads?runId={runId}` | the anime card, no CTA † |
+| `run_started` · `RunAnime` | A single anime's download began | info | `See this run` → `/downloads?runId={runId}` | the anime card, no CTA † |
+| `run_completed` | The run finished cleanly and downloaded episodes | success | `Watch today` → `/today`, keeping `See this run` | **by row status** (Table B) |
+| `download.run_stopped_early` | Finished without doing everything: partial, wholly failed, or user-stopped | warning · error · info | `See this run` → `/downloads?runId={runId}` | **by row status** (Table B) |
+| `jdownloader_offline` | Blocked with MyJDownloader down; episodes need manual handling | warning | `See this run` → `/downloads?runId={runId}` | **by row status** (Table B) |
+| `readiness_attention` | Scheduled anime the run is **about to** skip | warning | `See this run` → `/downloads?runId={runId}` | `Open in editor` → `/editor/{id}` |
 | `season.anime_available` | Season anime now available to create in the catalog | info | `Open Season` → `/season` | — identity only, no CTA |
 | `season.past_download_window` | A "Ver hoy" batch landed after the auto-download; **it will not download today** | warning | `Download now` → `season.download_now` | — no rows |
 | `sync_health_warning` | A paired device's sync has degraded | warning | `Open Devices` → `/devices` | — no rows |
@@ -157,12 +157,16 @@ a link, not for an opaque token the user cannot paste anywhere in the app. For a
 download notification the correlation id IS the run id, so it becomes a
 whole-notification verb: `See this run`.
 
-That verb has a destination and no address yet, so it is **not shipped**.
-`RunHistoryPanel` already selects a run by id, but the selection is
-component-local state; `/downloads` accepts no run selector, and
-`resolveSelectedRunId` falls back to the newest run. The route needs to honour a
-run parameter first -- an action that quietly opens the wrong run is worse than
-the opaque token it replaces.
+That verb is **shipped**. `/downloads?runId=` selects the run it names:
+`useRunHistoryPanel` reads the parameter and seeds the shared store's
+`selectedRunId`, and `resolveSelectedRunId` falls back to the newest run only
+when the id names nothing the history holds.
+
+It REPLACED `Open Downloads` on every download-run notification rather than
+sitting beside it. The plain route landed on whichever run happened to be
+newest, which is a different run by the time a notification from an hour ago is
+opened -- so the run-scoped verb subsumes it, and two buttons onto the same
+screen would have been noise.
 
 The design canvas draws that metadata footer. It was the starting point, not the
 ceiling — this supersedes it deliberately.

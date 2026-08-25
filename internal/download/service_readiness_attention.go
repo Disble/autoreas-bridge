@@ -78,7 +78,7 @@ func (s *Service) raiseReadinessAttention(ctx context.Context, runID, trigger st
 	s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindReadinessAttention, runID,
 		readinessAttentionTitle,
 		fmt.Sprintf("%d scheduled anime cannot download and will be skipped on this run.", len(blocked)),
-		rows, buildReadinessAttentionActions(rows))
+		rows, buildReadinessAttentionActions(runID, rows))
 }
 
 // scheduledBlockedAnimes narrows a readiness snapshot to the anime this notice is about: the ones
@@ -147,8 +147,8 @@ func buildReadinessAttentionRows(blocked []contracts.AnimeDownloadReadiness) []n
 // The summary row is skipped, because it stands in for anime it does not name -- there is no
 // single editor route a token could be frozen to. Each row gets its own Args map rather than a
 // shared one, so one row's frozen route can never be rewritten through another's.
-func buildReadinessAttentionActions(rows []notification.DetailItem) []notification.ActionSpec {
-	actions := runWideActions(kindReadinessAttention)
+func buildReadinessAttentionActions(runID string, rows []notification.DetailItem) []notification.ActionSpec {
+	actions := runWideActions(kindReadinessAttention, runID)
 	for _, row := range rows {
 		if row.RefType != animeRefType || row.RefID == "" {
 			continue

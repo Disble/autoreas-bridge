@@ -45,24 +45,30 @@ func findRunWideActionByIntent(t *testing.T, actions []notification.ActionSpec, 
 	return findActionByIntent(t, runWide, intent)
 }
 
-// TestRunWideActionsIsTheOpenDownloadsTokenAlone pins the whole-notification half of the two
-// levels: a token with NO row binding, addressed at the downloads route.
-func TestRunWideActionsIsTheOpenDownloadsTokenAlone(t *testing.T) {
+// TestRunWideActionsIsTheSeeThisRunTokenAlone pins the whole-notification half of the two levels:
+// a token with NO row binding, addressed at the Downloads screen with THIS run selected.
+//
+// The route carries the run id because the alternative -- a plain "/downloads" -- landed on
+// whichever run happened to be newest, which is a different run by the time a notification from
+// an hour ago is opened.
+func TestRunWideActionsIsTheSeeThisRunTokenAlone(t *testing.T) {
 	t.Parallel()
 
-	actions := runWideActions(kindRunStarted)
+	actions := runWideActions(kindRunStarted, "run-1")
 
 	if len(actions) != 1 {
-		t.Fatalf("runWideActions(kindRunStarted) = %#v, want exactly 1 whole-notification token", actions)
+		t.Fatalf("runWideActions(kindRunStarted, ...) = %#v, want exactly 1 whole-notification token", actions)
 	}
 	if actions[0].Intent != "navigation.open" {
 		t.Fatalf("intent = %q, want %q", actions[0].Intent, "navigation.open")
 	}
-	if actions[0].Label != "Open Downloads" {
-		t.Fatalf("label = %q, want %q", actions[0].Label, "Open Downloads")
+	if actions[0].Label != "See this run" {
+		t.Fatalf("label = %q, want %q", actions[0].Label, "See this run")
 	}
-	if actions[0].Args["route"] != "/downloads" {
-		t.Fatalf("args = %#v, want the downloads route frozen in", actions[0].Args)
+	// Written as a literal rather than through the format constant: asserting against the
+	// production symbol would pass even if that format were rewritten.
+	if actions[0].Args["route"] != "/downloads?runId=run-1" {
+		t.Fatalf("args = %#v, want the run's own downloads route frozen in", actions[0].Args)
 	}
 	if actions[0].RowRef != "" {
 		t.Fatalf("RowRef = %q, want empty -- this action is about the whole notification", actions[0].RowRef)
@@ -197,7 +203,7 @@ func partialRunScenarioWithNotifier(t *testing.T) (ServiceDeps, *svcFakeNotifier
 
 // TestEveryRunNotificationCanBeOpenedInDownloads pins notify's contract rather than one call
 // site: every notification a download run raises is ABOUT that run, so all of them carry the
-// whole-notification "Open Downloads" token -- the row-less ones (run started) exactly as much
+// whole-notification "See this run" token -- the row-less ones (run started) exactly as much
 // as the ones that individuate anime.
 func TestEveryRunNotificationCanBeOpenedInDownloads(t *testing.T) {
 	t.Parallel()
