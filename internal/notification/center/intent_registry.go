@@ -29,7 +29,7 @@ const (
 	IntentClipboardCopy = "clipboard.copy"
 	// IntentNavigationOpen resolves to a frontend route change, addressed by
 	// the "route" key of the action's frozen args. It is the intent behind a
-	// whole-notification "Open Downloads" button (design-canvas
+	// whole-notification "See this run" button (design-canvas
 	// Intents.dc.html), and the only registered intent whose handler runs no
 	// backend operation at all -- it hands the press to the delivery layer.
 	IntentNavigationOpen = "navigation.open"

@@ -52,7 +52,7 @@ const (
 
 // runWideActions returns the action tokens a download-run notification carries about ITSELF
 // rather than about one of its rows. Every run notification is about the run, so all of them
-// carry "Open Downloads"; a completed one also offers where to go watch what it landed.
+// carry "See this run"; a completed one also offers where to go watch what it landed.
 //
 // This is the one place a notification's KIND decides a verb, and that is the level split doing
 // its job: L1 answers "where does this event live", which is a property of the event. The rows

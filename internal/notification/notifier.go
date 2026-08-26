@@ -50,7 +50,7 @@ type DetailItem struct {
 // never mutated afterward.
 //
 // An action exists at one of TWO levels. RowRef empty means the action is about the whole
-// Notification ("Open Downloads"); RowRef set to one of Rows' RefID values means it is about
+// Notification ("See this run"); RowRef set to one of Rows' RefID values means it is about
 // that single row ("Run this anime again"). It is a plain string, never a DetailItem pointer or
 // index, so this package keeps depending on nothing but internal/logger and a row list that is
 // reordered or truncated downstream can never silently rebind an action to the wrong thing.
