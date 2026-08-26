@@ -14,6 +14,95 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-08-26
+
+### Added
+
+- **Notifications now have a home, and they are kept.** Until now a notification
+  was a toast: it appeared, it faded, and if you were not at the screen it was
+  gone for good. Every notification Bridge raises is now written down *before* it
+  is shown, and the new **Notifications** screen holds the whole history. Search
+  it, filter it by source, level or unread, and move between Active and Archived.
+  Mark as read or archive one at a time, or select several and do it in one go.
+
+- **A notification says what it is actually about.** "Download run completed" used
+  to be a sentence with no subject. A run notification now lists the anime it
+  touched by name, each with its cover and what happened to it — downloaded,
+  failed, left as manual links, skipped, or already up to date — with the rest
+  collapsed into a single "+N more" line instead of an endless list.
+
+- **Buttons that do the thing.** A notification now carries the actions its own
+  event justifies, at two levels. About the whole event: **See this run**, and on
+  a run that finished cleanly, **Watch today**; **Open Season** and **Download
+  now** on season notices; **Open Devices** on pairing and sync warnings. About
+  one anime in the list: **Run this anime again** on a failure, **Copy hoster
+  N** when the links are waiting for you, **Open in editor** on an anime that was
+  skipped. Which button belongs on which notification is written down in
+  `docs/notification-cta-policy.md` rather than decided case by case.
+
+- **See this run opens that run.** The run identifier used to be printed in the
+  detail pane as a value you could read and not use. Downloads now accepts a run
+  in its address, so the button opens the run the notification is about — not
+  whichever run happens to be newest by the time you press it.
+
+- **A run says which anime it is about when it starts, not only when it ends.** A
+  scheduled run at 3am now names what it is going to check.
+
+- **A warning before a scheduled run skips an anime.** When an anime cannot be
+  processed — no folder, nothing to resolve — Bridge says so up front and offers
+  to open it in the editor, instead of leaving you to infer it from a run that
+  quietly did less than you expected.
+
+### Changed
+
+- **Windows notifications carry the same thing the app does.** A Windows toast
+  used to be a title and a line. It now names the anime the event is about and
+  carries the same buttons, and pressing one brings Bridge forward and takes you
+  where the button says.
+
+- **In-app toasts show the rows and the buttons too.** The same content the
+  Notifications screen holds, bounded to three rows so a glance stays a glance.
+  The buttons sit under the content rather than beside it, and a long anime title
+  now wraps onto a second line instead of stretching the toast off the screen.
+
+- **The notification pane stopped showing you its own bookkeeping.** The internal
+  kind and correlation identifier are gone from the detail pane. They are still
+  recorded; they were never information for you.
+
+### Fixed
+
+- **Archiving from the detail pane now updates the list.** Archiving a
+  notification left it sitting in Active until you navigated away and back.
+
+- **The missed-schedule notice no longer arrives twice.**
+
+- **A run's per-anime button now matches what happened to that anime.** Every row
+  used to inherit a verb from the run as a whole, so a successfully downloaded
+  anime could be offered a retry.
+
+- **A Windows notification no longer says the same anime name twice.**
+
+- **Toasts stopped dropping half of what they were given.** Rows and actions were
+  handed to the toast layer and discarded there.
+
+### Internal
+
+- **No wire changes in this release.** The Notification Center is desktop-only —
+  it adds no REST or WebSocket surface, and `docs/openapi.yaml` is untouched, so
+  mobile consumers are unaffected. Its tables are created additively and a
+  database written by an earlier build opens unchanged.
+- New pre-commit job `frontend-layout-smoke` measures the real toast's boxes in a
+  headless browser, because jsdom has no layout engine and the overflow above
+  shipped through a fully green suite.
+- The frontend quality gate moved to dharness; the staged mutation guard now
+  mutates added lines only and no longer bills a file move as new code.
+- Extracted a generic ordering state machine into `shared/ordering`, withdrew the
+  filesystem barrel guard in favour of the ESLint one, removed the dead zod
+  scaffolding, and raised the HeroUI floor to 3.2.4.
+- **Changelog repair:** the 1.4.2 release renamed the `[1.4.1]` heading instead of
+  inserting a new one above it, filing everything 1.4.1 shipped under 1.4.2. The
+  heading is restored and both releases now list what they actually shipped.
+
 ## [1.4.2] — 2026-08-13
 
 ### Fixed
@@ -29,6 +118,8 @@ called out explicitly under its release.
 ### Internal
 
 - No wire changes in this release.
+
+## [1.4.1] — 2026-08-10
 
 ### Fixed
 
