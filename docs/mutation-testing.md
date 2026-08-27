@@ -9,9 +9,11 @@ project — the race detector needs a C toolchain on Windows, which the pure-Go
 whether they actually fail when the code changes, and this is what automates
 that judgement.
 
-The runner is [ooze](https://github.com/gtramontina/ooze), driven by
-`tools/mutationstaged`. It works. It is deliberately **not** wired into any
-hook — see "Why it is not in pre-commit".
+The runner is [ditto](https://github.com/Disble/ditto), and it is a command:
+`ditto staged`. There is no wrapper here any more — `tools/mutationstaged` and
+`internal/testsupport/mutation` were fourteen files that gave the runner
+conciousness of the index, and ditto has that itself since v0.4.0. It is
+deliberately **not** wired into any hook — see "Why it is not in pre-commit".
 
 ## This is the MUTATE step
 
@@ -39,25 +41,30 @@ git diff --quiet -- "$F" && echo "!! MUTATION DID NOT APPLY"
 ## Run it
 
 ```sh
-go run ./tools/mutationstaged        # mutate the staged production Go files
-go run ./tools/mutationstaged -dry   # print the computed scope, run nothing
+go install github.com/Disble/ditto/cmd/ditto@latest
+
+ditto staged --dry --exclude-prefix tools/ --exclude-prefix frontend/
+ditto staged --exclude-prefix tools/ --exclude-prefix frontend/ \n  --threshold 0.80 --test-command "go test -count=1 ./internal/download/"
 ```
+
+**Name the owning package in `--test-command`.** The old wrapper worked out which
+packages owned the staged files and ran only those; ditto takes one command and
+does not derive it, so `./...` makes every mutant run the whole suite.
 
 It exits 0 immediately when no `.go` files are staged, and refuses a file that
 has unstaged changes on top of its staged ones — the same refusal the frontend
 guard makes, for the same reason: mutation would otherwise judge a tree state
 that is not what gets committed.
 
-The threshold defaults to `0.80`, matching `stryker.dlinter.json`'s `break: 80`,
-so both sides of the repo are held to the same bar. Override with
-`AUTOREAS_MUTATION_THRESHOLD`.
+Pass `--threshold 0.80` to match `stryker.dlinter.json`'s `break: 80`, so both
+sides of the repo are held to the same bar. ditto's own default is `1.00`.
 
 To audit a file you are not committing, stage it on a scratch branch:
 
 ```sh
 git switch -c tmp-mutation-probe HEAD~1
 git checkout main -- path/to/package/
-go run ./tools/mutationstaged
+ditto staged --exclude-prefix tools/ --exclude-prefix frontend/
 git switch main && git branch -D tmp-mutation-probe
 ```
 
@@ -68,7 +75,7 @@ git switch main && git branch -D tmp-mutation-probe
 | `Killed` | A test failed when the mutant was applied. | No — this is the goal. |
 | `Survived` | The mutant passed every test. **A test is missing or asserts nothing.** | Yes, if the mutant is meaningful. |
 
-Not every survivor is a real gap. ooze mutates syntax, not intent: it will
+Not every survivor is a real gap. ditto mutates syntax, not intent: it will
 happily turn `truncate(body, 200)` into `truncate(body, 201)` inside an error
 message and count the survivor against you. Read each one and decide whether a
 test *should* have noticed. Chasing the score itself produces tests that assert
@@ -85,59 +92,63 @@ stayed fixed.
 
 That is the blind spot a self-chosen mutant cannot cover: you mutate where you
 were already looking. Assertions that reference the constant they are meant to
-pin are invisible to the manual check and obvious to ooze. Run it on any test
+pin are invisible to the manual check and obvious to ditto. Run it on any test
 whose expected value is computed from production code rather than written out.
 
 ## Line scoping
 
-ooze mutates whole files and keeps no incremental cache, so on its own a
-one-line edit pays for the entire file every time, and touching one function
-makes you accountable for every untested branch already in it.
+A whole-file run makes you accountable for every untested branch already in the
+file you touched. ditto scopes to the byte ranges of the staged diff instead, so
+the score describes the change rather than the file it landed in.
 
-The guard works around the first half. `ooze.WithViruses` accepts arbitrary
-`viruses.Virus` implementations, the interface hands over the `ast.Node`, and
-ooze parses each file with a fresh single-file `token.FileSet` — so
-`int(node.Pos()) - 1` is a plain byte offset. `internal/testsupport/mutation`
-wraps all fourteen default mutators in a filter that withholds every node
-outside the staged diff's byte ranges, which `tools/mutationstaged` derives from
-`git diff --cached -U0` against the index copy of each file.
-
-Measured on `internal/download/sites/jkanime/jkanime.go`, the same staged change
-either way:
+Measured here on `internal/download/sites/jkanime/jkanime.go`, the same staged
+change either way:
 
 | | Mutants | Result | Wall clock |
 | --- | --- | --- | --- |
 | Whole file | 89 | 71 killed / 18 survived, score 0.7978 | ~6min |
 | Changed lines only | 18 | 18 killed / 0 survived, score 1.00 | ~53s |
 
-The 18 the filter dropped are pre-existing debt in untouched parts of the file.
-That is the whole point: the score now describes the change rather than the file
-it landed in.
+The 18 it dropped are pre-existing debt in untouched parts of the file.
 
-Ranges from every staged file are unioned, because `Incubate(node)` names no
-file. With more than one file staged that over-approximates — a node in one file
-can fall inside another's range and survive the filter. Deliberate: keeping
-mutants that could have been dropped costs time, dropping mutants that should
-have run costs truth.
+The scope is kept **per file**. The wrapper this replaced unioned the ranges of
+every staged file, because the mutator interface named no file — so a node in
+one file could fall inside another file's range and be mutated anyway. ditto
+keeps each file's ranges beside that file, measured upstream at 12 justified
+mutants where the flat set charged 36.
 
-### Two ways this hid a failure, both now closed
+An underivable scope falls **open** to whole-file mutation rather than filtering
+everything away, and says why.
 
-- **`ast.Inspect` sends a nil node** after every subtree. The first version of
-  the filter called `Pos()` on it, and ooze reported a flawless **zero-mutant**
-  run rather than crashing — 0.98s, score -1.00, no stack trace. Every unit test
-  had built a node, so nothing reached it.
-  `TestLineScopedSurvivesTheNilNodeAstInspectSends` pins it.
-- **A filter that keeps nothing** produces a spotless report over an empty run.
-  The harness counts kept/dropped nodes and refuses a run that kept none. Note
-  this only fires where ooze itself would pass; a zero-mutant run scores -1.00
-  and fails on the threshold first.
+### What it refuses
 
-An empty or underivable scope falls **open** to whole-file mutation rather than
-filtering everything away.
+- **A red baseline.** A failing test command is how a killed mutant is
+  recognised, so a suite that is already red scores every mutant killed and
+  reports a perfect number for a run that tested nothing. ditto runs the suite
+  once unmutated and refuses, carrying the command's own output so the reason is
+  visible. **This repository was on the wrong side of that** — see below.
+- **A file staged and also edited in the worktree.** The bytes measured have to
+  be the bytes scored.
+- **A scope with no mutants**, which scores -1.00 and fails any threshold.
+
+### The root package was reporting a score it had not earned
+
+Until ditto v0.5.0 a sandbox mirrored the repository as symlinks. Go refuses to
+embed an irregular file, so `main.go` (`//go:embed all:frontend/dist`) and
+`internal/tray/icon.go` could not build in one — and the old runner, which has no
+baseline guard, read the failing build as nine killed mutants.
+
+Measured: **9 mutants, 9 killed, a perfect 1.00**, each "dying" in 0.9–2.3s where
+one real run of that suite takes 4.95s. The truth is **8 killed and one
+survivor**, `app_defaults.go:43:26 → Comparison Replace`. It had been invisible.
+
+Two things were needed and both are here: ditto v0.5.0 copies into its sandbox
+instead of linking, and `frontend/dist/index.html` is tracked so the index builds
+on its own. That placeholder is why a clean clone now compiles at all.
 
 ## Why it is not in pre-commit
 
-Even at ~53s, this stays out of the hook. The gate already runs ~90s, ooze still
+Even at ~53s, this stays out of the hook. The gate already runs ~90s, ditto still
 recompiles and re-runs the package's whole suite per mutant, and cost still
 scales with how much you changed rather than with the diff's importance.
 
@@ -152,28 +163,30 @@ run it, read the survivors, then commit.
 An unexpected multi-minute run is a signal, not slowness: the scope fell open to
 whole-file mutation because the diff ranges did not resolve. Check `-dry`.
 
-`ooze.Parallel()` is off by default: it deadlocks here. A 30-minute run ended
-with goroutines still blocked in `testing.(*T).Parallel` after 29 minutes. Set
-`AUTOREAS_MUTATION_PARALLEL=true` only to re-test whether a newer ooze fixed it.
+Parallelism is off and stays off: it deadlocked here, with a 30-minute run ending
+on goroutines still blocked in `testing.(*T).Parallel` after 29 minutes. ditto
+keeps `Parallel()` opt-in for the same reason — this is a laptop, not a server.
 
-## Why it runs against a sandbox
+## Why it runs against a sandbox, and against the index
 
-ooze's `fsrepository.LinkAllToTemporaryRepository` walks the repository root and
-calls `os.Symlink` for **every file, with no exclusions**. `IgnoreSourceFiles`
-filters which files get *mutated*, never which get *linked*. Against the working
-tree that means symlinking `frontend/node_modules` (~130k files) once per
-mutant, and a run never finishes.
+ditto mirrors the repository into a temporary directory and runs the suite there.
+Since v0.5.0 it **copies** rather than links, because a symlink is written
+through to its target and a hard link shares the inode — so a suite that writes a
+file would write into this repository. It also could not embed anything, which is
+what hid the root package's real score.
 
-The guard therefore materialises the index into a temp directory with
-`git checkout-index --all --prefix=...` and points ooze there. That is ~1,600
-files instead of 130,000, and it also buys the right semantics for free: it
-judges exactly the staged content rather than the working tree that merely
-resembles it. A `frontend/dist/index.html` stub is created because `main.go`
-embeds that directory and the built assets are not in the index.
+`ditto staged` points that sandbox at a checkout of the **index**, not of the
+working tree. That is not tidiness: measured upstream, one tracked file left
+dirty and unstaged moved **7 of 8 verdicts**, because mutants come from the
+staged bytes while the suite runs against whatever the tree holds.
+
+`--exclude-prefix frontend/` matters for a second reason here: `node_modules` is
+~130k files, and materialising it once per release is time spent on files that
+cannot be mutated.
 
 ## Windows path separators
 
-ooze derives each source path with `filepath.Rel`, which yields **backslashes**
+ditto derives each source path with `filepath.Rel`, which yields **backslashes**
 on Windows. A forward-slash-only ignore pattern matches nothing, every exclusion
 silently drops, and the whole repository gets mutated while the run still looks
 correctly scoped. `buildIgnorePattern` emits `[/\]` for each separator;

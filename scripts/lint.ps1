@@ -17,7 +17,9 @@ param(
 # CPU and starve the desktop; see the concurrency budget note in lefthook.yml.
 
 $ErrorActionPreference = "Stop"
-$golangciVersion = "v2.12.2"
+# golangci-lint 2.12.2 cannot type-check a Go 1.27 standard library: it reports
+# `could not import math/rand/v2` and exits 7 with zero findings. 2.13.1 can.
+$golangciVersion = "v2.13.1"
 $golangciModule = "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$golangciVersion"
 $root = Split-Path -Parent $PSScriptRoot
 $binDir = Join-Path $root ".tools/bin"
@@ -27,6 +29,14 @@ $concurrency = if ($env:GOLANGCI_CONCURRENCY) { $env:GOLANGCI_CONCURRENCY } else
 
 # Stamp files record what a cached binary was built from. A binary whose stamp
 # does not match the current inputs is rebuilt; anything else is reused.
+#
+# The Go version is part of the stamp, and that is not decoration. golangci-lint
+# embeds the toolchain it was built with and cannot type-check a newer standard
+# library than that one. Upgrading Go therefore invalidates every cached binary
+# here -- and before this line the stamp could not see it, so the gate kept
+# reusing a binary that had stopped working and failed with a panic nobody could
+# place. Measured on 2026-08-27, on a clean checkout with no changes at all.
+$goVersion = (& go env GOVERSION)
 function Test-Stamp {
     param([string]$StampPath, [string]$Binary, [string]$Expected)
     if (-not (Test-Path $Binary)) { return $false }
@@ -51,12 +61,12 @@ try {
         $baseBinary = Join-Path $binDir "golangci-lint$exe"
         $baseStamp = Join-Path $binDir "golangci-lint.stamp"
 
-        if (-not (Test-Stamp -StampPath $baseStamp -Binary $baseBinary -Expected $golangciVersion)) {
+        if (-not (Test-Stamp -StampPath $baseStamp -Binary $baseBinary -Expected "$golangciVersion|$goVersion")) {
             Write-Host "lint: building golangci-lint $golangciVersion (cached for later runs)"
             $env:GOBIN = $binDir
             & go install $golangciModule
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Set-Content -Path $baseStamp -Value $golangciVersion -NoNewline
+            Set-Content -Path $baseStamp -Value "$golangciVersion|$goVersion" -NoNewline
         }
 
         & $baseBinary run --config .golangci.yml --show-stats --concurrency $concurrency @packages
@@ -69,7 +79,7 @@ try {
         $customBinary = Join-Path $binDir "dlinter-gcl$exe"
         $customStamp = Join-Path $binDir "dlinter-gcl.stamp"
         $customSpec = Join-Path $root ".custom-gcl.yml"
-        $expected = "$golangciVersion|" + (Get-FileHash $customSpec -Algorithm SHA256).Hash
+        $expected = "$golangciVersion|$goVersion|" + (Get-FileHash $customSpec -Algorithm SHA256).Hash
 
         if (-not (Test-Stamp -StampPath $customStamp -Binary $customBinary -Expected $expected)) {
             Write-Host "lint: building custom linter from .custom-gcl.yml (cached for later runs)"
