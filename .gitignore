@@ -1,6 +1,11 @@
 build/bin
 node_modules
-frontend/dist
+frontend/dist/*
+# ...except one placeholder, so the index builds on its own. main.go embeds this
+# directory, and `go:embed` fails on a directory with no files -- which made a
+# clean checkout not compile, and made mutation testing of the root package
+# report a perfect score for mutants that never built.
+!frontend/dist/index.html
 resources/autoreas-data/*.dat
 .atl/active-sdd-change
 frontend/package.json.md5

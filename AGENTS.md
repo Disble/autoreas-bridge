@@ -41,11 +41,11 @@
 - When writing Go tests, also load `go-testing`.
 - When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → **MUTATE** → REFACTOR strictly.
 - **Load `mutation-tdd` and mutation-check every guard before refactoring.** A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
-- **On Go, MUTATE means running the wrapper: `go run ./tools/mutationstaged`.** Stage the change and run it; it mutates only the lines you touched and reports every surviving mutant. Hand-mutation is the fallback for one guard mid-edit, not the step itself — it mutates where you were already looking, so it confirms a suspicion rather than surveying the change. On 2026-08-09 four hand-picked mutants all died while the wrapper found a test asserting against the very constant it claimed to pin. See `docs/postmortems/postmortem-silent-no-ops.md`.
+- **On Go, MUTATE means running `ditto staged`.** Stage the change and run it; it mutates only the lines you touched and reports every surviving mutant, each with a `path:line:col` address. Hand-mutation is the fallback for one guard mid-edit, not the step itself — it mutates where you were already looking, so it confirms a suspicion rather than surveying the change. On 2026-08-09 four hand-picked mutants all died while the wrapper found a test asserting against the very constant it claimed to pin. See `docs/postmortems/postmortem-silent-no-ops.md`.
 - **Before concluding a hand-mutation was killed, prove it applied.** A failed edit and a perfectly-covered guard print the same thing. `sd` is NOT installed here despite what global instructions say — use `perl -0pi -e '<s///>' <file>` and follow it with `git diff --quiet -- <file> && echo "!! MUTATION DID NOT APPLY"`.
 - **Mutation coverage differs by surface — do not assume one answer for the repo.**
   - **Frontend: automated.** `lefthook.yml` runs the `test:mutation:staged` job with `root: frontend` (a `dlinter:owned` job). The runner is Stryker via `frontend/stryker.dlinter.json`, driven by `frontend/scripts/dlinter-mutation-staged.mjs`, and `frontend/package.json` also exposes `test:mutation` and `test:mutation:guard` (the latter tests the staged runner itself). The staged job covers only the added lines of staged frontend files; everything else exits zero with no mutation coverage.
-  - **Go: a runner exists and is the MUTATE step; no gate is wired.** `go run ./tools/mutationstaged` drives ooze over the staged production Go files, scoped to the lines the staged diff touched. Do not claim the Go side has no mutation tooling. It is invoked by hand rather than by a hook because ooze still recompiles and re-runs the package's whole suite per mutant: measured at ~53s for a real one-function change (18 mutants) against an already ~90s gate. Add `-dry` to see the computed scope without paying for a run.
+  - **Go: a runner exists and is the MUTATE step; no gate is wired.** `ditto staged` mutates the staged production Go files, scoped to the lines the staged diff touched, against a copy of the index. Do not claim the Go side has no mutation tooling. It is invoked by hand rather than by a hook because ooze still recompiles and re-runs the package's whole suite per mutant: measured at ~53s for a real one-function change (18 mutants) against an already ~90s gate. Add `-dry` to see the computed scope without paying for a run.
   - Line scoping is what makes it usable as a routine step — before it, the same change cost 89 mutants and ~6 minutes because ooze mutates whole files. A scope it cannot derive falls OPEN to whole-file mutation, so an unexpected six-minute run means the diff ranges did not resolve, not that the tool is slow.
   - See `docs/mutation-testing.md`.
 - Branches the scheduler cannot reach (a raced pointer swap, `setErr(nil)`) need direct invocation of the unexported function from an in-package test. A stress loop that never reaches the branch passes while proving nothing — this has already happened twice in this repo.
@@ -363,8 +363,9 @@ covered scope on the frontend, and the measured reason the Go runner stays out o
 the hook while remaining the expected MUTATE step. That is what the fragments
 exist to produce.
 
-**Note on the Go mutation surface.** `tools/mutationstaged` exists, is directly
-runnable, is the expected MUTATE step, and is deliberately not wired into
+**Note on the Go mutation surface.** `ditto staged` is installed rather than
+vendored (`go install github.com/Disble/ditto/cmd/ditto@latest`, v0.5.0 or
+later), is the expected MUTATE step, and is deliberately not wired into
 `lefthook.yml` (~53s for a small staged change, on top of an already ~90s gate).
 Available and unwired is a real third state — do not read the tool's existence as
 evidence the gate runs it, and do not read its absence from the hook as evidence
