@@ -1,0 +1,6 @@
+{
+  "generated": [
+    "frontend/dist",
+    "frontend/wailsjs"
+  ]
+}

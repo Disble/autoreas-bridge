@@ -143,8 +143,15 @@ one real run of that suite takes 4.95s. The truth is **8 killed and one
 survivor**, `app_defaults.go:43:26 → Comparison Replace`. It had been invisible.
 
 Two things were needed and both are here: ditto v0.5.0 copies into its sandbox
-instead of linking, and `frontend/dist/index.html` is tracked so the index builds
-on its own. That placeholder is why a clean clone now compiles at all.
+instead of linking, and `.ditto.json` names what git does not carry:
+
+```json
+{"generated": ["frontend/dist", "frontend/wailsjs"]}
+```
+
+Those are copied from the working tree after the index is materialised, and the
+run says so. Naming a path git DOES track is refused — the index version is the
+one a staged run measures, and that is the whole point of reading the index.
 
 ## Why it is not in pre-commit
 

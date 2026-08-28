@@ -100,11 +100,6 @@ pre-commit:
 
           - name: frontend-typecheck
             glob: "frontend/**"
-            # frontend/dist is build output. The one tracked file in it is a
-            # placeholder that exists so `go:embed all:frontend/dist` resolves
-            # from a clean index -- it is not source, and typechecking or
-            # testing the frontend because it changed measures nothing.
-            exclude: "frontend/dist/**"
             run: bun --cwd="frontend" run typecheck
 
           - name: frontend-lint
@@ -138,8 +133,6 @@ pre-commit:
         - "frontend/**"
         # Changing the gate itself re-proves the gate.
         - "lefthook.yml"
-      # See frontend-typecheck: dist is build output, not source.
-      exclude: "frontend/dist/**"
       group:
         piped: true
         jobs:
