@@ -71,6 +71,26 @@ you are working on the frontend alone.
 
 This will run a Vite development server that provides very fast hot reload of your frontend changes, along with the Go backend. A local inspector is available at `http://localhost:34115`.
 
+### Listen address
+
+The HTTP API binds `0.0.0.0:9876` by default. Two things can change it, and the
+environment wins over the stored value:
+
+```bash
+AUTOREAS_BRIDGE_ADDR=9911 ./autoreas-bridge.exe    # a bare port works too
+```
+
+The persisted setting is the ordinary route (`GetAPIAddress` / `SetAPIAddress`),
+and the environment variable is the recovery route. They are not redundant: if
+the configured port is already taken the application never reaches a settings
+screen, so an override that lived only behind the UI would be unreachable in the
+one situation it exists for.
+
+An unusable value is never fatal. It is logged, skipped, and the next source is
+used, because refusing to start is the failure this is meant to prevent. A
+change of address applies on the next start rather than rebinding underneath
+paired devices mid-session.
+
 ### Testing
 
 Tests are an integral part of this project.

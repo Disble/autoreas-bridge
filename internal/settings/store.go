@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // keyDownloadsRoot is the app_settings key holding the global downloads root:
@@ -19,6 +20,7 @@ const (
 	keyDownloadsRoot = "downloads.root"
 	keyAutoStart     = "system.auto_start"
 	keyEpisodeRename = "downloads.rename_episodes"
+	keyAPIAddr       = "api.addr"
 )
 
 // ErrDatabaseUnavailable reports that the settings accessor has no database.
@@ -104,6 +106,21 @@ func (s *SQLiteStore) EpisodeRenameEnabled(ctx context.Context) (bool, error) {
 // SetEpisodeRenameEnabled persists the user's episode-renaming preference.
 func (s *SQLiteStore) SetEpisodeRenameEnabled(ctx context.Context, enabled bool) error {
 	return s.Set(ctx, keyEpisodeRename, formatBool(enabled))
+}
+
+// APIAddr returns the configured HTTP listen address, or empty when nobody has
+// set one. Empty means "use the shipped default" rather than a stored address:
+// materialising the default here would copy it into the database on first read
+// and freeze it, so a later change to the shipped default would never reach an
+// install that had already started once.
+func (s *SQLiteStore) APIAddr(ctx context.Context) (string, error) {
+	return s.Get(ctx, keyAPIAddr)
+}
+
+// SetAPIAddr persists the HTTP listen address. An empty value clears it, which
+// is the only way back to the shipped default once one has been chosen.
+func (s *SQLiteStore) SetAPIAddr(ctx context.Context, addr string) error {
+	return s.Set(ctx, keyAPIAddr, strings.TrimSpace(addr))
 }
 
 // formatBool renders a preference as the canonical "true"/"false" text stored in

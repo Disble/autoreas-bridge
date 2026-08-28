@@ -105,6 +105,7 @@ type App struct {
 	newSeasonStore             func(db *sql.DB) season.Repository
 	seasonService              *season.Service
 	settingsStore              appSettingsStore
+	getenvFn                   func(string) string
 	animeWrite                 *anime.WriteService
 	animeCreate                anime.Creator
 	animeCreateBatch           anime.BatchCreator
@@ -151,6 +152,8 @@ type appSettingsStore interface {
 	SetAutoStartEnabled(ctx context.Context, enabled bool) error
 	EpisodeRenameEnabled(ctx context.Context) (bool, error)
 	SetEpisodeRenameEnabled(ctx context.Context, enabled bool) error
+	APIAddr(ctx context.Context) (string, error)
+	SetAPIAddr(ctx context.Context, addr string) error
 }
 
 // autoStartReconciler synchronizes the Bridge-owned Windows Run value.
