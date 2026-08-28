@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	sharedlogger "autoreas-bridge/internal/logger"
@@ -218,33 +219,41 @@ func TestInstrumentedBusSubscribeDelegates(t *testing.T) {
 	unsub()
 }
 
-func TestInstrumentedBusWarnsOnSlowHandler(t *testing.T) {
-	inner := NewBus()
-	logger := &recordingBusLogger{}
-	bus := NewInstrumentedBus(inner, logger)
-
-	bus.Subscribe(EventNameSyncRequested, func(event Event) {
-		time.Sleep(600 * time.Millisecond)
-	})
-
-	bus.Publish(SyncRequestedEvent{Requester: "tablet"})
-
-	var found bool
-	for _, entry := range logger.entries {
+// findSlowHandlerWarning returns the first slow-handler warning the recording
+// logger captured. Keeping the search here lets the test assert on the entry
+// as a flat sequence rather than threading a flag through a loop.
+func findSlowHandlerWarning(entries []sharedlogger.LogEntry) (sharedlogger.LogEntry, bool) {
+	for _, entry := range entries {
 		if entry.Level == sharedlogger.LevelWarn && strings.Contains(entry.Message, "slow") {
-			if entry.DurationMs < 500 {
-				t.Fatalf("expected slow-handler warning duration >= 500ms, got %d", entry.DurationMs)
-			}
-			if entry.Metadata == nil || entry.Metadata["eventName"] != EventNameSyncRequested {
-				t.Fatalf("expected slow-handler metadata eventName %q, got %#v", EventNameSyncRequested, entry.Metadata)
-			}
-			found = true
-			break
+			return entry, true
 		}
 	}
-	if !found {
-		t.Fatal("expected instrumented bus to warn on slow handler (>500ms)")
-	}
+	return sharedlogger.LogEntry{}, false
+}
+
+func TestInstrumentedBusWarnsOnSlowHandler(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inner := NewBus()
+		logger := &recordingBusLogger{}
+		bus := NewInstrumentedBus(inner, logger)
+
+		bus.Subscribe(EventNameSyncRequested, func(event Event) {
+			time.Sleep(600 * time.Millisecond)
+		})
+
+		bus.Publish(SyncRequestedEvent{Requester: "tablet"})
+
+		entry, found := findSlowHandlerWarning(logger.entries)
+		if !found {
+			t.Fatal("expected instrumented bus to warn on slow handler (>500ms)")
+		}
+		if entry.DurationMs < 500 {
+			t.Fatalf("expected slow-handler warning duration >= 500ms, got %d", entry.DurationMs)
+		}
+		if entry.Metadata == nil || entry.Metadata["eventName"] != EventNameSyncRequested {
+			t.Fatalf("expected slow-handler metadata eventName %q, got %#v", EventNameSyncRequested, entry.Metadata)
+		}
+	})
 }
 
 func TestInstrumentedBusDoesNotWarnOnFastHandler(t *testing.T) {
