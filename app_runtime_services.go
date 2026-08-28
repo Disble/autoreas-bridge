@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"uuid"
 
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
@@ -15,8 +16,6 @@ import (
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
-
-	"github.com/google/uuid"
 )
 
 // configureRuntimeServices wires and starts the bridge runtime services.
@@ -146,7 +145,7 @@ func (a *App) startSyncChangelogRecorder() {
 func (a *App) configureBridgeDeviceServices(ctx context.Context) (device.AuthService, *bridgeSync.ChangelogStore) {
 	deviceStore := a.newDeviceStore(a.bridgeDB)
 	a.deviceStore = deviceStore
-	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, uuid.NewString, newJkanimeNameSearcher())
+	a.seasonService = season.NewService(a.newSeasonStore(a.bridgeDB), time.Now, func() string { return uuid.New().String() }, newJkanimeNameSearcher())
 	a.settingsStore = settings.NewSQLiteStore(a.bridgeDB)
 	deviceService := a.newDeviceService(deviceStore)
 	changelogStore := bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))

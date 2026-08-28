@@ -3,10 +3,9 @@ package realtime
 import (
 	"strings"
 	"time"
+	"uuid"
 
 	"autoreas-bridge/internal/observability/requestcapture"
-
-	"github.com/google/uuid"
 )
 
 // Capture kinds recorded at the hub's single fan-out point (design.md
@@ -48,7 +47,7 @@ func captureHubFrame(capture requestcapture.CaptureFunc, kind, outcome, clientID
 	if capture == nil {
 		return
 	}
-	record := requestcapture.BuildTransportCaptureRecord(uuid.NewString(), time.Now().UnixMilli(), kind, "/ws", "websocket")
+	record := requestcapture.BuildTransportCaptureRecord(uuid.New().String(), time.Now().UnixMilli(), kind, "/ws", "websocket")
 	record.Outcome = outcome
 	if clientID != "" {
 		record.Device = requestcapture.DeviceIdentity{DeviceID: deviceIDFromClientID(clientID)}

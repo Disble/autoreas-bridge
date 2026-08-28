@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"time"
+	"uuid"
 
 	"autoreas-bridge/internal/notification"
-
-	"github.com/google/uuid"
 )
 
 // Service decorates a notification.Notifier with durable persistence: every
@@ -176,7 +175,7 @@ func toActions(specs []notification.ActionSpec) []Action {
 	actions := make([]Action, 0, len(specs))
 	for ordinal, spec := range specs {
 		actions = append(actions, Action{
-			ID:      uuid.NewString(),
+			ID:      uuid.New().String(),
 			Ordinal: ordinal,
 			RowRef:  spec.RowRef,
 			Label:   spec.Label,

@@ -8,13 +8,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
 	"autoreas-bridge/internal/observability/requestcapture"
 	"autoreas-bridge/internal/realtime"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -149,7 +149,7 @@ func handleIncomingWebSocketMessage(ctx context.Context, device device.PairedDev
 // in place). Mirrors the HTTP capture middleware's arrival→terminal shape
 // for the WS transport, which has no middleware layer of its own.
 func captureWebSocketMessage(ctx context.Context, device device.PairedDevice, message incomingWebSocketMessage, config WebSocketHandlerConfig, connHeaders map[string]string) error {
-	requestID := uuid.NewString()
+	requestID := uuid.New().String()
 	startedAt := time.Now()
 	enqueueWebSocketCapture(config.Capture, requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), "ws_reconcile", "/ws", "websocket"))
 

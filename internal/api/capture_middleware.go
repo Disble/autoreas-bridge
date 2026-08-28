@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"uuid"
 
 	apiHandlers "autoreas-bridge/internal/api/handlers"
 	"autoreas-bridge/internal/observability/requestcapture"
-	"github.com/google/uuid"
 )
 
 // webSocketRoutePath is the one route CaptureMiddleware never wraps -- the
@@ -61,7 +61,7 @@ func CaptureMiddleware(next http.Handler, deps CaptureMiddlewareDeps) http.Handl
 // and enqueues the merged terminal row from a defer that survives a handler
 // panic (re-panicking afterward so the server's own recovery is unchanged).
 func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, capture apiHandlers.CaptureFunc, persistTerminal func(requestcapture.CaptureRecord), clock func() time.Time) {
-	requestID := uuid.NewString()
+	requestID := uuid.New().String()
 	startedAt := clock()
 	kind := captureKind(r.Method, r.URL.Path)
 	arrivalAccepted := capture(requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, r.URL.Path, "http"))
