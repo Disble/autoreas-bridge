@@ -1,9 +1,10 @@
 module autoreas-bridge
 
-go 1.26
+go 1.27
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3
+	github.com/Disble/jdownloader-go v0.1.0
 	github.com/getlantern/systray v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -15,7 +16,6 @@ require (
 )
 
 require (
-	github.com/Disble/jdownloader-go v0.1.0
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
