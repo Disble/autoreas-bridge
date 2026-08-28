@@ -118,6 +118,7 @@
 ## Boundary Truths
 
 - GREEN is provisional when the bug lives at the SQLite or Windows filesystem boundary.
+- GREEN is provisional at the Wails CLI boundary too: the gate never builds the desktop app. `go build`, `vet`, `test` and lint all pass without the Wails CLI ever loading a package, and it loads them through its OWN pinned `golang.org/x/tools` -- so a toolchain upgrade can break `wails dev` and `wails build` while every gate stays green. Measured 2026-08-28: Go 1.27 against wails v2.12.0 failed with `internal error: package "context" without types`, and no binary was produced. Run `wails build` before claiming a toolchain or dependency change works.
 - Real behavior beats permissive mocks.
 - Anime state lives in `anime_snapshots.snapshot_json`, keyed by `_id`; effective state must be reasoned by `_id`, not by naive row-order diffs.
 - `activo=false` is not a tombstone.
