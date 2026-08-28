@@ -34,8 +34,8 @@ func TestRunOnceCatchesUpSequentialMissingEpisodesForOneAnime(t *testing.T) {
 		Name:      "Catchup Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/catchup/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/catchup/"),
+		Folder:    new(folder),
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 9})
 	deps.Counter = counter
@@ -90,8 +90,8 @@ func TestRunAnimePersistsEpisodeProgressDuringSingleAnimeCatchup(t *testing.T) {
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -137,8 +137,8 @@ func TestRunAnimeFlattensExistingSubfolderDownloadsBeforeChoosingNextEpisode(t *
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -188,8 +188,8 @@ func TestRunAnimeRetriesFlattenUntilDownloadedEpisodeReachesRoot(t *testing.T) {
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -233,8 +233,8 @@ func TestRunAnimeCompletesWhenJDFolderFileNameDoesNotContainEpisodeNumber(t *tes
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -282,8 +282,8 @@ func TestRunAnimeCompletesFromFilesystemWhenJDPackageStateIsNotReliable(t *testi
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -330,15 +330,15 @@ func TestRunOnceProcessesMultipleAnimesAndAccumulatesCatchupCounters(t *testing.
 		Name:      "Anime A",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/a/"),
-		Folder:    ptrStr(folderA),
+		SourceURL: new("https://jkanime.net/a/"),
+		Folder:    new(folderA),
 	}, {
 		ID:        "anime-b",
 		Name:      "Anime B",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/b/"),
-		Folder:    ptrStr(folderB),
+		SourceURL: new("https://jkanime.net/b/"),
+		Folder:    new(folderB),
 	}}}
 	counter := newCatchupCounter(map[string]int{folderA: 1, folderB: 5})
 	deps.Counter = counter

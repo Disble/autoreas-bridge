@@ -264,8 +264,8 @@ func TestArchiveNotificationsEmitsArchivedEvent(t *testing.T) {
 	}
 
 	var gotEventName string
-	var gotData []interface{}
-	app.emitFn = func(_ context.Context, eventName string, optionalData ...interface{}) {
+	var gotData []any
+	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
 		gotEventName = eventName
 		gotData = optionalData
 	}

@@ -40,15 +40,15 @@ func TestRunOnceIsolatesPerAnimeFailureAndMarksRunPartial(t *testing.T) {
 		Name:      "OK Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/ok-anime/"),
-		Folder:    ptrStr(okFolder),
+		SourceURL: new("https://jkanime.net/ok-anime/"),
+		Folder:    new(okFolder),
 	}, {
 		ID:        "anime-broken",
 		Name:      "Broken Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/broken-anime/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/broken-anime/"),
+		Folder:    new(t.TempDir()),
 	}}}
 
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
@@ -109,11 +109,11 @@ func TestRunOnceRunPartialNotificationNamesEveryAnimeItTouched(t *testing.T) {
 	okOneFolder, okTwoFolder := t.TempDir(), t.TempDir()
 	currentOneFolder, currentTwoFolder := t.TempDir(), t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "anime-ok-1", Name: "OK Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-one/"), Folder: ptrStr(okOneFolder)},
-		{ID: "anime-ok-2", Name: "OK Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ok-two/"), Folder: ptrStr(okTwoFolder)},
-		{ID: "anime-broken", Name: "Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken/"), Folder: ptrStr(t.TempDir())},
-		{ID: "anime-current-1", Name: "Current Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/current-one/"), Folder: ptrStr(currentOneFolder)},
-		{ID: "anime-current-2", Name: "Current Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/current-two/"), Folder: ptrStr(currentTwoFolder)},
+		{ID: "anime-ok-1", Name: "OK Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/ok-one/"), Folder: new(okOneFolder)},
+		{ID: "anime-ok-2", Name: "OK Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/ok-two/"), Folder: new(okTwoFolder)},
+		{ID: "anime-broken", Name: "Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/broken/"), Folder: new(t.TempDir())},
+		{ID: "anime-current-1", Name: "Current Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/current-one/"), Folder: new(currentOneFolder)},
+		{ID: "anime-current-2", Name: "Current Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/current-two/"), Folder: new(currentTwoFolder)},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{okOneFolder: 4, okTwoFolder: 4, currentOneFolder: 3, currentTwoFolder: 3},
@@ -192,8 +192,8 @@ func TestRunOnceRunFailedNotificationNamesEveryFailedAnime(t *testing.T) {
 	deps.Sites = registry
 
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "anime-broken-1", Name: "Broken Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken-one/"), Folder: ptrStr(t.TempDir())},
-		{ID: "anime-broken-2", Name: "Broken Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/broken-two/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-broken-1", Name: "Broken Anime One", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/broken-one/"), Folder: new(t.TempDir())},
+		{ID: "anime-broken-2", Name: "Broken Anime Two", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/broken-two/"), Folder: new(t.TempDir())},
 	}}
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -265,8 +265,8 @@ func TestRunOnceDegradesToJDOfflineAndPersistsManualLinks(t *testing.T) {
 		Name:      "Some Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/anime/"),
-		Folder:    ptrStr(jdOfflineFolder),
+		SourceURL: new("https://jkanime.net/anime/"),
+		Folder:    new(jdOfflineFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{jdOfflineFolder: 2}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
@@ -323,8 +323,8 @@ func TestRunOnceJDOfflineNotificationNamesTheAffectedAnime(t *testing.T) {
 		Name:      "Frieren",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/anime/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/anime/"),
+		Folder:    new(folder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 2}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}
@@ -375,8 +375,8 @@ func TestRunOnceReturnsNoAnimesTodayWhenNoneActiveToday(t *testing.T) {
 		Name:      "Not Today Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: otherDia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/anime/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/anime/"),
+		Folder:    new(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")
@@ -398,8 +398,8 @@ func TestRunOnceReturnsNoAnimesTodayWhenOnlyInactiveAnimeMatchesToday(t *testing
 		Name:      "Inactive Today Anime",
 		Active:    0,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/inactive-anime/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/inactive-anime/"),
+		Folder:    new(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "scheduled")

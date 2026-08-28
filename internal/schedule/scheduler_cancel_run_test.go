@@ -25,8 +25,7 @@ func TestCancelRunCancelsTheInFlightRunWithoutStoppingTheScheduler(t *testing.T)
 	}
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 	waitForTimer(t, clock)
@@ -69,8 +68,7 @@ func TestCancelRunReportsFalseWhenNoRunIsInFlight(t *testing.T) {
 		t.Fatalf("CancelRun = true, want false before any run has started")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 	waitForTimer(t, clock)

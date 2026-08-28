@@ -6,6 +6,7 @@ package persistence
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 )
 
 // ColumnMigration describes a single additive column migration: the column name to probe
@@ -135,10 +136,5 @@ func tableColumns(db *sql.DB, tableName string) (columns []string, err error) {
 
 // containsColumn reports whether target appears in columns.
 func containsColumn(columns []string, target string) bool {
-	for _, c := range columns {
-		if c == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(columns, target)
 }

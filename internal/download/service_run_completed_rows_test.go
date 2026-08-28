@@ -37,12 +37,12 @@ func cleanMixedRunScenario(t *testing.T) (ServiceDeps, *svcFakeNotifier) {
 		{
 			ID: "anime-ok", Name: "OK Anime", Active: 1,
 			Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-			SourceURL: ptrStr("https://jkanime.net/ok-anime/"), Folder: ptrStr(okFolder),
+			SourceURL: new("https://jkanime.net/ok-anime/"), Folder: new(okFolder),
 		},
 		{
 			ID: "anime-current", Name: "Current Anime", Active: 1,
 			Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 1}},
-			SourceURL: ptrStr("https://jkanime.net/current-anime/"), Folder: ptrStr(currentFolder),
+			SourceURL: new("https://jkanime.net/current-anime/"), Folder: new(currentFolder),
 		},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
@@ -271,7 +271,7 @@ func TestSingleAnimeRunThatDownloadedNothingSendsNoRunCompletedNotification(t *t
 	deps.Notifier = notifier
 	anime := contracts.MobileAnime{
 		ID: "anime-current", Name: "Current Anime",
-		SourceURL: ptrStr("https://jkanime.net/current-anime/"), Folder: ptrStr(currentFolder),
+		SourceURL: new("https://jkanime.net/current-anime/"), Folder: new(currentFolder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)

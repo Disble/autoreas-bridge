@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
@@ -46,12 +47,7 @@ func newAppTestApp(t *testing.T) *App {
 
 // containsString reports whether a string slice contains the requested value.
 func containsString(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(items, want)
 }
 
 type recordingSharedAppLogger struct {

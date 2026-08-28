@@ -134,9 +134,6 @@ func (d *fakeDownloader) Speed() (*jd.DownloadSpeedInfo, error) { return &jd.Dow
 func (d *fakeDownloader) Force(_ []int64, _ []int64) error      { return nil }
 func (d *fakeDownloader) State() (*jd.DownloadState, error)     { return &jd.DownloadState{}, nil }
 
-// boolPtr returns a pointer to a boolean value.
-func boolPtr(b bool) *bool { return &b }
-
 // --- EnsureOnline / ListDevices liveness gate (4.7) ---
 
 func TestEnsureOnlineSucceedsWhenConnectOkAndDeviceListedOnline(t *testing.T) {

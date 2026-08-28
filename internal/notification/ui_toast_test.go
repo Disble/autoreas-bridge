@@ -10,14 +10,14 @@ import (
 type capturedEmit struct {
 	ctx       context.Context
 	eventName string
-	data      []interface{}
+	data      []any
 }
 
 func TestUIToastAdapterEmitsNotificationPushWithFullPayload(t *testing.T) {
 	t.Parallel()
 
 	var captured []capturedEmit
-	emit := func(ctx context.Context, eventName string, optionalData ...interface{}) {
+	emit := func(ctx context.Context, eventName string, optionalData ...any) {
 		captured = append(captured, capturedEmit{ctx: ctx, eventName: eventName, data: optionalData})
 	}
 

@@ -3,6 +3,7 @@ package season
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"autoreas-bridge/internal/season/domain"
@@ -85,8 +86,8 @@ func (r *fakeRepo) UpdateSeason(_ context.Context, s domain.Season) error {
 
 func (r *fakeRepo) ListSeasons(_ context.Context) ([]domain.Season, error) {
 	out := make([]domain.Season, 0, len(r.order))
-	for i := len(r.order) - 1; i >= 0; i-- {
-		out = append(out, r.seasons[r.order[i]])
+	for _, v := range slices.Backward(r.order) {
+		out = append(out, r.seasons[v])
 	}
 	return out, nil
 }

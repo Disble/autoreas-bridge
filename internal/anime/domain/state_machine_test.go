@@ -6,16 +6,10 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 )
 
-// intPtr returns a pointer to v, for building optional patch fields.
-func intPtr(v int) *int { return &v }
-
-// floatPtr returns a pointer to v, for building optional patch fields.
-func floatPtr(v float64) *float64 { return &v }
-
 func TestApplyCompletionStateMachineFinishesAnimeWhenProgressReachesTotal(t *testing.T) {
 	t.Parallel()
 
-	patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: floatPtr(12)}, floatPtr(12))
+	patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: new(float64(12))}, new(float64(12)))
 
 	if patch.Estado == nil {
 		t.Fatalf("expected the completed progress to force an estado, got nil")
@@ -35,8 +29,8 @@ func TestApplyCompletionStateMachineKeepsAnExplicitEstadoOnAFullyWatchedAnime(t 
 
 	for _, estado := range []int{0, 2, 3} {
 		patch := ApplyCompletionStateMachine(
-			contracts.AnimePatch{Estado: intPtr(estado), NroCapVisto: floatPtr(39)},
-			floatPtr(39),
+			contracts.AnimePatch{Estado: new(estado), NroCapVisto: new(float64(39))},
+			new(float64(39)),
 		)
 
 		if patch.Estado == nil {
@@ -51,13 +45,13 @@ func TestApplyCompletionStateMachineKeepsAnExplicitEstadoOnAFullyWatchedAnime(t 
 func TestApplyCompletionStateMachineLeavesPatchesWithoutProgressOrTotalUntouched(t *testing.T) {
 	t.Parallel()
 
-	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{}, floatPtr(12)); patch.Estado != nil {
+	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{}, new(float64(12))); patch.Estado != nil {
 		t.Fatalf("expected no estado without progress, got %d", *patch.Estado)
 	}
-	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: floatPtr(12)}, nil); patch.Estado != nil {
+	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: new(float64(12))}, nil); patch.Estado != nil {
 		t.Fatalf("expected no estado without a total, got %d", *patch.Estado)
 	}
-	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: floatPtr(12)}, floatPtr(0)); patch.Estado != nil {
+	if patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: new(float64(12))}, new(float64(0))); patch.Estado != nil {
 		t.Fatalf("expected no estado for a zero total, got %d", *patch.Estado)
 	}
 }
@@ -65,7 +59,7 @@ func TestApplyCompletionStateMachineLeavesPatchesWithoutProgressOrTotalUntouched
 func TestApplyCompletionStateMachineLeavesIncompleteProgressUntouched(t *testing.T) {
 	t.Parallel()
 
-	patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: floatPtr(11)}, floatPtr(12))
+	patch := ApplyCompletionStateMachine(contracts.AnimePatch{NroCapVisto: new(float64(11))}, new(float64(12)))
 
 	if patch.Estado != nil {
 		t.Fatalf("expected no estado for incomplete progress, got %d", *patch.Estado)

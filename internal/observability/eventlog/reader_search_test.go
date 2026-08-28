@@ -75,7 +75,7 @@ func TestSearchCursorPaginatesWithoutGapOrDuplicate(t *testing.T) {
 
 	db := openStoreTestDB(t)
 	store := NewStore(db, EventStoreConfig{})
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		insertTestEvent(t, store, EventRecord{OccurredAtMS: int64(i), Domain: "sync", Level: "info", Message: "m"})
 	}
 

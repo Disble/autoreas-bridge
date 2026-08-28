@@ -79,8 +79,7 @@ func TestSchedulerInvokesRunCallbackWithScheduledTriggerWhenDue(t *testing.T) {
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 
@@ -111,8 +110,7 @@ func TestSchedulerReReadsConfigImmediatelyAfterScheduleSave(t *testing.T) {
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 
@@ -154,8 +152,7 @@ func TestScheduledTickMarksLastRunAfterCompletion(t *testing.T) {
 		},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 

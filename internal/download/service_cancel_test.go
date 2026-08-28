@@ -100,8 +100,8 @@ func cancellableSoloRun(t *testing.T, cancelAfter int) (ServiceDeps, contracts.M
 		ID:        "anime-1",
 		Name:      "Solo Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/solo/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/solo/"),
+		Folder:    new(folder),
 	}
 	return deps, anime, ctx, cancel
 }
@@ -195,7 +195,7 @@ func TestEnqueueStopsFallingBackToTheNextHosterOnceCancelled(t *testing.T) {
 	deps.JD = jd
 
 	folder := t.TempDir()
-	anime := contracts.MobileAnime{ID: "anime-1", Name: "Solo Anime", Active: 1, Folder: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "Solo Anime", Active: 1, Folder: new(folder)}
 	ordered := []hosterLink{
 		{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}},
 		{hoster: "Mega", links: []string{"http://mega.example/1"}},

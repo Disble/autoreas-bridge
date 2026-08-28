@@ -11,7 +11,7 @@ const uiToastEventName = "notification.push"
 // emitFunc mirrors the injectable emit-fn shape used by
 // defaultObservabilityEmit (app.go), so the UIToastAdapter is testable with a
 // fake emit and degrades gracefully when the Wails runtime/emit is absent.
-type emitFunc func(ctx context.Context, eventName string, optionalData ...interface{})
+type emitFunc func(ctx context.Context, eventName string, optionalData ...any)
 
 // UIToastAdapter delivers a Notification to the frontend by emitting a Wails
 // runtime event named "notification.push" carrying the full Notification

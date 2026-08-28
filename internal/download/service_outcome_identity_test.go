@@ -75,8 +75,8 @@ func TestProcessAnimesCollectedOutcomesCarryAnimeIdentityThroughARealFanOut(t *t
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
 
 	animes := []contracts.MobileAnime{
-		{ID: "anime-ok", Name: "OK Anime", SourceURL: ptrStr("https://jkanime.net/ok-anime/"), Folder: ptrStr(okFolder)},
-		{ID: "anime-broken", Name: "Broken Anime", SourceURL: ptrStr("https://jkanime.net/broken-anime/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-ok", Name: "OK Anime", SourceURL: new("https://jkanime.net/ok-anime/"), Folder: new(okFolder)},
+		{ID: "anime-broken", Name: "Broken Anime", SourceURL: new("https://jkanime.net/broken-anime/"), Folder: new(t.TempDir())},
 	}
 
 	svc := NewService(deps)

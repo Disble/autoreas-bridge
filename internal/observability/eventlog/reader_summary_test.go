@@ -37,7 +37,7 @@ func TestSummarySamplesBounded(t *testing.T) {
 
 	db := openStoreTestDB(t)
 	store := NewStore(db, EventStoreConfig{})
-	for i := 0; i < defaultSummarySampleCap+3; i++ {
+	for i := range defaultSummarySampleCap + 3 {
 		insertTestEvent(t, store, EventRecord{OccurredAtMS: int64(i), Domain: "sync", Level: "info", Message: "m"})
 	}
 

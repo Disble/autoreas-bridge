@@ -102,7 +102,7 @@ func TestPruneRunsOnlyEveryNthWrite(t *testing.T) {
 	db := openStoreTestDB(t)
 	store := NewStore(db, EventStoreConfig{RowCap: 2, PruneEvery: 3})
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: int64(i), Domain: "sync", Level: "info", Message: "m"}); err != nil {
 			t.Fatalf("insert event %d: %v", i, err)
 		}
@@ -130,7 +130,7 @@ func TestPruneRemovesOldestBeyondRowCap(t *testing.T) {
 	db := openStoreTestDB(t)
 	store := NewStore(db, EventStoreConfig{RowCap: 3, PruneEvery: 1})
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: int64(i), Domain: "sync", Level: "info", Message: "m"}); err != nil {
 			t.Fatalf("insert event %d: %v", i, err)
 		}
@@ -172,7 +172,7 @@ func TestRowCapHoldsUnderSustainedWrites(t *testing.T) {
 	rowCap, pruneEvery := 10, 4
 	store := NewStore(db, EventStoreConfig{RowCap: rowCap, PruneEvery: pruneEvery})
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		if err := store.InsertEvent(context.Background(), EventRecord{OccurredAtMS: int64(i), Domain: "sync", Level: "info", Message: "m"}); err != nil {
 			t.Fatalf("insert event %d: %v", i, err)
 		}
@@ -204,7 +204,7 @@ func TestNewStoreSeedsPruneCounterFromExistingRows(t *testing.T) {
 
 	db := openStoreTestDB(t)
 	seed := NewStore(db, EventStoreConfig{RowCap: 3, PruneEvery: 4})
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		insertTestEvent(t, seed, EventRecord{OccurredAtMS: int64(100 + i), Domain: "sync", Level: "info", Message: "seed"})
 	}
 

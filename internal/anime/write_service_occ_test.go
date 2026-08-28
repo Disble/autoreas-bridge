@@ -21,7 +21,7 @@ func TestWriteServicePatchAnimeFastForwardsWhenBaseMatchesCurrent(t *testing.T) 
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(1000)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(5)), Base: new(int64(1000))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestWriteServicePatchAnimeDoesNotClobberOnDivergentBase(t *testing.T) {
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(7)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on divergence, got error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestWriteServicePatchAnimeNoOpsWhenDesiredValueAlreadyMatchesCurrent(t *tes
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(5)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected no-op success, got error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestWriteServicePatchAnimeCreatesWhenBaseNilAndRecordIsNew(t *testing.T) {
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(1)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(1))}
 	if _, err := service.PatchAnime(ctx, "anime-new", patch); err != nil {
 		t.Fatalf("expected create to succeed, got error: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestWriteServicePatchAnimeSafePathWhenBaseNilButRecordExists(t *testing.T) 
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(9)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(9))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on old-client safe path, got error: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestWriteServicePatchAnimeExplicitStaleFailsWhenConflictCannotBeRecorded(t 
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(9), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(9)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err == nil {
 		t.Fatal("expected explicit stale write to fail when conflict persistence is unavailable")
 	}
@@ -171,7 +171,7 @@ func TestWriteServicePatchAnimeDivergenceInsertsConflictAndNotifies(t *testing.T
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(7)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected non-blocking success on divergence, got error: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestWriteServicePatchAnimePropagatesConflictWriterFailure(t *testing.T) {
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(7)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err == nil {
 		t.Fatal("expected conflict persistence failure to propagate")
 	}
@@ -231,7 +231,7 @@ func TestWriteServicePatchAnimeIsolatesNotifierFailure(t *testing.T) {
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(7)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected success despite notifier failure, got error: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestWriteServicePatchAnimeObserveOnlyStillEnforcesExplicitStaleBase(t *test
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, Notifier: notifier, OCCObserveOnly: true})
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(7), Base: int64Ptr(999)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(7)), Base: new(int64(999))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("expected success in observe-only mode, got error: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestWriteServiceOCCExplicitStaleReturnsConflictAndCurrentToken(t *testing.T
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts, OCCObserveOnly: true})
 	stale := int64(100)
 
-	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(9), Base: &stale})
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(9)), Base: &stale})
 	if err != nil {
 		t.Fatalf("patch stale anime: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestWriteServiceOCCBaseLessExistingWriteReturnsAppliedWithoutConflict(t *te
 	service.SetNow(func() time.Time { return time.UnixMilli(300).UTC() })
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 
-	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(7)})
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(7))})
 	if err != nil {
 		t.Fatalf("patch base-less anime: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestWriteServiceOCCStaleNoOpReturnsNoOpWithoutSideEffects(t *testing.T) {
 	service.SetDeps(anime.WriteServiceDeps{Conflicts: conflicts})
 	stale := int64(100)
 
-	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(2), PreserveLastWatched: true, Base: &stale})
+	result, err := service.PatchAnimeResult(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(2)), PreserveLastWatched: true, Base: &stale})
 	if err != nil {
 		t.Fatalf("patch no-op anime: %v", err)
 	}

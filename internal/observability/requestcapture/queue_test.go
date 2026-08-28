@@ -78,7 +78,7 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 }
 
 func TestQueueConcurrentStopRejectsEnqueueAndDrainsAcceptedWork(t *testing.T) {
-	for iteration := 0; iteration < 100; iteration++ {
+	for iteration := range 100 {
 		store := &blockingQueueStore{release: make(chan struct{})}
 		queue := NewQueue(store, QueueConfig{Capacity: 1})
 		if !queue.TryEnqueue(NewCaptureRecord("patch", "accepted")) {

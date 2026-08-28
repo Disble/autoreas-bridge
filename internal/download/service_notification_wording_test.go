@@ -101,8 +101,8 @@ func runPartialFanOutBody(t *testing.T) string {
 
 	okFolder := t.TempDir()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "wording-ok", Name: "Wording OK Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/wording-ok/"), Folder: ptrStr(okFolder)},
-		{ID: "wording-broken", Name: "Wording Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/wording-broken/"), Folder: ptrStr(t.TempDir())},
+		{ID: "wording-ok", Name: "Wording OK Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/wording-ok/"), Folder: new(okFolder)},
+		{ID: "wording-broken", Name: "Wording Broken Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/wording-broken/"), Folder: new(t.TempDir())},
 	}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{okFolder: 4}, recursive: map[string]int{okFolder: 5}})
 	notifier := &svcFakeNotifier{}
@@ -135,7 +135,7 @@ func runFailedFanOutBody(t *testing.T) string {
 	deps.Sites = registry
 
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "wording-broken-only", Name: "Wording Broken Only Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/wording-broken-only/"), Folder: ptrStr(t.TempDir())},
+		{ID: "wording-broken-only", Name: "Wording Broken Only Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/wording-broken-only/"), Folder: new(t.TempDir())},
 	}}
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
@@ -173,7 +173,7 @@ func runPartialSingleAnimeBody(t *testing.T) string {
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 0}, recursive: map[string]int{folder: 1}})
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
-	anime := contracts.MobileAnime{ID: "wording-flaky", Name: "Wording Flaky Anime", SourceURL: ptrStr("https://jkanime.net/wording-flaky/"), Folder: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "wording-flaky", Name: "Wording Flaky Anime", SourceURL: new("https://jkanime.net/wording-flaky/"), Folder: new(folder)}
 
 	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
 		t.Fatalf("RunAnime: %v", err)
@@ -200,7 +200,7 @@ func runFailedSingleAnimeBody(t *testing.T) string {
 	deps.Sites = registry
 	notifier := &svcFakeNotifier{}
 	deps.Notifier = notifier
-	anime := contracts.MobileAnime{ID: "wording-dead", Name: "Wording Dead Anime", SourceURL: ptrStr("https://jkanime.net/wording-dead/"), Folder: ptrStr(t.TempDir())}
+	anime := contracts.MobileAnime{ID: "wording-dead", Name: "Wording Dead Anime", SourceURL: new("https://jkanime.net/wording-dead/"), Folder: new(t.TempDir())}
 
 	if _, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime); err != nil {
 		t.Fatalf("RunAnime: %v", err)

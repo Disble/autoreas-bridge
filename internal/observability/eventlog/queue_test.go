@@ -97,7 +97,7 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 // refused, while work already accepted is still drained. Repeated to shake out
 // scheduling variance, following requestcapture's equivalent test.
 func TestQueueConcurrentStopRejectsEnqueueAndDrainsAcceptedWork(t *testing.T) {
-	for iteration := 0; iteration < 100; iteration++ {
+	for iteration := range 100 {
 		store := &blockingSinkStore{release: make(chan struct{})}
 		queue := NewQueue(store, QueueConfig{Capacity: 1})
 		if !queue.TryEnqueue(EventRecord{Message: "accepted"}) {
@@ -139,7 +139,7 @@ func TestQueueRecordsStoreErrorAndKeepsDraining(t *testing.T) {
 	close(store.release) // let every write complete (and fail) immediately
 	queue := NewQueue(store, QueueConfig{Capacity: 4})
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if ok := queue.TryEnqueue(EventRecord{Message: "doomed"}); !ok {
 			t.Fatalf("expected enqueue %d to succeed", i)
 		}
@@ -184,7 +184,7 @@ func TestNewQueueAppliesDefaultCapacityWhenUnset(t *testing.T) {
 	t.Parallel()
 
 	defaulted := NewQueue(&blockingSinkStore{release: make(chan struct{})}, QueueConfig{})
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		if ok := defaulted.TryEnqueue(EventRecord{Message: "buffered"}); !ok {
 			t.Fatalf("expected the default capacity to accept 200 records, refused at %d", i)
 		}

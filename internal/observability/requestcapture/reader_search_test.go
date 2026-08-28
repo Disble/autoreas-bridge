@@ -16,7 +16,7 @@ func TestSearchRouteAndStatusFilter(t *testing.T) {
 	seedSearchFixtures(t, store)
 
 	reader := NewReader(db)
-	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{Route: "/api/sync/reconcile", HTTPStatus: intRef(400)}})
+	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{Route: "/api/sync/reconcile", HTTPStatus: new(400)}})
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestSearchTimeWindowFilter(t *testing.T) {
 	seedSearchFixtures(t, store)
 
 	reader := NewReader(db)
-	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{StartMS: int64Ref(100), EndMS: int64Ref(199)}})
+	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{StartMS: new(int64(100)), EndMS: new(int64(199))}})
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestSearchChangelogCorrelationFilter(t *testing.T) {
 	seedSearchFixtures(t, store)
 
 	reader := NewReader(db)
-	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{ChangelogID: int64Ref(77)}})
+	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{ChangelogID: new(int64(77))}})
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -215,8 +215,8 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	patch404.Route = "/api/animes/anime-1"
 	patch404.Outcome = "rejected"
 	patch404.ErrorCode = "anime_not_found"
-	patch404.AnimeID = stringRef("anime-1")
-	patch404.HTTPStatus = intRef(404)
+	patch404.AnimeID = new("anime-1")
+	patch404.HTTPStatus = new(404)
 	if err := store.UpsertCapture(context.Background(), patch404); err != nil {
 		t.Fatalf("seed patch404: %v", err)
 	}
@@ -227,7 +227,7 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	reconcile400.Route = "/api/sync/reconcile"
 	reconcile400.Outcome = "rejected"
 	reconcile400.ErrorCode = "apply_pending_failed"
-	reconcile400.HTTPStatus = intRef(400)
+	reconcile400.HTTPStatus = new(400)
 	if err := store.UpsertCapture(context.Background(), reconcile400); err != nil {
 		t.Fatalf("seed reconcile400: %v", err)
 	}
@@ -237,7 +237,7 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	reconcileAccepted.CapturedAtMS = 50
 	reconcileAccepted.Route = "/api/sync/reconcile"
 	reconcileAccepted.Outcome = "accepted"
-	reconcileAccepted.HTTPStatus = intRef(202)
+	reconcileAccepted.HTTPStatus = new(202)
 	reconcileAccepted.Correlations = Correlations{ChangelogIDs: []int64{77}, OperationRefs: []OperationRef{}}
 	if err := store.UpsertCapture(context.Background(), reconcileAccepted); err != nil {
 		t.Fatalf("seed reconcileAccepted: %v", err)
@@ -279,12 +279,3 @@ func openLegacyCaptureSchemaDB(t *testing.T) *sql.DB {
 	}
 	return db
 }
-
-// intRef returns a pointer to the given int value, for building test fixtures.
-func intRef(value int) *int { return &value }
-
-// int64Ref returns a pointer to the given int64 value, for building test fixtures.
-func int64Ref(value int64) *int64 { return &value }
-
-// stringRef returns a pointer to the given string value, for building test fixtures.
-func stringRef(value string) *string { return &value }

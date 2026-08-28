@@ -382,7 +382,6 @@ func (a *App) registerDownloadRuntimeEventBridge(ctx context.Context) {
 		return
 	}
 	for _, eventName := range downloadRuntimeEventNames {
-		eventName := eventName
 		a.eventBus.Subscribe(eventName, func(event events.Event) {
 			emitCtx := a.ctx
 			if emitCtx == nil {

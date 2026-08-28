@@ -48,7 +48,7 @@ type App struct {
 	newChangelogRecorder       func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
 	newDeviceStore             func(db *sql.DB) device.Store
 	newDeviceService           func(store device.Store) device.AuthService
-	newNotifier                func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier
+	newNotifier                func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub             func(ctx context.Context) realtime.Hub
 	newHTTPServer              func(config api.Config) api.Server
 	newCaptureStore            func(db *sql.DB) requestcapture.Store
@@ -58,7 +58,7 @@ type App struct {
 	newAutoStartReconciler     func() autoStartReconciler
 	newTracerBulletRunner      func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
 	newTracerBulletSink        func() tracerbullet.TraceSink
-	emitFn                     func(ctx context.Context, eventName string, optionalData ...interface{})
+	emitFn                     func(ctx context.Context, eventName string, optionalData ...any)
 	hideWindow                 func(context.Context)
 	showWindow                 func(context.Context)
 	unminimiseWindow           func(context.Context)

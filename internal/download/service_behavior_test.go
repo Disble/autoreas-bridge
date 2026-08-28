@@ -109,8 +109,8 @@ func TestRunOnceFallsBackToNextHosterWhenFirstHosterEnqueueFails(t *testing.T) {
 		Name:      "Some Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/anime/"),
-		Folder:    ptrStr(destFolder),
+		SourceURL: new("https://jkanime.net/anime/"),
+		Folder:    new(destFolder),
 	}}}
 	deps.Hosters = &svcFakeHosterResolver{order: []HosterPriorityEntry{{Hoster: "Mediafire", Priority: 0, Enabled: true}, {Hoster: "Mega", Priority: 1, Enabled: true}}}
 	jd := &svcFakeJDClient{}
@@ -156,20 +156,20 @@ func TestRunOnceAccountsSkipsSeparatelyFromAnimesChecked(t *testing.T) {
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
 		SourceURL: nil,
-		Folder:    ptrStr(t.TempDir()),
+		Folder:    new(t.TempDir()),
 	}, {
 		ID:        "anime-no-folder",
 		Name:      "No Folder Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/no-folder/"),
+		SourceURL: new("https://jkanime.net/no-folder/"),
 	}, {
 		ID:        "anime-serie",
 		Name:      "A Serie",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/serie/"),
-		Folder:    ptrStr(destFolder),
+		SourceURL: new("https://jkanime.net/serie/"),
+		Folder:    new(destFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{destFolder: 0}, recursive: map[string]int{destFolder: 1}})
 
@@ -202,7 +202,7 @@ func TestProcessAnimeRevalidatesCurrentSourceBeforeRuntimeWork(t *testing.T) {
 	registry := &spySiteRegistry{source: source, err: ErrSiteUnsupported}
 	deps.Sites = registry
 	folder := t.TempDir()
-	anime := contracts.MobileAnime{ID: "stale", Name: "Stale", SourceURL: ptrStr("https://unsupported.example/stale"), Folder: &folder}
+	anime := contracts.MobileAnime{ID: "stale", Name: "Stale", SourceURL: new("https://unsupported.example/stale"), Folder: &folder}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
 	if !got.skipped {
@@ -223,7 +223,7 @@ func TestProcessAnimeUsesDerivedDestinationWithoutPersistingIt(t *testing.T) {
 	deps.DownloadsRoot = func(context.Context) (string, error) { return root, nil }
 	deps.Counter = &svcFakeCounter{atRoot: map[string]int{destination: 0}, recursive: map[string]int{destination: 0}}
 	deps.Flattener = flattener
-	anime := contracts.MobileAnime{ID: "derived", Name: "Ready: Anime", SourceURL: ptrStr("https://supported.example/ready")}
+	anime := contracts.MobileAnime{ID: "derived", Name: "Ready: Anime", SourceURL: new("https://supported.example/ready")}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
 	if !got.upToDate || got.skipped {
@@ -247,7 +247,7 @@ func TestProcessAnimeFailsWhenDerivedDestinationSettingsCannotBeRead(t *testing.
 	anime := contracts.MobileAnime{
 		ID:        "settings-failure",
 		Name:      "Settings Failure",
-		SourceURL: ptrStr("https://supported.example/settings-failure"),
+		SourceURL: new("https://supported.example/settings-failure"),
 	}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
@@ -282,9 +282,9 @@ func TestProcessAnimeReportsUpToDateWhenTotalCapMatchesOnDiskCount(t *testing.T)
 		ID:            "anime-1",
 		Name:          "Some Anime",
 		Active:        1,
-		SourceURL:     ptrStr("https://jkanime.net/anime/"),
-		Folder:        ptrStr(folder),
-		TotalEpisodes: ptrInt(12),
+		SourceURL:     new("https://jkanime.net/anime/"),
+		Folder:        new(folder),
+		TotalEpisodes: new(12),
 	}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(false))
@@ -322,8 +322,8 @@ func TestProcessAnimeReportsUpToDateWhenNoNewEpisodeOnline(t *testing.T) {
 		ID:        "anime-1",
 		Name:      "Some Anime",
 		Active:    1,
-		SourceURL: ptrStr("https://jkanime.net/anime/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/anime/"),
+		Folder:    new(folder),
 	}
 
 	got := NewService(deps).processAnime(context.Background(), "run-fixed", anime, fixedJDGate(true))
@@ -359,15 +359,15 @@ func TestRunOnceCountsUpToDateWithinAnimesChecked(t *testing.T) {
 		Name:      "Fresh Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/fresh/"),
-		Folder:    ptrStr(freshFolder),
+		SourceURL: new("https://jkanime.net/fresh/"),
+		Folder:    new(freshFolder),
 	}, {
 		ID:        "anime-current",
 		Name:      "Up To Date Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/current/"),
-		Folder:    ptrStr(currentFolder),
+		SourceURL: new("https://jkanime.net/current/"),
+		Folder:    new(currentFolder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{freshFolder: 0, currentFolder: 4},
@@ -400,10 +400,9 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 		totalCap *int
 	}{
 		{name: "nil_totalcap", totalCap: nil},
-		{name: "zero_totalcap", totalCap: ptrInt(0)},
-		{name: "different_totalcap", totalCap: ptrInt(12)},
+		{name: "zero_totalcap", totalCap: new(0)},
+		{name: "different_totalcap", totalCap: new(12)},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -426,8 +425,8 @@ func TestProcessAnimeContinuesOnlineLookupWhenTotalCapDoesNotBlock(t *testing.T)
 				ID:            "anime-1",
 				Name:          "Some Anime",
 				Active:        1,
-				SourceURL:     ptrStr("https://jkanime.net/anime/"),
-				Folder:        ptrStr(folder),
+				SourceURL:     new("https://jkanime.net/anime/"),
+				Folder:        new(folder),
 				TotalEpisodes: tc.totalCap,
 			}
 

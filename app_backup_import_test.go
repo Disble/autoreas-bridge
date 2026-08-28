@@ -214,7 +214,7 @@ func TestPreviewBackupImportRejectsEmptyDialogResult(t *testing.T) {
 // no parameters beyond the receiver, so there is no argument a caller could
 // use to smuggle in an arbitrary path.
 func TestPreviewBackupImportNeverAcceptsACallerSuppliedPath(t *testing.T) {
-	method, ok := reflect.TypeOf(&App{}).MethodByName("PreviewBackupImport")
+	method, ok := reflect.TypeFor[*App]().MethodByName("PreviewBackupImport")
 	if !ok {
 		t.Fatal("expected an App.PreviewBackupImport method")
 	}
@@ -439,11 +439,11 @@ func TestImportedBundleAppliesExactlyTheThreeKnownGroups(t *testing.T) {
 // on the HTTP API's wiring config, which is the only place a REST route or
 // WS event could be registered from, names backup or import.
 func TestNoRESTRouteOrWSEventExposesImport(t *testing.T) {
-	configType := reflect.TypeOf(api.Config{})
-	for i := 0; i < configType.NumField(); i++ {
-		name := strings.ToLower(configType.Field(i).Name)
+	configType := reflect.TypeFor[api.Config]()
+	for field := range configType.Fields() {
+		name := strings.ToLower(field.Name)
 		if strings.Contains(name, "backup") || strings.Contains(name, "import") {
-			t.Fatalf("api.Config field %q exposes backup/import over the wire; import is desktop-only", configType.Field(i).Name)
+			t.Fatalf("api.Config field %q exposes backup/import over the wire; import is desktop-only", field.Name)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
@@ -99,12 +100,7 @@ func (d *AnimeEditorPatchDTO) UnmarshalJSON(data []byte) error {
 
 // editorContainsString reports whether a field name is already recorded.
 func editorContainsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 // toDomain converts an editor save command DTO to its domain command.

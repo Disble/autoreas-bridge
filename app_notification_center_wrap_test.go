@@ -31,7 +31,7 @@ func TestStartupWrapsNotifierWhenBridgeDBUsable(t *testing.T) {
 	fake := &stubAppNotifier{}
 	app := newAppTestApp(t)
 	configureStartupRuntimeDependencies(t, app, realDB)
-	app.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier {
 		return fake
 	}
 

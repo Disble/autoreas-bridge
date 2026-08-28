@@ -21,12 +21,6 @@ func fixedJDGate(online bool) *jdGate {
 	return g
 }
 
-// ptrStr returns a pointer to a string value.
-func ptrStr(s string) *string { return &s }
-
-// ptrInt returns a pointer to an integer value.
-func ptrInt(i int) *int { return &i }
-
 // setSvcFakeCounter installs a fake counter and flattening seam on service deps.
 func setSvcFakeCounter(deps *ServiceDeps, counter *svcFakeCounter) {
 	deps.Counter = counter

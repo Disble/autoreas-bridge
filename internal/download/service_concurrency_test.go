@@ -39,8 +39,8 @@ func TestProcessAnimesNeverExceedsTheJDDownloadLimit(t *testing.T) {
 	}
 
 	animes := make([]contracts.MobileAnime, 0, 6)
-	for i := 0; i < 6; i++ {
-		animes = append(animes, contracts.MobileAnime{ID: "a", Name: "X", Folder: ptrStr(t.TempDir())})
+	for range 6 {
+		animes = append(animes, contracts.MobileAnime{ID: "a", Name: "X", Folder: new(t.TempDir())})
 	}
 
 	svc.processAnimes(context.Background(), "run-1", animes, nil, func(animeProgressDelta) {})
@@ -76,8 +76,8 @@ func TestProcessAnimesRunsUnthrottledWhenTheLimitIsUnknown(t *testing.T) {
 	svc.testHookAnimeFinished = func() { mu.Lock(); inFlight--; mu.Unlock() }
 
 	animes := make([]contracts.MobileAnime, 0, 4)
-	for i := 0; i < 4; i++ {
-		animes = append(animes, contracts.MobileAnime{ID: "a", Name: "X", Folder: ptrStr(t.TempDir())})
+	for range 4 {
+		animes = append(animes, contracts.MobileAnime{ID: "a", Name: "X", Folder: new(t.TempDir())})
 	}
 
 	svc.processAnimes(context.Background(), "run-1", animes, nil, func(animeProgressDelta) {})

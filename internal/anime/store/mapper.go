@@ -149,7 +149,7 @@ func appendRepetition(fields map[string]json.RawMessage, repetition domain.Repet
 		"premieredAt":     dateJSON(repetition.PremieredAt),
 		"lastWatchedAt":   dateJSON(repetition.LastWatchedAt),
 		"deletedAt":       dateJSON(repetition.DeletedAt),
-		"repeatedAt":      dateJSON(timePointer(repetition.RepeatedAt)),
+		"repeatedAt":      dateJSON(new(repetition.RepeatedAt)),
 	})
 	fields["repetitions"] = mustJSON(entries)
 	return nil
@@ -174,9 +174,4 @@ func dateJSON(value *time.Time) json.RawMessage {
 		return mustJSON(nil)
 	}
 	return mustJSON(value.UTC().UnixMilli())
-}
-
-// timePointer returns a pointer to the supplied timestamp.
-func timePointer(value time.Time) *time.Time {
-	return &value
 }

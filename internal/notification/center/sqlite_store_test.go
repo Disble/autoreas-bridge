@@ -22,7 +22,7 @@ func seedNotificationRecords(t *testing.T, db *sql.DB, count int, startAtMS int6
 		t.Fatalf("prepare seed stmt: %v", err)
 	}
 	defer func() { _ = stmt.Close() }()
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if _, err := stmt.Exec(startAtMS+int64(i), "seed", "seed body", "info", "seed"); err != nil {
 			t.Fatalf("seed record %d: %v", i, err)
 		}

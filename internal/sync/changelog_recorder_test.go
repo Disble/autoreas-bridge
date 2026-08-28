@@ -18,8 +18,7 @@ func TestChangelogRecorderPersistsAnimeChangedEvents(t *testing.T) {
 	store := &stubChangelogStore{}
 	logger := &recordingSyncLogger{}
 	recorder := NewChangelogRecorder(bus, store, logger)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	recorder.Start(ctx)
 
 	event := events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)}
@@ -67,8 +66,7 @@ func TestChangelogRecorderIgnoresUnrelatedEvents(t *testing.T) {
 	bus := events.NewBus()
 	store := &stubChangelogStore{}
 	recorder := NewChangelogRecorder(bus, store)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	recorder.Start(ctx)
 
 	bus.Publish(events.SyncRequestedEvent{Requester: "tablet"})
@@ -88,8 +86,7 @@ func TestChangelogRecorderStoresInsertErrors(t *testing.T) {
 	store := &stubChangelogStore{err: wantErr}
 	logger := &recordingSyncLogger{}
 	recorder := NewChangelogRecorder(bus, store, logger)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	recorder.Start(ctx)
 
 	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", Payload: []byte(`{"id":"anime-1"}`)})
@@ -116,8 +113,7 @@ func TestChangelogRecorderPersistsDeleteChangeType(t *testing.T) {
 	bus := events.NewBus()
 	store := &stubChangelogStore{}
 	recorder := NewChangelogRecorder(bus, store)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	recorder.Start(ctx)
 
 	bus.Publish(events.AnimeChangedEvent{AnimeID: "anime-1", ChangeType: events.AnimeChangeTypeDelete})

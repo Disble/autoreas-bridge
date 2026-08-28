@@ -14,7 +14,7 @@ var routerPathPattern = regexp.MustCompile(`mux\.Handle(?:Func)?\("([^"]+)"`)
 type openAPIDoc struct {
 	OpenAPI string                   `yaml:"openapi"`
 	Info    struct{ Version string } `yaml:"info"`
-	Paths   map[string]interface{}   `yaml:"paths"`
+	Paths   map[string]any           `yaml:"paths"`
 }
 
 func main() {

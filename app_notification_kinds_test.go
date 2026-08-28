@@ -68,7 +68,7 @@ func TestOnPairingTokenConsumedNamesItsKind(t *testing.T) {
 	app := &App{
 		notifier: notifier,
 		ctx:      context.Background(),
-		emitFn:   func(context.Context, string, ...interface{}) {},
+		emitFn:   func(context.Context, string, ...any) {},
 	}
 
 	app.onPairingTokenConsumed()()

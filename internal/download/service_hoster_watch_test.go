@@ -171,7 +171,7 @@ func newWatchTestService(t *testing.T, jd jdownloader.JDClient, counter *svcFake
 
 // testAnime builds the minimal anime used by hoster-watch tests.
 func testAnime(folder string) contracts.MobileAnime {
-	return contracts.MobileAnime{ID: "anime-1", Name: "Test Anime", Folder: ptrStr(folder)}
+	return contracts.MobileAnime{ID: "anime-1", Name: "Test Anime", Folder: new(folder)}
 }
 
 func TestAwaitHosterOutcomeReturnsSuccessWhenDiskBaselineExceeded(t *testing.T) {

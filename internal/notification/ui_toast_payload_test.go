@@ -13,7 +13,7 @@ func emitOnce(t *testing.T, delivery Delivery) map[string]any {
 	t.Helper()
 
 	var payloads []any
-	adapter := NewUIToastAdapter(func(_ context.Context, _ string, optionalData ...interface{}) {
+	adapter := NewUIToastAdapter(func(_ context.Context, _ string, optionalData ...any) {
 		payloads = append(payloads, optionalData...)
 	})
 

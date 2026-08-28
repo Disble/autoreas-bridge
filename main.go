@@ -41,7 +41,7 @@ func buildAppOptions(app *App) *options.App {
 		},
 		OnStartup:  app.startup,
 		OnShutdown: app.shutdown,
-		Bind: []interface{}{
+		Bind: []any{
 			app,
 		},
 	}

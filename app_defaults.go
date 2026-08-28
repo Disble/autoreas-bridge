@@ -27,7 +27,7 @@ import (
 )
 
 // defaultObservabilityEmit forwards an observability event to the Wails runtime.
-func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...interface{}) {
+func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...any) {
 	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
 		return
 	}
@@ -35,7 +35,7 @@ func defaultObservabilityEmit(ctx context.Context, eventName string, optionalDat
 }
 
 // defaultNotifier builds the default notification dispatcher and adapters.
-func defaultNotifier(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+func defaultNotifier(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier {
 	adapters := []notification.Adapter{
 		notification.NewUIToastAdapter(emit),
 		notification.NewDesktopToastAdapter(),
@@ -101,7 +101,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 		}
 	}
 	if a.newNotifier == nil {
-		a.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+		a.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier {
 			return defaultNotifier(emit, loggers...)
 		}
 	}

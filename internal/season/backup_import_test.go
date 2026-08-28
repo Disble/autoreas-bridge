@@ -170,7 +170,7 @@ func TestSeasonImportDecodesIncrementally(t *testing.T) {
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		status := "closed"
 		if i == 0 {
 			status = "open"
@@ -237,7 +237,7 @@ func TestImportSeasonsReportsTheCountItApplied(t *testing.T) {
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		status := "closed"
 		if i == 0 {
 			status = "open"

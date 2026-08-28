@@ -3,6 +3,7 @@ package center
 import (
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -98,10 +99,5 @@ func moduleRoot(t *testing.T) string {
 
 // containsDep reports whether want appears in deps.
 func containsDep(deps []string, want string) bool {
-	for _, dep := range deps {
-		if dep == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(deps, want)
 }

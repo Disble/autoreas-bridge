@@ -239,7 +239,7 @@ func TestAppStartupWiresPairingTokenConsumedCallbackIntoHTTPServer(t *testing.T)
 		config.OnPairingTokenConsumed()
 		return server
 	}
-	app.emitFn = func(_ context.Context, eventName string, _ ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, _ ...any) {
 		emittedEvents = append(emittedEvents, eventName)
 	}
 
@@ -264,10 +264,10 @@ func TestAppStartupPairingTokenConsumedCallbackEmitsSuccessNotificationBesideBar
 		config.OnPairingTokenConsumed()
 		return server
 	}
-	app.newNotifier = func(func(context.Context, string, ...interface{}), ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(func(context.Context, string, ...any), ...sharedlogger.Logger) notification.Notifier {
 		return fakeNotifier
 	}
-	app.emitFn = func(_ context.Context, eventName string, _ ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, _ ...any) {
 		emittedEvents = append(emittedEvents, eventName)
 	}
 
@@ -308,10 +308,10 @@ func TestAppStartupPairingTokenConsumedCallbackSurvivesNotifierError(t *testing.
 		config.OnPairingTokenConsumed()
 		return server
 	}
-	app.newNotifier = func(func(context.Context, string, ...interface{}), ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(func(context.Context, string, ...any), ...sharedlogger.Logger) notification.Notifier {
 		return erroringNotifier
 	}
-	app.emitFn = func(_ context.Context, eventName string, _ ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, _ ...any) {
 		emittedEvents = append(emittedEvents, eventName)
 	}
 
@@ -338,10 +338,10 @@ func TestAppStartupPairingTokenConsumedCallbackIsSafeWithNilNotifier(t *testing.
 		config.OnPairingTokenConsumed()
 		return server
 	}
-	app.newNotifier = func(func(context.Context, string, ...interface{}), ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(func(context.Context, string, ...any), ...sharedlogger.Logger) notification.Notifier {
 		return nil
 	}
-	app.emitFn = func(_ context.Context, eventName string, _ ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, _ ...any) {
 		emittedEvents = append(emittedEvents, eventName)
 	}
 

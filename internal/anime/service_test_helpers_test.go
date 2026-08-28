@@ -119,12 +119,6 @@ func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapsh
 	}
 }
 
-// floatPtr returns a pointer to a float test value.
-func floatPtr(value float64) *float64 { return &value }
-
-// int64Ptr returns a pointer to an int64 test value.
-func int64Ptr(value int64) *int64 { return &value }
-
 // stubAnimeWriter is the Writer test double.
 //
 // SDD-55 Slice B: the gateway no longer routes writes through Writer at all

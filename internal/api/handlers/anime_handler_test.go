@@ -52,7 +52,6 @@ func TestPatchAnimeHandlerRejectsInvalidPayloads(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -279,13 +278,12 @@ func TestPatchAnimeHandlerDecodesBaseToken(t *testing.T) {
 		body     string
 		wantBase *int64
 	}{
-		{name: "explicit positive base", body: `{"episodesWatched":1,"base":1710000000123}`, wantBase: int64Ptr(1710000000123)},
-		{name: "explicit zero base", body: `{"episodesWatched":1,"base":0}`, wantBase: int64Ptr(0)},
+		{name: "explicit positive base", body: `{"episodesWatched":1,"base":1710000000123}`, wantBase: new(int64(1710000000123))},
+		{name: "explicit zero base", body: `{"episodesWatched":1,"base":0}`, wantBase: new(int64(0))},
 		{name: "base omitted entirely", body: `{"episodesWatched":1}`, wantBase: nil},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

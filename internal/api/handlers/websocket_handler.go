@@ -42,7 +42,7 @@ type WebSocketHandlerConfig struct {
 	Logger             sharedlogger.Logger
 }
 
-var websocketClientSequence uint64
+var websocketClientSequence atomic.Uint64
 
 // NewWebSocketHandler builds the WebSocket transport adapter used by mobile clients.
 func NewWebSocketHandler(config WebSocketHandlerConfig) http.Handler {
@@ -253,7 +253,7 @@ type webSocketClient struct {
 
 // newWebSocketClient creates a uniquely identified websocket hub client.
 func newWebSocketClient(deviceID string, conn *websocket.Conn) *webSocketClient {
-	sequence := atomic.AddUint64(&websocketClientSequence, 1)
+	sequence := websocketClientSequence.Add(1)
 	return &webSocketClient{
 		id:   fmt.Sprintf("%s-%d", deviceID, sequence),
 		conn: conn,

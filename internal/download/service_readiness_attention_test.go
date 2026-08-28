@@ -43,7 +43,7 @@ func runOnceForReadiness(t *testing.T, deps ServiceDeps, notifier *svcFakeNotifi
 // blockedReadinessItems builds count distinct scheduled-and-blocked readiness items.
 func blockedReadinessItems(count int) []contracts.AnimeDownloadReadiness {
 	items := make([]contracts.AnimeDownloadReadiness, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		items = append(items, blockedReadinessItem(
 			fmt.Sprintf("anime-%02d", i),
 			fmt.Sprintf("Anime %02d", i),
@@ -338,7 +338,7 @@ func TestReadinessAttentionRepeatsOnEveryScheduledRun(t *testing.T) {
 	)
 	service := NewService(deps)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if _, err := service.RunOnce(context.Background(), "scheduled"); err != nil {
 			t.Fatalf("RunOnce #%d: %v", i+1, err)
 		}

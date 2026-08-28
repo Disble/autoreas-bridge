@@ -244,7 +244,7 @@ func TestSinkWriteEntryDoesNotBlockOnDeliberatelySlowStore(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: sharedlogger.LevelInfo, Message: "hi", Timestamp: time.Now().UTC().Format(time.RFC3339)})
 		}
 		close(done)
@@ -376,7 +376,7 @@ func TestSinkWriteUnboundEnqueuesWhenBindRacedIn(t *testing.T) {
 // scheduling variance. The invariant is conservation -- every entry arrives
 // exactly once, whichever path it took.
 func TestSinkConcurrentWriteDuringBindDeliversExactlyOnce(t *testing.T) {
-	for iteration := 0; iteration < 100; iteration++ {
+	for iteration := range 100 {
 		sink := NewSink(SinkConfig{})
 		store := &recordingSinkStore{}
 		queue := NewQueue(store, QueueConfig{Capacity: 8})

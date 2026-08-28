@@ -12,7 +12,7 @@ import (
 // destination and the links the test wants matched against it.
 func renameFixture(destination string, links []jd.DownloadLink) (*fakeDownloader, *myJDAdapter) {
 	dl := &fakeDownloader{
-		packages: []jd.DownloadPackage{{SaveTo: strPtr(destination), Uuid: int64Ptr(7)}},
+		packages: []jd.DownloadPackage{{SaveTo: new(destination), Uuid: new(int64(7))}},
 		links:    links,
 	}
 	client := &fakeJdClient{device: &fakeDevice{lg: &fakeLinkGrabber{}, dl: dl}}
@@ -24,7 +24,7 @@ func TestRenameEpisodeByDestinationRenamesTheFinishedLinkKeepingItsExtension(t *
 
 	const dest = `D:\Anime\NegaPosi Angler`
 	dl, adapter := renameFixture(dest, []jd.DownloadLink{
-		{Uuid: int64Ptr(42), PackageUuid: int64Ptr(7), Finished: boolPtr(true), FinishedDate: int64Ptr(500), Name: strPtr("qk2rlwv6tci3.mp4")},
+		{Uuid: new(int64(42)), PackageUuid: new(int64(7)), Finished: new(true), FinishedDate: new(int64(500)), Name: new("qk2rlwv6tci3.mp4")},
 	})
 
 	got, err := adapter.RenameEpisodeByDestination(context.Background(), "MyPC", dest, "NegaPosi Angler - 04")
@@ -48,8 +48,8 @@ func TestRenameEpisodeByDestinationPicksTheMostRecentlyFinishedLink(t *testing.T
 
 	const dest = `D:\Anime\NegaPosi Angler`
 	dl, adapter := renameFixture(dest, []jd.DownloadLink{
-		{Uuid: int64Ptr(1), PackageUuid: int64Ptr(7), Finished: boolPtr(true), FinishedDate: int64Ptr(100), Name: strPtr("old.mp4")},
-		{Uuid: int64Ptr(2), PackageUuid: int64Ptr(7), Finished: boolPtr(true), FinishedDate: int64Ptr(900), Name: strPtr("new.mkv")},
+		{Uuid: new(int64(1)), PackageUuid: new(int64(7)), Finished: new(true), FinishedDate: new(int64(100)), Name: new("old.mp4")},
+		{Uuid: new(int64(2)), PackageUuid: new(int64(7)), Finished: new(true), FinishedDate: new(int64(900)), Name: new("new.mkv")},
 	})
 
 	if _, err := adapter.RenameEpisodeByDestination(context.Background(), "MyPC", dest, "Show - 07"); err != nil {
@@ -69,7 +69,7 @@ func TestRenameEpisodeByDestinationIgnoresLinksFromOtherFolders(t *testing.T) {
 
 	const dest = `D:\Anime\NegaPosi Angler`
 	dl, adapter := renameFixture(dest, []jd.DownloadLink{
-		{Uuid: int64Ptr(99), PackageUuid: int64Ptr(8), Finished: boolPtr(true), FinishedDate: int64Ptr(900), Name: strPtr("other.mp4")},
+		{Uuid: new(int64(99)), PackageUuid: new(int64(8)), Finished: new(true), FinishedDate: new(int64(900)), Name: new("other.mp4")},
 	})
 
 	_, err := adapter.RenameEpisodeByDestination(context.Background(), "MyPC", dest, "Show - 07")
@@ -86,7 +86,7 @@ func TestRenameEpisodeByDestinationIgnoresUnfinishedLinks(t *testing.T) {
 
 	const dest = `D:\Anime\NegaPosi Angler`
 	dl, adapter := renameFixture(dest, []jd.DownloadLink{
-		{Uuid: int64Ptr(5), PackageUuid: int64Ptr(7), Finished: boolPtr(false), Name: strPtr("downloading.mp4")},
+		{Uuid: new(int64(5)), PackageUuid: new(int64(7)), Finished: new(false), Name: new("downloading.mp4")},
 	})
 
 	_, err := adapter.RenameEpisodeByDestination(context.Background(), "MyPC", dest, "Show - 07")
@@ -107,9 +107,9 @@ func TestRenameEpisodeByDestinationMatchesPackagesSavedInASubfolder(t *testing.T
 
 	const dest = `D:\Anime\Bleach Sennen Kessen-hen - Kashin-tan`
 	dl := &fakeDownloader{
-		packages: []jd.DownloadPackage{{SaveTo: strPtr(dest + `\bleeeacccchthounnnsandyearrbloodkashiitensvs-02`), Uuid: int64Ptr(7)}},
+		packages: []jd.DownloadPackage{{SaveTo: new(dest + `\bleeeacccchthounnnsandyearrbloodkashiitensvs-02`), Uuid: new(int64(7))}},
 		links: []jd.DownloadLink{
-			{Uuid: int64Ptr(42), PackageUuid: int64Ptr(7), Finished: boolPtr(true), FinishedDate: int64Ptr(500), Name: strPtr("bleeeacccchthounnnsandyearrbloodkashiitensvs-02.mp4")},
+			{Uuid: new(int64(42)), PackageUuid: new(int64(7)), Finished: new(true), FinishedDate: new(int64(500)), Name: new("bleeeacccchthounnnsandyearrbloodkashiitensvs-02.mp4")},
 		},
 	}
 	client := &fakeJdClient{device: &fakeDevice{lg: &fakeLinkGrabber{}, dl: dl}}
@@ -133,8 +133,8 @@ func TestRenameEpisodeByDestinationIgnoresSiblingFoldersSharingAPrefix(t *testin
 
 	const dest = `D:\Anime\Bleach`
 	dl := &fakeDownloader{
-		packages: []jd.DownloadPackage{{SaveTo: strPtr(`D:\Anime\Bleach Sennen Kessen-hen`), Uuid: int64Ptr(7)}},
-		links:    []jd.DownloadLink{{Uuid: int64Ptr(42), PackageUuid: int64Ptr(7), Finished: boolPtr(true), Name: strPtr("x.mp4")}},
+		packages: []jd.DownloadPackage{{SaveTo: new(`D:\Anime\Bleach Sennen Kessen-hen`), Uuid: new(int64(7))}},
+		links:    []jd.DownloadLink{{Uuid: new(int64(42)), PackageUuid: new(int64(7)), Finished: new(true), Name: new("x.mp4")}},
 	}
 	adapter := newWithClient(&fakeJdClient{device: &fakeDevice{lg: &fakeLinkGrabber{}, dl: dl}})
 

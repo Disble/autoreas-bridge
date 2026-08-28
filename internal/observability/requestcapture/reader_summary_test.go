@@ -41,7 +41,7 @@ func TestSummaryLatestErrorSamplesBounded(t *testing.T) {
 		record.Route = "/api/animes/anime-1"
 		record.Outcome = "rejected"
 		record.ErrorCode = "anime_not_found"
-		record.HTTPStatus = intRef(404)
+		record.HTTPStatus = new(404)
 		if err := store.UpsertCapture(context.Background(), record); err != nil {
 			t.Fatalf("seed error sample %d: %v", index, err)
 		}
@@ -78,7 +78,7 @@ func TestSummaryScopedByFilters(t *testing.T) {
 	seedSearchFixtures(t, store)
 
 	reader := NewReader(db)
-	summary, err := reader.Summary(context.Background(), SearchFilters{Route: "/api/sync/reconcile", StartMS: int64Ref(200)})
+	summary, err := reader.Summary(context.Background(), SearchFilters{Route: "/api/sync/reconcile", StartMS: new(int64(200))})
 	if err != nil {
 		t.Fatalf("summary: %v", err)
 	}

@@ -110,11 +110,9 @@ func (w *updateWriter) StartAsync(ctx context.Context) {
 			}
 		})
 
-		w.wg.Add(1)
-		go func() {
-			defer w.wg.Done()
+		w.wg.Go(func() {
 			w.run(ctx)
-		}()
+		})
 	})
 }
 

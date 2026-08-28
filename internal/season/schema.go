@@ -3,6 +3,7 @@ package season
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 
 	"autoreas-bridge/internal/persistence"
 )
@@ -123,12 +124,7 @@ func migrateSeasonAnimes(db *sql.DB, cols []string) error {
 
 // columnPresent reports whether target appears in cols.
 func columnPresent(cols []string, target string) bool {
-	for _, c := range cols {
-		if c == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cols, target)
 }
 
 // SchemaTables returns the season-owned bridge table descriptors for the sdd-34

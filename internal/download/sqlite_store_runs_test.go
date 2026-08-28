@@ -133,7 +133,7 @@ func TestSQLiteStoreFinalizeRunPrunesToRetentionLimit(t *testing.T) {
 	store := NewSQLiteStore(db)
 	ctx := context.Background()
 	const total = 201
-	for i := 0; i < total; i++ {
+	for i := range total {
 		runID := runIDForIndex(i)
 		startedAt := int64(i + 1)
 		if err := store.OpenRun(ctx, Run{RunID: runID, StartedAtMs: startedAt, Trigger: "scheduled"}); err != nil {

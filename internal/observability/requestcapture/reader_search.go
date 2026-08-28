@@ -1,5 +1,7 @@
 package requestcapture
 
+import "strings"
+
 import "context"
 
 // Search returns newest-first capture summaries, applying any supplied
@@ -89,24 +91,24 @@ func (r *Reader) Get(ctx context.Context, requestID string) (GetResult, error) {
 
 // selectColumnList joins the ordered column list into a SQL SELECT fragment.
 func selectColumnList(columns []string) string {
-	list := ""
+	var list strings.Builder
 	for i, column := range columns {
 		if i > 0 {
-			list += ", "
+			list.WriteString(", ")
 		}
-		list += column
+		list.WriteString(column)
 	}
-	return list
+	return list.String()
 }
 
 // joinConditions ANDs a set of already-parenthesized-as-needed WHERE fragments.
 func joinConditions(conditions []string) string {
-	joined := ""
+	var joined strings.Builder
 	for i, condition := range conditions {
 		if i > 0 {
-			joined += " AND "
+			joined.WriteString(" AND ")
 		}
-		joined += condition
+		joined.WriteString(condition)
 	}
-	return joined
+	return joined.String()
 }

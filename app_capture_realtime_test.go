@@ -34,7 +34,7 @@ func TestAppWiresCaptureQueueOnPersistToRuntimeEventEmit(t *testing.T) {
 	}
 
 	emitted := make(chan contracts.CaptureRow, 4)
-	app.emitFn = func(_ context.Context, eventName string, optionalData ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
 		if eventName != captureTransactionEventName || len(optionalData) == 0 {
 			return
 		}
@@ -77,7 +77,7 @@ func TestAppWiresRealtimeHubCaptureSinkToCaptureQueue(t *testing.T) {
 	app.newHTTPServer = func(api.Config) api.Server { return &stubAppHTTPServer{} }
 
 	emitted := make(chan contracts.CaptureRow, 4)
-	app.emitFn = func(_ context.Context, eventName string, optionalData ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
 		if eventName != captureTransactionEventName || len(optionalData) == 0 {
 			return
 		}

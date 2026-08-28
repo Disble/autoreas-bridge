@@ -58,12 +58,6 @@ func TestHighestEpisodeNumberIgnoresInputOrder(t *testing.T) {
 	}
 }
 
-// intPtr returns a pointer to an integer fixture value.
-func intPtr(v int) *int { return &v }
-
-// strPtr returns a pointer to a string fixture value.
-func strPtr(v string) *string { return &v }
-
 func TestEvaluateAnimeForDownloadReturnsCanonicalReasonsInOrder(t *testing.T) {
 	registry := &spySiteRegistry{source: &spyEpisodeSource{}}
 	tests := []struct {
@@ -76,8 +70,8 @@ func TestEvaluateAnimeForDownloadReturnsCanonicalReasonsInOrder(t *testing.T) {
 		wantErr  error
 	}{
 		{name: "missing source", folder: nil, registry: registry, want: []ReadinessReason{DownloadReadinessMissingSource, DownloadReadinessDestinationUnresolved}, wantErr: ErrMissingSource},
-		{name: "invalid source", page: strPtr("relative/page"), folder: strPtr("D:/anime"), registry: registry, want: []ReadinessReason{DownloadReadinessInvalidSource}, wantErr: ErrInvalidSource},
-		{name: "unsupported source", page: strPtr("https://unsupported.example/page"), folder: strPtr("D:/anime"), registry: &spySiteRegistry{err: ErrSiteUnsupported}, want: []ReadinessReason{DownloadReadinessUnsupportedSource}, wantErr: ErrUnsupportedSource},
+		{name: "invalid source", page: new("relative/page"), folder: new("D:/anime"), registry: registry, want: []ReadinessReason{DownloadReadinessInvalidSource}, wantErr: ErrInvalidSource},
+		{name: "unsupported source", page: new("https://unsupported.example/page"), folder: new("D:/anime"), registry: &spySiteRegistry{err: ErrSiteUnsupported}, want: []ReadinessReason{DownloadReadinessUnsupportedSource}, wantErr: ErrUnsupportedSource},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,7 +98,7 @@ func TestEvaluateAnimeForDownloadIgnoresTypeAndUsesMatchedSourceWithoutListing(t
 	registry := &spySiteRegistry{source: source}
 	folder := `D:\anime\missing-on-disk`
 	decision := EvaluateAnimeForDownload(AnimeDownloadCandidate{
-		Name: "Movie", Tipo: intPtr(2), Pagina: strPtr("https://supported.example/movie"), Carpeta: &folder, Sites: registry,
+		Name: "Movie", Tipo: new(2), Pagina: new("https://supported.example/movie"), Carpeta: &folder, Sites: registry,
 	})
 	if decision.Skip || decision.Source != source || len(decision.Reasons) != 0 || decision.Destination != folder {
 		t.Fatalf("decision = %#v, want ready matched movie destination", decision)

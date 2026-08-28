@@ -18,7 +18,7 @@ type emitRecorder struct {
 }
 
 // emit is the App.emitFn shape, recording the event name and its first payload argument.
-func (r *emitRecorder) emit(_ context.Context, eventName string, optionalData ...interface{}) {
+func (r *emitRecorder) emit(_ context.Context, eventName string, optionalData ...any) {
 	r.names = append(r.names, eventName)
 	if len(optionalData) > 0 {
 		r.payload = append(r.payload, optionalData[0])

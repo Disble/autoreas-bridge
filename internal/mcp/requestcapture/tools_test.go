@@ -165,7 +165,7 @@ func TestResolveTraversesAndRanksAllCorrelationFields(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	store := obs.NewStore(db, obs.StoreConfig{})
 	rankNames := []string{"Rank Key", "prefix rank key suffix"}
-	for i := 0; i < 101; i++ {
+	for i := range 101 {
 		r := obs.NewCaptureRecord("patch", "filler")
 		r.RequestID, r.CapturedAtMS = fmt.Sprintf("filler-%03d", i), int64(1000+i)
 		if i < len(rankNames) {

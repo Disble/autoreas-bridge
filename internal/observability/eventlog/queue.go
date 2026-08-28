@@ -104,10 +104,7 @@ func (q *Queue) Stop(ctx context.Context) QueueStopResult {
 		return QueueStopResult{}
 	case <-ctx.Done():
 		q.setErr(ctx.Err())
-		unfinished := q.queued.Load() - q.dequeued.Load()
-		if unfinished < 0 {
-			unfinished = 0
-		}
+		unfinished := max(q.queued.Load()-q.dequeued.Load(), 0)
 		return QueueStopResult{UnfinishedItems: int(unfinished)}
 	}
 }

@@ -113,7 +113,7 @@ func (s *Service) detectDownloadStartPhase(ctx context.Context, runID, animeID, 
 
 	s.deps.PollSleep(20 * time.Second)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if pf(folder) {
 			s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: animeID, Episode: episode, CorrelationID: runID})
 			return true, nil

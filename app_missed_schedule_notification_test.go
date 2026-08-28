@@ -183,7 +183,7 @@ func TestStartupRaisesTheMissedScheduleRecord(t *testing.T) {
 
 	notifier := &recordingAppNotifier{}
 	app := newAppTestApp(t)
-	app.newNotifier = func(func(context.Context, string, ...interface{}), ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(func(context.Context, string, ...any), ...sharedlogger.Logger) notification.Notifier {
 		return notifier
 	}
 	app.newDownloadStore = func(*sql.DB) download.Store {

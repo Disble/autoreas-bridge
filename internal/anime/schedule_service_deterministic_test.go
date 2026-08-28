@@ -11,7 +11,7 @@ import (
 
 func TestScheduleServiceApplyBreaksEqualLegacyOrdersDeterministicallyByAnimeID(t *testing.T) {
 	ctx := context.Background()
-	for iteration := 0; iteration < 40; iteration++ {
+	for iteration := range 40 {
 		env := newDeterministicScheduleTestEnv(t)
 		result, err := env.service.Apply(ctx, anime.ApplyAnimeScheduleDraftCommand{BoardModifiedAt: 103, Entries: []anime.ApplyAnimeScheduleDraftEntry{{
 			AnimeID:        "anime-c",

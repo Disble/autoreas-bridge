@@ -21,10 +21,7 @@ const (
 // It NEVER calls time.Sleep directly -- this is the seam that makes the whole loop unit-testable
 // with a fake clock (PR4a brief).
 func (s *scheduler) sleepUntil(ctx context.Context, at time.Time) sleepResult {
-	d := at.Sub(s.clock.Now())
-	if d < 0 {
-		d = 0
-	}
+	d := max(at.Sub(s.clock.Now()), 0)
 	timer := s.clock.NewTimer(d)
 	defer timer.Stop()
 
@@ -54,7 +51,7 @@ func nextDailyBoundaryAfter(now time.Time, hhmm string, mask byte, loc *time.Loc
 		candidate = candidate.AddDate(0, 0, 1)
 	}
 
-	for i := 0; i < maxWeekdayAdvancementIterations; i++ {
+	for range maxWeekdayAdvancementIterations {
 		if mask&(1<<uint(candidate.Weekday())) != 0 {
 			return candidate, nil
 		}

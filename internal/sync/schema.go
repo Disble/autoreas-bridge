@@ -1,5 +1,7 @@
 package sync
 
+import "slices"
+
 import "encoding/json"
 
 const (
@@ -180,12 +182,7 @@ const (
 
 // containsSchemaColumn reports whether columns contains want.
 func containsSchemaColumn(columns []string, want string) bool {
-	for _, column := range columns {
-		if column == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(columns, want)
 }
 
 // isLegacyAnimeSnapshotsSchema recognizes the original snapshot columns.

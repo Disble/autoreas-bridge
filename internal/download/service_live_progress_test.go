@@ -31,15 +31,15 @@ func TestRunOncePublishesLiveProgressBeforeAllAnimeWorkersFinish(t *testing.T) {
 		Name:      "Anime A",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/a/"),
-		Folder:    ptrStr(folderA),
+		SourceURL: new("https://jkanime.net/a/"),
+		Folder:    new(folderA),
 	}, {
 		ID:        "anime-b",
 		Name:      "Anime B",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/b/"),
-		Folder:    ptrStr(folderB),
+		SourceURL: new("https://jkanime.net/b/"),
+		Folder:    new(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{folderA: 0, folderB: 0},
@@ -156,15 +156,15 @@ func TestRunOnceSerializesProgressSnapshotsAcrossPersistenceAndEvents(t *testing
 		Name:      "Anime A",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/a/"),
-		Folder:    ptrStr(folderA),
+		SourceURL: new("https://jkanime.net/a/"),
+		Folder:    new(folderA),
 	}, {
 		ID:        "anime-b",
 		Name:      "Anime B",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/b/"),
-		Folder:    ptrStr(folderB),
+		SourceURL: new("https://jkanime.net/b/"),
+		Folder:    new(folderB),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{
 		atRoot:    map[string]int{folderA: 0, folderB: 0},

@@ -396,10 +396,7 @@ func (s *Service) processAnimes(ctx context.Context, runID string, animes []cont
 
 	var wg sync.WaitGroup
 	for _, anime := range animes {
-		anime := anime
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if slots != nil {
 				slots <- struct{}{}
 				defer func() { <-slots }()
@@ -412,7 +409,7 @@ func (s *Service) processAnimes(ctx context.Context, runID string, animes []cont
 				s.testHookAnimeFinished()
 			}
 			outcomes <- outcome
-		}()
+		})
 	}
 	wg.Wait()
 	close(outcomes)

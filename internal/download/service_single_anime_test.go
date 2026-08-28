@@ -31,8 +31,8 @@ func TestRunAnimeRunFailedNotificationNamesTheAffectedAnimeAsARow(t *testing.T) 
 	anime := contracts.MobileAnime{
 		ID:        "anime-broken",
 		Name:      "Broken Anime",
-		SourceURL: ptrStr("https://jkanime.net/broken-anime/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/broken-anime/"),
+		Folder:    new(t.TempDir()),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)
@@ -85,8 +85,8 @@ func TestRunAnimeRunPartialNotificationNamesTheAffectedAnimeAsARow(t *testing.T)
 	anime := contracts.MobileAnime{
 		ID:        "anime-flaky",
 		Name:      "Flaky Anime",
-		SourceURL: ptrStr("https://jkanime.net/flaky/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/flaky/"),
+		Folder:    new(folder),
 	}
 
 	result, err := NewService(deps).RunAnime(context.Background(), "manual_anime", anime)

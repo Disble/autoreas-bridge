@@ -3,6 +3,7 @@ package persistence
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -162,13 +163,7 @@ func TestEnsureTableSchemaRunsCustomMigrateForLegacyShape(t *testing.T) {
 	if len(gotCols) == 0 {
 		t.Fatal("expected Migrate to be called with live columns")
 	}
-	foundOldCol := false
-	for _, c := range gotCols {
-		if c == "old_col" {
-			foundOldCol = true
-			break
-		}
-	}
+	foundOldCol := slices.Contains(gotCols, "old_col")
 	if !foundOldCol {
 		t.Fatalf("expected live cols passed to Migrate to contain 'old_col', got %v", gotCols)
 	}

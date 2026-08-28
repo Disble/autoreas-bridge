@@ -95,13 +95,7 @@ func sortSchedulePlacementRefs(refs []schedulePlacementRef) {
 
 // insertSchedulePlacementRef inserts a placement reference at its requested order.
 func insertSchedulePlacementRef(refs []schedulePlacementRef, ref schedulePlacementRef) []schedulePlacementRef {
-	index := ref.order - 1
-	if index < 0 {
-		index = 0
-	}
-	if index > len(refs) {
-		index = len(refs)
-	}
+	index := min(max(ref.order-1, 0), len(refs))
 	refs = append(refs, schedulePlacementRef{})
 	copy(refs[index+1:], refs[index:])
 	refs[index] = ref

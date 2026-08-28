@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"autoreas-bridge/internal/download/dbschema"
@@ -134,12 +135,7 @@ func closeTestRows(t *testing.T, rows *sql.Rows) {
 
 // containsString reports whether target occurs in values.
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 // ensureAnimeSnapshotsSchema is a test-only seam that drives the anime_snapshots descriptor

@@ -62,7 +62,7 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 		name  string
 		patch anime.EditorPatch
 	}{
-		{name: "non finite progress", patch: anime.EditorPatch{Progress: float64Pointer(math.NaN())}},
+		{name: "non finite progress", patch: anime.EditorPatch{Progress: new(math.NaN())}},
 		{name: "negative total", patch: anime.EditorPatch{TotalEpisodes: anime.EditorNullableIntPatch{Present: true, Value: -1}}},
 		{name: "unsupported type", patch: anime.EditorPatch{Kind: anime.EditorNullableIntPatch{Present: true, Value: 9}}},
 		{name: "zero duration", patch: anime.EditorPatch{Duration: anime.EditorNullableIntPatch{Present: true, Value: 0}}},
@@ -126,9 +126,6 @@ func TestEditorServiceSaveClearsPremiereDateAndCoverWithoutFlatteningCoverObject
 		"cover":       `{"type":"file","path":"","future":{"keep":true}}`,
 	})
 }
-
-// float64Pointer returns a pointer to a float test value.
-func float64Pointer(value float64) *float64 { return &value }
 
 // assertJSONFieldsEqual compares selected JSON fields in a test payload.
 func assertJSONFieldsEqual(t *testing.T, fields map[string]json.RawMessage, expected map[string]string) {

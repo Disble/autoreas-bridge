@@ -29,8 +29,7 @@ func TestScheduledTickDuringActiveRunIsSkippedSilently(t *testing.T) {
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 
@@ -75,8 +74,7 @@ func TestTriggerNowReturnsErrRunInProgressWhenAManualRunIsActive(t *testing.T) {
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 	waitForTimer(t, clock)
@@ -113,8 +111,7 @@ func TestTriggerNowReturnsAfterAcceptingRunWithoutWaitingForCompletion(t *testin
 
 	sched := NewScheduler(Deps{Store: store, Clock: clock, Run: run})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 	waitForTimer(t, clock)
@@ -153,8 +150,7 @@ func TestStopReturnsWithinDrainBoundEvenWithAnInFlightRun(t *testing.T) {
 		ShutdownDrainWait: 50 * time.Millisecond,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	waitForTimer(t, clock)
 
@@ -197,8 +193,7 @@ func TestRunExceedingMaxDurationReleasesTheConcurrentRunGuard(t *testing.T) {
 		MaxRunDuration: 10 * time.Millisecond,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 	waitForTimer(t, clock)

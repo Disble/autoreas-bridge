@@ -80,7 +80,7 @@ func TestSQLiteChangelogStoreHandles100ConcurrentPendingInserts(t *testing.T) {
 	const inserts = 100
 	errCh := make(chan error, inserts)
 	var wg sync.WaitGroup
-	for i := 0; i < inserts; i++ {
+	for i := range inserts {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()

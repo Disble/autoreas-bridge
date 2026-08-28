@@ -98,7 +98,7 @@ func (a *Anime) Repeat(at time.Time) {
 		a.FirstCycle = TriStateFalse
 		a.changes.FirstCycle = true
 	}
-	a.CreatedAt = timePointer(at.UTC())
+	a.CreatedAt = new(at.UTC())
 	a.PremieredAt = nil
 	a.LastWatchedAt = nil
 	a.DeletedAt = nil
@@ -172,7 +172,7 @@ func (a *Anime) SetDeletedAt(value *time.Time) {
 // Deactivate marks the anime inactive and records the deletion timestamp.
 func (a *Anime) Deactivate(at time.Time) {
 	a.Active = TriStateFalse
-	a.DeletedAt = timePointer(at.UTC())
+	a.DeletedAt = new(at.UTC())
 	a.changes.Active = true
 	a.changes.DeletedAt = true
 }
@@ -180,11 +180,6 @@ func (a *Anime) Deactivate(at time.Time) {
 // Changes returns the accumulated field-dirty markers for the aggregate.
 func (a Anime) Changes() AnimeChanges {
 	return a.changes
-}
-
-// timePointer returns a pointer to the supplied time value.
-func timePointer(value time.Time) *time.Time {
-	return &value
 }
 
 // cloneTime returns a UTC copy of the supplied time pointer.

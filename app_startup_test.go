@@ -122,10 +122,10 @@ func TestAppStartupNewNotifierOverrideSeamInjectsFakeNotifier(t *testing.T) {
 	t.Parallel()
 
 	fake := &stubAppNotifier{}
-	var receivedEmit func(ctx context.Context, eventName string, optionalData ...interface{})
+	var receivedEmit func(ctx context.Context, eventName string, optionalData ...any)
 	var receivedLoggers []sharedlogger.Logger
 	app := newAppTestApp(t)
-	app.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...interface{}), loggers ...sharedlogger.Logger) notification.Notifier {
+	app.newNotifier = func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier {
 		receivedEmit = emit
 		receivedLoggers = loggers
 		return fake
@@ -165,7 +165,7 @@ func TestDefaultNotifierRegistersLogForwardAdapterWhenLoggerIsNonNil(t *testing.
 	t.Parallel()
 
 	logger := &recordingSharedAppLogger{}
-	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {}, logger)
+	notifier := defaultNotifier(func(context.Context, string, ...any) {}, logger)
 
 	_ = notifier.Notify(context.Background(), notification.Notification{
 		Title: "x", Level: notification.LevelInfo, Source: "test",
@@ -179,7 +179,7 @@ func TestDefaultNotifierRegistersLogForwardAdapterWhenLoggerIsNonNil(t *testing.
 func TestDefaultNotifierDoesNotRegisterLogForwardAdapterWhenLoggerIsNil(t *testing.T) {
 	t.Parallel()
 
-	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {})
+	notifier := defaultNotifier(func(context.Context, string, ...any) {})
 	_ = notifier.Notify(context.Background(), notification.Notification{
 		Title: "x", Level: notification.LevelInfo, Source: "test",
 	})
@@ -189,7 +189,7 @@ func TestDefaultNotifierDoesNotRegisterLogForwardAdapterWhenLoggerArgIsNilValue(
 	t.Parallel()
 
 	var nilLogger sharedlogger.Logger
-	notifier := defaultNotifier(func(context.Context, string, ...interface{}) {}, nilLogger)
+	notifier := defaultNotifier(func(context.Context, string, ...any) {}, nilLogger)
 	_ = notifier.Notify(context.Background(), notification.Notification{
 		Title: "x", Level: notification.LevelInfo, Source: "test",
 	})
@@ -270,7 +270,7 @@ func TestAppStartupEmitsObservabilityEventOnNewLogEntry(t *testing.T) {
 	server := &stubAppHTTPServer{}
 	app := newAppTestApp(t)
 	app.newHTTPServer = func(api.Config) api.Server { return server }
-	app.emitFn = func(_ context.Context, eventName string, optionalData ...interface{}) {
+	app.emitFn = func(_ context.Context, eventName string, optionalData ...any) {
 		emittedName = eventName
 		if len(optionalData) > 0 {
 			emittedData = optionalData[0]

@@ -2,6 +2,7 @@ package download
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -298,10 +299,5 @@ func isNonDecreasing(values []int) bool {
 
 // containsInt reports whether target appears in values.
 func containsInt(values []int, target int) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

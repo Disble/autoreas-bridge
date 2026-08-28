@@ -39,10 +39,10 @@ func TestReadinessSnapshotClassifiesLocalBlockersAndScheduleTotals(t *testing.T)
 	service := NewReadinessService(ReadinessServiceDeps{
 		Animes: &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
 			{ID: "missing", Name: `:/\|`, Active: 1, Days: []contracts.MobileAnimeDay{{Day: today}}, SourceURL: nil},
-			{ID: "invalid", Name: "Invalid", SourceURL: ptrStr("relative/page"), Folder: ptrStr("D:/explicit")},
-			{ID: "unsupported", Name: "Unsupported", SourceURL: ptrStr("https://unsupported.example/page"), Folder: ptrStr("D:/explicit")},
+			{ID: "invalid", Name: "Invalid", SourceURL: new("relative/page"), Folder: new("D:/explicit")},
+			{ID: "unsupported", Name: "Unsupported", SourceURL: new("https://unsupported.example/page"), Folder: new("D:/explicit")},
 			{ID: "ready", Name: "Ready: Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: today}}, SourceURL: &validPage},
-			{ID: "movie", Name: "Inactive Movie", Active: 0, Kind: ptrInt(1), SourceURL: &validPage, Folder: ptrStr("D:/movie")},
+			{ID: "movie", Name: "Inactive Movie", Active: 0, Kind: new(1), SourceURL: &validPage, Folder: new("D:/movie")},
 		}},
 		DownloadsRoot: func(context.Context) (string, error) { return root, nil },
 		Sites:         registry,

@@ -26,16 +26,16 @@ func TestRunOnceSeasonModeOnSelectsVerHoyAnimeExcludesWeekday(t *testing.T) {
 			Name:      "Ver Hoy Anime",
 			Active:    1,
 			Days:      []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}},
-			SourceURL: ptrStr("https://jkanime.net/ver-hoy/"),
-			Folder:    ptrStr(t.TempDir()),
+			SourceURL: new("https://jkanime.net/ver-hoy/"),
+			Folder:    new(t.TempDir()),
 		},
 		{
 			ID:        "anime-weekday",
 			Name:      "Weekday Anime",
 			Active:    1,
 			Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}},
-			SourceURL: ptrStr("https://jkanime.net/weekday/"),
-			Folder:    ptrStr(t.TempDir()),
+			SourceURL: new("https://jkanime.net/weekday/"),
+			Folder:    new(t.TempDir()),
 		},
 	}}
 
@@ -102,8 +102,8 @@ func TestRunOnceSeasonModeOnInactiveVerHoyExcluded(t *testing.T) {
 		Name:      "Inactive Ver Hoy Anime",
 		Active:    0,
 		Days:      []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/inactive-ver-hoy/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/inactive-ver-hoy/"),
+		Folder:    new(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")
@@ -130,7 +130,6 @@ func TestRunOnceSeasonModeOffSelectsWeekdayExcludesVerHoy(t *testing.T) {
 		{name: "explicit_false", seasonMode: func(_ context.Context) bool { return false }},
 		{name: "nil_seam", seasonMode: nil},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assertSeasonModeOffSelection(t, tc.seasonMode)
 		})
@@ -146,8 +145,8 @@ func assertSeasonModeOffSelection(t *testing.T, seasonMode func(context.Context)
 	deps.SeasonMode = seasonMode
 	deps.Sites = NewStaticRegistry()
 	deps.Animes = &svcFakeAnimeQuery{animes: []contracts.MobileAnime{
-		{ID: "anime-ver-hoy", Name: "Ver Hoy Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/ver-hoy/"), Folder: ptrStr(t.TempDir())},
-		{ID: "anime-weekday", Name: "Weekday Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: ptrStr("https://jkanime.net/weekday/"), Folder: ptrStr(t.TempDir())},
+		{ID: "anime-ver-hoy", Name: "Ver Hoy Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: seasonModeDiaName, Order: 0}}, SourceURL: new("https://jkanime.net/ver-hoy/"), Folder: new(t.TempDir())},
+		{ID: "anime-weekday", Name: "Weekday Anime", Active: 1, Days: []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, SourceURL: new("https://jkanime.net/weekday/"), Folder: new(t.TempDir())},
 	}}
 	var mu sync.Mutex
 	var skippedIDs []string
@@ -177,8 +176,8 @@ func TestRunOnceSeasonModeOnNoVerHoyAnimesYieldsNoAnimesToday(t *testing.T) {
 		Name:      "Weekday Only Anime",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: dia, Order: 0}}, // no "Ver hoy"
-		SourceURL: ptrStr("https://jkanime.net/weekday-only/"),
-		Folder:    ptrStr(t.TempDir()),
+		SourceURL: new("https://jkanime.net/weekday-only/"),
+		Folder:    new(t.TempDir()),
 	}}}
 
 	result, err := NewService(deps).RunOnce(context.Background(), "manual")

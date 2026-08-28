@@ -75,7 +75,7 @@ func TestAppStartupOnEmptyRealSQLiteServesEmptyCatalogWithoutWaiting(t *testing.
 func TestAppStructHasNoLegacyRuntimeChannelFields(t *testing.T) {
 	t.Parallel()
 
-	appType := reflect.TypeOf(App{})
+	appType := reflect.TypeFor[App]()
 	for _, name := range []string{
 		"animeRuntimeWatcher",
 		"animeStartupCoordinator",

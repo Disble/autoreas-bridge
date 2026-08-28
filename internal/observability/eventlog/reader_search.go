@@ -2,6 +2,7 @@ package eventlog
 
 import (
 	"context"
+	"strings"
 
 	"autoreas-bridge/internal/observability/obserr"
 )
@@ -112,12 +113,12 @@ func scanEventSearchPage(rows eventRowScanner, limit int) EventSearchPage {
 // joinEventConditions ANDs a set of already-parenthesized-as-needed WHERE
 // fragments.
 func joinEventConditions(conditions []string) string {
-	joined := ""
+	var joined strings.Builder
 	for i, condition := range conditions {
 		if i > 0 {
-			joined += " AND "
+			joined.WriteString(" AND ")
 		}
-		joined += condition
+		joined.WriteString(condition)
 	}
-	return joined
+	return joined.String()
 }

@@ -112,8 +112,8 @@ func renameScenario(t *testing.T) (ServiceDeps, string) {
 		Name:      "NegaPosi Angler",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: todayDiaName(deps.Clock()), Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/rename/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/rename/"),
+		Folder:    new(folder),
 	}}}
 	counter := newCatchupCounter(map[string]int{folder: 0})
 	deps.Counter = counter
@@ -274,7 +274,7 @@ func TestRenameDownloadedEpisodeSurvivesANilJDSeam(t *testing.T) {
 	deps.JD = nil
 	deps.RenameEpisodes = func(context.Context) bool { return true }
 
-	anime := contracts.MobileAnime{ID: "anime-1", Name: "NegaPosi Angler", Folder: ptrStr(folder)}
+	anime := contracts.MobileAnime{ID: "anime-1", Name: "NegaPosi Angler", Folder: new(folder)}
 
 	// The assertion is the absence of a panic: a missing seam must be a no-op.
 	NewService(deps).renameDownloadedEpisode(context.Background(), "run-1", anime, 1)

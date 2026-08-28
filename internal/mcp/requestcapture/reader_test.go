@@ -76,21 +76,21 @@ func TestResolveStatusAndRouteComponents(t *testing.T) {
 
 	older := obs.NewCaptureRecord("reconcile", "device-1")
 	older.RequestID, older.CapturedAtMS, older.Route = "req-old-reconcile-400", 100, "/api/sync/reconcile"
-	older.HTTPStatus = intRefMCP(400)
+	older.HTTPStatus = new(400)
 	if err := store.UpsertCapture(context.Background(), older); err != nil {
 		t.Fatal(err)
 	}
 
 	newer := obs.NewCaptureRecord("reconcile", "device-1")
 	newer.RequestID, newer.CapturedAtMS, newer.Route = "req-new-reconcile-400", 200, "/api/sync/reconcile"
-	newer.HTTPStatus = intRefMCP(400)
+	newer.HTTPStatus = new(400)
 	if err := store.UpsertCapture(context.Background(), newer); err != nil {
 		t.Fatal(err)
 	}
 
 	other := obs.NewCaptureRecord("patch", "device-1")
 	other.RequestID, other.CapturedAtMS, other.Route = "req-patch-400", 300, "/api/animes/anime-1"
-	other.HTTPStatus = intRefMCP(400)
+	other.HTTPStatus = new(400)
 	if err := store.UpsertCapture(context.Background(), other); err != nil {
 		t.Fatal(err)
 	}
@@ -143,9 +143,6 @@ func TestResolveAnimeScopedReference(t *testing.T) {
 		t.Fatalf("expected only the anime-scoped candidate, got %#v", got)
 	}
 }
-
-// intRefMCP returns a pointer to the given int value, for building test fixtures.
-func intRefMCP(value int) *int { return &value }
 
 // TestEventReaderSharesTheQueryOnlyHandle asserts the sqliteReader's event
 // reader is built over the same already-open, already-verified handle as

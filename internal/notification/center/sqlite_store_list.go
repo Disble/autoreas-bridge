@@ -177,14 +177,14 @@ func stringSetCondition(column string, values []string) (string, []any) {
 // fragments, mirroring internal/observability/eventlog/reader_search.go's
 // joinEventConditions.
 func joinListConditions(conditions []string) string {
-	joined := ""
+	var joined strings.Builder
 	for i, condition := range conditions {
 		if i > 0 {
-			joined += " AND "
+			joined.WriteString(" AND ")
 		}
-		joined += condition
+		joined.WriteString(condition)
 	}
-	return joined
+	return joined.String()
 }
 
 // notificationRecordRowScanner is the subset of *sql.Rows / *sql.Row that

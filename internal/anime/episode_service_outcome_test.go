@@ -56,7 +56,7 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 				Now: func() time.Time { return time.UnixMilli(1710000001111).UTC() },
 			})
 
-			got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: int64Ptr(1000)})
+			got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: new(int64(1000))})
 			if err != nil {
 				t.Fatalf("RepeatAnime: %v", err)
 			}
@@ -79,7 +79,7 @@ func TestEpisodeServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *tes
 		Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{err: writeErr}, Activity: activity,
 	})
 
-	got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: int64Ptr(1000)})
+	got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: new(int64(1000))})
 	if !errors.Is(err, writeErr) {
 		t.Fatalf("RepeatAnime error = %v, want %v", err, writeErr)
 	}

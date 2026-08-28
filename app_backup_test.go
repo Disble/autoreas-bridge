@@ -236,11 +236,11 @@ func TestExportBackupPropagatesExportError(t *testing.T) {
 // on the HTTP API's wiring config, which is the only place a REST route or
 // WS event could be registered from, names backup or export.
 func TestNoRESTRouteOrWSEventExposesExport(t *testing.T) {
-	configType := reflect.TypeOf(api.Config{})
-	for i := 0; i < configType.NumField(); i++ {
-		name := strings.ToLower(configType.Field(i).Name)
+	configType := reflect.TypeFor[api.Config]()
+	for field := range configType.Fields() {
+		name := strings.ToLower(field.Name)
 		if strings.Contains(name, "backup") || strings.Contains(name, "export") {
-			t.Fatalf("api.Config field %q exposes backup/export over the wire; backup is desktop-only", configType.Field(i).Name)
+			t.Fatalf("api.Config field %q exposes backup/export over the wire; backup is desktop-only", field.Name)
 		}
 	}
 }

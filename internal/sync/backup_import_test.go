@@ -120,7 +120,7 @@ func TestImportDecodesIncrementally(t *testing.T) {
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		rec := animeSnapshotRecord{AnimeID: string(rune('a' + i)), SnapshotJSON: "{}", SnapshotHash: "h", ModifiedAt: int64(i)}
 		if err := enc.Encode(rec); err != nil {
 			t.Fatalf("encode fixture record %d: %v", i, err)

@@ -38,7 +38,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 	result, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   0.5,
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {
@@ -91,7 +91,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsBlockedStates(t *testing.T) {
 	_, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   1,
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 	})
 	if !errors.Is(err, anime.ErrEpisodeProgressBlocked) {
 		t.Fatalf("expected blocked progress error, got %v", err)
@@ -122,7 +122,7 @@ func TestEpisodeServiceAdjustWatchedEpisodesRejectsNegativeProgress(t *testing.T
 	_, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
 		AnimeID: "anime-1",
 		Delta:   -0.5,
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 	})
 	if !errors.Is(err, anime.ErrEpisodeProgressBelowZero) {
 		t.Fatalf("expected below-zero progress error, got %v", err)
@@ -154,7 +154,7 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 	if _, err := service.SetAnimeDays(ctx, anime.SetAnimeDaysCommand{
 		AnimeID: "anime-1",
 		Dias:    []string{"Ver hoy"},
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 	}); err != nil {
 		t.Fatalf("SetAnimeDays: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestEpisodeServiceSetAnimeStateWritesStateAndRecordsActivity(t *testing.T) 
 	result, err := service.SetAnimeState(ctx, anime.SetAnimeStateCommand{
 		AnimeID: "anime-1",
 		Estado:  3,
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {
@@ -248,7 +248,7 @@ func TestEpisodeServiceSoftDeleteAnimeWritesInactiveDeletionDateAndRecordsActivi
 
 	result, err := service.SoftDeleteAnime(ctx, anime.SoftDeleteAnimeCommand{
 		AnimeID: "anime-1",
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {

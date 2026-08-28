@@ -36,7 +36,7 @@ func TestDesktopActivationRoutesABodyPressToTheRecord(t *testing.T) {
 	t.Parallel()
 
 	var emitted []string
-	app := &App{emitFn: func(_ context.Context, _ string, optionalData ...interface{}) {
+	app := &App{emitFn: func(_ context.Context, _ string, optionalData ...any) {
 		for _, datum := range optionalData {
 			if route, ok := datum.(string); ok {
 				emitted = append(emitted, route)

@@ -36,8 +36,8 @@ func jdOfflineScenario(t *testing.T) (ServiceDeps, string) {
 		Name:      "NegaPosi Angler",
 		Active:    1,
 		Days:      []contracts.MobileAnimeDay{{Day: todayDiaName(deps.Clock()), Order: 0}},
-		SourceURL: ptrStr("https://jkanime.net/offline/"),
-		Folder:    ptrStr(folder),
+		SourceURL: new("https://jkanime.net/offline/"),
+		Folder:    new(folder),
 	}}}
 	setSvcFakeCounter(&deps, &svcFakeCounter{atRoot: map[string]int{folder: 4}})
 	deps.JD = &svcFakeJDClient{ensureOnlineErr: ErrJDOffline}

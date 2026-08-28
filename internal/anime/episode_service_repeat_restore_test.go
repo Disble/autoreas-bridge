@@ -33,7 +33,7 @@ func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.
 
 	result, err := service.RestoreAnime(ctx, anime.RestoreAnimeCommand{
 		AnimeID: "anime-1",
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {
@@ -94,7 +94,7 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 
 	result, err := service.RepeatAnime(ctx, anime.RepeatAnimeCommand{
 		AnimeID: "anime-1",
-		Base:    int64Ptr(1000),
+		Base:    new(int64(1000)),
 		Source:  anime.ActivitySourceDesktop,
 	})
 	if err != nil {

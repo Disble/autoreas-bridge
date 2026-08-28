@@ -2,6 +2,7 @@ package download
 
 import (
 	"context"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,9 +52,7 @@ type catchupCounter struct {
 // newCatchupCounter creates an episode counter with root and recursive counts.
 func newCatchupCounter(atRoot map[string]int) *catchupCounter {
 	recursive := make(map[string]int, len(atRoot))
-	for folder, count := range atRoot {
-		recursive[folder] = count
-	}
+	maps.Copy(recursive, atRoot)
 	return &catchupCounter{atRoot: atRoot, recursive: recursive}
 }
 

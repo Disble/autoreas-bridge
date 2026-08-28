@@ -8,23 +8,14 @@ import (
 	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
-// intPtr returns a pointer to an integer value.
-func intPtr(i int) *int { return &i }
-
-// int64Ptr returns a pointer to an int64 value.
-func int64Ptr(i int64) *int64 { return &i }
-
-// strPtr returns a pointer to a string value.
-func strPtr(s string) *string { return &s }
-
 // --- PackageStatusByDestination ---
 
 func TestPackageStatusByDestinationAggregatesCrawlCountsForMatchingSaveTo(t *testing.T) {
 	t.Parallel()
 
 	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{
-		{SaveTo: strPtr(`C:\anime\Show`), OnlineCount: intPtr(2), OfflineCount: intPtr(0)},
-		{SaveTo: strPtr(`C:\anime\Other`), OnlineCount: intPtr(5), OfflineCount: intPtr(5)},
+		{SaveTo: new(`C:\anime\Show`), OnlineCount: new(2), OfflineCount: new(0)},
+		{SaveTo: new(`C:\anime\Other`), OnlineCount: new(5), OfflineCount: new(5)},
 	}}
 	dl := &fakeDownloader{}
 	device := &fakeDevice{lg: lg, dl: dl}
@@ -49,12 +40,12 @@ func TestPackageStatusByDestinationPopulatesLinkSignalsFromMatchedDownloadPackag
 	lg := &fakeLinkGrabber{}
 	dl := &fakeDownloader{
 		packages: []jd.DownloadPackage{
-			{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(42), Running: boolPtr(true)},
-			{SaveTo: strPtr(`C:\anime\Other`), Uuid: int64Ptr(99), Running: boolPtr(false)},
+			{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(42)), Running: new(true)},
+			{SaveTo: new(`C:\anime\Other`), Uuid: new(int64(99)), Running: new(false)},
 		},
 		links: []jd.DownloadLink{
-			{PackageUuid: int64Ptr(42), Finished: boolPtr(false), Skipped: boolPtr(false), StatusIconKey: strPtr("")},
-			{PackageUuid: int64Ptr(99), Finished: boolPtr(true), Skipped: boolPtr(false), StatusIconKey: strPtr("")},
+			{PackageUuid: new(int64(42)), Finished: new(false), Skipped: new(false), StatusIconKey: new("")},
+			{PackageUuid: new(int64(99)), Finished: new(true), Skipped: new(false), StatusIconKey: new("")},
 		},
 	}
 	device := &fakeDevice{lg: lg, dl: dl}
@@ -82,8 +73,8 @@ func TestPackageStatusByDestinationForwardsMatchedPackageErrorSignalsOnlyForDest
 	lg := &fakeLinkGrabber{}
 	dl := &fakeDownloader{
 		packages: []jd.DownloadPackage{
-			{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(42), Running: boolPtr(false), Finished: boolPtr(false), StatusIconKey: strPtr("error_file_not_found")},
-			{SaveTo: strPtr(`C:\anime\Other`), Uuid: int64Ptr(99), Running: boolPtr(false), Finished: boolPtr(false), StatusIconKey: strPtr("error_other_destination")},
+			{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(42)), Running: new(false), Finished: new(false), StatusIconKey: new("error_file_not_found")},
+			{SaveTo: new(`C:\anime\Other`), Uuid: new(int64(99)), Running: new(false), Finished: new(false), StatusIconKey: new("error_other_destination")},
 		},
 	}
 	device := &fakeDevice{lg: lg, dl: dl}
@@ -111,7 +102,7 @@ func TestPackageStatusByDestinationPreservesUnknownPackageStateForMatchedErrorSi
 	lg := &fakeLinkGrabber{}
 	dl := &fakeDownloader{
 		packages: []jd.DownloadPackage{
-			{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(42), StatusIconKey: strPtr("error_file_not_found")},
+			{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(42)), StatusIconKey: new("error_file_not_found")},
 		},
 	}
 	device := &fakeDevice{lg: lg, dl: dl}
@@ -152,8 +143,8 @@ func TestPackageStatusByDestinationPreservesUnknownPackageStateForMatchedErrorSi
 func TestPackageStatusByDestinationReportsUnmatchedWhenNoSaveToEquals(t *testing.T) {
 	t.Parallel()
 
-	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{{SaveTo: strPtr(`C:\anime\Other`), OnlineCount: intPtr(1)}}}
-	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: strPtr(`C:\anime\Other`), Uuid: int64Ptr(1)}}}
+	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{{SaveTo: new(`C:\anime\Other`), OnlineCount: new(1)}}}
+	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: new(`C:\anime\Other`), Uuid: new(int64(1))}}}
 	device := &fakeDevice{lg: lg, dl: dl}
 	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
 	adapter := newWithClient(fake)
@@ -178,8 +169,8 @@ func TestPackageStatusByDestinationReportsUnmatchedWhenNoSaveToEquals(t *testing
 func TestRemoveByDestinationRemovesMatchedCrawlAndDownloadPackages(t *testing.T) {
 	t.Parallel()
 
-	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(7)}}}
-	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(8)}}}
+	lg := &fakeLinkGrabber{packages: []jd.CrawledPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(7))}}}
+	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(8))}}}
 	device := &fakeDevice{lg: lg, dl: dl}
 	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
 	adapter := newWithClient(fake)
@@ -199,10 +190,10 @@ func TestRemoveByDestinationReturnsErrorWhenUnderlyingRemoveFails(t *testing.T) 
 	t.Parallel()
 
 	lg := &fakeLinkGrabber{
-		packages:  []jd.CrawledPackage{{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(7)}},
+		packages:  []jd.CrawledPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(7))}},
 		removeErr: errors.New("remove failed"),
 	}
-	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: strPtr(`C:\anime\Show`), Uuid: int64Ptr(8)}}}
+	dl := &fakeDownloader{packages: []jd.DownloadPackage{{SaveTo: new(`C:\anime\Show`), Uuid: new(int64(8))}}}
 	device := &fakeDevice{lg: lg, dl: dl}
 	fake := &fakeJdClient{devices: []jd.DeviceInfo{{Name: "MyPC", Status: "ONLINE"}}, device: device}
 	adapter := newWithClient(fake)

@@ -159,8 +159,7 @@ func TestFireScheduledTickCapturesOccurrenceLocalDateBeforeCompletionAndRespects
 		},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	sched.Start(ctx)
 	defer sched.Stop()
 

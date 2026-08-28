@@ -165,7 +165,7 @@ func TestSQLiteStoreApplyScheduleSettlementSupportsAtomicSuccessfulRunNowFacts(t
 		LocalDate:         "2026-07-26",
 		Reason:            ScheduleSettlementRunNow,
 		NextRunAtMs:       4000,
-		SuccessfulRunAtMs: int64Ptr(2500),
+		SuccessfulRunAtMs: new(int64(2500)),
 		SuccessfulStatus:  RunStatusOK,
 	})
 	if err != nil {
@@ -372,9 +372,4 @@ func TestSQLiteStoreLegacyRowKeepsActualRunFactsWithoutBackfilledSettlement(t *t
 	if got.LastSettledLocalDate != "" || got.LastSettlementReason != "" {
 		t.Fatalf("legacy rows must stay unbackfilled until real settlement occurs, got %#v", got)
 	}
-}
-
-// int64Ptr returns a pointer to the given int64 value.
-func int64Ptr(value int64) *int64 {
-	return &value
 }

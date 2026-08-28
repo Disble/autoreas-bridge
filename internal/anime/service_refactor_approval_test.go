@@ -15,7 +15,7 @@ func TestWriteServicePatchAnimePreservesLegacyFieldsAcrossDayPatch(t *testing.T)
 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 
-	if _, err := service.PatchAnime(ctx, "anime-preserve", api.AnimePatch{Dias: []string{"Martes", "Jueves"}, Base: int64Ptr(0)}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-preserve", api.AnimePatch{Dias: []string{"Martes", "Jueves"}, Base: new(int64(0))}); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 

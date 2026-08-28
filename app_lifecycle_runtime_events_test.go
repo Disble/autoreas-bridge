@@ -21,7 +21,7 @@ func TestRegisterDownloadRuntimeEventBridgeEmitsRunLifecycleEventsToWailsRuntime
 	app := &App{
 		ctx:      context.Background(),
 		eventBus: bus,
-		emitFn: func(_ context.Context, eventName string, optionalData ...interface{}) {
+		emitFn: func(_ context.Context, eventName string, optionalData ...any) {
 			var payload any
 			if len(optionalData) > 0 {
 				payload = optionalData[0]
@@ -77,7 +77,7 @@ func TestRegisterAnimeRuntimeEventBridgeEmitsAnimeChangedToWailsRuntime(t *testi
 	app := &App{
 		ctx:      context.Background(),
 		eventBus: bus,
-		emitFn: func(_ context.Context, eventName string, optionalData ...interface{}) {
+		emitFn: func(_ context.Context, eventName string, optionalData ...any) {
 			emitCount++
 			emittedName = eventName
 			if len(optionalData) > 0 {
@@ -132,7 +132,7 @@ func TestRegisterAnimeRuntimeEventBridgeIgnoresForeignEventTypes(t *testing.T) {
 	app := &App{
 		ctx:      context.Background(),
 		eventBus: bus,
-		emitFn:   func(context.Context, string, ...interface{}) { emitCount++ },
+		emitFn:   func(context.Context, string, ...any) { emitCount++ },
 	}
 
 	app.registerAnimeRuntimeEventBridge(context.Background())

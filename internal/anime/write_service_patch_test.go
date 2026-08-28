@@ -18,7 +18,7 @@ func TestWriteServicePatchAnimePublishesMergedSnapshotWithFractionalProgress(t *
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(10.5), Base: int64Ptr(0)}
+	patch := api.AnimePatch{NroCapVisto: new(10.5), Base: new(int64(0))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestWriteServicePatchAnimeForcesEstadoFinalizado(t *testing.T) {
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000456).UTC() })
 
-	patch := api.AnimePatch{NroCapVisto: floatPtr(12), Base: int64Ptr(0)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(12)), Base: new(int64(0))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestWriteServicePatchAnimeUsesClientFechaUltCapVistoWhenProvided(t *testing
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000999).UTC() })
 
 	clientTs := int64(1710000000123)
-	patch := api.AnimePatch{NroCapVisto: floatPtr(664), FechaUltCapVisto: &clientTs, Base: int64Ptr(0)}
+	patch := api.AnimePatch{NroCapVisto: new(float64(664)), FechaUltCapVisto: &clientTs, Base: new(int64(0))}
 	if _, err := service.PatchAnime(ctx, "anime-1", patch); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestWriteServicePatchAnimeStampsModifiedAtOnConfirmedSnapshot(t *testing.T)
 	service := anime.NewWriteService(store, writer)
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(1000)}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(5)), Base: new(int64(1000))}); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 
@@ -131,7 +131,7 @@ func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t 
 	service := anime.NewWriteService(store, &stubAnimeWriter{})
 	service.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 
-	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: floatPtr(5), Base: int64Ptr(0)}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{NroCapVisto: new(float64(5)), Base: new(int64(0))}); err != nil {
 		t.Fatalf("first patch anime: %v", err)
 	}
 	afterFirst, err := store.GetSnapshot(ctx, "anime-1")
@@ -139,7 +139,7 @@ func TestWriteServicePatchAnimeUsesLatestConfirmedStateAcrossSequentialWrites(t 
 		t.Fatalf("get snapshot after first write: %v", err)
 	}
 
-	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{Dias: []string{"Martes", "Miercoles"}, Base: int64Ptr(afterFirst.ModifiedAt)}); err != nil {
+	if _, err := service.PatchAnime(ctx, "anime-1", api.AnimePatch{Dias: []string{"Martes", "Miercoles"}, Base: new(afterFirst.ModifiedAt)}); err != nil {
 		t.Fatalf("second patch anime: %v", err)
 	}
 	afterSecond, err := store.GetSnapshot(ctx, "anime-1")
