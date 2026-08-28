@@ -64,8 +64,8 @@ func captureHubFrame(capture requestcapture.CaptureFunc, kind, outcome, clientID
 // the device name is not recoverable here -- a known fidelity gap (see
 // design.md "Drift"): hub capture rows always carry a blank device name.
 func deviceIDFromClientID(clientID string) string {
-	if idx := strings.LastIndex(clientID, "-"); idx > 0 {
-		return clientID[:idx]
+	if deviceID, _, found := strings.CutLast(clientID, "-"); found && deviceID != "" {
+		return deviceID
 	}
 	return clientID
 }

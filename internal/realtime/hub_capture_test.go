@@ -187,3 +187,32 @@ func (s *recordingCaptureSink) wait(t *testing.T, want int) []requestcapture.Cap
 	defer s.mu.Unlock()
 	return append([]requestcapture.CaptureRecord(nil), s.records...)
 }
+
+// TestDeviceIDFromClientID pins every client id shape the hub can hand this
+// helper. The leading-separator case is the one worth guarding: splitting
+// there would report an empty device id for a client whose whole id is the
+// device, so the helper deliberately returns the id untouched.
+func TestDeviceIDFromClientID(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		clientID string
+		want     string
+	}{
+		{name: "device and sequence", clientID: "device-9-1", want: "device-9"},
+		{name: "single separator", clientID: "device-1", want: "device"},
+		{name: "no separator", clientID: "device", want: "device"},
+		{name: "leading separator", clientID: "-1", want: "-1"},
+		{name: "trailing separator", clientID: "device-", want: "device"},
+		{name: "empty", clientID: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := deviceIDFromClientID(tt.clientID); got != tt.want {
+				t.Fatalf("deviceIDFromClientID(%q) = %q, want %q", tt.clientID, got, tt.want)
+			}
+		})
+	}
+}

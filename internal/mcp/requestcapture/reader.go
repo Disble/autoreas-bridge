@@ -65,11 +65,10 @@ func parseReferenceComponents(reference string) referenceComponents {
 // word, e.g. "reconcile for anime anime-42" -> "anime-42".
 func extractAnimeIDReference(reference string) string {
 	const marker = "anime "
-	index := strings.LastIndex(reference, marker)
-	if index < 0 {
+	_, rest, found := strings.CutLast(reference, marker)
+	if !found {
 		return ""
 	}
-	rest := strings.TrimSpace(reference[index+len(marker):])
 	fields := strings.Fields(rest)
 	if len(fields) == 0 {
 		return ""

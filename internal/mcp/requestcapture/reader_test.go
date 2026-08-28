@@ -242,3 +242,31 @@ func TestCaptureCorrelationsAuxOnly(t *testing.T) {
 		t.Fatalf("expected operation refs to survive mapping, got %#v", result)
 	}
 }
+
+// TestExtractAnimeIDReference pins the marker parsing, including the shape the
+// production caller actually produces: the marker word followed by an id that
+// itself begins with the marker word.
+func TestExtractAnimeIDReference(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		reference string
+		want      string
+	}{
+		{name: "id after marker", reference: "reconcile for anime anime-42", want: "anime-42"},
+		{name: "marker at start", reference: "anime anime-7", want: "anime-7"},
+		{name: "no marker", reference: "reconcile for everything", want: ""},
+		{name: "marker with nothing after", reference: "reconcile for anime ", want: ""},
+		{name: "padded id keeps first field", reference: "anime   spaced-9  tail", want: "spaced-9"},
+		{name: "empty", reference: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := extractAnimeIDReference(tt.reference); got != tt.want {
+				t.Fatalf("extractAnimeIDReference(%q) = %q, want %q", tt.reference, got, tt.want)
+			}
+		})
+	}
+}
