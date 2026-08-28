@@ -33,7 +33,7 @@ For architectural deep dives, see:
 
 ## Tech Stack
 
-- **Backend:** Go 1.21+, SQLite, Wails v2, Event Bus
+- **Backend:** Go 1.27+, SQLite, Wails v2, Event Bus
 - **Frontend:** React, Vite, Tailwind CSS v4, HeroUI
 - **Tooling:** Bun, Lefthook (Pre-commit)
 
@@ -80,7 +80,7 @@ Tests are an integral part of this project.
 
 ### Go linting
 
-Run `powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile base` for the enforced Go lint profile. The tracked entrypoint provisions `golangci-lint v2.12.2`. Run it with `-Profile advanced` to build the tracked dlinter plugin and scan the same repository-owned Go packages.
+Run `powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile base` for the enforced Go lint profile. The tracked entrypoint provisions the `golangci-lint` version pinned in `scripts/lint.ps1`, building it once into `.tools/bin` and reusing it. Run it with `-Profile advanced` to build the tracked dlinter plugin and scan the same repository-owned Go packages.
 
 ### Building for Production
 
