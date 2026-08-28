@@ -88,12 +88,11 @@ var servers = [];
 func TestExtractAnimeIDAndCSRFTokenSucceedsWhenBothPresent(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := fmt.Fprint(w, animePageWithTokensFixture); err != nil {
 			t.Errorf("write fixture response: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	adapter := New(srv.Client())
 
@@ -117,7 +116,6 @@ func TestExtractAnimeIDAndCSRFTokenRejectsIncompletePages(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newFixtureServer(t, test.fixture)
-			defer srv.Close()
 			_, _, err := New(srv.Client()).fetchAnimeInfo(context.Background(), srv.URL+"/")
 			if err == nil {
 				t.Fatal("expected an explicit extraction error")
@@ -131,7 +129,7 @@ func TestExtractAnimeIDAndCSRFTokenRejectsIncompletePages(t *testing.T) {
 func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/ajax/episodes/") {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -139,7 +137,6 @@ func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 			t.Errorf("write fixture response: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	adapter := newWithBaseURL(srv.Client(), srv.URL)
 
@@ -158,12 +155,11 @@ func TestFetchEpisodesReturnsParsedListWhenTotalGreaterThanZero(t *testing.T) {
 func TestFetchEpisodesTreatsZeroTotalAsNoEpisodesNotAnError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := fmt.Fprint(w, ajaxEpisodesZeroTotalFixture); err != nil {
 			t.Errorf("write fixture response: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	adapter := newWithBaseURL(srv.Client(), srv.URL)
 
@@ -191,7 +187,6 @@ func TestListEpisodesReturnsLatestEpisodeFromAJAXResponse(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newEpisodeListingServer(t, test.ajax)
-			defer srv.Close()
 			listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 			if err != nil {
 				t.Fatalf("ListEpisodes: %v", err)
@@ -222,12 +217,11 @@ func TestEpisodePageURLReturnsSpecificEpisodeURL(t *testing.T) {
 func TestExtractLinksReturnsHosterTaggedLinksOnWellFormedServerList(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := fmt.Fprint(w, episodePageWithServersFixture); err != nil {
 			t.Errorf("write fixture response: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	adapter := New(srv.Client())
 
@@ -254,7 +248,6 @@ func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			srv := newFixtureServer(t, test.fixture)
-			defer srv.Close()
 			links, err := New(srv.Client()).ExtractLinks(context.Background(), srv.URL+"/1/")
 			if err == nil {
 				t.Fatal("expected a loud server-list error")
@@ -269,7 +262,7 @@ func TestExtractLinksRejectsInvalidServerLists(t *testing.T) {
 // newFixtureServer serves the supplied fixture from a test HTTP server.
 func newFixtureServer(t *testing.T, fixture string) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	return httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := fmt.Fprint(w, fixture); err != nil {
 			t.Errorf("write fixture response: %v", err)
 		}
@@ -279,7 +272,7 @@ func newFixtureServer(t *testing.T, fixture string) *httptest.Server {
 // newEpisodeListingServer serves page and AJAX episode fixtures for tests.
 func newEpisodeListingServer(t *testing.T, ajaxFixture string) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fixture := animePageWithTokensFixture
 		if strings.Contains(r.URL.Path, "/ajax/episodes/") {
 			fixture = ajaxFixture

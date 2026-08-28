@@ -64,7 +64,7 @@ func (r *pageRecorder) walked() []string {
 func newPaginatedEpisodeListingServer(t *testing.T, pages map[string]string) (*httptest.Server, *pageRecorder) {
 	t.Helper()
 	recorder := &pageRecorder{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/ajax/episodes/") {
 			if _, err := fmt.Fprint(w, animePageWithTokensFixture); err != nil {
 				t.Errorf("write anime page fixture: %v", err)
@@ -97,7 +97,6 @@ func TestListEpisodesFollowsPaginationToTheHighestEpisode(t *testing.T) {
 		"1": paginatedEpisodesFixture(1, 2, 17, episodeNumbers(1, 16)...),
 		"2": paginatedEpisodesFixture(2, 2, 17, 17),
 	})
-	defer srv.Close()
 
 	listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 	if err != nil {
@@ -123,7 +122,6 @@ func TestListEpisodesStopsAtTheLastPage(t *testing.T) {
 	srv, recorder := newPaginatedEpisodeListingServer(t, map[string]string{
 		"1": paginatedEpisodesFixture(1, 1, 4, 1, 2, 4),
 	})
-	defer srv.Close()
 
 	listing, err := newWithBaseURL(srv.Client(), srv.URL).ListEpisodes(context.Background(), srv.URL+"/")
 	if err != nil {
@@ -148,7 +146,6 @@ func TestFetchEpisodesAggregatesEveryPaginatedPage(t *testing.T) {
 		"2": paginatedEpisodesFixture(2, 3, 33, episodeNumbers(17, 32)...),
 		"3": paginatedEpisodesFixture(3, 3, 33, 33),
 	})
-	defer srv.Close()
 
 	episodes, total, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), "555", "tok")
 	if err != nil {
@@ -176,7 +173,6 @@ func TestFetchEpisodesStopsOnAnExhaustedPageDespiteAnInflatedLastPage(t *testing
 		"1": paginatedEpisodesFixture(1, 5, 16, episodeNumbers(1, 16)...),
 		"2": paginatedEpisodesFixture(2, 5, 16),
 	})
-	defer srv.Close()
 
 	episodes, _, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), "555", "tok")
 	if err != nil {
@@ -197,14 +193,13 @@ func TestFetchEpisodesStopsAtThePageCapWhenLastPageNeverEnds(t *testing.T) {
 	t.Parallel()
 
 	recorder := &pageRecorder{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		page := path.Base(r.URL.Path)
 		recorder.record(page)
 		if _, err := fmt.Fprint(w, paginatedEpisodesFixture(1, 999999, 999999, 1)); err != nil {
 			t.Errorf("write AJAX fixture: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	if _, _, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), "555", "tok"); err != nil {
 		t.Fatalf("fetchEpisodes: %v", err)
@@ -226,7 +221,7 @@ func TestFetchEpisodesStopsAtThePageCapWhenLastPageNeverEnds(t *testing.T) {
 func TestFetchEpisodesFailsLoudlyWhenALaterPageFails(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if path.Base(r.URL.Path) == "2" {
 			http.Error(w, "boom", http.StatusInternalServerError)
 			return
@@ -235,7 +230,6 @@ func TestFetchEpisodesFailsLoudlyWhenALaterPageFails(t *testing.T) {
 			t.Errorf("write AJAX fixture: %v", err)
 		}
 	}))
-	defer srv.Close()
 
 	episodes, total, err := newWithBaseURL(srv.Client(), srv.URL).fetchEpisodes(context.Background(), "555", "tok")
 	if err == nil {

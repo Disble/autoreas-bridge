@@ -17,7 +17,7 @@ func serveSearchFixture(t *testing.T, fixture string) *httptest.Server {
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/buscar/") {
 			http.NotFound(w, r)
 			return
@@ -67,7 +67,7 @@ func TestSearcherParsesResultTitlesAndURLs(t *testing.T) {
 }
 
 func TestSearcherReturnsEmptyOnNoResults(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`<html><body><div class="no-results">Nada</div></body></html>`))
 	}))
 	t.Cleanup(srv.Close)
@@ -84,7 +84,7 @@ func TestSearcherReturnsEmptyOnNoResults(t *testing.T) {
 
 func TestSearcherEscapesQueryInURL(t *testing.T) {
 	var gotPath string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		_, _ = w.Write([]byte(`<html></html>`))
 	}))
