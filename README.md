@@ -80,7 +80,7 @@ Tests are an integral part of this project.
 
 ### Go linting
 
-Run `powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile base` for the enforced Go lint profile. The tracked entrypoint provisions the `golangci-lint` version pinned in `scripts/lint.ps1`, building it once into `.tools/bin` and reusing it. Run it with `-Profile advanced` to build the tracked dlinter plugin and scan the same repository-owned Go packages.
+The pre-commit gate runs `powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all`, so that is the command that reproduces it. `-Profile all` is `base` plus `advanced`: `base` is stock golangci-lint, `advanced` builds the tracked dlinter plugin, and some rules -- `gocognit` among them -- exist only in the plugin. Running `-Profile base` and reading `0 issues` is therefore not evidence the gate will pass. The tracked entrypoint provisions the `golangci-lint` version pinned in `scripts/lint.ps1`, building each binary once into `.tools/bin` and reusing it until the pin or the Go version changes.
 
 ### Building for Production
 
