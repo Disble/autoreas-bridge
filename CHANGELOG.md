@@ -14,6 +14,56 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-08-28
+
+### Changed
+
+- **Bridge now listens on port 9876 instead of 8080.** Nothing about the API
+  changed, but a phone that was already paired has `8080` written down and will
+  stop reaching Bridge until you pair it again: open **Settings → Re-pair** on
+  the phone and scan the QR. You do not need a new version of the mobile app for
+  that — the QR carries the port, so the app you already have learns the new one
+  by scanning.
+
+  The reason for moving: 8080 is one of the ports other desktop software checks
+  when it goes looking for a local AI model server. Those requests were arriving
+  at Bridge, being answered `404`, and filling the Network panel with traffic that
+  had nothing to do with Bridge. 9876 was picked against the ranges Windows hands
+  out to outgoing connections, the ranges reserved on this machine, and what was
+  already listening.
+
+### Added
+
+- **The port is no longer fixed.** Until now the address Bridge listens on was
+  decided when the application was compiled, so a port conflict left nothing to
+  do but wait for a new build. It can now be set and cleared, a plain port number
+  is accepted, and an address that cannot be used is reported rather than
+  swallowed. A change applies the next time Bridge starts, so a running session
+  is never moved out from under a phone that is mid-sync.
+
+  There is also `AUTOREAS_BRIDGE_ADDR` for the case where the port is taken and
+  Bridge therefore cannot show you a settings screen at all — an escape hatch that
+  lived only inside the app would be unavailable in exactly the situation it
+  exists for.
+
+### Internal
+
+- Bridge now builds on Go 1.27, and on Wails 2.15.0 — which is not optional: the
+  older Wails could not read what a Go 1.27 compiler produces, so `wails dev` and
+  `wails build` both failed outright until it moved.
+
+- UUIDs come from the standard library instead of a separate package, and a
+  number of small modernisations landed across the codebase with no change to
+  behaviour.
+
+- Tests got faster and less prone to failing for reasons of their own: the
+  jkanime fixtures now serve over an in-memory network instead of real TCP ports,
+  and the slow-handler test runs on a simulated clock instead of waiting 600ms in
+  real time.
+
+- The GitHub CI workflow was removed. The gate that decides whether a commit is
+  allowed runs locally, and the remote copy only repeated it.
+
 ## [1.5.0] — 2026-08-26
 
 ### Added

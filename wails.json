@@ -4,7 +4,7 @@
   "outputfilename": "autoreas-bridge",
   "info": {
     "productName": "Autoreas Bridge",
-    "productVersion": "1.5.0"
+    "productVersion": "1.6.0"
   },
   "frontend:install": "bun install",
   "frontend:build": "bun run build",
