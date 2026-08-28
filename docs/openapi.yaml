@@ -3,7 +3,7 @@ info:
   title: Autoreas Bridge API
   version: 1.1.0
   description: |
-    REST API exposed by the Autoreas Bridge desktop application on 0.0.0.0:8080.
+    REST API exposed by the Autoreas Bridge desktop application on 0.0.0.0:9876.
     Used by mobile clients to pair, bootstrap local SQLite state, fetch incremental
     bridge changelogs, patch anime state, inspect bridge status, and receive real-time events.
 

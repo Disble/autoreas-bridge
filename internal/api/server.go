@@ -102,11 +102,21 @@ type HTTPServer struct {
 	logger               sharedlogger.Logger
 }
 
+// DefaultAddr is the address the HTTP API binds when Config.Addr is empty.
+//
+// Port 9876 replaced 8080 on 2026-08-28. 8080 is a common default that other
+// desktop software probes looking for an OpenAI-compatible model server, so
+// unrelated GET /v1/models requests kept landing in the capture panel and
+// diluting it. 9876 sits well below the Windows ephemeral range (49152+), was
+// unclaimed on a normal desktop, and its only IANA registration is the extinct
+// MBone Session Director.
+const DefaultAddr = "0.0.0.0:9876"
+
 // NewServer builds a bridge HTTP server from the provided transport config.
 func NewServer(config Config) Server {
 	addr := config.Addr
 	if addr == "" {
-		addr = "0.0.0.0:8080"
+		addr = DefaultAddr
 	}
 
 	handler := NewHandler(config)

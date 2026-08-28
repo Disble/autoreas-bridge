@@ -43,8 +43,8 @@ func TestGetEffectiveAddressReturnsDelegatedAddress(t *testing.T) {
 	t.Parallel()
 
 	app := &App{httpServer: &stubAppHTTPServer{}}
-	if got := app.GetEffectiveAddress(); got != "192.168.1.50:8080" {
-		t.Fatalf("expected %q, got %q", "192.168.1.50:8080", got)
+	if got := app.GetEffectiveAddress(); got != "192.168.1.50:9876" {
+		t.Fatalf("expected %q, got %q", "192.168.1.50:9876", got)
 	}
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+/** Hoisted because vi.mock is lifted above this declaration, and the qrcode factory below has to close over the same spy. */
 const { toDataURLMock } = vi.hoisted(() => ({
   toDataURLMock: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
@@ -12,9 +13,9 @@ import { buildPairingQrImageUrl, buildPairingQrValue, parseEffectiveAddress } fr
 
 describe('parseEffectiveAddress', () => {
   it('splits ip and port from a valid address', () => {
-    expect(parseEffectiveAddress('192.168.1.10:8080')).toEqual({
+    expect(parseEffectiveAddress('192.168.1.10:9876')).toEqual({
       ip: '192.168.1.10',
-      port: '8080',
+      port: '9876',
     });
   });
 
@@ -28,8 +29,8 @@ describe('parseEffectiveAddress', () => {
 
 describe('buildPairingQrValue', () => {
   it('builds the canonical pairing deep link when ip, port, and token exist', () => {
-    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '8080', token: 'token-123' })).toBe(
-      'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
+    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '9876', token: 'token-123' })).toBe(
+      'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123',
     );
   });
 
@@ -38,13 +39,13 @@ describe('buildPairingQrValue', () => {
   });
 
   it('returns an empty string when the token is missing', () => {
-    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '8080', token: '' })).toBe('');
+    expect(buildPairingQrValue({ ip: '192.168.1.10', port: '9876', token: '' })).toBe('');
   });
 });
 
 describe('buildPairingQrImageUrl', () => {
   it('uses the default qr rendering options when none are provided', async () => {
-    const value = 'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123';
+    const value = 'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123';
 
     await buildPairingQrImageUrl(value);
 
@@ -53,14 +54,14 @@ describe('buildPairingQrImageUrl', () => {
 
   it('returns a qr image data url', async () => {
     await expect(
-      buildPairingQrImageUrl('autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123'),
+      buildPairingQrImageUrl('autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123'),
     ).resolves.toBe(
-      'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
+      'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123',
     );
   });
 
   it('forwards caller-provided qr rendering options unchanged', async () => {
-    const value = 'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123';
+    const value = 'autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123';
     const options = { margin: 2, width: 220 };
 
     await buildPairingQrImageUrl(value, options);

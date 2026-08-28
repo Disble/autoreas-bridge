@@ -132,7 +132,7 @@ func TestNewServerDefaultsToLanBinding(t *testing.T) {
 	t.Parallel()
 
 	server := NewServer(Config{}).(*HTTPServer)
-	if got, want := server.addr, "0.0.0.0:8080"; got != want {
+	if got, want := server.addr, "0.0.0.0:9876"; got != want {
 		t.Fatalf("expected default addr %q, got %q", want, got)
 	}
 }

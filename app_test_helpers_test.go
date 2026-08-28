@@ -330,7 +330,7 @@ func (s *stubAppHTTPServer) Shutdown(context.Context) error {
 	return nil
 }
 func (*stubAppHTTPServer) Addr() string             { return "127.0.0.1:0" }
-func (*stubAppHTTPServer) EffectiveAddress() string { return "192.168.1.50:8080" }
+func (*stubAppHTTPServer) EffectiveAddress() string { return "192.168.1.50:9876" }
 
 func (*stubAppRealtimeHub) Register(context.Context, realtime.Client) error { return nil }
 func (*stubAppRealtimeHub) Unregister(string)                               {}

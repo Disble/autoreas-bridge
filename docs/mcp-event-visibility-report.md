@@ -21,7 +21,7 @@ while the tracer bullet runs. Details in "Root cause" below.
 | `sync` | `info` | `received anime.changed for tracer-bullet-anime` |
 | `bus` | `debug` | `publish sync.requested` |
 | `websocket` | `info` | `forwarded anime.changed for tracer-bullet-anime` |
-| `api` | `info` | `http server listening on [::]:8080` |
+| `api` | `info` | `http server listening on [::]:9876` |
 
 The UI footer reported: `7 entries · 0 errors · 7 shown`.
 
@@ -33,7 +33,7 @@ The UI footer reported: `7 entries · 0 errors · 7 shown`.
 
 - Domain: `api`
 - Level: `info`
-- Message: `http server listening on [::]:8080`
+- Message: `http server listening on [::]:9876`
 - Timestamp: `1785425778000` milliseconds since Unix epoch
 
 ### Filtered event searches

@@ -70,7 +70,7 @@ The Wails application MUST be configured with `HideWindowOnClose: true` so that 
 
 ### Requirement: GetEffectiveAddress Binding
 
-`App` MUST expose `GetEffectiveAddress() string` that returns the local LAN address (e.g., `192.168.1.5:8080`) from `api.Server.EffectiveAddress()`.
+`App` MUST expose `GetEffectiveAddress() string` that returns the local LAN address (e.g., `192.168.1.5:9876`) from `api.Server.EffectiveAddress()`.
 
 #### Scenario: Address retrieved after startup
 

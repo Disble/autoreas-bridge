@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+/** Spy the mocked hook hands back, so a click can be asserted against the copy handler the panel actually received. */
 const onCopyToken = vi.fn();
 
 vi.mock('../use-pairing-panel', () => ({
@@ -8,7 +9,7 @@ vi.mock('../use-pairing-panel', () => ({
     copied: false,
     ip: '192.168.1.10',
     onCopyToken,
-    port: '8080',
+    port: '9876',
     qrImageUrl: '',
     token: 'token-123',
   }),

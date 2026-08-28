@@ -24,7 +24,7 @@ describe('bridge-runtime-source read bindings', () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
-    const getEffectiveAddressMock = vi.fn().mockResolvedValue('192.168.1.10:8080');
+    const getEffectiveAddressMock = vi.fn().mockResolvedValue('192.168.1.10:9876');
 
     const addressPromise = source.getEffectiveAddress();
 
@@ -32,7 +32,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
-    await expect(addressPromise).resolves.toBe('192.168.1.10:8080');
+    await expect(addressPromise).resolves.toBe('192.168.1.10:9876');
   });
 
   it('calls GetPairingToken once Go bindings become ready', async () => {

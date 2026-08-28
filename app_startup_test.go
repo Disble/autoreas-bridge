@@ -346,7 +346,7 @@ func TestAppStartupWiresCaptureQueueIntoHTTPServerAfterBridgeDBBootstrap(t *test
 func TestAppStartupWiresDownloadOrchestrationDespiteHTTPServerFailure(t *testing.T) {
 	t.Parallel()
 
-	wantErr := errors.New("listen tcp :8080: bind: address already in use")
+	wantErr := errors.New("listen tcp :9876: bind: address already in use")
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
 	app := newAppTestApp(t)
 	app.bootstrapBridgeDB = func() (*sql.DB, error) {

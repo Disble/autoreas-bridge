@@ -7,6 +7,7 @@ vi.mock('qrcode', () => ({
   toDataURL: vi.fn(async (value: string) => `data:image/png;base64,${value}`),
 }));
 
+/** Builds a BridgeRuntimeSource double whose members all resolve empty, so each test overrides only the call it is about. */
 function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn().mockResolvedValue('ok'),
@@ -32,7 +33,7 @@ describe('usePairingPanel', () => {
 
   it('loads pairing data on mount via the injected source', async () => {
     const source = createFakeSource({
-      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: vi.fn().mockResolvedValue('token-123'),
     });
 
@@ -46,17 +47,17 @@ describe('usePairingPanel', () => {
     await waitFor(() => {
       expect(result.current.token).toBe('token-123');
       expect(result.current.qrImageUrl).toBe(
-        'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=8080&token=token-123',
+        'data:image/png;base64,autoreas-mobile://pair?v=1&ip=192.168.1.10&port=9876&token=token-123',
       );
     });
 
     expect(result.current.ip).toBe('192.168.1.10');
-    expect(result.current.port).toBe('8080');
+    expect(result.current.port).toBe('9876');
   });
 
   it('does not expose a qr image until both address and token exist', async () => {
     const source = createFakeSource({
-      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: vi.fn().mockResolvedValue(''),
     });
 
@@ -69,7 +70,7 @@ describe('usePairingPanel', () => {
 
     await waitFor(() => {
       expect(result.current.ip).toBe('192.168.1.10');
-      expect(result.current.port).toBe('8080');
+      expect(result.current.port).toBe('9876');
       expect(result.current.token).toBe('');
     });
 
@@ -80,7 +81,7 @@ describe('usePairingPanel', () => {
     let onPairingTokenConsumed: (() => void) | undefined;
     const getPairingTokenMock = vi.fn().mockResolvedValueOnce('token-123').mockResolvedValueOnce('token-456');
     const source = createFakeSource({
-      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: getPairingTokenMock,
       onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
         onPairingTokenConsumed = listener;
@@ -126,7 +127,7 @@ describe('usePairingPanel', () => {
           }),
       );
     const source = createFakeSource({
-      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: getPairingTokenMock,
       onPairingTokenConsumed: vi.fn().mockImplementation((listener: () => void) => {
         onPairingTokenConsumed = listener;
@@ -165,7 +166,7 @@ describe('usePairingPanel', () => {
 
   it('copies the token and clears feedback after the timeout', async () => {
     const source = createFakeSource({
-      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:8080'),
+      getEffectiveAddress: vi.fn().mockResolvedValue('192.168.1.10:9876'),
       getPairingToken: vi.fn().mockResolvedValue('token-123'),
     });
     writeTextMock.mockResolvedValueOnce(undefined);
