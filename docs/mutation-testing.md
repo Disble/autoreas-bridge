@@ -44,8 +44,30 @@ git diff --quiet -- "$F" && echo "!! MUTATION DID NOT APPLY"
 go install github.com/Disble/ditto/cmd/ditto@latest
 
 ditto staged --dry --exclude-prefix tools/ --exclude-prefix frontend/
-ditto staged --exclude-prefix tools/ --exclude-prefix frontend/ \n  --threshold 0.80 --test-command "go test -count=1 ./internal/download/"
+ditto staged --exclude-prefix tools/ --exclude-prefix frontend/ \
+  --threshold 0.80 --test-command "go test -count=1 -json ./internal/download/"
 ```
+
+**`-json` is not decoration.** It is what lets ditto tell a failed assertion
+from a mutant that never compiled, and since v0.7.0 a mutant that never
+compiled leaves the numerator *and* the denominator instead of counting as a
+kill. Without it every reason comes back `unknown` and the exclusion never
+fires. Run both ways on one staged commit of `dharness`, same change, same
+suite:
+
+| | with `-json` | without |
+| --- | --- | --- |
+| Total | 19 | 21 |
+| Killed | 18 | 20 |
+| Survived | 1 | 1 |
+| Score | 0.95 | **0.95** |
+
+**The score is the one number that does not move.** 18/19 and 20/21 both
+print 0.95, so nothing in the verdict says two mutants were counted as killed
+for never having compiled. What moves is the count, and the line that reads
+`2 of the 21 mutants generated never compiled, and are out of the score
+entirely` — which is simply absent without `-json`. On ditto's own repository
+that class is 83 of 748 mutants.
 
 **Name the owning package in `--test-command`.** The old wrapper worked out which
 packages owned the staged files and ran only those; ditto takes one command and

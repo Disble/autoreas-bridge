@@ -365,9 +365,11 @@ the hook while remaining the expected MUTATE step. That is what the fragments
 exist to produce.
 
 **Note on the Go mutation surface.** `ditto staged` is installed rather than
-vendored (`go install github.com/Disble/ditto/cmd/ditto@latest`, v0.5.0 or
-later), is the expected MUTATE step, and is deliberately not wired into
-`lefthook.yml` (~53s for a small staged change, on top of an already ~90s gate).
+vendored (`go install github.com/Disble/ditto/cmd/ditto@latest`, v0.7.0 or
+later — below that a mutant that never compiled counts as killed and
+inflates the score), is the expected MUTATE step, and is deliberately not
+wired into `lefthook.yml` (~53s for a small staged change, on top of an
+already ~90s gate).
 Available and unwired is a real third state — do not read the tool's existence as
 evidence the gate runs it, and do not read its absence from the hook as evidence
 no runner exists, or that running it is optional.
