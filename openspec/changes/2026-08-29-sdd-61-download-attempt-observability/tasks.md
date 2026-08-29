@@ -123,37 +123,63 @@ The proposal cached `single-pr`; the orchestrator resolved it to two sequential 
 
 # SLICE 2 — commit 2 (item 3)
 
+> **Apply correction (slice 2).** Three things the brief and design did not have right, recorded
+> where the next reader will look:
+>
+> 1. **`enqueueWithFallback` had SEVEN test call sites, not five.** Task 5.10 lists
+>    `service_cancel_test.go:204` and `service_fallback_test.go:37,57,83,125`; slice 1 added two more
+>    in `service_pipeline_observability_test.go` (`:26`, `:169`). All seven are repaired, all
+>    type-only.
+> 2. **Two gate findings that a bare `golangci-lint run` does not report.** Splitting `:221` pushed
+>    `awaitHosterOutcome` to gocognit 16, and the result literals pushed `enqueueWithFallback` to
+>    funlen 62. FASE 2 is now `pollForCompletion`, extracted verbatim with nothing reordered and no
+>    condition changed; the three result literals were reflowed to two lines each. `scripts/lint.ps1
+>    -Profile all` is the run that sees these -- plain `golangci-lint run` reported 0 issues at the
+>    same moment the gate profile reported 2.
+> 3. **`service_hoster_watch.go` measured 340 raw lines, not the ~425 the design predicted.**
+>    Extracting the poll and keeping the enum in its own file is why. `baseline.yaml` stays `files: []`.
+
 ## Phase 4: Infrastructure
 
-- [ ] 4.1 Extend `service_hoster_watch_exit.go` with the remaining **13** `exitReason` values **plus `exitUnset` (`""`)**, closing the enum at **17**. Names come from the design §3 table verbatim — including the three fallback mirrors `grace_client_absent_fallback`, `grace_query_error_fallback`, `grace_no_signal_fallback`, and `cancelled_during_poll` (which pairs with `fs_poll_deadline`). → EX
-- [ ] 4.2 Add `exit exitReason` to `hosterOutcome`; declare `episodeEnqueueResult{succeeded, failureKind, hoster, attemptIndex, exit, baseline, observed}` in `service_pipeline.go` as a **DISTINCT named type with no relationship to `animeRunOutcome`** — assigning one to the other must be a COMPILE ERROR. That is the structural half of the no-widening rule (design §8); the reflect guard in 5.16 is the other half, and neither is sufficient alone. Comment that the struct is consumed inside `processAvailableEpisode` and dies in that local scope. → EX, NW
+- [x] 4.1 Extend `service_hoster_watch_exit.go` with the remaining **13** `exitReason` values **plus `exitUnset` (`""`)**, closing the enum at **17**. Names come from the design §3 table verbatim — including the three fallback mirrors `grace_client_absent_fallback`, `grace_query_error_fallback`, `grace_no_signal_fallback`, and `cancelled_during_poll` (which pairs with `fs_poll_deadline`). → EX
+- [x] 4.2 Add `exit exitReason` to `hosterOutcome`; declare `episodeEnqueueResult{succeeded, failureKind, hoster, attemptIndex, exit, baseline, observed}` in `service_pipeline.go` as a **DISTINCT named type with no relationship to `animeRunOutcome`** — assigning one to the other must be a COMPILE ERROR. That is the structural half of the no-widening rule (design §8); the reflect guard in 5.16 is the other half, and neither is sufficient alone. Comment that the struct is consumed inside `processAvailableEpisode` and dies in that local scope. → EX, NW
 
 ## Phase 5: Implementation (RED → GREEN)
 
-- [ ] 5.1 RED: `:221` split — deadline exceeded → `fs_poll_deadline`; cancelled context → `cancelled_during_poll`; **both true → `fs_poll_deadline`**. → EX
-- [ ] 5.2 GREEN: split `:221` into two sequential `if`s with the **deadline checked first**, preserving today's `||` left-first label. Same truth table, same `kind`. → EX, NB
-- [ ] 5.3 RED: the same post-grace condition reached as first hoster vs as fallback records **different** `exit` values. → EX
-- [ ] 5.4 RED: entry-guard success (`disk_ahead_at_entry`, no rename) is distinguishable from poll-confirmed success (`fs_poll_confirmed`, renames) **from `exit` alone**. → EX
-- [ ] 5.5 RED: no emitted `exit` is `exitUnset` — every `hoster_attempt`, `episode_downloaded` and `failed` row asserts `exit != ""`. → EX
-- [ ] 5.6 RED: the post-grace proceed-and-continue path carries **no** `exit`; the recorded value comes from the attempt's eventual terminal point. → EX
-- [ ] 5.7 GREEN: stamp `exit` at all 13 attempt-level terminal returns in `service_hoster_watch.go` per the design §3 site → value → kind table. → EX
-- [ ] 5.8 RED: pre-attempt exits (`jd_unavailable`, `cancelled_before_attempt`, `no_hosters`) differ from an exhausted chain, which carries the **last attempt's** exit, not a synthetic `exhausted`. Cover both users of the shared `:366` return: empty `ordered` → `no_hosters`; every hoster failed → the last attempt's exit. → EX
-- [ ] 5.9 GREEN: `enqueueWithFallback` returns `episodeEnqueueResult` and tracks `lastExit exitReason` initialised to `exitUnset`. Stamp the four pipeline exits; at `:366` return `no_hosters` **iff `lastExit == exitUnset`**, otherwise `lastExit` (design §3 #17). `exitUnset` is the discriminator because it can only survive when no attempt ever ran — this separates "the extractor produced nothing" from "every hoster failed" **without branching on any behavior-carrying value**, and needs no 18th enum value. `enqueue_error` is always an ATTEMPT exit (it emits its own `hoster_attempt` row) and becomes the episode exit only by surviving as `lastExit`. Add `exit` to the slice-1 `hoster_attempt` map. → EX, HA
-- [ ] 5.10 GREEN: repair the five broken call sites for the struct return (R4) — `service_cancel_test.go:204` and `service_fallback_test.go:37`, `:57`, `:83`, `:125`.
-- [ ] 5.11 RED: E5 — `download.episode_downloaded` and the episode-level `download.failed` carry `exit`, `hoster`, `attemptIndex`, `baseline`, `observed`, with `failureKind` unchanged. → EX
-- [ ] 5.12 GREEN: unpack the struct at `service_pipeline.go:181` into the `logf` maps at `:192` and `:183` and **discard it there** — never assigned to `outcome`, never passed to `emitProgress`, never crossing into `animeRunOutcome`. → NW
-- [ ] 5.13 RED (flagship, R7): the `run-dl1532pqkk3g` replay — JD classifies dead in FASE 1B **while the disk count has advanced past baseline**. Assert the episode still reports **failed**, the package removal still occurs, and `download.failed` carries `observed > baseline`. This fails the moment anyone branches on `observed`. → OB
-- [ ] 5.14 RED: two attempts differing ONLY in the observed disk count produce the same verdict, the same failure classification and the same run counters; only the recorded `observed` differs. → OB, NB
-- [ ] 5.15 GREEN: compute `observed` **only** inside the terminal `return` that builds `episodeEnqueueResult` (D7) — a value that does not exist before the return cannot be branched on. → OB
-- [ ] 5.16 RED: the `animeRunOutcome` run-time guard (D10). Reflect over `animeRunOutcome`'s fields and fail if any is named in the forbidden forensic set `{exit, hoster, attemptIndex, baseline, observed, winningHoster}`, with a failure message naming the alias hazard. Also assert `reflect.TypeOf(animeRunOutcome{}) == reflect.TypeOf(animeProgressDelta{})`, so converting the alias into a defined type — which would silently void the guard's second half — fails loudly. Pin the forbidden **vocabulary**, never the field list or field count: SDD-60 legitimately adding a notification field must stay green. This is the run-time half that 4.2's compile-time guard cannot cover, because a distinct result type does not stop anyone adding `exit string` directly to `animeRunOutcome`. → NW
+- [x] 5.1 RED: `:221` split — deadline exceeded → `fs_poll_deadline`; cancelled context → `cancelled_during_poll`; **both true → `fs_poll_deadline`**. → EX
+- [x] 5.2 GREEN: split `:221` into two sequential `if`s with the **deadline checked first**, preserving today's `||` left-first label. Same truth table, same `kind`. → EX, NB
+- [x] 5.3 RED: the same post-grace condition reached as first hoster vs as fallback records **different** `exit` values. → EX
+- [x] 5.4 RED: entry-guard success (`disk_ahead_at_entry`, no rename) is distinguishable from poll-confirmed success (`fs_poll_confirmed`, renames) **from `exit` alone**. → EX
+- [x] 5.5 RED: no emitted `exit` is `exitUnset` — every `hoster_attempt`, `episode_downloaded` and `failed` row asserts `exit != ""`. → EX
+- [x] 5.6 RED: the post-grace proceed-and-continue path carries **no** `exit`; the recorded value comes from the attempt's eventual terminal point. → EX
+- [x] 5.7 GREEN: stamp `exit` at all 13 attempt-level terminal returns in `service_hoster_watch.go` per the design §3 site → value → kind table. → EX
+- [x] 5.8 RED: pre-attempt exits (`jd_unavailable`, `cancelled_before_attempt`, `no_hosters`) differ from an exhausted chain, which carries the **last attempt's** exit, not a synthetic `exhausted`. Cover both users of the shared `:366` return: empty `ordered` → `no_hosters`; every hoster failed → the last attempt's exit. → EX
+- [x] 5.9 GREEN: `enqueueWithFallback` returns `episodeEnqueueResult` and tracks `lastExit exitReason` initialised to `exitUnset`. Stamp the four pipeline exits; at `:366` return `no_hosters` **iff `lastExit == exitUnset`**, otherwise `lastExit` (design §3 #17). `exitUnset` is the discriminator because it can only survive when no attempt ever ran — this separates "the extractor produced nothing" from "every hoster failed" **without branching on any behavior-carrying value**, and needs no 18th enum value. `enqueue_error` is always an ATTEMPT exit (it emits its own `hoster_attempt` row) and becomes the episode exit only by surviving as `lastExit`. Add `exit` to the slice-1 `hoster_attempt` map. → EX, HA
+- [x] 5.10 GREEN: repair the five broken call sites for the struct return (R4) — `service_cancel_test.go:204` and `service_fallback_test.go:37`, `:57`, `:83`, `:125`.
+- [x] 5.11 RED: E5 — `download.episode_downloaded` and the episode-level `download.failed` carry `exit`, `hoster`, `attemptIndex`, `baseline`, `observed`, with `failureKind` unchanged. → EX
+- [x] 5.12 GREEN: unpack the struct at `service_pipeline.go:181` into the `logf` maps at `:192` and `:183` and **discard it there** — never assigned to `outcome`, never passed to `emitProgress`, never crossing into `animeRunOutcome`. → NW
+- [x] 5.13 RED (flagship, R7): the `run-dl1532pqkk3g` replay — JD classifies dead in FASE 1B **while the disk count has advanced past baseline**. Assert the episode still reports **failed**, the package removal still occurs, and `download.failed` carries `observed > baseline`. This fails the moment anyone branches on `observed`. → OB
+- [x] 5.14 RED: two attempts differing ONLY in the observed disk count produce the same verdict, the same failure classification and the same run counters; only the recorded `observed` differs. → OB, NB
+- [x] 5.15 GREEN: compute `observed` **only** inside the terminal `return` that builds `episodeEnqueueResult` (D7) — a value that does not exist before the return cannot be branched on. → OB
+- [x] 5.16 RED: the `animeRunOutcome` run-time guard (D10). Reflect over `animeRunOutcome`'s fields and fail if any is named in the forbidden forensic set `{exit, hoster, attemptIndex, baseline, observed, winningHoster}`, with a failure message naming the alias hazard. Also assert `reflect.TypeOf(animeRunOutcome{}) == reflect.TypeOf(animeProgressDelta{})`, so converting the alias into a defined type — which would silently void the guard's second half — fails loudly. Pin the forbidden **vocabulary**, never the field list or field count: SDD-60 legitimately adding a notification field must stay green. This is the run-time half that 4.2's compile-time guard cannot cover, because a distinct result type does not stop anyone adding `exit string` directly to `animeRunOutcome`. → NW
 
 ## Phase 6: Verification and commit
 
-- [ ] 6.1 Run `gofmt -w .`, `go vet ./...`, `golangci-lint run` and `go test ./internal/download/...`.
-- [ ] 6.2 MUTATE: stage slice 2, run `ditto staged` (`--dry` first). **The mutant that must die: collapsing the `:221` split back into one `if`.**
-- [ ] 6.3 Design §9.1 guard (b) for this slice — confirm the repairs in `service_cancel_test.go` and `service_fallback_test.go` (5.10) are **type-only**, with no `t.Fatalf` line and no expected-value literal changed in any pre-existing test. → NB
-- [ ] 6.4 **RUN** `go run ./tools/checkgofilesize` — design predicts `service_hoster_watch.go` reaches ~425 raw after this slice. `baseline.yaml` stays `files: []`.
-- [ ] 6.5 **R5 MEASURE**: run one instrumented download run and **count the actual `runtime_events` rows it produced**. Report the measured number against the 20000 shared cap; the 15–30/run figure is an estimate, not a measurement. → SV
-- [ ] 6.6 Re-run 3.4's `git diff --stat` with the range spanning **both** commits and require empty output — this is the scenario's real acceptance check with the complete change applied. Report the untouched `docs/openapi.yaml` and mobile sync contract as a positive finding, not an omission. → NW, NB
-- [ ] 6.7 Append one lesson with `node scripts/log-lesson.mjs "..."` — one line, ≤300 characters, never by editing `docs/learning-log.md` by hand.
-- [ ] 6.8 Commit slice 2. Conventional commit, **no Co-Authored-By and no AI attribution**, command timeout ≥ 300000 ms, never `--no-verify`.
+- [x] 6.1 Run `gofmt -w .`, `go vet ./...`, `golangci-lint run` and `go test ./internal/download/...`.
+- [x] 6.2 MUTATE: stage slice 2, run `ditto staged` (`--dry` first). **The mutant that must die: collapsing the `:221` split back into one `if`.**
+
+> **Apply note (slice 2, task 6.2).** `ditto staged` generated 4 mutants over the staged production
+> lines and finished **4/4 killed** (first pass 2/4: both survivors were `noAttemptIndex = -1`
+> mutated to `-0`/`-2`, because nothing pinned what a pre-attempt exit credits; `assertNothingCredited`
+> and `assertCredited` in task 5.8 close that gap). `ditto` generates no "merge two ifs" mutant, so
+> the `:221` collapse was hand-mutated per `CLAUDE.md` #16 and **died**, as did the order-swap mutant
+> that checks cancellation first: the collapse fails `cancelled before the deadline`
+> (`cancelled_during_poll` -> `fs_poll_deadline`) and the swap fails `both true keeps the deadline
+> label` (`fs_poll_deadline` -> `cancelled_during_poll`), which is design D3's ordering claim proved
+> rather than asserted.
+- [x] 6.3 Design §9.1 guard (b) for this slice — confirm the repairs in `service_cancel_test.go` and `service_fallback_test.go` (5.10) are **type-only**, with no `t.Fatalf` line and no expected-value literal changed in any pre-existing test. → NB
+- [x] 6.4 **RUN** `go run ./tools/checkgofilesize` — design predicts `service_hoster_watch.go` reaches ~425 raw after this slice. `baseline.yaml` stays `files: []`.
+- [~] 6.5 [DEFERRED - needs a live scheduled run; measure before archive] **R5 MEASURE**: run one instrumented download run and **count the actual `runtime_events` rows it produced**. Report the measured number against the 20000 shared cap; the 15–30/run figure is an estimate, not a measurement. → SV
+- [x] 6.6 Re-run 3.4's `git diff --stat` with the range spanning **both** commits and require empty output — this is the scenario's real acceptance check with the complete change applied. Report the untouched `docs/openapi.yaml` and mobile sync contract as a positive finding, not an omission. → NW, NB
+- [x] 6.7 Append one lesson with `node scripts/log-lesson.mjs "..."` — one line, ≤300 characters, never by editing `docs/learning-log.md` by hand.
+- [x] 6.8 Commit slice 2. Conventional commit, **no Co-Authored-By and no AI attribution**, command timeout ≥ 300000 ms, never `--no-verify`.

@@ -9,26 +9,80 @@ import "autoreas-bridge/internal/download/jdownloader"
 // terminal point. The named type still prevents an arbitrary string from being assigned at a
 // stamp site.
 //
-// The enum is closed at 17 values. This slice declares only the four removal stages that the
-// jdRemove sites use; the remaining values arrive with the attempt-level exit stamps, together
-// with the empty "never stamped" value that discriminates "no attempt ever ran" from "every
-// attempt failed". Each value lands in the commit that first uses it, because an unused
-// unexported constant fails the repo's lint gate.
+// The enum is CLOSED at 17 values, enumerated below in the order an attempt reaches them:
+// thirteen attempt-level terminal points stamped onto hosterOutcome, then four pipeline-level
+// points resolved by enqueueWithFallback. Three pairs (client-absent, query-error, no-signal)
+// deliberately keep a separate value for the first hoster and for a fallback: they share a
+// terminal point but not a cause, and hosterOutcomeKind cannot express that difference.
 type exitReason string
 
 const (
+	// exitUnset is the zero value: never emitted, and never stamped onto any outcome. It is
+	// load-bearing exactly once -- enqueueWithFallback's final return reads it to tell "the
+	// link extractor produced nothing, so no attempt ever ran" apart from "every attempt
+	// failed", two cases that share one return statement. That is why it needs no synthetic
+	// "exhausted" eighteenth value.
+	exitUnset exitReason = ""
+
+	// --- attempt level: stamped onto hosterOutcome in service_hoster_watch.go ---
+
+	// exitCounterUnavailable is the watch entry with no episode counter wired: the attempt
+	// cannot measure disk at all, so it can only time out.
+	exitCounterUnavailable exitReason = "counter_unavailable"
+	// exitDiskAheadAtEntry is a success the attempt did NOT observe: the disk count was
+	// already past the baseline when the attempt began. It flattens and returns without
+	// renaming, which is what separates it from exitFSPollConfirmed.
+	exitDiskAheadAtEntry exitReason = "disk_ahead_at_entry"
 	// exitPrecheckDead is the pre-check removal: JD already reported the hoster dead before
 	// the 60s grace even started.
 	exitPrecheckDead exitReason = "precheck_dead"
+	// exitFSPollConfirmed is a success this attempt DID observe: the completion poll watched
+	// the count advance, and the episode was renamed on the way out.
+	exitFSPollConfirmed exitReason = "fs_poll_confirmed"
+	// exitFSPollDeadline is the completion poll running out its safety cap.
+	exitFSPollDeadline exitReason = "fs_poll_deadline"
+	// exitCancelledDuringPoll is the completion poll interrupted by a stopped run. A user
+	// pressing Stop and a genuine 30-minute timeout are different decisions, so they keep
+	// different values even though both classify as a timeout.
+	exitCancelledDuringPoll exitReason = "cancelled_during_poll"
+	// exitGraceClientAbsentFirst is the post-grace dead end with no JD client at all, on the
+	// first hoster.
+	exitGraceClientAbsentFirst exitReason = "grace_client_absent_first"
+	// exitGraceClientAbsentFallback mirrors exitGraceClientAbsentFirst on a fallback hoster,
+	// where the same dead end classifies as a timeout rather than dead.
+	exitGraceClientAbsentFallback exitReason = "grace_client_absent_fallback"
 	// exitGraceQueryErrorFirst is the post-grace removal that follows a FAILED status query on
 	// the first hoster. No status was observed, so the removal is blind.
 	exitGraceQueryErrorFirst exitReason = "grace_query_error_first"
+	// exitGraceQueryErrorFallback mirrors exitGraceQueryErrorFirst on a fallback hoster, which
+	// removes nothing and only times out.
+	exitGraceQueryErrorFallback exitReason = "grace_query_error_fallback"
 	// exitGraceClassifiedDead is the post-grace removal over a status the classifier read as
 	// dead.
 	exitGraceClassifiedDead exitReason = "grace_classified_dead"
 	// exitGraceNoSignalFirst is the post-grace removal on the first hoster when the status
 	// carried neither a dead verdict nor any positive signal.
 	exitGraceNoSignalFirst exitReason = "grace_no_signal_first"
+	// exitGraceNoSignalFallback mirrors exitGraceNoSignalFirst on a fallback hoster, which
+	// removes nothing and only times out.
+	exitGraceNoSignalFallback exitReason = "grace_no_signal_fallback"
+
+	// --- pipeline level: resolved by enqueueWithFallback in service_pipeline.go ---
+
+	// exitJDUnavailable is the pre-attempt return with no downloader client: no hoster was
+	// ever attempted.
+	exitJDUnavailable exitReason = "jd_unavailable"
+	// exitCancelledBeforeAttempt is the mid-loop return taken when the run stopped before the
+	// next hoster attempt started.
+	exitCancelledBeforeAttempt exitReason = "cancelled_before_attempt"
+	// exitEnqueueError is always an ATTEMPT exit -- the enqueue-error path emits its own
+	// ledger row and CONTINUES to the next hoster, so it becomes the EPISODE exit only by
+	// surviving as the last attempt's exit.
+	exitEnqueueError exitReason = "enqueue_error"
+	// exitNoHosters is the empty-priority-order fall-through: the link extractor resolved no
+	// hoster to try. It is recorded only when no attempt ever ran, never as a stand-in for an
+	// exhausted chain.
+	exitNoHosters exitReason = "no_hosters"
 )
 
 // probe is one FASE 1 filesystem check for transfer evidence.

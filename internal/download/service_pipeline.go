@@ -178,18 +178,20 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	}
 
 	ordered := s.orderHosters(source.Descriptor().Name, links)
-	enqueued, failureKind := s.enqueueWithFallback(ctx, runID, anime, ordered, nextEpisode)
-	if !enqueued {
-		s.logf(logger.LevelError, runID, anime.ID, "download.failed", map[string]any{"failureKind": failureKind}, "anime %s: episode %d failed on every hoster", anime.Name, nextEpisode)
-		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: failureKind, CorrelationID: runID})
+	result := s.enqueueWithFallback(ctx, runID, anime, ordered, nextEpisode)
+	if !result.succeeded {
+		failureMetadata := episodeForensics(nextEpisode, result)
+		failureMetadata["failureKind"] = result.failureKind
+		s.logf(logger.LevelError, runID, anime.ID, "download.failed", failureMetadata, "anime %s: episode %d failed on every hoster", anime.Name, nextEpisode)
+		s.publish(events.DownloadFailedEvent{RunID: runID, AnimeID: anime.ID, FailureKind: result.failureKind, CorrelationID: runID})
 		outcome.episodesFailed++
 		outcome.failed = true
-		outcome.failureKind = failureKind
+		outcome.failureKind = result.failureKind
 		emitProgress(animeProgressDelta{episodesFailed: 1})
 		return current, true
 	}
 
-	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded", map[string]any{"episode": nextEpisode}, "anime %s: episode %d downloaded", anime.Name, nextEpisode)
+	s.logf(logger.LevelInfo, runID, anime.ID, "download.episode_downloaded", episodeForensics(nextEpisode, result), "anime %s: episode %d downloaded", anime.Name, nextEpisode)
 	s.publish(events.DownloadEpisodeDownloadedEvent{RunID: runID, AnimeID: anime.ID, Episode: nextEpisode, CorrelationID: runID})
 	outcome.episodesDownloaded++
 	// Record which episode numbers landed, not just how many, so the notification row can say
@@ -201,6 +203,26 @@ func (s *Service) processAvailableEpisode(ctx context.Context, runID string, ani
 	outcome.lastEpisodeDownloaded = nextEpisode
 	emitProgress(animeProgressDelta{episodesDownloaded: 1})
 	return s.downloadedEpisodeBaseline(*anime.Folder), false
+}
+
+// episodeForensics renders the credited attempt onto an episode-level entry: which terminal point
+// produced the outcome, which hoster and attempt were credited, and the disk counts before and at
+// that point.
+//
+// It is assembled HERE, at the emit site, and dies with the map. The tempting alternative --
+// hanging these on the anime run outcome, which is already threaded into this function -- would put
+// every one of them inside the live progress payload the UI renders, because animeProgressDelta is
+// a type ALIAS of that struct and not a separate type. When an emit site looks like it needs a
+// forensic field on the outcome, the answer is to move the emit site.
+func episodeForensics(episode int, result episodeEnqueueResult) map[string]any {
+	return map[string]any{
+		"episode":      episode,
+		"hoster":       result.hoster,
+		"attemptIndex": result.attemptIndex,
+		"exit":         string(result.exit),
+		"baseline":     result.baseline,
+		"observed":     result.observed,
+	}
 }
 
 // recordEpisodeFailure records an episode failure. It no longer decides whether to
@@ -219,6 +241,43 @@ func (s *Service) recordEpisodeFailure(runID string, anime contracts.MobileAnime
 func linkExtractionFailed(err error, links []sites.DownloadLink) bool {
 	return err != nil || len(links) == 0
 }
+
+// episodeEnqueueResult is everything enqueueWithFallback learned about one episode: the two
+// values the pipeline BRANCHES on (succeeded, failureKind) plus the forensic record of WHICH
+// attempt produced them.
+//
+// It is a DISTINCT named type with no relationship whatsoever to animeRunOutcome, and that is
+// deliberate: assigning one to the other is a COMPILE ERROR. animeRunOutcome is a type ALIAS of
+// animeProgressDelta, so a forensic field hung on it would land in the live progress payload the
+// UI renders, and neither name warns of it. This struct is unpacked into one logf map inside
+// processAvailableEpisode and DIES in that local scope -- it is never assigned to the outcome,
+// never passed to emitProgress, and never reaches the event bus.
+type episodeEnqueueResult struct {
+	succeeded   bool
+	failureKind string
+	// hoster and attemptIndex credit the LAST hoster the episode actually attempted. They stay
+	// empty and noAttemptIndex when no attempt ever ran, which is an honest "nothing to credit"
+	// rather than a zero index pointing at a hoster that was never tried.
+	hoster       string
+	attemptIndex int
+	exit         exitReason
+	// baseline is the on-disk episode count read once, before the first attempt. It stays zero on
+	// the pre-attempt return that has no downloader client, where no folder has been resolved yet
+	// and reading the disk there would be a behavior change rather than a measurement.
+	baseline int
+	// observed is the on-disk count at the terminal point. It is RECORDED AND NEVER ACTED ON:
+	// no branch, guard, loop condition, early return, verdict, classification, run counter or
+	// event payload may read it. It is computed only inside the terminal return that builds
+	// this struct, because a value that does not exist before the return cannot be branched on.
+	// Comparing it against baseline is what will size the classifier fix; wiring it into control
+	// flow here would silently make this change the fix, with no measured baseline left to
+	// compare against.
+	observed int
+}
+
+// noAttemptIndex is the attemptIndex recorded when no hoster was ever attempted. Zero would name
+// the first hoster in the priority order, which is precisely the hoster that did NOT run.
+const noAttemptIndex = -1
 
 // hosterLink pairs a download link with the hoster's resolved priority order index, so
 // enqueueWithFallback can iterate hosters (not raw links) in the resolver's deterministic order.
@@ -319,21 +378,28 @@ func (s *Service) downloadedEpisodeRecursive(folder string) int {
 // verdicts classify as hoster_down (download-sites spec "JD-reported dead hoster on every
 // fallback entry is classified as hoster_down"); a genuine timeout on the last hoster classifies
 // as slow_or_timeout.
-func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime contracts.MobileAnime, ordered []hosterLink, episode int) (bool, string) {
+func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime contracts.MobileAnime, ordered []hosterLink, episode int) episodeEnqueueResult {
 	if s.deps.JD == nil {
-		return false, FailureKindHosterDown
+		return episodeEnqueueResult{failureKind: FailureKindHosterDown, attemptIndex: noAttemptIndex, exit: exitJDUnavailable}
 	}
 
 	folder := derefOrEmpty(anime.Folder)
 	baselineCount := s.downloadedEpisodeBaseline(folder)
 
 	lastFailureKind := FailureKindHosterDown
+	// lastExit starts unset and is overwritten by every attempt that terminates. Surviving as
+	// unset is therefore proof that no attempt ever ran, which is the only thing separating the
+	// two callers of the final return below.
+	lastExit := exitUnset
+	lastHoster, lastAttemptIndex := "", noAttemptIndex
 	for i, hl := range ordered {
 		// Falling back to the next hoster after a stop would keep the run alive for
 		// minutes after the user asked it to end.
 		if ctx.Err() != nil {
-			return false, lastFailureKind
+			return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+				exit: exitCancelledBeforeAttempt, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		}
+		lastHoster, lastAttemptIndex = hl.hoster, i
 		s.jdMu.Lock()
 		err := s.deps.JD.AddAndStart(ctx, s.deps.JDDeviceName, jdownloader.EnqueueRequest{
 			URLs:        hl.links,
@@ -342,20 +408,23 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 		s.jdMu.Unlock()
 		if err != nil {
 			lastFailureKind = classifyEnqueueFailure(err)
+			lastExit = exitEnqueueError
 			s.logf(logger.LevelWarn, runID, anime.ID, "download.failed",
 				map[string]any{"failureKind": lastFailureKind, "hoster": hl.hoster},
 				"anime %s: hoster %s enqueue failed, trying next: %v", anime.Name, hl.hoster, err)
 			// This path CONTINUES without reaching the outcome switch below, so the ledger
 			// needs its own row here or the attempt disappears from the record entirely.
-			s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, "enqueue_error")
+			s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, "enqueue_error", exitEnqueueError)
 			continue
 		}
 
 		outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0)
-		s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, attemptOutcomeName(outcome.kind))
+		lastExit = outcome.exit
+		s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, attemptOutcomeName(outcome.kind), outcome.exit)
 		switch outcome.kind {
 		case hosterOutcomeSuccess:
-			return true, ""
+			return episodeEnqueueResult{succeeded: true, hoster: hl.hoster, attemptIndex: i,
+				exit: outcome.exit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 		case hosterOutcomeDead:
 			lastFailureKind = FailureKindHosterDown
 			s.logf(logger.LevelWarn, runID, anime.ID, "download.failed",
@@ -368,7 +437,16 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 				"anime %s: hoster %s timed out waiting for filesystem/JD confirmation", anime.Name, hl.hoster)
 		}
 	}
-	return false, lastFailureKind
+	// One return serves two different endings: an empty hoster order that never entered the loop,
+	// and a chain that tried everything and failed. lastExit tells them apart, and an exhausted
+	// chain reports the LAST attempt's own terminal value -- never a synthetic "exhausted", which
+	// answers a question nobody asked while hiding how the last attempt actually ended.
+	episodeExit := lastExit
+	if episodeExit == exitUnset {
+		episodeExit = exitNoHosters
+	}
+	return episodeEnqueueResult{failureKind: lastFailureKind, hoster: lastHoster, attemptIndex: lastAttemptIndex,
+		exit: episodeExit, baseline: baselineCount, observed: s.downloadedEpisodeBaseline(folder)}
 }
 
 // recordHosterAttempt persists one ledger row for a single hoster attempt.
@@ -377,10 +455,10 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 // never describe the attempt that actually won. This ledger is the complementary channel: exactly
 // one uniform row per attempt, success included, whose value comes from being complete. It is
 // ADDITIVE -- it never derives, replaces or overrides a failure classification.
-func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hoster string, attemptIndex, episode int, outcome string) {
+func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hoster string, attemptIndex, episode int, outcome string, exit exitReason) {
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.hoster_attempt",
-		map[string]any{"episode": episode, "hoster": hoster, "attemptIndex": attemptIndex, "outcome": outcome},
-		"anime %s: episode %d hoster %s attempt %d ended as %s", anime.Name, episode, hoster, attemptIndex, outcome)
+		map[string]any{"episode": episode, "hoster": hoster, "attemptIndex": attemptIndex, "outcome": outcome, "exit": string(exit)},
+		"anime %s: episode %d hoster %s attempt %d ended as %s at %s", anime.Name, episode, hoster, attemptIndex, outcome, exit)
 }
 
 // classifyEnqueueFailure maps an enqueue error to the download failure taxonomy.

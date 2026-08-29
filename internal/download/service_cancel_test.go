@@ -201,9 +201,9 @@ func TestEnqueueStopsFallingBackToTheNextHosterOnceCancelled(t *testing.T) {
 		{hoster: "Mega", links: []string{"http://mega.example/1"}},
 	}
 
-	enqueued, _ := NewService(deps).enqueueWithFallback(ctx, "run-1", anime, ordered, 1)
+	result := NewService(deps).enqueueWithFallback(ctx, "run-1", anime, ordered, 1)
 
-	if enqueued {
+	if result.succeeded {
 		t.Fatalf("expected no successful enqueue")
 	}
 	if len(jd.attempts) != 1 {

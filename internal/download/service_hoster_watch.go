@@ -76,8 +76,13 @@ const (
 
 // hosterOutcome is the result of watching a single hoster attempt to completion, failure, or
 // timeout.
+//
+// kind is what the pipeline BRANCHES on and has three values; exit is what the pipeline RECORDS
+// and has thirteen, because three attempt-level pairs share a kind while having opposite causes.
+// Every terminal return stamps exit, so an outcome carrying exitUnset never leaves this file.
 type hosterOutcome struct {
 	kind hosterOutcomeKind
+	exit exitReason
 }
 
 // hasPartFilesRecursive reports whether any file ending in ".part" exists under root, which is
@@ -199,17 +204,17 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	attemptStart := s.deps.Clock()
 	folder := derefOrEmpty(anime.Folder)
 	if s.deps.Counter == nil {
-		return hosterOutcome{kind: hosterOutcomeTimeout}
+		return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCounterUnavailable}
 	}
 
 	if s.downloadedEpisodeBaseline(folder) > baselineCount {
 		s.flattenDownloadFolder(ctx, runID, anime)
-		return hosterOutcome{kind: hosterOutcomeSuccess}
+		return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitDiskAheadAtEntry}
 	}
 
 	// ────────────────── PRE-CHECK ──────────────────
 	if s.jdPreCheckIsDead(ctx, runID, anime, hoster, folder) {
-		return hosterOutcome{kind: hosterOutcomeDead}
+		return hosterOutcome{kind: hosterOutcomeDead, exit: exitPrecheckDead}
 	}
 
 	// ────────────────── FASE 1 ──────────────────
@@ -221,19 +226,36 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	}
 
 	// ────────────────── FASE 2 ──────────────────
+	return s.pollForCompletion(ctx, runID, anime, folder, baselineCount, episode)
+}
+
+// pollForCompletion runs FASE 2: the filesystem-only completion poll, bounded by a safety cap. It
+// is the only success authority -- JD's own "finished" verdict never declares one.
+//
+// Extracted verbatim out of awaitHosterOutcome when splitting the terminal condition below pushed
+// that function past the cognitive-complexity gate. Nothing is reordered and no condition changes.
+func (s *Service) pollForCompletion(ctx context.Context, runID string, anime contracts.MobileAnime, folder string, baselineCount, episode int) hosterOutcome {
 	deadline := s.deps.Clock().Add(config.FilesystemCompletionPollTimeout)
 	for {
 		if s.downloadedEpisodeBaseline(folder) > baselineCount {
 			s.completeDownloadedEpisode(ctx, runID, anime, episode)
-			return hosterOutcome{kind: hosterOutcomeSuccess}
+			return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitFSPollConfirmed}
 		}
 
 		if s.deps.Flattener != nil && s.downloadedEpisodeRecursive(folder) > baselineCount {
 			_, _ = s.deps.Flattener.Flatten(ctx, folder)
 		}
 
-		if s.deps.Clock().After(deadline) || ctx.Err() != nil {
-			return hosterOutcome{kind: hosterOutcomeTimeout}
+		// Split from one `deadline || cancelled` condition into two sequential ifs, with the
+		// deadline FIRST. || reports its left operand when both hold, so keeping the deadline
+		// on the left preserves today's label exactly: same truth table, same kind, one more
+		// distinguishable terminal point. A user pressing Stop and a genuine 30-minute expiry
+		// are different decisions and must not share a value.
+		if s.deps.Clock().After(deadline) {
+			return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitFSPollDeadline}
+		}
+		if ctx.Err() != nil {
+			return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCancelledDuringPoll}
 		}
 		s.deps.PollSleep(config.FilesystemCompletionPollInterval)
 	}
@@ -253,7 +275,7 @@ func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime 
 		"anime %s: hoster %s has no .part evidence after 60s, checking JD", anime.Name, hoster)
 
 	if s.deps.JD == nil {
-		return firstHosterOutcome(isFirstHoster)
+		return firstHosterOutcome(isFirstHoster, exitGraceClientAbsentFirst, exitGraceClientAbsentFallback)
 	}
 
 	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
@@ -263,12 +285,12 @@ func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime 
 		if isFirstHoster {
 			s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceQueryErrorFirst, nil)
 		}
-		return firstHosterOutcome(isFirstHoster)
+		return firstHosterOutcome(isFirstHoster, exitGraceQueryErrorFirst, exitGraceQueryErrorFallback)
 	}
 
 	if classifyJDStatus(status) == verdictDead {
 		s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceClassifiedDead, &status)
-		return &hosterOutcome{kind: hosterOutcomeDead}
+		return &hosterOutcome{kind: hosterOutcomeDead, exit: exitGraceClassifiedDead}
 	}
 
 	if hasPositiveJDSignal(status) {
@@ -279,16 +301,20 @@ func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime 
 	if isFirstHoster {
 		s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceNoSignalFirst, &status)
 	}
-	return firstHosterOutcome(isFirstHoster)
+	return firstHosterOutcome(isFirstHoster, exitGraceNoSignalFirst, exitGraceNoSignalFallback)
 }
 
 // firstHosterOutcome maps a post-grace dead end to its outcome: the first hoster is declared dead
 // so the run falls back immediately, while a fallback hoster only times out.
-func firstHosterOutcome(isFirstHoster bool) *hosterOutcome {
+//
+// Three different dead ends share this mapping, and each passes its OWN pair of exits. Collapsing
+// the pair into one value would destroy the discriminator: the mirrored returns produce different
+// kinds from different causes that need opposite fixes, and hosterOutcomeKind cannot say which.
+func firstHosterOutcome(isFirstHoster bool, first, fallback exitReason) *hosterOutcome {
 	if isFirstHoster {
-		return &hosterOutcome{kind: hosterOutcomeDead}
+		return &hosterOutcome{kind: hosterOutcomeDead, exit: first}
 	}
-	return &hosterOutcome{kind: hosterOutcomeTimeout}
+	return &hosterOutcome{kind: hosterOutcomeTimeout, exit: fallback}
 }
 
 // jdRemove removes JD packages for a destination and publishes a progress event. Best-effort:

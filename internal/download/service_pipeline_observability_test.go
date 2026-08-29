@@ -23,8 +23,8 @@ func hosterAttemptLedger(t *testing.T, jd *fallbackAwareJDClient) (*fieldsRecord
 		{hoster: "Mediafire", links: []string{"http://mediafire.example/1"}},
 		{hoster: "Mega", links: []string{"http://mega.example/1"}},
 	}
-	enqueued, failureKind := s.enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
-	return recorder, enqueued, failureKind
+	result := s.enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
+	return recorder, result.succeeded, result.failureKind
 }
 
 // assertAttempt checks one ledger row against the hoster, index and outcome it must carry.
@@ -166,13 +166,13 @@ func TestTheFirstHosterAndAFallbackAreClassifiedDifferentlyAtTheSameDeadEnd(t *t
 		{hoster: "Mega", links: []string{"http://mega.example/1"}},
 	}
 
-	enqueued, failureKind := s.enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
+	result := s.enqueueWithFallback(context.Background(), "run-1", testAnime(folder), ordered, 12)
 
-	if enqueued {
+	if result.succeeded {
 		t.Fatal("expected an episode that never landed to report failure")
 	}
-	if failureKind != "slow_or_timeout" {
-		t.Fatalf("expected the LAST hoster's timeout to set the classification, got %q", failureKind)
+	if result.failureKind != "slow_or_timeout" {
+		t.Fatalf("expected the LAST hoster's timeout to set the classification, got %q", result.failureKind)
 	}
 	entries := recorder.byEventType("download.hoster_attempt")
 	if len(entries) != 2 {
