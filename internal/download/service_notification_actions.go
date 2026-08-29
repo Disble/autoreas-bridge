@@ -35,17 +35,15 @@ const (
 	// manualLinksSummaryLimit, which caps the body sentence for the same reason.
 	copyHosterActionsPerRowLimit = 5
 	// watchActionLabel is the copy a row whose episodes are already on disk offers. Bridge has
-	// no player, so "watch" means "take me to where this anime is", not "play it".
+	// no player, so "watch" means "take me to where these episodes are watched", not "play it".
 	watchActionLabel = "Watch"
-	// watchRouteFormat is the anime-scoped destination a downloaded row freezes. It is the
-	// anime's own screen rather than the day view: the row is about ONE anime, and /today is
-	// scoped to a day that may not be the one this anime is scheduled on
-	// (docs/notification-cta-policy.md, "L2 never navigates to a generic context").
-	watchRouteFormat = "/catalog/detail/%s"
 	// watchTodayActionLabel is the copy a completed run's whole-notification action offers, and
-	// todayRoute is where it points. This is the run-scoped half of the same argument the per-row
-	// verbs settle: the body says how many episodes landed, so the event's own destination is the
-	// day view where they are watched.
+	// todayRoute is where BOTH watch verbs point. The row verb used to freeze the anime's own
+	// screen (/catalog/detail/{id}); that screen is the record ABOUT an anime, not a place to
+	// watch from, so a row saying "ready to watch" was landing the user one more navigation away
+	// from the episodes. It is the deliberate exception to "L2 never navigates to a generic
+	// context" (docs/notification-cta-policy.md): the destination is shared with L1, but the row
+	// still answers "these episodes are ready", not "here is that anime's record".
 	watchTodayActionLabel = "Watch today"
 	todayRoute            = "/today"
 )
@@ -125,7 +123,7 @@ func outcomeRowActions(outcome animeRunOutcome) []notification.ActionSpec {
 		return []notification.ActionSpec{{
 			Label:  watchActionLabel,
 			Intent: center.IntentNavigationOpen,
-			Args:   map[string]string{center.ArgKeyRoute: fmt.Sprintf(watchRouteFormat, outcome.animeID)},
+			Args:   map[string]string{center.ArgKeyRoute: todayRoute},
 			RowRef: outcome.animeID,
 		}}
 	case outcome.skipped:

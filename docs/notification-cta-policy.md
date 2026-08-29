@@ -46,9 +46,13 @@ Three corollaries, each of which decides a real case below:
 1. **L1 navigates; it does not repeat work.** The single legitimate exception is
    an action that resolves a decision only this notification can close —
    `missed_schedule`'s *Run now*, `season.past_download_window`'s *Download now*.
-2. **L2 never navigates to a generic context.** If the destination is identical
-   for every row, it is L1 wearing L2's clothes. This is why
-   `season.anime_available` correctly has rows and no row CTA.
+2. **L2 navigates to a generic context only when that context IS the next
+   step.** A destination identical for every row is normally L1 wearing L2's
+   clothes, which is why `season.anime_available` correctly has rows and no row
+   CTA. The single shipped exception is `downloaded` -> `Watch`, and it is
+   recorded under Table B: the rule as first written sent that row to the
+   anime's own record, which is one navigation short of the thing the row
+   promises.
 3. **L2 is keyed on the row's own outcome, not on the notification's kind.** A
    mixed-outcome run holds rows that each want a different verb. See Table B.
 
@@ -88,7 +92,7 @@ selects its CTA.
 |---|---|---|
 | `failed` | Could not download | `Run this anime again` |
 | `manual` | Hoster down, links to handle by hand | `Copy hoster N` |
-| `downloaded` | Episodes downloaded | `Watch` → `/catalog/detail/{id}` |
+| `downloaded` | Episodes downloaded | `Watch` → `/today` |
 | `skipped` | Not downloadable | `Open in editor` → `/editor/{id}` |
 | `up to date` | Nothing to do | — |
 | `checked` | Nothing to do | — |
@@ -98,6 +102,14 @@ Note that a run notification lists **every** anime it touched, not only the
 failures: `buildRunDetailRows` gives eventful anime their own row first, then
 one summary row heading the quiet ones, capped at `runDetailRowsLimit` (50).
 That is precisely why keying on the kind is wrong.
+
+**`Watch` shares its destination with `Watch today`.** Both land on `/today`.
+That is a knowing exception to corollary 2, taken because the row's promise is
+"these episodes are ready to watch" and `/catalog/detail/{id}` is the record
+*about* an anime, not a place to watch from -- the row was ending one
+navigation short of what it said. The row verb keeps earning its place by
+answering a different question from L1's: L1 says "the run landed", the row
+says "and THIS anime is part of what landed".
 
 ## Table C — the projection matrix, by surface
 

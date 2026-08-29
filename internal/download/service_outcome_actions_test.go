@@ -89,7 +89,7 @@ func TestBuildOutcomeActionsGivesADownloadedRowTheWatchToken(t *testing.T) {
 	// against the production symbol would pass even if that constant were rewritten.
 	want := []string{"Watch=navigation.open"}
 	assertTokens(t, got, want)
-	assertRouteArg(t, actions, "anime-2", "/catalog/detail/anime-2")
+	assertRouteArg(t, actions, "anime-2", "/today")
 }
 
 // TestBuildOutcomeActionsGivesAManualRowTheCopyTokens pins that a hoster-blocked row offers the

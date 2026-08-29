@@ -159,7 +159,7 @@ func TestRunCompletedNotificationOffersToWatchWhatItDownloaded(t *testing.T) {
 		if action.Label == "Run this anime again" {
 			t.Fatalf("a clean run offers to re-download what it just downloaded: %#v", action)
 		}
-		if action.Label == "Watch" && action.Args["route"] == "/catalog/detail/anime-ok" {
+		if action.Label == "Watch" && action.Args["route"] == "/today" {
 			bound++
 		}
 	}
