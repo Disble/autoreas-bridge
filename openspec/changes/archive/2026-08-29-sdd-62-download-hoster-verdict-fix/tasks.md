@@ -150,8 +150,26 @@ it buys nothing against this budget.
 - [x] 5.2 MUTATE: stage the change, run `ditto staged --dry` first to confirm the scope resolved to the staged LINES (an unexpected multi-minute run means the diff ranges did not resolve and the scope fell open to the whole file), then `ditto staged`. Work design §7's M1–M9. **The mutant that must die is M3: `recursiveBaseline` → `baselineCount`. T3 is the only test that kills it — T1, T2 and T4 all survive it. Report explicitly whether it died.** Hand-mutate M3, M4 (re-check moved after `evaluateJDAfterGrace`) and M8 (baseline captured after the detect phase) if `ditto` generates no equivalent mutant; prove each edit applied with `git diff --quiet -- <file> && echo "!! DID NOT APPLY"`, and use `perl -0pi -e` — `sd` is NOT installed here. → proposal R-1
 - [x] 5.3 **Verification step, not a Go test.** Run pre-commit as `git diff --stat --cached --` (no commit exists yet; the orchestrator owns 5.9). Zero-line diff on every file this change must not touch: `git diff --stat <base>..HEAD -- internal/download/service.go internal/download/service_pipeline.go internal/download/service_notification_rows.go internal/events/event.go docs/openapi.yaml` MUST be empty. Report the untouched wire contract and mobile sync surface as a POSITIVE finding, not an omission (proposal §4). → NB
 - [x] 5.4 Audit the diff, do not trust the claim: the ONLY changed assertion in any pre-existing test is task 4.1's. Nothing appended to `service_hoster_watch_test.go` (523 raw), `service_run_status_test.go` (469) or `app_download_test.go` (~497 effective) — all three are absent from the diff entirely, as is `service_hoster_watch_observability_test.go`. `service_pipeline_exit_test.go` IS modified, because design §6 mandates C5 there; measured 405 → 424 raw (+19 net, a replacement not an append) and still below the 400-effective warning threshold, so `checkgofilesize` reports the same three warnings as the baseline and no new one. → NB
-- [ ] 5.5 **Orchestrator-run (CLAUDE.md #3).** `wails build` — baseline is green (binary produced in 22s, exit 0). A regression here is a compile or bindings break, not a test failure.
-- [ ] 5.6 **Orchestrator-run.** `bun --cwd="frontend" run render:smoke` (~4s) — baseline is green. CLAUDE.md 18b: "the process is alive" is never a smoke test; 1.2.0 shipped a blank WebView behind a perfect Go startup.
-- [ ] 5.7 **Orchestrator-run, bounded.** `wails dev`: launch, confirm startup, terminate. It needs a human to close it, so keep it time-boxed and do not leave it running — a stale `wails dev` process made SDD-55 look broken at runtime when the code was correct.
-- [ ] 5.8 Append one lesson with `node scripts/log-lesson.mjs "..."` — one line, ≤300 characters, never by editing `docs/learning-log.md` by hand.
-- [ ] 5.9 **Orchestrator-run (CLAUDE.md #4).** ONE conventional commit, **no Co-Authored-By and no AI attribution**, command timeout ≥ 300000 ms, never `--no-verify`. A killed commit leaves the changes staged but unrecorded — just re-run `git commit`.
+- [x] 5.5 **Orchestrator-run (CLAUDE.md #3).** `wails build` — baseline is green (binary produced in 22s, exit 0). A regression here is a compile or bindings break, not a test failure.
+- [x] 5.6 **Orchestrator-run.** `bun --cwd="frontend" run render:smoke` (~4s) — baseline is green. CLAUDE.md 18b: "the process is alive" is never a smoke test; 1.2.0 shipped a blank WebView behind a perfect Go startup.
+- [x] 5.7 **Orchestrator-run, bounded.** `wails dev`: launch, confirm startup, terminate. It needs a human to close it, so keep it time-boxed and do not leave it running — a stale `wails dev` process made SDD-55 look broken at runtime when the code was correct.
+- [x] 5.8 Append one lesson with `node scripts/log-lesson.mjs "..."` — one line, ≤300 characters, never by editing `docs/learning-log.md` by hand.
+- [x] 5.9 **Orchestrator-run (CLAUDE.md #4).** ONE conventional commit, **no Co-Authored-By and no AI attribution**, command timeout ≥ 300000 ms, never `--no-verify`. A killed commit leaves the changes staged but unrecorded — just re-run `git commit`.
+
+---
+
+## Archive-time checkbox reconciliation (2026-08-29)
+
+Tasks 5.5-5.9 were left `[ ]` by `sdd-apply` because they are orchestrator-owned (`apply-progress`,
+Engram #8809: "Tasks 1.1-5.4 complete (20/25); 5.5-5.9 are orchestrator-owned"). All five completed
+after that snapshot was written. `sdd-archive` marked them `[x]` mechanically, with the evidence
+below; no task was marked complete on assertion alone except 5.6, which leaves no repository
+artifact. See `archive-report.md` section "Task completion" for the full reconciliation record.
+
+| Task | Evidence |
+|---|---|
+| 5.5 `wails build` | `build/bin/autoreas-bridge.exe`, mtime 2026-08-29 14:00, two minutes before the commit; orchestrator reports exit 0 |
+| 5.6 `render:smoke` | Orchestrator launch prompt only - the run leaves no repository artifact |
+| 5.7 bounded `wails dev` | `build/bin/autoreas-bridge-dev.exe`, mtime 2026-08-29 14:01; orchestrator reports HTTP on :9876, bindings generated, dev server on :34115 |
+| 5.8 `log-lesson.mjs` | `git show 31ef4d5 -- docs/learning-log.md` adds the dated one-line entry |
+| 5.9 commit | Commit `31ef4d5` on `main`, full pre-commit gate green |
