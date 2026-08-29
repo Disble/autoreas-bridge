@@ -345,10 +345,15 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 			s.logf(logger.LevelWarn, runID, anime.ID, "download.failed",
 				map[string]any{"failureKind": lastFailureKind, "hoster": hl.hoster},
 				"anime %s: hoster %s enqueue failed, trying next: %v", anime.Name, hl.hoster, err)
+			// This path CONTINUES without reaching the outcome switch below, so the ledger
+			// needs its own row here or the attempt disappears from the record entirely.
+			s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, "enqueue_error")
 			continue
 		}
 
-		switch outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0); outcome.kind {
+		outcome := s.awaitHosterOutcome(ctx, runID, anime, hl.hoster, baselineCount, episode, i == 0)
+		s.recordHosterAttempt(runID, anime, hl.hoster, i, episode, attemptOutcomeName(outcome.kind))
+		switch outcome.kind {
 		case hosterOutcomeSuccess:
 			return true, ""
 		case hosterOutcomeDead:
@@ -364,6 +369,18 @@ func (s *Service) enqueueWithFallback(ctx context.Context, runID string, anime c
 		}
 	}
 	return false, lastFailureKind
+}
+
+// recordHosterAttempt persists one ledger row for a single hoster attempt.
+//
+// The failure taxonomy answers WHY an attempt failed and is emitted only on failure, so it can
+// never describe the attempt that actually won. This ledger is the complementary channel: exactly
+// one uniform row per attempt, success included, whose value comes from being complete. It is
+// ADDITIVE -- it never derives, replaces or overrides a failure classification.
+func (s *Service) recordHosterAttempt(runID string, anime contracts.MobileAnime, hoster string, attemptIndex, episode int, outcome string) {
+	s.logf(logger.LevelInfo, runID, anime.ID, "download.hoster_attempt",
+		map[string]any{"episode": episode, "hoster": hoster, "attemptIndex": attemptIndex, "outcome": outcome},
+		"anime %s: episode %d hoster %s attempt %d ended as %s", anime.Name, episode, hoster, attemptIndex, outcome)
 }
 
 // classifyEnqueueFailure maps an enqueue error to the download failure taxonomy.

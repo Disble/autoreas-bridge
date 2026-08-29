@@ -412,12 +412,12 @@ func TestDetectDownloadStartPhasePartFoundImmediatelyReturnsStarted(t *testing.T
 	deps.Bus = bus
 	s := NewService(deps)
 
-	started, outcome := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3)
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
 	if !started {
-		t.Fatalf("expected started=true when HasPartFiles returns true, got outcome=%#v", outcome)
+		t.Fatalf("expected started=true when HasPartFiles returns true, got probes=%#v", probes)
 	}
-	if outcome != nil {
-		t.Fatalf("expected nil outcome when started=true, got %#v", outcome)
+	if len(probes) != 1 {
+		t.Fatalf("expected the immediate hit to record 1 probe, got %#v", probes)
 	}
 }
 
@@ -438,7 +438,7 @@ func TestDetectDownloadStartPhasePublishesEventWhenPartFound(t *testing.T) {
 		}
 	})
 
-	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3)
+	started, _ := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true")
 	}
@@ -456,12 +456,12 @@ func TestDetectDownloadStartPhaseNeverFindsPartReturnsDead(t *testing.T) {
 	deps.PollSleep = func(d time.Duration) {} // no-op, instant
 	s := NewService(deps)
 
-	started, outcome := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3)
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
 	if started {
 		t.Fatal("expected started=false when HasPartFiles never returns true")
 	}
-	if outcome == nil || outcome.kind != hosterOutcomeDead {
-		t.Fatalf("expected dead outcome, got %#v", outcome)
+	if len(probes) != 3 {
+		t.Fatalf("expected the exhausted schedule to record 3 probes, got %#v", probes)
 	}
 }
 
@@ -472,12 +472,12 @@ func TestDetectDownloadStartPhaseDisabledReturnsStartedImmediately(t *testing.T)
 	deps.DetectStartPhaseDisabled = true
 	s := NewService(deps)
 
-	started, outcome := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3)
+	started, probes := s.detectDownloadStartPhase(context.Background(), "run-1", "anime-1", "/fake/folder", 3, deps.Clock())
 	if !started {
 		t.Fatal("expected started=true when phase is disabled")
 	}
-	if outcome != nil {
-		t.Fatalf("expected nil outcome when disabled, got %#v", outcome)
+	if probes != nil {
+		t.Fatalf("expected no probes when disabled, got %#v", probes)
 	}
 }
 
