@@ -168,17 +168,18 @@ func TestAnObservedSuccessIsDistinguishableFromOneAlreadyOnDisk(t *testing.T) {
 	t.Parallel()
 
 	// This is the discriminator the whole change exists for. Both cases report success and both
-	// are credited to the same hoster; only the exit says whether this attempt watched the bytes
-	// land or merely found them there. The rename difference rides on the same distinction,
-	// because the rename is what the NEXT episode's baseline count reads.
+	// are credited to the same hoster; only the exit says WHERE the success was observed -- found
+	// already on disk when the attempt began, or watched arriving by the poll. Completion handling
+	// no longer rides on that distinction: every success path renames before it flattens, because
+	// the rename is what the NEXT episode's baseline count reads.
 	t.Run("already on disk when the attempt began", func(t *testing.T) {
 		t.Parallel()
 
 		outcome, jd := successExit(t, 5, false)
 
 		assertOutcome(t, outcome, hosterOutcomeSuccess, "disk_ahead_at_entry")
-		if got := len(jd.recordedRenames()); got != 0 {
-			t.Fatalf("expected an entry-guard success to skip completion handling entirely, got %d renames", got)
+		if got := len(jd.recordedRenames()); got != 1 {
+			t.Fatalf("expected an entry-guard success to complete the episode exactly once, got %d renames", got)
 		}
 	})
 

@@ -9,8 +9,8 @@ import "autoreas-bridge/internal/download/jdownloader"
 // terminal point. The named type still prevents an arbitrary string from being assigned at a
 // stamp site.
 //
-// The enum is CLOSED at 17 values, enumerated below in the order an attempt reaches them:
-// thirteen attempt-level terminal points stamped onto hosterOutcome, then four pipeline-level
+// The enum is CLOSED at 18 values, enumerated below in the order an attempt reaches them:
+// fourteen attempt-level terminal points stamped onto hosterOutcome, then four pipeline-level
 // points resolved by enqueueWithFallback. Three pairs (client-absent, query-error, no-signal)
 // deliberately keep a separate value for the first hoster and for a fallback: they share a
 // terminal point but not a cause, and hosterOutcomeKind cannot express that difference.
@@ -21,7 +21,7 @@ const (
 	// load-bearing exactly once -- enqueueWithFallback's final return reads it to tell "the
 	// link extractor produced nothing, so no attempt ever ran" apart from "every attempt
 	// failed", two cases that share one return statement. That is why it needs no synthetic
-	// "exhausted" eighteenth value.
+	// "exhausted" value of its own.
 	exitUnset exitReason = ""
 
 	// --- attempt level: stamped onto hosterOutcome in service_hoster_watch.go ---
@@ -30,8 +30,9 @@ const (
 	// cannot measure disk at all, so it can only time out.
 	exitCounterUnavailable exitReason = "counter_unavailable"
 	// exitDiskAheadAtEntry is a success the attempt did NOT observe: the disk count was
-	// already past the baseline when the attempt began. It flattens and returns without
-	// renaming, which is what separates it from exitFSPollConfirmed.
+	// already past the baseline when the attempt began. It completes the episode like every
+	// other success path, so what separates it from exitFSPollConfirmed is WHERE the success
+	// was observed -- found already on disk at entry, rather than watched arriving by the poll.
 	exitDiskAheadAtEntry exitReason = "disk_ahead_at_entry"
 	// exitPrecheckDead is the pre-check removal: JD already reported the hoster dead before
 	// the 60s grace even started.
@@ -66,6 +67,11 @@ const (
 	// exitGraceNoSignalFallback mirrors exitGraceNoSignalFirst on a fallback hoster, which
 	// removes nothing and only times out.
 	exitGraceNoSignalFallback exitReason = "grace_no_signal_fallback"
+	// exitGraceDiskConfirmed is a success the detect phase MISSED: no .part evidence appeared
+	// during the 60s grace, but the filesystem had advanced past this attempt's OWN recursive
+	// baseline by the time the grace ended. It renames and flattens, and it is the only success
+	// exit that fires while JD still holds the package.
+	exitGraceDiskConfirmed exitReason = "grace_disk_confirmed"
 
 	// --- pipeline level: resolved by enqueueWithFallback in service_pipeline.go ---
 

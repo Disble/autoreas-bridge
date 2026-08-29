@@ -256,21 +256,23 @@ func assertEveryRecordedExitIsStamped(t *testing.T, recorder *fieldsRecorder) {
 	}
 }
 
-// deadWhileDiskAdvancesJDClient replays run-dl1532pqkk3g: the post-grace query classifies the
-// hoster dead at the very moment the transfer has already put a file on disk. The pre-check answers
-// alive so the attempt reaches the grace at all, and only the SECOND answer is dead -- an advance
-// visible any earlier would be caught by the entry guard and never reach the classifier.
-type deadWhileDiskAdvancesJDClient struct {
+// deadAfterGraceJDClient replays run-dl1532pqkk3g's downloader side: the pre-check answers
+// inconclusive so the attempt reaches the 60s grace at all, and the post-grace query then
+// classifies the hoster dead over a package that has already finished.
+//
+// The disk advance is driven by the detect phase's own probes rather than from here, because the
+// incident's transfer finished inside the blind gap BETWEEN two probes -- strictly before any
+// verdict was asked of JD.
+type deadAfterGraceJDClient struct {
 	*svcFakeJDClient
-	advance func()
 
 	mu      sync.Mutex
 	calls   int
 	removed []string
 }
 
-// PackageStatusByDestination answers alive first, then advances the disk count and answers dead.
-func (f *deadWhileDiskAdvancesJDClient) PackageStatusByDestination(context.Context, string, string) (jdownloader.DestinationStatus, error) {
+// PackageStatusByDestination answers inconclusive first, then dead.
+func (f *deadAfterGraceJDClient) PackageStatusByDestination(context.Context, string, string) (jdownloader.DestinationStatus, error) {
 	f.mu.Lock()
 	f.calls++
 	first := f.calls == 1
@@ -278,12 +280,11 @@ func (f *deadWhileDiskAdvancesJDClient) PackageStatusByDestination(context.Conte
 	if first {
 		return jdownloader.DestinationStatus{Matched: true}, nil
 	}
-	f.advance()
 	return jdownloader.DestinationStatus{Matched: true, CrawlOfflineCount: 2}, nil
 }
 
-// RemoveByDestination records the destructive removal this scenario must still perform.
-func (f *deadWhileDiskAdvancesJDClient) RemoveByDestination(_ context.Context, _, destination string) error {
+// RemoveByDestination records the destructive removal this scenario must no longer perform.
+func (f *deadAfterGraceJDClient) RemoveByDestination(_ context.Context, _, destination string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removed = append(f.removed, destination)
@@ -291,49 +292,64 @@ func (f *deadWhileDiskAdvancesJDClient) RemoveByDestination(_ context.Context, _
 }
 
 // removals returns how many package removals the client was asked to perform.
-func (f *deadWhileDiskAdvancesJDClient) removals() int {
+func (f *deadAfterGraceJDClient) removals() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.removed)
 }
 
-// deadOverAdvancedDiskEpisode runs one episode whose only hoster is classified dead after the grace
-// while the disk count has already moved from 4 to observedAtTerminal. It returns the persisted
-// episode failure, the anime outcome, and the JD fake that recorded the removal.
-func deadOverAdvancedDiskEpisode(t *testing.T, label string, observedAtTerminal int) (recordedEntry, animeRunOutcome, *deadWhileDiskAdvancesJDClient) {
+// diskConfirmedOverAdvancedCountEpisode runs one episode whose file lands inside the grace's blind
+// gap, moving the disk count from 4 to observedAtTerminal, while JD goes on to classify the hoster
+// dead. It returns the persisted episode success, the anime outcome, and the JD fake that records
+// any removal.
+//
+// The landing moves BOTH counting bases. svcFakeCounter lets a fixture set atRoot above recursive;
+// production cannot, because CountRecursive walks the very root CountAtRoot reads. Advancing atRoot
+// alone pins a state the system can never reach -- and under that fixture the two tests below kept
+// passing while asserting behaviour this change declares false, including with the post-grace
+// re-check deleted outright.
+func diskConfirmedOverAdvancedCountEpisode(t *testing.T, label string, observedAtTerminal int) (recordedEntry, animeRunOutcome, *deadAfterGraceJDClient) {
 	t.Helper()
 	folder := "folder-" + t.Name() + "-" + label
 	counter := &svcFakeCounter{atRoot: map[string]int{folder: 4}, recursive: map[string]int{folder: 4}}
 	deps, _ := fastEnqueueDeps(t, folder, counter)
 	deps.DetectStartPhaseDisabled = false
-	deps.HasPartFiles = func(string) bool { return false }
-	jd := &deadWhileDiskAdvancesJDClient{svcFakeJDClient: &svcFakeJDClient{}, advance: func() {
-		counter.mu.Lock()
-		defer counter.mu.Unlock()
-		counter.atRoot[folder] = observedAtTerminal
-	}}
+	probes := 0
+	deps.HasPartFiles = func(string) bool {
+		probes++
+		if probes == 3 {
+			counter.mu.Lock()
+			defer counter.mu.Unlock()
+			counter.atRoot[folder] = observedAtTerminal
+			counter.recursive[folder] = observedAtTerminal
+		}
+		return false
+	}
+	jd := &deadAfterGraceJDClient{svcFakeJDClient: &svcFakeJDClient{}}
 	deps.JD = jd
 
 	recorder, outcome := episodeRun(t, deps, folder, 4)
 
-	return episodeLevelFailure(t, recorder), outcome, jd
+	return recorder.only(t, "download.episode_downloaded"), outcome, jd
 }
 
-func TestADeadVerdictOverAnAdvancedDiskCountIsRecordedAndNotCorrected(t *testing.T) {
+func TestADeadVerdictOverAnAdvancedDiskCountIsCorrectedAndBothCountsRecorded(t *testing.T) {
 	t.Parallel()
 
-	entry, outcome, jd := deadOverAdvancedDiskEpisode(t, "replay", 5)
+	entry, outcome, jd := diskConfirmedOverAdvancedCountEpisode(t, "replay", 5)
 
-	// The whole point: the evidence is written down and NOTHING acts on it. An implementation
-	// that consulted the observed count here would rescue the episode, and the defect this change
-	// exists to size would disappear before anyone measured it.
-	if !outcome.failed || outcome.episodesFailed != 1 {
-		t.Fatalf("expected the episode to still fail over the advanced disk count, got %#v", outcome)
+	// A JD status that reports nothing good about a download already on disk describes JD's
+	// knowledge, not the episode's state. The fresh reading runs BEFORE any dead verdict, so the
+	// replay that used to end in a destructive removal over finished work now ends in a success --
+	// and the evidence pair is still recorded, because the decision came from the fresh reading
+	// and never from the recorded observed field.
+	if outcome.failed || outcome.episodesDownloaded != 1 {
+		t.Fatalf("expected the fresh reading to rescue the episode, got %#v", outcome)
 	}
-	if jd.removals() != 1 {
-		t.Fatalf("expected the destructive removal to still happen, got %d removals", jd.removals())
+	if jd.removals() != 0 {
+		t.Fatalf("expected no package removal once the file was found on disk, got %d removals", jd.removals())
 	}
-	assertEpisodeForensics(t, entry, "grace_classified_dead", "Mediafire", 0, 4, 5)
+	assertEpisodeForensics(t, entry, "grace_disk_confirmed", "Mediafire", 0, 4, 5)
 }
 
 // assertSameRunCounters fails unless two anime outcomes agree on every verdict and counter.
@@ -348,7 +364,7 @@ func assertSameRunCounters(t *testing.T, a, b animeRunOutcome) {
 	}
 }
 
-// assertSameExceptObserved fails unless two persisted episode failures agree on every recorded
+// assertSameExceptObserved fails unless two persisted episode entries agree on every recorded
 // field except observed. The moment any branch reads the observed count, one of these moves too.
 func assertSameExceptObserved(t *testing.T, a, b recordedEntry) {
 	t.Helper()
@@ -368,8 +384,11 @@ func assertSameExceptObserved(t *testing.T, a, b recordedEntry) {
 func TestTwoAttemptsDifferingOnlyInTheObservedCountBehaveIdentically(t *testing.T) {
 	t.Parallel()
 
-	low, lowOutcome, _ := deadOverAdvancedDiskEpisode(t, "low", 5)
-	high, highOutcome, _ := deadOverAdvancedDiskEpisode(t, "high", 9)
+	// The pair sits on the SUCCESS entry now, because that is where two attempts reaching the same
+	// terminal point with different on-disk counts still land after the re-check. On the failure
+	// entry the scenario had become vacuous: no attempt in this shape reaches a failure at all.
+	low, lowOutcome, _ := diskConfirmedOverAdvancedCountEpisode(t, "low", 5)
+	high, highOutcome, _ := diskConfirmedOverAdvancedCountEpisode(t, "high", 9)
 
 	assertSameRunCounters(t, lowOutcome, highOutcome)
 	assertSameExceptObserved(t, low, high)

@@ -78,7 +78,7 @@ const (
 // timeout.
 //
 // kind is what the pipeline BRANCHES on and has three values; exit is what the pipeline RECORDS
-// and has thirteen, because three attempt-level pairs share a kind while having opposite causes.
+// and has fourteen, because three attempt-level pairs share a kind while having opposite causes.
 // Every terminal return stamps exit, so an outcome carrying exitUnset never leaves this file.
 type hosterOutcome struct {
 	kind hosterOutcomeKind
@@ -207,8 +207,13 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 		return hosterOutcome{kind: hosterOutcomeTimeout, exit: exitCounterUnavailable}
 	}
 
+	// Captured HERE, before the entry guard and before any wait, so it measures exactly this
+	// attempt's window. Read after the detect phase it would already include whatever landed
+	// during the grace, and the re-check below could never fire. See recheckDiskAfterGrace.
+	recursiveBaseline := s.downloadedEpisodeRecursive(folder)
+
 	if s.downloadedEpisodeBaseline(folder) > baselineCount {
-		s.flattenDownloadFolder(ctx, runID, anime)
+		s.completeDownloadedEpisode(ctx, runID, anime, episode)
 		return hosterOutcome{kind: hosterOutcomeSuccess, exit: exitDiskAheadAtEntry}
 	}
 
@@ -220,6 +225,9 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	// ────────────────── FASE 1 ──────────────────
 	started, probes := s.detectDownloadStartPhase(ctx, runID, anime.ID, folder, episode, attemptStart)
 	if !started {
+		if outcome := s.recheckDiskAfterGrace(ctx, runID, anime, hoster, folder, recursiveBaseline, episode, probes); outcome != nil {
+			return *outcome
+		}
 		if outcome := s.evaluateJDAfterGrace(ctx, runID, anime, hoster, folder, episode, isFirstHoster, probes); outcome != nil {
 			return *outcome
 		}
@@ -261,6 +269,44 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 	}
 }
 
+// recheckDiskAfterGrace re-reads the filesystem after the detect phase saw no transfer, BEFORE any
+// verdict is asked of JD. JD status is failure truth; the filesystem is the only success truth, so
+// the absence of a positive JD signal over a file that HAS landed describes JD's knowledge and not
+// the episode's state.
+//
+// recursiveBaseline is read at the TOP of this attempt and on the SAME recursive basis as the
+// reading it is compared against. It is deliberately NOT baselineCount: that value is a ROOT count,
+// and a recursive reading against a root baseline lets residue in a package subfolder -- which
+// Flatten never reaches past one level -- declare a success that never happened, permanently
+// skipping a real episode no later run retries.
+//
+// It MUST run before evaluateJDAfterGrace: RenameEpisodeByDestination resolves the newest finished
+// link under the destination, so the rename works only while JD still holds the package that
+// function removes.
+func (s *Service) recheckDiskAfterGrace(ctx context.Context, runID string, anime contracts.MobileAnime,
+	hoster, folder string, recursiveBaseline, episode int, probes []probe) *hosterOutcome {
+	if s.downloadedEpisodeRecursive(folder) > recursiveBaseline {
+		s.logDetectStartFailed(runID, anime, hoster, probes)
+		s.completeDownloadedEpisode(ctx, runID, anime, episode)
+		return &hosterOutcome{kind: hosterOutcomeSuccess, exit: exitGraceDiskConfirmed}
+	}
+	return nil
+}
+
+// logDetectStartFailed persists the detect phase's probe timeline once the 60s grace has ended with
+// no transfer evidence. Both post-grace paths call it -- the disk re-check and the JD evaluation --
+// so the entry a reader finds is identical whichever one the attempt took. Extracting it is what
+// makes that identity STRUCTURAL rather than something tests have to police.
+//
+// The entry records the DETECT PHASE's outcome, never the attempt's. It already appears today on
+// attempts that go on to succeed through the completion poll, and the attempt's own terminal point
+// is recorded by the per-attempt ledger and the episode-level entry instead.
+func (s *Service) logDetectStartFailed(runID string, anime contracts.MobileAnime, hoster string, probes []probe) {
+	s.logf(logger.LevelWarn, runID, anime.ID, "download.detect_start_failed",
+		map[string]any{"failureKind": FailureKindHosterDown, "hoster": hoster, "probes": probeMetadata(probes)},
+		"anime %s: hoster %s has no .part evidence after 60s, checking JD", anime.Name, hoster)
+}
+
 // evaluateJDAfterGrace runs FASE 1B: after 60s without filesystem evidence, queries JD once more to
 // determine whether the hoster is definitively dead (outcome Dead), unknown (outcome Timeout), or
 // alive. When alive the Downloading event is published and a NIL outcome tells the caller to
@@ -270,9 +316,7 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 // probes is the detect phase's timeline; it is persisted here because this is where the failure to
 // observe a transfer start is first recorded.
 func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string, episode int, isFirstHoster bool, probes []probe) *hosterOutcome {
-	s.logf(logger.LevelWarn, runID, anime.ID, "download.detect_start_failed",
-		map[string]any{"failureKind": FailureKindHosterDown, "hoster": hoster, "probes": probeMetadata(probes)},
-		"anime %s: hoster %s has no .part evidence after 60s, checking JD", anime.Name, hoster)
+	s.logDetectStartFailed(runID, anime, hoster, probes)
 
 	if s.deps.JD == nil {
 		return firstHosterOutcome(isFirstHoster, exitGraceClientAbsentFirst, exitGraceClientAbsentFallback)
