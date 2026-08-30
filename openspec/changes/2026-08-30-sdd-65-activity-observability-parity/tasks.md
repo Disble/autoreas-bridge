@@ -58,7 +58,7 @@ Base boundaries: PR 1 base = tracker branch; each later PR bases on the previous
 - [x] 1.11 MUTATE 1.5–1.10: `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ."`. **Measured: ~6s per mutant** on the root package; this is the largest mutant surface in the change (six RED tasks staged), so budget several minutes of silent runtime and confirm the scope with `--dry` before suspecting a hang.
 - [x] 1.12 Regenerate `frontend/wailsjs/go/main/App.*` with the Wails generator. Never hand-edit generated bindings.
 - [x] 1.13 Confirm the diff touches **no** file under `internal/observability/eventlog/`, `internal/mcp/requestcapture/`, or `internal/observability/requestcapture/`, and does not modify `app_runtime.go`. Slice A adds a consumer, not a query engine.
-- [ ] 1.14 `git commit` (allow ≥ 300000 ms — the full gate is ~90s and a kill leaves changes staged but unrecorded).
+- [x] 1.14 (done — commit `5c087b6`) `git commit` (allow ≥ 300000 ms — the full gate is ~90s and a kill leaves changes staged but unrecorded).
 
 ## Phase 2: Slice A2 — Frontend repoint (split into A2a = PR 2, A2b = PR 3)
 
@@ -97,7 +97,7 @@ Pure helpers first: `network-feed.helpers.ts` has no dependency on the Go work, 
 - [x] 2.24 ‖ Append the "Two stores, not one" closing note to `docs/mcp-event-visibility-report.md`.
 - [x] 2.25 ‖ Append the measurement lesson with `node scripts/log-lesson.mjs "…"` — never by hand; one line, ≤300 chars.
 - [x] 2.26 Verify `/#/activity` and `/#/activity/runtime-events` are in `ROUTE_MARKERS`, then run `bun --cwd="frontend" run render:smoke` (~4s). A healthy Go startup with a blank WebView is not a passing build (CLAUDE.md #18b, R-9).
-- [ ] 2.27 `git commit` — the frontend MUTATE step runs automatically here via `lefthook.yml` `test:mutation:staged`. Allow ≥ 300000 ms.
+- [x] 2.27 (done — commit `e83a3c6`; Stryker 90.09) `git commit` — the frontend MUTATE step runs automatically here via `lefthook.yml` `test:mutation:staged`. Allow ≥ 300000 ms.
 
 ## Phase 3: Slice B — Transactions reach the whole table (PR 4, base = PR 3 branch)
 
@@ -113,7 +113,7 @@ Pure helpers first: `network-feed.helpers.ts` has no dependency on the Go work, 
 - [x] 3.9 DOM guard — create `TransactionPanel/__tests__/TransactionPanel.windowing.test.tsx`: rendered transaction rows equal the batch size, not "rows are unmounted". [REQ: Transactions Rail Is A Live Progressive List → "The first render shows exactly one batch"]
 - [x] 3.10 DOM guard live — an arrival or terminal capture delta does not shrink the window to the first batch; selection, filters and scroll position preserved. [REQ: Transactions Rail Is A Live Progressive List → "An incoming capture push does not reset the visible window"]
 - [x] 3.11 `bun --cwd="frontend" run filesize:warning` — `transaction-panel.helpers.ts` starts at 277 and grows here; split colocated if it crosses 400.
-- [ ] 3.12 `bun --cwd="frontend" run render:smoke`, then `git commit` (≥ 300000 ms).
+- [x] 3.12 (done — commit `8cb6f7f`; the first attempt was blocked by gocognit 16 > 15 and fixed by extracting `assertChangelogIDFilter`) `bun --cwd="frontend" run render:smoke`, then `git commit` (≥ 300000 ms).
 
 ## Phase 4: Slice C — Overview (PR 5, base = PR 4 branch)
 
@@ -125,13 +125,13 @@ Pure helpers first: `network-feed.helpers.ts` has no dependency on the Go work, 
 - [x] 4.6 GREEN: create `features/network/ui/ActivityOverview/` (strict colocation, no barrel, readonly props, JSDoc) and mount it as a **tab inside `ActivityView.tsx`**.
 - [x] 4.7 RED+GREEN: assert the route table and `app-layout.constants.ts` navigation entries are **unchanged** — the Overview adds no route and no nav entry (Q-5). A new route would also need a `ROUTE_MARKERS` entry. [REQ: Overview Is A Surface Inside Activity]
 - [x] 4.8 Record the parity checklist: six of the MCP's seven tools each have a named Activity affordance, and `get_correlation_timeline` is an explicit exclusion, not a miss. No merged request+event timeline surface ships. [REQ: No Merged Request And Event Timeline]
-- [ ] 4.9 `bun --cwd="frontend" run render:smoke`, `bun --cwd="frontend" run filesize:warning`, then `git commit` (≥ 300000 ms).
+- [x] 4.9 (done — commit `9f1fabb`) `bun --cwd="frontend" run render:smoke`, `bun --cwd="frontend" run filesize:warning`, then `git commit` (≥ 300000 ms).
 
 ## Phase 5: Cross-slice verification (orchestrating agent, not a subagent)
 
-- [ ] 5.1 ‖ Confirm `docs/openapi.yaml` is untouched by Slices A–C and report it as a **positive** finding, separately from Slice 0's already-merged document writes to `mobile-sync-contract` / `rest-api-write-sync` (R-7).
-- [ ] 5.2 ‖ Confirm **no schema change, no migration, no capture-write-path edit**: the diff touches no file under `internal/observability/requestcapture/`, registers no table, and adds no column.
-- [ ] 5.3 ‖ Confirm `GetRecentLogs()` still exists with its contract and that its four tests are byte-unchanged. [REQ: observability → Persisted Runtime-Event Log, "In-memory feed is unaffected by persistence"]
-- [ ] 5.4 ‖ Confirm the two MODIFIED `observability` requirements are reflected in the shipped behaviour: `Dashboard Feed Stays Live` (persisted page + live overlay, Transactions still not rendering `ObservabilityLogEntry` rows) and `Persisted Runtime-Event Log` (the tab clause narrowed while `MemLogger` and `GetRecentLogs()` stay retained).
-- [ ] 5.5 ‖ Confirm the three unrelated changes from proposal §3.1 are **still unarchived** and recorded as open debt.
-- [ ] 5.6 Run the full gate and create the final commit before reporting the change verified (CLAUDE.md #3, #4).
+- [x] 5.1 (verified by the orchestrator; evidence in `verify-report.md` §Phase 5) ‖ Confirm `docs/openapi.yaml` is untouched by Slices A–C and report it as a **positive** finding, separately from Slice 0's already-merged document writes to `mobile-sync-contract` / `rest-api-write-sync` (R-7).
+- [x] 5.2 (verified by the orchestrator; evidence in `verify-report.md` §Phase 5) ‖ Confirm **no schema change, no migration, no capture-write-path edit**: the diff touches no file under `internal/observability/requestcapture/`, registers no table, and adds no column.
+- [x] 5.3 (verified by the orchestrator; evidence in `verify-report.md` §Phase 5) ‖ Confirm `GetRecentLogs()` still exists with its contract and that its four tests are byte-unchanged. [REQ: observability → Persisted Runtime-Event Log, "In-memory feed is unaffected by persistence"]
+- [x] 5.4 (verified by the orchestrator; evidence in `verify-report.md` §Phase 5) ‖ Confirm the two MODIFIED `observability` requirements are reflected in the shipped behaviour: `Dashboard Feed Stays Live` (persisted page + live overlay, Transactions still not rendering `ObservabilityLogEntry` rows) and `Persisted Runtime-Event Log` (the tab clause narrowed while `MemLogger` and `GetRecentLogs()` stay retained).
+- [x] 5.5 (verified by the orchestrator; evidence in `verify-report.md` §Phase 5) ‖ Confirm the three unrelated changes from proposal §3.1 are **still unarchived** and recorded as open debt.
+- [x] 5.6 (full gate run per slice, plus `wails build` and a headless render of both Activity routes against the dev server; see `verify-report.md`) Run the full gate and create the final commit before reporting the change verified (CLAUDE.md #3, #4).
