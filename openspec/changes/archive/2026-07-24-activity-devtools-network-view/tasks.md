@@ -63,9 +63,28 @@ Frontend `generate:feature` scaffolding: **not used**. `TransactionPanel` nests 
 - [x] 4.1 RED `frontend/src/app/routes/__tests__/ActivityRoute.test.tsx` (or colocated equivalent): `ActivityRoute` renders `TransactionPanel` (keeping `BridgeStatusCard`), not `NetworkPanel`.
 - [x] 4.2 GREEN update `frontend/src/app/routes/ActivityRoute.tsx` to render `TransactionPanel`.
 - [x] 4.3 RED `frontend/src/app/routes/__tests__/EventsRoute.test.tsx`: new `EventsRoute` renders the existing `NetworkPanel` (event log) unchanged.
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** done as written — `e47e38e`
+      (2026-07-24) added the test file — but `e92c236` ("refactor(frontend): drop dead
+      routes and finish the Typography migration", 2026-08-03) deleted it. The file does
+      not exist today. Left ticked because the task was performed; the result was later
+      removed by a different change.
 - [x] 4.4 GREEN add `frontend/src/app/routes/EventsRoute.tsx` rendering `NetworkPanel`; wire `/events` in `frontend/src/App.tsx`.
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** `EventsRoute.tsx` was added by
+      `e47e38e` (2026-07-24) and deleted by `e92c236` (2026-08-03) as a dead route. There
+      is no separate Events route today: the event log is a tab inside `ActivityRoute`, and
+      `/events` is `<Route path="/events" element={<Navigate replace
+      to="/activity/runtime-events" />} />` (`frontend/src/App.tsx:37`).
 - [x] 4.5 GREEN add an "Events" nav item to the `system` group in `frontend/src/shared/navigation/app-layout.constants.ts` (after `Activity`, before `Settings`), reusing an existing Solar icon already imported elsewhere or adding one JSDoc-free icon import consistent with existing entries.
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** the "Events" nav item was added by
+      `e47e38e` (2026-07-24) and removed one day later by `7acb738` ("fix(activity): unify
+      runtime diagnostics and request capture", 2026-07-25), which folded the event log into
+      Activity as a tab. The `system` group carries a single `Activity` entry today
+      (`frontend/src/shared/navigation/app-layout.constants.ts:41`).
 - [x] 4.6 Note the pre-existing `frontend/src/app/routes/NetworkRoute.tsx` dead `/network` route drift in the PR description; leave it untouched (out of scope per design.md).
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** the file was left untouched as
+      instructed, but it no longer exists — added by `fadb9a9` (2026-06-20), deleted by
+      `e92c236` (2026-08-03). `/network` is now `<Navigate replace to="/activity" />`
+      (`frontend/src/App.tsx:38`), so the drift this task recorded has since been closed.
 - [x] 4.7 Docs: confirm no `docs/openapi.yaml` change is needed (in-process Wails bindings, not a REST/WS wire surface) — record that explicitly; append one `docs/learning-log.md` line documenting the Activity mislabel fix + the transactions-vs-events IA split if judged non-obvious during apply.
 - [x] 4.8 Run full `go test ./...`, `go run ./tools/checkgofilesize`, `bun --cwd="frontend" run test`, `bun --cwd="frontend" run typecheck`, `bun --cwd="frontend" run lint`; confirm `tools/checkgofilesize/baseline.yaml` stays `files: []` and no frontend file exceeds 500 effective lines.
 

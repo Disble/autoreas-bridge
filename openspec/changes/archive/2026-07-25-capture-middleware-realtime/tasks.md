@@ -320,7 +320,7 @@ group once its own prerequisites are met. **[S]** = strictly sequential
 
 ## Group 11 — Final verification (orchestrator-owned, not this executor)
 
-- [ ] **11.1** Full `go test ./...`, `go run ./tools/checkgofilesize`,
+- [x] **11.1** Full `go test ./...`, `go run ./tools/checkgofilesize`,
       `bun --cwd="frontend" run typecheck && lint && test`, Fallow audit for
       touched frontend paths, and a manual review-lens pass (per Agent Teams
       Lite trigger rules — this diff spans 2+ non-trivial files across
@@ -328,6 +328,12 @@ group once its own prerequisites are met. **[S]** = strictly sequential
       (broadcast fan-out) + `internal/api` (auth-adjacent request path) risk
       signals). MUST be run by the orchestrating agent per project rule 3,
       not delegated here.
+      **CLOSED AT ARCHIVE (2026-08-30, SDD-65 Slice 0):** ticked on the evidence that this
+      change's work is committed as `0c0957c` (2026-07-25), which means the repo-owned
+      pre-commit gate ran and passed at that commit. Slice 0 did NOT re-run this gate and
+      makes no claim about the Fallow audit or the manual review-lens pass; only the
+      commit-time gate is evidenced. Ticked so the archived audit trail carries no stale
+      unchecked box for work that shipped.
 
 ---
 

@@ -28,7 +28,17 @@ The system MUST log meaningful runtime events for anime, sync, api, websocket, a
 flows. Each such event MUST carry its declared domain, and events about a product entity
 MUST carry that entity's identifier and an event type in the guarded `domain.verb` shape, so
 the event can be located by what happened and to what, rather than only by free-text search
-over its message.
+over its message. The redundant `http.request` log line MUST be removed from the api domain
+because the capture middleware is its full-fidelity, structured replacement.
+(Previously: the `api` domain logged an `http.request` line per request via
+`RequestLoggingMiddleware`, duplicating what the mobile-request capture pipeline already
+recorded per handler.)
+
+> **Merge note — SDD-65 Slice 0.** This requirement is the union of two changes that were
+> applied out of archive order: `capture-middleware-realtime` (`0c0957c`, 2026-07-25) removed
+> the `http.request` line, and SDD-64 (`e22d6b6`, 2026-08-30, already archived) added the
+> declared-domain / guarded `domain.verb` / entity-locatability contract. Applying the older
+> delta verbatim would have deleted SDD-64's later text, so both are kept; both hold in code.
 
 #### Scenario: Anime runtime activity is logged
 
@@ -49,6 +59,12 @@ over its message.
 - THEN the event is returned
 - AND the event carries an event type in the guarded `domain.verb` shape
 
+#### Scenario: HTTP request log line is no longer emitted
+- GIVEN a request completes through the capture middleware
+- WHEN the middleware finishes recording the capture row
+- THEN the `api` domain MUST NOT emit a separate `http.request` log line for that request
+- AND the capture row remains the source of truth for that request's transport facts
+
 ### Requirement: Wails Exposes Recent Logs
 
 The Wails app facade MUST expose recent in-memory log entries through a public binding.
@@ -66,18 +82,35 @@ The Wails app facade MUST expose recent in-memory log entries through a public b
 
 ### Requirement: Dashboard Feed Stays Live
 
-The frontend MUST display recent bridge log entries and update the feed during the same application session without requiring manual refresh.
+The frontend MUST display recent bridge log entries under a clearly-named "Events" view, separate from the Activity (Network transactions) view, and update the feed during the same application session without requiring manual refresh. Activity MUST NOT render `ObservabilityLogEntry` rows as if they were HTTP transactions.
+(Previously: the log feed was shown under the "Activity"/Network-labeled route and its Status/Duration columns were always placeholders because log events are not HTTP transactions.)
+
+> **Drift note — recorded 2026-08-30 by SDD-65 Slice 0.** The separate "Events" route this
+> requirement mandates no longer exists. `EventsRoute.tsx` was added by `e47e38e`
+> (2026-07-24) and deleted by `e92c236` ("drop dead routes", 2026-08-03). Today the event log
+> is a tab inside Activity: `/events` is `<Navigate replace to="/activity/runtime-events" />`
+> (`frontend/src/App.tsx:37`) and the nav carries a single Activity entry
+> (`frontend/src/shared/navigation/app-layout.constants.ts:41`). The substantive guarantee —
+> Activity MUST NOT render `ObservabilityLogEntry` rows as HTTP transactions, and the event
+> log MUST stay reachable under a clearly-named surface — still holds. Amending the route
+> wording is SDD-65 Slice A's job, not Slice 0's.
 
 #### Scenario: Dashboard shows buffered history
 - GIVEN the Wails UI opens after backend activity already happened
-- WHEN the observability panel mounts
-- THEN it MUST render the recent buffered entries returned by the backend
+- WHEN the Events view mounts
+- THEN it MUST render the recent buffered `ObservabilityLogEntry` entries returned by the backend
 
 #### Scenario: Dashboard receives new entries
-- GIVEN the observability panel is already mounted
+- GIVEN the Events view is already mounted
 - WHEN a new log-worthy backend event occurs
 - THEN the new entry MUST appear in the feed during the active session
 - AND existing entries MUST remain ordered and visible within retention limits
+
+#### Scenario: Activity no longer mislabels the event log
+- GIVEN a user opens the Activity route
+- WHEN the route renders
+- THEN it MUST show captured HTTP transactions (per `activity-network-transactions`), not `ObservabilityLogEntry` rows
+- AND the event log MUST remain reachable from a separate, clearly-named "Events" route
 
 ### Requirement: Committed Writes Declare Their Changed Fields By Derivation
 
@@ -213,3 +246,334 @@ transport traffic cannot inflate it.
 - GIVEN a large number of runtime events about synthetic entities exist
 - WHEN real-entity event coverage is computed
 - THEN the result is unchanged by those events
+
+### Requirement: Captured Mobile Requests Are Auxiliary Observability Records
+
+The system MUST persist captured mobile requests in auxiliary observability storage that is separate from canonical anime state. Every persisted capture record MUST include a normalized request kind, the authenticated device identity for that request, and the sanitized outcome classification. The capture record MUST preserve the trust boundary that Bridge SQLite owns anime state, while observability owns only sanitized request evidence and effect-correlation metadata.
+
+#### Scenario: Capture links effects without becoming canonical state
+- GIVEN a mobile PATCH, REST reconcile, or WebSocket reconcile causes bridge-side effects
+- WHEN the capture record is written
+- THEN the record may link device, changelog, conflict, or activity identifiers
+- AND the record does not become an authority for anime state
+
+#### Scenario: Kind and authenticated device identity are required without storing credentials
+- GIVEN an authenticated mobile PATCH, REST reconcile, or WebSocket reconcile is captured
+- WHEN the observability record is persisted
+- THEN the record stores the request kind and authenticated device identity
+- AND the record does not store auth credentials or raw authorization material
+
+### Requirement: Sanitization and Privacy Are Default-Deny
+
+The system MUST store only a sanctioned sanitized subset of request data defined by bridge policy/configuration. It MUST NOT persist auth tokens, `Authorization` headers, raw sensitive headers, or unrestricted raw request bodies. This sanitization policy MUST also apply to the additive response body, request header, and response header capture: response bodies MUST be sanitized before persistence, and captured request/response headers MUST exclude `Authorization` and any other configured sensitive header name, persisting only a sanctioned sanitized JSON subset.
+
+#### Scenario: Sensitive request material is excluded
+- GIVEN an authenticated mobile request carries bearer credentials and additional headers
+- WHEN the capture record is persisted
+- THEN forbidden secrets and raw sensitive headers are absent from storage
+- AND only the sanctioned sanitized subset may remain
+
+#### Scenario: Response body is sanitized before persistence
+- GIVEN a mobile PATCH, REST reconcile, or WebSocket reconcile fails and returns an error response body
+- WHEN the response body is captured
+- THEN the persisted `response_body` contains only the sanctioned sanitized subset
+- AND it MUST NOT contain forbidden secrets or unrestricted raw payload content
+
+#### Scenario: Request and response headers exclude auth material
+- GIVEN a mobile request carries an `Authorization` header and other request/response headers
+- WHEN `request_headers` and `response_headers` are captured
+- THEN the `Authorization` header and any other configured sensitive header are absent from the persisted JSON
+- AND only sanctioned header names/values remain
+
+### Requirement: Retention and Degradation Are Owned by Observability Policy
+
+The system MUST manage captured-mobile-request retention separately from `anime_snapshots` through bridge-owned policy/configuration with safe defaults. Retention pruning, storage unavailability, or malformed capture rows MUST degrade observability only and MUST NOT block or alter canonical PATCH/reconcile behavior. This guarantee extends to failures or omissions while capturing the additive `response_body`, `request_headers`, `response_headers`, and `duration_ms` fields: any failure to capture, sanitize, or persist these fields MUST NOT block, delay, or alter the canonical response returned to the mobile client.
+
+#### Scenario: Retention operates on auxiliary rows only
+- GIVEN captured mobile requests have aged past the configured or default retention policy
+- WHEN retention pruning runs
+- THEN only auxiliary capture rows are eligible for removal
+- AND canonical anime-state rows remain untouched
+
+#### Scenario: Observability degradation does not change mobile semantics
+- GIVEN capture storage is unavailable or a stored capture row is malformed
+- WHEN a canonical mobile PATCH or reconcile flow executes
+- THEN the mobile protocol and canonical response stay unchanged
+- AND observability reports degradation through warning/error paths only
+
+#### Scenario: Response body or header capture failure does not block the canonical flow
+- GIVEN capturing the response body, request headers, or response headers for a request fails or the sanitizer rejects the payload
+- WHEN a canonical mobile PATCH or reconcile flow executes
+- THEN the canonical response to the mobile client is unaffected
+- AND the capture record is persisted with the affected optional field left null, or the capture write is skipped, without surfacing an error to the mobile client
+
+### Requirement: Additive Capture Schema for Response, Header, and Duration Telemetry
+
+The system MUST extend the existing captured-mobile-request schema with additive, nullable-by-default columns: `response_body` (text, nullable), `request_headers` (JSON, sanitized, nullable), `response_headers` (JSON, sanitized, nullable), and `duration_ms` (integer, nullable). Existing rows captured before this change MUST remain valid and readable with these columns absent or null. The system MUST add indexes supporting `route + captured_at_ms`, `http_status + captured_at_ms`, and `anime_id + captured_at_ms` query patterns, and MUST support correlation lookup by `changelog_id` through the existing correlation table.
+
+#### Scenario: Additive columns default to null for historical rows
+- GIVEN a captured mobile request row was written before this change
+- WHEN that row is read after the schema migration
+- THEN `response_body`, `request_headers`, `response_headers`, and `duration_ms` are absent or null
+- AND the row is still returned as well-formed by search and context tools
+
+#### Scenario: New captures populate the additive columns when available
+- GIVEN a mobile PATCH, REST reconcile, or WebSocket reconcile completes after this change
+- WHEN the capture record is written
+- THEN `duration_ms` is recorded for the request
+- AND `response_body`, `request_headers`, and `response_headers` are recorded when captured and sanitized successfully
+
+#### Scenario: Indexed query patterns remain performant at scale
+- GIVEN a large volume of captured mobile requests spanning many routes, statuses, and anime IDs
+- WHEN a query filters by route and time, HTTP status and time, or anime ID and time
+- THEN the query uses the corresponding index
+- AND the capture schema migration is purely additive, requiring no destructive rewrite of existing rows
+
+### Requirement: Response Body Capture Is Scoped to Failed Requests
+
+The system MUST capture and sanitize `response_body` for failed mobile PATCH, REST reconcile, and WebSocket reconcile requests. The system MAY omit response body capture for successful responses by default to limit storage growth and PII exposure surface.
+
+#### Scenario: Failed request captures the sanitized response body
+- GIVEN a mobile PATCH, REST reconcile, or WebSocket reconcile returns a validation or error response
+- WHEN the capture record is written
+- THEN `response_body` contains the sanitized bridge error/validation message
+- AND it is retrievable via `get_mobile_request_context`
+
+#### Scenario: Successful request may omit response body by default
+- GIVEN a mobile PATCH, REST reconcile, or WebSocket reconcile succeeds
+- WHEN the capture record is written
+- THEN `response_body` MAY be null
+- AND the omission MUST NOT be treated as a malformed row
+
+### Requirement: Transport-Level Capture Middleware
+
+A single HTTP middleware wrapping the mux MUST record transport facts (method, route, HTTP status, duration, request/response headers, response body) for every request reaching the mux, without any per-handler capture code. Handlers MUST contribute only semantic facts (outcome, error_code, anime_id, correlation/changelog/conflict IDs) through a request-scoped enrichment mechanism read by the middleware after the handler returns.
+
+#### Scenario: New endpoint is captured with zero handler code
+- GIVEN a new HTTP endpoint is registered on the mux with no capture-related code in its handler
+- WHEN a request reaches that endpoint
+- THEN the middleware MUST record a capture row with the transport facts (method, route, status, duration)
+- AND the row MUST NOT require any handler-side capture-building code
+
+#### Scenario: Handler enriches the transport capture
+- GIVEN a handler processes a request and determines a semantic outcome (e.g. `accepted`, `conflict`) and correlation IDs
+- WHEN the handler calls the enrichment mechanism before returning
+- THEN the middleware-recorded capture row MUST include those semantic facts alongside the transport facts
+
+#### Scenario: WebSocket upgrade still works when wrapped
+- GIVEN the capture middleware wraps the WebSocket upgrade route
+- WHEN a client performs the WS upgrade handshake
+- THEN the upgrade MUST succeed (no 500) via the wrapped writer's `Hijack` passthrough
+
+### Requirement: Capture Survives Handler Panic Or Early Exit
+
+The capture middleware MUST record a valid transport-only capture row even when the wrapped handler panics or returns without producing enrichment data, and MUST NOT block or fail the response path while doing so.
+
+#### Scenario: Handler panics before enrichment
+- GIVEN a handler panics after the middleware has started timing the request
+- WHEN the middleware's deferred capture logic runs
+- THEN a capture row with the transport facts (method, route, status, duration) MUST still be recorded
+- AND the missing semantic enrichment MUST NOT cause the capture write itself to fail or block the response
+
+### Requirement: Centralized WebSocket Message And Hub Capture
+
+Inbound WebSocket reconcile messages MUST be captured at the message-pump seam (arrival and terminal outcome), and connection open/close plus outbound broadcasts MUST be captured once at the realtime hub's single fan-out point. The message-handling business logic MUST NOT construct capture records itself.
+
+#### Scenario: Inbound message capture brackets the pump
+- GIVEN a WebSocket client sends a reconcile message
+- WHEN the message pump receives it
+- THEN an arrival capture row MUST be recorded before the inner handler runs
+- AND a terminal capture row reflecting the inner handler's returned outcome MUST be recorded after it completes
+- AND the inner message-handling function MUST contain no capture-record construction
+
+#### Scenario: Hub captures connection lifecycle and outbound broadcasts
+- GIVEN a client registers, unregisters, or the hub broadcasts an anime/preferences/season change
+- WHEN that hub operation executes
+- THEN a capture row MUST be recorded for that lifecycle or outbound event without any per-caller capture code
+
+### Requirement: Semantic Behavior Parity Through Enrichment
+
+The outcomes, error codes, and correlation IDs previously recorded by per-handler capture code MUST be preserved when handlers migrate to the enrichment mechanism.
+
+#### Scenario: Enriched capture matches prior per-handler semantics
+- GIVEN a handler that previously built and enqueued its own capture record with a specific outcome and error_code
+- WHEN the same request is processed under the middleware architecture using `capture.Enrich`
+- THEN the resulting capture row MUST contain the same outcome, error_code, and correlation data as before the migration
+
+### Requirement: Capture Storage Uses Transport-Neutral Names
+
+Captured request telemetry MUST be stored under transport-neutral names, because the capture pipeline records every `/api/*` request, every inbound WebSocket reconcile message, and every hub connection/broadcast event — not only mobile-originated traffic. The capture table MUST be named `request_captures`, its metadata table `request_capture_metadata`, its schema-version key `request_capture_schema_version`, and its indexes MUST carry the matching `idx_request_captures_*` names. The stored capture schema version MUST be `3`.
+
+#### Scenario: Fresh database is created with the transport-neutral names
+
+- GIVEN a bridge database that has never been bootstrapped
+- WHEN bootstrap runs
+- THEN the database MUST contain `request_captures` and `request_capture_metadata`
+- AND it MUST contain the five `idx_request_captures_*` indexes
+- AND `request_capture_schema_version` MUST be `3`
+- AND no table, index, or metadata key named `mobile_request_capture*` MUST exist
+- AND no rename operation MUST have been executed
+
+#### Scenario: Capture behavior is unchanged by the rename
+
+- GIVEN a request, WebSocket message, or hub broadcast that was captured before the rename
+- WHEN the same event is captured after the rename
+- THEN the recorded row MUST carry the same columns, values, sanitization, correlations, and enrichment merge result as before
+- AND the emitted `capture.transaction` runtime event MUST carry the unchanged `CaptureRow` wire shape
+
+### Requirement: Existing Capture Tables Are Renamed Without Data Loss
+
+Bootstrapping a database that already holds the previously-named capture tables MUST rename them in place using `ALTER TABLE ... RENAME TO`, preserving every existing row and column value. The rename MUST run before the schema-descriptor pass that would otherwise create a fresh empty table under the new name, MUST also retire the previously-named indexes and the previously-named schema-version key, and MUST be idempotent across repeated bootstraps.
+
+#### Scenario: Existing capture rows survive the rename
+
+- GIVEN a bridge database containing `mobile_request_captures` with captured rows and `mobile_request_capture_metadata` at schema version `2`
+- WHEN bootstrap runs
+- THEN `request_captures` MUST contain exactly the same rows, with identical column values, that `mobile_request_captures` held
+- AND `mobile_request_captures` and `mobile_request_capture_metadata` MUST no longer exist
+- AND `request_capture_schema_version` MUST be `3`
+- AND the previously-named `mobile_request_capture_schema_version` key MUST no longer exist
+
+#### Scenario: A new empty capture table is never created alongside existing data
+
+- GIVEN a bridge database whose capture data lives under the previous table name
+- WHEN bootstrap runs
+- THEN the system MUST NOT create an empty `request_captures` table while leaving the populated previously-named table in place
+- AND no captured row MUST be orphaned or unreachable through the read path
+
+#### Scenario: Stale index names do not survive
+
+- GIVEN a bridge database carrying the five previously-named capture indexes
+- WHEN bootstrap runs
+- THEN no `idx_mobile_request_captures_*` index MUST remain
+- AND the five `idx_request_captures_*` indexes MUST exist on `request_captures`
+
+#### Scenario: Rename is idempotent
+
+- GIVEN a database that has already been renamed and stamped at schema version `3`
+- WHEN bootstrap runs again
+- THEN the rename step MUST be a no-op
+- AND the schema, index set, row set, and version stamp MUST be unchanged
+
+### Requirement: Capture Read Path Tolerates Both Table Generations
+
+The capture read path MUST resolve the live capture and metadata table names once when the database is opened, preferring the transport-neutral names and falling back to the previously-named tables. It MUST accept stored schema versions `1`, `2`, and `3`. A database that is valid but not yet renamed MUST open and serve reads — the read path MUST NOT fail closed on a recognizable older generation. Only a database with neither table generation present constitutes a missing capture schema.
+
+#### Scenario: Un-migrated database still opens and serves
+
+- GIVEN a bridge database still holding `mobile_request_captures` / `mobile_request_capture_metadata` at schema version `2`
+- WHEN the read path opens it and executes a search, get, resolve, or summary
+- THEN the open MUST succeed
+- AND the results MUST be identical to those the same rows produce after the rename
+
+#### Scenario: Migrated database is preferred
+
+- GIVEN a bridge database holding `request_captures` / `request_capture_metadata` at schema version `3`
+- WHEN the read path opens it
+- THEN the transport-neutral tables MUST be the ones queried
+- AND the open MUST succeed without consulting the previously-named tables
+
+#### Scenario: Neither generation present still fails closed
+
+- GIVEN a bridge database containing neither `request_captures` nor `mobile_request_captures`
+- WHEN the read path opens it
+- THEN the open MUST fail with a schema-mismatch error
+- AND it MUST NOT fabricate an empty successful result
+
+#### Scenario: Unsupported version is rejected
+
+- GIVEN a capture metadata row stamping an unrecognized schema version
+- WHEN the read path opens the database
+- THEN the open MUST fail with a schema-mismatch error
+
+### Requirement: Mobile-Protocol Surface Is Unaffected
+
+The rename MUST be confined to the capture and MCP sidecar surface. Every identifier, file, spec, and document that genuinely describes the mobile application or the desktop-mobile sync protocol MUST remain unchanged.
+
+#### Scenario: Mobile sync contract is untouched
+
+- GIVEN the `mobile-sync-contract` capability, the mobile anime DTOs and their query ports, the mobile pairing/QR and OCC documents, the mobile activity/grade source values, and the mobile pairing deep-link scheme
+- WHEN the capture nomenclature rename is applied
+- THEN none of them MUST be renamed, moved, or altered
+- AND the REST, WebSocket, and pairing wire contracts MUST be byte-identical to before the change
+
+### Requirement: Persisted Runtime-Event Log
+
+The system MUST persist runtime log entries (the `logger.LogEntry` shape: timestamp, domain, level, message, correlation id, entity id, event type, duration, metadata) to a table owned by the observability domain in bridge SQLite. Persisted events MUST survive an application restart and remain queryable within a bounded retention window. This persisted log is additive: the existing in-memory `MemLogger` ring buffer, `GetRecentLogs()`, and the Runtime Events tab MUST continue to operate exactly as before, unaware of and unaffected by persistence.
+
+#### Scenario: A logged event is queryable after an app restart
+
+- GIVEN a runtime event was logged and persisted before the bridge process stopped
+- WHEN the bridge restarts and the persisted event log is queried
+- THEN the event is returned with its original domain, level, message, timestamp, and correlation/entity/event-type/duration/metadata fields intact
+
+#### Scenario: In-memory feed is unaffected by persistence
+
+- GIVEN the persisted event log is active
+- WHEN the frontend calls `GetRecentLogs()` or the Runtime Events tab receives a live event
+- THEN the returned/displayed entries and their filters behave exactly as they did before this change
+- AND no persistence failure or slowdown is observable through that path
+
+### Requirement: Non-Blocking Event Persistence Sink
+
+The write path from the logger to the persisted event log MUST NOT block the logging hot path. It MUST use a bounded queue with drop-on-overflow semantics and a single serialized drain, so that a slow or unavailable store never delays the code that emitted the log entry.
+
+#### Scenario: A slow store never delays the caller
+
+- GIVEN the event persistence store is deliberately slow to accept writes
+- WHEN a bridge component logs an event through the shared logger
+- THEN the logging call returns without waiting for the persistence write to complete
+
+#### Scenario: Overflow drops instead of stalling
+
+- GIVEN the bounded event queue is full
+- WHEN another event is logged
+- THEN the new event is dropped rather than blocking the logger or growing the queue without bound
+- AND already-logged entries in the in-memory ring buffer are unaffected by the drop
+
+### Requirement: Bounded Event Retention
+
+The persisted event log MUST enforce a row cap and prune rows beyond it on a write-count cadence — every N successful writes — rather than per write or on a timer, so pruning cost scales with event traffic instead of wall-clock time.
+
+#### Scenario: Retention prunes on write cadence, not per write
+
+- GIVEN the persisted event log has accumulated writes since the last prune
+- WHEN the configured write-count threshold is reached
+- THEN a prune runs and removes the oldest rows beyond the row cap
+- AND no prune runs on the writes between thresholds
+
+#### Scenario: Row cap is enforced over time
+
+- GIVEN sustained event traffic that would otherwise grow the table without bound
+- WHEN pruning runs at its configured cadence
+- THEN the persisted event log never exceeds its configured row cap by more than the writes accumulated within one prune cycle
+
+### Requirement: Debug-Level Persistence Policy Is Explicit and Configurable
+
+Whether `debug`-level events are written to the persisted event log MUST be governed by an explicit, configurable policy rather than an implicit consequence of implementation. The policy MUST have a stated default and MUST be changeable without a code change.
+
+#### Scenario: Default policy is documented and applied
+
+- GIVEN the bridge starts with no explicit debug-persistence override
+- WHEN runtime events are logged at `debug` level
+- THEN the documented default policy determines whether they are persisted
+- AND the applied behavior matches the documented default
+
+#### Scenario: Policy can be reconfigured without a code change
+
+- GIVEN an operator changes the debug-persistence configuration value
+- WHEN the bridge restarts with the new configuration
+- THEN subsequently logged `debug`-level events are persisted or dropped according to the new setting
+- AND non-`debug` levels are unaffected by the setting
+
+### Requirement: Activity Log Remains Untouched By Runtime-Event Persistence
+
+The persisted runtime-event log MUST be a distinct table from `activity_log`. This change MUST NOT modify, read, or otherwise conflate `activity_log` with the persisted runtime-event log.
+
+#### Scenario: Activity log is neither written nor read by this change
+
+- GIVEN the persisted runtime-event log is active
+- WHEN a runtime event is logged and persisted
+- THEN no row is written to or read from `activity_log` as part of that persistence
+- AND `activity_log`'s existing per-anime audit-trail behavior is unchanged
+

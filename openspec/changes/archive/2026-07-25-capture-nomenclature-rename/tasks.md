@@ -356,7 +356,7 @@ The only stateful group. Strict TDD.
 
 ## Group 8 — Final verification (orchestrator-owned, not this executor)
 
-- [ ] **8.1** Full `go test ./...`, `go vet ./...`, `golangci-lint run`,
+- [x] **8.1** Full `go test ./...`, `go vet ./...`, `golangci-lint run`,
       `go run ./tools/checkgofilesize`,
       `bun --cwd="frontend" run typecheck && lint && test`, and a repo-wide
       grep proving no `mobilecapture` / `mobile_request_` / `_mobile_request`
@@ -366,6 +366,14 @@ The only stateful group. Strict TDD.
       tools. MUST be run by the orchestrating agent per project rule 3, not
       delegated, and the commit MUST be created before reporting verified
       (project rule 4; allow ≥ 5 min for the pre-commit gate).
+      **CLOSED AT ARCHIVE (2026-08-30, SDD-65 Slice 0):** ticked on the evidence that this
+      change's work is committed as `cc0504b` (2026-07-25), which means the repo-owned
+      pre-commit gate ran and passed at that commit. Slice 0 did NOT re-run this gate and
+      did not rebuild `autoreas-request-mcp`; only the commit-time gate is evidenced. Note
+      that the "four bare tools" expectation was superseded five days later by
+      `mcp-runtime-events-read` (`25f7531`, 2026-07-30), which grew the surface to seven
+      (`internal/mcp/requestcapture/server.go:21-22`). Ticked so the archived audit trail
+      carries no stale unchecked box for work that shipped.
 
 ---
 

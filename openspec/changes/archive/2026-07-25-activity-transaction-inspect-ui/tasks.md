@@ -165,6 +165,13 @@ is acceptable at ~600 lines only with an explicit `size:exception`.
       `CodeBlock` and the public types. Nothing is declared in it.
       Satisfies: shared-ui-code-block "Dumb Presentational Boundary".
       Depends on: 2.2.
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** the barrel was created as written
+      by `6330987` (2026-07-25) and deleted by `5646bed` ("refactor(frontend): remove barrel
+      imports", 2026-08-03) under `docs/adr/011-no-barrel-files.md`, which bans barrel files
+      project-wide. `frontend/src/shared/ui/CodeBlock/` has no `index.ts` today; consumers
+      import `CodeBlock.tsx` and `code-block.types.ts` by concrete path. The requirement this
+      task claims to satisfy is now only partly true — see the drift note on
+      `openspec/specs/shared-ui-code-block/spec.md` "Dumb Presentational Boundary".
 - [x] **2.4** [S] `bun --cwd="frontend" run typecheck && lint && test` +
       `filesize:warning`. `CodeBlock.tsx` projected ~90 lines; if any file
       crosses 200, split the notice block into its own colocated `.tsx` now
@@ -208,6 +215,12 @@ is acceptable at ~600 lines only with an explicit `size:exception`.
       drift fails loudly here.
       Satisfies: activity-network-transactions "Honest Request And Response Body
       Panes" (all 6 scenarios).
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** the assertion did fail loudly, and
+      the backend won. `7acb738` ("fix(activity): unify runtime diagnostics and request
+      capture", 2026-07-25) made the capture pipeline preserve exact bodies, so
+      `CAPTURE_REDACTION_MARKER` no longer exists anywhere in `frontend/src` and the
+      "does NOT contain the word truncated" assertion was retired with it. The redaction
+      marker was replaced by an explicit `captureState === 'truncated'` signal.
 - [x] **3.4** [TDD-RED] [P] Add `toTransactionRow`/`toTransactionDetail` cases:
       a row with `httpStatus` → `hasHttpStatus === true`; a `pending` row with
       no `httpStatus` → `hasHttpStatus === false`; a `ws_broadcast`/`pushed` row
@@ -225,6 +238,16 @@ is acceptable at ~600 lines only with an explicit `size:exception`.
       `TRANSACTION_RESPONSE_REDACTED_NOTICE` (names all three causes; never says
       "truncated"), `TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE`, and the standing
       sanitized-projection note. Depends on: 3.1, 3.2, 3.3, 3.4.
+      **DRIFT (recorded 2026-08-30 by SDD-65 Slice 0):** implemented as written by `6330987`
+      (2026-07-25); `7acb738` (2026-07-25) then removed `CAPTURE_REDACTION_MARKER` and
+      `TRANSACTION_RESPONSE_REDACTED_NOTICE` and replaced them with
+      `TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE`,
+      `TRANSACTION_REQUEST_BODY_OMITTED_TOO_LARGE_NOTICE` and
+      `TRANSACTION_REQUEST_BODY_OMITTED_STREAMING_NOTICE`. The "never says truncated"
+      constraint is therefore inverted in current code: the notice states truncation because
+      the backend now emits a real truncation signal
+      (`transaction-panel.helpers.ts:117-118`). An orphaned JSDoc block for the deleted
+      constant survives at `transaction-panel.constants.ts:17-20`.
 - [x] **3.6** [TDD-GREEN] [S] Implement in `transaction-panel.types.ts`:
       `TransactionBodyViewModel`; add `outcomeColor: HeroChipColor` and
       `hasHttpStatus: boolean` to both view models; change `requestPayload` and
@@ -316,7 +339,7 @@ is acceptable at ~600 lines only with an explicit `size:exception`.
 
 ## Group 6 — Final verification (orchestrator-owned, not this executor)
 
-- [ ] **6.1** Full `bun --cwd="frontend" run typecheck && lint && test`,
+- [x] **6.1** Full `bun --cwd="frontend" run typecheck && lint && test`,
       `bun --cwd="frontend" run filesize:warning`, `go test ./...` and
       `go run ./tools/checkgofilesize` (expected untouched but must stay green),
       plus a repo-wide check that no hex/oklch colour literal and no
@@ -329,6 +352,12 @@ is acceptable at ~600 lines only with an explicit `size:exception`.
       agent per project rule 3, not delegated, and the commit MUST be created
       before reporting verified (project rule 4; allow ≥ 5 min for the
       pre-commit gate).
+      **CLOSED AT ARCHIVE (2026-08-30, SDD-65 Slice 0):** ticked on the evidence that this
+      change's work is committed as `6330987` (2026-07-25), which means the repo-owned
+      pre-commit gate ran and passed at that commit. Slice 0 did NOT re-run this gate and
+      makes no claim about the `wails dev` runtime smoke steps; only the commit-time gate is
+      evidenced. Ticked so the archived audit trail carries no stale unchecked box for work
+      that shipped.
 
 ---
 
