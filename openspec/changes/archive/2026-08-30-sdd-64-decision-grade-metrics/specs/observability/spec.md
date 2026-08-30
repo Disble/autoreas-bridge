@@ -72,27 +72,29 @@ list: the affected entity, the field, and when the write committed.
 - WHEN the truncation check runs
 - THEN the check reports no findings and succeeds
 
-### Requirement: Runtime Event Types Come From A Closed Vocabulary
+### Requirement: Runtime Event Types Follow A Guarded Shape
 
-The system MUST expose runtime event types as declared constants rather than free-form
-strings written at each call site. Every event type persisted to the runtime event log MUST
-come from that declared vocabulary.
+Every runtime event type MUST name a domain and an action within it, in the shape
+`domain.verb`, and that rule MUST be enforced by an automated check rather than left to
+convention. A grouping over event type therefore partitions events into buckets that mean
+something.
 
-A grouping over event type MUST therefore partition events into meaningful buckets, rather
-than splitting one logical area across several spellings.
+The rule is a SHAPE rather than a closed list of constants because at least one bounded
+context emits its event types through a wrapper that takes the value as a parameter,
+generating many values at its call sites; a central registry would fight that design
+without improving the grouping.
 
-#### Scenario: One logical area has one event type
-
-- GIVEN several components emit runtime events for the same logical area
-- WHEN those events are grouped by event type
-- THEN that area appears as exactly one bucket
-- AND no two spellings of the same area appear as separate buckets
-
-#### Scenario: Emitting an undeclared event type is prevented
+#### Scenario: An event type names a domain and an action
 
 - GIVEN a component emits a runtime event with a structured event type
-- WHEN that event type is not part of the declared vocabulary
-- THEN the code does not compile, or the check that guards the vocabulary fails
+- WHEN the vocabulary guard runs over the source
+- THEN every emitted event type is accepted only if it names a domain and an action
+
+#### Scenario: A subject with no action is rejected
+
+- GIVEN a component emits an event type that names only a subject
+- WHEN the vocabulary guard runs
+- THEN the check fails and names the offending value and its file
 
 ### Requirement: Health Rollups Exclude Synthetic Entities
 
@@ -141,7 +143,7 @@ transport traffic cannot inflate it.
 
 The system MUST log meaningful runtime events for anime, sync, api, websocket, and system
 flows. Each such event MUST carry its declared domain, and events about a product entity
-MUST carry that entity's identifier and an event type drawn from the declared vocabulary, so
+MUST carry that entity's identifier and an event type in the guarded `domain.verb` shape, so
 the event can be located by what happened and to what, rather than only by free-text search
 over its message.
 
@@ -162,4 +164,4 @@ over its message.
 - GIVEN a runtime event is recorded about a specific anime
 - WHEN the event log is queried by that anime's identifier
 - THEN the event is returned
-- AND the event carries an event type from the declared vocabulary
+- AND the event carries an event type in the guarded `domain.verb` shape
