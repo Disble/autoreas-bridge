@@ -7,6 +7,20 @@
 decision. Everything below is scored against that, using measurements taken
 from the production `bridge.db` during the incident.
 
+> **Status, 2026-08-30 — acted on by SDD-64.** All three findings are closed.
+> Finding 3 shipped as `tools/checktruncation`, which reproduces the same eight
+> rows this report found by hand. Finding 1 shipped as `tools/checkeventcoverage`,
+> which measures the gap as a ratio: **0.00 — 0 of 32 written anime emitted an
+> `anime.write` event** — and the tracer bullet no longer borrows the `anime`
+> domain. Finding 2 shipped as a derivation at the write transaction.
+>
+> **One correction to this report.** Finding 2 frames `changed_fields_json` as
+> an unpopulated storage field. It was not: the transport was fully wired end to
+> end, and *zero of the six producers of `events.AnimeChangedEvent` ever set it*.
+> That is a producer gap, not a storage gap, and it is why the fix was to derive
+> the list where both snapshots are already in hand rather than to ask a seventh
+> caller to remember. See `openspec/changes/.../2026-08-30-sdd-64-decision-grade-metrics/`.
+
 ## Summary
 
 The incident was diagnosed entirely from `anime_write_operations`. Every

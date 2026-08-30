@@ -1,5 +1,23 @@
 # MCP Event Visibility Report
 
+> **HISTORICAL — every fix this report recommends has shipped.** Verified
+> against the tree on 2026-08-30 during SDD-64. Read it for the investigation,
+> not for open work.
+>
+> | Recommendation | Where it landed |
+> | --- | --- |
+> | Buffer the pre-bind window instead of dropping it | `eventlog/sink.go:79,110-137` — `writeUnbound` buffers up to `preBindBufferCapacity`, drops only after `everBound`, and overflow self-reports as `eventlog.prebind_overflow` |
+> | Serialize an empty page as `[]`, not `null` | `eventlog/reader_search.go:94` — `Items: []EventRecord{}` with the rationale in a comment |
+> | Prune in short sessions | `eventlog/store.go:61-62` — `s.successful > 1 && …` makes the first write prune unconditionally |
+> | Debug filtering | Unchanged, deliberate (`eventlog/types.go:87-91`) |
+>
+> The startup ordering flagged below (`app.go:230` tracer bullet before
+> `app.go:239` `configureRuntimeServices`) is still present and needs no action:
+> the pre-bind buffer covers it. One thing this report could not have known —
+> SDD-64 found that the tracer bullet was deriving its log *domain* by splitting
+> its own message on `": "`, which is why the `anime` domain in `runtime_events`
+> was entirely synthetic. That is fixed in `internal/tracerbullet/runner.go`.
+
 ## Summary
 
 The Transactions UI displayed seven events for the `tracer-bullet-anime` flow.

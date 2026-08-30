@@ -82,15 +82,11 @@ func handleWebSocketConnection(w http.ResponseWriter, r *http.Request, config We
 func registerWebSocketClient(ctx context.Context, deviceID string, conn *websocket.Conn, config WebSocketHandlerConfig) (*webSocketClient, bool) {
 	client := newWebSocketClient(deviceID, conn)
 	if err := config.Hub.Register(ctx, client); err != nil {
-		if config.Logger != nil {
-			config.Logger.Errorf("websocket", "failed to register websocket client for %s: %v", deviceID, err)
-		}
+		logWebSocketRegistrationFailed(config.Logger, deviceID, err)
 		_ = conn.Close()
 		return nil, false
 	}
-	if config.Logger != nil {
-		config.Logger.Infof("websocket", "registered websocket client for %s", deviceID)
-	}
+	logWebSocketClientRegistered(config.Logger, deviceID)
 	return client, true
 }
 
@@ -101,8 +97,8 @@ func serveWebSocketMessages(ctx context.Context, device device.PairedDevice, con
 		if err != nil {
 			return
 		}
-		if err := handleIncomingWebSocketMessage(ctx, device, payload, config, connHeaders); err != nil && config.Logger != nil {
-			config.Logger.Warnf("websocket incoming message failed for %s: %v", device.DeviceID, err)
+		if err := handleIncomingWebSocketMessage(ctx, device, payload, config, connHeaders); err != nil {
+			logIncomingWebSocketMessageFailure(config.Logger, device.DeviceID, err)
 		}
 	}
 }

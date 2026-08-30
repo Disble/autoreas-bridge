@@ -81,21 +81,28 @@ decision. Slices C and D are droppable tails if the budget runs out.
 
 ## Phase 4: Slice D â€” dimension-carrying emission API
 
-- [ ] 4.1 Decision gate: re-forecast before starting. Slice D touches 41 call sites; confirm `delivery_strategy` with the current budget before any edit.
-- [ ] 4.2 REFACTOR switch `tools/checktruncation` from structural intent inference to the derived changed-field set from slice B. Its three test scenarios must pass unchanged â€” the contract is the same, only the intent source is exact now.
-- [ ] 4.3 RED `internal/logger/fanout_test.go` and siblings: assert a dimension supplied through a convenience method reaches the entry, for each of the three `Logger` implementations.
-- [ ] 4.4 GREEN remove the hard-coded `Fields{}` from the nine sites (`fanout.go:42,47,52,57`, `mem.go:37,42,47,52`, `stdout.go:27,32,37,42`), keeping the existing four-method signatures working for every current caller.
-- [ ] 4.5 GREEN migrate the highest-value printf call sites onto dimensions, prioritising `Warnf` (19 sites) since warnings are the ones a health rollup reads.
-- [ ] 4.6 MUTATE run `ditto staged`.
-- [ ] 4.7 REFACTOR `go run ./tools/checkgofilesize` and full `go test ./...`.
+- [x] 4.1 Decision gate: re-forecast before starting. Slice D touches 41 call sites; confirm `delivery_strategy` with the current budget before any edit.
+- [~] 4.2 CANCELLED — REFACTOR switch `tools/checktruncation` from structural intent inference to the derived changed-field set from slice B. Its three test scenarios must pass unchanged â€” the contract is the same, only the intent source is exact now.
+- [x] 4.3 RED `internal/logger/fanout_test.go` and siblings: assert a dimension supplied through a convenience method reaches the entry, for each of the three `Logger` implementations.
+- [x] 4.4 GREEN remove the hard-coded `Fields{}` from the nine sites (`fanout.go:42,47,52,57`, `mem.go:37,42,47,52`, `stdout.go:27,32,37,42`), keeping the existing four-method signatures working for every current caller.
+- [x] 4.5 GREEN migrate the highest-value printf call sites onto dimensions, prioritising `Warnf` (19 sites) since warnings are the ones a health rollup reads.
+- [x] 4.6 MUTATE run `ditto staged`.
+- [x] 4.7 REFACTOR `go run ./tools/checkgofilesize` and full `go test ./...`.
+
+### Slice D notes
+
+- **Task 4.2 is cancelled, with reason.** The plan said switching `checktruncation` to the derived changed-field set would turn its structural inference "into a precise declared-vs-actual comparison". That is wrong, twice over. First, the derived set is computed FROM the two snapshots, so declared and actual are the same value by construction and there is nothing to compare — the derivation eliminates the discrepancy rather than exposing it. Second, and decisively: the derived list only exists on rows written after slice B, so a detector reading it would go blind to every historical row — which is exactly where the eight real findings live. The detector keeps computing its own diff. Follow-up if exact intent is ever needed: persist the patch's own `Present`/`Clear` flags, which are the only true statement of intent and are currently discarded at the service boundary.
+- **Task 4.4 as written was not implementable and the intent was served differently.** It said "remove the hard-coded `Fields{}` from the nine sites, keeping the existing four-method signatures working". Those two clauses contradict: `Infof(domain, format string, args ...any)` has nowhere to put a dimension without changing its signature. Rather than double the API with `InfofWith`-style siblings, the call sites that HAVE a dimension move to `Logf`, and the four convenience methods stay as the deliberate no-dimension path. `Logf` already existed for exactly this.
+- **A real defect was found while auditing the call sites.** `internal/api/handlers/websocket_handler.go:105` called `Logger.Warnf("websocket incoming message failed for %s: %v", device.DeviceID, err)`. The signature is `Warnf(domain, format string, args ...any)`, so the whole sentence was passed as the DOMAIN and the device id as the format string. Every such entry landed in `runtime_events` with a prose domain and a message that was just an id plus format residue. Same defect class as the tracer bullet deriving a domain from prose, and invisible for the same reason: nothing asserts a domain. Fixed by extracting three emitters into `websocket_logging.go`, each declaring its domain, entity id, and `domain.verb` event type.
+- MUTATE via `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ./internal/api/handlers/"`: 4 mutants, 3 killed, score 0.75. **One survivor accepted with reason**: `websocket_handler.go:100` inverting `err != nil` in `serveWebSocketMessages`. Killing it needs a live `*websocket.Conn` and there is no websocket test harness in this repo; the branch is a one-line call to `logIncomingWebSocketMessageFailure`, which is itself fully tested, and the mutant's effect is logging on success — noisy, not corrupting. Building a socket harness for it is not proportionate.
 
 ## Phase 5: Documentation and closure
 
-- [ ] 5.1 Update `docs/reports/debugging-metrics-report.md` with a short status header noting which findings this change closed and that Finding 2 was a producer gap, not a storage gap.
-- [ ] 5.2 Mark `docs/mcp-event-visibility-report.md` as historical, naming the three fixes that landed and where (drift record in `proposal.md` section 2).
-- [ ] 5.3 Append one lesson with `node scripts/log-lesson.mjs "..."` â€” the lesson is that a declared field list nobody is forced to fill will be empty, so derive it where both states are already in hand.
-- [ ] 5.4 Announce the wire-adjacent change: `AnimeChangedEvent.ChangedFields` becomes populated for the first time. Mobile consumers read this envelope; note it in `docs/openapi.yaml` even though no field shape changes.
-- [ ] 5.5 Final verification by the orchestrating agent itself, then create the commit â€” commit-time hooks are part of the verification boundary.
+- [x] 5.1 Update `docs/reports/debugging-metrics-report.md` with a short status header noting which findings this change closed and that Finding 2 was a producer gap, not a storage gap.
+- [x] 5.2 Mark `docs/mcp-event-visibility-report.md` as historical, naming the three fixes that landed and where (drift record in `proposal.md` section 2).
+- [x] 5.3 Append one lesson with `node scripts/log-lesson.mjs "..."` â€” the lesson is that a declared field list nobody is forced to fill will be empty, so derive it where both states are already in hand.
+- [x] 5.4 Announce the wire-adjacent change: `AnimeChangedEvent.ChangedFields` becomes populated for the first time. Mobile consumers read this envelope; note it in `docs/openapi.yaml` even though no field shape changes.
+- [x] 5.5 Final verification by the orchestrating agent itself, then create the commit â€” commit-time hooks are part of the verification boundary.
 
 ### Slice B notes
 
