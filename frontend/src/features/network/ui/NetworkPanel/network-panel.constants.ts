@@ -33,35 +33,58 @@ export const NETWORK_ALL_DOMAINS_OPTION: NetworkDomainFilterOption = { value: NE
  */
 export const EVENT_PAGE_INITIAL_COUNT = 20;
 
+/**
+ * Rows requested per `SearchRuntimeEvents` page, and the batch the visible
+ * window grows by on scroll-near-bottom.
+ *
+ * Deliberately equal to `EVENT_PAGE_INITIAL_COUNT`, so one scroll reveals
+ * exactly one fetched page and the two numbers can never drift apart. 20 is the
+ * rail convention across the app (`RUN_HISTORY_PAGE_SIZE`,
+ * `PROGRESSIVE_LIST_INITIAL_COUNT`); an earlier draft used 50, which would have
+ * made a single scroll reveal two and a half pages and left the fetch size
+ * unrelated to anything the user sees.
+ */
+export const EVENT_PAGE_SIZE = 20;
 
 /**
- * Domain-filter pill options shown in `NetworkFilterBar`.
+ * Copy shown when this database has no persisted runtime-event table at all.
  *
- * @deprecated Superseded by `toDomainFilterOptions` in `network-feed.helpers.ts`,
- * which derives the options from the unfiltered summary aggregate. This
- * hardcoded list names 6 of the 9 domains the store actually holds — a
- * constant is what made `download` (10.2% of all events) unfilterable. It is
- * deleted together with its only consumer, `NetworkFilterBar.tsx`, when the
- * rail reads the derived options.
+ * An unreadable store is NOT a measured "nothing happened", so the surface says
+ * which of the two it is rather than rendering an ordinary empty list.
  */
-export const NETWORK_DOMAIN_FILTER_OPTIONS: readonly NetworkDomainFilterOption[] = [
-  { value: 'all', label: 'All' },
-  { value: 'system', label: 'System' },
-  { value: 'anime', label: 'Anime' },
-  { value: 'bus', label: 'Bus' },
-  { value: 'sync', label: 'Sync' },
-  { value: 'websocket', label: 'Websocket' },
-  { value: 'api', label: 'Api' },
-];
+export const NETWORK_EVENTS_UNAVAILABLE_MESSAGE =
+  'This database has no persisted runtime-event store, so no history can be shown. Events recorded from now on will appear after the store is created.';
+
+/**
+ * Copy shown when the persisted store exists but the read itself failed.
+ *
+ * Kept distinct from {@link NETWORK_EVENTS_UNAVAILABLE_MESSAGE} for the same
+ * reason the Go contract keeps `Available` and `Degraded` apart: collapsing
+ * them would report a broken query as an old database.
+ */
+export const NETWORK_EVENTS_DEGRADED_MESSAGE =
+  'The persisted runtime-event store could not be read. Showing whatever was already loaded.';
+
+/**
+ * Standing note that `debug` events never reach the persisted store.
+ *
+ * Measured 2026-08-30 over a month of real use: persisted levels are info
+ * 98.4%, warn 1.5%, error 0.1%, debug 0%, and exactly one production debug emit
+ * site exists in the whole tree. So this is a one-line disclosure, not a
+ * feature — without it an empty `debug` filter reads as "nothing happened".
+ */
+export const NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE =
+  'Debug-level events are not persisted under the current policy, so the Debug filter only shows events pushed during this session.';
+
+/** Copy shown in the Trace tab when the selected event carries no correlation id. */
+export const NETWORK_TRACE_NO_CORRELATION_MESSAGE =
+  'This event carries no correlation id, so it has no sibling events to follow.';
 
 /** Copy shown when the store has no rows yet and the source is healthy. */
 export const NETWORK_EMPTY_STATE_MESSAGE = 'No runtime events captured yet.';
 
 /** Copy shown while the initial replay fetch has not resolved. */
-export const NETWORK_LOADING_STATE_MESSAGE = 'Loading recent requests…';
-
-/** Copy shown when the Wails runtime is unavailable (plain browser / Vite dev). */
-export const NETWORK_CAPTURE_UNAVAILABLE_MESSAGE = 'Live request capture is unavailable in this environment.';
+export const NETWORK_LOADING_STATE_MESSAGE = 'Loading persisted runtime events…';
 
 /** Copy shown in the detail panel when no row is selected. */
 export const NETWORK_DETAIL_EMPTY_MESSAGE = 'Select an event to inspect its details.';

@@ -49,6 +49,11 @@ const ROUTE_MARKERS = {
   // center binding degrades and the panel settles on the "unavailable"
   // empty state -- a deterministic marker, not one that depends on live data.
   '/#/notifications': ['Notifications unavailable'],
+  // Both Activity markers are static route/tab copy rather than data: the
+  // runtime-event bindings degrade here exactly like the notification ones, and
+  // a marker that waited on a degraded read would only prove the timeout fired.
+  '/#/activity': ['Captured HTTP transactions between mobile clients and the bridge', 'Runtime Events'],
+  '/#/activity/runtime-events': ['Debug-level events are not persisted', 'Runtime Events'],
 };
 
 /** Extension-to-MIME map for the throwaway static server. */
@@ -219,7 +224,7 @@ try {
   // Requesting "/downloads" would silently serve index.html with an empty hash
   // and render the default route instead -- a check that looks like it covers
   // Downloads while never leaving Today.
-  for (const route of ['/', '/#/downloads', '/#/notifications']) {
+  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events']) {
     const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
     failures.push(...checkDom(dom, route));
   }

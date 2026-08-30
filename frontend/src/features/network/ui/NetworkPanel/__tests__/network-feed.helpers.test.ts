@@ -4,7 +4,9 @@ import {
   admitOverlayEntry,
   mergeEventFeed,
   reconcileVisibleEventCount,
+  selectHeadRows,
   toDomainFilterOptions,
+  toEventQueryFilters,
 } from '../network-feed.helpers';
 import type { EventFeedFilters, RuntimeEventRow } from '../network-panel.types';
 
@@ -368,5 +370,47 @@ describe('mergeEventFeed', () => {
     const page = rows(3);
 
     expect(mergeEventFeed([], page)).toBe(page);
+  });
+});
+
+describe('selectHeadRows', () => {
+  it('returns every persisted row sharing the head millisecond, which is the only fingerprint collision window', () => {
+    const page = [
+      row({ id: 'event-9', occurredAtMs: 3_000, message: 'first at head' }),
+      row({ id: 'event-8', occurredAtMs: 3_000, message: 'second at head' }),
+      row({ id: 'event-7', occurredAtMs: 2_999, message: 'older' }),
+    ];
+
+    expect(selectHeadRows(page, 3_000).map((entry) => entry.id)).toEqual(['event-9', 'event-8']);
+  });
+
+  it('returns nothing before a first page has anchored a head', () => {
+    expect(selectHeadRows(rows(3), null)).toEqual([]);
+  });
+
+  it('returns nothing when no persisted row holds the head millisecond', () => {
+    expect(selectHeadRows([row({ id: 'event-9', occurredAtMs: 2_999 })], 3_000)).toEqual([]);
+  });
+});
+
+describe('toEventQueryFilters', () => {
+  it('sends every active filter to the backend so a match outside the loaded page is still reachable', () => {
+    expect(toEventQueryFilters(filters({ query: 'timeout', level: 'error', domain: 'download' }))).toEqual({
+      text: 'timeout',
+      level: 'error',
+      domain: 'download',
+    });
+  });
+
+  it('omits the all-domains sentinel rather than sending it as a real domain named "all"', () => {
+    expect(toEventQueryFilters(filters({ domain: 'all' })).domain).toBeUndefined();
+  });
+
+  it('omits the all-levels sentinel rather than sending it as a real level named "all"', () => {
+    expect(toEventQueryFilters(filters({ level: 'all' })).level).toBeUndefined();
+  });
+
+  it('omits an empty free-text filter so it does not narrow the query to rows containing ""', () => {
+    expect(toEventQueryFilters(filters({ query: '' })).text).toBeUndefined();
   });
 });

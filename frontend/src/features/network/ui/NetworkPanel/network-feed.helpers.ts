@@ -1,4 +1,4 @@
-import type { RuntimeEventCountGroup } from '../../../../shared/contracts/runtime-event.types';
+import type { RuntimeEventCountGroup, RuntimeEventFilters } from '../../../../shared/contracts/runtime-event.types';
 import { fingerprintEventRow } from '../../../../shared/store/network-store/network-store.feed.helpers';
 import {
   EVENT_PAGE_INITIAL_COUNT,
@@ -111,6 +111,40 @@ export function mergeEventFeed(
   const persistedIds = new Set(page.map((entry) => entry.id));
 
   return [...overlay.filter((entry) => !persistedIds.has(entry.id)), ...page];
+}
+
+/**
+ * Selects the persisted rows holding the head millisecond.
+ *
+ * These are the only rows a live push can collide with: the overlay admits
+ * strictly-newer entries outright, and every later page is strictly older, so
+ * the fingerprint reconciliation never has to scan past the head instant
+ * (design D-3/D-4). A feed with no anchored head has nothing to collide with.
+ */
+export function selectHeadRows(page: readonly RuntimeEventRow[], head: number | null): readonly RuntimeEventRow[] {
+  if (head === null) {
+    return [];
+  }
+
+  return page.filter((entry) => entry.occurredAtMs === head);
+}
+
+/**
+ * Maps the rail's active filter set onto the persisted read's filter shape.
+ *
+ * Both sentinels and the empty free-text box are omitted rather than sent: the
+ * reader treats every populated field as a conjunct, so forwarding `all` would
+ * search for a domain literally named "all" and forwarding `''` would narrow
+ * the query to rows containing the empty string. Every filter goes to the
+ * backend — filtering the loaded page client-side could only ever narrow the
+ * page it was already handed.
+ */
+export function toEventQueryFilters(filters: Readonly<EventFeedFilters>): RuntimeEventFilters {
+  return {
+    text: filters.query === '' ? undefined : filters.query,
+    level: filters.level === 'all' ? undefined : filters.level,
+    domain: filters.domain === NETWORK_ALL_DOMAINS_VALUE ? undefined : filters.domain,
+  };
 }
 
 /** Title-cases a raw domain key for display (`download` renders as `Download`). */

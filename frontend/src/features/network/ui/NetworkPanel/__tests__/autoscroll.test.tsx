@@ -1,59 +1,71 @@
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ObservabilityLogSource } from '../../../../../infrastructure/observability-log-source/observability-log-source.types';
-import type { ObservabilityLogEntry } from '../../../../../shared/contracts/observability.types';
-import { getNetworkStoreState, resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
+import type { RuntimeEventPage } from '../../../../../shared/contracts/runtime-event.types';
+import { resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
 import { NetworkPanel } from '../NetworkPanel';
+import { createFakeSource, createPushableSource, eventPage, eventSummary, mockGeometry, record } from './network-panel.test-support';
 
-function entry(overrides: Partial<ObservabilityLogEntry> = {}): ObservabilityLogEntry {
-  return { timestamp: '2026-06-20T00:00:00Z', domain: 'api', message: 'msg', ...overrides };
-}
-
-function createFakeSource(overrides: Partial<ObservabilityLogSource> = {}): ObservabilityLogSource {
-  return {
-    subscribe: vi.fn().mockReturnValue(() => undefined),
-    getRecentLogs: vi.fn().mockResolvedValue([]),
-    ...overrides,
-  };
-}
-
-/** Installs mocked geometry on the scroll node so jsdom (no layout) can exercise stick-to-bottom. Returns the live scrollTop holder. */
-function mockGeometry(node: HTMLElement, scrollHeight: number, clientHeight: number) {
-  const state = { scrollTop: 0 };
-  Object.defineProperty(node, 'scrollHeight', { configurable: true, get: () => scrollHeight });
-  Object.defineProperty(node, 'clientHeight', { configurable: true, get: () => clientHeight });
-  Object.defineProperty(node, 'scrollTop', {
-    configurable: true,
-    get: () => state.scrollTop,
-    set: (value: number) => {
-      state.scrollTop = value;
-    },
-  });
-
-  return state;
-}
-
-describe('NetworkPanel autoscroll (stick-to-bottom)', () => {
+/**
+ * This file used to pin the opposite behaviour: a `useLayoutEffect` forced
+ * `scrollTop = scrollHeight` on every feed change, which kept the newest row in
+ * view while the feed was OLDEST-first. `SearchRuntimeEvents` returns rows
+ * NEWEST-first, so the same effect would now scroll to the oldest loaded row on
+ * every push and fight `isNearListBottom` for the load-more trigger (design
+ * D-6.1). New rows arrive at the top, where the user already is — so the guard
+ * is inverted rather than dropped: the viewport must not move on its own.
+ */
+describe('NetworkPanel viewport stability (the overlay must not move the user)', () => {
   afterEach(() => {
     cleanup();
     resetNetworkStore();
   });
 
-  it('scrolls the feed wrapper to the bottom when a new entry is ingested', async () => {
-    const source = createFakeSource();
+  it('leaves the scroll position where the user left it when a live event is pushed', async () => {
+    const { source, push } = createPushableSource({
+      searchEvents: vi.fn().mockResolvedValue(eventPage([record(1, { message: 'persisted event' })])),
+    });
     const { container } = render(<NetworkPanel source={source} />);
+
+    await screen.findByText('persisted event');
 
     const scroller = container.querySelector<HTMLElement>('[data-network-scroll]');
     expect(scroller).not.toBeNull();
 
-    const geom = mockGeometry(scroller as HTMLElement, 5000, 400);
+    const geometry = mockGeometry(scroller as HTMLElement, 1_200, 400, 5_000);
+
+    act(() => {
+      push({ timestamp: new Date(200_000).toISOString(), domain: 'sync', level: 'info', message: 'pushed event' });
+    });
+
+    await screen.findByText('pushed event');
+
+    expect(geometry.scrollTop).toBe(1_200);
+  });
+
+  it('leaves the scroll position alone when the first persisted page lands', async () => {
+    let resolvePage: ((value: RuntimeEventPage) => void) | undefined;
+    const source = createFakeSource({
+      searchEvents: vi.fn().mockImplementation(
+        () =>
+          new Promise<RuntimeEventPage>((resolve) => {
+            resolvePage = resolve;
+          }),
+      ),
+    });
+
+    const { container } = render(<NetworkPanel source={source} />);
+
+    const scroller = container.querySelector<HTMLElement>('[data-network-scroll]');
+    const geometry = mockGeometry(scroller as HTMLElement, 640, 400, 5_000);
 
     await act(async () => {
-      getNetworkStoreState().ingest(entry({ timestamp: 't1', message: 'fresh entry' }));
+      resolvePage?.(eventPage([record(1, { message: 'first page row' })]));
     });
 
     await waitFor(() => {
-      expect(geom.scrollTop).toBe(5000);
+      expect(screen.getByText('first page row')).toBeInTheDocument();
     });
+
+    expect(geometry.scrollTop).toBe(640);
   });
 });

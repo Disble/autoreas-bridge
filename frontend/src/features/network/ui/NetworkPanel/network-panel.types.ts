@@ -1,14 +1,13 @@
-import type { RefObject } from 'react';
-import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.types';
-import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
+import type { UIEvent } from 'react';
+import type { RuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import type {
-  EntryWithId,
+  EventFeedState,
   NetworkDomainOption,
   NetworkLevelFilter,
   RuntimeEventRow,
 } from '../../../../shared/store/network-store/network-store.types';
 
-export type { EntryWithId, NetworkLevelFilter, RuntimeEventRow };
+export type { EventFeedState, NetworkLevelFilter, RuntimeEventRow };
 
 /** The filter set the feed applies to both the persisted page and the live overlay. */
 export interface EventFeedFilters {
@@ -48,17 +47,18 @@ export interface OverlayAdmissionInput {
 export type NetworkDetailTab = 'general' | 'metadata' | 'trace';
 
 /**
- * Props for the top-level NetworkPanel container. `source` is optional and
- * defaults to the shared runtime source; tests inject a fake.
+ * Props for the top-level NetworkPanel container. `source` is the persisted
+ * runtime-event read seam; it defaults to the shared singleton and tests
+ * inject a fake.
  */
 export interface NetworkPanelProps {
-  readonly source?: ObservabilityLogSource;
+  readonly source?: RuntimeEventSource;
 }
 
 /** HeroUI Chip color tokens supported by the project's design system. */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
-/** Presentation-ready shape of a single Network row, one per raw log entry. */
+/** Presentation-ready shape of a single Network row, one per persisted or overlaid event. */
 export interface NetworkEntryViewModel {
   readonly id: string;
   readonly timeLabel: string;
@@ -78,13 +78,22 @@ export interface NetworkTraceEntryViewModel {
   readonly isSelected: boolean;
 }
 
-/** Presentation-ready shape of the selected entry's detail inspector. */
+/**
+ * Presentation-ready shape of the selected event's detail inspector.
+ *
+ * `hasCorrelation` is carried separately from `traceEntries` because the two
+ * empty cases mean different things: no correlation id at all is a property of
+ * the event, while an empty sibling list under a real correlation id is a
+ * measured result. Collapsing them would render "siblings were lost" for an
+ * event that never had any.
+ */
 export interface NetworkDetailViewModel {
-  readonly entry: ObservabilityLogEntry;
+  readonly entry: RuntimeEventRow;
   readonly timeLabel: string;
   readonly domain: string;
   readonly level: string;
   readonly message: string;
+  readonly hasCorrelation: boolean;
   readonly fields: ReadonlyArray<readonly [string, string]>;
   readonly metadataEntries: ReadonlyArray<readonly [string, string]>;
   readonly traceEntries: readonly NetworkTraceEntryViewModel[];
@@ -95,8 +104,9 @@ export interface NetworkTableProps {
   readonly rows: readonly NetworkEntryViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
-  readonly isLoading: boolean;
-  readonly scrollRef: RefObject<HTMLDivElement | null>;
+  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  /** Copy rendered in place of the rows: loading, empty, or the degraded reason. */
+  readonly emptyMessage: string;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */
@@ -104,6 +114,8 @@ export interface NetworkFilterBarProps {
   readonly query: string;
   readonly levelFilter: NetworkLevelFilter;
   readonly domainFilter: string;
+  /** Derived from the unfiltered summary aggregate, never a hardcoded list (design D-5). */
+  readonly domainOptions: readonly NetworkDomainFilterOption[];
   readonly onQueryChange: (query: string) => void;
   readonly onLevelFilterChange: (levelFilter: NetworkLevelFilter) => void;
   readonly onDomainFilterChange: (domainFilter: string) => void;

@@ -2,16 +2,20 @@ import { Alert } from '@heroui/react';
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
-import { NETWORK_CAPTURE_UNAVAILABLE_MESSAGE } from './network-panel.constants';
+import { NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE } from './network-panel.constants';
 import type { NetworkPanelProps } from './network-panel.types';
 import { useNetworkPanel } from './use-network-panel';
 
 /**
- * NetworkPanel is the DevTools-Network-style master/detail container: a
- * filter toolbar + dense per-entry log table on the left, the selected
- * entry's tabbed inspector on the right, and a bottom status bar
- * summarizing entry/error/shown counts. All data flows from
+ * NetworkPanel is the DevTools-Network-style master/detail container over the
+ * PERSISTED runtime-event store: a filter toolbar + dense per-event log table
+ * on the left, the selected event's tabbed inspector on the right, and a
+ * bottom status bar summarizing entry/error/shown counts. All data flows from
  * `useNetworkPanel`; this component only renders.
+ *
+ * The disclosure strip above the table is deliberate: an unreadable store and
+ * a store with no `debug` rows are both absences the surface must name rather
+ * than present as a measured "nothing happened".
  */
 export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
   const {
@@ -21,9 +25,10 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     query,
     levelFilter,
     domainFilter,
+    domainOptions,
     detailTab,
-    isLoading,
-    captureUnavailable,
+    statusMessage,
+    emptyMessage,
     entryCount,
     errorCount,
     shownCount,
@@ -33,13 +38,14 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     onDomainFilterChange,
     onDetailTabChange,
     onClose,
-    scrollRef,
+    onScroll,
   } = useNetworkPanel(source);
 
   return (
     <div className="flex flex-col gap-4">
       <NetworkFilterBar
         domainFilter={domainFilter}
+        domainOptions={domainOptions}
         levelFilter={levelFilter}
         onDomainFilterChange={onDomainFilterChange}
         onLevelFilterChange={onLevelFilterChange}
@@ -47,17 +53,25 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
         query={query}
       />
 
-      {captureUnavailable ? (
+      <p className="text-[11px] text-default-400">{NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE}</p>
+
+      {statusMessage === null ? null : (
         <Alert status="warning">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Description>{NETWORK_CAPTURE_UNAVAILABLE_MESSAGE}</Alert.Description>
+            <Alert.Description>{statusMessage}</Alert.Description>
           </Alert.Content>
         </Alert>
-      ) : null}
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <NetworkTable isLoading={isLoading} onSelect={onSelect} rows={rows} scrollRef={scrollRef} selectedId={selectedId} />
+        <NetworkTable
+          emptyMessage={emptyMessage}
+          onScroll={onScroll}
+          onSelect={onSelect}
+          rows={rows}
+          selectedId={selectedId}
+        />
         <NetworkDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>
 

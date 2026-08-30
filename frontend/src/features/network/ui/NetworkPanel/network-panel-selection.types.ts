@@ -1,11 +1,10 @@
-import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
-import type { NetworkDetailViewModel } from './network-panel.types';
+import type { NetworkDetailViewModel, RuntimeEventRow } from './network-panel.types';
 
 /**
- * Selected-entry payload consumed by the Network panel hook.
+ * Selected-event payload consumed by the Network panel hook.
  */
 export interface NetworkPanelSelection {
-  readonly selectedEntry: ObservabilityLogEntry | null;
+  readonly selectedEntry: RuntimeEventRow | null;
   readonly selectedDetail: NetworkDetailViewModel | null;
 }
 

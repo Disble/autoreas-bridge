@@ -171,3 +171,28 @@ The 20 000-row cap was reviewed during this investigation and is retained.
 No age-based retention axis was added: it would solve a problem that has not
 been observed, and the row cap plus the existing indexes already bound both
 storage and query cost.
+
+## Closing note: two stores, not one
+
+This investigation kept describing "the event log" as one thing. It is two, and
+almost every confusing symptom above follows from that.
+
+- `internal/logger`'s in-memory ring buffer is per-process, capped at 200
+  entries, and is what `GetRecentLogs()` returns. It answers "what happened
+  since this window opened".
+- `runtime_events` in `bridge.db` is durable, capped at 20 000 rows, and is what
+  `eventlog.Reader` — and therefore the request-capture MCP's `search_events` —
+  reads. It answers "what happened".
+
+Until SDD-65 the desktop Activity tab consumed the first and the MCP sidecar
+consumed the second, which is why an agent could answer questions about
+yesterday that the UI could not. The fix was not a new query engine: SDD-65 adds
+`app_runtime_events.go` as a second in-process adapter over the same
+`eventlog.Reader` the sidecar delegates to (`internal/mcp/requestcapture/reader.go`
+is itself only a four-method delegating adapter). One engine, two adapters, two
+processes, over the app's own `bridgeDB` handle — never a second SQLite
+connection.
+
+Both stores are retained. `MemLogger` and `GetRecentLogs()` are unchanged; the
+Activity tab simply stopped being their consumer. The two answer different
+questions, and collapsing them would lose the live one.

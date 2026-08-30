@@ -1,32 +1,33 @@
-import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
 import { formatLocalDateTime, formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
-import { selectEntryById, selectEntryViewRows } from '../../../../shared/store/network-store/network-store.helpers';
 import {
   NETWORK_EMPTY_LABEL,
+  NETWORK_EMPTY_STATE_MESSAGE,
+  NETWORK_EVENTS_DEGRADED_MESSAGE,
+  NETWORK_EVENTS_UNAVAILABLE_MESSAGE,
   NETWORK_HTTP_EVENT_TYPE,
   NETWORK_LEVEL_ACCENT_BORDER_CLASS,
+  NETWORK_LOADING_STATE_MESSAGE,
 } from './network-panel.constants';
 import type { NetworkPanelSelection, NetworkPanelSummary } from './network-panel-selection.types';
 import type {
-  EntryWithId,
   HeroChipColor,
   NetworkDetailViewModel,
   NetworkEntryViewModel,
-  NetworkLevelFilter,
   NetworkTraceEntryViewModel,
+  RuntimeEventRow,
 } from './network-panel.types';
 
 /**
- * Formats a timestamp as a local-timezone HH:MM:SS for the Network table,
+ * Formats a persisted event's epoch millis as a local-timezone `HH:MM:SS`,
  * delegating to the shared {@link formatLocalTime} so all bridge times render
  * in the computer's own timezone rather than the backend's UTC.
  */
-function formatNetworkTime(timestamp: string): string {
-  return formatLocalTime(timestamp);
+function formatNetworkTime(occurredAtMs: number): string {
+  return formatLocalTime(new Date(occurredAtMs).toISOString());
 }
 
 /**
- * Resolves the entry's level, defaulting to "info" when absent. Non-HTTP
+ * Resolves the event's level, defaulting to "info" when absent. Non-HTTP
  * domain events always carry a meaningful level and must never be reduced to
  * a fabricated HTTP-style status.
  */
@@ -76,12 +77,14 @@ export function getNetworkDomainColor(domain: string): HeroChipColor {
   }
 }
 
+/** Reads one metadata field as a string, or undefined when it is absent or another type. */
 function readMetadataString(metadata: Readonly<Record<string, unknown>> | undefined, key: string): string | undefined {
   const value = metadata?.[key];
 
   return typeof value === 'string' ? value : undefined;
 }
 
+/** Reads one metadata field as a number, or undefined when it is absent or another type. */
 function readMetadataNumber(metadata: Readonly<Record<string, unknown>> | undefined, key: string): number | undefined {
   const value = metadata?.[key];
 
@@ -89,19 +92,19 @@ function readMetadataNumber(metadata: Readonly<Record<string, unknown>> | undefi
 }
 
 /**
- * Resolves the MESSAGE column: the entry's own message, or `METHOD path`
- * when the entry is an `http.request` event. Non-HTTP entries always keep
+ * Resolves the MESSAGE column: the event's own message, or `METHOD path`
+ * when the event is an `http.request` event. Non-HTTP events always keep
  * their original message — they are never reduced to a placeholder.
  */
-function getNetworkMessage(entry: ObservabilityLogEntry): string {
-  if (entry.eventType === NETWORK_HTTP_EVENT_TYPE) {
-    const method = readMetadataString(entry.metadata, 'method') ?? '';
-    const path = readMetadataString(entry.metadata, 'path') ?? '';
+function getNetworkMessage(row: Readonly<RuntimeEventRow>): string {
+  if (row.eventType === NETWORK_HTTP_EVENT_TYPE) {
+    const method = readMetadataString(row.metadata, 'method') ?? '';
+    const path = readMetadataString(row.metadata, 'path') ?? '';
 
     return `${method} ${path}`.trim();
   }
 
-  return entry.message;
+  return row.message;
 }
 
 /**
@@ -130,100 +133,121 @@ export function formatNetworkDuration(durationMs: number | undefined): string {
 }
 
 /**
- * Maps a raw log entry (with its stable per-entry id) into the Network
- * table's per-row view-model. Each entry becomes exactly one row — domain
- * events keep their message and level; `http.request` events render as
- * `METHOD path` with a real status/duration when present.
+ * Maps one persisted or overlaid feed row into the Network table's per-row
+ * view-model. Each row becomes exactly one table row — domain events keep
+ * their message and level; `http.request` events render as `METHOD path`
+ * with a real status/duration when present.
  */
-export function toNetworkEntryViewModel({ id, entry }: EntryWithId): NetworkEntryViewModel {
+export function toNetworkEntryViewModel(row: Readonly<RuntimeEventRow>): NetworkEntryViewModel {
   return {
-    id,
-    timeLabel: formatNetworkTime(entry.timestamp),
-    domain: entry.domain,
-    level: getNetworkLevelLabel(entry.level),
-    message: getNetworkMessage(entry),
-    statusLabel: getNetworkStatusLabel(readMetadataNumber(entry.metadata, 'status')),
-    durationLabel: formatNetworkDuration(entry.durationMs),
+    id: row.id,
+    timeLabel: formatNetworkTime(row.occurredAtMs),
+    domain: row.domain,
+    level: getNetworkLevelLabel(row.level),
+    message: getNetworkMessage(row),
+    statusLabel: getNetworkStatusLabel(readMetadataNumber(row.metadata, 'status')),
+    durationLabel: formatNetworkDuration(row.durationMs),
   };
 }
 
 /**
- * Normalizes an entry's metadata into sorted key/value pairs so the
+ * Normalizes an event's metadata into sorted key/value pairs so the
  * inspector renders a deterministic order, mirroring `ObservabilityPanel`'s
  * `getMetadataEntries`.
  */
-function getNetworkMetadataEntries(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
-  return Object.entries(entry.metadata ?? {})
+function getNetworkMetadataEntries(row: Readonly<RuntimeEventRow>): ReadonlyArray<readonly [string, string]> {
+  return Object.entries(row.metadata ?? {})
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
     .map(([key, value]) => [key, String(value)] as const);
 }
 
 /**
- * Builds the inspector's Fields section: label/value pairs for the entry's
+ * Builds the inspector's Fields section: label/value pairs for the event's
  * own attributes (timestamp, domain, eventType, level, correlationId,
  * entityId, durationMs), each falling back to the Null Object em-dash when
  * absent.
  */
-function getNetworkDetailFields(entry: ObservabilityLogEntry): ReadonlyArray<readonly [string, string]> {
+function getNetworkDetailFields(row: Readonly<RuntimeEventRow>): ReadonlyArray<readonly [string, string]> {
   return [
-    ['timestamp', formatLocalDateTime(entry.timestamp)],
-    ['domain', entry.domain],
-    ['eventType', entry.eventType ?? NETWORK_EMPTY_LABEL],
-    ['level', getNetworkLevelLabel(entry.level)],
-    ['correlationId', entry.correlationId ?? NETWORK_EMPTY_LABEL],
-    ['entityId', entry.entityId ?? NETWORK_EMPTY_LABEL],
-    ['durationMs', entry.durationMs !== undefined ? String(entry.durationMs) : NETWORK_EMPTY_LABEL],
+    ['timestamp', formatLocalDateTime(new Date(row.occurredAtMs).toISOString())],
+    ['domain', row.domain],
+    ['eventType', row.eventType ?? NETWORK_EMPTY_LABEL],
+    ['level', getNetworkLevelLabel(row.level)],
+    ['correlationId', row.correlationId ?? NETWORK_EMPTY_LABEL],
+    ['entityId', row.entityId ?? NETWORK_EMPTY_LABEL],
+    ['durationMs', row.durationMs !== undefined ? String(row.durationMs) : NETWORK_EMPTY_LABEL],
   ];
 }
 
 /**
- * Builds the inspector's Trace section view-models: sibling entries sharing
- * the selected entry's `correlationId`, time-ordered, with the selected one
- * flagged. Returns an empty array when the entry has no `correlationId` —
- * callers MUST omit the Trace section entirely in that case.
+ * Reads a row's correlation id, or null when it carries none.
+ *
+ * An empty string counts as absent: it is what the Go DTO's `omitempty` tag
+ * and a blank column both produce, and querying siblings for `''` would match
+ * every uncorrelated event in the store.
  */
-function getNetworkTraceEntries(
-  buffer: readonly EntryWithId[],
-  selected: EntryWithId,
+export function readCorrelationId(row: Readonly<RuntimeEventRow> | null): string | null {
+  if (row === null || row.correlationId === undefined || row.correlationId === '') {
+    return null;
+  }
+
+  return row.correlationId;
+}
+
+/** Reports whether an event carries a usable correlation id. */
+function hasCorrelationId(row: Readonly<RuntimeEventRow>): boolean {
+  return readCorrelationId(row) !== null;
+}
+
+/**
+ * Builds the inspector's Trace section view-models from the sibling events the
+ * persisted store returned for the selected event's correlation id.
+ *
+ * The order is asserted here rather than inherited: `SearchRuntimeEvents`
+ * returns rows newest-first, while this section's contract is time-ordered, so
+ * an implicit array order would silently render the trace backwards (design
+ * D-6.3). Returns an empty list when the selected event has no correlation id
+ * — callers MUST render the explicit "no correlation" state in that case
+ * rather than an empty list.
+ */
+export function getNetworkTraceEntries(
+  siblings: readonly RuntimeEventRow[],
+  selected: Readonly<RuntimeEventRow>,
 ): readonly NetworkTraceEntryViewModel[] {
-  if (selected.entry.correlationId === undefined || selected.entry.correlationId === '') {
+  if (!hasCorrelationId(selected)) {
     return [];
   }
 
-  const traceEntries: NetworkTraceEntryViewModel[] = [];
-
-  for (const { id, entry } of buffer) {
-    if (entry.correlationId === selected.entry.correlationId) {
-      traceEntries.push({
-        id,
-        timeLabel: formatNetworkTime(entry.timestamp),
-        domain: entry.domain,
-        message: getNetworkMessage(entry),
-        isSelected: id === selected.id,
-      });
-    }
-  }
-
-  return traceEntries;
+  return siblings
+    .filter((sibling) => sibling.correlationId === selected.correlationId)
+    .slice()
+    .sort((left, right) => left.occurredAtMs - right.occurredAtMs)
+    .map((sibling) => ({
+      id: sibling.id,
+      timeLabel: formatNetworkTime(sibling.occurredAtMs),
+      domain: sibling.domain,
+      message: getNetworkMessage(sibling),
+      isSelected: sibling.id === selected.id,
+    }));
 }
 
 /**
- * Counts the total number of log entries in the buffer, independent of any
- * active filter. Used by the Network panel's status bar.
+ * Counts the loaded feed rows, independent of the visible window. Used by the
+ * Network panel's status bar.
  */
-export function countEntries(buffer: readonly ObservabilityLogEntry[]): number {
-  return buffer.length;
+export function countEntries(rows: readonly RuntimeEventRow[]): number {
+  return rows.length;
 }
 
 /**
- * Counts the number of entries whose level is "error" (case-insensitive),
- * independent of any active filter. Used by the Network panel's status bar.
+ * Counts the loaded rows whose level is "error" (case-insensitive),
+ * independent of the visible window. Used by the Network panel's status bar.
  */
-export function countErrorEntries(buffer: readonly ObservabilityLogEntry[]): number {
+export function countErrorEntries(rows: readonly RuntimeEventRow[]): number {
   let count = 0;
 
-  for (const entry of buffer) {
-    if (getNetworkLevelLabel(entry.level).toLowerCase() === 'error') {
+  for (const row of rows) {
+    if (getNetworkLevelLabel(row.level).toLowerCase() === 'error') {
       count += 1;
     }
   }
@@ -232,54 +256,52 @@ export function countErrorEntries(buffer: readonly ObservabilityLogEntry[]): num
 }
 
 /**
- * Maps the selected entry (plus the full per-entry buffer for trace lookup)
- * into the detail inspector's full view-model: header fields, metadata
- * table, and trace siblings.
+ * Maps the selected event, plus the siblings fetched for its correlation id,
+ * into the detail inspector's full view-model: header fields, metadata table,
+ * and trace siblings.
  */
 function toNetworkDetailViewModel(
-  selected: EntryWithId,
-  buffer: readonly EntryWithId[],
+  selected: Readonly<RuntimeEventRow>,
+  siblings: readonly RuntimeEventRow[],
 ): NetworkDetailViewModel {
-  const { entry } = selected;
-
   return {
-    entry,
-    timeLabel: formatNetworkTime(entry.timestamp),
-    domain: entry.domain,
-    level: getNetworkLevelLabel(entry.level),
-    message: getNetworkMessage(entry),
-    fields: getNetworkDetailFields(entry),
-    metadataEntries: getNetworkMetadataEntries(entry),
-    traceEntries: getNetworkTraceEntries(buffer, selected),
+    entry: selected,
+    timeLabel: formatNetworkTime(selected.occurredAtMs),
+    domain: selected.domain,
+    level: getNetworkLevelLabel(selected.level),
+    message: getNetworkMessage(selected),
+    hasCorrelation: hasCorrelationId(selected),
+    fields: getNetworkDetailFields(selected),
+    metadataEntries: getNetworkMetadataEntries(selected),
+    traceEntries: getNetworkTraceEntries(siblings, selected),
   };
 }
 
 /**
- * Derives the table row view-models from the raw Network buffer and active
- * filters in one pure seam. The hook keeps store orchestration, while this
- * helper owns the read-model projection used by the dumb table component.
+ * Projects the loaded feed rows into the table's view-models.
+ *
+ * No filtering happens here any more: the persisted read applies domain,
+ * level and free text server-side, so a client-side pass could only ever
+ * narrow the page it was already given — the defect S-3 exists to fix.
  */
-export function getNetworkPanelRows(
-  buffer: readonly ObservabilityLogEntry[],
-  query: string,
-  levelFilter: NetworkLevelFilter,
-  domainFilter: string,
-): readonly NetworkEntryViewModel[] {
-  return selectEntryViewRows(buffer, query, levelFilter, domainFilter).map(toNetworkEntryViewModel);
+export function getNetworkPanelRows(rows: readonly RuntimeEventRow[]): readonly NetworkEntryViewModel[] {
+  return rows.map(toNetworkEntryViewModel);
 }
 
 /**
- * Resolves the selected raw entry and its detail view-model together so the
- * hook no longer duplicates selection guard logic. Trace lookup intentionally
- * uses the unfiltered buffer to preserve the existing detail-panel behavior.
+ * Resolves the selected feed row and its detail view-model together so the
+ * hook no longer duplicates selection guard logic. Trace siblings come from
+ * the persisted store rather than the loaded page, so a correlation stays
+ * followable across an application restart.
  */
 export function getNetworkPanelSelection(
-  buffer: readonly ObservabilityLogEntry[],
+  rows: readonly RuntimeEventRow[],
   selectedId: string | null,
+  traceSiblings: readonly RuntimeEventRow[],
 ): NetworkPanelSelection {
-  const selectedEntry = selectEntryById(buffer, selectedId);
+  const selectedEntry = selectedId === null ? undefined : rows.find((row) => row.id === selectedId);
 
-  if (selectedId === null || selectedEntry === null) {
+  if (selectedEntry === undefined) {
     return {
       selectedEntry: null,
       selectedDetail: null,
@@ -288,27 +310,59 @@ export function getNetworkPanelSelection(
 
   return {
     selectedEntry,
-    selectedDetail: toNetworkDetailViewModel(
-      { id: selectedId, entry: selectedEntry },
-      selectEntryViewRows(buffer, '', 'all', 'all'),
-    ),
+    selectedDetail: toNetworkDetailViewModel(selectedEntry, traceSiblings),
   };
 }
 
 /**
- * Derives the Network panel status-bar counters from the raw buffer plus the
- * already-filtered shown row count. Total/error counts remain independent of
- * the active table filters, matching the pre-refactor hook contract.
+ * Derives the Network panel status-bar counters from the loaded feed plus the
+ * already-windowed shown row count. Total/error counts remain independent of
+ * the visible window, matching the pre-repoint hook contract.
  */
 export function getNetworkPanelSummary(
-  buffer: readonly ObservabilityLogEntry[],
+  rows: readonly RuntimeEventRow[],
   shownCount: number,
 ): NetworkPanelSummary {
   return {
-    entryCount: countEntries(buffer),
-    errorCount: countErrorEntries(buffer),
+    entryCount: countEntries(rows),
+    errorCount: countErrorEntries(rows),
     shownCount,
   };
+}
+
+/**
+ * Resolves what the rail must disclose about the persisted store, or null when
+ * there is nothing to disclose.
+ *
+ * A failed read wins over an absent store because it is the more specific
+ * fact: reporting "this database is old" for a query that actually broke is
+ * exactly the collapse the Go contract keeps `Available` and `Degraded` apart
+ * to prevent.
+ */
+export function resolveEventStatusMessage(available: boolean, degraded: boolean): string | null {
+  if (degraded) {
+    return NETWORK_EVENTS_DEGRADED_MESSAGE;
+  }
+
+  if (!available) {
+    return NETWORK_EVENTS_UNAVAILABLE_MESSAGE;
+  }
+
+  return null;
+}
+
+/**
+ * Resolves the copy the table shows in place of rows. A disclosed reason
+ * outranks both the loading and the empty copy: an unreadable store is not a
+ * measured "nothing happened", and rendering the ordinary empty state would
+ * say exactly that.
+ */
+export function resolveEventEmptyMessage(isLoading: boolean, statusMessage: string | null): string {
+  if (statusMessage !== null) {
+    return statusMessage;
+  }
+
+  return isLoading ? NETWORK_LOADING_STATE_MESSAGE : NETWORK_EMPTY_STATE_MESSAGE;
 }
 
 /**

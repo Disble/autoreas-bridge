@@ -1,6 +1,5 @@
 import { SearchField, ToggleButton, ToggleButtonGroup } from '@heroui/react';
 import {
-  NETWORK_DOMAIN_FILTER_OPTIONS,
   NETWORK_FILTER_PLACEHOLDER,
   NETWORK_LEVEL_FILTER_OPTIONS,
 } from '../NetworkPanel/network-panel.constants';
@@ -9,11 +8,12 @@ import type {
   NetworkLevelFilter,
 } from '../NetworkPanel/network-panel.types';
 
-/** Dumb compact toolbar: free-text SearchField plus DOMAIN and LEVEL ToggleButtonGroup rows. */
+/** Dumb compact toolbar: free-text SearchField plus DOMAIN and LEVEL ToggleButtonGroup rows. The domain options are derived from the store's own aggregate and arrive as props — this component enumerates nothing. */
 export function NetworkFilterBar({
   query,
   levelFilter,
   domainFilter,
+  domainOptions,
   onQueryChange,
   onLevelFilterChange,
   onDomainFilterChange,
@@ -40,7 +40,7 @@ export function NetworkFilterBar({
         selectionMode="single"
         size="sm"
       >
-        {NETWORK_DOMAIN_FILTER_OPTIONS.map((option) => (
+        {domainOptions.map((option) => (
           <ToggleButton id={option.value} key={option.value}>
             {option.label}
           </ToggleButton>

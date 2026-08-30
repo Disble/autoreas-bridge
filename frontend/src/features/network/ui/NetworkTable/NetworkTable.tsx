@@ -1,12 +1,15 @@
 import { Chip, Table } from '@heroui/react';
 import { getNetworkDomainColor, getNetworkLevelAccentBorderClass, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
-import { NETWORK_EMPTY_STATE_MESSAGE, NETWORK_LOADING_STATE_MESSAGE } from '../NetworkPanel/network-panel.constants';
 import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
 
-/** Dumb dense data grid rendering the filtered per-entry Network rows on HeroUI Table (React Aria), DevTools-Network density. Selection is driven entirely by props. The wrapper (`scrollRef`) is the vertical scroller for the live feed. */
-export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef }: Readonly<NetworkTableProps>) {
+/** Dumb dense data grid rendering the windowed per-event Network rows on HeroUI Table (React Aria), DevTools-Network density. Selection and the scroll-near-bottom trigger are driven entirely by props; rows accumulate and are never unmounted (ADR-012, live branch). */
+export function NetworkTable({ rows, selectedId, onSelect, onScroll, emptyMessage }: Readonly<NetworkTableProps>) {
   return (
-    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]" data-network-scroll ref={scrollRef}>
+    <div
+      className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]"
+      data-network-scroll
+      onScroll={onScroll}
+    >
       <Table aria-label="Runtime events" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
@@ -32,10 +35,7 @@ export function NetworkTable({ rows, selectedId, onSelect, isLoading, scrollRef 
               <Table.Column>Event</Table.Column>
               <Table.Column className="w-[104px]">Duration</Table.Column>
             </Table.Header>
-            <Table.Body renderEmptyState={() => (
-              <span className="text-sm text-default-400">{isLoading ? NETWORK_LOADING_STATE_MESSAGE : NETWORK_EMPTY_STATE_MESSAGE}</span>
-            )}
-            >
+            <Table.Body renderEmptyState={() => <span className="text-sm text-default-400">{emptyMessage}</span>}>
               {rows.map((row) => (
                 <Table.Row className={`border-l-2 ${getNetworkLevelAccentBorderClass(row.level)}`} id={row.id} key={row.id}>
                   <Table.Cell>

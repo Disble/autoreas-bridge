@@ -18,9 +18,7 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
     );
   }
 
-  const { message, domain, level, timeLabel, fields, metadataEntries, traceEntries } = detail;
-  const hasTrace = traceEntries.length > 0;
-  const activeTab: NetworkDetailTab = !hasTrace && detailTab === 'trace' ? 'general' : detailTab;
+  const { message, domain, level, timeLabel, fields, metadataEntries, traceEntries, hasCorrelation } = detail;
 
   return (
     <Card>
@@ -43,14 +41,14 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
 
         <Tabs
           onSelectionChange={(key) => onDetailTabChange(String(key) as NetworkDetailTab)}
-          selectedKey={activeTab}
+          selectedKey={detailTab}
           variant="secondary"
         >
           <Tabs.ListContainer>
             <Tabs.List aria-label="Detail inspector tabs">
               <Tabs.Tab id="general">{NETWORK_DETAIL_TAB_LABELS.general}</Tabs.Tab>
               <Tabs.Tab id="metadata">{NETWORK_DETAIL_TAB_LABELS.metadata}</Tabs.Tab>
-              {hasTrace ? <Tabs.Tab id="trace">{NETWORK_DETAIL_TAB_LABELS.trace}</Tabs.Tab> : null}
+              <Tabs.Tab id="trace">{NETWORK_DETAIL_TAB_LABELS.trace}</Tabs.Tab>
             </Tabs.List>
           </Tabs.ListContainer>
 
@@ -60,11 +58,9 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
           <Tabs.Panel id="metadata">
             <NetworkDetailMetadata metadataEntries={metadataEntries} />
           </Tabs.Panel>
-          {hasTrace ? (
-            <Tabs.Panel id="trace">
-              <NetworkDetailTrace traceEntries={traceEntries} />
-            </Tabs.Panel>
-          ) : null}
+          <Tabs.Panel id="trace">
+            <NetworkDetailTrace hasCorrelation={hasCorrelation} traceEntries={traceEntries} />
+          </Tabs.Panel>
         </Tabs>
       </Card.Content>
     </Card>

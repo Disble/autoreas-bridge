@@ -101,3 +101,40 @@ and stale-window problems to solve a rendering issue.
   which is a visible layout change.
 - New long lists must classify themselves as static or live before picking the
   hook. That classification belongs in the panel's hook comment.
+
+## Addendum (2026-08-30, SDD-65): live lists whose batches come from a cursor-paged server query
+
+Every rail this ADR was written for slices a collection that is already fully in
+memory. Activity's Runtime Events and Transactions rails are the first that are
+**live** (an event stream pushes items) **and** read a table that outlives the
+process, so "load more on scroll-near-bottom" cannot pull the next batch from a
+local buffer — it fetches the next cursor page from the backend.
+
+Nothing about the decision changes. Such a rail takes the **live** branch above:
+it does NOT use `useProgressiveListWindow` (its render-phase reset would snap the
+user back to the first batch on every event), it keeps its own reconciliation,
+and it reuses only `isNearListBottom`. Rows are appended and never unmounted, and
+the scrollbar still starts short and grows. Only the ORIGIN of a batch changes:
+memory becomes SQLite.
+
+Two things this addendum explicitly does NOT do:
+
+1. **The rejection of `ListBox` + `Virtualizer`/`ListLayout` windowing is
+   unchanged.** It was rejected on honesty — a padded full-height track reads as
+   "everything is loaded" — not on cost, so "HeroUI ships it for free" does not
+   reopen it. `Table.LoadMore` / `Table.LoadMoreContent` are the render
+   primitives; `Table.ColumnResizer`, `Table.SortableColumnHeader` and
+   `Table.ResizableContainer` are orthogonal to the scroll model.
+2. **The "revisit if a collection reaches five figures" trigger has NOT fired.**
+   Measured against the live `bridge.db` on 2026-08-30, after roughly one month
+   of real use: `runtime_events` 4,530 rows of a 20,000 cap (22.7%),
+   `request_captures` 1,317 of 5,000 (26.3%), busiest single day 538 events.
+
+**This is not a contradiction of the rejected "Backend pagination" alternative
+above.** That rejection is scoped to collections "small enough to fetch in one
+call" — true of the Editor's 857 in-memory animes, and the reason it was right
+to refuse round-trips for a rendering problem. It is not available for a
+20,000-row cap. Activity's source is ALREADY keyset-cursor-paged by construction:
+`ListCaptureTransactions` returns a `nextCursor` today that nothing consumes, and
+`eventlog.Reader.Search` is cursor-paged. Activity is not adding wire pagination
+to fix rendering; it is consuming a cursor the backend already emits.
