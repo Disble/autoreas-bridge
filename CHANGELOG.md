@@ -14,6 +14,53 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-08-29
+
+### Fixed
+
+- **A hoster that had actually finished its download could be declared dead, its
+  finished package deleted, and the episodes credited to a fallback that
+  transferred nothing.** When a transfer completed inside the window where Bridge
+  was not looking, Bridge concluded the hoster had failed, told JDownloader to
+  remove the completed package, and moved on — so a run could report "3 episodes
+  downloaded" while the thing that downloaded them had just been erased. Bridge
+  now re-reads the disk before it is allowed to call any hoster dead, and only
+  declares failure when the files really are not there.
+
+- **Episodes that were already on disk when an attempt started are now renamed,
+  not just moved.** That path used to leave JDownloader's own opaque filename in
+  place. A file Bridge cannot read an episode number from does not count when it
+  works out where a series left off, so with one duplicate video in the folder
+  the next run could skip a real episode and never come back for it.
+
+- **"Watch" on a downloaded notification row now opens Today.** It used to open
+  that anime's record page — the screen that describes the series, not the one
+  where you watch it — leaving a row that said "ready to watch" one navigation
+  short of the episodes.
+
+### Added
+
+- **The download log now records why a run ended the way it did.** Every hoster
+  attempt and its outcome, the moments Bridge looked for a transfer starting and
+  what it saw each time, every JDownloader package removal, and which exact point
+  produced each episode's result are now written to Bridge's log. Before this, a
+  successful download and a destructive package removal both left nothing behind,
+  and explaining a bad run meant going outside Bridge — into JDownloader's own log
+  and Windows file timestamps.
+
+### Internal
+
+- The download core is now exercised end to end against a real filesystem. The
+  bug fixed above shipped precisely because every layer had tests and the seam
+  between them did not: the existing suite disabled the detection phase and faked
+  the file counter, so no test ever read a real folder. Five scenarios now drive
+  the real adapters, including a replay of the run that exposed the defect.
+
+- No REST or WebSocket contract changed in this release; the new records live in
+  Bridge's own log, not on the wire, so a paired phone needs nothing.
+
+- Mutation-testing tooling updated.
+
 ## [1.6.0] — 2026-08-28
 
 ### Changed

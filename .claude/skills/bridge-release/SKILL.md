@@ -4,7 +4,7 @@ description: "Trigger: release, version bump, semver, build the installer, regen
 license: Apache-2.0
 metadata:
   author: autoreas-bridge
-  version: "1.1.0"
+  version: "1.2.0"
   scope: project
   updates: living
 ---
@@ -45,6 +45,16 @@ incomplete release.
   hardcoded `1.0.0`. Absence is never a declared version — treat it as unset.
 - Never `--no-verify`. The gate takes ~90s–300s; give `git commit` a timeout
   of at least 300000 ms.
+- **Tag the release commit `vX.Y.Z`.** `wails.json` records which version was
+  *declared*; only the tag records which commit *shipped* it, and that is the
+  question you actually ask when an installer misbehaves in the wild. Tag the
+  commit **after** the gate has passed and the commit exists — a killed gate
+  leaves the changes staged but unrecorded, and a tag on the wrong commit is
+  worse than no tag. **Pushing the tag is not required**; it stays local unless
+  the user explicitly asks for it. Verify with `git tag --points-at HEAD`.
+- The tag format is `v` + the exact `info.productVersion`, no suffix — `v1.7.0`,
+  not `1.7.0` or `release-1.7.0`. This is a Go module repo, and `v`-prefixed
+  semver is the only form Go tooling recognises.
 - Known open bug: the built `.exe` has blank Windows file properties
   (ProductName/ProductVersion/FileVersion all empty). The **installer** version
   is correct. Do not report this as a regression caused by a bump.
@@ -87,12 +97,16 @@ must also be announced in `docs/openapi.yaml`.
    `node scripts/log-lesson.mjs "..."` — never by hand.
 10. Commit `wails.json`, `CHANGELOG.md`, `wails_tools.nsh`, and the log as
     `chore(release): bump to X.Y.Z and regenerate installer`.
+11. Tag that commit once the gate has passed: `git tag vX.Y.Z`. Confirm it
+    landed on the release commit with `git tag --points-at HEAD`. Do **not**
+    push it unless the user asks.
 
 ## Output Contract
 
 Report: the old and new version, the regenerated `INFO_PRODUCTVERSION`, the
-changelog section written, both artifact paths with sizes, the gate result, and
-explicitly which runtime checks were smoke-tested versus left unverified.
+changelog section written, both artifact paths with sizes, the gate result, the
+tag placed on the release commit (and that it was not pushed), and explicitly
+which runtime checks were smoke-tested versus left unverified.
 
 ## References
 
