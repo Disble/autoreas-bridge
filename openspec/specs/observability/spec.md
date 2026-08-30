@@ -82,35 +82,32 @@ The Wails app facade MUST expose recent in-memory log entries through a public b
 
 ### Requirement: Dashboard Feed Stays Live
 
-The frontend MUST display recent bridge log entries under a clearly-named "Events" view, separate from the Activity (Network transactions) view, and update the feed during the same application session without requiring manual refresh. Activity MUST NOT render `ObservabilityLogEntry` rows as if they were HTTP transactions.
-(Previously: the log feed was shown under the "Activity"/Network-labeled route and its Status/Duration columns were always placeholders because log events are not HTTP transactions.)
+The frontend MUST display bridge runtime log entries under a clearly-named Runtime Events
+surface, separate from the Activity Transactions view, and MUST update that feed during the
+same application session without requiring manual refresh. The rendered feed MUST be the page
+returned by the persisted runtime-event read path (see `activity-runtime-events`); entries
+pushed live during the session MUST overlay that page rather than replace it. Activity MUST NOT
+render `ObservabilityLogEntry` rows as if they were HTTP transactions.
+(Previously: the feed rendered the recent buffered entries returned by the in-memory ring
+buffer, under a separate "Events" route that no longer exists.)
 
-> **Drift note — recorded 2026-08-30 by SDD-65 Slice 0.** The separate "Events" route this
-> requirement mandates no longer exists. `EventsRoute.tsx` was added by `e47e38e`
-> (2026-07-24) and deleted by `e92c236` ("drop dead routes", 2026-08-03). Today the event log
-> is a tab inside Activity: `/events` is `<Navigate replace to="/activity/runtime-events" />`
-> (`frontend/src/App.tsx:37`) and the nav carries a single Activity entry
-> (`frontend/src/shared/navigation/app-layout.constants.ts:41`). The substantive guarantee —
-> Activity MUST NOT render `ObservabilityLogEntry` rows as HTTP transactions, and the event
-> log MUST stay reachable under a clearly-named surface — still holds. Amending the route
-> wording is SDD-65 Slice A's job, not Slice 0's.
-
-#### Scenario: Dashboard shows buffered history
-- GIVEN the Wails UI opens after backend activity already happened
-- WHEN the Events view mounts
-- THEN it MUST render the recent buffered `ObservabilityLogEntry` entries returned by the backend
+#### Scenario: Runtime Events shows durable history
+- GIVEN the Wails UI opens after backend activity already happened, including activity from an earlier run of the process
+- WHEN the Runtime Events surface mounts
+- THEN it MUST render the persisted runtime events the backend returns for the active filters
+- AND that history MUST NOT be limited to entries recorded since the current process started
 
 #### Scenario: Dashboard receives new entries
-- GIVEN the Events view is already mounted
+- GIVEN the Runtime Events surface is already mounted
 - WHEN a new log-worthy backend event occurs
 - THEN the new entry MUST appear in the feed during the active session
-- AND existing entries MUST remain ordered and visible within retention limits
+- AND the already-rendered persisted entries MUST remain ordered and visible
 
 #### Scenario: Activity no longer mislabels the event log
-- GIVEN a user opens the Activity route
-- WHEN the route renders
+- GIVEN a user opens the Activity Transactions view
+- WHEN the view renders
 - THEN it MUST show captured HTTP transactions (per `activity-network-transactions`), not `ObservabilityLogEntry` rows
-- AND the event log MUST remain reachable from a separate, clearly-named "Events" route
+- AND the runtime event log MUST remain reachable under its own clearly-named Runtime Events surface
 
 ### Requirement: Committed Writes Declare Their Changed Fields By Derivation
 
@@ -499,7 +496,17 @@ The rename MUST be confined to the capture and MCP sidecar surface. Every identi
 
 ### Requirement: Persisted Runtime-Event Log
 
-The system MUST persist runtime log entries (the `logger.LogEntry` shape: timestamp, domain, level, message, correlation id, entity id, event type, duration, metadata) to a table owned by the observability domain in bridge SQLite. Persisted events MUST survive an application restart and remain queryable within a bounded retention window. This persisted log is additive: the existing in-memory `MemLogger` ring buffer, `GetRecentLogs()`, and the Runtime Events tab MUST continue to operate exactly as before, unaware of and unaffected by persistence.
+The system MUST persist runtime log entries (the `logger.LogEntry` shape: timestamp, domain,
+level, message, correlation id, entity id, event type, duration, metadata) to a table owned by
+the observability domain in bridge SQLite. Persisted events MUST survive an application restart
+and remain queryable within a bounded retention window. This persisted log is additive with
+respect to the in-memory feed: the `MemLogger` ring buffer and `GetRecentLogs()` MUST continue
+to operate exactly as before, unaware of and unaffected by persistence. The Runtime Events
+surface reads the persisted log instead of the ring buffer (see `activity-runtime-events`), and
+that read-path change MUST NOT alter what the ring buffer records or what `GetRecentLogs()`
+returns.
+(Previously: the additive guarantee also asserted that the Runtime Events tab keeps operating
+exactly as before, which the persisted read path replaces.)
 
 #### Scenario: A logged event is queryable after an app restart
 
@@ -510,8 +517,8 @@ The system MUST persist runtime log entries (the `logger.LogEntry` shape: timest
 #### Scenario: In-memory feed is unaffected by persistence
 
 - GIVEN the persisted event log is active
-- WHEN the frontend calls `GetRecentLogs()` or the Runtime Events tab receives a live event
-- THEN the returned/displayed entries and their filters behave exactly as they did before this change
+- WHEN the frontend calls `GetRecentLogs()`
+- THEN the returned entries and their ordering behave exactly as they did before this change
 - AND no persistence failure or slowdown is observable through that path
 
 ### Requirement: Non-Blocking Event Persistence Sink
