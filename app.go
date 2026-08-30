@@ -75,6 +75,8 @@ type App struct {
 	eventSink                  *eventlog.Sink
 	newEventQueue              func(db *sql.DB) eventLogQueue
 	eventQueue                 eventLogQueue
+	newEventReader             func(db *sql.DB) *eventlog.Reader
+	eventReader                *eventlog.Reader
 	trayManager                tray.Manager
 	tracerBulletRunner         tracerBulletRunner
 	catchUpContext             context.Context

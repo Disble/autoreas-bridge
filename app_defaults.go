@@ -287,4 +287,7 @@ func (a *App) ensureRuntimeObservability() {
 			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{})
 		}
 	}
+	if a.newEventReader == nil {
+		a.newEventReader = eventlog.NewReader
+	}
 }
