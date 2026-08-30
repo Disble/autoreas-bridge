@@ -35,8 +35,11 @@ func NewLogForwardAdapter(logger sharedlogger.Logger) *logForwardAdapter {
 //   - Source -> logger domain.
 //   - Title/Body -> the formatted message.
 //   - CorrelationID -> Fields.CorrelationID; EventType is fixed to
-//     "notification" so forwarded entries are identifiable in the log
-//     stream.
+//     "notification.forwarded" so these entries are identifiable in the log
+//     stream. The domain.verb shape is enforced by
+//     TestEmittedEventTypesFollowTheDomainVerbShape: a bare "notification"
+//     names a subject with no action, so it cannot group against the
+//     domain.verb values every other emitter uses.
 func (a *logForwardAdapter) Deliver(ctx context.Context, delivery Delivery) error {
 	if a == nil || a.logger == nil {
 		return nil
@@ -52,7 +55,7 @@ func (a *logForwardAdapter) Deliver(ctx context.Context, delivery Delivery) erro
 
 	a.logger.Logf(n.Source, level, sharedlogger.Fields{
 		CorrelationID: n.CorrelationID,
-		EventType:     "notification",
+		EventType:     "notification.forwarded",
 	}, "%s", message)
 
 	return nil

@@ -44,13 +44,47 @@ Four concrete defects keep the narrative log from ever answering a question:
 | --- | --- | --- |
 | P-1 | `Infof`/`Warnf`/`Errorf`/`Debugf` hard-code `Fields{}`, so four of five `Logger` methods **structurally cannot** carry `EventType`/`EntityID`/`CorrelationID`. 26 of 41 production call sites use them. | `internal/logger/fanout.go:42,47,52,57`; `mem.go:37,42,47,52`; `stdout.go:27,32,37,42` |
 | P-2 | The `anime` domain in `runtime_events` is produced by the tracer bullet, which derives the **domain** by splitting a prose message on `": "` and taking `parts[0]`. So `anime: publishing...` becomes `domain=anime`. | `internal/tracerbullet/runner.go:79-84` |
-| P-3 | `EventType` is free text with **no const registry anywhere** in the tree. Emitted values include `sync`, `sync.reconcile`, `sync.changelog`, and `reconcile` — four spellings for one area. `by_event_type` groups garbage even once populated. | No vocabulary declaration exists; only filter and render sites reference the field |
+| P-3 | `EventType` is free text with **no const registry anywhere** in the tree. The convention holds by discipline alone, and nothing prevents the next call site from breaking it. | No vocabulary declaration exists; only filter and render sites reference the field |
 | P-4 | `changed_fields_json` is empty because **zero of the six `events.AnimeChangedEvent` producers set `ChangedFields`**. The transport is fully wired: `changelog_recorder.go:56` copies it, `changelog_store.go:31` marshals and persists it. The producers ship an empty envelope, and the zero value of `[]string` is valid, so nothing ever failed. | `editor_service.go:220`, `schedule_service.go:218`, `writer.go:164`, `writer.go:195`, `write_service.go:257`, `tracerbullet/runner.go:42` |
 
 P-4 is the load-bearing one. It is not a storage gap — it is a **producer** gap, and it is
 the exact failure shape this proposal is designed to make structurally impossible.
 
 ---
+
+### 1.4 Correction to P-3, recorded 2026-08-30 during slice C
+
+An earlier revision of this proposal claimed the emitted event types included
+`sync`, `sync.reconcile`, `sync.changelog`, and `reconcile` — "four spellings for
+one area". **That was wrong**, and it is corrected above.
+
+It came from a grep that included test files and matched `EventType` occurrences
+that were not emission sites at all, producing junk values (`"m"`, `"cur"`,
+`"a"`, `"b"`) alongside the real ones. A precise sweep of production emission
+sites shows the vocabulary is in fact **uniformly `domain.verb`**:
+
+```
+anime.write            download.detect_start_failed      sync.changelog
+bus.publish            download.detect_start_succeeded   sync.reconcile
+eventlog.prebind_overflow  download.episode_available    websocket.broadcast
+notification           download.failed  (+11 more download.*)  websocket.register
+                                                          websocket.unregister
+```
+
+Exactly one outlier exists: `"notification"` (`internal/notification/log_forward.go:55`)
+carries no verb segment.
+
+**What this changes.** Slice C's event-type work is **prevention, not cleanup**.
+The grouping dimension is not currently garbage; it is currently correct by
+discipline and unenforced. That is a weaker justification than originally
+written, and it is stated here rather than quietly left standing. The slice is
+still worth doing — an unenforced convention across 30+ call sites in five
+domains drifts the moment someone is in a hurry, and `download`'s wrapper
+(`service_effects.go:114`) already passes the value as a plain parameter — but it
+buys a guard against future drift, not a fix for present damage.
+
+P-1, P-2, and P-4 are unaffected by this correction; each was verified directly
+at its call sites.
 
 ## 2. Drift record (CLAUDE.md rule 2 — code wins over docs)
 

@@ -89,8 +89,8 @@ func TestLogForwardAdapterMapsErrorLevelToErrorLog(t *testing.T) {
 	if call.fields.CorrelationID != "corr-1" {
 		t.Fatalf("expected CorrelationID %q, got %q", "corr-1", call.fields.CorrelationID)
 	}
-	if call.fields.EventType != "notification" {
-		t.Fatalf("expected EventType %q, got %q", "notification", call.fields.EventType)
+	if call.fields.EventType != "notification.forwarded" {
+		t.Fatalf("expected EventType %q, got %q", "notification.forwarded", call.fields.EventType)
 	}
 }
 

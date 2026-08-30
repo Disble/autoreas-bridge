@@ -1,13 +1,26 @@
 package tracerbullet
 
 import (
-	"strings"
-
 	"autoreas-bridge/internal/events"
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 const tracerAnimeID = "tracer-bullet-anime"
+
+// tracerDomain is the log domain every tracer-bullet entry carries.
+//
+// It is a constant rather than a value parsed out of the message, because the
+// runner used to derive it by splitting its own sentence on ": " and passing
+// the prefix as the domain. That made "anime: publishing..." arrive as
+// domain=anime, which is why every `anime` row in runtime_events was a
+// demonstration event and a dashboard could report "all healthy" about a
+// harness while real writes went unlogged. A domain is a contract; prose
+// changes for readability reasons.
+const tracerDomain = "tracer-bullet"
+
+// tracerEventType marks an entry as one step of the tracer-bullet sequence so
+// health rollups can exclude synthetic traffic from a real-entity ratio.
+const tracerEventType = "tracer.step"
 
 // TraceSink records tracer-bullet messages.
 type TraceSink interface {
@@ -37,8 +50,8 @@ func NewRunner(bus events.Bus, sink TraceSink, loggers ...sharedlogger.Logger) *
 // Start subscribes the runner and publishes its demonstration event.
 func (r *Runner) Start() {
 	r.StartSubscriptions()
-	r.record("system: tracer bullet ready")
-	r.record("anime: publishing anime.changed for " + tracerAnimeID)
+	r.record("system", "tracer bullet ready")
+	r.record("anime", "publishing anime.changed for "+tracerAnimeID)
 	r.bus.Publish(events.AnimeChangedEvent{AnimeID: tracerAnimeID})
 }
 
@@ -50,7 +63,7 @@ func (r *Runner) StartSubscriptions() {
 			return
 		}
 
-		r.record("sync: received anime.changed for " + changed.AnimeID)
+		r.record("sync", "received anime.changed for "+changed.AnimeID)
 		r.bus.Publish(events.SyncRequestedEvent{Requester: changed.AnimeID})
 	})
 
@@ -60,22 +73,29 @@ func (r *Runner) StartSubscriptions() {
 			return
 		}
 
-		r.record("websocket: forwarded anime.changed for " + syncRequest.Requester)
+		r.record("websocket", "forwarded anime.changed for "+syncRequest.Requester)
 	})
 }
 
 // record sends a tracer-bullet message to the configured sink and logger.
-func (r *Runner) record(message string) {
+//
+// The stage is passed in, never parsed back out of the message. The sink still
+// receives the full "stage: message" sentence because the desktop Transactions
+// view renders it verbatim, but the log entry carries the stage as METADATA
+// while its domain, entity id, and event type stay fixed. The distinction is
+// the whole point: a stage is data, a domain is a contract, and deriving the
+// second from prose is what made every `anime` row in runtime_events a
+// demonstration event.
+func (r *Runner) record(stage, message string) {
 	if r.sink != nil {
-		r.sink.Record(message)
+		r.sink.Record(stage + ": " + message)
 	}
 	if r.log == nil {
 		return
 	}
-	parts := strings.SplitN(message, ": ", 2)
-	if len(parts) != 2 {
-		r.log.Infof("system", "%s", message)
-		return
-	}
-	r.log.Infof(parts[0], "%s", parts[1])
+	r.log.Logf(tracerDomain, sharedlogger.LevelInfo, sharedlogger.Fields{
+		EntityID:  tracerAnimeID,
+		EventType: tracerEventType,
+		Metadata:  map[string]any{"stage": stage},
+	}, "%s", message)
 }

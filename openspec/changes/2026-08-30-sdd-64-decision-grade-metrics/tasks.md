@@ -54,14 +54,22 @@ decision. Slices C and D are droppable tails if the budget runs out.
 
 ## Phase 3: Slice C — closed vocabulary, honest domains, coverage
 
-- [ ] 3.1 RED `internal/logger/event_type_test.go`: assert the declared constants exist and that the four sync spellings currently in the tree (`sync`, `sync.reconcile`, `sync.changelog`, `reconcile`) collapse to their intended buckets. Write expected values as literals, never by referencing the constant under test.
-- [ ] 3.2 GREEN declare the `EventType` vocabulary as typed constants in `internal/logger/logger.go`; migrate the 15 existing `Logf` call sites onto them.
-- [ ] 3.3 RED then GREEN the vocabulary guard: a test that scans production `Fields{...EventType: ...}` literals and fails on any value outside the declared set. Prove it fails by introducing one free-text value, then remove it.
-- [ ] 3.4 RED `internal/tracerbullet/runner_test.go`: `TestRecordUsesDeclaredDomainNotMessagePrefix` — a message containing `": "` must not influence the recorded domain.
-- [ ] 3.5 GREEN change `Runner.record` (`internal/tracerbullet/runner.go:79-84`) to take an explicit domain; drop the `strings.SplitN` domain derivation. Re-read `openspec/specs/tracer-bullet-wiring` and confirm no scenario there constrains event labelling; record the confirmation in the verify report.
-- [ ] 3.6 GREEN mark tracer-bullet events as synthetic so rollups can exclude them; add the exclusion to the coverage query.
+- [x] 3.1 RED `internal/logger/event_type_test.go`: assert the declared constants exist and that the four sync spellings currently in the tree (`sync`, `sync.reconcile`, `sync.changelog`, `reconcile`) collapse to their intended buckets. Write expected values as literals, never by referencing the constant under test.
+- [x] 3.2 GREEN declare the `EventType` vocabulary as typed constants in `internal/logger/logger.go`; migrate the 15 existing `Logf` call sites onto them.
+- [x] 3.3 RED then GREEN the vocabulary guard: a test that scans production `Fields{...EventType: ...}` literals and fails on any value outside the declared set. Prove it fails by introducing one free-text value, then remove it.
+- [x] 3.4 RED `internal/tracerbullet/runner_test.go`: `TestRecordUsesDeclaredDomainNotMessagePrefix` — a message containing `": "` must not influence the recorded domain.
+- [x] 3.5 GREEN change `Runner.record` (`internal/tracerbullet/runner.go:79-84`) to take an explicit domain; drop the `strings.SplitN` domain derivation. Re-read `openspec/specs/tracer-bullet-wiring` and confirm no scenario there constrains event labelling; record the confirmation in the verify report.
+- [x] 3.6 GREEN mark tracer-bullet events as synthetic so rollups can exclude them; add the exclusion to the coverage query.
 - [ ] 3.7 RED then GREEN the coverage measure: committed real-entity anime writes that emitted a matching runtime event, over committed real-entity anime writes. Assert a seeded silent write path lowers it and that synthetic traffic does not raise it.
 - [ ] 3.8 MUTATE run `ditto staged`. The mutant that removes the synthetic-entity exclusion MUST die — that exclusion is the whole point of the ratio.
+
+### Slice C notes
+
+- **P-3 was wrong and is corrected in `proposal.md` section 1.4.** The claimed "four spellings for one area" came from a grep that included test files and non-emission matches. The real production vocabulary is uniformly `domain.verb` with exactly ONE outlier: `"notification"` in `internal/notification/log_forward.go:55`, now `"notification.forwarded"`. The event-type work is therefore prevention against future drift, not cleanup of present damage. Said plainly rather than left standing.
+- **Deviation from task 3.2 as written, with reason.** The plan said "typed constants". Implemented as a SHAPE guard (`domain.verb`) instead, because `internal/download` emits its event types through a wrapper that takes the value as a parameter and generates 15+ `download.*` values at its call sites. A closed const registry would fight that design for no gain; the shape rule enforces what actually matters for grouping.
+- **The guard is cache-safe, verified.** `TestEmittedEventTypesFollowTheDomainVerbShape` reads source files at runtime, which raised the question of whether Go's test cache would serve a stale PASS after unrelated source drifts. It does not: the cache tracks files a test opens and invalidates on change. Confirmed by priming the cache (second run reported `(cached)`), introducing the drift, and watching an un-forced run still FAIL.
+- **The stage is data, the domain is a contract.** The tracer bullet no longer parses its own prose at all: `record` takes the stage as a parameter, the sink still gets the `"stage: message"` sentence the Transactions view renders, and the log entry carries the stage as `Metadata["stage"]` under the fixed `tracer-bullet` domain.
+- MUTATE (hand-run): domain-from-stage reintroduced -> `TestRunnerDoesNotDeriveDomainFromMessageProse`; synthetic entity id dropped -> `TestRunnerMarksItsEntriesSynthetic`; event type dropped -> same; vocabulary drift reintroduced -> the shape guard. **One self-inflicted false negative worth recording**: a `perl -0pi` substitution without `/g` replaced the first occurrence in the file, which was in a comment, not the code � the mutant never applied and read as SURVIVED. Always diff to prove the edit landed.
 
 ## Phase 4: Slice D — dimension-carrying emission API
 

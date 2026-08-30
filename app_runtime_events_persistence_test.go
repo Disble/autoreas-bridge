@@ -194,13 +194,19 @@ func TestEarlyBootEventsSurviveUntilQueueBinding(t *testing.T) {
 	// even bootstrapped -- the deepest point inside the old drop window.
 	waitForRuntimeEventRow(t, app.bridgeDB, "tracer bullet ready")
 
+	// SDD-64: the tracer bullet's entries used to land in whatever domain its
+	// message prefix happened to spell ("system", "anime", ...) because the
+	// runner split its own prose to pick one. They now declare the fixed
+	// `tracer-bullet` domain, which is what lets a health rollup exclude
+	// synthetic traffic. This test's subject is unchanged: a pre-bind event
+	// must be queryable through the reader the MCP sidecar uses.
 	reader := eventlog.NewReader(app.bridgeDB)
-	page, err := reader.Search(context.Background(), eventlog.EventSearchParams{Filters: eventlog.EventFilters{Domain: "system"}})
+	page, err := reader.Search(context.Background(), eventlog.EventSearchParams{Filters: eventlog.EventFilters{Domain: "tracer-bullet"}})
 	if err != nil {
 		t.Fatalf("search events: %v", err)
 	}
 	if len(page.Items) == 0 {
-		t.Fatal("expected the pre-bind system-domain event to be queryable, which is what the MCP sidecar reads")
+		t.Fatal("expected the pre-bind tracer-bullet event to be queryable, which is what the MCP sidecar reads")
 	}
 }
 
