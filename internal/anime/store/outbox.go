@@ -11,7 +11,13 @@ type AnimeChangedOutboxEvent struct {
 	OperationID string
 	AnimeID     string
 	Payload     []byte
-	CreatedAtMs int64
+	// ChangedFields names the top-level snapshot fields this write actually
+	// changed. It is DERIVED inside the finalize transaction from the base and
+	// desired snapshot pair, never declared by a producer: six publishers
+	// existed and none of them ever set it, so every changelog row recorded an
+	// empty list while real fields were rewritten.
+	ChangedFields []string
+	CreatedAtMs   int64
 }
 
 // AnimeChangedOutboxStore persists pending anime.changed publications.
@@ -35,7 +41,7 @@ func (g *Gateway) DrainOutbox(ctx context.Context) error {
 		return fmt.Errorf("list pending anime.changed outbox: %w", err)
 	}
 	for _, event := range pending {
-		g.config.PublishChanged(event.EventID, event.AnimeID, append([]byte(nil), event.Payload...))
+		g.config.PublishChanged(event.EventID, event.AnimeID, append([]byte(nil), event.Payload...), append([]string(nil), event.ChangedFields...))
 		markCtx, cancel := context.WithTimeout(context.Background(), writeCleanupTimeout)
 		err := g.config.Outbox.MarkAnimeChangedPublished(markCtx, event.EventID, g.config.Now().UnixMilli())
 		cancel()

@@ -169,3 +169,48 @@ func stageGatewayOperation(t *testing.T, writeBases *bridgeSync.WriteBaseStore, 
 		t.Fatalf("stage gateway operation %s: %v", operationID, err)
 	}
 }
+
+// TestDrainOutboxDeliversDerivedChangedFields proves the transport actually
+// carries the derived list to the publisher. The derivation happening at the
+// finalize transaction is worth nothing if the drain drops it on the way out,
+// and dropping it is exactly the shape of the defect this change removes: the
+// field existed on the event all along and nobody ever populated it.
+func TestDrainOutboxDeliversDerivedChangedFields(t *testing.T) {
+	ctx := context.Background()
+	db := openGatewayDB(t)
+	snapshots := bridgeSync.NewAnimeSnapshotStore(db)
+	base := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-fields", 1))
+	desired := canonicalGatewayPayload(t, gatewayAnimeJSON("anime-fields", 2))
+	if err := snapshots.ReplaceBaseline(ctx, map[string]anime.SnapshotRecord{
+		"anime-fields": {AnimeID: "anime-fields", CanonicalJSON: base, Hash: anime.HashSnapshot(base), ModifiedAt: 100},
+	}, nil); err != nil {
+		t.Fatalf("seed snapshot: %v", err)
+	}
+	writeBases := bridgeSync.NewWriteBaseStore(db)
+	stageGatewayOperation(t, writeBases, "operation-fields", "anime-fields", 100, 200, base, desired, 100)
+
+	delivered := map[string][]string{}
+	gateway := newGateway(t, gatewayConfig{
+		db: db, clock: 300,
+		publishFields: func(eventID string, changedFields []string) {
+			delivered[eventID] = changedFields
+		},
+	})
+	if err := gateway.Recover(ctx); err != nil {
+		t.Fatalf("recover staged operation: %v", err)
+	}
+	if err := gateway.DrainOutbox(ctx); err != nil {
+		t.Fatalf("drain outbox: %v", err)
+	}
+
+	fields, ok := delivered["operation-fields"]
+	if !ok {
+		t.Fatalf("expected the drained event to be published, got %#v", delivered)
+	}
+	if fields == nil {
+		t.Fatal("expected a non-nil changed-field list to reach the publisher")
+	}
+	if len(fields) == 0 {
+		t.Fatal("expected the drained event to name at least one changed field, got an empty list")
+	}
+}

@@ -213,8 +213,11 @@ type gatewayConfig struct {
 	outbox       store.AnimeChangedOutboxStore
 	publish      func(string, []byte)
 	publishEvent func(string, string, []byte)
-	load         func(context.Context, string) (store.Snapshot, error)
-	operationID  string
+	// publishFields captures the derived changed-field list a drain delivers,
+	// which is the whole point of widening PublishChanged.
+	publishFields func(string, []string)
+	load          func(context.Context, string) (store.Snapshot, error)
+	operationID   string
 }
 
 // newGateway constructs a gateway with test defaults and dependencies.
@@ -254,12 +257,15 @@ func newGateway(t *testing.T, config gatewayConfig) *store.Gateway {
 		Operations: operations,
 		Outbox:     outbox,
 		Conflicts:  bridgeSync.NewConflictStore(db),
-		PublishChanged: func(eventID string, animeID string, payload []byte) {
+		PublishChanged: func(eventID string, animeID string, payload []byte, changedFields []string) {
 			if config.publishEvent != nil {
 				config.publishEvent(eventID, animeID, payload)
 			}
 			if config.publish != nil {
 				config.publish(animeID, payload)
+			}
+			if config.publishFields != nil {
+				config.publishFields(eventID, changedFields)
 			}
 		},
 		Now:            func() time.Time { return time.UnixMilli(config.clock).UTC() },

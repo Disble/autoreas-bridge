@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -47,6 +48,39 @@ func deriveChangedFields(baseSnapshotJSON, desiredSnapshotJSON []byte) ([]string
 
 	sort.Strings(changed)
 	return changed, nil
+}
+
+// marshalDerivedChangedFields encodes a derived changed-field list for storage.
+// An empty list encodes as `[]`, never as null: a null list is exactly the
+// empty envelope this derivation replaces, and the two must stay tellable
+// apart.
+func marshalDerivedChangedFields(fields []string) (string, error) {
+	if fields == nil {
+		fields = []string{}
+	}
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		return "", fmt.Errorf("encode derived changed fields: %w", err)
+	}
+	return string(encoded), nil
+}
+
+// unmarshalDerivedChangedFields decodes a stored changed-field list. A NULL
+// column means the row was written before this derivation existed; it decodes
+// to an empty list, which is byte-for-byte the behaviour those rows already
+// had, so no backfill is required.
+func unmarshalDerivedChangedFields(stored sql.NullString) ([]string, error) {
+	if !stored.Valid || stored.String == "" {
+		return []string{}, nil
+	}
+	fields := []string{}
+	if err := json.Unmarshal([]byte(stored.String), &fields); err != nil {
+		return nil, fmt.Errorf("decode stored changed fields: %w", err)
+	}
+	if fields == nil {
+		fields = []string{}
+	}
+	return fields, nil
 }
 
 // decodeChangedFieldsSnapshot parses one stored snapshot, naming the side that

@@ -120,6 +120,24 @@ info:
       - `POST /api/*`, `GET /api/*`, and `/ws` are entirely unaffected —
         mobile clients require no update.
 
+    2026-08-30 — SDD-64 API consumer impact: NO wire SHAPE change, but a
+    previously-always-empty field starts carrying values. `AnimeChange.changed_fields`
+    (GET /api/animes/changes) and the `changedFields` member of the `anime_changed`
+    WebSocket notice have shipped as an empty array for every change since they
+    were introduced, because none of the six bridge producers of the internal
+    `anime.changed` event ever populated them. The bridge now DERIVES that list
+    inside the transaction that commits a write, by comparing the write's base
+    and desired snapshots, so it names the top-level snapshot fields that
+    actually differ.
+      - Field name, type, and required-ness are unchanged: still a required
+        array of strings, still sorted for stability, still `[]` when a write
+        changed nothing.
+      - A client that ignored the field keeps working unchanged. A client that
+        treated "empty array" as "no information available" and refetched the
+        whole snapshot will now receive a usable list and can narrow its work.
+      - Rows written before this change carry no derived list and continue to
+        read as `[]`; no backfill is performed.
+
     2026-08-01 — orphaned-capture-sweep API consumer impact: NO REST/WS wire
     change (no HTTP path, request/response field, or WebSocket message shape
     changed). Bridge-internal observability fix, announced here per project

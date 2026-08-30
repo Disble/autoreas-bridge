@@ -5,6 +5,7 @@
 | Field | Value |
 |---|---|
 | Estimated changed lines | 620-820 |
+| Review budget | 800 lines (raised by the user on 2026-08-30) |
 | 400-line budget risk | High |
 | Chained PRs recommended | Yes |
 | Suggested split | A truncation detector -> B derived changed fields -> C closed vocabulary + honest domains + coverage -> D dimension-carrying emission API |
@@ -41,15 +42,15 @@ decision. Slices C and D are droppable tails if the budget runs out.
 
 ## Phase 2: Slice B — derived changed fields
 
-- [ ] 2.1 RED `internal/sync/changed_fields_test.go`: `TestDerivesSingleChangedField`, `TestDerivesEmptiedCollection`, `TestNoOpWriteDerivesEmptyList`, `TestReorderedCollectionIsNotAChange` — table-driven over base/desired JSON pairs. Assert the empty case yields an empty list, never nil. Command: `go test ./internal/sync -run TestDerives`.
-- [ ] 2.2 GREEN add `changed_fields_json TEXT NULL` to `anime_changed_outbox` through the existing migration path (`internal/sync/schema_tables.go:22` registers it as create-only, so follow the `vocabulary_migration_tables.go` precedent rather than editing the create DDL alone).
-- [ ] 2.3 GREEN create the derivation helper in `internal/sync`: shallow top-level comparison over the two canonical snapshots, returning a sorted, stable, non-nil list.
-- [ ] 2.4 GREEN wire it into `insertAnimeChangedOutbox` (`internal/sync/write_base_finalize.go:32-33`) — the transaction already holds both snapshots on `operation`.
-- [ ] 2.5 RED then GREEN `internal/sync/write_base_lifecycle_test.go`: the outbox drain (`write_base_lifecycle.go:190`) reads `changed_fields_json` and populates `events.AnimeChangedEvent.ChangedFields`; a NULL column yields an empty list, matching today's behavior exactly.
-- [ ] 2.6 RED then GREEN assert end to end that `changelog.changed_fields_json` is no longer `[]` for a real single-field write — this is the row the incident produced, and it is the regression that matters.
-- [ ] 2.7 MUTATE run `ditto staged`. Mutants that make the derivation return nil, return every field, or skip the empty-collection case MUST die.
+- [x] 2.1 RED `internal/sync/changed_fields_test.go`: `TestDerivesSingleChangedField`, `TestDerivesEmptiedCollection`, `TestNoOpWriteDerivesEmptyList`, `TestReorderedCollectionIsNotAChange` — table-driven over base/desired JSON pairs. Assert the empty case yields an empty list, never nil. Command: `go test ./internal/sync -run TestDerives`.
+- [x] 2.2 GREEN add `changed_fields_json TEXT NULL` to `anime_changed_outbox` through the existing migration path (`internal/sync/schema_tables.go:22` registers it as create-only, so follow the `vocabulary_migration_tables.go` precedent rather than editing the create DDL alone).
+- [x] 2.3 GREEN create the derivation helper in `internal/sync`: shallow top-level comparison over the two canonical snapshots, returning a sorted, stable, non-nil list.
+- [x] 2.4 GREEN wire it into `insertAnimeChangedOutbox` (`internal/sync/write_base_finalize.go:32-33`) — the transaction already holds both snapshots on `operation`.
+- [x] 2.5 RED then GREEN `internal/sync/write_base_lifecycle_test.go`: the outbox drain (`write_base_lifecycle.go:190`) reads `changed_fields_json` and populates `events.AnimeChangedEvent.ChangedFields`; a NULL column yields an empty list, matching today's behavior exactly.
+- [x] 2.6 RED then GREEN assert end to end that `changelog.changed_fields_json` is no longer `[]` for a real single-field write — this is the row the incident produced, and it is the regression that matters.
+- [x] 2.7 MUTATE run `ditto staged`. Mutants that make the derivation return nil, return every field, or skip the empty-collection case MUST die.
 - [x] 2.8 **Correction to this task as originally written.** It said "verify no producer signature changed". That was too absolute and it is wrong: deriving the value at the outbox insert is decision D-1, but *carrying* it to the published event necessarily widens the transport. Verified in production wiring — `newAnimeWriteDeps` (`app_runtime_services.go:221-226`) does **not** set `Publisher`, so `publishCommitted` falls through to `PublishCommitted` and the outbox drain (`internal/anime/store/outbox.go:38`) is the live publication path. D-1's seam is therefore correct. The remaining wiring widens `PublishChanged`/`PublishCommitted` from 3 to 4 arguments plus the `committedAnimePublisher` interface. The distinction that still holds, and that matters: no producer *decides* the value, it only forwards a value the transaction derived.
-- [ ] 2.9 Widen the transport: `AnimeChangedOutboxEvent.ChangedFields`, `PublishChanged`, `PublishCommitted`, `committedAnimePublisher`, and the three `publishCommitted` methods. **Exceeds the 400-line review budget on its own — confirm delivery strategy before starting (see 4.1).**
+- [x] 2.9 Widen the transport: `AnimeChangedOutboxEvent.ChangedFields`, `PublishChanged`, `PublishCommitted`, `committedAnimePublisher`, and the three `publishCommitted` methods. **Exceeds the 400-line review budget on its own — confirm delivery strategy before starting (see 4.1).**
 
 ## Phase 3: Slice C — closed vocabulary, honest domains, coverage
 
@@ -79,3 +80,9 @@ decision. Slices C and D are droppable tails if the budget runs out.
 - [ ] 5.3 Append one lesson with `node scripts/log-lesson.mjs "..."` — the lesson is that a declared field list nobody is forced to fill will be empty, so derive it where both states are already in hand.
 - [ ] 5.4 Announce the wire-adjacent change: `AnimeChangedEvent.ChangedFields` becomes populated for the first time. Mobile consumers read this envelope; note it in `docs/openapi.yaml` even though no field shape changes.
 - [ ] 5.5 Final verification by the orchestrating agent itself, then create the commit — commit-time hooks are part of the verification boundary.
+
+### Slice B notes
+
+- **A test double with the old signature silently disables the feature, it does not fail loudly.** `startupRecoveryWriter.PublishCommitted` still had the 3-argument shape, so `s.writer.(committedAnimePublisher)` stopped matching and `publishCommitted` fell through to doing nothing. `TestAppStartupRecoversStagedWritesBeforeEvents` caught it, but note that `WriteService.RecoveryConfigured()` gates on the same assertion: a stale double there turns recovery off rather than erroring.
+- **MUTATE, hand-run again (`ditto staged` still stalls copying `frontend/dist`).** Three wiring mutants, one of which SURVIVED at first and exposed a real gap: `unmarshalDerivedChangedFields` returning nil for a NULL column killed nothing, because every existing test stored `"[]"` and none exercised the pre-migration NULL branch -- the exact compatibility the design promises. Added `TestWriteOperationOutboxReadsPreMigrationRowAsEmptyList`; the mutant now dies. Final: finalize-stores-empty-instead-of-derivation -> the two finalize tests; drain-drops-changed-fields -> `TestDrainOutboxDeliversDerivedChangedFields`; NULL-decodes-to-nil -> the pre-migration test.
+- **Consumer announcement done as part of this unit** (task 5.4), not deferred: `AnimeChange.changed_fields` and the `anime_changed` WebSocket notice have shipped as `[]` since they were introduced and now carry values. Shape is unchanged; the note is in `docs/openapi.yaml` under 2026-08-30.

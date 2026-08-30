@@ -19,7 +19,7 @@ func schemaTables() []persistence.TableSchema {
 		createOnlyTable("app_settings", appSettingsDDL),
 		createOnlyTable("device_sync_state", deviceSyncStateDDL),
 		animeWriteOperationsTable(),
-		indexedCreateOnlyTable("anime_changed_outbox", animeChangedOutboxDDL, animeChangedOutboxPendingIndexDDL),
+		animeChangedOutboxTable(),
 		requestCapturesTable(),
 		createOnlyTable("request_capture_metadata", requestCaptureMetadataDDL),
 		createOnlyTable("schema_migration_markers", schemaMigrationMarkersDDL),
@@ -37,9 +37,30 @@ func createOnlyTable(name string, ddl string) persistence.TableSchema {
 	return persistence.TableSchema{Name: name, CreateDDL: ddl}
 }
 
-// indexedCreateOnlyTable builds a table descriptor with its indexes.
-func indexedCreateOnlyTable(name string, ddl string, indexes ...string) persistence.TableSchema {
-	return persistence.TableSchema{Name: name, CreateDDL: ddl, Indexes: indexes}
+// animeChangedOutboxTable builds the outbox descriptor. It carries a migration
+// rather than being create-only because the derived changed-field list was
+// added after the table shipped.
+func animeChangedOutboxTable() persistence.TableSchema {
+	return persistence.TableSchema{
+		Name:      "anime_changed_outbox",
+		CreateDDL: animeChangedOutboxDDL,
+		Indexes:   []string{animeChangedOutboxPendingIndexDDL},
+		Migrate:   migrateAnimeChangedOutboxSchema,
+	}
+}
+
+// migrateAnimeChangedOutboxSchema adds the derived changed-field column
+// (ADD COLUMN only -- non-destructive). It is nullable on purpose: rows written
+// before this change carry no derivation, and the reader treats NULL as an
+// empty list, which is exactly the behaviour they already had.
+func migrateAnimeChangedOutboxSchema(db *sql.DB, cols []string) error {
+	if containsSchemaColumn(cols, "changed_fields_json") {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE anime_changed_outbox ADD COLUMN changed_fields_json TEXT`); err != nil {
+		return fmt.Errorf("add anime_changed_outbox changed_fields_json: %w", err)
+	}
+	return nil
 }
 
 // animeSnapshotsTable builds the anime snapshot table descriptor.

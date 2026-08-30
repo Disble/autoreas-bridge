@@ -29,8 +29,21 @@ func updateWriteOperationStatus(ctx context.Context, tx *sql.Tx, operation anime
 }
 
 // insertAnimeChangedOutbox queues the committed anime change for publication.
+//
+// This is where the changed-field set is derived. The transaction holds both
+// the base and the desired snapshot, and it is the single choke point every
+// committed write passes through, so the list is computed once from the two
+// states rather than declared by whichever service happened to publish.
 func insertAnimeChangedOutbox(ctx context.Context, tx *sql.Tx, operation anime.WriteOperation, committedAtMs int64) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO anime_changed_outbox (event_id, operation_id, anime_id, payload_json, status, created_at_ms) VALUES (?, ?, ?, ?, 'pending', ?)`, operation.OperationID, operation.OperationID, operation.AnimeID, string(operation.DesiredSnapshotJSON), committedAtMs)
+	changedFields, err := deriveChangedFields(operation.BaseSnapshotJSON, operation.DesiredSnapshotJSON)
+	if err != nil {
+		return fmt.Errorf("derive changed fields for write operation %q: %w", operation.OperationID, err)
+	}
+	encodedFields, err := marshalDerivedChangedFields(changedFields)
+	if err != nil {
+		return fmt.Errorf("encode changed fields for write operation %q: %w", operation.OperationID, err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO anime_changed_outbox (event_id, operation_id, anime_id, payload_json, changed_fields_json, status, created_at_ms) VALUES (?, ?, ?, ?, ?, 'pending', ?)`, operation.OperationID, operation.OperationID, operation.AnimeID, string(operation.DesiredSnapshotJSON), encodedFields, committedAtMs)
 	if err != nil {
 		return fmt.Errorf("insert anime.changed outbox for write operation %q: %w", operation.OperationID, err)
 	}

@@ -16,7 +16,7 @@ func newStoreGatewayConfig(
 	writeBases WriteBaseStore,
 	deps WriteServiceDeps,
 	now func() time.Time,
-	publishChanged func(string, string, []byte),
+	publishChanged func(eventID, animeID string, payload []byte, changedFields []string),
 ) store.GatewayConfig {
 	var outbox store.AnimeChangedOutboxStore
 	if configured, ok := writeBases.(store.AnimeChangedOutboxStore); ok {

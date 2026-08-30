@@ -205,13 +205,13 @@ func (s *EditorService) gateway() *store.Gateway {
 }
 
 // EditorService.publishCommitted publishes a committed anime change through the configured publisher.
-func (s *EditorService) publishCommitted(eventID, id string, payload []byte) {
+func (s *EditorService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...)})
+		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload)
+		publisher.PublishCommitted(eventID, id, payload, changedFields)
 	}
 }
 

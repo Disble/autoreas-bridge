@@ -186,7 +186,7 @@ func (s *WriteBaseStore) MarkBatchSuperseded(ctx context.Context, batchID string
 // ListPendingAnimeChanged returns unpublished anime.changed outbox rows in publish order.
 func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) (events []anime.ChangedOutboxEvent, err error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT event_id, operation_id, anime_id, payload_json, created_at_ms
+		SELECT event_id, operation_id, anime_id, payload_json, changed_fields_json, created_at_ms
 		FROM anime_changed_outbox
 		WHERE status = 'pending'
 		ORDER BY created_at_ms ASC, event_id ASC
@@ -204,10 +204,15 @@ func (s *WriteBaseStore) ListPendingAnimeChanged(ctx context.Context) (events []
 	for rows.Next() {
 		var event anime.ChangedOutboxEvent
 		var payload string
-		if err := rows.Scan(&event.EventID, &event.OperationID, &event.AnimeID, &payload, &event.CreatedAtMs); err != nil {
+		var changedFields sql.NullString
+		if err := rows.Scan(&event.EventID, &event.OperationID, &event.AnimeID, &payload, &changedFields, &event.CreatedAtMs); err != nil {
 			return nil, fmt.Errorf("scan pending anime.changed outbox: %w", err)
 		}
 		event.Payload = []byte(payload)
+		event.ChangedFields, err = unmarshalDerivedChangedFields(changedFields)
+		if err != nil {
+			return nil, fmt.Errorf("read changed fields for anime.changed outbox event %q: %w", event.EventID, err)
+		}
 		events = append(events, event)
 	}
 	if err := rows.Err(); err != nil {

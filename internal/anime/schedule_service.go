@@ -213,13 +213,13 @@ func (s *ScheduleService) gateway() *store.Gateway {
 }
 
 // publishCommitted publishes a committed schedule change.
-func (s *ScheduleService) publishCommitted(eventID, id string, payload []byte) {
+func (s *ScheduleService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...)})
+		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload)
+		publisher.PublishCommitted(eventID, id, payload, changedFields)
 	}
 }
 

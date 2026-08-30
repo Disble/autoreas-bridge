@@ -149,3 +149,41 @@ func eventuallySync(t *testing.T, condition func() bool) {
 	t.Helper()
 	async.Eventually(t, condition, "condition not satisfied before timeout")
 }
+
+// TestChangelogRowRecordsDerivedChangedFieldsEndToEnd is the regression that
+// matters most in this change. The incident's changelog row read
+// `2225|update|[]|pending|...` -- an update declaring no changed fields that
+// had just rewritten `days` from three entries to none. This drives a real
+// SQLite changelog through the real store and asserts the persisted
+// changed_fields_json is no longer an empty envelope.
+func TestChangelogRowRecordsDerivedChangedFieldsEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	db := openTestBridgeDB(t)
+	bus := events.NewBus()
+	store := NewChangelogStore(NewSQLiteProvider(db))
+	recorder := NewChangelogRecorder(bus, store, &recordingSyncLogger{})
+	ctx := t.Context()
+	recorder.Start(ctx)
+
+	bus.Publish(events.AnimeChangedEvent{
+		AnimeID:       "anime-endtoend",
+		Payload:       []byte(`{"id":"anime-endtoend"}`),
+		ChangedFields: []string{"cover", "days"},
+	})
+
+	var stored string
+	eventuallySync(t, func() bool {
+		return db.QueryRow(
+			`SELECT changed_fields_json FROM changelog WHERE anime_id = ?`,
+			"anime-endtoend",
+		).Scan(&stored) == nil
+	})
+
+	if stored == "[]" {
+		t.Fatal("changelog recorded an empty changed-field list: this is the incident shape")
+	}
+	if stored != `["cover","days"]` {
+		t.Fatalf("expected %s, got %s", `["cover","days"]`, stored)
+	}
+}

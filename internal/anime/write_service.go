@@ -47,7 +47,7 @@ type writeBaseStoreProvider interface {
 }
 
 type committedAnimePublisher interface {
-	PublishCommitted(string, string, []byte)
+	PublishCommitted(eventID, animeID string, payload []byte, changedFields []string)
 }
 
 // WriteServiceDeps carries optional collaborators for write flows.
@@ -252,13 +252,13 @@ func (s *WriteService) gateway() *store.Gateway {
 }
 
 // publishCommitted publishes a committed anime change when a publisher is configured.
-func (s *WriteService) publishCommitted(eventID, id string, payload []byte) {
+func (s *WriteService) publishCommitted(eventID, id string, payload []byte, changedFields []string) {
 	if s.deps.Publisher != nil {
-		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...)})
+		s.deps.Publisher.Publish(events.AnimeChangedEvent{EventID: eventID, AnimeID: id, Payload: append([]byte(nil), payload...), ChangedFields: append([]string(nil), changedFields...)})
 		return
 	}
 	if publisher, ok := s.writer.(committedAnimePublisher); ok {
-		publisher.PublishCommitted(eventID, id, payload)
+		publisher.PublishCommitted(eventID, id, payload, changedFields)
 	}
 }
 
