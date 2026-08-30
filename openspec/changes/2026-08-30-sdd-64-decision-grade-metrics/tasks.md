@@ -60,8 +60,8 @@ decision. Slices C and D are droppable tails if the budget runs out.
 - [x] 3.4 RED `internal/tracerbullet/runner_test.go`: `TestRecordUsesDeclaredDomainNotMessagePrefix` â€” a message containing `": "` must not influence the recorded domain.
 - [x] 3.5 GREEN change `Runner.record` (`internal/tracerbullet/runner.go:79-84`) to take an explicit domain; drop the `strings.SplitN` domain derivation. Re-read `openspec/specs/tracer-bullet-wiring` and confirm no scenario there constrains event labelling; record the confirmation in the verify report.
 - [x] 3.6 GREEN mark tracer-bullet events as synthetic so rollups can exclude them; add the exclusion to the coverage query.
-- [ ] 3.7 RED then GREEN the coverage measure: committed real-entity anime writes that emitted a matching runtime event, over committed real-entity anime writes. Assert a seeded silent write path lowers it and that synthetic traffic does not raise it.
-- [ ] 3.8 MUTATE run `ditto staged`. The mutant that removes the synthetic-entity exclusion MUST die â€” that exclusion is the whole point of the ratio.
+- [x] 3.7 RED then GREEN the coverage measure: committed real-entity anime writes that emitted a matching runtime event, over committed real-entity anime writes. Assert a seeded silent write path lowers it and that synthetic traffic does not raise it.
+- [x] 3.8 MUTATE run `ditto staged`. The mutant that removes the synthetic-entity exclusion MUST die â€” that exclusion is the whole point of the ratio.
 
 ### Slice C notes
 
@@ -70,6 +70,14 @@ decision. Slices C and D are droppable tails if the budget runs out.
 - **The guard is cache-safe, verified.** `TestEmittedEventTypesFollowTheDomainVerbShape` reads source files at runtime, which raised the question of whether Go's test cache would serve a stale PASS after unrelated source drifts. It does not: the cache tracks files a test opens and invalidates on change. Confirmed by priming the cache (second run reported `(cached)`), introducing the drift, and watching an un-forced run still FAIL.
 - **The stage is data, the domain is a contract.** The tracer bullet no longer parses its own prose at all: `record` takes the stage as a parameter, the sink still gets the `"stage: message"` sentence the Transactions view renders, and the log entry carries the stage as `Metadata["stage"]` under the fixed `tracer-bullet` domain.
 - MUTATE (hand-run): domain-from-stage reintroduced -> `TestRunnerDoesNotDeriveDomainFromMessageProse`; synthetic entity id dropped -> `TestRunnerMarksItsEntriesSynthetic`; event type dropped -> same; vocabulary drift reintroduced -> the shape guard. **One self-inflicted false negative worth recording**: a `perl -0pi` substitution without `/g` replaced the first occurrence in the file, which was in a comment, not the code — the mutant never applied and read as SURVIVED. Always diff to prove the edit landed.
+
+### Task 3.7 notes — and ditto works, it was never broken
+
+- **The `ditto staged` "stall" was a usage error, corrected.** `docs/mutation-testing.md` line 72 already said it: ditto takes ONE test command and does not derive it, so the default `./...` runs the whole ~45-package suite once per mutant, sequentially. Line 46 carries the working invocation. Bare `ditto staged` was run without reading the document `CLAUDE.md` rule 17 points at. Note rule 16 states the command as bare `ditto staged`, which is what was followed and is incomplete.
+- **Working invocation for this repo:** `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ./<owning-package>/"`. Keep `-json`: without it a mutant that never compiled returns reason `unknown`, which counts as a KILL, and the score is the one number that does not move either way.
+- **What the MUTATE step actually bought here, run properly:** first pass **0.31** (36 mutants, 11 killed). It found the CLI decision logic entirely unasserted, and then found that the synthetic-entity filter on the EVENT side of `ComputeCoverage` was **dead logic** — removing it left all twelve tests passing, because excluding synthetic entities from the denominator already makes a synthetic observation unreachable. Simplified rather than tested. Final **0.91**.
+- Three survivors remain, all inside `func main()`'s flag wiring (`-threshold` default, the post-`run` error branch). A test cannot call `main`; these are the documented not-a-real-gap category.
+- **Measured against the live database: 0.00 coverage, 0 of 32 written anime emitted an `anime.write` event.** That is Finding 1 of the debugging report as a number rather than a narrative, and it confirms the code reading: the live publication path is the outbox drain, which does not log.
 
 ## Phase 4: Slice D â€” dimension-carrying emission API
 
