@@ -103,3 +103,52 @@ type CaptureDetailResult struct {
 	Item     CaptureDetail `json:"item"`
 	Degraded bool          `json:"degraded"`
 }
+
+// CaptureSummaryQuery is the in-process query DTO for
+// SummarizeCaptureTransactions: the same optional filters CaptureQuery
+// accepts, minus pagination -- an aggregation has no page. It mirrors the
+// MCP's SummaryRequestsInput, which stands in the same relation to
+// SearchRequestsInput.
+type CaptureSummaryQuery struct {
+	Route       string
+	Outcome     string
+	Kind        string
+	AnimeID     string
+	ErrorCode   string
+	HTTPStatus  *int
+	StartMS     *int64
+	EndMS       *int64
+	DeviceID    string
+	ChangelogID *int64
+}
+
+// CaptureErrorSample is one bounded recent-error reference attached to a
+// summary group, so a failing group can be opened without a second query.
+type CaptureErrorSample struct {
+	RequestID    string `json:"requestId"`
+	CapturedAtMS int64  `json:"capturedAtMs"`
+	ErrorCode    string `json:"errorCode"`
+}
+
+// CaptureSummaryGroup is one (route, http_status, outcome) aggregation bucket.
+//
+// HTTPStatus stays a pointer for the same reason the filters do, and it is
+// load-bearing here: a websocket capture carries no HTTP status at all, and
+// measured 2026-08-30 those were 40.8% of the stored table. A value type would
+// report every one of them as status 0 -- a status the bridge never returned.
+type CaptureSummaryGroup struct {
+	Route              string               `json:"route"`
+	HTTPStatus         *int                 `json:"httpStatus,omitempty"`
+	Outcome            string               `json:"outcome"`
+	Count              int                  `json:"count"`
+	LatestErrorSamples []CaptureErrorSample `json:"latestErrorSamples"`
+}
+
+// CaptureSummary is one SummarizeCaptureTransactions result. Groups is a
+// never-nil slice so an unmatched filter set is a zeroed aggregation rather
+// than a null, and Degraded marks a reader-unavailable or query-error outcome
+// (never a panic) exactly as CapturePage does.
+type CaptureSummary struct {
+	Groups   []CaptureSummaryGroup `json:"groups"`
+	Degraded bool                  `json:"degraded"`
+}

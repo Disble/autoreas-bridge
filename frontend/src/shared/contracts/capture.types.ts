@@ -87,3 +87,44 @@ export interface CaptureDetailResult {
   readonly item: CaptureDetail;
   readonly degraded: boolean;
 }
+
+/**
+ * App-facing filters for SummarizeCaptureTransactions: exactly the filters the
+ * transaction list accepts, minus pagination — an aggregation has no page.
+ * Derived from {@link CaptureQueryFilters} rather than restated so the two
+ * filter sets can never drift apart.
+ */
+export type CaptureSummaryFilters = Omit<CaptureQueryFilters, 'limit' | 'cursor'>;
+
+/** One bounded recent-error reference attached to a request-health group. */
+export interface CaptureErrorSample {
+  readonly requestId: string;
+  readonly capturedAtMs: number;
+  readonly errorCode: string;
+}
+
+/**
+ * One (route, http status, outcome) request-health group.
+ *
+ * `httpStatus` is optional and its absence is a fact, not a missing value: a
+ * websocket capture never produced an HTTP status, and measured 2026-08-30
+ * those were 40.8% of the stored table. Rendering an absent status as 0 would
+ * report a status the bridge never returned.
+ */
+export interface CaptureSummaryGroup {
+  readonly route: string;
+  readonly httpStatus?: number;
+  readonly outcome: string;
+  readonly count: number;
+  readonly latestErrorSamples: readonly CaptureErrorSample[];
+}
+
+/**
+ * One SummarizeCaptureTransactions result: the groups ordered count-descending
+ * plus the reader's degradation flag. `groups` is always a non-null array, so
+ * an unmatched filter set is a zeroed aggregation rather than a null.
+ */
+export interface CaptureSummary {
+  readonly groups: readonly CaptureSummaryGroup[];
+  readonly degraded: boolean;
+}

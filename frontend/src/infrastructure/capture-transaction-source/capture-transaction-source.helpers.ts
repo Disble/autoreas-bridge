@@ -1,9 +1,20 @@
-import { GetCaptureTransaction, ListCaptureTransactions } from '../../../wailsjs/go/main/App';
-import type { CaptureDetailResult, CapturePage, CaptureQueryFilters } from '../../shared/contracts/capture.types';
+import {
+  GetCaptureTransaction,
+  ListCaptureTransactions,
+  SummarizeCaptureTransactions,
+} from '../../../wailsjs/go/main/App';
+import type {
+  CaptureDetailResult,
+  CapturePage,
+  CaptureQueryFilters,
+  CaptureSummary,
+  CaptureSummaryFilters,
+} from '../../shared/contracts/capture.types';
 import { hasGoBinding, invokeGoBinding } from '../wails-bindings.helpers';
 import {
   CAPTURE_TRANSACTION_SOURCE_STATE,
   DEGRADED_CAPTURE_DETAIL_RESULT,
+  DEGRADED_CAPTURE_SUMMARY,
   DEGRADED_EMPTY_CAPTURE_PAGE,
 } from './capture-transaction-source.constants';
 import type { CaptureTransactionSource } from './capture-transaction-source.types';
@@ -22,6 +33,31 @@ function toCaptureQueryWireShape(filters: Readonly<CaptureQueryFilters>) {
   return {
     Limit: filters.limit ?? 0,
     Cursor: filters.cursor ?? '',
+    Route: filters.route ?? '',
+    Outcome: filters.outcome ?? '',
+    Kind: filters.kind ?? '',
+    AnimeID: filters.animeId ?? '',
+    ErrorCode: filters.errorCode ?? '',
+    HTTPStatus: filters.httpStatus,
+    StartMS: filters.startMs,
+    EndMS: filters.endMs,
+    DeviceID: filters.deviceId ?? '',
+    ChangelogID: filters.changelogId,
+  };
+}
+
+/**
+ * Maps the app-facing summary filters into the aggregation binding's wire
+ * request. It deliberately carries NO `Limit`/`Cursor`: `contracts.
+ * CaptureSummaryQuery` has no pagination fields, because an aggregation spans
+ * the whole matched set rather than one page.
+ *
+ * The pointer-typed fields follow the same rule as the list query — forwarded
+ * as-is, never defaulted, so an absent status adds no predicate and changelog
+ * id 0 stays a real filter.
+ */
+function toCaptureSummaryWireShape(filters: Readonly<CaptureSummaryFilters>) {
+  return {
     Route: filters.route ?? '',
     Outcome: filters.outcome ?? '',
     Kind: filters.kind ?? '',
@@ -58,6 +94,13 @@ export function createCaptureTransactionSource(): CaptureTransactionSource {
         'GetCaptureTransaction',
         () => GetCaptureTransaction(requestId),
         () => DEGRADED_CAPTURE_DETAIL_RESULT,
+      );
+    },
+    summarizeTransactions(filters): Promise<CaptureSummary> {
+      return invokeGoBinding<CaptureSummary>(
+        'SummarizeCaptureTransactions',
+        () => SummarizeCaptureTransactions(toCaptureSummaryWireShape(filters)),
+        () => DEGRADED_CAPTURE_SUMMARY,
       );
     },
   };

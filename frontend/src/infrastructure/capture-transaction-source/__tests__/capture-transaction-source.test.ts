@@ -107,6 +107,50 @@ describe('capture-transaction-source', () => {
     );
   });
 
+  it('degrades summarizeTransactions to a zeroed, degraded aggregation when the bindings are absent', async () => {
+    const { createCaptureTransactionSource } = await import('../capture-transaction-source.helpers');
+    const source = createCaptureTransactionSource();
+
+    const summaryPromise = source.summarizeTransactions({});
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // Zeroed and DEGRADED, never zeroed and healthy: an unreadable reader must
+    // not render as "no request produced an error".
+    await expect(summaryPromise).resolves.toEqual({ groups: [], degraded: true });
+  });
+
+  it('calls SummarizeCaptureTransactions with the mapped wire filters and no pagination', async () => {
+    const { createCaptureTransactionSource } = await import('../capture-transaction-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');
+    const source = createCaptureTransactionSource();
+    const summarizeMock = vi.fn().mockResolvedValue({ groups: [], degraded: false });
+
+    const summaryPromise = source.summarizeTransactions({ route: '/api/animes/anime-1', deviceId: 'device-9', changelogId: 0 });
+
+    window.go = {
+      main: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: vi.fn(), SummarizeCaptureTransactions: summarizeMock } },
+    } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+    await summaryPromise;
+
+    // An aggregation has no page, so the wire shape carries no Limit/Cursor at
+    // all; ChangelogID 0 still has to survive as a real filter.
+    expect(summarizeMock).toHaveBeenCalledWith({
+      Route: '/api/animes/anime-1',
+      Outcome: '',
+      Kind: '',
+      AnimeID: '',
+      ErrorCode: '',
+      HTTPStatus: undefined,
+      StartMS: undefined,
+      EndMS: undefined,
+      DeviceID: 'device-9',
+      ChangelogID: 0,
+    });
+  });
+
   it('calls GetCaptureTransaction with the request id once bindings become ready', async () => {
     const { createCaptureTransactionSource } = await import('../capture-transaction-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');

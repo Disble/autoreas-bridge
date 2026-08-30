@@ -117,14 +117,14 @@ Pure helpers first: `network-feed.helpers.ts` has no dependency on the Go work, 
 
 ## Phase 4: Slice C — Overview (PR 5, base = PR 4 branch)
 
-- [ ] 4.1 RED: request-health aggregation — groups by (route, `http_status`, outcome), ordered count-descending, ≤5 latest error samples per group, accepting the same filters as the transaction list query, mutating nothing; an empty match is a zeroed aggregation, not an error. [REQ: Request Health Summary Surface]
-- [ ] 4.2 GREEN: add the summary contract types to `internal/api/contracts/capture.go` and the read-only binding (new `app_capture_summary.go`, naming per `app_captures.go`), never-panic contract.
-- [ ] 4.3 RED+GREEN parity test: the grouped counts are identical to `summary_requests` over the same data. [REQ: Request Health Summary Surface → "Aggregation agrees with the MCP"]
-- [ ] 4.4 MUTATE 4.1–4.3: `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ."`. **Measured: ~6s per mutant** on the root package — the grouping and sample-capping logic mutates heavily, so budget a multi-minute silent run and check `--dry` for the scope first. Regenerate the Wails bindings.
-- [ ] 4.5 RED: `ActivityOverview` consumes `SummarizeRuntimeEvents` (already bound in A1, D-2) for `ByLevel`/`ByEventType`/`Samples`; an unavailable store **reports degraded availability and is never silently zeroed**. [REQ: Runtime Event Summary Surface → "Unavailable event store is reported, not silently zeroed"]
-- [ ] 4.6 GREEN: create `features/network/ui/ActivityOverview/` (strict colocation, no barrel, readonly props, JSDoc) and mount it as a **tab inside `ActivityView.tsx`**.
-- [ ] 4.7 RED+GREEN: assert the route table and `app-layout.constants.ts` navigation entries are **unchanged** — the Overview adds no route and no nav entry (Q-5). A new route would also need a `ROUTE_MARKERS` entry. [REQ: Overview Is A Surface Inside Activity]
-- [ ] 4.8 Record the parity checklist: six of the MCP's seven tools each have a named Activity affordance, and `get_correlation_timeline` is an explicit exclusion, not a miss. No merged request+event timeline surface ships. [REQ: No Merged Request And Event Timeline]
+- [x] 4.1 RED: request-health aggregation — groups by (route, `http_status`, outcome), ordered count-descending, ≤5 latest error samples per group, accepting the same filters as the transaction list query, mutating nothing; an empty match is a zeroed aggregation, not an error. [REQ: Request Health Summary Surface]
+- [x] 4.2 GREEN: add the summary contract types to `internal/api/contracts/capture.go` and the read-only binding (new `app_capture_summary.go`, naming per `app_captures.go`), never-panic contract.
+- [x] 4.3 RED+GREEN parity test: the grouped counts are identical to `summary_requests` over the same data. [REQ: Request Health Summary Surface → "Aggregation agrees with the MCP"]
+- [x] 4.4 MUTATE 4.1–4.3: `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ."`. **Measured: ~6s per mutant** on the root package — the grouping and sample-capping logic mutates heavily, so budget a multi-minute silent run and check `--dry` for the scope first. Regenerate the Wails bindings.
+- [x] 4.5 RED: `ActivityOverview` consumes `SummarizeRuntimeEvents` (already bound in A1, D-2) for `ByLevel`/`ByEventType`/`Samples`; an unavailable store **reports degraded availability and is never silently zeroed**. [REQ: Runtime Event Summary Surface → "Unavailable event store is reported, not silently zeroed"]
+- [x] 4.6 GREEN: create `features/network/ui/ActivityOverview/` (strict colocation, no barrel, readonly props, JSDoc) and mount it as a **tab inside `ActivityView.tsx`**.
+- [x] 4.7 RED+GREEN: assert the route table and `app-layout.constants.ts` navigation entries are **unchanged** — the Overview adds no route and no nav entry (Q-5). A new route would also need a `ROUTE_MARKERS` entry. [REQ: Overview Is A Surface Inside Activity]
+- [x] 4.8 Record the parity checklist: six of the MCP's seven tools each have a named Activity affordance, and `get_correlation_timeline` is an explicit exclusion, not a miss. No merged request+event timeline surface ships. [REQ: No Merged Request And Event Timeline]
 - [ ] 4.9 `bun --cwd="frontend" run render:smoke`, `bun --cwd="frontend" run filesize:warning`, then `git commit` (≥ 300000 ms).
 
 ## Phase 5: Cross-slice verification (orchestrating agent, not a subagent)

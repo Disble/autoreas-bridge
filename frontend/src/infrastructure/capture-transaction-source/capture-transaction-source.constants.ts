@@ -31,3 +31,13 @@ export const DEGRADED_CAPTURE_DETAIL_RESULT = {
 export const CAPTURE_TRANSACTION_SOURCE_STATE: { sharedSource: CaptureTransactionSource | null } = {
   sharedSource: null,
 };
+
+/**
+ * Degraded aggregation returned when the Wails bindings are unavailable. It
+ * stays `degraded: true` so an unreadable reader is disclosed rather than
+ * presented as "no request produced an error".
+ */
+export const DEGRADED_CAPTURE_SUMMARY = {
+  groups: [],
+  degraded: true,
+} as const;

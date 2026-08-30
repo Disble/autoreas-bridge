@@ -49,6 +49,7 @@ function createFakeSource(overrides: Partial<CaptureTransactionSource> = {}): Ca
   return {
     listTransactions: vi.fn().mockResolvedValue(capturePage([])),
     getTransaction: vi.fn().mockResolvedValue({ found: true, item: detail(), degraded: false }),
+    summarizeTransactions: vi.fn().mockResolvedValue({ groups: [], degraded: false }),
     ...overrides,
   };
 }

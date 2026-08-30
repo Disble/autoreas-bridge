@@ -196,3 +196,31 @@ connection.
 Both stores are retained. `MemLogger` and `GetRecentLogs()` are unchanged; the
 Activity tab simply stopped being their consumer. The two answer different
 questions, and collapsing them would lose the live one.
+
+## Parity checklist: six of the MCP's seven read tools (SDD-65)
+
+The request-capture MCP exposes seven read tools (`internal/mcp/requestcapture/server.go:21-22`).
+After SDD-65 six of them have a named Activity affordance answering the same
+question, and the seventh is an explicit scope exclusion rather than a gap.
+
+| MCP tool | Activity affordance | Binding |
+|---|---|---|
+| `search_requests` | Activity → Transactions: the cursor-paged list with server-side route, status, outcome, kind, anime, error-code, device, changelog and time-window filters | `ListCaptureTransactions` |
+| `get_request_context` | Activity → Transactions → the selected row's detail inspector (payload, bodies, headers, correlations, device) | `GetCaptureTransaction` |
+| `resolve_request_context` | Activity → Transactions → the filter bar. It answers the same question — "find the request I half-remember" — by narrowing server-side over the whole table instead of ranking a fuzzy reference. `Reader.Resolve` itself stays MCP-package-local; only its *ranking* is unbound (proposal Q-4), and real filters are what made it redundant | (none — filters, not a binding) |
+| `summary_requests` | Activity → Overview → Request health: counts grouped by route, HTTP status and outcome, count-descending, with at most five latest error samples per group | `SummarizeCaptureTransactions` |
+| `search_events` | Activity → Runtime Events: the cursor-paged persisted feed with derived domain, level and text filters, plus the Trace tab for a correlation | `SearchRuntimeEvents` |
+| `summary_events` | Activity → Overview → Runtime events: independent counts by domain, level and event type, plus the newest samples | `SummarizeRuntimeEvents` |
+| `get_correlation_timeline` | **Deliberately excluded.** | — |
+
+`get_correlation_timeline` is out because the two stores are keyed on different
+values, not because it was overlooked: `runtime_events.correlation_id` is a
+download-run id, while `request_captures`' correlation envelope carries no
+correlation or run id at all. A merged request+event timeline would therefore
+render an empty request side by construction, so **no merged timeline surface
+ships** — the Overview states that in one line above its two cards, and
+correlation follow-through stays event-side only, in the Runtime Events Trace
+tab.
+
+Parity is therefore claimed as **six of seven**. Closing the seventh needs the
+emitters to write a shared key first, which is a separate change over real data.
