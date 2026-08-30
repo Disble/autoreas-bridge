@@ -16,6 +16,16 @@ Every time the bridge detects a change in an anime (for example `nrocapvisto`, `
 
 That row stays pending until a paired device performs reconcile and confirms it.
 
+**`changed_fields` is derived, not declared (SDD-64).** It is computed inside the
+transaction that commits the write, by comparing that operation's base and
+desired snapshots, and it travels to the recorder on the `anime.changed` event.
+No producer decides the value. That matters because the previous design asked
+each producer to name what it had changed, and none of the six ever did — every
+row recorded `[]` while real fields were being rewritten, including the write
+that wiped a schedule for six weeks. A list a caller must remember to fill will
+eventually be empty; a list computed from the two states already in hand cannot
+be. Rows written before that change carry no derived list and still read as `[]`.
+
 ### What `ListPendingAnimeSyncs` does
 
 When `GetSyncingAnimeItems()` calls `ListPendingAnimeSyncs`, the service groups pending rows by anime and sets:

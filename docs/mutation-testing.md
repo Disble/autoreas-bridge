@@ -10,19 +10,20 @@ whether they actually fail when the code changes, and this is what automates
 that judgement.
 
 The runner is [ditto](https://github.com/Disble/ditto), and it is a command:
-`ditto staged`. There is no wrapper here any more — `tools/mutationstaged` and
+`ditto staged` — **always with a `--test-command` naming the owning package**,
+for the reason in "Run it" below. There is no wrapper here any more — `tools/mutationstaged` and
 `internal/testsupport/mutation` were fourteen files that gave the runner
 conciousness of the index, and ditto has that itself since v0.4.0. It is
 deliberately **not** wired into any hook — see "Why it is not in pre-commit".
 
 ## This is the MUTATE step
 
-RED → GREEN → **MUTATE** → REFACTOR. On Go, MUTATE means running this wrapper
-over the staged change — not hand-picking a mutant or two.
+RED → GREEN → **MUTATE** → REFACTOR. On Go, MUTATE means running ditto over the
+staged change — not hand-picking a mutant or two.
 
 That is a deliberate reversal of the earlier guidance, and it was paid for. On
-2026-08-09 a change shipped with four hand-picked mutants, all of which died. The
-wrapper then found a surviving mutant on a test that asserted against the very
+2026-08-09 a change shipped with four hand-picked mutants, all of which died. A
+full run then found a surviving mutant on a test that asserted against the very
 constant it claimed to pin — a test that passed for any value of that constant.
 The hand-check had mutated the *comparison*, because that is where attention was.
 **A mutant you choose yourself covers only what you already suspected.**
@@ -86,7 +87,8 @@ To audit a file you are not committing, stage it on a scratch branch:
 ```sh
 git switch -c tmp-mutation-probe HEAD~1
 git checkout main -- path/to/package/
-ditto staged --exclude-prefix tools/ --exclude-prefix frontend/
+ditto staged --exclude-prefix frontend/ --threshold 0.80 \
+  --test-command "go test -count=1 -json ./path/to/package/"
 git switch main && git branch -D tmp-mutation-probe
 ```
 
@@ -189,8 +191,28 @@ scales with how much you changed rather than with the diff's importance.
 So it stays a step you run, not a step the gate runs for you. Stage the change,
 run it, read the survivors, then commit.
 
-An unexpected multi-minute run is a signal, not slowness: the scope fell open to
-whole-file mutation because the diff ranges did not resolve. Check `-dry`.
+**An unexpected multi-minute run is almost always an unscoped `--test-command`.**
+The default is `go test -count=1 -json ./...`, and ditto runs that command once
+per mutant, sequentially — so `./...` multiplies the whole ~45-package suite by
+your mutant count. Name the owning package first; this is the same point the
+"Name the owning package" note above makes, repeated here because this is where
+you land when a run is slow.
+
+A scope that could not be derived does also fall open to whole-file mutation, and
+`--dry` tells you which of the two you have: it prints the computed byte ranges
+instantly and pays for nothing. Check the scope AND the test command before
+concluding anything about the tool.
+
+**A healthy run and a hang are byte-identical.** Without `-verbose`, ditto prints
+nothing at all between `Releasing Ditto…` and the final report — no per-mutant
+line, no count, no progress. Silence is not evidence of a stall, and "no mutants
+appeared" is evidence of nothing. Pass `-verbose` before drawing a conclusion.
+
+On 2026-08-30 a bare `ditto staged` was killed twice at the ten-minute mark and
+escalated to the tool's maintainers as a defect. The scope was correct — `--dry`
+confirmed it — so the only cause this document offered at the time was
+eliminated, and the wrong conclusion followed. It was the default `./...`, and
+the fix was one flag. That exchange is also why the paragraph above exists.
 
 Parallelism is off and stays off: it deadlocked here, with a 30-minute run ending
 on goroutines still blocked in `testing.(*T).Parallel` after 29 minutes. ditto
