@@ -13,6 +13,7 @@ import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-es
  */
 export { isNearListBottom, nextRenderLimit as nextAnimeEditorRenderLimit } from '../../../../shared/helpers/progressive-list.helpers';
 
+/** Parses a whole-number form field, treating blank and non-integer input as absent. */
 function parseNullableInteger(value: string) {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
@@ -22,6 +23,7 @@ function parseNullableInteger(value: string) {
   return Number.isInteger(parsed) ? parsed : undefined;
 }
 
+/** Parses a decimal form field, treating blank and non-finite input as absent. */
 function parseNullableFloat(value: string) {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
@@ -31,10 +33,12 @@ function parseNullableFloat(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** Splits a comma-separated form field into trimmed, non-empty entries. */
 function parseList(value: string) {
   return value.split(',').map((part) => part.trim()).filter((part) => part.length > 0);
 }
 
+/** Builds a nullable scalar patch entry, marking it cleared when the draft is blank. */
 function nullablePatch(authority: string | number | undefined, draft: string) {
   const present = String(authority ?? '') !== draft;
   const clear = present && draft.trim().length === 0;
@@ -148,9 +152,16 @@ export function validateAnimeEditorDraft(draft: AnimeEditorDraft) {
 /**
  * Builds the cover mutation entry, distinguishing an unchanged cover from a
  * cleared one. When nothing changed it emits an inert `present: false` entry so
- * the adapter leaves the cover untouched; otherwise it forwards the draft's type
- * and path (with `clear` set when the path was emptied). Kept as a focused pure
- * helper so `createAnimeEditorSaveCommand` stays flat and low-complexity.
+ * the adapter leaves the cover untouched.
+ *
+ * Emptying the path is a removal, and the backend's `validateCoverPatch` only
+ * accepts a removal whose type, path, and raw fields are all empty -- anything
+ * else is rejected as a "malformed cleared cover patch". Forwarding the draft's
+ * type alongside `clear` is what made a cover impossible to remove once set, so
+ * the clear branch returns the canonical empty shape instead of the draft's.
+ *
+ * Kept as a focused pure helper so `createAnimeEditorSaveCommand` stays flat and
+ * low-complexity.
  */
 function createCoverPatch(record: AnimeEditorRecord, draft: AnimeEditorDraft) {
   const currentPath = record.details.cover?.path ?? '';
@@ -159,9 +170,12 @@ function createCoverPatch(record: AnimeEditorRecord, draft: AnimeEditorDraft) {
   if (!changed) {
     return { present: false, clear: false, type: '', path: '', raw: undefined };
   }
+  if (draft.coverPath.trim().length === 0) {
+    return { present: true, clear: true, type: '', path: '', raw: undefined };
+  }
   return {
     present: true,
-    clear: draft.coverPath.trim().length === 0,
+    clear: false,
     type: draft.coverType,
     path: draft.coverPath,
     raw: record.details.cover?.raw,

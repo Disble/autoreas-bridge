@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
 import { createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
+/** Authority fixture every save-command case edits a draft against. */
 const record = {
   animeId: 'anime-1',
   modifiedAt: 100,
@@ -53,8 +54,10 @@ describe('anime-editor-workspace.helpers', () => {
   });
 
   it('carries the cover source type into the save command when it changes', () => {
+    // toEqual, not toMatchObject: `clear` must stay false here. A cover patch that
+    // carries a path while claiming to be a removal is rejected by the backend.
     const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverType: 'image' });
-    expect(command.patch.cover).toMatchObject({ present: true, type: 'image' });
+    expect(command.patch.cover).toEqual({ present: true, clear: false, type: 'image', path: 'C:/cover.jpg', raw: undefined });
   });
 
   it('maps each canonical estado value to its feature-local semantic color', () => {
@@ -113,9 +116,15 @@ describe('anime-editor-workspace.helpers', () => {
     expect(command.patch.totalEpisodes).toEqual({ present: true, clear: true, value: '' });
   });
 
-  it('marks the cover as present and cleared when an existing cover path is emptied', () => {
-    const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverPath: '' });
-    expect(command.patch.cover).toMatchObject({ present: true, clear: true, path: '' });
+  it('emits the canonical cleared cover patch when an existing cover path is emptied', () => {
+    // toEqual, not toMatchObject: the backend rejects a cleared cover patch that
+    // still carries a type, a path, or raw fields ("malformed cleared cover
+    // patch"), so leaving those unasserted let a cover become unremovable.
+    // Whitespace counts as emptied, which is why the helper trims before deciding.
+    for (const coverPath of ['', '   ']) {
+      const command = createAnimeEditorSaveCommand(record, { ...createAnimeEditorDraft(record), coverPath });
+      expect(command.patch.cover).toEqual({ present: true, clear: true, type: '', path: '', raw: undefined });
+    }
   });
 
   it('returns field feedback for invalid drafts before save', () => {
