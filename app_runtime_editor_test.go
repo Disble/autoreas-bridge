@@ -316,3 +316,40 @@ func runtimeStringSlicesEqual(got, want []string) bool {
 	}
 	return true
 }
+
+// TestSaveAnimeEditorCommandDTOPreservesPlacementsKeyPresence pins the wire
+// contract that carries "did the client touch the schedule?": encoding/json leaves
+// the Placements pointer nil exactly when the key was absent, and toDomain must
+// hand that pointer through unchanged. Rebuilding the slice here instead is what
+// promoted "untouched" into "clear every scheduled day" and wiped real schedules.
+func TestSaveAnimeEditorCommandDTOPreservesPlacementsKeyPresence(t *testing.T) {
+	tests := []struct {
+		name      string
+		patchJSON string
+		wantSet   bool
+		wantDays  int
+	}{
+		{name: "key absent leaves the schedule untouched", patchJSON: `{"name":"Frieren"}`, wantSet: false, wantDays: 0},
+		{name: "empty array is a deliberate clear", patchJSON: `{"placements":[]}`, wantSet: true, wantDays: 0},
+		{name: "populated array overwrites", patchJSON: `{"placements":[{"day":"Lunes","order":2}]}`, wantSet: true, wantDays: 1},
+		{name: "explicit null leaves the schedule untouched", patchJSON: `{"placements":null}`, wantSet: false, wantDays: 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var dto SaveAnimeEditorCommandDTO
+			if err := json.Unmarshal([]byte(`{"animeId":"a","baseModifiedAt":1,"patch":`+test.patchJSON+`}`), &dto); err != nil {
+				t.Fatalf("decode command: %v", err)
+			}
+			command, err := dto.toDomain()
+			if err != nil {
+				t.Fatalf("to domain: %v", err)
+			}
+			if (command.Patch.Placements != nil) != test.wantSet {
+				t.Fatalf("placements set: got %v want %v", command.Patch.Placements != nil, test.wantSet)
+			}
+			if test.wantSet && len(*command.Patch.Placements) != test.wantDays {
+				t.Fatalf("days: got %d want %d", len(*command.Patch.Placements), test.wantDays)
+			}
+		})
+	}
+}

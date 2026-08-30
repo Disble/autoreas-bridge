@@ -58,7 +58,7 @@ type AnimeEditorPatchDTO struct {
 	Duration      AnimeEditorNullableIntPatchDTO    `json:"duration"`
 	Kind          AnimeEditorNullableIntPatchDTO    `json:"kind"`
 	PremieredAt   AnimeEditorNullableTimePatchDTO   `json:"premieredAt"`
-	Placements    []contracts.MobileAnimeDay        `json:"placements,omitempty"`
+	Placements    *[]contracts.MobileAnimeDay       `json:"placements,omitempty"`
 	Genres        *[]string                         `json:"genres,omitempty"`
 	Studios       AnimeEditorStudiosPatchDTO        `json:"studios"`
 	Cover         AnimeEditorCoverPatchDTO          `json:"cover"`
@@ -128,10 +128,6 @@ func (d AnimeEditorPatchDTO) toDomain() (anime.EditorPatch, error) {
 	if d.Cover.Raw == nil {
 		coverRaw = nil
 	}
-	var placements []contracts.MobileAnimeDay
-	if d.Placements != nil {
-		placements = append([]contracts.MobileAnimeDay{}, d.Placements...)
-	}
 	var studios []string
 	if d.Studios.Values != nil {
 		studios = append([]string{}, d.Studios.Values...)
@@ -141,7 +137,7 @@ func (d AnimeEditorPatchDTO) toDomain() (anime.EditorPatch, error) {
 		TotalEpisodes: d.TotalEpisodes.toDomain(), Kind: d.Kind.toDomain(),
 		Page: d.Page.toDomain(), Folder: d.Folder.toDomain(), Origin: d.Origin.toDomain(),
 		Duration: d.Duration.toDomain(), PremieredAt: d.PremieredAt.toDomain(),
-		Placements: placements, Genres: d.Genres,
+		Placements: d.Placements, Genres: d.Genres,
 		Studios: anime.EditorStudiosPatch{Present: d.Studios.Present, Clear: d.Studios.Clear, Values: studios},
 		Cover:   anime.EditorCoverPatch{Present: d.Cover.Present, Clear: d.Cover.Clear, Type: d.Cover.Type, Path: d.Cover.Path, Raw: coverRaw},
 		Active:  d.Active, ForbiddenFields: append([]string{}, d.forbiddenFields...),

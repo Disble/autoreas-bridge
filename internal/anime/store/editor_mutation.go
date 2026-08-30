@@ -58,7 +58,7 @@ type EditorMutation struct {
 	Duration      NullableIntMutation
 	PremieredAt   NullableTimeMutation
 	Genres        *[]string
-	Placements    []contracts.MobileAnimeDay
+	Placements    *[]contracts.MobileAnimeDay
 	Active        *bool
 	Cover         CoverMutation
 	Studios       StudiosMutation
@@ -110,7 +110,7 @@ func applyEditorLifecycleMutations(raw *AnimeRaw, patch EditorMutation, now time
 // applyEditorCollectionMutations applies collection and structured metadata changes.
 func applyEditorCollectionMutations(raw *AnimeRaw, patch EditorMutation) {
 	if patch.Placements != nil {
-		raw.SetDays(toRawDays(patch.Placements))
+		raw.SetDays(toRawDays(*patch.Placements))
 	}
 	if patch.Genres != nil {
 		raw.SetStringArrayField("genres", append([]string{}, (*patch.Genres)...))

@@ -36,7 +36,7 @@ func TestEditorServiceSaveAppliesTypedNullableAndStructuredPatchMatrix(t *testin
 			Cover: anime.EditorCoverPatch{Present: true, Type: "file", Path: "new.jpg", Raw: map[string]json.RawMessage{
 				"future": json.RawMessage(`{"edited":true}`),
 			}},
-			Placements: []contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}},
+			Placements: &[]contracts.MobileAnimeDay{{Day: "Viernes", Order: 1}},
 		},
 	})
 	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
@@ -70,6 +70,9 @@ func TestEditorServiceSaveRejectsMalformedPatchShapesAndInvalidValuesBeforeWrite
 		{name: "clear with value", patch: anime.EditorPatch{TotalEpisodes: anime.EditorNullableIntPatch{Present: true, Clear: true, Value: 12}}},
 		{name: "omitted with value", patch: anime.EditorPatch{Page: anime.EditorNullableStringPatch{Value: "https://example.test"}}},
 		{name: "forbidden ownership", patch: anime.EditorPatch{ForbiddenFields: []string{"modified_at"}}},
+		{name: "invalid schedule destination", patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{{Day: "Unsafe", Order: 1}}}},
+		{name: "non positive schedule order", patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{{Day: "Lunes", Order: 0}}}},
+		{name: "duplicate schedule placement", patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{{Day: "Lunes", Order: 1}, {Day: "Lunes", Order: 1}}}},
 	}
 	writer := &stubAnimeWriter{}
 	service := anime.NewEditorService(store, writer)
@@ -336,4 +339,62 @@ func TestEditorServiceDeactivateWritesActivoFalseWithoutDeletingRecord(t *testin
 	if _, ok := fields["$$deleted"]; ok {
 		t.Fatalf("deactivate must not tombstone the record: %s", fields["$$deleted"])
 	}
+}
+
+// TestEditorServiceSaveWithoutPlacementsPreservesScheduleDays pins the meaning of a
+// nil EditorPatch.Placements pointer: "the editor did not touch the schedule", which
+// must leave the stored days untouched. Only a non-nil pointer instructs an
+// overwrite. A cover-only save wiping the schedule is the exact data loss this
+// guards, and the pointer is what keeps an intermediate copy from erasing the
+// distinction.
+func TestEditorServiceSaveWithoutPlacementsPreservesScheduleDays(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"days":[{"day":"Lunes","order":2},{"day":"Martes","order":1}],"cover":{"type":"url","path":""}}`, 1000)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewEditorService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
+	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{
+		AnimeID: "anime-editor", BaseModifiedAt: 1000,
+		Patch: anime.EditorPatch{
+			Cover: anime.EditorCoverPatch{Present: true, Type: "image", Path: "C:/covers/frieren.jpg"},
+		},
+	})
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
+		t.Fatalf("save cover-only patch: result=%+v err=%v", result, err)
+	}
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	assertJSONFieldsEqual(t, decodeJSONFields(t, snapshot.CanonicalJSON), map[string]string{
+		"days":  `[{"day":"Lunes","order":2},{"day":"Martes","order":1}]`,
+		"cover": `{"type":"image","path":"C:/covers/frieren.jpg"}`,
+	})
+}
+
+// TestEditorServiceSaveWithEmptyPlacementsClearsScheduleDays pins the other half of
+// the same distinction: a non-nil pointer to an empty slice really does clear the
+// schedule.
+func TestEditorServiceSaveWithEmptyPlacementsClearsScheduleDays(t *testing.T) {
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(t, store, "anime-editor", `{"id":"anime-editor","name":"Frieren","episodesWatched":2,"status":0,"active":true,"days":[{"day":"Lunes","order":2}]}`, 1000)
+
+	writer := &stubAnimeWriter{}
+	service := anime.NewEditorService(store, writer)
+	service.SetNow(func() time.Time { return time.UnixMilli(2000).UTC() })
+	result, err := service.Save(ctx, anime.SaveAnimeEditorCommand{
+		AnimeID: "anime-editor", BaseModifiedAt: 1000,
+		Patch: anime.EditorPatch{Placements: &[]contracts.MobileAnimeDay{}},
+	})
+	if err != nil || result.Outcome != anime.PatchOutcomeApplied {
+		t.Fatalf("save empty-placements patch: result=%+v err=%v", result, err)
+	}
+	snapshot, err := store.GetSnapshot(ctx, "anime-editor")
+	if err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	assertJSONFieldsEqual(t, decodeJSONFields(t, snapshot.CanonicalJSON), map[string]string{"days": `[]`})
 }

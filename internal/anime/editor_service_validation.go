@@ -143,9 +143,12 @@ func validateCurrentOptionalNumber(name string, value *float64, allowZero bool) 
 }
 
 // validateEditorPlacements validates the schedule placements in an editor patch.
-func validateEditorPlacements(placements []contracts.MobileAnimeDay) error {
+func validateEditorPlacements(placements *[]contracts.MobileAnimeDay) error {
+	if placements == nil {
+		return nil
+	}
 	seen := map[string]struct{}{}
-	for _, placement := range placements {
+	for _, placement := range *placements {
 		if _, allowed := allowedScheduleDestinations[placement.Day]; !allowed || placement.Order <= 0 {
 			return fmt.Errorf("editor save: invalid schedule placement %q at %d", placement.Day, placement.Order)
 		}
