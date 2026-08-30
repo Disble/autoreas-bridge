@@ -15,7 +15,35 @@ export const NETWORK_LEVEL_FILTER_OPTIONS: readonly NetworkLevelFilterOption[] =
   { value: 'debug', label: 'Debug' },
 ];
 
-/** Domain-filter pill options shown in `NetworkFilterBar`, mirroring the bridge's known runtime domains. */
+/** Domain-filter value that selects every domain. */
+export const NETWORK_ALL_DOMAINS_VALUE = 'all';
+
+/** The always-present all-domains option, prepended to every derived option list. */
+export const NETWORK_ALL_DOMAINS_OPTION: NetworkDomainFilterOption = { value: NETWORK_ALL_DOMAINS_VALUE, label: 'All' };
+
+/**
+ * Rows rendered before the first scroll. The rail grows from here by
+ * the page batch and never unmounts a rendered row (ADR-012, live branch).
+ *
+ * 20 matches every other rail in the app (`RUN_HISTORY_PAGE_SIZE`,
+ * `PROGRESSIVE_LIST_INITIAL_COUNT`). It is a UX choice, not a derived value:
+ * an earlier draft used 10 only because a guard test asserted a window of 11
+ * from a `currentVisibleCount` of 10, which the initial-batch floor makes
+ * unreachable. The test now starts from a reachable window instead.
+ */
+export const EVENT_PAGE_INITIAL_COUNT = 20;
+
+
+/**
+ * Domain-filter pill options shown in `NetworkFilterBar`.
+ *
+ * @deprecated Superseded by `toDomainFilterOptions` in `network-feed.helpers.ts`,
+ * which derives the options from the unfiltered summary aggregate. This
+ * hardcoded list names 6 of the 9 domains the store actually holds — a
+ * constant is what made `download` (10.2% of all events) unfilterable. It is
+ * deleted together with its only consumer, `NetworkFilterBar.tsx`, when the
+ * rail reads the derived options.
+ */
 export const NETWORK_DOMAIN_FILTER_OPTIONS: readonly NetworkDomainFilterOption[] = [
   { value: 'all', label: 'All' },
   { value: 'system', label: 'System' },

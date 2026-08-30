@@ -2,7 +2,12 @@ import { createStore } from 'zustand/vanilla';
 import { observabilityLogSource } from '../../../infrastructure/observability-log-source/observability-log-source.helpers';
 import type { ObservabilityLogSource } from '../../../infrastructure/observability-log-source/observability-log-source.types';
 import type { ObservabilityLogEntry } from '../../contracts/observability.types';
-import { MAX_LOG_ENTRIES, NETWORK_STORE_INTERNAL_STATE } from './network-store.constants';
+import {
+  INITIAL_EVENT_FEED_STATE,
+  MAX_LOG_ENTRIES,
+  NETWORK_STORE_INTERNAL_STATE,
+} from './network-store.constants';
+import { fingerprintLogEntry, mergeEventPage } from './network-store.feed.helpers';
 import type {
   EntryWithId,
   MutableRowAccumulator,
@@ -10,10 +15,12 @@ import type {
   NetworkRequestRow,
   NetworkStatusFilter,
   NetworkStoreState,
+  RuntimeEventRow,
 } from './network-store.types';
 
 /** Vanilla backing store for the shared Network read-model. */
-export const networkStore = createStore<NetworkStoreState>()((set) => ({
+export const networkStore = createStore<NetworkStoreState>()((set) => ({ // eslint-disable-line dharness/role-file-shape -- the store singleton belongs beside its reducers; moving it to a sibling would invert the import between this file and the constants it reads
+  ...INITIAL_EVENT_FEED_STATE,
   buffer: [],
   selectedId: null,
   query: '',
@@ -30,7 +37,27 @@ export const networkStore = createStore<NetworkStoreState>()((set) => ({
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   setLevelFilter: (levelFilter) => set({ levelFilter }),
   setDomainFilter: (domainFilter) => set({ domainFilter }),
+  setPage: (items, nextCursor, mode) =>
+    set((state) => ({
+      page: mergeEventPage(state.page, items, mode),
+      nextCursor,
+      ...(mode === 'append' ? {} : { overlay: [], head: headOf(items) }),
+    })),
+  prependOverlay: (row) => set((state) => ({ overlay: [row, ...state.overlay] })),
+  setLoadingMore: (isLoadingMore) => set({ isLoadingMore }),
+  setAvailable: (available) => set({ available }),
+  setDomainOptions: (domainOptions) => set({ domainOptions }),
 }));
+
+/**
+ * Reads the admission boundary off a freshly replaced page: the newest
+ * persisted row's timestamp, or null when the page is empty. Only a replace
+ * re-anchors it — an appended page is strictly older, so moving the head there
+ * would invalidate the outstanding cursor the overlay depends on (design D-3).
+ */
+function headOf(items: readonly RuntimeEventRow[]): number | null {
+  return items.length === 0 ? null : items[0].occurredAtMs;
+}
 
 /** Reads the current Network store snapshot outside React render. */
 export function getNetworkStoreState(): NetworkStoreState {
@@ -72,22 +99,26 @@ function perEntryRowId(entry: ObservabilityLogEntry): string {
   return id;
 }
 
+/** Returns the key entries fold under: the correlation id, or a stable per-entry identity. */
 function rowGroupKey(entry: ObservabilityLogEntry): string {
   return entry.correlationId !== undefined && entry.correlationId !== '' ? entry.correlationId : perEntryRowId(entry);
 }
 
+/** Reads one metadata field as a string, or undefined when it is absent or another type. */
 function readMetadataString(metadata: Readonly<Record<string, unknown>> | undefined, key: string): string | undefined {
   const value = metadata?.[key];
 
   return typeof value === 'string' ? value : undefined;
 }
 
+/** Reads one metadata field as a number, or undefined when it is absent or another type. */
 function readMetadataNumber(metadata: Readonly<Record<string, unknown>> | undefined, key: string): number | undefined {
   const value = metadata?.[key];
 
   return typeof value === 'number' ? value : undefined;
 }
 
+/** Folds one further entry into an in-progress request row, last write winning per field. */
 function applyEntryToAccumulator(accumulator: MutableRowAccumulator, entry: ObservabilityLogEntry): void {
   accumulator.method = readMetadataString(entry.metadata, 'method') ?? accumulator.method;
   accumulator.path = readMetadataString(entry.metadata, 'path') ?? accumulator.path;
@@ -145,6 +176,7 @@ export function foldByCorrelationId(buffer: readonly ObservabilityLogEntry[]): r
   });
 }
 
+/** Reports whether a folded row matches the free-text query over its method and path. */
 function matchesQuery(row: NetworkRequestRow, query: string): boolean {
   if (query === '') {
     return true;
@@ -155,6 +187,7 @@ function matchesQuery(row: NetworkRequestRow, query: string): boolean {
   return row.method.toLowerCase().includes(normalizedQuery) || row.path.toLowerCase().includes(normalizedQuery);
 }
 
+/** Reports whether a folded row's status falls in the selected status bucket. */
 function matchesStatusFilter(row: NetworkRequestRow, statusFilter: NetworkStatusFilter): boolean {
   if (statusFilter === 'all') {
     return true;
@@ -183,6 +216,7 @@ export function selectFilteredRows(
   return foldByCorrelationId(buffer).filter((row) => matchesQuery(row, query) && matchesStatusFilter(row, statusFilter));
 }
 
+/** Reports whether a raw entry matches the free-text query over message, domain, event type, and path. */
 function matchesEntryQuery(entry: ObservabilityLogEntry, query: string): boolean {
   if (query === '') {
     return true;
@@ -199,6 +233,7 @@ function matchesEntryQuery(entry: ObservabilityLogEntry, query: string): boolean
   );
 }
 
+/** Reports whether a raw entry's level matches the selected level filter, defaulting to info. */
 function matchesEntryLevelFilter(entry: ObservabilityLogEntry, levelFilter: NetworkLevelFilter): boolean {
   if (levelFilter === 'all') {
     return true;
@@ -209,6 +244,7 @@ function matchesEntryLevelFilter(entry: ObservabilityLogEntry, levelFilter: Netw
   return level === levelFilter;
 }
 
+/** Reports whether a raw entry's domain matches the selected domain filter. */
 function matchesEntryDomainFilter(entry: ObservabilityLogEntry, domainFilter: string): boolean {
   if (domainFilter === 'all') {
     return true;
@@ -280,27 +316,7 @@ export function connectNetworkStore(source: ObservabilityLogSource = observabili
   const replayFingerprintCounts = new Map<string, number>();
   let active = true;
   let replayResolved = false;
-  const canonicalize = (value: unknown): string => {
-    if (value === undefined) {
-      return 'undefined';
-    }
-
-    if (value === null || typeof value !== 'object') {
-      return JSON.stringify(value);
-    }
-
-    if (Array.isArray(value)) {
-      return `[${value.map(canonicalize).join(',')}]`;
-    }
-
-    const record = value as Readonly<Record<string, unknown>>;
-
-    return `{${Object.keys(record)
-      .sort((left, right) => left.localeCompare(right))
-      .map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`)
-      .join(',')}}`;
-  };
-  const fingerprint = (entry: ObservabilityLogEntry): string => canonicalize(entry);
+  const fingerprint = fingerprintLogEntry;
   const consumeReplayMatch = (entry: ObservabilityLogEntry): boolean => {
     const key = fingerprint(entry);
     const remaining = replayFingerprintCounts.get(key) ?? 0;
@@ -376,6 +392,7 @@ export function resetNetworkStore(): void {
   }
 
   setNetworkStoreState({
+    ...INITIAL_EVENT_FEED_STATE,
     buffer: [],
     selectedId: null,
     query: '',

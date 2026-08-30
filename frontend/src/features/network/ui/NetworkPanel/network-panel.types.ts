@@ -1,9 +1,48 @@
 import type { RefObject } from 'react';
 import type { ObservabilityLogSource } from '../../../../infrastructure/observability-log-source/observability-log-source.types';
 import type { ObservabilityLogEntry } from '../../../../shared/contracts/observability.types';
-import type { EntryWithId, NetworkLevelFilter } from '../../../../shared/store/network-store/network-store.types';
+import type {
+  EntryWithId,
+  NetworkDomainOption,
+  NetworkLevelFilter,
+  RuntimeEventRow,
+} from '../../../../shared/store/network-store/network-store.types';
 
-export type { EntryWithId, NetworkLevelFilter };
+export type { EntryWithId, NetworkLevelFilter, RuntimeEventRow };
+
+/** The filter set the feed applies to both the persisted page and the live overlay. */
+export interface EventFeedFilters {
+  readonly query: string;
+  readonly level: NetworkLevelFilter;
+  readonly domain: string;
+}
+
+/**
+ * Inputs for one live-feed window reconciliation pass.
+ *
+ * `prependedCount` is what separates this rail from every static one: rows
+ * enter at the HEAD, so each admitted push shifts every rendered row down one
+ * index. Holding the count constant would silently drop the bottom visible row
+ * on every single event (design §4.1).
+ */
+export interface EventWindowInput {
+  readonly currentVisibleCount: number;
+  readonly previousTotal: number;
+  readonly nextRows: readonly RuntimeEventRow[];
+  readonly selectedId: string | null;
+  /** Rows admitted at the head since the last pass; 0 for a tail append. */
+  readonly prependedCount: number;
+}
+
+/** Inputs for one overlay admission decision against the persisted page's head. */
+export interface OverlayAdmissionInput {
+  readonly entry: RuntimeEventRow;
+  /** `occurredAtMs` of the newest persisted row, or null before a first page loads. */
+  readonly head: number | null;
+  /** The persisted rows sharing the head millisecond, for fingerprint reconciliation. */
+  readonly headRows: readonly RuntimeEventRow[];
+  readonly filters: EventFeedFilters;
+}
 
 /** Active tab in the DevTools-style detail inspector. */
 export type NetworkDetailTab = 'general' | 'metadata' | 'trace';
@@ -84,8 +123,9 @@ export interface NetworkLevelFilterOption {
   readonly label: string;
 }
 
-/** A domain-filter pill option (`network-panel.constants.ts`). */
-export interface NetworkDomainFilterOption {
-  readonly value: string;
-  readonly label: string;
-}
+/**
+ * A domain-filter pill option. Derived, never enumerated: the options come
+ * from the unfiltered summary aggregate through `toDomainFilterOptions`, so a
+ * domain present in the store is always offerable (design D-5).
+ */
+export type NetworkDomainFilterOption = NetworkDomainOption;
