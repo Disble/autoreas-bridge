@@ -74,7 +74,37 @@ describe('capture-transaction-source', () => {
       HTTPStatus: undefined,
       StartMS: undefined,
       EndMS: undefined,
+      DeviceID: '',
+      ChangelogID: undefined,
     });
+  });
+
+  it('carries the device and changelog filters to the binding, and leaves the pointer fields undefined when unset', async () => {
+    const { createCaptureTransactionSource } = await import('../capture-transaction-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../../wails-bindings.helpers');
+    const source = createCaptureTransactionSource();
+    const listMock = vi.fn().mockResolvedValue({
+      items: [],
+      appliedLimit: 25,
+      malformedRowsSkipped: 0,
+      warningCount: 0,
+      degraded: false,
+    });
+
+    const pagePromise = source.listTransactions({ deviceId: 'device-9', changelogId: 0, httpStatus: 404 });
+
+    window.go = { main: { App: { ListCaptureTransactions: listMock, GetCaptureTransaction: vi.fn() } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+    await pagePromise;
+
+    // ChangelogID 0 must survive: Go reads a missing value as a nil pointer and
+    // adds no predicate, so coercing 0 away would silently drop a real filter --
+    // and coercing an absent HTTPStatus to 0 would add `http_status = 0` and
+    // return nothing at all.
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ DeviceID: 'device-9', ChangelogID: 0, HTTPStatus: 404, StartMS: undefined }),
+    );
   });
 
   it('calls GetCaptureTransaction with the request id once bindings become ready', async () => {

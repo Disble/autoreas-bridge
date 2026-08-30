@@ -4,6 +4,7 @@ import { TRANSACTION_EMPTY_STATE_MESSAGE, TRANSACTION_LOADING_STATE_MESSAGE } fr
 import type { TransactionRowViewModel } from '../../TransactionPanel/transaction-panel.types';
 import { TransactionTable } from '../TransactionTable';
 
+/** Builds one presentation-ready transaction row, overridable field by field per test. */
 function row(overrides: Partial<TransactionRowViewModel> = {}): TransactionRowViewModel {
   return {
     id: 'req-1',
@@ -27,19 +28,19 @@ describe('TransactionTable', () => {
   });
 
   it('shows the loading message while isLoading is true', () => {
-    render(<TransactionTable isLoading onSelect={vi.fn()} rows={[]} selectedId={null} />);
+    render(<TransactionTable hasNextPage={false} onLoadMore={vi.fn()} isLoading onSelect={vi.fn()} rows={[]} selectedId={null} />);
 
     expect(screen.getByText(TRANSACTION_LOADING_STATE_MESSAGE)).toBeInTheDocument();
   });
 
   it('shows the empty-state message when not loading and there are no rows', () => {
-    render(<TransactionTable isLoading={false} onSelect={vi.fn()} rows={[]} selectedId={null} />);
+    render(<TransactionTable hasNextPage={false} onLoadMore={vi.fn()} isLoading={false} onSelect={vi.fn()} rows={[]} selectedId={null} />);
 
     expect(screen.getByText(TRANSACTION_EMPTY_STATE_MESSAGE)).toBeInTheDocument();
   });
 
   it('renders a real status and duration per row (no fabricated "–")', () => {
-    render(<TransactionTable isLoading={false} onSelect={vi.fn()} rows={[row()]} selectedId={null} />);
+    render(<TransactionTable hasNextPage={false} onLoadMore={vi.fn()} isLoading={false} onSelect={vi.fn()} rows={[row()]} selectedId={null} />);
 
     expect(screen.getByText('/api/animes/anime-1')).toBeInTheDocument();
     expect(screen.getByText('200')).toBeInTheDocument();
@@ -48,7 +49,7 @@ describe('TransactionTable', () => {
 
   it('calls onSelect with the row id when a row is clicked', () => {
     const onSelect = vi.fn();
-    render(<TransactionTable isLoading={false} onSelect={onSelect} rows={[row()]} selectedId={null} />);
+    render(<TransactionTable hasNextPage={false} onLoadMore={vi.fn()} isLoading={false} onSelect={onSelect} rows={[row()]} selectedId={null} />);
 
     screen.getByText('/api/animes/anime-1').closest('tr')?.click();
 
@@ -58,7 +59,9 @@ describe('TransactionTable', () => {
   it('renders a rejected outcome pill distinguishable from an accepted one', () => {
     render(
       <TransactionTable
+        hasNextPage={false}
         isLoading={false}
+        onLoadMore={vi.fn()}
         onSelect={vi.fn()}
         rows={[row({ id: 'req-1', outcome: 'accepted', outcomeColor: 'success' }), row({ id: 'req-2', outcome: 'rejected', outcomeColor: 'danger' })]}
         selectedId={null}
@@ -75,7 +78,9 @@ describe('TransactionTable', () => {
   it('renders no status chip and the neutral absence marker for a statusless row, and never fabricates 0 or 200', () => {
     render(
       <TransactionTable
+        hasNextPage={false}
         isLoading={false}
+        onLoadMore={vi.fn()}
         onSelect={vi.fn()}
         rows={[row({ id: 'req-live', outcome: 'pending', outcomeColor: 'accent', hasHttpStatus: false, statusLabel: '–' })]}
         selectedId={null}

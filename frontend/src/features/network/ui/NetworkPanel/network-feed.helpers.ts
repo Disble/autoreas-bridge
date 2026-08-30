@@ -1,10 +1,6 @@
 import type { RuntimeEventCountGroup, RuntimeEventFilters } from '../../../../shared/contracts/runtime-event.types';
 import { fingerprintEventRow } from '../../../../shared/store/network-store/network-store.feed.helpers';
-import {
-  EVENT_PAGE_INITIAL_COUNT,
-  NETWORK_ALL_DOMAINS_OPTION,
-  NETWORK_ALL_DOMAINS_VALUE,
-} from './network-panel.constants';
+import { NETWORK_ALL_DOMAINS_OPTION, NETWORK_ALL_DOMAINS_VALUE } from './network-panel.constants';
 import type {
   EventFeedFilters,
   EventWindowInput,
@@ -23,19 +19,22 @@ import type {
  * a constant count would silently drop the bottom visible row on every single
  * event, which is exactly the rows a scrolling user is reading (design §4.1).
  *
+ * The batch floor arrives as `initialCount` rather than a module constant, so
+ * the Transactions rail can drive the same rules with its own page size.
+ *
  * The rules run in order: an empty feed falls back to the initial batch; the
  * window follows head insertions but never drops below the initial batch; a
  * fully revealed feed stays fully revealed; the selected row stays rendered;
  * and the result never exceeds the feed.
  */
 export function reconcileVisibleEventCount(input: Readonly<EventWindowInput>): number {
-  const { currentVisibleCount, previousTotal, nextRows, selectedId, prependedCount } = input;
+  const { currentVisibleCount, previousTotal, nextRows, selectedId, prependedCount, initialCount } = input;
 
   if (nextRows.length === 0) {
-    return EVENT_PAGE_INITIAL_COUNT;
+    return initialCount;
   }
 
-  let visibleCount = Math.max(EVENT_PAGE_INITIAL_COUNT, Math.min(currentVisibleCount + prependedCount, nextRows.length));
+  let visibleCount = Math.max(initialCount, Math.min(currentVisibleCount + prependedCount, nextRows.length));
 
   if (previousTotal > 0 && currentVisibleCount >= previousTotal) {
     visibleCount = nextRows.length;

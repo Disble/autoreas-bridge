@@ -5,6 +5,7 @@ import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/
 import { resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { TransactionPanel } from '../TransactionPanel';
 
+/** Builds one capture row, overridable field by field per test. */
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   return {
     requestId: 'req-1',
@@ -19,6 +20,7 @@ function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   };
 }
 
+/** Builds one capture-detail envelope on top of the base row. */
 function detail(overrides: Partial<CaptureDetail> = {}): CaptureDetail {
   return {
     ...row(),
@@ -30,6 +32,7 @@ function detail(overrides: Partial<CaptureDetail> = {}): CaptureDetail {
   };
 }
 
+/** Builds a fake transaction source resolving an empty page, overridable per test. */
 function createFakeSource(overrides: Partial<CaptureTransactionSource> = {}): CaptureTransactionSource {
   return {
     listTransactions: vi.fn().mockResolvedValue({

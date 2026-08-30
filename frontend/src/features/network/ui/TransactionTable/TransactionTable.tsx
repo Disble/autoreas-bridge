@@ -3,17 +3,31 @@ import {
   TRANSACTION_EMPTY_LABEL,
   TRANSACTION_EMPTY_STATE_MESSAGE,
   TRANSACTION_LOADING_STATE_MESSAGE,
+  TRANSACTION_TABLE_LOAD_MORE_LABEL,
 } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionTableProps } from '../TransactionPanel/transaction-panel.types';
 
 /**
- * Dumb dense data grid rendering the filtered transaction rows on HeroUI
- * Table (React Aria), DevTools-Network density. Selection is driven
- * entirely by props.
+ * Dumb dense data grid rendering the windowed transaction rows on HeroUI Table
+ * (React Aria), DevTools-Network density. Selection and the load-more trigger
+ * are driven entirely by props; rows accumulate and are never unmounted
+ * (ADR-012, live branch).
+ *
+ * `Table.LoadMore` is React Aria's own near-bottom sentinel: it observes its
+ * own intersection and raises `onLoadMore`, which reveals the next batch of
+ * loaded rows or fetches the next cursor page. It is NOT a `Virtualizer` and
+ * mounts no `ListLayout`.
  */
-export function TransactionTable({ rows, selectedId, onSelect, isLoading }: Readonly<TransactionTableProps>) {
+export function TransactionTable({
+  rows,
+  selectedId,
+  onSelect,
+  isLoading,
+  hasNextPage,
+  onLoadMore,
+}: Readonly<TransactionTableProps>) {
   return (
-    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]">
+    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]" data-transaction-scroll>
       <Table aria-label="Captured transactions" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
@@ -79,6 +93,11 @@ export function TransactionTable({ rows, selectedId, onSelect, isLoading }: Read
                   </Table.Cell>
                 </Table.Row>
               ))}
+              {hasNextPage ? (
+                <Table.LoadMore isLoading={isLoading} onLoadMore={onLoadMore}>
+                  <Table.LoadMoreContent>{TRANSACTION_TABLE_LOAD_MORE_LABEL}</Table.LoadMoreContent>
+                </Table.LoadMore>
+              ) : null}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>

@@ -82,6 +82,41 @@ export function getTransactionOutcomeColor(outcome: string): HeroChipColor {
   }
 }
 
+/**
+ * Parses the status filter input into the exact HTTP status the backend
+ * evaluates, or `null` when nothing usable was typed.
+ *
+ * Non-digits are stripped rather than rejected, so the displayed value always
+ * mirrors what was accepted and no keystroke is silently swallowed. `null` is
+ * the load-bearing case: it sends NO status predicate at all, which is what
+ * keeps the 40.8% of captures carrying a NULL `http_status` (every websocket
+ * transaction) visible while no status is chosen.
+ */
+export function toStatusFilter(status: string): number | null {
+  const digits = status.replace(/\D/gu, '');
+
+  return digits === '' ? null : Number.parseInt(digits, 10);
+}
+
+/**
+ * Renders the active exact-status filter back into the text the input shows.
+ * The inverse of {@link toStatusFilter}: an unset filter shows an empty box
+ * rather than a fabricated 0.
+ */
+export function toStatusFilterInput(httpStatus: number | null): string {
+  return httpStatus === null ? '' : String(httpStatus);
+}
+
+/**
+ * Reports whether the rail still has something to offer: rows loaded but not
+ * yet revealed, or a continuation cursor the backend returned. Both must be
+ * exhausted before the load-more affordance disappears -- dropping it while
+ * loaded rows are still hidden would strand them off screen for good.
+ */
+export function hasMoreTransactions(nextCursor: string | null, visibleCount: number, loadedCount: number): boolean {
+  return nextCursor !== null || visibleCount < loadedCount;
+}
+
 /** Formats the STATUS column, or the Null Object em-dash when absent. */
 function formatTransactionStatusLabel(httpStatus: number | undefined): string {
   return httpStatus === undefined ? TRANSACTION_EMPTY_LABEL : String(httpStatus);

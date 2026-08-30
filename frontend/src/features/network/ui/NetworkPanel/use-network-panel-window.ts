@@ -92,6 +92,7 @@ export function useNetworkPanelWindow(input: Readonly<NetworkPanelWindowInput>) 
         nextRows: rows,
         selectedId,
         prependedCount,
+        initialCount: EVENT_PAGE_INITIAL_COUNT,
       }),
     );
   }, [feed.overlay.length, rows, selectedId]);

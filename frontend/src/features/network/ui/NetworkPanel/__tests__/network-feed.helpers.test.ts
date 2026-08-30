@@ -45,6 +45,7 @@ describe('reconcileVisibleEventCount — rule 1: an empty feed falls back to the
       nextRows: [],
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(20);
@@ -59,6 +60,7 @@ describe('reconcileVisibleEventCount — rule 2: the window follows head inserti
       nextRows: rows(51),
       selectedId: null,
       prependedCount: 1,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(21);
@@ -71,6 +73,7 @@ describe('reconcileVisibleEventCount — rule 2: the window follows head inserti
       nextRows: rows(100),
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(20);
@@ -83,6 +86,7 @@ describe('reconcileVisibleEventCount — rule 2: the window follows head inserti
       nextRows: rows(40),
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(20);
@@ -97,6 +101,7 @@ describe('reconcileVisibleEventCount — rule 3: a fully revealed feed stays ful
       nextRows: rows(25),
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(25);
@@ -109,6 +114,7 @@ describe('reconcileVisibleEventCount — rule 3: a fully revealed feed stays ful
       nextRows: rows(40),
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(20);
@@ -123,6 +129,7 @@ describe('reconcileVisibleEventCount — rule 4: the selected row stays rendered
       nextRows: rows(50),
       selectedId: 'event-29',
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(30);
@@ -135,6 +142,7 @@ describe('reconcileVisibleEventCount — rule 4: the selected row stays rendered
       nextRows: rows(50),
       selectedId: 'event-does-not-exist',
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(20);
@@ -149,6 +157,7 @@ describe('reconcileVisibleEventCount — rule 5: the window never exceeds the fe
       nextRows: rows(3),
       selectedId: null,
       prependedCount: 0,
+      initialCount: 20,
     });
 
     expect(visibleCount).toBe(3);

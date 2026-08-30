@@ -1,12 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { CaptureQueryFilters, CaptureRow } from '../../contracts/capture.types';
 import { DEFAULT_TRANSACTION_FILTERS, TRANSACTION_STALE_PENDING_THRESHOLD_MS } from './transaction-store.constants';
-import type {
-  TransactionPageMode,
-  TransactionStatusClassFilter,
-  TransactionStoreFilters,
-  TransactionStoreState,
-} from './transaction-store.types';
+import type { TransactionPageMode, TransactionStoreFilters, TransactionStoreState } from './transaction-store.types';
 
 /**
  * Merges a freshly-fetched page of rows into the existing buffer: `replace`
@@ -20,44 +15,6 @@ export function mergeTransactionPage(
   mode: TransactionPageMode,
 ): readonly CaptureRow[] {
   return mode === 'append' ? [...existing, ...incoming] : incoming;
-}
-
-/**
- * Reports whether a row's `httpStatus` falls in the given status-class
- * bucket ('all' always matches; a row with no `httpStatus` matches only 'all').
- */
-export function matchesStatusClass(row: Readonly<CaptureRow>, statusClass: TransactionStatusClassFilter): boolean {
-  if (statusClass === 'all') {
-    return true;
-  }
-
-  if (row.httpStatus === undefined) {
-    return false;
-  }
-
-  const bucket = Math.floor(row.httpStatus / 100);
-
-  return `${bucket}xx` === statusClass;
-}
-
-/**
- * Reports whether a row matches the free-text query against its route,
- * kind, outcome, and error code (case-insensitive substring match). An
- * empty query always matches.
- */
-export function matchesTransactionQuery(row: Readonly<CaptureRow>, query: string): boolean {
-  if (query === '') {
-    return true;
-  }
-
-  const normalizedQuery = query.toLowerCase();
-
-  return (
-    row.route.toLowerCase().includes(normalizedQuery) ||
-    row.kind.toLowerCase().includes(normalizedQuery) ||
-    row.outcome.toLowerCase().includes(normalizedQuery) ||
-    (row.errorCode ?? '').toLowerCase().includes(normalizedQuery)
-  );
 }
 
 /**
@@ -102,21 +59,22 @@ export function selectHasPendingTransactions(items: readonly CaptureRow[], now: 
   return items.some((item) => item.outcome === 'pending' && !isStalePendingCapture(item.capturedAtMs, now));
 }
 
-/**
- * Filters the current page buffer by the client-only concerns
- * (`statusClass`, free-text `query`) not already narrowed server-side.
- */
-export function selectVisibleTransactionRows(
-  items: readonly CaptureRow[],
-  filters: Readonly<TransactionStoreFilters>,
-): readonly CaptureRow[] {
-  return items.filter((row) => matchesStatusClass(row, filters.statusClass) && matchesTransactionQuery(row, filters.query));
+/** Maps an unset (`''`) text filter to `undefined` so it is omitted from the query. */
+function omitBlank(value: string): string | undefined {
+  return value === '' ? undefined : value;
 }
 
 /**
- * Maps the store's server-relevant filters (route/outcome/kind) plus a
- * pagination cursor/limit into the backend query shape the infrastructure
- * source accepts. `statusClass`/`query` stay client-only and are never sent.
+ * Maps the store's filters plus a pagination cursor/limit into the backend
+ * query shape the infrastructure source accepts.
+ *
+ * Every filter goes to the backend, which is the whole point: the previous
+ * shape narrowed the status class and the free text over the already-loaded
+ * page, so a match one page further down was unreachable however far the user
+ * paged. Unset fields are omitted rather than sent as zero values -- `?? undefined`
+ * rather than `|| undefined`, so a changelog id of 0 and an epoch bound of 0
+ * survive as real filters, and an unset status sends no `http_status` predicate
+ * at all (NULL-status websocket captures would otherwise vanish).
  */
 export function toBackendCaptureFilters(
   filters: Readonly<TransactionStoreFilters>,
@@ -126,14 +84,21 @@ export function toBackendCaptureFilters(
   return {
     limit,
     cursor: cursor ?? undefined,
-    route: filters.route === '' ? undefined : filters.route,
-    outcome: filters.outcome === '' ? undefined : filters.outcome,
-    kind: filters.kind === '' ? undefined : filters.kind,
+    route: omitBlank(filters.route),
+    outcome: omitBlank(filters.outcome),
+    kind: omitBlank(filters.kind),
+    animeId: omitBlank(filters.animeId),
+    errorCode: omitBlank(filters.errorCode),
+    deviceId: omitBlank(filters.deviceId),
+    httpStatus: filters.httpStatus ?? undefined,
+    changelogId: filters.changelogId ?? undefined,
+    startMs: filters.startMs ?? undefined,
+    endMs: filters.endMs ?? undefined,
   };
 }
 
 /** Vanilla backing store for the shared transaction (Activity/Network) read-model. */
-export const transactionStore = createStore<TransactionStoreState>()((set) => ({
+export const transactionStore = createStore<TransactionStoreState>()((set) => ({ // eslint-disable-line dharness/role-file-shape -- the store singleton belongs beside its reducers; moving it to a sibling would invert the import between this file and the constants it reads
   items: [],
   nextCursor: null,
   selectedId: null,

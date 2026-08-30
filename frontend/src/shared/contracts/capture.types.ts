@@ -6,7 +6,12 @@
  * request (which has no JSON tags and uses the raw Go field names).
  */
 
-/** App-facing filter/pagination params for ListCaptureTransactions. */
+/**
+ * App-facing filter/pagination params for ListCaptureTransactions. Every
+ * field is optional and an omitted field applies no predicate at all, which
+ * is what keeps NULL-status (websocket) captures visible while no status
+ * filter is chosen.
+ */
 export interface CaptureQueryFilters {
   readonly limit?: number;
   readonly cursor?: string;
@@ -18,6 +23,9 @@ export interface CaptureQueryFilters {
   readonly httpStatus?: number;
   readonly startMs?: number;
   readonly endMs?: number;
+  readonly deviceId?: string;
+  /** 0 is a valid changelog id, so absence is `undefined` and never a zero value. */
+  readonly changelogId?: number;
 }
 
 /** One transaction-list row: the fixed base projection fields. */

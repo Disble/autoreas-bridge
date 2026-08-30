@@ -17,6 +17,17 @@ export interface EventFeedFilters {
 }
 
 /**
+ * The only thing the window reconciliation reads off a row: its stable
+ * identity. Typing the input this loosely is what lets the Transactions rail
+ * reuse the same reconciliation rather than reimplement them — a capture push
+ * is a head insertion exactly like a runtime-event push, and a second copy of
+ * these rules is a second place for the `prependedCount` term to go missing.
+ */
+export interface WindowedRowIdentity {
+  readonly id: string;
+}
+
+/**
  * Inputs for one live-feed window reconciliation pass.
  *
  * `prependedCount` is what separates this rail from every static one: rows
@@ -27,10 +38,16 @@ export interface EventFeedFilters {
 export interface EventWindowInput {
   readonly currentVisibleCount: number;
   readonly previousTotal: number;
-  readonly nextRows: readonly RuntimeEventRow[];
+  readonly nextRows: readonly WindowedRowIdentity[];
   readonly selectedId: string | null;
   /** Rows admitted at the head since the last pass; 0 for a tail append. */
   readonly prependedCount: number;
+  /**
+   * Rows rendered before the first growth, and the floor the window never
+   * drops below. Passed in rather than read from a module constant because
+   * each rail's batch is its own page size.
+   */
+  readonly initialCount: number;
 }
 
 /** Inputs for one overlay admission decision against the persisted page's head. */

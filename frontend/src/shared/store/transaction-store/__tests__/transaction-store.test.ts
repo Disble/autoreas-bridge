@@ -2,18 +2,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_TRANSACTION_FILTERS, TRANSACTION_STALE_PENDING_THRESHOLD_MS } from '../transaction-store.constants';
 import {
   getTransactionStoreState,
-  matchesStatusClass,
-  matchesTransactionQuery,
   mergeTransactionPage,
   resetTransactionStore,
   selectHasPendingTransactions,
-  selectVisibleTransactionRows,
   toBackendCaptureFilters,
   transactionStore,
   upsertTransactionRows,
 } from '../transaction-store.helpers';
 import type { CaptureRow } from '../../../contracts/capture.types';
 
+/** Builds one capture row, overridable field by field per test. */
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   return {
     requestId: 'req-1',
@@ -40,56 +38,6 @@ describe('transaction-store.helpers', () => {
       const incoming = [row({ requestId: 'req-2' })];
 
       expect(mergeTransactionPage(existing, incoming, 'append')).toEqual([...existing, ...incoming]);
-    });
-  });
-
-  describe('matchesStatusClass', () => {
-    it('matches everything for "all"', () => {
-      expect(matchesStatusClass(row({ httpStatus: 500 }), 'all')).toBe(true);
-      expect(matchesStatusClass(row({ httpStatus: undefined }), 'all')).toBe(true);
-    });
-
-    it('buckets by hundreds', () => {
-      expect(matchesStatusClass(row({ httpStatus: 204 }), '2xx')).toBe(true);
-      expect(matchesStatusClass(row({ httpStatus: 404 }), '2xx')).toBe(false);
-      expect(matchesStatusClass(row({ httpStatus: 404 }), '4xx')).toBe(true);
-      expect(matchesStatusClass(row({ httpStatus: 500 }), '5xx')).toBe(true);
-    });
-
-    it('never matches a non-"all" bucket when httpStatus is absent', () => {
-      expect(matchesStatusClass(row({ httpStatus: undefined }), '2xx')).toBe(false);
-    });
-  });
-
-  describe('matchesTransactionQuery', () => {
-    it('matches everything for an empty query', () => {
-      expect(matchesTransactionQuery(row(), '')).toBe(true);
-    });
-
-    it('matches route, kind, outcome, and errorCode case-insensitively', () => {
-      const target = row({ route: '/api/animes/anime-1', kind: 'patch', outcome: 'accepted', errorCode: 'validation_error' });
-
-      expect(matchesTransactionQuery(target, 'ANIME-1')).toBe(true);
-      expect(matchesTransactionQuery(target, 'patch')).toBe(true);
-      expect(matchesTransactionQuery(target, 'accepted')).toBe(true);
-      expect(matchesTransactionQuery(target, 'validation')).toBe(true);
-      expect(matchesTransactionQuery(target, 'nomatch')).toBe(false);
-    });
-  });
-
-  describe('selectVisibleTransactionRows', () => {
-    it('applies both statusClass and query filters together', () => {
-      const items = [
-        row({ requestId: 'req-1', httpStatus: 200, route: '/api/animes/anime-1' }),
-        row({ requestId: 'req-2', httpStatus: 404, route: '/api/animes/anime-2' }),
-      ];
-
-      const visible = selectVisibleTransactionRows(items, {
-        ...DEFAULT_TRANSACTION_FILTERS,
-        statusClass: '2xx',
-      });
-
-      expect(visible).toEqual([items[0]]);
     });
   });
 
@@ -148,8 +96,19 @@ describe('transaction-store.helpers', () => {
   });
 
   describe('toBackendCaptureFilters', () => {
-    it('maps route/outcome/kind and cursor/limit, omitting client-only filters', () => {
-      const filters = { ...DEFAULT_TRANSACTION_FILTERS, route: '/api/animes/anime-1', outcome: 'accepted', kind: 'patch' };
+    it('sends every active filter to the backend, so nothing is narrowed over the loaded rows', () => {
+      const filters = {
+        route: '/api/animes/anime-1',
+        outcome: 'accepted',
+        kind: 'patch',
+        animeId: 'anime-1',
+        errorCode: 'conflict',
+        deviceId: 'device-9',
+        httpStatus: 404,
+        changelogId: 77,
+        startMs: 1_700_000_000_000,
+        endMs: 1_700_000_600_000,
+      };
 
       expect(toBackendCaptureFilters(filters, 'cursor-1', 25)).toEqual({
         limit: 25,
@@ -157,17 +116,53 @@ describe('transaction-store.helpers', () => {
         route: '/api/animes/anime-1',
         outcome: 'accepted',
         kind: 'patch',
+        animeId: 'anime-1',
+        errorCode: 'conflict',
+        deviceId: 'device-9',
+        httpStatus: 404,
+        changelogId: 77,
+        startMs: 1_700_000_000_000,
+        endMs: 1_700_000_600_000,
       });
     });
 
-    it('omits empty route/outcome/kind and a null cursor', () => {
+    it('omits every unset filter and a null cursor', () => {
       expect(toBackendCaptureFilters(DEFAULT_TRANSACTION_FILTERS, null, 25)).toEqual({
         limit: 25,
         cursor: undefined,
         route: undefined,
         outcome: undefined,
         kind: undefined,
+        animeId: undefined,
+        errorCode: undefined,
+        deviceId: undefined,
+        httpStatus: undefined,
+        changelogId: undefined,
+        startMs: undefined,
+        endMs: undefined,
       });
+    });
+
+    it('sends no status at all when the status filter is unset, so NULL-status transports survive', () => {
+      // 537 of 1,317 stored captures (measured 2026-08-30) are websocket rows
+      // carrying no HTTP status. The backend adds `http_status = ?` only when a
+      // status arrives, so coercing an unset status into a concrete number here
+      // would erase every one of them from the tab.
+      const backend = toBackendCaptureFilters({ ...DEFAULT_TRANSACTION_FILTERS, httpStatus: null }, null, 25);
+
+      expect(backend.httpStatus).toBeUndefined();
+    });
+
+    it('keeps a changelog id of 0, which is a real filter rather than an absent one', () => {
+      const backend = toBackendCaptureFilters({ ...DEFAULT_TRANSACTION_FILTERS, changelogId: 0 }, null, 25);
+
+      expect(backend.changelogId).toBe(0);
+    });
+
+    it('keeps a start bound of 0 rather than dropping it as falsy', () => {
+      const backend = toBackendCaptureFilters({ ...DEFAULT_TRANSACTION_FILTERS, startMs: 0 }, null, 25);
+
+      expect(backend.startMs).toBe(0);
     });
   });
 });

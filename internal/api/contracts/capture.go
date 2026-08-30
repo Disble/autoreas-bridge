@@ -22,6 +22,15 @@ type CaptureQuery struct {
 	HTTPStatus *int
 	StartMS    *int64
 	EndMS      *int64
+	// DeviceID mirrors requestcapture.SearchFilters.DeviceID. Both it and
+	// ChangelogID were already accepted by the reader and already translated
+	// to SQL; only this DTO and its mapper lacked them, which is what kept the
+	// two filters out of reach of the desktop app.
+	DeviceID string
+	// ChangelogID stays a pointer to match the reader exactly: 0 is a valid
+	// changelog id, so a value type could not tell "no filter" from
+	// "changelog 0".
+	ChangelogID *int64
 }
 
 // CaptureRow is one transaction-list row: the fixed base projection fields

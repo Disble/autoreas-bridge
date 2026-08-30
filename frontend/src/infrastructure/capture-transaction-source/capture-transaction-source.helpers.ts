@@ -12,6 +12,11 @@ import type { CaptureTransactionSource } from './capture-transaction-source.type
  * Maps the app-facing (camelCase) filter shape into the Wails binding's wire
  * request. `contracts.CaptureQuery` carries no JSON tags, so the Go bound
  * method expects the raw (PascalCase) struct field names verbatim.
+ *
+ * The pointer-typed fields (`HTTPStatus`, `StartMS`, `EndMS`, `ChangelogID`)
+ * are forwarded as-is and MUST NOT be defaulted: Go reads an absent value as a
+ * nil pointer and adds no predicate, while a defaulted 0 would become a real
+ * `http_status = 0` / `changelog id 0` filter matching nothing.
  */
 function toCaptureQueryWireShape(filters: Readonly<CaptureQueryFilters>) {
   return {
@@ -25,6 +30,8 @@ function toCaptureQueryWireShape(filters: Readonly<CaptureQueryFilters>) {
     HTTPStatus: filters.httpStatus,
     StartMS: filters.startMs,
     EndMS: filters.endMs,
+    DeviceID: filters.deviceId ?? '',
+    ChangelogID: filters.changelogId,
   };
 }
 

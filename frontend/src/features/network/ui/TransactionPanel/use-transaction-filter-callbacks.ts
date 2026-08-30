@@ -1,11 +1,15 @@
 import { useCallback } from 'react';
-import type { TransactionStatusClassFilter, TransactionStoreFilters } from '../../../../shared/store/transaction-store/transaction-store.types';
+import type { TransactionStoreFilters } from '../../../../shared/store/transaction-store/transaction-store.types';
+import { toStatusFilter } from './transaction-panel.helpers';
 
 /**
  * Builds the panel's filter-change callbacks. Each one narrows a single field
- * onto `setFilters`, so they are six variations of one idea rather than six
+ * onto `setFilters`, so they are variations of one idea rather than separate
  * decisions; grouping them keeps the parent hook's budget for the work that
  * actually differs.
+ *
+ * Every one of them changes a filter the BACKEND evaluates over the whole
+ * capture table. There is no client-only setter left here.
  * @param setFilters The store's partial-filter setter.
  * @returns One stable callback per filter control.
  */
@@ -13,11 +17,7 @@ export function useTransactionFilterCallbacks(setFilters: (filters: Partial<Tran
   const onRouteChange = useCallback((route: string) => setFilters({ route }), [setFilters]);
   const onOutcomeChange = useCallback((outcome: string) => setFilters({ outcome }), [setFilters]);
   const onKindChange = useCallback((kind: string) => setFilters({ kind }), [setFilters]);
-  const onStatusClassChange = useCallback(
-    (statusClass: TransactionStatusClassFilter) => setFilters({ statusClass }),
-    [setFilters],
-  );
-  const onQueryChange = useCallback((query: string) => setFilters({ query }), [setFilters]);
+  const onStatusChange = useCallback((status: string) => setFilters({ httpStatus: toStatusFilter(status) }), [setFilters]);
 
-  return { onRouteChange, onOutcomeChange, onKindChange, onStatusClassChange, onQueryChange };
+  return { onRouteChange, onOutcomeChange, onKindChange, onStatusChange };
 }

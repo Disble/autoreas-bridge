@@ -9,11 +9,15 @@ import {
 import {
   getTransactionOutcomeColor,
   getTransactionStatusColor,
+  hasMoreTransactions,
+  toStatusFilter,
+  toStatusFilterInput,
   toTransactionBody,
   toTransactionDetail,
   toTransactionRow,
 } from '../transaction-panel.helpers';
 
+/** Builds one capture row, overridable field by field per test. */
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   return {
     requestId: 'req-1',
@@ -26,6 +30,7 @@ function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
   };
 }
 
+/** Builds one capture-detail envelope on top of the base row. */
 function detail(overrides: Partial<CaptureDetail> = {}): CaptureDetail {
   return {
     ...row(),
@@ -309,5 +314,50 @@ describe('toTransactionDetail', () => {
     expect(viewModel.requestHeaders).toEqual([]);
     expect(viewModel.responseHeaders).toEqual([]);
     expect(viewModel.correlations).toEqual([]);
+  });
+});
+
+describe('toStatusFilter', () => {
+  it('parses a typed status code into the exact status the backend filters on', () => {
+    expect(toStatusFilter('404')).toBe(404);
+  });
+
+  it('returns null for an empty input, so no http_status predicate is sent at all', () => {
+    // This is the case that keeps websocket captures visible: 537 of 1,317
+    // stored rows (measured 2026-08-30) carry a NULL http_status, and an
+    // explicit status predicate excludes every one of them.
+    expect(toStatusFilter('')).toBeNull();
+  });
+
+  it('returns null when nothing numeric was typed rather than guessing a status', () => {
+    expect(toStatusFilter('abc')).toBeNull();
+  });
+
+  it('keeps the digits out of a mixed input instead of swallowing the keystroke', () => {
+    expect(toStatusFilter('4o4')).toBe(44);
+  });
+});
+
+describe('toStatusFilterInput', () => {
+  it('renders an active status filter back into the input', () => {
+    expect(toStatusFilterInput(404)).toBe('404');
+  });
+
+  it('renders an unset filter as an empty box rather than a fabricated 0', () => {
+    expect(toStatusFilterInput(null)).toBe('');
+  });
+});
+
+describe('hasMoreTransactions', () => {
+  it('offers more while the backend still returned a continuation cursor', () => {
+    expect(hasMoreTransactions('cursor-1', 60, 60)).toBe(true);
+  });
+
+  it('offers more while loaded rows are still hidden, even with no cursor left', () => {
+    expect(hasMoreTransactions(null, 25, 60)).toBe(true);
+  });
+
+  it('stops offering more once the cursor is exhausted and every loaded row is revealed', () => {
+    expect(hasMoreTransactions(null, 60, 60)).toBe(false);
   });
 });

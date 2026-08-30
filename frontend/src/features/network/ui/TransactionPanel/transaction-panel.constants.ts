@@ -1,7 +1,16 @@
-import type { TransactionStatusClassFilterOption } from './transaction-panel.types';
-
 /** Default page size for ListCaptureTransactions when the panel does not override it. */
 export const DEFAULT_TRANSACTION_PAGE_LIMIT = 25;
+
+/**
+ * Rows rendered before the first growth, and the batch the visible window
+ * grows by on load-more.
+ *
+ * Deliberately equal to {@link DEFAULT_TRANSACTION_PAGE_LIMIT}, so one
+ * load-more reveals exactly one fetched page and the two numbers cannot drift
+ * apart. Written as a literal rather than aliasing that constant so a change to
+ * either one is a deliberate decision about the rail it belongs to.
+ */
+export const TRANSACTION_PAGE_INITIAL_COUNT = 25;
 
 /** Null Object placeholder for an absent value. */
 export const TRANSACTION_EMPTY_LABEL = '–';
@@ -36,8 +45,11 @@ export const TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE = 'This request did not inc
 /** Standing note on the captured body panes: the body shown is the captured wire content. */
 export const TRANSACTION_BODY_PROJECTION_NOTE = 'Showing the captured body exactly as recorded.';
 
-/** Free-text filter input placeholder. */
-export const TRANSACTION_FILTER_PLACEHOLDER = 'Filter by route, kind, outcome, or error code';
+/** Placeholder for the exact HTTP status filter input. */
+export const TRANSACTION_STATUS_FILTER_PLACEHOLDER = '404';
+
+/** Label shown inside the `Table.LoadMore` sentinel while the next batch is revealed or fetched. */
+export const TRANSACTION_TABLE_LOAD_MORE_LABEL = 'Loading more transactions…';
 
 /** Empty-state message for the transaction table before any data has loaded. */
 export const TRANSACTION_LOADING_STATE_MESSAGE = 'Loading captured transactions...';
@@ -56,11 +68,3 @@ export const TRANSACTION_DETAIL_TAB_LABELS = {
   response: 'Response',
 } as const;
 
-/** Status-class filter pill options for TransactionFilterBar. */
-export const TRANSACTION_STATUS_CLASS_FILTER_OPTIONS: readonly TransactionStatusClassFilterOption[] = [
-  { value: 'all', label: 'All' },
-  { value: '2xx', label: '2xx' },
-  { value: '3xx', label: '3xx' },
-  { value: '4xx', label: '4xx' },
-  { value: '5xx', label: '5xx' },
-];

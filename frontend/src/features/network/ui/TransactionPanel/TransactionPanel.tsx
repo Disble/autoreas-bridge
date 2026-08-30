@@ -27,18 +27,18 @@ export function TransactionPanel({
     route,
     outcome,
     kind,
-    statusClass,
-    query,
+    status,
     detailTab,
     isLoading,
     degraded,
+    hasNextPage,
     onSelect,
     onClose,
+    onLoadMore,
     onRouteChange,
     onOutcomeChange,
     onKindChange,
-    onStatusClassChange,
-    onQueryChange,
+    onStatusChange,
     onDetailTabChange,
   } = useTransactionPanel(source, limit, runtimeSource);
 
@@ -48,13 +48,11 @@ export function TransactionPanel({
         kind={kind}
         onKindChange={onKindChange}
         onOutcomeChange={onOutcomeChange}
-        onQueryChange={onQueryChange}
         onRouteChange={onRouteChange}
-        onStatusClassChange={onStatusClassChange}
+        onStatusChange={onStatusChange}
         outcome={outcome}
-        query={query}
         route={route}
-        statusClass={statusClass}
+        status={status}
       />
 
       {degraded ? (
@@ -67,7 +65,14 @@ export function TransactionPanel({
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <TransactionTable isLoading={isLoading} onSelect={onSelect} rows={rows} selectedId={selectedId} />
+        <TransactionTable
+          hasNextPage={hasNextPage}
+          isLoading={isLoading}
+          onLoadMore={onLoadMore}
+          onSelect={onSelect}
+          rows={rows}
+          selectedId={selectedId}
+        />
         <TransactionDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>
     </div>

@@ -1,6 +1,5 @@
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import type { TransactionStatusClassFilter } from '../../../../shared/store/transaction-store/transaction-store.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
 
 /** HeroUI Chip color tokens supported by the project's design system. */
@@ -76,26 +75,37 @@ export interface TransactionPanelProps {
   readonly runtimeSource?: CaptureRuntimeSource;
 }
 
-/** Props for the dumb TransactionTable presentational component. */
+/**
+ * Props for the dumb TransactionTable presentational component. `hasNextPage`
+ * decides whether the `Table.LoadMore` sentinel is mounted at all; once the
+ * backend has returned a page with no cursor and the window covers every loaded
+ * row, there is nothing left to ask for and the sentinel goes away.
+ */
 export interface TransactionTableProps {
   readonly rows: readonly TransactionRowViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly isLoading: boolean;
+  readonly hasNextPage: boolean;
+  readonly onLoadMore: () => void;
 }
 
-/** Props for the dumb TransactionFilterBar presentational component. */
+/**
+ * Props for the dumb TransactionFilterBar presentational component.
+ *
+ * `status` is the exact HTTP status as typed (`''` when unset), not a class
+ * bucket: the capture reader exposes an equality predicate on `http_status`,
+ * so an exact status is the status filter it can evaluate over the whole table.
+ */
 export interface TransactionFilterBarProps {
   readonly route: string;
   readonly outcome: string;
   readonly kind: string;
-  readonly statusClass: TransactionStatusClassFilter;
-  readonly query: string;
+  readonly status: string;
   readonly onRouteChange: (route: string) => void;
   readonly onOutcomeChange: (outcome: string) => void;
   readonly onKindChange: (kind: string) => void;
-  readonly onStatusClassChange: (statusClass: TransactionStatusClassFilter) => void;
-  readonly onQueryChange: (query: string) => void;
+  readonly onStatusChange: (status: string) => void;
 }
 
 /** Props for the dumb TransactionDetail presentational component. */
@@ -104,10 +114,4 @@ export interface TransactionDetailProps {
   readonly detailTab: TransactionDetailTab;
   readonly onDetailTabChange: (tab: TransactionDetailTab) => void;
   readonly onClose: () => void;
-}
-
-/** A status-class filter pill option (`transaction-panel.constants.ts`). */
-export interface TransactionStatusClassFilterOption {
-  readonly value: TransactionStatusClassFilter;
-  readonly label: string;
 }

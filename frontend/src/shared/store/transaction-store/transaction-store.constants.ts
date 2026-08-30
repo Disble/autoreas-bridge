@@ -18,11 +18,16 @@ import type { TransactionStoreFilters } from './transaction-store.types';
  */
 export const TRANSACTION_STALE_PENDING_THRESHOLD_MS = 5 * 60 * 1000;
 
-/** The TransactionPanel's initial (no-op) filter set. */
+/** The TransactionPanel's initial (no-op) filter set: every field unset. */
 export const DEFAULT_TRANSACTION_FILTERS: TransactionStoreFilters = {
   route: '',
   outcome: '',
   kind: '',
-  statusClass: 'all',
-  query: '',
+  animeId: '',
+  errorCode: '',
+  deviceId: '',
+  httpStatus: null,
+  changelogId: null,
+  startMs: null,
+  endMs: null,
 };

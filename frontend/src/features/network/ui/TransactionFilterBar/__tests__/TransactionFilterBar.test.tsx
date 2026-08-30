@@ -1,76 +1,62 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { TransactionFilterBarProps } from '../../TransactionPanel/transaction-panel.types';
 import { TransactionFilterBar } from '../TransactionFilterBar';
+
+/** Builds the bar's props with every control unset and every callback stubbed. */
+function props(overrides: Partial<TransactionFilterBarProps> = {}): TransactionFilterBarProps {
+  return {
+    route: '',
+    outcome: '',
+    kind: '',
+    status: '',
+    onRouteChange: vi.fn(),
+    onOutcomeChange: vi.fn(),
+    onKindChange: vi.fn(),
+    onStatusChange: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe('TransactionFilterBar', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it('renders the free-text query field, route/outcome/kind fields, and status-class pills', () => {
-    render(
-      <TransactionFilterBar
-        kind=""
-        onKindChange={vi.fn()}
-        onOutcomeChange={vi.fn()}
-        onQueryChange={vi.fn()}
-        onRouteChange={vi.fn()}
-        onStatusClassChange={vi.fn()}
-        outcome=""
-        query=""
-        route=""
-        statusClass="all"
-      />,
-    );
+  it('renders one field per backend-evaluated filter', () => {
+    render(<TransactionFilterBar {...props()} />);
 
-    expect(screen.getByLabelText('Filter captured transactions')).toBeInTheDocument();
     expect(screen.getByLabelText('Route')).toBeInTheDocument();
     expect(screen.getByLabelText('Outcome')).toBeInTheDocument();
     expect(screen.getByLabelText('Kind')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '2xx' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Status')).toBeInTheDocument();
   });
 
-  it('forwards the free-text query change', () => {
-    const onQueryChange = vi.fn();
-    render(
-      <TransactionFilterBar
-        kind=""
-        onKindChange={vi.fn()}
-        onOutcomeChange={vi.fn()}
-        onQueryChange={onQueryChange}
-        onRouteChange={vi.fn()}
-        onStatusClassChange={vi.fn()}
-        outcome=""
-        query=""
-        route=""
-        statusClass="all"
-      />,
-    );
+  it('offers no control that narrows only the rows already loaded', () => {
+    render(<TransactionFilterBar {...props()} />);
 
-    screen.getByLabelText('Filter captured transactions').dispatchEvent(new Event('input', { bubbles: true }));
-
-    expect(screen.getByLabelText('Filter captured transactions')).toBeInTheDocument();
+    // The free-text search box and the status-class pills both used to filter
+    // the loaded page, so a match one page further down was unreachable however
+    // far the user paged. Their absence is the fix, and this asserts it.
+    expect(screen.queryByRole('searchbox')).toBeNull();
+    expect(screen.queryByRole('radio', { name: '4xx' })).toBeNull();
   });
 
-  it('forwards a status-class pill selection', () => {
-    const onStatusClassChange = vi.fn();
-    render(
-      <TransactionFilterBar
-        kind=""
-        onKindChange={vi.fn()}
-        onOutcomeChange={vi.fn()}
-        onQueryChange={vi.fn()}
-        onRouteChange={vi.fn()}
-        onStatusClassChange={onStatusClassChange}
-        outcome=""
-        query=""
-        route=""
-        statusClass="all"
-      />,
-    );
+  it('forwards the exact status the user typed', () => {
+    const onStatusChange = vi.fn();
+    render(<TransactionFilterBar {...props({ onStatusChange })} />);
 
-    screen.getByRole('radio', { name: '4xx' }).click();
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: '404' } });
 
-    expect(onStatusClassChange).toHaveBeenCalledWith('4xx');
+    expect(onStatusChange).toHaveBeenCalledWith('404');
+  });
+
+  it('forwards a route change', () => {
+    const onRouteChange = vi.fn();
+    render(<TransactionFilterBar {...props({ onRouteChange })} />);
+
+    fireEvent.change(screen.getByLabelText('Route'), { target: { value: '/api/animes/anime-2' } });
+
+    expect(onRouteChange).toHaveBeenCalledWith('/api/animes/anime-2');
   });
 });

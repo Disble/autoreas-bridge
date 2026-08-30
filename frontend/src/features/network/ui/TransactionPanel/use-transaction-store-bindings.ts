@@ -4,13 +4,14 @@ import { useTransactionStore } from '../../../../shared/store/transaction-store/
  * Binds every slice of the transaction store the panel reads or writes.
  *
  * Zustand wants one subscription per slice so a component re-renders only for
- * the slices it uses, which means thirteen `useTransactionStore` calls. Keeping
+ * the slices it uses, which means fourteen `useTransactionStore` calls. Keeping
  * them in `useTransactionPanel` put thirteen of its thirty hook calls here, for
  * what is really a single concern: "the store, as this panel sees it".
  * @returns Every store value and action the panel needs.
  */
 export function useTransactionStoreBindings() {
   const items = useTransactionStore((state) => state.items);
+  const nextCursor = useTransactionStore((state) => state.nextCursor);
   const selectedId = useTransactionStore((state) => state.selectedId);
   const selectedDetail = useTransactionStore((state) => state.selectedDetail);
   const filters = useTransactionStore((state) => state.filters);
@@ -26,6 +27,7 @@ export function useTransactionStoreBindings() {
 
   return {
     items,
+    nextCursor,
     selectedId,
     selectedDetail,
     filters,
