@@ -96,11 +96,16 @@ function mergeRefreshedRows(
 /**
  * Owns the notification master list's keyset-cursor pagination and nothing
  * else: the initial page fetch, its reload when the view/unread/search
- * filters change, the `Table.LoadMore` near-bottom trigger -- guarded so a
- * second near-bottom signal while a fetch is already in flight, or one that
- * arrives after the backend reported no further cursor, never issues a second
- * request (design.md §9.2, task 3a.2.4) -- and the top-of-list refresh a live
- * event asks for.
+ * filters change, the scroll-near-bottom trigger `useNotificationCenterPanel`
+ * raises -- guarded so a second near-bottom signal while a fetch is already in
+ * flight, or one that arrives after the backend reported no further cursor,
+ * never issues a second request (design.md §9.2, task 3a.2.4) -- and the
+ * top-of-list refresh a live event asks for.
+ *
+ * That guard prevents CONCURRENT fetches and nothing more, which is why the
+ * trigger above it MUST be a user gesture. It never stopped the removed
+ * `Table.LoadMore` sentinel from asking again the instant the appended page
+ * changed the collection.
  *
  * It knows nothing about runtime events. `useNotificationCenterSync` composes
  * this hook with those subscriptions; the two were one hook until the second

@@ -15,9 +15,7 @@ describe('NotificationTable', () => {
   it('renders every provided row', () => {
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
@@ -33,9 +31,7 @@ describe('NotificationTable', () => {
   it('sorts the "When" column descending by default, with no user interaction (task 3a.2.5)', () => {
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
@@ -50,9 +46,7 @@ describe('NotificationTable', () => {
   it('renders the caller-provided empty state when there are no rows', () => {
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Nothing here yet</span>}
         rows={[]}
@@ -66,9 +60,7 @@ describe('NotificationTable', () => {
   it('renders one selection checkbox per data row plus a "select all" checkbox in the header (task 3b.1.5)', () => {
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
@@ -83,9 +75,7 @@ describe('NotificationTable', () => {
   it('marks a row selected when its id is present in selectedKeys', () => {
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={vi.fn()}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}
@@ -104,9 +94,7 @@ describe('NotificationTable', () => {
     const onSelectionChange = vi.fn();
     render(
       <NotificationTable
-        hasNextPage={false}
-        isLoading={false}
-        onLoadMore={vi.fn()}
+        onScroll={vi.fn()}
         onSelectionChange={onSelectionChange}
         renderEmptyState={() => <span>Empty</span>}
         rows={ROWS}

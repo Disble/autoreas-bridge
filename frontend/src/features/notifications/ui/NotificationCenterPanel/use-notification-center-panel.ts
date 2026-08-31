@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
+import type { UIEvent } from 'react';
 import { createNotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.helpers';
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
+import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
 import { useNotificationStore } from '../../../../shared/store/notification-store/use-notification-store';
 import { useNotificationFilters } from '../NotificationFilterBar/use-notification-filters';
 import { useNotificationSourceOptions } from '../NotificationFilterBar/use-notification-source-options';
@@ -62,7 +64,7 @@ export function useNotificationCenterPanel(
   const { searchInput, debouncedSearch, onSearchInputChange, levels, onLevelsChange, sources, onSourcesChange, hasFacetFilters } =
     useNotificationFilters();
   const query = toNotificationCenterQuery(view);
-  const { rows, isLoading, hasNextPage, totalEverRecorded, degraded, onLoadMore, refetch, applyReadState } = useNotificationCenterSync({
+  const { rows, totalEverRecorded, degraded, onLoadMore, refetch, applyReadState } = useNotificationCenterSync({
     source,
     pushSource,
     unreadOnly: query.unreadOnly,
@@ -109,6 +111,24 @@ export function useNotificationCenterPanel(
     [onClearSelection],
   );
 
+  // The near-bottom gate lives here rather than in `NotificationTable`,
+  // because the table is dumb UI (CLAUDE.md frontend constraint #1) and
+  // because it is the same gate the Runtime Events and Transactions rails
+  // apply -- one trigger mechanism across all three, and the only one that
+  // cannot fire without a user gesture.
+  const onScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const element = event.currentTarget;
+
+      if (!isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight)) {
+        return;
+      }
+
+      onLoadMore();
+    },
+    [onLoadMore],
+  );
+
   const onRowAction = useCallback<NotificationTableRowAction>(
     (key) => {
       const id = toNotificationRecordId(key);
@@ -122,9 +142,7 @@ export function useNotificationCenterPanel(
 
   return {
     rows: visibleRows,
-    isLoading,
-    hasNextPage,
-    onLoadMore,
+    onScroll,
     emptyStateConditions,
     searchInput,
     onSearchInputChange,

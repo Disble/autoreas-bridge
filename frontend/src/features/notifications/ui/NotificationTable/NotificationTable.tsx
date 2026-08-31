@@ -6,7 +6,6 @@ import {
   NOTIFICATION_TABLE_ARIA_LABEL,
   NOTIFICATION_TABLE_DEFAULT_SORT,
   NOTIFICATION_TABLE_LEVEL_CHIP_TESTID,
-  NOTIFICATION_TABLE_LOAD_MORE_LABEL,
   NOTIFICATION_TABLE_READ_TITLE_CLASS,
   NOTIFICATION_TABLE_ROW_COUNT_TESTID,
   NOTIFICATION_TABLE_SELECTION_COLUMN_WIDTH,
@@ -28,14 +27,27 @@ import { useTruncationTooltip } from './use-truncation-tooltip';
 /**
  * Dumb dense data grid rendering the notification master list on HeroUI
  * Table. Rows arrive already newest-first from the backend keyset cursor;
- * pagination (`onLoadMore`/`hasNextPage`/`isLoading`), selection state
+ * pagination (`onScroll`), selection state
  * (`selectedKeys`/`onSelectionChange`), and empty-state selection are all
  * owned entirely by the caller. `.table-root` is `display:grid` with
  * `minmax(0,1fr)`, so this uses `w-full table-fixed` + explicit column
  * widths + `block truncate` on cells, and never `overflow-x-clip` (it clips
  * the last column). `Table.ScrollContainer` is horizontal-only, hence the
  * separate `max-h-* overflow-y-auto` wrapper below holding the actual
- * vertical scroll. The leading 40px selection column (design.md §9.2's row
+ * vertical scroll -- which is why `onScroll` sits on THAT div, exactly as the
+ * Runtime Events and Transactions rails wire theirs.
+ *
+ * There is NO `Table.LoadMore` here. That sentinel is React Aria's
+ * `useLoadMoreSentinel`: it counts itself as intersecting while it is still a
+ * full container height below the fold, and rebuilds its IntersectionObserver
+ * on every collection change, "so that we can properly trigger additional
+ * loadMores if there is room for more items". On a rail that appends the page
+ * it just fetched that is a loop -- append, observer rebuilt, still inside the
+ * margin, fetch again -- and the page hook's in-flight guard never stopped it,
+ * because that guard only prevents CONCURRENT fetches, never the next one. A
+ * scroll handler cannot self-feed: appending rows raises no scroll event.
+ *
+ * The leading 40px selection column (design.md §9.2's row
  * grid) is React Aria's own convention: an explicit `Checkbox slot="selection"`
  * in both the header (toggles "select all") and every row cell (toggles that
  * row) -- never hand-rolled selection state. Pressing the row body instead
@@ -44,17 +56,19 @@ import { useTruncationTooltip } from './use-truncation-tooltip';
  * checkbox never also opens the row.
  */
 export function NotificationTable({
-  hasNextPage,
-  isLoading,
-  onLoadMore,
   onRowAction,
+  onScroll,
   onSelectionChange,
   renderEmptyState,
   rows,
   selectedKeys,
 }: Readonly<NotificationTableProps>) {
   return (
-    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]">
+    <div
+      className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]"
+      data-notification-scroll
+      onScroll={onScroll}
+    >
       <Table aria-label={NOTIFICATION_TABLE_ARIA_LABEL} variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
@@ -80,11 +94,6 @@ export function NotificationTable({
               {rows.map((row) => (
                 <NotificationTableRow key={row.id} row={row} />
               ))}
-              {hasNextPage ? (
-                <Table.LoadMore isLoading={isLoading} onLoadMore={onLoadMore}>
-                  <Table.LoadMoreContent>{NOTIFICATION_TABLE_LOAD_MORE_LABEL}</Table.LoadMoreContent>
-                </Table.LoadMore>
-              ) : null}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>

@@ -122,9 +122,30 @@ Two things this addendum explicitly does NOT do:
 1. **The rejection of `ListBox` + `Virtualizer`/`ListLayout` windowing is
    unchanged.** It was rejected on honesty — a padded full-height track reads as
    "everything is loaded" — not on cost, so "HeroUI ships it for free" does not
-   reopen it. `Table.LoadMore` / `Table.LoadMoreContent` are the render
-   primitives; `Table.ColumnResizer`, `Table.SortableColumnHeader` and
-   `Table.ResizableContainer` are orthogonal to the scroll model.
+   reopen it. `Table.ColumnResizer`, `Table.SortableColumnHeader` and
+   `Table.ResizableContainer` are orthogonal to the scroll model and remain
+   available.
+
+   > **Correction, 2026-08-31.** This addendum originally named
+   > `Table.LoadMore` / `Table.LoadMoreContent` as the render primitives for a
+   > server-paged live rail. **That was wrong, and it shipped the same bug
+   > twice** — into the Transactions rail and, latent, into Notifications.
+   > `Table.LoadMore` is React Aria's `useLoadMoreSentinel`: its `rootMargin`
+   > is a full container height, and its layout effect rebuilds the
+   > IntersectionObserver on every collection change, so a rail that appends
+   > what it fetched re-triggers itself and pages to exhaustion with no user
+   > input. The hook's own comment hands that problem to the caller: it "will
+   > be called if the collection changes, even if onLoadMore was already called
+   > and is being processed. Up to user discretion as to how to handle these
+   > multiple onLoadMore calls." An in-flight guard does not help — it stops
+   > concurrent fetches, not the next one.
+   >
+   > **A live rail's load-more trigger is `onScroll` + `isNearListBottom`, wired
+   > on the element that actually scrolls** — which under HeroUI's `Table` is
+   > the wrapping `overflow-y-auto` div, never `Table.ScrollContainer`, which
+   > is horizontal-only. That is what the live branch above already said, and
+   > `NetworkTable.tsx` was following it correctly the whole time. See
+   > `63ca928` (Transactions) and the Notifications fix that followed.
 2. **The "revisit if a collection reaches five figures" trigger has NOT fired.**
    Measured against the live `bridge.db` on 2026-08-30, after roughly one month
    of real use: `runtime_events` 4,530 rows of a 20,000 cap (22.7%),

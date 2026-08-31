@@ -1,3 +1,4 @@
+import type { UIEvent } from 'react';
 import type { NotificationCenterSource } from '../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationSource } from '../../../../infrastructure/notification-source/notification-source.types';
 import type { NotificationDetail as NotificationDetailDTO, NotificationRow } from '../../../../shared/contracts/notification-center.types';
@@ -45,9 +46,13 @@ export interface NotificationCenterPanelEmptyStateInput {
 /** Everything `NotificationCenterPanel` needs from `useNotificationCenterPanel`. */
 export interface NotificationCenterPanelResult {
   readonly rows: readonly NotificationRow[];
-  readonly isLoading: boolean;
-  readonly hasNextPage: boolean;
-  readonly onLoadMore: () => void;
+  /**
+   * The master list's only load-more trigger: a scroll on the table's own
+   * scroll container, gated on `isNearListBottom`. It replaces the
+   * `hasNextPage`/`onLoadMore` pair the removed `Table.LoadMore` sentinel
+   * needed -- see `NotificationTable` for why that sentinel fed itself.
+   */
+  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
   readonly emptyStateConditions: NotificationEmptyStateConditions;
   readonly searchInput: string;
   readonly onSearchInputChange: (value: string) => void;

@@ -1,10 +1,8 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { triggerIntersectionObservers } from '../../../../../test/setup';
 import type { NotificationCenterSource } from '../../../../../infrastructure/notification-center-source/notification-center-source.types';
 import type { NotificationListRequest, NotificationPage, NotificationRow } from '../../../../../shared/contracts/notification-center.types';
-import { useNotificationCenterSync } from '../../NotificationCenterPanel/use-notification-center-sync';
-import { NotificationTable } from '../NotificationTable';
+import { NotificationCenterPanel } from '../../NotificationCenterPanel/NotificationCenterPanel';
 
 afterEach(cleanup);
 
@@ -30,7 +28,7 @@ function buildRow(id: number): NotificationRow {
 function makeFakeSource(): NotificationCenterSource {
   const listNotifications = vi.fn((request: NotificationListRequest): Promise<NotificationPage> => {
     const offset = request.cursor === '' ? 0 : Number(request.cursor);
-    const items = Array.from({ length: PAGE_SIZE }, (_, index) => buildRow(offset + index + 1)).filter(
+    const items = Array.from({ length: PAGE_SIZE }, (_unused, index) => buildRow(offset + index + 1)).filter(
       (row) => row.id <= BACKING_COLLECTION_SIZE,
     );
     const nextOffset = offset + PAGE_SIZE;
@@ -55,48 +53,48 @@ function makeFakeSource(): NotificationCenterSource {
   };
 }
 
-/** Minimal harness wiring the sync hook straight into the dumb table, standing in for the not-yet-built panel. */
-function NotificationTableHarness({ source }: Readonly<{ source: NotificationCenterSource }>) {
-  const sync = useNotificationCenterSync({ source, unreadOnly: false, view: 'active' });
-
-  return (
-    <NotificationTable
-      hasNextPage={sync.hasNextPage}
-      isLoading={sync.isLoading}
-      onLoadMore={sync.onLoadMore}
-      onSelectionChange={vi.fn()}
-      renderEmptyState={() => <span>Empty</span>}
-      rows={sync.rows}
-      selectedKeys={new Set()}
-    />
-  );
+/**
+ * Counts real notification rows only, excluding the column header row. Every
+ * data row's "Title" cell is `isRowHeader`, which is the only reliable way to
+ * count actual rows: the header row also carries `role="row"`.
+ */
+function countDataRows(): number {
+  return document.querySelectorAll('[data-notification-scroll] [role="rowheader"]').length;
 }
 
-/** Counts real notification rows only, excluding the header row and the `Table.LoadMore` sentinel. */
-function countDataRows() {
-  // Every real data row's "Title" cell is `isRowHeader`, which is the only
-  // reliable way to count actual rows: the header row AND the
-  // `Table.LoadMore` sentinel row both also carry `role="row"`.
-  return screen.getAllByRole('rowheader').length;
+/** Returns the master list's scroll container, failing loudly when the panel rendered none. */
+function scroller(): HTMLElement {
+  const node = document.querySelector<HTMLElement>('[data-notification-scroll]');
+
+  if (node === null) {
+    throw new Error('the notification master list rendered no scroll container');
+  }
+
+  return node;
 }
 
+/**
+ * The rail is driven through the real panel rather than through a bare
+ * `NotificationTable` harness, because the near-bottom trigger lives in
+ * `useNotificationCenterPanel` -- the table itself only forwards `onScroll` to
+ * the div that actually scrolls. A harness that re-implemented that gate would
+ * be asserting against its own copy of the production decision.
+ */
 describe('NotificationTable progressive load (500-record backing collection)', () => {
-  it('renders only the loaded page, then grows on load-more — never the whole backing collection', async () => {
+  it('renders only the loaded page, then grows on a scroll near the bottom -- never the whole backing collection', async () => {
     const source = makeFakeSource();
-    render(<NotificationTableHarness source={source} />);
+    render(<NotificationCenterPanel source={source} />);
 
-    await waitFor(() => expect(countDataRows()).toBe(PAGE_SIZE));
+    await screen.findByText('Notification 25');
+    expect(countDataRows()).toBe(PAGE_SIZE);
 
-    // One load-more is enough to prove the window grows on demand rather than
+    // One page fetch is enough to prove the list grows on demand rather than
     // merely starting small. A third page cost another full Table re-render
     // and pushed this past the 5s budget once it shared a worker with the
     // rest of the suite -- and raising that budget is what
     // `no-restricted-syntax` forbids here, since it hides the cost instead of
-    // removing it. Poking inside the retry was worse still: every poll fired
-    // another trigger, so contention made the test spin rather than wait.
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    // removing it.
+    fireEvent.scroll(scroller());
     await waitFor(() => expect(countDataRows()).toBe(PAGE_SIZE * 2));
 
     // Still far below the full backing collection, which is the claim this

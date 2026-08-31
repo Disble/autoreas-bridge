@@ -1,5 +1,5 @@
 import type { Table } from '@heroui/react';
-import type { ReactNode } from 'react';
+import type { ReactNode, UIEvent } from 'react';
 import type { NotificationRow } from '../../../../shared/contracts/notification-center.types';
 
 /**
@@ -47,9 +47,14 @@ export type NotificationTableRowKey = Parameters<NotificationTableRowAction>[0];
  */
 export interface NotificationTableProps {
   readonly rows: readonly NotificationRow[];
-  readonly isLoading: boolean;
-  readonly hasNextPage: boolean;
-  readonly onLoadMore: () => void;
+  /**
+   * The rail's only load-more trigger, raised on the div that actually
+   * scrolls. There is no `hasNextPage` and no `isLoading` beside it because
+   * there is no sentinel left to mount, unmount, or label: an exhausted cursor
+   * is already a no-op inside the page hook's own guard, so the table needs no
+   * second copy of that decision.
+   */
+  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
   readonly renderEmptyState: () => ReactNode;
   readonly selectedKeys: NotificationTableSelectionKeys;
   readonly onSelectionChange: NotificationTableSelectionChange;

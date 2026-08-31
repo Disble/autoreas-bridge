@@ -28,9 +28,7 @@ import { useNotificationCenterPanel } from './use-notification-center-panel';
 export function NotificationCenterPanel({ pushSource, source }: Readonly<NotificationCenterPanelProps>) {
   const {
     rows,
-    isLoading,
-    hasNextPage,
-    onLoadMore,
+    onScroll,
     emptyStateConditions,
     searchInput,
     onSearchInputChange,
@@ -81,10 +79,8 @@ export function NotificationCenterPanel({ pushSource, source }: Readonly<Notific
       />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <NotificationTable
-          hasNextPage={hasNextPage}
-          isLoading={isLoading}
-          onLoadMore={onLoadMore}
           onRowAction={onRowAction}
+          onScroll={onScroll}
           onSelectionChange={onSelectionChange}
           renderEmptyState={() => <NotificationEmptyState {...emptyStateConditions} />}
           rows={rows}

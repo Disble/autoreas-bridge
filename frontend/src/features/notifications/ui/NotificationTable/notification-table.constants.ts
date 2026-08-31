@@ -20,9 +20,6 @@ export const NOTIFICATION_TABLE_SOURCE_COLUMN_WIDTH = 'w-[100px]';
 /** "When" column width, part of the same row grid. */
 export const NOTIFICATION_TABLE_WHEN_COLUMN_WIDTH = 'w-[84px]';
 
-/** Label shown inside the `Table.LoadMore` sentinel while the next page is fetched. */
-export const NOTIFICATION_TABLE_LOAD_MORE_LABEL = 'Loading more…';
-
 /**
  * Accessible name of the leading dot on a row nobody has read yet. An
  * already-read row carries no counterpart mark at all: the dot is a HeroUI

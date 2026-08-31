@@ -24,9 +24,7 @@ function renderFiveMinutesLater(): void {
 
   render(
     <NotificationTable
-      hasNextPage={false}
-      isLoading={false}
-      onLoadMore={vi.fn()}
+      onScroll={vi.fn()}
       onSelectionChange={vi.fn()}
       renderEmptyState={() => <span>Empty</span>}
       rows={ROWS}
