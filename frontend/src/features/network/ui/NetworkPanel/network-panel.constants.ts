@@ -6,6 +6,37 @@ export const NETWORK_EMPTY_LABEL = '—';
 /** `eventType` value identifying an HTTP request entry (renders as `METHOD path`). */
 export const NETWORK_HTTP_EVENT_TYPE = 'http.request';
 
+/**
+ * Indentation the metadata inspector pretty-prints structured values with.
+ *
+ * Metadata is `map[string]any` on the Go side and the store recurses into
+ * nested maps rather than flattening them, so a nested object or an array of
+ * objects is legitimate data. Two spaces is what makes that structure readable
+ * without turning one value into a page.
+ */
+export const NETWORK_METADATA_JSON_INDENT = 2;
+
+/** Marker key the event store writes when metadata exceeded the persisted size bound. */
+export const NETWORK_METADATA_TRUNCATED_KEY = '_truncated';
+
+/** Marker key carrying how many keys the dropped metadata originally had. */
+export const NETWORK_METADATA_ORIGINAL_KEYS_KEY = '_original_keys';
+
+/** How many keys the truncation marker is made of, and therefore the only size it can have. */
+export const NETWORK_METADATA_MARKER_KEY_COUNT = 2;
+
+/** Label the truncation notice is filed under, in place of the marker's internal keys. */
+export const NETWORK_METADATA_TRUNCATED_LABEL = 'truncated';
+
+/**
+ * Copy shown when a value cannot be turned into text at all.
+ *
+ * Metadata is best-effort on the Go side too — an unmarshalable value binds
+ * NULL rather than failing the write — so a value this side cannot render must
+ * not take the whole tab down with it.
+ */
+export const NETWORK_METADATA_UNRENDERABLE_LABEL = 'Value could not be displayed.';
+
 /** Level-filter pill options shown in `NetworkFilterBar`. */
 export const NETWORK_LEVEL_FILTER_OPTIONS: readonly NetworkLevelFilterOption[] = [
   { value: 'all', label: 'All' },

@@ -1,4 +1,7 @@
-import type { NetworkDetailViewModel } from '../../src/features/network/ui/NetworkPanel/network-panel.types';
+import type {
+  NetworkDetailViewModel,
+  NetworkMetadataEntryViewModel,
+} from '../../src/features/network/ui/NetworkPanel/network-panel.types';
 import type { TransactionDetailViewModel } from '../../src/features/network/ui/TransactionPanel/transaction-panel.types';
 
 /**
@@ -43,8 +46,23 @@ const HOSTILE_JSON_BODY = JSON.stringify({
   sessionToken: `${UNBREAKABLE_TOKEN}${UNBREAKABLE_TOKEN}`,
 });
 
+/**
+ * The same body pretty-printed over many lines.
+ *
+ * This is the shape a structured metadata value renders in now that nested maps
+ * and arrays are JSON-formatted instead of flattened to `[object Object]`. It
+ * is both TALL and full of unbreakable tokens, which is exactly the content
+ * that reopens the containment the Activity cards closed twice.
+ */
+const HOSTILE_PRETTY_JSON = JSON.stringify(JSON.parse(HOSTILE_JSON_BODY), null, 2);
+
 /** How many sibling events the Trace tab is measured with; the report showed 14+. */
 const TRACE_ENTRY_COUNT = 40;
+
+/** Builds one projected metadata row for a fixture, mirroring what the panel's projection emits. */
+function metadataEntry(key: string, value: string): NetworkMetadataEntryViewModel {
+  return { key, value, isMultiline: value.includes('\n') };
+}
 
 /** The Runtime Events detail, on the Trace tab, with dozens of unbreakable messages. */
 export const HOSTILE_NETWORK_DETAIL: NetworkDetailViewModel = {
@@ -64,10 +82,7 @@ export const HOSTILE_NETWORK_DETAIL: NetworkDetailViewModel = {
     ['Correlation', UNBREAKABLE_TOKEN],
     ['Endpoint', LONG_URL],
   ],
-  metadataEntries: [
-    ['requestUrl', LONG_URL],
-    ['sessionToken', UNBREAKABLE_TOKEN],
-  ],
+  metadataEntries: [metadataEntry('requestUrl', LONG_URL), metadataEntry('sessionToken', UNBREAKABLE_TOKEN)],
   traceEntries: Array.from({ length: TRACE_ENTRY_COUNT }, (_unused, index) => ({
     id: `trace-${index}`,
     timeLabel: '10:30:45.221',
@@ -138,13 +153,20 @@ const METADATA_ENTRY_COUNT = 40;
  * are the ones that can run out of the BOTTOM of the card now that the card
  * carries a height budget -- and `.card` clips nothing. The other fixtures
  * cannot catch that: they are pinned to tabs whose pane already scrolls.
+ *
+ * The pretty-printed value leads deliberately. A structured metadata value is
+ * a multi-line, `whitespace-pre-wrap` block of unbreakable tokens, which is a
+ * different threat from the 40 single-line URLs beneath it: it is the one that
+ * can grow the grid cell in BOTH axes at once.
  */
 export const METADATA_HEAVY_NETWORK_DETAIL: NetworkDetailViewModel = {
   ...ORDINARY_NETWORK_DETAIL,
-  metadataEntries: Array.from({ length: METADATA_ENTRY_COUNT }, (_unused, index) => [
-    `attempt.${index}.requestUrl`,
-    LONG_URL,
-  ]),
+  metadataEntries: [
+    metadataEntry('probes', HOSTILE_PRETTY_JSON),
+    ...Array.from({ length: METADATA_ENTRY_COUNT }, (_unused, index) =>
+      metadataEntry(`attempt.${index}.requestUrl`, LONG_URL),
+    ),
+  ],
 };
 
 /** Ordinary chrome around the same unbroken JSON body; see `ORDINARY_NETWORK_DETAIL`. */

@@ -50,6 +50,8 @@ const ORDINARY_RUNTIME_EVENTS_GRID = '[data-activity-fixture="ordinary-runtime-e
 const METADATA_GRID = '[data-activity-fixture="metadata"]';
 /** The Trace pane's own marker, which is also what says the fixture has mounted. */
 const TRACE_LIST = '[data-network-trace-list]';
+/** The Metadata grid's own marker: the box a pretty-printed value could widen. */
+const METADATA_LIST = '[data-network-metadata-grid]';
 
 /** How much a box may exceed its container before it counts as overflowing. */
 const OVERFLOW_TOLERANCE_PX = 1;
@@ -278,6 +280,41 @@ function measureTraceList(subject: string, gridSelector: string): readonly Check
 }
 
 /**
+ * Measures the Metadata grid.
+ *
+ * The card checks cannot see this one. The grid is `overflow-y-auto`, and CSS
+ * promotes the other axis to `auto` with it, so an over-wide value is absorbed
+ * as a horizontal scrollbar INSIDE the grid and never reaches the card's
+ * `scrollWidth`. Measured: with `break-all` dropped from the pretty-printed
+ * metadata value, every card check stayed green and only this one moved.
+ *
+ * The second check keeps the first honest, the same way the trace list's pair
+ * does: a grid with nothing in it would also fail to scroll sideways.
+ */
+function measureMetadataGrid(subject: string, gridSelector: string): readonly Check[] {
+  const parts = findAll([`${gridSelector} ${METADATA_LIST}`, `${gridSelector} .card`]);
+  if (parts === null) {
+    return [absent(`${subject}: the metadata grid rendered`, `no metadata grid inside ${gridSelector}`)];
+  }
+
+  const [grid, card] = parts;
+
+  return [
+    {
+      name: `${subject}: the metadata grid never scrolls sideways`,
+      ok: grid.scrollWidth <= grid.clientWidth + OVERFLOW_TOLERANCE_PX,
+      detail: `content ${grid.scrollWidth}px in a ${grid.clientWidth}px grid`,
+    },
+    {
+      name: `${subject}: the metadata grid scrolls down rather than growing`,
+      ok: grid.scrollHeight > grid.clientHeight,
+      detail: `content ${grid.scrollHeight}px in a ${grid.clientHeight}px grid`,
+    },
+    ...checkThePaneFills(subject, grid, card),
+  ];
+}
+
+/**
  * Every promise the Activity detail cards make, measured in one pass.
  *
  * Each pane is measured twice, against hostile chrome and against ordinary
@@ -293,6 +330,7 @@ function measureActivityDetail(): readonly Check[] {
     ...measureCard('Transactions', TRANSACTIONS_GRID),
     ...measureCard('Runtime Events', RUNTIME_EVENTS_GRID),
     ...measureCard('Runtime Events (metadata tab)', METADATA_GRID),
+    ...measureMetadataGrid('Runtime Events (metadata tab)', METADATA_GRID),
     ...measureBodyPane('Transactions', TRANSACTIONS_GRID),
     ...measureTraceList('Runtime Events', RUNTIME_EVENTS_GRID),
     ...measureBodyPane('Transactions (ordinary chrome)', ORDINARY_TRANSACTIONS_GRID),

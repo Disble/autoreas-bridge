@@ -105,6 +105,21 @@ export interface NetworkTraceEntryViewModel {
 }
 
 /**
+ * Presentation-ready shape of one metadata row in the detail inspector.
+ *
+ * `isMultiline` is carried rather than re-derived in the view because deciding
+ * that a value renders as a preformatted block is a projection decision: it is
+ * true exactly when the formatted text has more than one line, which is what a
+ * pretty-printed nested map or array always produces. A `[string, string]` pair
+ * could not carry it, and a `.tsx` under `features/` may not work it out.
+ */
+export interface NetworkMetadataEntryViewModel {
+  readonly key: string;
+  readonly value: string;
+  readonly isMultiline: boolean;
+}
+
+/**
  * Presentation-ready shape of the selected event's detail inspector.
  *
  * `hasCorrelation` is carried separately from `traceEntries` because the two
@@ -121,7 +136,7 @@ export interface NetworkDetailViewModel {
   readonly message: string;
   readonly hasCorrelation: boolean;
   readonly fields: ReadonlyArray<readonly [string, string]>;
-  readonly metadataEntries: ReadonlyArray<readonly [string, string]>;
+  readonly metadataEntries: readonly NetworkMetadataEntryViewModel[];
   readonly traceEntries: readonly NetworkTraceEntryViewModel[];
 }
 

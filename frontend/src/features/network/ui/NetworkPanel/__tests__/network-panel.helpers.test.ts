@@ -281,7 +281,10 @@ describe('getNetworkPanelSelection', () => {
     expect(selection.selectedDetail?.traceEntries).toEqual([]);
   });
 
-  it('keeps sorted metadata entries and fallback detail fields in the selected detail view-model', () => {
+  // The metadata half of this view-model moved to
+  // `network-panel-metadata.helpers.test.ts` when the projection grew branches;
+  // this case keeps the Fields section, which is what it always pinned here.
+  it('keeps the fallback detail fields in the selected detail view-model', () => {
     const selected = row({
       id: 'event-4',
       occurredAtMs: FIXTURE_MS,
@@ -289,17 +292,11 @@ describe('getNetworkPanelSelection', () => {
       eventType: undefined,
       entityId: undefined,
       durationMs: undefined,
-      metadata: { status: 200, method: 'GET', path: '/api/status' },
       message: '',
     });
 
     const selection = getNetworkPanelSelection([selected], 'event-4', [selected]);
 
-    expect(selection.selectedDetail?.metadataEntries).toEqual([
-      ['method', 'GET'],
-      ['path', '/api/status'],
-      ['status', '200'],
-    ]);
     expect(selection.selectedDetail?.fields).toEqual([
       ['timestamp', formatLocalDateTime('2026-06-20T10:30:45Z')],
       ['domain', 'anime'],

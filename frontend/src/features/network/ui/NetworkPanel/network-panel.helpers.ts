@@ -7,12 +7,19 @@ import {
   NETWORK_HTTP_EVENT_TYPE,
   NETWORK_LEVEL_ACCENT_BORDER_CLASS,
   NETWORK_LOADING_STATE_MESSAGE,
+  NETWORK_METADATA_JSON_INDENT,
+  NETWORK_METADATA_MARKER_KEY_COUNT,
+  NETWORK_METADATA_ORIGINAL_KEYS_KEY,
+  NETWORK_METADATA_TRUNCATED_KEY,
+  NETWORK_METADATA_TRUNCATED_LABEL,
+  NETWORK_METADATA_UNRENDERABLE_LABEL,
 } from './network-panel.constants';
 import type { NetworkPanelSelection, NetworkPanelSummary } from './network-panel-selection.types';
 import type {
   HeroChipColor,
   NetworkDetailViewModel,
   NetworkEntryViewModel,
+  NetworkMetadataEntryViewModel,
   NetworkTraceEntryViewModel,
   RuntimeEventRow,
 } from './network-panel.types';
@@ -151,14 +158,104 @@ export function toNetworkEntryViewModel(row: Readonly<RuntimeEventRow>): Network
 }
 
 /**
- * Normalizes an event's metadata into sorted key/value pairs so the
- * inspector renders a deterministic order, mirroring `ObservabilityPanel`'s
- * `getMetadataEntries`.
+ * Renders one metadata value as the text the inspector shows.
+ *
+ * Metadata is `map[string]any` on the Go side and the store recurses into
+ * nested maps instead of flattening them, so a nested object or an array of
+ * objects is legitimate data — `String(value)` reduced every one of them to
+ * `[object Object]`. Structures are pretty-printed; absent values take the Null
+ * Object em-dash, the same one {@link getNetworkDetailFields} uses. A value
+ * that cannot be serialized falls back rather than throwing: metadata is
+ * best-effort on both sides of the wire, and it must never take the whole tab
+ * down.
+ *
+ * Only two primitives need a case of their own, and a boolean is not one of
+ * them: `JSON.stringify` renders `true`/`false` as exactly the literal text
+ * they should have. A string would come back wrapped in quotes it never had,
+ * and a non-finite number would come back as `null` — a number the event never
+ * carried — so those two are read out directly instead.
  */
-function getNetworkMetadataEntries(row: Readonly<RuntimeEventRow>): ReadonlyArray<readonly [string, string]> {
-  return Object.entries(row.metadata ?? {})
+function formatNetworkMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return NETWORK_EMPTY_LABEL;
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value, null, NETWORK_METADATA_JSON_INDENT) ?? NETWORK_METADATA_UNRENDERABLE_LABEL;
+  } catch {
+    return NETWORK_METADATA_UNRENDERABLE_LABEL;
+  }
+}
+
+/**
+ * Reads how many keys the store dropped, or null when this metadata is not the
+ * truncation marker.
+ *
+ * The store replaces metadata past its size bound with a two-key marker object
+ * rather than storing truncated, unparseable JSON. The whole exact shape is
+ * required — both keys, the boolean, the number, and nothing else — so an
+ * ordinary event that happens to carry a `_truncated` field of its own is
+ * still rendered as the data it is.
+ */
+function readMetadataTruncation(metadata: Readonly<Record<string, unknown>>): number | null {
+  if (Object.keys(metadata).length !== NETWORK_METADATA_MARKER_KEY_COUNT) {
+    return null;
+  }
+
+  if (metadata[NETWORK_METADATA_TRUNCATED_KEY] !== true) {
+    return null;
+  }
+
+  const originalKeys = metadata[NETWORK_METADATA_ORIGINAL_KEYS_KEY];
+
+  return typeof originalKeys === 'number' ? originalKeys : null;
+}
+
+/**
+ * Words the truncation marker as something a user can act on.
+ *
+ * The marker's own `_truncated`/`_original_keys` keys are storage internals —
+ * rendering them raw is honest but tells nobody what happened, so the notice
+ * states the fact instead. It never hides it: the dropped key count is the
+ * marker's own number.
+ */
+function describeTruncatedMetadata(originalKeys: number): string {
+  const dropped = originalKeys === 1 ? '1 key was' : `${originalKeys} keys were`;
+
+  return `Metadata was too large to store, so ${dropped} dropped.`;
+}
+
+/** Builds one metadata row, deriving whether the view must render it preformatted. */
+function toNetworkMetadataEntry(key: string, value: string): NetworkMetadataEntryViewModel {
+  return { key, value, isMultiline: value.includes('\n') };
+}
+
+/**
+ * Normalizes an event's metadata into sorted, rendered rows so the inspector
+ * shows a deterministic order and legible values.
+ *
+ * The sort is the panel's own contract, not a mirror of anything else: this is
+ * the only metadata projection left in the tree.
+ */
+function getNetworkMetadataEntries(row: Readonly<RuntimeEventRow>): readonly NetworkMetadataEntryViewModel[] {
+  const metadata = row.metadata ?? {};
+  const truncatedKeys = readMetadataTruncation(metadata);
+
+  if (truncatedKeys !== null) {
+    return [toNetworkMetadataEntry(NETWORK_METADATA_TRUNCATED_LABEL, describeTruncatedMetadata(truncatedKeys))];
+  }
+
+  return Object.entries(metadata)
     .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-    .map(([key, value]) => [key, String(value)] as const);
+    .map(([key, value]) => toNetworkMetadataEntry(key, formatNetworkMetadataValue(value)));
 }
 
 /**

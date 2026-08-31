@@ -225,6 +225,26 @@ describe('NetworkPanel', () => {
     expect(await screen.findByText('later sibling')).toBeInTheDocument();
   });
 
+  it('the Metadata tab renders a nested value as readable JSON rather than "[object Object]"', async () => {
+    const probes = [{ host: 'jd-01', reachable: true }];
+    const source = createFakeSource({
+      searchEvents: vi
+        .fn()
+        .mockResolvedValue(eventPage([record(1, { message: 'probing jdownloader devices', metadata: { probes } })])),
+    });
+
+    render(<NetworkPanel source={source} />);
+
+    const row = await screen.findByText('probing jdownloader devices');
+    row.closest('tr')?.click();
+
+    (await screen.findByRole('tab', { name: 'Metadata' })).click();
+
+    const expectedJson = ['[', '  {', '    "host": "jd-01",', '    "reachable": true', '  }', ']'].join('\n');
+    expect(await screen.findByText(expectedJson, { normalizer: (text) => text })).toBeInTheDocument();
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
+  });
+
   it('uses event terminology and removes the meaningless Status column from the runtime-event table', async () => {
     const source = createFakeSource({
       searchEvents: vi.fn().mockResolvedValue(eventPage([record(1, { domain: 'sync', message: 'syncing catalogue' })])),
