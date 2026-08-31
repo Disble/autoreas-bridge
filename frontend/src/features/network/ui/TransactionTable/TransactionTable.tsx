@@ -1,11 +1,11 @@
-import { Chip, Table } from '@heroui/react';
+import { Table } from '@heroui/react';
 import {
-  TRANSACTION_EMPTY_LABEL,
   TRANSACTION_EMPTY_STATE_MESSAGE,
   TRANSACTION_LOADING_STATE_MESSAGE,
   TRANSACTION_TABLE_LOAD_MORE_LABEL,
 } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionTableProps } from '../TransactionPanel/transaction-panel.types';
+import { TransactionRow } from '../TransactionRow/TransactionRow';
 
 /**
  * Dumb dense data grid rendering the windowed transaction rows on HeroUI Table
@@ -17,6 +17,10 @@ import type { TransactionTableProps } from '../TransactionPanel/transaction-pane
  * own intersection and raises `onLoadMore`, which reveals the next batch of
  * loaded rows or fetches the next cursor page. It is NOT a `Virtualizer` and
  * mounts no `ListLayout`.
+ *
+ * Each row is a memoized `TransactionRow` rather than inline JSX: with rows
+ * accumulating and never unmounting, re-running every loaded row's markup on
+ * every table render is the one cost that grows without bound here.
  */
 export function TransactionTable({
   rows,
@@ -62,36 +66,7 @@ export function TransactionTable({
               )}
             >
               {rows.map((row) => (
-                <Table.Row id={row.id} key={row.id}>
-                  <Table.Cell>
-                    <span className="font-mono text-[11px] text-default-500">{row.timeLabel}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-[11px] uppercase text-default-500">{row.methodKind}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="block truncate text-foreground" title={row.route}>
-                      {row.route}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Chip color={row.outcomeColor} size="sm" variant="soft">
-                      {row.outcome}
-                    </Chip>
-                  </Table.Cell>
-                  <Table.Cell>
-                    {row.hasHttpStatus ? (
-                      <Chip color={row.statusColor} size="sm" variant="soft">
-                        {row.statusLabel}
-                      </Chip>
-                    ) : (
-                      <span className="text-[11px] text-default-400">{TRANSACTION_EMPTY_LABEL}</span>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-[11px] text-default-500">{row.durationLabel}</span>
-                  </Table.Cell>
-                </Table.Row>
+                <TransactionRow key={row.id} row={row} />
               ))}
               {hasNextPage ? (
                 <Table.LoadMore isLoading={isLoading} onLoadMore={onLoadMore}>

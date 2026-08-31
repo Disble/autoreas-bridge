@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
+import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
 import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { useTransactionPanel } from '../use-transaction-panel';
 
@@ -354,5 +355,56 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
     expect(result.current.rows.map((item) => item.id)).toEqual(['req-900', 'req-901']);
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined, kind: 'post' }));
+  });
+});
+
+describe('useTransactionPanel — the visible rows carry no clock', () => {
+  afterEach(() => {
+    cleanup();
+    resetTransactionStore();
+    vi.useRealTimers();
+  });
+
+  it('keeps the mapped rows identical across elapsed-clock ticks while a row is still in flight', async () => {
+    vi.useFakeTimers();
+
+    const source = createFakeSource({
+      listTransactions: vi.fn().mockResolvedValue({
+        items: [row({ requestId: 'req-live', outcome: 'pending', capturedAtMs: Date.now() }), row({ requestId: 'req-1' })],
+        appliedLimit: 25,
+        malformedRowsSkipped: 0,
+        warningCount: 0,
+        degraded: false,
+      }),
+    });
+    const { result } = renderHook(() => useTransactionPanel(source, undefined, createFakeRuntimeSource()));
+
+    await vi.waitFor(() => expect(result.current.rows).toHaveLength(2));
+    const rowsBeforeTicks = result.current.rows;
+
+    act(() => {
+      vi.advanceTimersByTime(ELAPSED_CLOCK_TICK_MS * 4);
+    });
+
+    expect(result.current.rows).toBe(rowsBeforeTicks);
+  });
+
+  it('starts no timer of its own for a pending row: the clock belongs to the row that needs it', async () => {
+    vi.useFakeTimers();
+
+    const source = createFakeSource({
+      listTransactions: vi.fn().mockResolvedValue({
+        items: [row({ requestId: 'req-live', outcome: 'pending', capturedAtMs: Date.now() })],
+        appliedLimit: 25,
+        malformedRowsSkipped: 0,
+        warningCount: 0,
+        degraded: false,
+      }),
+    });
+    const { result } = renderHook(() => useTransactionPanel(source, undefined, createFakeRuntimeSource()));
+
+    await vi.waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -15,6 +15,7 @@ import type {
   TransactionBodyViewModel,
   TransactionDetailFieldRow,
   TransactionDetailViewModel,
+  TransactionRowLiveViewModel,
   TransactionRowViewModel,
 } from './transaction-panel.types';
 
@@ -202,15 +203,11 @@ function isInFlightCapture(row: Readonly<CaptureRow>, now: number): boolean {
 }
 
 /**
- * Normalizes a capture's outcome for display: a terminal row never keeps the
- * legacy pending token, and a stranded arrival row is reported as `abandoned`
- * rather than pretending to still be in flight.
+ * Normalizes a capture's outcome for display once it is no longer in flight: a
+ * terminal row never keeps the legacy pending token, and a stranded arrival row
+ * is reported as `abandoned` rather than pretending to still be in flight.
  */
-function normalizeTransactionOutcome(outcome: string, httpStatus: number | undefined, durationMs: number | undefined, isInFlight: boolean): string {
-  if (isInFlight) {
-    return outcome;
-  }
-
+function toSettledOutcome(outcome: string, httpStatus: number | undefined, durationMs: number | undefined): string {
   if (isTransportOnlyArrival(outcome, httpStatus, durationMs)) {
     return 'abandoned';
   }
@@ -223,15 +220,19 @@ function normalizeTransactionOutcome(outcome: string, httpStatus: number | undef
 }
 
 /**
- * Maps one captured transaction row (DTO) into the table's per-row
- * view-model. A pending (in-flight) row shows a live-ticking elapsed
- * duration (`now - capturedAtMs`) instead of the empty label, driven by the
- * caller's shared elapsed clock (`now`, defaults to the render time so
- * non-live callers keep working unchanged).
+ * Maps one captured transaction row (DTO) into the table's SETTLED per-row
+ * view-model.
+ *
+ * Nothing here reads a clock, and that is the point. A transport-only arrival
+ * row is the only kind whose presentation depends on elapsed time, and it hands
+ * that concern down by carrying `arrivalCapturedAtMs` for the row component to
+ * own; every other field is already the value the row settles on. Threading a
+ * ticking `now` through this mapping instead used to rebuild every visible row's
+ * view-model twice a second — and with it React Aria's whole table collection —
+ * for a row count that only ever grows.
  */
-export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.now()): TransactionRowViewModel {
-  const isPending = isInFlightCapture(row, now);
-  const outcome = normalizeTransactionOutcome(row.outcome, row.httpStatus, row.durationMs, isPending);
+export function toTransactionRow(row: Readonly<CaptureRow>): TransactionRowViewModel {
+  const outcome = toSettledOutcome(row.outcome, row.httpStatus, row.durationMs);
 
   return {
     id: row.requestId,
@@ -242,9 +243,30 @@ export function toTransactionRow(row: Readonly<CaptureRow>, now: number = Date.n
     statusLabel: formatTransactionStatusLabel(row.httpStatus),
     statusColor: getTransactionStatusColor(row.httpStatus),
     hasHttpStatus: row.httpStatus !== undefined,
-    durationLabel: formatTransactionDuration(isPending ? Math.max(now - row.capturedAtMs, 0) : row.durationMs),
+    durationLabel: formatTransactionDuration(row.durationMs),
     timeLabel: formatCaptureTime(row.capturedAtMs),
-    isPending,
+    arrivalCapturedAtMs: isTransportOnlyArrival(row.outcome, row.httpStatus, row.durationMs) ? row.capturedAtMs : null,
+  };
+}
+
+/**
+ * Resolves the two time-dependent columns of a transport-only arrival row at
+ * `now`: the live `now - capturedAtMs` elapsed duration and the in-flight
+ * outcome chip.
+ *
+ * Returns `null` once the row has aged past the staleness window — its terminal
+ * write is never coming, so the settled (`abandoned`) view model applies and the
+ * row's clock must stop rather than present a dead request as live.
+ */
+export function toTransactionRowLive(capturedAtMs: number, now: number): TransactionRowLiveViewModel | null {
+  if (isStalePendingCapture(capturedAtMs, now)) {
+    return null;
+  }
+
+  return {
+    outcome: 'pending',
+    outcomeColor: getTransactionOutcomeColor('pending'),
+    durationLabel: formatTransactionDuration(Math.max(now - capturedAtMs, 0)),
   };
 }
 
@@ -287,7 +309,7 @@ function toCorrelationRows(detail: Readonly<CaptureDetail>): readonly Transactio
  * explicit absent-body notices rather than a blank or fabricated value.
  */
 export function toTransactionDetail(detail: Readonly<CaptureDetail>, now: number = Date.now()): TransactionDetailViewModel {
-  const outcome = normalizeTransactionOutcome(detail.outcome, detail.httpStatus, detail.durationMs, isInFlightCapture(detail, now));
+  const outcome = isInFlightCapture(detail, now) ? detail.outcome : toSettledOutcome(detail.outcome, detail.httpStatus, detail.durationMs);
 
   return {
     requestId: detail.requestId,

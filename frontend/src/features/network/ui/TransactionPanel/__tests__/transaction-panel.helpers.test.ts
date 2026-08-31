@@ -15,6 +15,7 @@ import {
   toTransactionBody,
   toTransactionDetail,
   toTransactionRow,
+  toTransactionRowLive,
 } from '../transaction-panel.helpers';
 
 /** Builds one capture row, overridable field by field per test. */
@@ -196,33 +197,40 @@ describe('toTransactionRow', () => {
     expect(toTransactionRow(row({ requestId: 'req-9' })).id).toBe('req-9');
   });
 
-  it('marks a genuinely in-flight row as pending and shows a live-ticking elapsed duration instead of the empty label', () => {
-    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined, httpStatus: undefined }), 1750);
+  it('hands a genuinely in-flight arrival row its capture timestamp so the row can own its own clock', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined, httpStatus: undefined }));
 
-    expect(viewModel.isPending).toBe(true);
-    expect(viewModel.durationLabel).toBe('750ms');
+    expect(viewModel.arrivalCapturedAtMs).toBe(1000);
+  });
+
+  it('maps an arrival row to its settled presentation, so no clock value is needed to render it', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', capturedAtMs: 1000, durationMs: undefined, httpStatus: undefined }));
+
+    expect(viewModel.outcome).toBe('abandoned');
+    expect(viewModel.outcomeColor).toBe('warning');
+    expect(viewModel.durationLabel).toBe(TRANSACTION_EMPTY_LABEL);
   });
 
   it('treats a pending+200 row with a persisted duration as terminal, preserving the stored duration instead of using live elapsed time', () => {
-    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 200, durationMs: 86, capturedAtMs: 1000 }), 5000000);
+    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 200, durationMs: 86, capturedAtMs: 1000 }));
 
-    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.arrivalCapturedAtMs).toBeNull();
     expect(viewModel.outcome).toBe('completed');
     expect(viewModel.durationLabel).toBe('86ms');
   });
 
-  it('treats a terminal 404 as completed and stops the live duration ticker', () => {
-    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 404, durationMs: 69, capturedAtMs: 1000 }), 5000000);
+  it('treats a terminal 404 as completed and carries no clock timestamp', () => {
+    const viewModel = toTransactionRow(row({ outcome: 'pending', httpStatus: 404, durationMs: 69, capturedAtMs: 1000 }));
 
-    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.arrivalCapturedAtMs).toBeNull();
     expect(viewModel.outcome).toBe('completed');
     expect(viewModel.durationLabel).toBe('69ms');
   });
 
-  it('marks a terminal row as not pending', () => {
+  it('carries no clock timestamp for a terminal row', () => {
     const viewModel = toTransactionRow(row({ outcome: 'accepted', durationMs: 42 }));
 
-    expect(viewModel.isPending).toBe(false);
+    expect(viewModel.arrivalCapturedAtMs).toBeNull();
     expect(viewModel.durationLabel).toBe('42ms');
   });
 });
@@ -245,27 +253,27 @@ describe('formatTransactionDuration — human-readable units', () => {
   });
 });
 
-describe('toTransactionRow — stale pending rows', () => {
+describe('toTransactionRowLive — the only clock-dependent mapping left', () => {
   const capturedAtMs = 1_000_000;
 
-  it('keeps ticking for a pending row inside the staleness window', () => {
-    const viewModel = toTransactionRow(
-      row({ outcome: 'pending', capturedAtMs, durationMs: undefined, httpStatus: undefined }),
-      capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS - 1,
-    );
+  it('reports a live elapsed duration for a row still inside the staleness window', () => {
+    const live = toTransactionRowLive(capturedAtMs, capturedAtMs + 750);
 
-    expect(viewModel.isPending).toBe(true);
+    expect(live?.durationLabel).toBe('750ms');
+    expect(live?.outcome).toBe('pending');
+    expect(live?.outcomeColor).toBe('accent');
   });
 
-  it('stops the ticker and reports a pending row past the staleness window as abandoned', () => {
-    const viewModel = toTransactionRow(
-      row({ outcome: 'pending', capturedAtMs, durationMs: undefined, httpStatus: undefined }),
-      capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS,
-    );
+  it('never reports a negative elapsed duration when the clock lags the capture timestamp', () => {
+    expect(toTransactionRowLive(capturedAtMs, capturedAtMs - 5000)?.durationLabel).toBe('0ms');
+  });
 
-    expect(viewModel.isPending).toBe(false);
-    expect(viewModel.outcome).toBe('abandoned');
-    expect(viewModel.durationLabel).toBe(TRANSACTION_EMPTY_LABEL);
+  it('keeps reporting live one millisecond before the staleness window closes', () => {
+    expect(toTransactionRowLive(capturedAtMs, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS - 1)).not.toBeNull();
+  });
+
+  it('hands the row back to its settled presentation once it is past the staleness window', () => {
+    expect(toTransactionRowLive(capturedAtMs, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS)).toBeNull();
   });
 
   it('colors an abandoned row as a warning rather than a neutral default', () => {

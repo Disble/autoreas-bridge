@@ -25,7 +25,11 @@ export type TransactionBodySource =
   | { readonly kind: 'response'; readonly raw: string | undefined; readonly captureState?: string }
   | { readonly kind: 'request'; readonly raw: string | undefined; readonly captureState?: string };
 
-/** Presentation-ready shape of a single transaction row. */
+/**
+ * Presentation-ready shape of a single transaction row, in its SETTLED form:
+ * every field above `arrivalCapturedAtMs` is the value the row keeps once it is
+ * no longer in flight, and none of them depends on the current time.
+ */
 export interface TransactionRowViewModel {
   readonly id: string;
   readonly methodKind: string;
@@ -37,7 +41,26 @@ export interface TransactionRowViewModel {
   readonly hasHttpStatus: boolean;
   readonly durationLabel: string;
   readonly timeLabel: string;
-  readonly isPending: boolean;
+  /**
+   * Capture timestamp of a transport-only arrival row, or `null` once the row
+   * has a terminal outcome. This is the row's ONLY clock-dependent input, and it
+   * is a raw timestamp rather than a resolved elapsed value on purpose: elapsed
+   * time is derived where it is displayed, so a tick never has to travel back
+   * through the list-wide mapping and re-map every visible row.
+   */
+  readonly arrivalCapturedAtMs: number | null;
+}
+
+/**
+ * The two columns of a transport-only arrival row that change while the request
+ * is genuinely outstanding. `null` (from `toTransactionRowLive`) means the row
+ * has aged past the staleness window, so its settled view model applies again
+ * and its clock must stop.
+ */
+export interface TransactionRowLiveViewModel {
+  readonly outcome: string;
+  readonly outcomeColor: HeroChipColor;
+  readonly durationLabel: string;
 }
 
 /** One label/value line in a detail section. */
@@ -88,6 +111,28 @@ export interface TransactionTableProps {
   readonly isLoading: boolean;
   readonly hasNextPage: boolean;
   readonly onLoadMore: () => void;
+}
+
+/** Props for the memoized TransactionRow presentational component. */
+export interface TransactionRowProps {
+  readonly row: TransactionRowViewModel;
+}
+
+/**
+ * Props for the live OUTCOME cell of an arrival row. The settled values travel
+ * alongside the timestamp so the cell falls back to the row's own presentation
+ * once the request ages out, instead of hard-coding a second copy of it.
+ */
+export interface TransactionRowLiveOutcomeProps {
+  readonly capturedAtMs: number;
+  readonly settledOutcome: string;
+  readonly settledOutcomeColor: HeroChipColor;
+}
+
+/** Props for the live DURATION cell of an arrival row. */
+export interface TransactionRowLiveDurationProps {
+  readonly capturedAtMs: number;
+  readonly settledDurationLabel: string;
 }
 
 /**

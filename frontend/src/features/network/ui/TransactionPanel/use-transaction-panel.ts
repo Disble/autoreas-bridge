@@ -3,8 +3,6 @@ import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import { useElapsedClock } from '../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock';
-import { selectHasPendingTransactions } from '../../../../shared/store/transaction-store/transaction-store.helpers';
 import { DEFAULT_TRANSACTION_PAGE_LIMIT } from './transaction-panel.constants';
 import {
   hasMoreTransactions,
@@ -62,12 +60,14 @@ export function useTransactionPanel(
     selectedId: store.selectedId,
     onReachEnd,
   });
-  // The clock takes a predicate rather than a boolean so it can observe a
-  // pending row aging out of the staleness window and stop itself; a plain
-  // inline closure is fine because the interval keys off the resulting boolean,
-  // not this function's identity.
-  const now = useElapsedClock((at: number) => selectHasPendingTransactions(store.items, at));
-  const rows = useMemo(() => visibleItems.map((row) => toTransactionRow(row, now)), [visibleItems, now]);
+  // No clock here, deliberately. This mapping used to take a ticking `now`, so
+  // twice a second it rebuilt every visible row's view-model, handed React Aria
+  // a table of fresh element identities, and rebuilt the whole collection — cost
+  // linear in the rows the user had paged in, at a fixed tick rate, for one
+  // outstanding request. A row's live elapsed indicator is derived where it is
+  // shown instead (`use-transaction-row-live`), so these rows keep their
+  // identity for as long as the store does.
+  const rows = useMemo(() => visibleItems.map((row) => toTransactionRow(row)), [visibleItems]);
   const detailViewModel = useMemo(
     () => (store.selectedDetail === null ? null : toTransactionDetail(store.selectedDetail)),
     [store.selectedDetail],

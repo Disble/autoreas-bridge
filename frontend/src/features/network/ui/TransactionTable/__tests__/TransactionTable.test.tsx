@@ -17,7 +17,7 @@ function row(overrides: Partial<TransactionRowViewModel> = {}): TransactionRowVi
     hasHttpStatus: true,
     durationLabel: '42ms',
     timeLabel: '10:30:45',
-    isPending: false,
+    arrivalCapturedAtMs: null,
     ...overrides,
   };
 }
