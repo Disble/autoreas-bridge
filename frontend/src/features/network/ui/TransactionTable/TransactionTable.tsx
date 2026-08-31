@@ -1,4 +1,5 @@
 import { Table } from '@heroui/react';
+import { ACTIVITY_RAIL_SCROLLER_CLASS } from '../ActivityView/activity-view.constants';
 import {
   TRANSACTION_EMPTY_STATE_MESSAGE,
   TRANSACTION_LOADING_STATE_MESSAGE,
@@ -30,7 +31,7 @@ import { TransactionRow } from '../TransactionRow/TransactionRow';
 export function TransactionTable({ rows, selectedId, onSelect, isLoading, onScroll }: Readonly<TransactionTableProps>) {
   return (
     <div
-      className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]"
+      className={ACTIVITY_RAIL_SCROLLER_CLASS}
       data-transaction-scroll
       onScroll={onScroll}
     >

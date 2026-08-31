@@ -12,11 +12,13 @@ import type { NetworkDetailViewModel } from '../NetworkPanel/network-panel.types
  * - The message WRAPS (`break-all`) instead of truncating. These are prose-like
  *   lines carrying URLs and error text the user has to read whole, so an
  *   ellipsis was hiding the part that mattered even while it fitted.
- * - The list is height-bounded and scrolls vertically. A correlated event can
- *   have dozens of siblings, and each one is now allowed several lines. The
- *   bound matches `CodeBlock`'s own `max-h-64`, so the card's two scrollable
- *   panes agree; the `32rem` figure belongs to the full rail containers, not to
- *   a pane nested inside a card.
+ * - The list fills the card and scrolls vertically. A correlated event can have
+ *   dozens of siblings, and each one is now allowed several lines. It used to
+ *   carry a fixed `max-h-64`, which contained the list but could not grow with
+ *   the card -- and since the card is stretched by the rail beside it, that
+ *   left a measured 261px of empty card underneath. What bounds the list now is
+ *   `ACTIVITY_RAIL_HEIGHT_CLASS` on the card itself; `flex-1 min-h-0` is what
+ *   makes the list absorb everything the fixed rows above it did not take.
  *
  * The containment is deliberately redundant with the `min-w-0` chain above it.
  * Measured one piece at a time, neither alone is what holds: reverting only
@@ -33,7 +35,7 @@ export function NetworkDetailTrace({
   }
 
   return (
-    <ul className="flex max-h-64 min-w-0 flex-col gap-1 overflow-y-auto" data-network-trace-list>
+    <ul className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto" data-network-trace-list>
       {traceEntries.map((traceEntry) => (
         <li
           className={`min-w-0 break-all rounded px-1.5 py-1 text-xs ${

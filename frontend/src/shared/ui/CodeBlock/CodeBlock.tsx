@@ -29,8 +29,18 @@ export function CodeBlock({ label, raw, state, notice, ariaLabel }: Readonly<Cod
     // because a scroll container does not hand its content width to its
     // ancestors. What it buys is that this wrapper cannot start doing so if a
     // future pane beside the `<pre>` is not a scroll container.
-    <div className="flex min-w-0 flex-col gap-1">
-      <div className="flex min-w-0 items-center justify-between gap-2">
+    //
+    // `min-h-40` is the opposite case: it IS load-bearing, and it belongs HERE
+    // rather than on the `<pre>`. A flex item's default `min-height: auto`
+    // would refuse to shrink below its content, so the chain down from the card
+    // releases it at every level -- but a `flex-1` item whose basis is 0 then
+    // takes only what its siblings LEAVE, and a headers block full of
+    // `break-all` URLs leaves nothing (measured: 22px of a 512px card). A floor
+    // on this wrapper is what makes the shortfall fall on the siblings that can
+    // scroll instead. On the `<pre>` it did nothing: this wrapper shrinks
+    // freely, so the floor overflowed it rather than pushing back.
+    <div className="flex min-h-40 min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-2">
         <span className="min-w-0 truncate text-xs font-medium text-default-500">{label}</span>
         <div className="flex shrink-0 items-center gap-2">
           {isJson ? (
@@ -57,7 +67,11 @@ export function CodeBlock({ label, raw, state, notice, ariaLabel }: Readonly<Cod
           </Button>
         </div>
       </div>
-      <pre className="max-h-64 overflow-auto rounded-md bg-content2/40 p-2 font-mono text-xs text-foreground">
+      {/* `flex-1` rather than a fixed cap: the pane takes whatever the card has
+          left after the label row, so a tall card is filled instead of leaving
+          a dead band under it. What bounds it is the card's own height budget
+          further up -- this element must never grow the card. */}
+      <pre className="min-h-0 flex-1 overflow-auto rounded-md bg-content2/40 p-2 font-mono text-xs text-foreground">
         {raw === '' ? CODE_BLOCK_EMPTY_CAPTURED_NOTICE : text}
       </pre>
     </div>

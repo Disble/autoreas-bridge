@@ -1,4 +1,5 @@
 import { Card, Chip, CloseButton, Tabs } from '@heroui/react';
+import { ACTIVITY_RAIL_HEIGHT_CLASS } from '../ActivityView/activity-view.constants';
 import { TRANSACTION_DETAIL_TAB_LABELS, TRANSACTION_EMPTY_LABEL } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionDetailProps } from '../TransactionPanel/transaction-panel.types';
 import { TransactionDetailGeneral } from './TransactionDetailGeneral';
@@ -47,9 +48,15 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
     // from here -- this card held on its own under a 7973px unbroken body. It
     // carries the same containment anyway: it is the same card in the same
     // grid track, and the difference between the two was one pane's classes.
-    <Card className="min-w-0">
-      <Card.Content className="flex min-w-0 flex-col gap-3 p-4">
-        <header className="flex min-w-0 flex-col gap-1.5">
+    //
+    // The height budget matches the rail this card is stretched against, and
+    // the `min-h-0` chain below it is what hands that height to the body pane.
+    // Both halves are needed: a flex item's automatic minimum size would let a
+    // filling pane grow the card instead of scrolling inside it, and an
+    // uncapped card would then take the whole grid row with it.
+    <Card className={`${ACTIVITY_RAIL_HEIGHT_CLASS} min-w-0`}>
+      <Card.Content className="flex min-h-0 min-w-0 flex-col gap-3 p-4">
+        <header className="flex min-w-0 shrink-0 flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2">
             {/* `min-w-0` beside `truncate`, so the ellipsis never depends on
                 `overflow: hidden` alone having zeroed this flex item's
@@ -75,12 +82,12 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
         </header>
 
         <Tabs
-          className="min-w-0"
+          className="min-h-0 min-w-0 flex-1"
           onSelectionChange={(key) => onDetailTabChange(String(key) as TransactionDetailProps['detailTab'])}
           selectedKey={detailTab}
           variant="secondary"
         >
-          <Tabs.ListContainer>
+          <Tabs.ListContainer className="shrink-0">
             <Tabs.List aria-label="Detail inspector tabs">
               <Tabs.Tab id="general">{TRANSACTION_DETAIL_TAB_LABELS.general}</Tabs.Tab>
               <Tabs.Tab id="request">{TRANSACTION_DETAIL_TAB_LABELS.request}</Tabs.Tab>
@@ -88,13 +95,13 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
             </Tabs.List>
           </Tabs.ListContainer>
 
-          <Tabs.Panel className="min-w-0" id="general">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="general">
             <TransactionDetailGeneral correlations={correlations} fields={generalFields} />
           </Tabs.Panel>
-          <Tabs.Panel className="min-w-0" id="request">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="request">
             <TransactionDetailRequest headers={requestHeaders} payload={requestPayload} />
           </Tabs.Panel>
-          <Tabs.Panel className="min-w-0" id="response">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="response">
             <TransactionDetailResponse body={responseBody} headers={responseHeaders} />
           </Tabs.Panel>
         </Tabs>

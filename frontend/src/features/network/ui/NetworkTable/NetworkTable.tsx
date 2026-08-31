@@ -1,4 +1,5 @@
 import { Chip, Table } from '@heroui/react';
+import { ACTIVITY_RAIL_SCROLLER_CLASS } from '../ActivityView/activity-view.constants';
 import { getNetworkDomainColor, getNetworkLevelAccentBorderClass, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
 import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
 
@@ -6,7 +7,7 @@ import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
 export function NetworkTable({ rows, selectedId, onSelect, onScroll, emptyMessage }: Readonly<NetworkTableProps>) {
   return (
     <div
-      className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]"
+      className={ACTIVITY_RAIL_SCROLLER_CLASS}
       data-network-scroll
       onScroll={onScroll}
     >

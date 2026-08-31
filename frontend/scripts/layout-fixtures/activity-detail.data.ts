@@ -104,3 +104,55 @@ export const HOSTILE_TRANSACTION_DETAIL: TransactionDetailViewModel = {
   responseBody: { state: 'captured', raw: HOSTILE_JSON_BODY },
   correlations: [{ label: 'correlationId', value: UNBREAKABLE_TOKEN }],
 };
+
+/**
+ * The same two details with ORDINARY chrome around the same overrunning panes.
+ *
+ * They exist because the hostile pair cannot measure whether a pane fills its
+ * card. Hostile chrome -- a 470-character message wrapped over `break-words`, a
+ * `location` header wrapped over `break-all` -- eats so much of the card that
+ * the panes come out at 109px and 133px, well under any fixed cap they might
+ * carry, so re-introducing one would not move a single number and a fill guard
+ * measured there would pass on the broken layout. Measured: with both
+ * `max-h-64` caps restored, every check on the hostile pair stayed green.
+ *
+ * This is also the shape the defect was reported in: an ordinary header, a pane
+ * that stopped after seven rows, and a wide empty band under it.
+ */
+export const ORDINARY_NETWORK_DETAIL: NetworkDetailViewModel = {
+  ...HOSTILE_NETWORK_DETAIL,
+  message: 'jdownloader: query crawl packages failed',
+  fields: [
+    ['Correlation', 'c-4821'],
+    ['Endpoint', '/linkgrabberv2/queryPackages'],
+  ],
+};
+
+/** How many metadata entries the Metadata tab is measured with; more than any card can show at once. */
+const METADATA_ENTRY_COUNT = 40;
+
+/**
+ * Ordinary chrome with a Metadata tab longer than the card is tall.
+ *
+ * The General and Metadata tabs have no scrollable pane inside them, so they
+ * are the ones that can run out of the BOTTOM of the card now that the card
+ * carries a height budget -- and `.card` clips nothing. The other fixtures
+ * cannot catch that: they are pinned to tabs whose pane already scrolls.
+ */
+export const METADATA_HEAVY_NETWORK_DETAIL: NetworkDetailViewModel = {
+  ...ORDINARY_NETWORK_DETAIL,
+  metadataEntries: Array.from({ length: METADATA_ENTRY_COUNT }, (_unused, index) => [
+    `attempt.${index}.requestUrl`,
+    LONG_URL,
+  ]),
+};
+
+/** Ordinary chrome around the same unbroken JSON body; see `ORDINARY_NETWORK_DETAIL`. */
+export const ORDINARY_TRANSACTION_DETAIL: TransactionDetailViewModel = {
+  ...HOSTILE_TRANSACTION_DETAIL,
+  route: '/api/jdownloader/packages',
+  responseHeaders: [
+    { label: 'content-type', value: 'application/json' },
+    { label: 'x-request-id', value: 'c-4821' },
+  ],
+};

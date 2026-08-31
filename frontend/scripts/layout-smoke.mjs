@@ -43,8 +43,19 @@ const ENTRY = path.join(DIST, 'scripts', 'layout-fixtures', 'index.html');
 const RENDER_TIMEOUT_MS = 60000;
 /** Edge virtual-time budget, so the page settles without waiting in real time. */
 const VIRTUAL_TIME_BUDGET_MS = 10000;
-/** Viewport the fixtures are measured at; a toast is pinned to the top-right of it. */
-const VIEWPORT = '1280,900';
+/**
+ * Viewports the fixtures are measured at; a toast is pinned to the top-right of
+ * each.
+ *
+ * Two of them, because the Activity cards change size at `2xl` (their height
+ * budget goes from `32rem` to `40rem`) and a taller card is a different
+ * measurement, not the same one scaled. At 1280 the Transactions body pane
+ * comes out at 166px, so a fixed `max-h-64` cap on it would be inert and a
+ * gate pinned there could not see one being re-added; at 1600 the same pane has
+ * more than 256px to fill and the cap bites. The reported defect was on a wide
+ * window, so the wide one is not the exotic case.
+ */
+const VIEWPORTS = ['1280,900', '1600,1000'];
 
 /** Whatever the browser printed on stderr during the last render, for failure reports. */
 let browserLog = '';
@@ -114,9 +125,10 @@ function startServer() {
  * @param {string} edge Path to the Edge binary.
  * @param {string} profileDir Throwaway user-data dir, so runs never share state.
  * @param {string} url Absolute URL to load.
+ * @param {string} viewport The `width,height` the page is measured at.
  * @returns {Promise<string>} The dumped DOM.
  */
-function renderFixtures(edge, profileDir, url) {
+function renderFixtures(edge, profileDir, url, viewport) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       edge,
@@ -132,7 +144,7 @@ function renderFixtures(edge, profileDir, url) {
         // Pinned rather than left to the default: every assertion here is about
         // a box, so a viewport that varied between machines would make the
         // whole gate advisory.
-        `--window-size=${VIEWPORT}`,
+        `--window-size=${viewport}`,
         `--virtual-time-budget=${VIRTUAL_TIME_BUDGET_MS}`,
         `--user-data-dir=${profileDir}`,
         '--dump-dom',
@@ -227,37 +239,48 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
   const { server, port } = await startServer();
   const profileDir = mkdtempSync(path.join(tmpdir(), 'layout-smoke-'));
 
-  let result;
-  let dom = '';
+  // One entry per viewport, kept whole rather than reduced to a pass/fail: a
+  // box that is right at one width and wrong at another is the exact bug this
+  // second viewport was added for, so the report has to name which width it
+  // measured.
+  const runs = [];
   try {
-    dom = await renderFixtures(edge, profileDir, `http://127.0.0.1:${port}/`);
-    result = readVerdict(dom);
-    if (result.verdict !== 'pass') {
-      // A missing verdict means the page never measured, which is a different
-      // failure from a measurement that came out wrong: almost always the
-      // fixture failing to mount at all. The DOM is the only thing that says
-      // which, and without it this gate reports a dead end.
-      result.report += `\n\nWhat the page rendered instead:\n${dom.slice(0, 700)}`;
-      const complaints = browserLog.split('\n').filter((line) => /ERROR|Uncaught|SyntaxError|TypeError/.test(line));
-      if (complaints.length > 0) {
-        result.report += `\n\nWhat the browser said:\n${complaints.slice(0, 8).join('\n')}`;
+    for (const viewport of VIEWPORTS) {
+      browserLog = '';
+      const dom = await renderFixtures(edge, profileDir, `http://127.0.0.1:${port}/`, viewport);
+      const result = readVerdict(dom);
+      if (result.verdict !== 'pass') {
+        // A missing verdict means the page never measured, which is a different
+        // failure from a measurement that came out wrong: almost always the
+        // fixture failing to mount at all. The DOM is the only thing that says
+        // which, and without it this gate reports a dead end.
+        result.report += `\n\nWhat the page rendered instead:\n${dom.slice(0, 700)}`;
+        const complaints = browserLog.split('\n').filter((line) => /ERROR|Uncaught|SyntaxError|TypeError/.test(line));
+        if (complaints.length > 0) {
+          result.report += `\n\nWhat the browser said:\n${complaints.slice(0, 8).join('\n')}`;
+        }
       }
+      runs.push({ viewport, ...result });
     }
   } finally {
     server.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 
-  if (result.verdict !== 'pass') {
-    console.error(`layout-smoke: a fixture does not lay out correctly (${result.verdict}).\n`);
-    console.error(result.report);
+  /** Every viewport's report, each under the width it was measured at. */
+  const fullReport = runs.map((run) => `at ${run.viewport.replace(',', 'x')}:\n${run.report}`).join('\n\n');
+  const firstUnhappy = runs.find((run) => run.verdict !== 'pass');
+
+  if (firstUnhappy !== undefined) {
+    console.error(`layout-smoke: a fixture does not lay out correctly (${firstUnhappy.verdict}).\n`);
+    console.error(fullReport);
     console.error('\nReproduce it yourself:');
     console.error('  cd frontend && bunx vite build --config vite.layout.config.ts');
     console.error('  npx serve dist-layout');
-    console.error(`  "${edge}" --headless=new --window-size=${VIEWPORT} --dump-dom http://127.0.0.1:<port>/`);
+    console.error(`  "${edge}" --headless=new --window-size=${firstUnhappy.viewport} --dump-dom http://127.0.0.1:<port>/`);
     process.exit(1);
   }
 
-  console.log(`layout-smoke: every fixture lays out correctly at ${VIEWPORT.replace(',', 'x')}.`);
-  console.log(result.report);
+  console.log(`layout-smoke: every fixture lays out correctly at ${VIEWPORTS.join(' and ').replaceAll(',', 'x')}.`);
+  console.log(fullReport);
 }

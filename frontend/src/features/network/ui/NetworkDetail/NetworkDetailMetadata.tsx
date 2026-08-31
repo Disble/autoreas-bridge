@@ -7,7 +7,10 @@ export function NetworkDetailMetadata({ metadataEntries }: Readonly<Pick<Network
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-2">
+    // This tab has no pane of its own to fill, so it IS the scroller. The card
+    // carries a height budget now, and a metadata grid that outgrew it would
+    // spill out of the bottom of a card nothing clips.
+    <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-1.5 overflow-y-auto rounded-lg border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-2">
       {metadataEntries.map(([key, value]) => (
         <div className="min-w-0" key={key}>
           <span className="block truncate text-xs text-default-500">{key}</span>

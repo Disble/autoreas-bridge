@@ -1,4 +1,5 @@
 import { Card, Chip, CloseButton, Tabs } from '@heroui/react';
+import { ACTIVITY_RAIL_HEIGHT_CLASS } from '../ActivityView/activity-view.constants';
 import { NETWORK_DETAIL_EMPTY_MESSAGE, NETWORK_DETAIL_TAB_LABELS } from '../NetworkPanel/network-panel.constants';
 import { getNetworkDomainColor, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
 import type { NetworkDetailProps, NetworkDetailTab } from '../NetworkPanel/network-panel.types';
@@ -29,9 +30,16 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
     // siblings carrying an unbroken JDownloader URL, its content came out at
     // 2950px inside a 471px card and the document at 3719px against a 1241px
     // viewport. See `scripts/layout-fixtures/activity-detail-fixture.tsx`.
-    <Card className="min-w-0">
-      <Card.Content className="flex min-w-0 flex-col gap-3 p-4">
-        <header className="flex min-w-0 flex-col gap-1.5">
+    //
+    // The height budget and the `min-h-0` chain under it are one mechanism, not
+    // two: the grid stretches this card to the rail beside it, and the chain is
+    // what hands that height down to the Trace pane instead of leaving a dead
+    // band under a fixed cap. `.card` and `.card__content` already bring their
+    // own `flex flex-col` and `flex-1`; what they cannot bring is the release
+    // of the automatic minimum size, which every level needs.
+    <Card className={`${ACTIVITY_RAIL_HEIGHT_CLASS} min-w-0`}>
+      <Card.Content className="flex min-h-0 min-w-0 flex-col gap-3 p-4">
+        <header className="flex min-w-0 shrink-0 flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2">
             <span className="min-w-0 break-words text-sm font-medium text-foreground">{message}</span>
             <CloseButton aria-label="Close detail inspector" className="shrink-0" onPress={onClose} />
@@ -48,12 +56,12 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
         </header>
 
         <Tabs
-          className="min-w-0"
+          className="min-h-0 min-w-0 flex-1"
           onSelectionChange={(key) => onDetailTabChange(String(key) as NetworkDetailTab)}
           selectedKey={detailTab}
           variant="secondary"
         >
-          <Tabs.ListContainer>
+          <Tabs.ListContainer className="shrink-0">
             <Tabs.List aria-label="Detail inspector tabs">
               <Tabs.Tab id="general">{NETWORK_DETAIL_TAB_LABELS.general}</Tabs.Tab>
               <Tabs.Tab id="metadata">{NETWORK_DETAIL_TAB_LABELS.metadata}</Tabs.Tab>
@@ -61,13 +69,13 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
             </Tabs.List>
           </Tabs.ListContainer>
 
-          <Tabs.Panel className="min-w-0" id="general">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="general">
             <NetworkDetailGeneral fields={fields} />
           </Tabs.Panel>
-          <Tabs.Panel className="min-w-0" id="metadata">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="metadata">
             <NetworkDetailMetadata metadataEntries={metadataEntries} />
           </Tabs.Panel>
-          <Tabs.Panel className="min-w-0" id="trace">
+          <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="trace">
             <NetworkDetailTrace hasCorrelation={hasCorrelation} traceEntries={traceEntries} />
           </Tabs.Panel>
         </Tabs>
