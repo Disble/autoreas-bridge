@@ -70,3 +70,17 @@ export const EPISODE_SCHEDULE_WEEKDAY_FORMATTER = new Intl.DateTimeFormat('es-ES
 
 /** Shared empty cover cache used when no cover map is provided to the row helper. */
 export const EPISODE_SCHEDULE_EMPTY_COVERS: ReadonlyMap<string, CoverEntry> = new Map();
+
+/**
+ * Dot marking the weekday tab that matches the current day. `bg-current` inherits
+ * the tab's own text colour, so the marker stays visible on the selected tab (light
+ * text over the accent fill) and on the unselected ones alike.
+ */
+export const EPISODE_TODAY_DOT_CLASS = 'size-1.5 shrink-0 rounded-full bg-current';
+
+/**
+ * Screen-reader wording appended to the current-day tab, since the dot is decorative.
+ * It carries its own leading comma because the accessible name concatenates sibling
+ * text with no separator: without it the tab announces "Sundaytoday".
+ */
+export const EPISODE_TODAY_MARKER_LABEL = ', today';

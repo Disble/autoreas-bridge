@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@heroui/react';
-import { createEpisodeScheduleSource, getEpisodeFilterOptions, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows } from './episode-schedule-panel.helpers';
+import { createEpisodeScheduleSource, getDefaultEpisodeDay, getEpisodeFilterOptions, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows } from './episode-schedule-panel.helpers';
 import type { EpisodeCommandResult, EpisodeDayCount, EpisodeScheduleItem, EpisodeSchedulePanelProps, EpisodeViewLens, CoverEntry } from './episode-schedule-panel.types';
 
 
@@ -18,6 +18,10 @@ export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProp
   const [errorMessage, setErrorMessage] = useState('');
   const [covers, setCovers] = useState<ReadonlyMap<string, CoverEntry>>(new Map());
   const [dayCounts, setDayCounts] = useState<readonly EpisodeDayCount[]>([]);
+  // The current weekday, captured once at mount so the tab marker cannot move
+  // mid-session. `useState` (not `useMemo`) because React only guarantees a
+  // lazy initializer runs once; a memo may be recomputed at any time.
+  const [todayDay] = useState(() => getDefaultEpisodeDay());
 
   // 3. Context/3rd Party Hooks
 
@@ -218,5 +222,6 @@ export function useEpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProp
     selectLens,
     selectedDay,
     setAnimeState,
+    todayDay,
   };
 }

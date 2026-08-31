@@ -3,6 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeSchedulePanel } from '../EpisodeSchedulePanel';
 import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
 
+/**
+ * Builds a fully stubbed episode schedule source so each test only spells out
+ * the one port it exercises.
+ */
 function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeScheduleSource {
   return {
     adjustWatchedEpisodes: vi.fn().mockResolvedValue({ status: 'ok' }),
@@ -20,7 +24,19 @@ function createSource(overrides: Partial<EpisodeScheduleSource> = {}): EpisodeSc
   };
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+/**
+ * Pins the system clock so the current-day tab marker is deterministic; without
+ * it the marker lands on whatever weekday the suite happens to run on.
+ */
+function pinToday(date: Date): void {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(date);
+}
 
 describe('EpisodeSchedulePanel', () => {
   it('keeps episode adjustments to one plus and one minus action with secondary-click half steps', async () => {
@@ -165,6 +181,7 @@ describe('EpisodeSchedulePanel', () => {
     });
 
     it('shows no badge element for a day with a zero or absent count', async () => {
+      pinToday(new Date(2026, 7, 30, 12, 0, 0));
       const source = createSource({ getEpisodeDayCounts: vi.fn().mockResolvedValue([{ count: 0, day: 'Viernes' }]) });
 
       render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
@@ -172,6 +189,27 @@ describe('EpisodeSchedulePanel', () => {
       const viernesOption = await screen.findByRole('radio', { name: 'Friday' });
       expect(viernesOption).toHaveTextContent('Friday');
       expect(screen.queryByText('0')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('current day marker', () => {
+    it('marks the current weekday tab while a different day is selected', async () => {
+      pinToday(new Date(2026, 7, 30, 12, 0, 0));
+
+      render(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
+
+      const todayTab = await screen.findByRole('radio', { name: 'Sunday, today' });
+      expect(todayTab.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-current');
+      expect(screen.getByRole('radio', { name: 'Monday' })).toBeInTheDocument();
+    });
+
+    it('follows the clock instead of a fixed weekday', async () => {
+      pinToday(new Date(2026, 7, 26, 12, 0, 0));
+
+      render(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
+
+      expect(await screen.findByRole('radio', { name: 'Wednesday, today' })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Sunday' })).toBeInTheDocument();
     });
   });
 });

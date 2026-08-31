@@ -1,6 +1,6 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
-import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODES_EMPTY_MESSAGE } from './episode-schedule-panel.constants';
+import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_EMPTY_MESSAGE } from './episode-schedule-panel.constants';
 import { dayBadge, episodeDayLabel, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
@@ -9,7 +9,7 @@ import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
  * Renders the operational schedule for updating anime episode progress.
  */
 export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
-  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState } = useEpisodeSchedulePanel(props);
+  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
 
   if (errorMessage !== '') {
     return (
@@ -40,9 +40,12 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
         <ToggleButtonGroup disallowEmptySelection selectedKeys={[selectedDay]} selectionMode="single" size="sm" onSelectionChange={(keys) => selectDay(String(Array.from(keys)[0] ?? selectedDay))}>
           {filterOptions.map((day) => {
             const badgeCount = dayBadge(day, dayCounts);
+            const isToday = day === todayDay;
             return (
               <ToggleButton id={day} key={day}>
+                {isToday ? <span aria-hidden="true" className={EPISODE_TODAY_DOT_CLASS} /> : null}
                 {episodeDayLabel(day)}
+                {isToday ? <span className="sr-only">{EPISODE_TODAY_MARKER_LABEL}</span> : null}
                 {badgeCount === undefined ? null : (
                   <Chip size="sm" variant="soft">
                     {badgeCount}
