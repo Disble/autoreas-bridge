@@ -1,4 +1,5 @@
 import { Alert } from '@heroui/react';
+import { ACTIVITY_MASTER_DETAIL_CLASS } from '../ActivityView/activity-view.constants';
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
@@ -64,7 +65,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <NetworkTable
           emptyMessage={emptyMessage}
           onScroll={onScroll}

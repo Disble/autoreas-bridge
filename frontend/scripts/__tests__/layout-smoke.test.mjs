@@ -44,3 +44,32 @@ describe('readVerdict', () => {
     expect(readVerdict(dom).report).toBe('rows < 70% & title > 1 line');
   });
 });
+
+/**
+ * The page grew a second fixture (the Activity detail card), so the parser has
+ * to speak for every fixture on it. Reading only the first one would let a
+ * broken second fixture ship behind a green gate -- the exact failure this
+ * harness exists to prevent.
+ */
+describe('readVerdict across several fixtures', () => {
+  it('passes only when every fixture on the page passed', () => {
+    const dom = '<pre data-layout-verdict="pass">ok   the toast stays put</pre><pre data-layout-verdict="pass">ok   the card stays put</pre>';
+
+    expect(readVerdict(dom)).toStrictEqual({ verdict: 'pass', report: 'ok   the toast stays put\nok   the card stays put' });
+  });
+
+  it('fails the whole page when a later fixture fails', () => {
+    const dom = '<pre data-layout-verdict="pass">ok   the toast stays put</pre><pre data-layout-verdict="fail">FAIL the card widens the page</pre>';
+
+    expect(readVerdict(dom).verdict).toBe('fail');
+    expect(readVerdict(dom).report).toContain('the card widens the page');
+  });
+
+  // A fixture that never measured is the state a broken fixture leaves behind,
+  // and it must not be rescued by a sibling that did measure.
+  it('reports a fixture that never measured even when its sibling passed', () => {
+    const dom = '<pre data-layout-verdict="pass">ok   the toast stays put</pre><pre data-layout-verdict="pending"></pre>';
+
+    expect(readVerdict(dom).verdict).toBe('pending');
+  });
+});

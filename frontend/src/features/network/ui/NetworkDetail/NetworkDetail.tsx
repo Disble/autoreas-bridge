@@ -21,11 +21,19 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
   const { message, domain, level, timeLabel, fields, metadataEntries, traceEntries, hasCorrelation } = detail;
 
   return (
-    <Card>
-      <Card.Content className="flex flex-col gap-3 p-4">
-        <header className="flex flex-col gap-1.5">
+    // `min-w-0` on the card, not only on the grid track: a grid item whose
+    // `min-width` is `auto` refuses to shrink below its content and overflows
+    // even a `minmax(0, …)` track.
+    //
+    // This card is where the reported overflow was measured: with 40 trace
+    // siblings carrying an unbroken JDownloader URL, its content came out at
+    // 2950px inside a 471px card and the document at 3719px against a 1241px
+    // viewport. See `scripts/layout-fixtures/activity-detail-fixture.tsx`.
+    <Card className="min-w-0">
+      <Card.Content className="flex min-w-0 flex-col gap-3 p-4">
+        <header className="flex min-w-0 flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-sm font-medium text-foreground">{message}</span>
+            <span className="min-w-0 break-words text-sm font-medium text-foreground">{message}</span>
             <CloseButton aria-label="Close detail inspector" className="shrink-0" onPress={onClose} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -40,6 +48,7 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
         </header>
 
         <Tabs
+          className="min-w-0"
           onSelectionChange={(key) => onDetailTabChange(String(key) as NetworkDetailTab)}
           selectedKey={detailTab}
           variant="secondary"
@@ -52,13 +61,13 @@ export function NetworkDetail({ detail, detailTab, onDetailTabChange, onClose }:
             </Tabs.List>
           </Tabs.ListContainer>
 
-          <Tabs.Panel id="general">
+          <Tabs.Panel className="min-w-0" id="general">
             <NetworkDetailGeneral fields={fields} />
           </Tabs.Panel>
-          <Tabs.Panel id="metadata">
+          <Tabs.Panel className="min-w-0" id="metadata">
             <NetworkDetailMetadata metadataEntries={metadataEntries} />
           </Tabs.Panel>
-          <Tabs.Panel id="trace">
+          <Tabs.Panel className="min-w-0" id="trace">
             <NetworkDetailTrace hasCorrelation={hasCorrelation} traceEntries={traceEntries} />
           </Tabs.Panel>
         </Tabs>

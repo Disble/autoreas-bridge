@@ -9,8 +9,8 @@ import {
   TRANSACTION_RESPONSE_NOT_CAPTURED_NOTICE,
   TRANSACTION_RESPONSE_BODY_TRUNCATED_NOTICE,
 } from './transaction-panel.constants';
+import type { HeroChipColor } from '../NetworkPanel/network-panel.types';
 import type {
-  HeroChipColor,
   TransactionBodySource,
   TransactionBodyViewModel,
   TransactionDetailFieldRow,

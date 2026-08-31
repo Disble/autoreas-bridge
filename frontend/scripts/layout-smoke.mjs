@@ -1,5 +1,6 @@
-// Renders the real notification components in headless Edge and fails when the
-// browser says their boxes are wrong.
+// Renders the real components in headless Edge and fails when the browser says
+// their boxes are wrong. Two surfaces are covered today: the notification
+// toasts, and the Activity detail cards (Transactions + Runtime Events).
 //
 // This exists because a layout bug ships through a completely green suite.
 // jsdom has no layout engine, so vitest can assert that an element carries
@@ -7,6 +8,8 @@
 // dumps DOM without measuring it. Two notification-toast defects shipped that
 // way in one afternoon: a title that pushed the toast past the window edge, and
 // action buttons that took half the card and squeezed the content into a ribbon.
+// The Activity detail card shipped the same way: an unbroken JSON line grew its
+// grid track until the whole application window scrolled sideways.
 //
 // The fixtures IMPORT the components rather than reproducing their markup. A
 // fixture that duplicated their classes would keep passing after the component
@@ -164,21 +167,33 @@ function renderFixtures(edge, profileDir, url) {
 }
 
 /**
- * Reads the verdict the fixture page wrote into the DOM.
+ * Reads the verdict EVERY fixture on the page wrote into the DOM.
  *
- * `pending` is treated as a failure rather than a pass: it means the page never
- * measured, which is exactly the state a broken fixture leaves behind, and a
+ * The page carries one verdict node per fixture, and the run passes only when
+ * all of them passed. Reading just the first one would let a broken second
+ * fixture ship behind a green gate, which is the failure this harness exists to
+ * prevent.
+ *
+ * `pending` is treated as a failure rather than a pass: it means that fixture
+ * never measured, which is exactly the state a broken one leaves behind, and a
  * gate that reads "not yet" as "fine" stops guarding on its first bad day.
  *
  * @param {string} dom Serialized DOM for the fixture page.
  * @returns {{verdict: string, report: string}} The verdict and the per-check lines behind it.
  */
 export function readVerdict(dom) {
-  const match = /data-layout-verdict="([^"]*)">([\s\S]*?)<\/pre>/.exec(dom);
-  if (!match) {
+  const matches = [...dom.matchAll(/data-layout-verdict="([^"]*)">([\s\S]*?)<\/pre>/g)];
+  if (matches.length === 0) {
     return { verdict: 'missing', report: 'the fixture page rendered no verdict at all' };
   }
-  return { verdict: match[1], report: decodeEntities(match[2]).trim() };
+
+  const report = matches
+    .map((match) => decodeEntities(match[2]).trim())
+    .filter((lines) => lines !== '')
+    .join('\n');
+  const firstUnhappy = matches.find((match) => match[1] !== 'pass');
+
+  return { verdict: firstUnhappy === undefined ? 'pass' : firstUnhappy[1], report };
 }
 
 /**
@@ -234,7 +249,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
   }
 
   if (result.verdict !== 'pass') {
-    console.error(`layout-smoke: the notification toast does not lay out correctly (${result.verdict}).\n`);
+    console.error(`layout-smoke: a fixture does not lay out correctly (${result.verdict}).\n`);
     console.error(result.report);
     console.error('\nReproduce it yourself:');
     console.error('  cd frontend && bunx vite build --config vite.layout.config.ts');
@@ -243,6 +258,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
     process.exit(1);
   }
 
-  console.log(`layout-smoke: the notification toast lays out correctly at ${VIEWPORT.replace(',', 'x')}.`);
+  console.log(`layout-smoke: every fixture lays out correctly at ${VIEWPORT.replace(',', 'x')}.`);
   console.log(result.report);
 }

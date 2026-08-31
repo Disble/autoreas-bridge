@@ -72,7 +72,16 @@ export interface NetworkPanelProps {
   readonly source?: RuntimeEventSource;
 }
 
-/** HeroUI Chip color tokens supported by the project's design system. */
+/**
+ * HeroUI Chip color tokens supported by the project's design system, for the
+ * whole Activity feature.
+ *
+ * The Transactions rail imports this one rather than restating it. Other
+ * features (`history`, `anime-detail`) keep their own copy on purpose -- that
+ * is the per-feature colocation convention -- but two copies inside a single
+ * feature is duplication, and `duplicate-exports` is a blocking fallow rule the
+ * moment a change touches both rails at once.
+ */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
 /** Presentation-ready shape of a single Network row, one per persisted or overlaid event. */

@@ -7,7 +7,7 @@ export function NetworkDetailMetadata({ metadataEntries }: Readonly<Pick<Network
   }
 
   return (
-    <div className="grid gap-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-2">
       {metadataEntries.map(([key, value]) => (
         <div className="min-w-0" key={key}>
           <span className="block truncate text-xs text-default-500">{key}</span>

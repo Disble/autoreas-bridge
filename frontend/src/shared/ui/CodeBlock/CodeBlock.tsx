@@ -15,18 +15,24 @@ export function CodeBlock({ label, raw, state, notice, ariaLabel }: Readonly<Cod
 
   if (state !== 'captured') {
     return (
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-default-500">{label}</span>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="min-w-0 truncate text-xs font-medium text-default-500">{label}</span>
         <p className="rounded-md bg-content2/40 p-2 text-xs text-default-500">{notice}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-default-500">{label}</span>
-        <div className="flex items-center gap-2">
+    // `min-w-0` here is hardening, NOT the fix for the Activity overflow.
+    // Measured in headless Edge (`scripts/layout-smoke.mjs`): the `<pre>` below
+    // already contained a 7973px unbroken line inside a 391px pane without it,
+    // because a scroll container does not hand its content width to its
+    // ancestors. What it buys is that this wrapper cannot start doing so if a
+    // future pane beside the `<pre>` is not a scroll container.
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-xs font-medium text-default-500">{label}</span>
+        <div className="flex shrink-0 items-center gap-2">
           {isJson ? (
             <ToggleButtonGroup
               aria-label={`${ariaLabel ?? label} view`}

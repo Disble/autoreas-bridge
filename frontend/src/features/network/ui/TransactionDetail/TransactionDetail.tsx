@@ -39,11 +39,22 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
   } = detail;
 
   return (
-    <Card>
-      <Card.Content className="flex flex-col gap-3 p-4">
-        <header className="flex flex-col gap-1.5">
+    // `min-w-0` on the card, not only on the grid track: a grid item whose
+    // `min-width` is `auto` refuses to shrink below its content and overflows
+    // even a `minmax(0, …)` track.
+    //
+    // The measured page overflow came from the Runtime Events trace pane, not
+    // from here -- this card held on its own under a 7973px unbroken body. It
+    // carries the same containment anyway: it is the same card in the same
+    // grid track, and the difference between the two was one pane's classes.
+    <Card className="min-w-0">
+      <Card.Content className="flex min-w-0 flex-col gap-3 p-4">
+        <header className="flex min-w-0 flex-col gap-1.5">
           <div className="flex items-start justify-between gap-2">
-            <span className="truncate text-sm font-medium text-foreground" title={route}>
+            {/* `min-w-0` beside `truncate`, so the ellipsis never depends on
+                `overflow: hidden` alone having zeroed this flex item's
+                automatic minimum size. */}
+            <span className="min-w-0 truncate text-sm font-medium text-foreground" title={route}>
               {methodKind.toUpperCase()} {route}
             </span>
             <CloseButton aria-label="Close detail inspector" className="shrink-0" onPress={onClose} />
@@ -64,6 +75,7 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
         </header>
 
         <Tabs
+          className="min-w-0"
           onSelectionChange={(key) => onDetailTabChange(String(key) as TransactionDetailProps['detailTab'])}
           selectedKey={detailTab}
           variant="secondary"
@@ -76,13 +88,13 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
             </Tabs.List>
           </Tabs.ListContainer>
 
-          <Tabs.Panel id="general">
+          <Tabs.Panel className="min-w-0" id="general">
             <TransactionDetailGeneral correlations={correlations} fields={generalFields} />
           </Tabs.Panel>
-          <Tabs.Panel id="request">
+          <Tabs.Panel className="min-w-0" id="request">
             <TransactionDetailRequest headers={requestHeaders} payload={requestPayload} />
           </Tabs.Panel>
-          <Tabs.Panel id="response">
+          <Tabs.Panel className="min-w-0" id="response">
             <TransactionDetailResponse body={responseBody} headers={responseHeaders} />
           </Tabs.Panel>
         </Tabs>

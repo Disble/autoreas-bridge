@@ -1,6 +1,7 @@
 import { Alert } from '@heroui/react';
 import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
 import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
+import { ACTIVITY_MASTER_DETAIL_CLASS } from '../ActivityView/activity-view.constants';
 import { TransactionDetail } from '../TransactionDetail/TransactionDetail';
 import { TransactionFilterBar } from '../TransactionFilterBar/TransactionFilterBar';
 import { TransactionTable } from '../TransactionTable/TransactionTable';
@@ -63,7 +64,7 @@ export function TransactionPanel({
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <TransactionTable
           isLoading={isLoading}
           onScroll={onScroll}

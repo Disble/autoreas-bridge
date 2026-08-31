@@ -2,9 +2,7 @@ import type { UIEvent } from 'react';
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
-
-/** HeroUI Chip color tokens supported by the project's design system. */
-export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
+import type { HeroChipColor } from '../NetworkPanel/network-panel.types';
 
 /** Active tab in the transaction detail inspector. */
 export type TransactionDetailTab = 'general' | 'request' | 'response';

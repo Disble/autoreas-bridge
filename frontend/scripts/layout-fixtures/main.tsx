@@ -3,25 +3,28 @@ import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router';
 import { NotificationToasts } from '../../src/features/notifications/ui/NotificationToasts/NotificationToasts';
 import { renderAppNotificationToast } from '../../src/features/notifications/ui/NotificationToasts/app-notification.helpers';
+import { ActivityDetailFixture } from './activity-detail-fixture';
+import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 import '../../src/style.css';
 
 /**
  * Layout fixtures for `scripts/layout-smoke.mjs`.
  *
- * These mount the REAL toast surface -- `NotificationToasts`, its provider and
- * its app-owned queue -- push a real notification through it, and then measure
- * what the browser actually laid out, writing the verdict into
- * `data-layout-verdict` for `--dump-dom` to read back.
+ * These mount REAL surfaces, feed them adversarial content, and then measure
+ * what the browser actually laid out, writing one verdict per fixture into
+ * `data-layout-verdict` for `--dump-dom` to read back. The run passes only when
+ * every fixture on the page passed.
  *
- * Mounting the real surface rather than calling its render function directly is
- * not ceremony: HeroUI's `Toast` reads context its provider owns, so a fixture
- * that skipped the provider would measure a component that threw. It is also
- * the only version that keeps measuring the right thing after the toast's own
- * plumbing changes.
+ * The toast fixture mounts `NotificationToasts`, its provider and its app-owned
+ * queue rather than calling its render function directly: HeroUI's `Toast`
+ * reads context its provider owns, so a fixture that skipped the provider would
+ * measure a component that threw. It is also the only version that keeps
+ * measuring the right thing after the toast's own plumbing changes.
  *
  * jsdom has no layout engine and `render-smoke.mjs` dumps DOM without measuring
  * it, so nothing else in this repo can see an overflow. Both notification-toast
- * layout defects shipped through a green suite.
+ * layout defects and the Activity detail card's horizontal page scroll shipped
+ * through a green suite.
  */
 
 /** The unbreakable-ish title that caused the original overflow, kept verbatim. */
@@ -45,13 +48,6 @@ const TOAST_WIDTH_TOLERANCE_PX = 1;
  * exactly the shape the actions took before they moved into a footer.
  */
 const ROWS_WIDTH_SHARE = 0.7;
-
-/** One measured assertion: what was checked, and whether it held. */
-interface Check {
-  readonly name: string;
-  readonly ok: boolean;
-  readonly detail: string;
-}
 
 /**
  * Measures the rendered toast and reports every layout promise it must keep.
@@ -81,7 +77,7 @@ function measureToast(): readonly Check[] {
   return [
     ...checkTheSurface(parts['.toast'], parts.title),
     ...checkTheContent(parts['.toast'], parts.rows, parts.actions),
-    checkThePage(),
+    checkThePage('the toast'),
   ];
 }
 
@@ -182,26 +178,6 @@ function pushToastUnderTest() {
   });
 }
 
-/** The promise a toast makes to the window it floats over. */
-function checkThePage(): Check {
-  return {
-    name: 'the page never scrolls sideways',
-    ok: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-    detail: `scrollWidth ${document.documentElement.scrollWidth}, clientWidth ${document.documentElement.clientWidth}`,
-  };
-}
-
-/**
- * How many polls the fixture spends waiting for the toast before giving up.
- *
- * Counted in ATTEMPTS rather than milliseconds. Headless Edge runs this page
- * under `--virtual-time-budget`, which fast-forwards the clock between timers --
- * so a wall-clock deadline expires after two or three real ticks and reports
- * "nothing mounted" for a toast that was still one render away. That is what
- * made this fixture fail two runs in three.
- */
-const MOUNT_POLL_ATTEMPTS = 60;
-
 /**
  * Mounts the real toast surface, pushes the adversarial notification through it,
  * and measures once the toast is actually on screen.
@@ -210,14 +186,8 @@ const MOUNT_POLL_ATTEMPTS = 60;
  * provider's re-render and HeroUI's own entrance are three separate steps, and
  * a single frame lands in the middle of them -- which reads as "nothing
  * mounted" and would make this gate fail for a reason that has nothing to do
- * with layout. The deadline is what keeps a genuinely broken fixture from
+ * with layout. The attempt budget is what keeps a genuinely broken fixture from
  * hanging instead of failing.
- *
- * The poll runs on timers rather than animation frames, and bounds itself by
- * attempt count rather than by clock. Headless Edge runs this page under
- * `--virtual-time-budget`: requestAnimationFrame waits on a compositor that
- * `--disable-gpu` never starts, and the clock jumps between timers, so a
- * frame-driven poll never ticks and a time-bounded one expires immediately.
  */
 function ToastFixture() {
   const [checks, setChecks] = useState<readonly Check[] | undefined>();
@@ -225,22 +195,11 @@ function ToastFixture() {
   useEffect(() => {
     pushToastUnderTest();
 
-    let attemptsLeft = MOUNT_POLL_ATTEMPTS;
-    let timer = 0;
-    const poll = () => {
-      attemptsLeft -= 1;
-      const mounted = document.querySelector('[data-testid="notification-toast-actions"]') !== null;
-      if (mounted || attemptsLeft <= 0) {
-        setChecks(measureToast());
-        return;
-      }
-      timer = globalThis.setTimeout(poll, 16);
-    };
-    timer = globalThis.setTimeout(poll, 16);
-    return () => globalThis.clearTimeout(timer);
+    return measureWhenReady(
+      () => document.querySelector('[data-testid="notification-toast-actions"]') !== null,
+      () => setChecks(measureToast()),
+    );
   }, []);
-
-  const verdict = checks === undefined ? 'pending' : checks.every((check) => check.ok) ? 'pass' : 'fail';
 
   return (
     <>
@@ -253,9 +212,24 @@ function ToastFixture() {
       <HashRouter>
         <NotificationToasts />
       </HashRouter>
-      <pre data-layout-verdict={verdict}>
-        {(checks ?? []).map((check) => `${check.ok ? 'ok  ' : 'FAIL'} ${check.name} — ${check.detail}`).join('\n')}
-      </pre>
+      <VerdictReport checks={checks} />
+    </>
+  );
+}
+
+/**
+ * Every fixture on the page, in one render.
+ *
+ * They share a page rather than a page each because `layout-smoke.mjs` renders
+ * one URL: a second page would double the build, the serve and the headless
+ * render for a guard whose subjects do not interact -- the toast is a fixed
+ * overlay and the Activity cards are ordinary flow.
+ */
+function LayoutFixtures() {
+  return (
+    <>
+      <ToastFixture />
+      <ActivityDetailFixture />
     </>
   );
 }
@@ -266,4 +240,4 @@ pushToastUnderTest();
 // subscription down and back up, and this page measures the DOM rather than
 // exercising the component's resilience to that. The app mounts under
 // StrictMode; the suite is where that gets asserted.
-createRoot(document.getElementById('root') as HTMLElement).render(<ToastFixture />);
+createRoot(document.getElementById('root') as HTMLElement).render(<LayoutFixtures />);
