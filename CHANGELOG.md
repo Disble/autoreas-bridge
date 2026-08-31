@@ -14,6 +14,83 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-08-30
+
+### Added
+
+- **Activity keeps its history now.** The Runtime Events tab used to read a small
+  in-memory buffer that was emptied on every restart and trimmed to the last 200
+  entries. It reads Bridge's stored log instead, so what happened yesterday is
+  still there today. The domain filter also offers every domain the log actually
+  holds — `download`, the third busiest at 10% of all events, could not be
+  filtered for at all before.
+
+- **Transactions reaches the whole capture table.** The tab loaded 25 rows and
+  stopped there, and the filters only narrowed those 25. Filtering now runs over
+  the full table and the list pages through all of it. Two controls changed as a
+  consequence: the status pills became an exact status field, and the free-text
+  box was removed — it searched under 2% of the data and returned misses that
+  looked exactly like real absences. Proper search needs backend support and
+  will arrive as its own change.
+
+- **A new Overview tab inside Activity** summarises request health and events,
+  grouped the same way Bridge's own debugging tools group them. Captures with no
+  HTTP status — every WebSocket row, 40.8% of the table — are shown as
+  "No status" rather than folded into a zero.
+
+- **The Today tab strip marks the current day.** Browsing to another weekday no
+  longer leaves you guessing which one today is.
+
+### Fixed
+
+- **Saving anything in the Anime Editor no longer wipes the anime's scheduled
+  days.** Eight animes lost their schedule between 2026-07-15 and 2026-08-29
+  this way, and seven were repaired by rescheduling them without anyone
+  realising why they had emptied.
+
+- **An anime cover can be removed again.** Clearing the cover field and saving
+  did nothing at all: the removal never reached the backend in a shape it would
+  accept, so the old cover simply stayed.
+
+- **Activity no longer freezes a few seconds after you open it.** The
+  Transactions and Notifications lists were paging themselves to the end of the
+  table with nobody scrolling, loading page after page until the window stopped
+  responding. Transactions also redrew every loaded row once a second to update
+  elapsed times; only the rows still running do that now.
+
+- **The Activity detail card stays inside the window.** One long value used to
+  stretch the card until the whole application grew a horizontal scrollbar. Long
+  values now wrap and scroll inside their own panel, and the panels fill the
+  height the card already has instead of stopping short of it.
+
+- **Structured values in the Metadata tab read as formatted JSON** instead of
+  `[object Object]`.
+
+### Internal
+
+- **Bridge's runtime log now records a domain that means something.** Several
+  places wrote free-text prose where the log expected a domain, including one
+  that passed a whole sentence as the domain and a device id as the message.
+  Entries are findable by what happened and to what, rather than only by
+  searching message text, and a shape guard keeps new event types in the
+  `domain.verb` form.
+
+- **Two checks were added over the write log.** One reports committed writes that
+  emptied a collection field they were never meant to touch — it found the eight
+  lost schedules above with no new instrumentation. The other measures how much
+  of the real anime write path is actually observed, as a ratio instead of a
+  count: the count had read as healthy while all 368 of its events came from a
+  test harness and 468 real writes committed silently.
+
+- **Wire note for paired phones: no REST or WebSocket shape changed.** One
+  existing field changes behaviour. `AnimeChange.changed_fields`
+  (`GET /api/animes/changes`) and the `changedFields` member of the
+  `anime_changed` WebSocket notice have always shipped as an empty array because
+  no producer ever filled them; Bridge now derives the list inside the
+  transaction that commits the write. The field's type and required-ness are
+  unchanged, a client that ignored it is unaffected, and rows written before this
+  release keep reading as `[]`. Detailed in `docs/openapi.yaml`.
+
 ## [1.7.0] — 2026-08-29
 
 ### Fixed
