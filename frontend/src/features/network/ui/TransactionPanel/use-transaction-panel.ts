@@ -4,12 +4,7 @@ import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-ru
 import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import { DEFAULT_TRANSACTION_PAGE_LIMIT } from './transaction-panel.constants';
-import {
-  hasMoreTransactions,
-  toStatusFilterInput,
-  toTransactionDetail,
-  toTransactionRow,
-} from './transaction-panel.helpers';
+import { toStatusFilterInput, toTransactionDetail, toTransactionRow } from './transaction-panel.helpers';
 import type { TransactionDetailTab } from './transaction-panel.types';
 import { useTransactionFilterCallbacks } from './use-transaction-filter-callbacks';
 import { useTransactionPanelSync } from './use-transaction-panel-sync';
@@ -55,7 +50,7 @@ export function useTransactionPanel(
 
   // 5. Derived State (useMemo)
   const onReachEnd = useCallback(() => loadMoreRef.current(), []);
-  const { visibleItems, visibleCount, onLoadMore } = useTransactionPanelWindow({
+  const { visibleItems, onScroll } = useTransactionPanelWindow({
     items: store.items,
     selectedId: store.selectedId,
     onReachEnd,
@@ -72,7 +67,6 @@ export function useTransactionPanel(
     () => (store.selectedDetail === null ? null : toTransactionDetail(store.selectedDetail)),
     [store.selectedDetail],
   );
-  const hasNextPage = hasMoreTransactions(store.nextCursor, visibleCount, store.items.length);
   const status = toStatusFilterInput(store.filters.httpStatus);
 
   // 6. Callbacks (useCallback calling pure helpers)
@@ -100,10 +94,9 @@ export function useTransactionPanel(
     detailTab,
     isLoading: store.isLoading,
     degraded: store.degraded,
-    hasNextPage,
     onSelect,
     onClose,
-    onLoadMore,
+    onScroll,
     ...filterCallbacks,
     onDetailTabChange,
   };

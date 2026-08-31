@@ -9,7 +9,6 @@ import {
 import {
   getTransactionOutcomeColor,
   getTransactionStatusColor,
-  hasMoreTransactions,
   toStatusFilter,
   toStatusFilterInput,
   toTransactionBody,
@@ -353,19 +352,5 @@ describe('toStatusFilterInput', () => {
 
   it('renders an unset filter as an empty box rather than a fabricated 0', () => {
     expect(toStatusFilterInput(null)).toBe('');
-  });
-});
-
-describe('hasMoreTransactions', () => {
-  it('offers more while the backend still returned a continuation cursor', () => {
-    expect(hasMoreTransactions('cursor-1', 60, 60)).toBe(true);
-  });
-
-  it('offers more while loaded rows are still hidden, even with no cursor left', () => {
-    expect(hasMoreTransactions(null, 25, 60)).toBe(true);
-  });
-
-  it('stops offering more once the cursor is exhausted and every loaded row is revealed', () => {
-    expect(hasMoreTransactions(null, 60, 60)).toBe(false);
   });
 });

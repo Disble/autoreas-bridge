@@ -48,9 +48,6 @@ export const TRANSACTION_BODY_PROJECTION_NOTE = 'Showing the captured body exact
 /** Placeholder for the exact HTTP status filter input. */
 export const TRANSACTION_STATUS_FILTER_PLACEHOLDER = '404';
 
-/** Label shown inside the `Table.LoadMore` sentinel while the next batch is revealed or fetched. */
-export const TRANSACTION_TABLE_LOAD_MORE_LABEL = 'Loading more transactions…';
-
 /** Empty-state message for the transaction table before any data has loaded. */
 export const TRANSACTION_LOADING_STATE_MESSAGE = 'Loading captured transactions...';
 

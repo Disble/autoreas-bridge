@@ -71,7 +71,7 @@ describe('TransactionTable — elapsed-clock tick cost', () => {
 
   it('re-renders no terminal row when the pending row elapsed clock ticks', () => {
     const rows = [arrivalRow(Date.now()), terminalRow('req-1'), terminalRow('req-2'), terminalRow('req-3')];
-    render(<TransactionTable hasNextPage={false} isLoading={false} onLoadMore={vi.fn()} onSelect={vi.fn()} rows={rows} selectedId={null} />);
+    render(<TransactionTable isLoading={false} onScroll={vi.fn()} onSelect={vi.fn()} rows={rows} selectedId={null} />);
 
     const rendersBeforeTick = new Map(rowRenders);
     expect(rendersBeforeTick.size).toBe(4);
@@ -86,7 +86,7 @@ describe('TransactionTable — elapsed-clock tick cost', () => {
 
   it('keeps every row untouched across ten consecutive ticks, so cost never scales with the loaded rows', () => {
     const rows = [arrivalRow(Date.now()), ...Array.from({ length: 25 }, (_unused, index) => terminalRow(`req-${index}`))];
-    render(<TransactionTable hasNextPage={false} isLoading={false} onLoadMore={vi.fn()} onSelect={vi.fn()} rows={rows} selectedId={null} />);
+    render(<TransactionTable isLoading={false} onScroll={vi.fn()} onSelect={vi.fn()} rows={rows} selectedId={null} />);
 
     const rendersBeforeTicks = new Map(rowRenders);
 

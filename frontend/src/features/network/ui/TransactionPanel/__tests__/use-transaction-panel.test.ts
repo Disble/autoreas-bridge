@@ -5,6 +5,7 @@ import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
 import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
 import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
+import { scrollNearBottom } from '../../NetworkPanel/__tests__/network-panel.test-support';
 import { useTransactionPanel } from '../use-transaction-panel';
 
 /** Builds one capture row, overridable field by field per test. */
@@ -282,7 +283,7 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(listTransactions).toHaveBeenCalledTimes(2));
 
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
 
     await waitFor(() => expect(result.current.rows).toHaveLength(50));
@@ -305,13 +306,12 @@ describe('useTransactionPanel', () => {
     const { result } = renderHook(() => useTransactionPanel(source));
 
     await waitFor(() => expect(result.current.rows).toHaveLength(25));
-    expect(result.current.hasNextPage).toBe(false);
 
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
 
     expect(listTransactions).toHaveBeenCalledTimes(1);
@@ -344,7 +344,7 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(result.current.rows).toHaveLength(25));
 
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
     await waitFor(() => expect(result.current.rows).toHaveLength(50));
 

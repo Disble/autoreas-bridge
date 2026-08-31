@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { CaptureRow } from '../../../../../shared/contracts/capture.types';
+import { scrollFarFromBottom, scrollNearBottom } from '../../NetworkPanel/__tests__/network-panel.test-support';
 import { useTransactionPanelWindow } from '../use-transaction-panel-window';
 
 /** Builds one capture row, overridable field by field per test. */
@@ -35,15 +36,27 @@ describe('useTransactionPanelWindow', () => {
     expect(result.current.visibleItems).toHaveLength(25);
   });
 
-  it('grows by one batch on load-more without asking the backend while loaded rows are still hidden', () => {
+  it('grows by one batch on scroll-near-bottom without asking the backend while loaded rows are still hidden', () => {
     const onReachEnd = vi.fn();
     const { result } = renderHook(() => useTransactionPanelWindow({ items: rows(60), selectedId: null, onReachEnd }));
 
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
 
     expect(result.current.visibleCount).toBe(50);
+    expect(onReachEnd).not.toHaveBeenCalled();
+  });
+
+  it('grows nothing and asks for nothing while the container is still far from its own bottom', () => {
+    const onReachEnd = vi.fn();
+    const { result } = renderHook(() => useTransactionPanelWindow({ items: rows(30), selectedId: null, onReachEnd }));
+
+    act(() => {
+      result.current.onScroll(scrollFarFromBottom());
+    });
+
+    expect(result.current.visibleCount).toBe(25);
     expect(onReachEnd).not.toHaveBeenCalled();
   });
 
@@ -52,10 +65,26 @@ describe('useTransactionPanelWindow', () => {
     const { result } = renderHook(() => useTransactionPanelWindow({ items: rows(30), selectedId: null, onReachEnd }));
 
     act(() => {
-      result.current.onLoadMore();
+      result.current.onScroll(scrollNearBottom());
     });
 
     expect(result.current.visibleCount).toBe(30);
+    expect(onReachEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks the backend when the growth lands exactly on the last loaded row, not only past it', () => {
+    const onReachEnd = vi.fn();
+    // 50 is the initial 25 plus exactly one batch of 25, so the growth consumes
+    // the last loaded row without overshooting it. A `>` boundary instead of
+    // `>=` leaves the rail silent here and every other case still passes: an
+    // overshoot test cannot tell the two apart.
+    const { result } = renderHook(() => useTransactionPanelWindow({ items: rows(50), selectedId: null, onReachEnd }));
+
+    act(() => {
+      result.current.onScroll(scrollNearBottom());
+    });
+
+    expect(result.current.visibleCount).toBe(50);
     expect(onReachEnd).toHaveBeenCalledTimes(1);
   });
 

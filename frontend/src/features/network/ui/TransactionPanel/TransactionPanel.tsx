@@ -31,10 +31,9 @@ export function TransactionPanel({
     detailTab,
     isLoading,
     degraded,
-    hasNextPage,
     onSelect,
     onClose,
-    onLoadMore,
+    onScroll,
     onRouteChange,
     onOutcomeChange,
     onKindChange,
@@ -66,9 +65,8 @@ export function TransactionPanel({
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <TransactionTable
-          hasNextPage={hasNextPage}
           isLoading={isLoading}
-          onLoadMore={onLoadMore}
+          onScroll={onScroll}
           onSelect={onSelect}
           rows={rows}
           selectedId={selectedId}

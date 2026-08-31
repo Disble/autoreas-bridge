@@ -1,3 +1,4 @@
+import type { UIEvent } from 'react';
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
@@ -99,18 +100,17 @@ export interface TransactionPanelProps {
 }
 
 /**
- * Props for the dumb TransactionTable presentational component. `hasNextPage`
- * decides whether the `Table.LoadMore` sentinel is mounted at all; once the
- * backend has returned a page with no cursor and the window covers every loaded
- * row, there is nothing left to ask for and the sentinel goes away.
+ * Props for the dumb TransactionTable presentational component. `onScroll` is
+ * the rail's only load-more trigger; there is no `hasNextPage` because there is
+ * no sentinel left to mount or unmount. An exhausted cursor is already a no-op
+ * inside `loadMore`, so the rail needs no second copy of that decision.
  */
 export interface TransactionTableProps {
   readonly rows: readonly TransactionRowViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly isLoading: boolean;
-  readonly hasNextPage: boolean;
-  readonly onLoadMore: () => void;
+  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
 }
 
 /** Props for the memoized TransactionRow presentational component. */

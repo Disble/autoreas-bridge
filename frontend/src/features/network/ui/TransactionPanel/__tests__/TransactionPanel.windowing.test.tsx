@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
@@ -74,7 +74,7 @@ function createPushableRuntimeSource() {
   };
 }
 
-/** Counts the transaction rows actually mounted, excluding the header and the load-more sentinel. */
+/** Counts the transaction rows actually mounted, excluding the header. */
 function countRenderedRows(): number {
   return document.querySelectorAll('[data-transaction-scroll] [role="rowheader"]').length;
 }
@@ -95,6 +95,33 @@ function scroller(): HTMLElement {
   }
 
   return node;
+}
+
+/**
+ * Builds a source whose every page reports another one after it, so an
+ * unattended load-more trigger pages until the test times out instead of
+ * stopping at a fixture's last page. Every existing fake returns a page WITHOUT
+ * a cursor, which is exactly why they never exercised paging at all.
+ */
+function createEndlessSource() {
+  let pagesServed = 0;
+  const listTransactions = vi.fn().mockImplementation(() => {
+    pagesServed += 1;
+
+    return Promise.resolve(capturePage(rows(25, pagesServed * 25), `cursor-${pagesServed}`));
+  });
+
+  return { source: createFakeSource({ listTransactions }), listTransactions };
+}
+
+/** Flushes several microtask passes, so a self-feeding fetch loop has room to compound before the assertion. */
+async function settleAsyncPasses(passes = 5): Promise<void> {
+  // Sequential by design: each pass lets the previous fetch's continuation run.
+  for (let pass = 0; pass < passes; pass += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
 }
 
 /** Installs mocked geometry so jsdom (which has no layout) can observe viewport movement. */
@@ -132,7 +159,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
     expect(countRenderedRows()).toBe(25);
   });
 
-  it('reveals the next batch of loaded rows on the sentinel without unmounting anything or re-querying', async () => {
+  it('reveals the next batch of loaded rows on scroll without unmounting anything or re-querying', async () => {
     const listTransactions = vi.fn().mockResolvedValue(capturePage(rows(60), 'cursor-1'));
     const source = createFakeSource({ listTransactions });
 
@@ -142,9 +169,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     const before = renderedRoutes();
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
 
     await waitFor(() => {
       expect(countRenderedRows()).toBe(50);
@@ -168,16 +193,12 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     const before = renderedRoutes();
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
     await waitFor(() => {
       expect(countRenderedRows()).toBe(50);
     });
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
     await waitFor(() => {
       expect(countRenderedRows()).toBe(70);
     });
@@ -200,9 +221,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     const geometry = mockScrollTop(scroller(), 800);
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
     await waitFor(() => {
       expect(countRenderedRows()).toBe(50);
     });
@@ -239,9 +258,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     await screen.findByText('/api/animes/anime-0');
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
     await waitFor(() => {
       expect(countRenderedRows()).toBe(50);
     });
@@ -271,18 +288,80 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     await screen.findByText('/api/animes/anime-0');
 
-    act(() => {
-      triggerIntersectionObservers(true);
-    });
+    fireEvent.scroll(scroller());
     await waitFor(() => {
       expect(countRenderedRows()).toBe(30);
     });
 
+    fireEvent.scroll(scroller());
+
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+    expect(countRenderedRows()).toBe(30);
+  });
+});
+
+describe('TransactionPanel load-more trigger', () => {
+  afterEach(() => {
+    cleanup();
+    resetTransactionStore();
+  });
+
+  /**
+   * Mounts the rail against a source that NEVER runs out of pages, then leaves
+   * it alone. The rail walks the whole capture table if anything other than a
+   * deliberate user gesture can raise load-more.
+   *
+   * Honest limit: jsdom implements no layout, so an IntersectionObserver-driven
+   * sentinel never reports an intersection here on its own and the original
+   * runaway cannot be reproduced end to end. What IS testable is everything
+   * this guard actually asserts — that mounting fetches exactly one page, that
+   * a sentinel intersection does not fetch another, and that a scroll does.
+   * Any effect-, collection-, or sentinel-driven fetch reintroduced later trips
+   * one of the three immediately.
+   */
+  it('fetches exactly one page on mount and never pages on its own, however many pages the backend offers', async () => {
+    const { source, listTransactions } = createEndlessSource();
+
+    render(<TransactionPanel source={source} />);
+
+    await screen.findByText('/api/animes/anime-25');
+
+    await settleAsyncPasses();
+
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+    expect(countRenderedRows()).toBe(25);
+  });
+
+  it('does not fetch when a load-more sentinel reports itself visible, because the rail mounts none', async () => {
+    const { source, listTransactions } = createEndlessSource();
+
+    render(<TransactionPanel source={source} />);
+
+    await screen.findByText('/api/animes/anime-25');
+
     act(() => {
       triggerIntersectionObservers(true);
     });
 
+    await settleAsyncPasses();
+
     expect(listTransactions).toHaveBeenCalledTimes(1);
-    expect(document.querySelector('[data-slot="table-load-more"]')).toBeNull();
+  });
+
+  it('fetches the next page on a scroll near the bottom, so the guards above cannot be met by breaking pagination', async () => {
+    const { source, listTransactions } = createEndlessSource();
+
+    render(<TransactionPanel source={source} />);
+
+    await screen.findByText('/api/animes/anime-25');
+
+    fireEvent.scroll(scroller());
+
+    await waitFor(() => {
+      expect(listTransactions).toHaveBeenCalledTimes(2);
+    });
+
+    expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-1' }));
+    await screen.findByText('/api/animes/anime-50');
   });
 });

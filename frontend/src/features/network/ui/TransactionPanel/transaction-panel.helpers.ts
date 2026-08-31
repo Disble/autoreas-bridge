@@ -108,16 +108,6 @@ export function toStatusFilterInput(httpStatus: number | null): string {
   return httpStatus === null ? '' : String(httpStatus);
 }
 
-/**
- * Reports whether the rail still has something to offer: rows loaded but not
- * yet revealed, or a continuation cursor the backend returned. Both must be
- * exhausted before the load-more affordance disappears -- dropping it while
- * loaded rows are still hidden would strand them off screen for good.
- */
-export function hasMoreTransactions(nextCursor: string | null, visibleCount: number, loadedCount: number): boolean {
-  return nextCursor !== null || visibleCount < loadedCount;
-}
-
 /** Formats the STATUS column, or the Null Object em-dash when absent. */
 function formatTransactionStatusLabel(httpStatus: number | undefined): string {
   return httpStatus === undefined ? TRANSACTION_EMPTY_LABEL : String(httpStatus);

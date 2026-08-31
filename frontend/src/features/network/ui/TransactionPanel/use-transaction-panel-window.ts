@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { UIEvent } from 'react';
 import type { CaptureRow } from '../../../../shared/contracts/capture.types';
+import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
 import { reconcileVisibleEventCount } from '../NetworkPanel/network-feed.helpers';
 import { DEFAULT_TRANSACTION_PAGE_LIMIT, TRANSACTION_PAGE_INITIAL_COUNT } from './transaction-panel.constants';
 
@@ -18,10 +20,23 @@ interface TransactionPanelWindowInput {
  * **This rail is LIVE** (ADR-012, live branch): the `capture.transaction` push
  * inserts arrival and terminal rows at the head while the user reads. It
  * therefore does NOT use `useProgressiveListWindow` — that hook's render-phase
- * reset would snap the user back to the first batch on every pushed capture.
- * Rows are appended and never unmounted, so the scrollbar starts short and
- * grows honestly; there is no windowing, no virtualization and no
- * `Virtualizer`/`ListLayout`.
+ * reset would snap the user back to the first batch on every pushed capture —
+ * and reuses only `isNearListBottom` for the scroll trigger. Rows are appended
+ * and never unmounted, so the scrollbar starts short and grows honestly; there
+ * is no windowing, no virtualization and no `Virtualizer`/`ListLayout`.
+ *
+ * The trigger is a plain `onScroll` on the rail's own scroll container, exactly
+ * like the Runtime Events rail, and NOT `Table.LoadMore`. That sentinel is
+ * React Aria's `useLoadMoreSentinel`, which counts itself as intersecting while
+ * it is up to a full container height below the fold and rebuilds its
+ * IntersectionObserver every time the collection changes, "so that we can
+ * properly trigger additional loadMores if there is room for more items". On a
+ * rail that appends the page it just fetched, that is a loop: append → observer
+ * rebuilt → still inside the margin → fetch again. It paged the whole ~1,300-row
+ * capture table unattended, to roughly 20,000 DOM nodes, and the in-flight
+ * `isFetchingMoreRef` guard never stopped it — it only prevents CONCURRENT
+ * fetches, never the next one. A scroll handler cannot self-feed: appending rows
+ * raises no scroll event.
  *
  * The reconciliation itself is `reconcileVisibleEventCount`, shared with the
  * Runtime Events rail rather than reimplemented. A capture push is a head
@@ -34,7 +49,7 @@ interface TransactionPanelWindowInput {
  * once the window has consumed every loaded row, the next batch is the next
  * backend cursor page rather than a slice of a local buffer.
  * @param input The loaded rows, the current selection, and the load-more trigger.
- * @returns The windowed slice, its size, and the sentinel's load-more handler.
+ * @returns The windowed slice, its size, and the scroll handler.
  */
 export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindowInput>) {
   const { items, selectedId, onReachEnd } = input;
@@ -55,13 +70,22 @@ export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindow
   const visibleItems = useMemo(() => items.slice(0, visibleCount), [items, visibleCount]);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const onLoadMore = useCallback(() => {
-    setVisibleCount(Math.min(items.length, visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT));
+  const onScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const element = event.currentTarget;
 
-    if (visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT >= items.length) {
-      onReachEnd();
-    }
-  }, [items.length, onReachEnd, visibleCount]);
+      if (!isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight)) {
+        return;
+      }
+
+      setVisibleCount(Math.min(items.length, visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT));
+
+      if (visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT >= items.length) {
+        onReachEnd();
+      }
+    },
+    [items.length, onReachEnd, visibleCount],
+  );
 
   // 7. Effects
   useEffect(() => {
@@ -87,7 +111,7 @@ export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindow
     );
   }, [identities, selectedId]);
 
-  return { visibleItems, visibleCount, onLoadMore };
+  return { visibleItems, visibleCount, onScroll };
 }
 
 /**

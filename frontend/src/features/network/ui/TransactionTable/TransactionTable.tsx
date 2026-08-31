@@ -2,36 +2,38 @@ import { Table } from '@heroui/react';
 import {
   TRANSACTION_EMPTY_STATE_MESSAGE,
   TRANSACTION_LOADING_STATE_MESSAGE,
-  TRANSACTION_TABLE_LOAD_MORE_LABEL,
 } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionTableProps } from '../TransactionPanel/transaction-panel.types';
 import { TransactionRow } from '../TransactionRow/TransactionRow';
 
 /**
  * Dumb dense data grid rendering the windowed transaction rows on HeroUI Table
- * (React Aria), DevTools-Network density. Selection and the load-more trigger
- * are driven entirely by props; rows accumulate and are never unmounted
+ * (React Aria), DevTools-Network density. Selection and the scroll-near-bottom
+ * trigger are driven entirely by props; rows accumulate and are never unmounted
  * (ADR-012, live branch).
  *
- * `Table.LoadMore` is React Aria's own near-bottom sentinel: it observes its
- * own intersection and raises `onLoadMore`, which reveals the next batch of
- * loaded rows or fetches the next cursor page. It is NOT a `Virtualizer` and
- * mounts no `ListLayout`.
+ * `onScroll` sits on the outer container because that is the element that
+ * actually scrolls: HeroUI's `Table.ScrollContainer` constrains only the
+ * horizontal axis, so the vertical `max-h` boundary is this div's. It mirrors
+ * `NetworkTable` deliberately — two rails, one trigger mechanism.
+ *
+ * There is NO `Table.LoadMore` here. That sentinel rebuilds its
+ * IntersectionObserver on every collection change and counts itself visible up
+ * to a full container height below the fold, so on a rail that appends the page
+ * it just fetched it fed itself the next one until the cursor ran out. A scroll
+ * event only ever comes from the user.
  *
  * Each row is a memoized `TransactionRow` rather than inline JSX: with rows
  * accumulating and never unmounting, re-running every loaded row's markup on
  * every table render is the one cost that grows without bound here.
  */
-export function TransactionTable({
-  rows,
-  selectedId,
-  onSelect,
-  isLoading,
-  hasNextPage,
-  onLoadMore,
-}: Readonly<TransactionTableProps>) {
+export function TransactionTable({ rows, selectedId, onSelect, isLoading, onScroll }: Readonly<TransactionTableProps>) {
   return (
-    <div className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]" data-transaction-scroll>
+    <div
+      className="max-h-[32rem] overflow-y-auto [scrollbar-gutter:stable] 2xl:max-h-[40rem]"
+      data-transaction-scroll
+      onScroll={onScroll}
+    >
       <Table aria-label="Captured transactions" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
@@ -68,11 +70,6 @@ export function TransactionTable({
               {rows.map((row) => (
                 <TransactionRow key={row.id} row={row} />
               ))}
-              {hasNextPage ? (
-                <Table.LoadMore isLoading={isLoading} onLoadMore={onLoadMore}>
-                  <Table.LoadMoreContent>{TRANSACTION_TABLE_LOAD_MORE_LABEL}</Table.LoadMoreContent>
-                </Table.LoadMore>
-              ) : null}
             </Table.Body>
           </Table.Content>
         </Table.ScrollContainer>
