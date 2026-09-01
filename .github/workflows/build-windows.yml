@@ -1,0 +1,158 @@
+# Builds the Windows release artifacts: the NSIS installer and the portable
+# binary.
+#
+# Called by release.yml on a `v*` tag, and runnable on its own from the Actions
+# tab so the Windows build can be proven between releases.
+#
+# The version is never typed here. `wails.json` -> info.productVersion is the
+# single source of truth (see .claude/skills/bridge-release/SKILL.md), and on a
+# tag build the tag has to agree with it: a mismatch fails the job before it can
+# produce an artifact a human would mistake for the tagged release.
+name: Build Windows
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with frontend/package.json -> packageManager.
+  BUN_VERSION: "1.3.11"
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    name: windows/amd64
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    # The system tray is compiled in only under `windows && cgo`
+    # (internal/tray/systray_bindings_windows_cgo.go). Pinned rather than left
+    # to the runner's default, because the failure is silent: with CGO off that
+    # file drops out, internal/tray/systray_manager.go keeps its no-op package
+    # vars, Start() still returns nil, and app.go:216 still wires the real
+    # manager -- so the installer ships a tray that does nothing, with no build
+    # error and no log line.
+    env:
+      CGO_ENABLED: "1"
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # `wails build` runs the frontend itself through wails.json ->
+      # frontend:install / frontend:build, so Bun has to exist before the build
+      # step rather than before a frontend step -- there is no separate one.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # Resolved from go.mod instead of pinned twice: the CLI that generates the
+      # bindings and the library the app links against must be the same version.
+      - name: Install the Wails CLI pinned by go.mod
+        run: |
+          $version = (go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not $version) { throw "could not resolve github.com/wailsapp/wails/v2 from go.mod" }
+          Write-Host "Installing the Wails CLI $version"
+          go install "github.com/wailsapp/wails/v2/cmd/wails@$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path (go env GOPATH) 'bin')
+
+      - name: Resolve the release version
+        id: version
+        run: |
+          $version = (Get-Content wails.json -Raw | ConvertFrom-Json).info.productVersion
+          if (-not $version) { throw "wails.json declares no info.productVersion" }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "tag $env:GITHUB_REF_NAME does not match wails.json productVersion $version (expected v$version)"
+          }
+          Write-Host "Release version: $version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      # `wails build -nsis` shells out to makensis. The hosted image ships NSIS,
+      # but not always on PATH, so this resolves it and only installs as a
+      # fallback.
+      - name: Ensure makensis is on PATH
+        run: |
+          if (Get-Command makensis -ErrorAction SilentlyContinue) {
+            Write-Host "makensis is already on PATH"
+            exit 0
+          }
+          $nsis = 'C:\Program Files (x86)\NSIS'
+          if (-not (Test-Path (Join-Path $nsis 'makensis.exe'))) {
+            choco install nsis --no-progress -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $nsis
+
+      # Reads back which files the tray package actually compiles, so the
+      # silent-no-op tray above fails the job instead of shipping. Measured:
+      # CGO_ENABLED=0 drops systray_bindings_windows_cgo.go from this list.
+      - name: Verify the system tray bindings are compiled in
+        run: |
+          $files = (go list -f '{{.GoFiles}}' ./internal/tray)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($files -notmatch 'systray_bindings_windows_cgo\.go') {
+            throw "internal/tray compiles without systray_bindings_windows_cgo.go (CGO_ENABLED=$(go env CGO_ENABLED)); the shipped system tray would be a silent no-op. Files: $files"
+          }
+          Write-Host "System tray bindings present: $files"
+
+      # bridgeVersion is stamped at link time, not read from wails.json at
+      # runtime: app_backup.go declares `var bridgeVersion = "dev"` and every
+      # exported backup bundle carries it, surfaced to the user in the import
+      # preview. An unstamped release build labels its bundles "dev".
+      - name: Build the app and the NSIS installer
+        run: wails build -platform windows/amd64 -nsis -clean -ldflags "-X main.bridgeVersion=${{ steps.version.outputs.version }}"
+
+      - name: Verify the binary carries the stamped version
+        run: |
+          $info = (go version -m build/bin/autoreas-bridge.exe) -join "`n"
+          if ($info -notmatch 'bridgeVersion=${{ steps.version.outputs.version }}') {
+            throw "build/bin/autoreas-bridge.exe is not stamped with bridgeVersion=${{ steps.version.outputs.version }}; backups exported by this build would report 'dev'"
+          }
+          Write-Host "Stamped bridgeVersion=${{ steps.version.outputs.version }}"
+
+      # wails_tools.nsh is generated output, never hand-edited. Reading the
+      # define back proves the installer that was just built carries the version
+      # this job claims to be shipping.
+      - name: Verify the generated installer declares the same version
+        run: |
+          $expected = '!define INFO_PRODUCTVERSION "${{ steps.version.outputs.version }}"'
+          $tools = 'build/windows/installer/wails_tools.nsh'
+          if (-not (Select-String -Path $tools -SimpleMatch -Pattern $expected -Quiet)) {
+            throw "$tools does not contain $expected"
+          }
+          Write-Host "Installer declares $expected"
+
+      - name: Stage the release artifacts
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item 'build/bin/autoreas-bridge-amd64-installer.exe' "dist/autoreas-bridge-$version-windows-amd64-installer.exe"
+          Copy-Item 'build/bin/autoreas-bridge.exe' "dist/autoreas-bridge-$version-windows-amd64.exe"
+          $sums = Get-ChildItem dist -File | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          }
+          Set-Content -Path 'dist/SHA256SUMS-windows-amd64.txt' -Value $sums -Encoding ascii
+          Get-ChildItem dist -File | Format-Table Name, Length
+
+      - name: Upload the Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoreas-bridge-windows-amd64
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,82 @@
+# Release entry point.
+#
+# Pushing a `vX.Y.Z` tag builds both platforms and opens a DRAFT GitHub release
+# carrying every artifact plus the CHANGELOG section for that version. The draft
+# is deliberate: this repository writes release notes by hand and does not even
+# push the tag unless asked, so the last step stays a human decision.
+#
+# Running it manually from the Actions tab builds both platforms and publishes
+# nothing -- the publish job is tag-only.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    uses: ./.github/workflows/build-windows.yml
+
+  linux:
+    uses: ./.github/workflows/build-linux.yml
+
+  publish:
+    name: Publish the draft release
+    needs: [windows, linux]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Download every platform artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The release body is the changelog, not the git log. A tag whose version
+      # has no CHANGELOG.md section is an incomplete release, so this fails
+      # rather than shipping empty notes.
+      - name: Extract this version's CHANGELOG section
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # CHANGELOG.md is CRLF-encoded; the carriage returns have to go or
+          # every line of the release body ends in a stray ^M.
+          section="$(awk -v needle="## [${version}]" '
+            index($0, needle) == 1 { inside = 1; next }
+            inside && /^## \[/ { exit }
+            inside { print }
+          ' CHANGELOG.md | tr -d '\r')"
+          if [ -z "$(printf '%s' "${section}" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no '## [${version}]' section"
+            exit 1
+          fi
+          {
+            echo "body<<CHANGELOG_SECTION_EOF"
+            printf '%s\n' "${section}"
+            echo "CHANGELOG_SECTION_EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Open the draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Autoreas Bridge ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+          files: dist/*
+          draft: true
+          fail_on_unmatched_files: true
