@@ -34,4 +34,7 @@ func (a *DesktopToastAdapter) Delivered() bool {
 // SetDesktopActivationHandler is a no-op on non-Windows builds: there is no OS toast to press, so
 // there is no activation to route. It exists so the composition root wires the same call on every
 // platform rather than growing a build-tagged branch of its own.
-func SetDesktopActivationHandler(handler func(recordID int64, actionID string)) {}
+func SetDesktopActivationHandler(handler func(recordID int64, actionID string)) {
+	// Intentionally empty, as the doc comment above says: this build shows no
+	// OS toast, so there is no activation to route anywhere.
+}

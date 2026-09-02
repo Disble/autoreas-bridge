@@ -43,7 +43,7 @@ type animeDownloadPreparation struct {
 // progressEmitter returns the supplied progress callback or a no-op callback.
 func progressEmitter(progress []func(animeProgressDelta)) func(animeProgressDelta) {
 	if len(progress) == 0 || progress[0] == nil {
-		return func(animeProgressDelta) {}
+		return func(animeProgressDelta) { /* no progress sink was supplied */ }
 	}
 	return progress[0]
 }
