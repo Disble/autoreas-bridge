@@ -1,9 +1,12 @@
 # Release entry point.
 #
-# Pushing a `vX.Y.Z` tag builds both platforms and opens a DRAFT GitHub release
-# carrying every artifact plus the CHANGELOG section for that version. The draft
-# is deliberate: this repository writes release notes by hand and does not even
-# push the tag unless asked, so the last step stays a human decision.
+# Pushing a `vX.Y.Z` tag builds both platforms and PUBLISHES a GitHub release
+# carrying every artifact plus the CHANGELOG section for that version.
+#
+# It publishes rather than drafting because the release has to be official to be
+# installable: a draft is invisible to anyone testing a build, and its assets are
+# not reachable from the tag. Corrections ship as patch releases (1.8.1, 1.8.2),
+# never by re-cutting a tag that people may already have downloaded.
 #
 # Running it manually from the Actions tab builds both platforms and publishes
 # nothing -- the publish job is tag-only.
@@ -30,7 +33,7 @@ jobs:
     uses: ./.github/workflows/build-linux.yml
 
   publish:
-    name: Publish the draft release
+    name: Publish the release
     needs: [windows, linux]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
@@ -72,11 +75,11 @@ jobs:
             echo "CHANGELOG_SECTION_EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Open the draft release
+      - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           name: Autoreas Bridge ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.body }}
           files: dist/*
-          draft: true
+          draft: false
           fail_on_unmatched_files: true
