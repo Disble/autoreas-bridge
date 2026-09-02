@@ -7,7 +7,11 @@ import type {
   RuntimeEventRow,
 } from '../../../../shared/store/network-store/network-store.types';
 
-export type { EventFeedState, NetworkLevelFilter, RuntimeEventRow };
+export type {
+  EventFeedState,
+  NetworkLevelFilter,
+  RuntimeEventRow,
+} from '../../../../shared/store/network-store/network-store.types';
 
 /** The filter set the feed applies to both the persisted page and the live overlay. */
 export interface EventFeedFilters {

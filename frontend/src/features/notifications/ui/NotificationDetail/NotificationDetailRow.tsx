@@ -23,9 +23,9 @@ import { NotificationDetailShowAllLink } from './NotificationDetailShowAllLink';
 export function NotificationDetailRow({ actions, coverEntry, notificationId, row, source }: Readonly<NotificationDetailRowProps>) {
   if (isCollapsedRow(row)) {
     return (
-      <div aria-label={NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL} className="rounded-xl border border-dashed border-default-200 px-3 py-2 text-center text-xs text-default-400" role="status">
+      <output aria-label={NOTIFICATION_DETAIL_COLLAPSED_ROW_ARIA_LABEL} className="block rounded-xl border border-dashed border-default-200 px-3 py-2 text-center text-xs text-default-400">
         <span>{row.detail}</span> &mdash; <NotificationDetailShowAllLink />
-      </div>
+      </output>
     );
   }
 
