@@ -26,6 +26,11 @@
   -->
   <project_license>LicenseRef-proprietary</project_license>
 
+  <!-- appstreamcli reports `developer-info-missing` without this. -->
+  <developer id="io.github.disble">
+    <name>disble</name>
+  </developer>
+
   <name>Autoreas Bridge</name>
   <summary>Track anime, schedule episode checks, and sync with paired devices</summary>
 
