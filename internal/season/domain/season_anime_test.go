@@ -9,7 +9,7 @@ func TestApplyGradeOnEmptyCellRecords(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(1_700_000_000_000))
 	rated := time.UnixMilli(1_700_000_100_000)
 
-	if applied := sa.ApplyGrade(4, GradeSourceMobileSync, rated); !applied {
+	if !sa.ApplyGrade(4, GradeSourceMobileSync, rated) {
 		t.Fatal("ApplyGrade on an empty cell must apply")
 	}
 	if sa.Grade != 4 {
@@ -30,7 +30,7 @@ func TestApplyGradeManualWinsAndFlipsSource(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
 	sa.ApplyGrade(3, GradeSourceMobileSync, time.UnixMilli(1))
 
-	if applied := sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(2)); !applied {
+	if !sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(2)) {
 		t.Fatal("a manual grade must always win")
 	}
 	if sa.Grade != 5 || sa.GradeSource != GradeSourceManual {
@@ -42,7 +42,7 @@ func TestApplyGradeMobileRejectedWhenManualPresent(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
 	sa.ApplyGrade(5, GradeSourceManual, time.UnixMilli(1))
 
-	if applied := sa.ApplyGrade(2, GradeSourceMobileSync, time.UnixMilli(2)); applied {
+	if sa.ApplyGrade(2, GradeSourceMobileSync, time.UnixMilli(2)) {
 		t.Fatal("mobile_sync must not overwrite a manual grade")
 	}
 	if sa.Grade != 5 || sa.GradeSource != GradeSourceManual {
@@ -54,7 +54,7 @@ func TestApplyGradeMobileSelfOverwriteAllowed(t *testing.T) {
 	sa := NewSeasonAnime("sa-1", "season-1", "Anime", time.UnixMilli(0))
 	sa.ApplyGrade(3, GradeSourceMobileSync, time.UnixMilli(1))
 
-	if applied := sa.ApplyGrade(6, GradeSourceMobileSync, time.UnixMilli(2)); !applied {
+	if !sa.ApplyGrade(6, GradeSourceMobileSync, time.UnixMilli(2)) {
 		t.Fatal("mobile correcting its own earlier grade must be allowed")
 	}
 	if sa.Grade != 6 {

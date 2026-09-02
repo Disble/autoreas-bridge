@@ -20,7 +20,7 @@ func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 	second := NewCaptureRecord("patch", "device-2")
 	third := NewCaptureRecord("patch", "device-3")
 
-	if ok := queue.TryEnqueue(first); !ok {
+	if !queue.TryEnqueue(first) {
 		t.Fatal("expected first enqueue to succeed")
 	}
 
@@ -38,10 +38,10 @@ func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 		t.Fatal("drain goroutine never reached the store")
 	}
 
-	if ok := queue.TryEnqueue(second); !ok {
+	if !queue.TryEnqueue(second) {
 		t.Fatal("expected the second enqueue to take the slot the drain goroutine freed")
 	}
-	if ok := queue.TryEnqueue(third); ok {
+	if queue.TryEnqueue(third) {
 		t.Fatal("expected overflow enqueue to be dropped")
 	}
 	if got := queue.DroppedTotal(); got != 1 {
@@ -78,10 +78,10 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	store := &blockingQueueStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 2})
 
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-1")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected enqueue to succeed")
 	}
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-2")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-2")) {
 		t.Fatal("expected second enqueue to succeed")
 	}
 
@@ -146,7 +146,7 @@ func TestQueueOnPersistFiresOncePerPersistedRecordAfterStoreWrite(t *testing.T) 
 
 	record := NewCaptureRecord("patch", "device-1")
 	record.RequestID = "req-onpersist"
-	if ok := queue.TryEnqueue(record); !ok {
+	if !queue.TryEnqueue(record) {
 		t.Fatal("expected enqueue to succeed")
 	}
 
@@ -179,7 +179,7 @@ func TestQueueOnPersistDoesNotFireOnStoreWriteFailure(t *testing.T) {
 		persisted = append(persisted, record)
 	}})
 
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-1")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected enqueue to succeed")
 	}
 

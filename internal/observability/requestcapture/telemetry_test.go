@@ -26,7 +26,7 @@ func TestSanitizeHeadersPreservesActualHeaderValuesForLocalDebugging(t *testing.
 		"Content-Type":        "application/json",
 		"X-Multi":             "first, second",
 	} {
-		if got := sanitized[key]; got != want {
+		if sanitized[key] != want {
 			t.Fatalf("expected %q=%q, got %#v", key, want, sanitized)
 		}
 	}
@@ -55,7 +55,7 @@ func TestSanitizeHeadersKeepsSingleValuesVerbatim(t *testing.T) {
 		"Accept":           "application/json",
 		"Content-Length":   "42",
 	} {
-		if got := sanitized[key]; got != want {
+		if sanitized[key] != want {
 			t.Fatalf("expected %q=%q, got %#v", key, want, sanitized)
 		}
 	}

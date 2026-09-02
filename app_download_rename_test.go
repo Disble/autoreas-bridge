@@ -64,7 +64,7 @@ func TestSetEpisodeRenameEnabledReportsAMissingSettingsStore(t *testing.T) {
 
 	app := &App{}
 
-	if result := app.SetEpisodeRenameEnabled(true); result == "ok" {
+	if app.SetEpisodeRenameEnabled(true) == "ok" {
 		t.Fatal("SetEpisodeRenameEnabled reported ok with no settings store")
 	}
 	if app.episodeRenameEnabled(context.Background()) {
@@ -77,7 +77,7 @@ func TestSetEpisodeRenameEnabledSurfacesAWriteFailure(t *testing.T) {
 
 	app := &App{settingsStore: failingRenameSettingsStore{newRenameSettingsStore(t)}}
 
-	if result := app.SetEpisodeRenameEnabled(true); result == "ok" {
+	if app.SetEpisodeRenameEnabled(true) == "ok" {
 		t.Fatal("SetEpisodeRenameEnabled reported ok despite a write failure")
 	}
 }

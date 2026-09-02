@@ -163,13 +163,13 @@ func TestRuntimeEventsAvailableReportsTheStorePresence(t *testing.T) {
 	withTable := openRuntimeEventsTestDB(t)
 	withoutTable := openDBWithoutRuntimeEventsTable(t)
 
-	if got := (&App{bridgeDB: withTable, eventReader: eventlog.NewReader(withTable)}).RuntimeEventsAvailable(); !got {
+	if !(&App{bridgeDB: withTable, eventReader: eventlog.NewReader(withTable)}).RuntimeEventsAvailable() {
 		t.Fatal("expected a database carrying runtime_events to report available")
 	}
-	if got := (&App{bridgeDB: withoutTable, eventReader: eventlog.NewReader(withoutTable)}).RuntimeEventsAvailable(); got {
+	if (&App{bridgeDB: withoutTable, eventReader: eventlog.NewReader(withoutTable)}).RuntimeEventsAvailable() {
 		t.Fatal("expected a database without runtime_events to report unavailable")
 	}
-	if got := (&App{}).RuntimeEventsAvailable(); got {
+	if (&App{}).RuntimeEventsAvailable() {
 		t.Fatal("expected an unwired reader to report unavailable rather than panicking")
 	}
 }

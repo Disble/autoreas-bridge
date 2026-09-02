@@ -50,7 +50,7 @@ func TestSetAPIAddressRefusesAnUnusableValueWithoutPersistingIt(t *testing.T) {
 	if result := app.SetAPIAddress("0.0.0.0:9999"); result != "ok" {
 		t.Fatalf("SetAPIAddress = %q, want \"ok\"", result)
 	}
-	if result := app.SetAPIAddress("not-a-port"); result == "ok" {
+	if app.SetAPIAddress("not-a-port") == "ok" {
 		t.Fatal("SetAPIAddress accepted an unusable address")
 	}
 	if got := app.GetAPIAddress(); got != "0.0.0.0:9999" {

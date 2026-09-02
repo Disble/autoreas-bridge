@@ -224,14 +224,14 @@ func TestEventPersistDebugSettingRoundTripsAndDefaultsOff(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	app := &App{bridgeDB: db}
-	if got := app.readEventPersistDebugSetting(context.Background()); got {
+	if app.readEventPersistDebugSetting(context.Background()) {
 		t.Fatal("expected persist_debug to default to false when unset")
 	}
 
 	if _, err := db.Exec(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, eventPersistDebugSettingKey, "true"); err != nil {
 		t.Fatalf("seed persist_debug setting: %v", err)
 	}
-	if got := app.readEventPersistDebugSetting(context.Background()); !got {
+	if !app.readEventPersistDebugSetting(context.Background()) {
 		t.Fatal("expected persist_debug to round-trip as true once set")
 	}
 }
