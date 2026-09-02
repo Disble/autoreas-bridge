@@ -17,7 +17,7 @@
   type="stock" icon is resolved against the icon stock, and pixmaps is a legacy
   fallback that the desktop shell searches but the icon theme does not own. That
   split is why the application menu showed the right icon while the store did
-  not -- two different lookups, and only one of them was satisfied.
+  not: two different lookups, and only one of them was satisfied.
 
   @VERSION@ and @DATE@ are substituted at build time from wails.json ->
   info.productVersion, so the version stays declared in exactly one place. Do
