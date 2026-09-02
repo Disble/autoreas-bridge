@@ -1,0 +1,52 @@
+# Debian package definition, consumed by `nfpm pkg` in build-linux.yml.
+#
+# Why a .deb and not just the tarball: the tarball ships a bare ELF, so a user
+# on a distro without WebKitGTK 4.1 hits
+# `libwebkit2gtk-4.1.so.0: cannot open shared object file` and has no way to
+# know what to install. A package DECLARES that dependency, so apt resolves it.
+# It also lands a .desktop entry and an icon, which is the shape Bridge is meant
+# to have -- an installed application, not a loose binary.
+#
+# ${VERSION} is expanded from the environment by nfpm; the workflow sets it from
+# wails.json -> info.productVersion, which stays the single source of the version.
+name: autoreas-bridge
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: disble <contact@disble.com>
+homepage: https://github.com/Disble/autoreas-bridge
+description: |
+  Desktop companion for tracking and downloading anime.
+  Bridge keeps a local catalogue, schedules episode checks, drives downloads
+  through JDownloader, and exposes a REST/WebSocket API for paired mobile
+  devices.
+
+# No `license:` field on purpose: the repository carries no LICENSE file, and
+# declaring one that is not in the tree would be an unverifiable claim.
+
+depends:
+  # `libgtk-3-0` was renamed `libgtk-3-0t64` in Ubuntu 24.04 by the 64-bit
+  # time_t transition. A Debian alternative satisfies both, so one package
+  # installs on 22.04 and on 24.04 rather than needing two builds.
+  - libgtk-3-0 | libgtk-3-0t64
+  # libsoup3 and libjavascriptcoregtk-4.1 are deliberately NOT listed: they are
+  # what makes WebKitGTK "4.1" rather than "4.0", so this package pulls them in
+  # transitively. Listing them again would be a second place to keep in sync.
+  - libwebkit2gtk-4.1-0
+
+contents:
+  - src: ./build/bin/autoreas-bridge
+    dst: /usr/bin/autoreas-bridge
+    file_info:
+      mode: 0755
+
+  - src: ./build/linux/autoreas-bridge.desktop
+    dst: /usr/share/applications/autoreas-bridge.desktop
+
+  # build/appicon.png is 1024x1024, which is not one of the hicolor theme's
+  # standard sizes, so it goes to the size-agnostic pixmaps directory that both
+  # GNOME and KDE still search. Moving it under hicolor would require resizing.
+  - src: ./build/appicon.png
+    dst: /usr/share/pixmaps/autoreas-bridge.png

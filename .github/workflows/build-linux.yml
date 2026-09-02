@@ -103,14 +103,64 @@ jobs:
           fi
           echo "Stamped bridgeVersion=${VERSION}"
 
-      - name: Stage the release artifact
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+
+      # The .deb is the primary Linux artifact. The tarball ships a bare ELF, so
+      # a machine without WebKitGTK 4.1 fails with
+      # `libwebkit2gtk-4.1.so.0: cannot open shared object file` and nothing
+      # tells the user what to install. The package declares that dependency, so
+      # apt resolves it, and it installs a .desktop entry and icon besides.
+      - name: Build the Debian package
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p dist
           chmod +x build/bin/autoreas-bridge
+          nfpm pkg --packager deb --config build/linux/nfpm.yaml             --target "dist/autoreas-bridge-${VERSION}-linux-amd64.deb"
+
+      # Reads the package back rather than trusting that nfpm did what the
+      # config said. A .deb that installs but declares no WebKit dependency
+      # reproduces the exact failure this package exists to remove, and it fails
+      # on the user's machine, not here.
+      - name: Verify the package declares its runtime dependencies
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          deb="dist/autoreas-bridge-${VERSION}-linux-amd64.deb"
+          dpkg-deb --info "${deb}"
+          echo "--- contents ---"
+          dpkg-deb --contents "${deb}"
+          depends="$(dpkg-deb --field "${deb}" Depends)"
+          echo "--- Depends: ${depends} ---"
+          for required in libwebkit2gtk-4.1-0 libgtk-3-0; do
+            case "${depends}" in
+              *"${required}"*) ;;
+              *) echo "::error::${deb} does not depend on ${required}; installing it would reproduce the missing-shared-library failure"; exit 1 ;;
+            esac
+          done
+          version="$(dpkg-deb --field "${deb}" Version)"
+          if [ "${version}" != "${VERSION}" ]; then
+            echo "::error::package declares Version ${version}, expected ${VERSION}"
+            exit 1
+          fi
+          for path in ./usr/bin/autoreas-bridge ./usr/share/applications/autoreas-bridge.desktop ./usr/share/pixmaps/autoreas-bridge.png; do
+            if ! dpkg-deb --contents "${deb}" | grep -q " ${path}\$"; then
+              echo "::error::${deb} is missing ${path}"
+              exit 1
+            fi
+          done
+          echo "Package declares ${depends} and carries every expected path"
+
+      # Still published for distributions apt cannot serve. Unlike the Windows
+      # portable exe -- which duplicated the installer on the same platform --
+      # this is the only artifact a non-Debian distro can use.
+      - name: Stage the tarball and checksums
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
           tar -czf "dist/autoreas-bridge-${VERSION}-linux-amd64.tar.gz" -C build/bin autoreas-bridge
-          (cd dist && sha256sum ./*.tar.gz > SHA256SUMS-linux-amd64.txt)
+          (cd dist && sha256sum ./*.deb ./*.tar.gz > SHA256SUMS-linux-amd64.txt)
           ls -l dist
 
       - name: Upload the Linux artifacts

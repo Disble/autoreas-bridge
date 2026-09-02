@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Autoreas Bridge
+GenericName=Anime tracker
+Comment=Track anime, schedule episode checks, and sync with paired devices
+Exec=autoreas-bridge
+Icon=autoreas-bridge
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true
+StartupWMClass=autoreas-bridge
+Keywords=anime;download;tracker;bridge;
