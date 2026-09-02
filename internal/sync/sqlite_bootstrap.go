@@ -14,6 +14,9 @@ import (
 	"autoreas-bridge/internal/observability/eventlog"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
+	// Registers the "sqlite" driver with database/sql. Nothing in this file
+	// references the package, so the import exists purely for that init side effect
+	// and removing it turns every sql.Open("sqlite", ...) here into a runtime error.
 	_ "modernc.org/sqlite"
 )
 
