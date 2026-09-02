@@ -284,7 +284,7 @@ function getNetworkDetailFields(row: Readonly<RuntimeEventRow>): ReadonlyArray<r
  * every uncorrelated event in the store.
  */
 export function readCorrelationId(row: Readonly<RuntimeEventRow> | null): string | null {
-  if (row === null || row.correlationId === undefined || row.correlationId === '') {
+  if (row?.correlationId === undefined || row.correlationId === '') {
     return null;
   }
 

@@ -76,9 +76,9 @@ const CONTENT_TYPES = {
 function findEdge() {
   const candidates = [
     process.env.EDGE_PATH,
-    `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    `${process.env.PROGRAMFILES}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    String.raw`${process.env['PROGRAMFILES(X86)']}\Microsoft\Edge\Application\msedge.exe`,
+    String.raw`${process.env.PROGRAMFILES}\Microsoft\Edge\Application\msedge.exe`,
+    String.raw`${process.env.LOCALAPPDATA}\Microsoft\Edge\Application\msedge.exe`,
   ];
   return candidates.find((candidate) => candidate && existsSync(candidate));
 }

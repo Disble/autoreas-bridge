@@ -21,5 +21,5 @@ export function coerceLabeledSelectValue(value: unknown, fallbackValue: string):
 export function coerceLabeledSelectValues(value: unknown): readonly string[] {
   const values = Array.isArray(value) ? value : [value ?? ''];
 
-  return values.map((item) => String(item));
+  return values.map(String);
 }

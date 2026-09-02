@@ -19,10 +19,19 @@ const prefix = surface === '' ? '' : `${surface}/`;
 /**
  * Whether a repo-relative path is a production TypeScript file in this
  * workspace. Tests are excluded because mutating a test proves nothing.
+ *
+ * src/test/ is excluded by path rather than by filename: it holds the vitest
+ * setup every suite loads, which the *.test.ts pattern below does not catch.
+ * Letting it through does more than waste a mutant -- Stryker instruments the
+ * global setup and the initial dry run then times out at five minutes instead
+ * of finishing in under two. Measured both ways on 2026-09-02.
  * @param {string} file A repo-relative path.
  * @returns {boolean} True when the file is in scope for mutation.
  */
-const isProduction = (file) => file.startsWith(`${prefix}src/`) && /\.(ts|tsx)$/.test(file) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+const isProduction = (file) => file.startsWith(`${prefix}src/`)
+  && !file.startsWith(`${prefix}src/test/`)
+  && /\.(ts|tsx)$/.test(file)
+  && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
 /** Raw `status<TAB>path[<TAB>destination]` lines describing the staged changes. */
 const output = execFileSync('git', ['diff', '--cached', '--name-status', '--diff-filter=ACMR'], { cwd, encoding: 'utf8' }); // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
 /** Staged production TypeScript files, each carrying the path it was renamed from when there is one. */

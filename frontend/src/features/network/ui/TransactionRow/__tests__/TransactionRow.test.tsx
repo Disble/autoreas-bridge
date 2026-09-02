@@ -134,7 +134,7 @@ describe('TransactionRow', () => {
 
     rerender(<TableHarness rows={[viewModel]} />);
 
-    expect(liveHookCalls.mock.calls.length).toBe(callsAfterMount);
+    expect(liveHookCalls.mock.calls).toHaveLength(callsAfterMount);
   });
 
   it('re-renders a row whose view model actually changed', () => {

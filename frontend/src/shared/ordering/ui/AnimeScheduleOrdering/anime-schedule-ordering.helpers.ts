@@ -6,7 +6,6 @@ import type {
   AnimeScheduleOrderingInstance,
   AnimeScheduleOrderingProps,
   AnimeScheduleOrderingState,
-  AnimeScheduleOrderingTestMoveCommand,
 } from './anime-schedule-ordering.types';
 
 /**

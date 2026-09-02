@@ -150,7 +150,11 @@ func (s *Service) downloadAvailableEpisodes(ctx context.Context, runID string, a
 // progress (the old offline path logged an on-disk count climbing 4 -> 11 with no
 // file written) or invites a gap that hides every earlier missing episode behind a
 // later one.
-func (s *Service) processAvailableEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, gate *jdGate, source sites.EpisodeSource, current int, outcome *animeRunOutcome, emitProgress func(animeProgressDelta)) (int, bool) {
+// NOSONAR go:S107 -- eight parameters, but no two adjacent ones share a type, so
+// there is no transposition a caller can make that still compiles. Bundling them
+// would add a struct whose only job is to satisfy a count, and the body reads
+// them all individually.
+func (s *Service) processAvailableEpisode(ctx context.Context, runID string, anime contracts.MobileAnime, gate *jdGate, source sites.EpisodeSource, current int, outcome *animeRunOutcome, emitProgress func(animeProgressDelta)) (int, bool) { // NOSONAR
 	nextEpisode := current + 1
 	episodePageURL, err := source.EpisodePageURL(ctx, *anime.SourceURL, nextEpisode)
 	if err != nil {
