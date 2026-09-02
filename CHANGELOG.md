@@ -14,6 +14,24 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.8.3] — 2026-09-02
+
+### Fixed
+
+- **The software store now really does show Bridge's icon before you install
+  it.** 1.8.2 claimed to fix this and did not: the package carried the store
+  metadata but never named an icon in it, and the image itself was installed
+  where the desktop menu looks rather than where the store looks. That is why
+  the icon was right in the applications menu and wrong in the store the whole
+  time. The icon is now declared explicitly and installed in five sizes where
+  both of them look, and installing the package refreshes the caches that
+  otherwise keep showing the old listing until you log out.
+
+### Internal
+
+- No change to the application itself: the program in this release is the same
+  as 1.8.0. Only the Linux package metadata changed.
+
 ## [1.8.2] — 2026-09-02
 
 ### Fixed
