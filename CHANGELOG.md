@@ -14,6 +14,34 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-09-02
+
+### Added
+
+- **Bridge now installs on Debian and Ubuntu.** A `.deb` package ships next to
+  the archive. Install it with `sudo apt install ./autoreas-bridge-1.8.1-linux-amd64.deb`
+  and the system pulls in the WebKitGTK libraries Bridge needs, adds it to the
+  applications menu with its icon, and puts `autoreas-bridge` on your PATH. The
+  previous archive shipped a bare program that stopped on a machine without
+  those libraries with a message naming a file rather than telling you what to
+  install. The archive is still published for distributions that do not use apt.
+
+### Removed
+
+- **The standalone Windows program is no longer published**, only the installer.
+  Bridge registers itself to start with Windows, lives in the system tray and
+  expects a fixed install location, so a loose copy beside the installer was a
+  second, unsupported shape of the same application.
+
+### Internal
+
+- Releases are now built and published by GitHub Actions from a pushed tag,
+  covering Windows and Linux, with checksums for every downloadable file.
+  Development moves to the `dev` branch; `main` carries deployments only.
+
+- No change to the application itself: the program in this release is the same
+  as 1.8.0. Only how it is packaged and delivered changed.
+
 ## [1.8.0] — 2026-08-30
 
 ### Added
