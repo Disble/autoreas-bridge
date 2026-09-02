@@ -137,12 +137,17 @@ jobs:
           }
           Write-Host "Installer declares $expected"
 
+      # Only the installer ships. Wails still builds the bare
+      # build/bin/autoreas-bridge.exe -- NSIS wraps it, and the ldflags readback
+      # above reads it -- but Bridge is an installed application: it registers
+      # auto-start, lives in the system tray, and expects a fixed install
+      # location. A portable copy of it is a second, unsupported shape of the
+      # product, and it shipped with blank Windows file properties besides.
       - name: Stage the release artifacts
         run: |
           $version = '${{ steps.version.outputs.version }}'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item 'build/bin/autoreas-bridge-amd64-installer.exe' "dist/autoreas-bridge-$version-windows-amd64-installer.exe"
-          Copy-Item 'build/bin/autoreas-bridge.exe' "dist/autoreas-bridge-$version-windows-amd64.exe"
           $sums = Get-ChildItem dist -File | ForEach-Object {
             '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
