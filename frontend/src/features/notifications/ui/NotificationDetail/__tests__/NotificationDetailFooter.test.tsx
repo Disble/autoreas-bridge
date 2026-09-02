@@ -22,6 +22,11 @@ function buildFooterSource(): NotificationCenterSource {
   } as unknown as NotificationCenterSource;
 }
 
+// NOSONAR typescript:S5976 -- these cases share an assertion shape but not an
+// intent, and the intent lives in the names: one records that the pane used to
+// fetch this action and drop it, another that archive is the single lifecycle
+// verb the pane itself can carry out. An it.each collapses both into a loop
+// parameterised on a button label, which is the one part that does not matter.
 describe('NotificationDetailFooter', () => {
   it("renders the record's own whole-notification action, which the pane used to fetch and drop", () => {
     render(<NotificationDetailFooter actions={[buildAction()]} notificationId={1} source={buildFooterSource()} />);
