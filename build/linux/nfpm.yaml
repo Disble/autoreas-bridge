@@ -4,8 +4,13 @@
 # on a distro without WebKitGTK 4.1 hits
 # `libwebkit2gtk-4.1.so.0: cannot open shared object file` and has no way to
 # know what to install. A package DECLARES that dependency, so apt resolves it.
-# It also lands a .desktop entry and an icon, which is the shape Bridge is meant
-# to have -- an installed application, not a loose binary.
+# It also lands a .desktop entry, an icon and AppStream metadata, which is the
+# shape Bridge is meant to have -- an installed application, not a loose binary.
+#
+# Everything the desktop and the software store look up shares one reverse-DNS
+# id, `io.github.disble.autoreas-bridge`: the .desktop file name, the icon name,
+# and the AppStream component id. Only the executable keeps the short name,
+# because that is what a user types.
 #
 # ${VERSION} is expanded from the environment by nfpm; the workflow sets it from
 # wails.json -> info.productVersion, which stays the single source of the version.
@@ -42,19 +47,38 @@ contents:
     file_info:
       mode: 0755
 
-  - src: ./build/linux/autoreas-bridge.desktop
-    dst: /usr/share/applications/autoreas-bridge.desktop
+  - src: ./build/linux/io.github.disble.autoreas-bridge.desktop
+    dst: /usr/share/applications/io.github.disble.autoreas-bridge.desktop
 
-  # build/appicon.png is 1024x1024, which is not one of the hicolor theme's
-  # standard sizes, so it goes to the size-agnostic pixmaps directory that both
-  # GNOME and KDE still search. Moving it under hicolor would require resizing.
-  - src: ./build/appicon.png
-    dst: /usr/share/pixmaps/autoreas-bridge.png
-
-  # Rendered from build/linux/autoreas-bridge.metainfo.xml.in by the workflow,
-  # which substitutes the version. This is what GNOME Software reads to build
-  # the listing shown BEFORE installing; the .desktop and icon above are read by
-  # the desktop shell AFTER installing. Without this the store shows a generic
-  # package icon and "No details for this release".
+  # Rendered from build/linux/io.github.disble.autoreas-bridge.metainfo.xml.in
+  # by the workflow, which substitutes the version. This is what a software
+  # store reads to build its listing.
   - src: ./build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
     dst: /usr/share/metainfo/io.github.disble.autoreas-bridge.metainfo.xml
+
+  # The icon goes into the hicolor THEME, not /usr/share/pixmaps.
+  #
+  # 1.8.2 installed a single 1024x1024 PNG into pixmaps and the store still drew
+  # a generic package icon. pixmaps is a legacy path the desktop shell searches,
+  # which is why the applications menu looked right, but an AppStream
+  # `type="stock"` icon is resolved against the icon stock -- so the store found
+  # nothing. build/appicon.png is resized into these standard sizes by the
+  # workflow; 1024 is not one of them, which is what sent it to pixmaps
+  # originally.
+  - src: ./build/linux/generated/icons/48x48/apps/io.github.disble.autoreas-bridge.png
+    dst: /usr/share/icons/hicolor/48x48/apps/io.github.disble.autoreas-bridge.png
+  - src: ./build/linux/generated/icons/64x64/apps/io.github.disble.autoreas-bridge.png
+    dst: /usr/share/icons/hicolor/64x64/apps/io.github.disble.autoreas-bridge.png
+  - src: ./build/linux/generated/icons/128x128/apps/io.github.disble.autoreas-bridge.png
+    dst: /usr/share/icons/hicolor/128x128/apps/io.github.disble.autoreas-bridge.png
+  - src: ./build/linux/generated/icons/256x256/apps/io.github.disble.autoreas-bridge.png
+    dst: /usr/share/icons/hicolor/256x256/apps/io.github.disble.autoreas-bridge.png
+  - src: ./build/linux/generated/icons/512x512/apps/io.github.disble.autoreas-bridge.png
+    dst: /usr/share/icons/hicolor/512x512/apps/io.github.disble.autoreas-bridge.png
+
+scripts:
+  # The icon theme and the desktop database are indexed caches. Without a
+  # refresh the files are on disk and nothing looks at them until the next
+  # login, which reads as "the package installed but the icon is still wrong".
+  postinstall: ./build/linux/postinstall.sh
+  postremove: ./build/linux/postinstall.sh

@@ -1,17 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   AppStream metadata, rendered by build-linux.yml and installed to
-  /usr/share/metainfo/. This is what GNOME Software (and KDE Discover) read to
-  build the listing shown BEFORE the package is installed.
+  /usr/share/metainfo/.
 
-  Without it the store falls back to a generic package icon and an empty
-  "No details for this release", even though the .deb already carries the
-  .desktop file and the icon: those are read by the desktop shell AFTER
-  installation, not by the store beforehand. Two different mechanisms.
+  WHY THE FIRST ATTEMPT DID NOT WORK (1.8.2): this file shipped with no <icon>
+  element at all. The AppStream specification lists <icon> as OPTIONAL and does
+  NOT inherit it from the .desktop file: merging desktop-entry data into a
+  component is something repository METADATA GENERATORS do, not something a
+  local MetaInfo file gets for free. <launchable> associates the .desktop file
+  so a store can LAUNCH the app; it does not carry the icon across. A component
+  with no icon renders as the generic package icon, which is exactly what the
+  store showed.
 
-  This is a TEMPLATE on purpose. @VERSION@ and @DATE@ are substituted at build
-  time from wails.json -> info.productVersion, so the version stays declared in
-  exactly one place. Do not hardcode a version here.
+  The icon is therefore declared explicitly below, and the PNG is installed into
+  the hicolor theme at standard sizes rather than into /usr/share/pixmaps: a
+  type="stock" icon is resolved against the icon stock, and pixmaps is a legacy
+  fallback that the desktop shell searches but the icon theme does not own. That
+  split is why the application menu showed the right icon while the store did
+  not -- two different lookups, and only one of them was satisfied.
+
+  @VERSION@ and @DATE@ are substituted at build time from wails.json ->
+  info.productVersion, so the version stays declared in exactly one place. Do
+  not hardcode a version here.
 -->
 <component type="desktop-application">
   <id>io.github.disble.autoreas-bridge</id>
@@ -26,7 +36,6 @@
   -->
   <project_license>LicenseRef-proprietary</project_license>
 
-  <!-- appstreamcli reports `developer-info-missing` without this. -->
   <developer id="io.github.disble">
     <name>disble</name>
   </developer>
@@ -47,7 +56,13 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">autoreas-bridge.desktop</launchable>
+  <!--
+    The one line missing from 1.8.2. The name matches the files installed under
+    /usr/share/icons/hicolor/<size>/apps/, and the .desktop file's Icon= key.
+  -->
+  <icon type="stock">io.github.disble.autoreas-bridge</icon>
+
+  <launchable type="desktop-id">io.github.disble.autoreas-bridge.desktop</launchable>
 
   <categories>
     <category>Network</category>

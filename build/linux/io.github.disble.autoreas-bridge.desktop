@@ -4,8 +4,10 @@ Version=1.0
 Name=Autoreas Bridge
 GenericName=Anime tracker
 Comment=Track anime, schedule episode checks, and sync with paired devices
+# The binary keeps its short name; only the desktop entry, the icon and the
+# AppStream component share the reverse-DNS id.
 Exec=autoreas-bridge
-Icon=autoreas-bridge
+Icon=io.github.disble.autoreas-bridge
 Terminal=false
 Categories=Network;Utility;
 StartupNotify=true

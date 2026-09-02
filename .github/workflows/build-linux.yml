@@ -106,6 +106,26 @@ jobs:
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
 
+      # Resizes the 1024x1024 source icon into the hicolor theme's standard
+      # sizes. 1.8.2 shipped the 1024 original into /usr/share/pixmaps instead,
+      # and the software store drew a generic package icon: pixmaps is a legacy
+      # path the desktop shell searches, not the icon stock an AppStream
+      # `type="stock"` icon resolves against.
+      - name: Render the icon into the hicolor sizes
+        run: |
+          sudo apt-get install -y --no-install-recommends imagemagick
+          if command -v magick >/dev/null 2>&1; then im=magick; else im=convert; fi
+          for size in 48 64 128 256 512; do
+            dir="build/linux/generated/icons/${size}x${size}/apps"
+            mkdir -p "${dir}"
+            "${im}" build/appicon.png -resize "${size}x${size}"               "${dir}/io.github.disble.autoreas-bridge.png"
+            produced="$(file -b "${dir}/io.github.disble.autoreas-bridge.png")"
+            case "${produced}" in
+              *"${size} x ${size}"*) echo "${size}x${size} ok" ;;
+              *) echo "::error::expected a ${size}x${size} PNG, got: ${produced}"; exit 1 ;;
+            esac
+          done
+
       # The version is substituted rather than written into the XML, so
       # wails.json stays the only place a version is declared.
       - name: Render the AppStream metadata
@@ -113,12 +133,18 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p build/linux/generated
-          sed -e "s/@VERSION@/${VERSION}/g" -e "s/@DATE@/$(date -u +%Y-%m-%d)/g"             build/linux/autoreas-bridge.metainfo.xml.in             > build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
-          if grep -q '@VERSION@\|@DATE@' build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml; then
+          rendered=build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+          sed -e "s/@VERSION@/${VERSION}/g" -e "s/@DATE@/$(date -u +%Y-%m-%d)/g"             build/linux/io.github.disble.autoreas-bridge.metainfo.xml.in > "${rendered}"
+          if grep -q '@VERSION@\|@DATE@' "${rendered}"; then
             echo "::error::the metainfo template still holds unsubstituted placeholders"
             exit 1
           fi
-          cat build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+          # The missing <icon> is what made 1.8.2 render as a generic package.
+          if ! grep -q '<icon type="stock">io.github.disble.autoreas-bridge</icon>' "${rendered}"; then
+            echo "::error::the metainfo declares no stock icon; the store would fall back to a generic package icon"
+            exit 1
+          fi
+          cat "${rendered}"
 
       # Malformed AppStream is not a build error -- the package installs fine and
       # the store listing is simply wrong again, which is the failure this file
@@ -166,7 +192,15 @@ jobs:
             echo "::error::package declares Version ${version}, expected ${VERSION}"
             exit 1
           fi
-          for path in ./usr/bin/autoreas-bridge ./usr/share/applications/autoreas-bridge.desktop ./usr/share/pixmaps/autoreas-bridge.png ./usr/share/metainfo/io.github.disble.autoreas-bridge.metainfo.xml; do
+          expected='./usr/bin/autoreas-bridge
+          ./usr/share/applications/io.github.disble.autoreas-bridge.desktop
+          ./usr/share/metainfo/io.github.disble.autoreas-bridge.metainfo.xml
+          ./usr/share/icons/hicolor/48x48/apps/io.github.disble.autoreas-bridge.png
+          ./usr/share/icons/hicolor/64x64/apps/io.github.disble.autoreas-bridge.png
+          ./usr/share/icons/hicolor/128x128/apps/io.github.disble.autoreas-bridge.png
+          ./usr/share/icons/hicolor/256x256/apps/io.github.disble.autoreas-bridge.png
+          ./usr/share/icons/hicolor/512x512/apps/io.github.disble.autoreas-bridge.png'
+          for path in $(echo "${expected}" | tr -d ' '); do
             if ! dpkg-deb --contents "${deb}" | grep -q " ${path}\$"; then
               echo "::error::${deb} is missing ${path}"
               exit 1
