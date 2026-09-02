@@ -221,7 +221,12 @@ func (s *EpisodeService) AdjustWatchedEpisodes(ctx context.Context, cmd AdjustWa
 
 	source := defaultActivitySource(cmd.Source)
 	correlationID := activityCorrelationID(cmd.AnimeID, occurredAtMs)
-	if err := s.recordEpisodeAdjustment(ctx, patchResult.Outcome, current, cmd.AnimeID, source, correlationID, occurredAtMs, nextProgress); err != nil {
+	adjustment := episodeAdjustment{
+		outcome: patchResult.Outcome, current: current, animeID: cmd.AnimeID,
+		source: source, correlationID: correlationID,
+		occurredAtMs: occurredAtMs, nextProgress: nextProgress,
+	}
+	if err := s.recordEpisodeAdjustment(ctx, adjustment); err != nil {
 		return EpisodeCommandResult{}, err
 	}
 
@@ -255,26 +260,26 @@ func activityCorrelationID(animeID string, occurredAtMs int64) string {
 }
 
 // recordEpisodeAdjustment records an applied episode progress adjustment as activity.
-func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, outcome contracts.AnimePatchOutcome, current *contracts.MobileAnime, animeID, source, correlationID string, occurredAtMs int64, nextProgress float64) error {
-	if s.activity == nil || outcome != contracts.AnimePatchOutcomeApplied {
+func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, a episodeAdjustment) error {
+	if s.activity == nil || a.outcome != contracts.AnimePatchOutcomeApplied {
 		return nil
 	}
 	return s.activity.RecordActivity(ctx, ActivityRecord{
-		Source:        source,
+		Source:        a.source,
 		ActionType:    activity.ActionEpisodeAdjusted,
-		AnimeID:       animeID,
-		AnimeName:     current.Name,
-		OccurredAtMs:  occurredAtMs,
-		CorrelationID: correlationID,
+		AnimeID:       a.animeID,
+		AnimeName:     a.current.Name,
+		OccurredAtMs:  a.occurredAtMs,
+		CorrelationID: a.correlationID,
 		Before: ActivityAnimeSnapshot{
-			Estado:      current.Status,
-			NroCapVisto: current.EpisodesWatched,
-			Activo:      current.Active,
+			Estado:      a.current.Status,
+			NroCapVisto: a.current.EpisodesWatched,
+			Activo:      a.current.Active,
 		},
 		After: ActivityAnimeSnapshot{
-			Estado:      current.Status,
-			NroCapVisto: nextProgress,
-			Activo:      current.Active,
+			Estado:      a.current.Status,
+			NroCapVisto: a.nextProgress,
+			Activo:      a.current.Active,
 		},
 	})
 }
@@ -308,4 +313,20 @@ func matchingScheduleDay(days []contracts.MobileAnimeDay, requestedDay string) (
 		}
 	}
 	return contracts.MobileAnimeDay{}, false
+}
+
+// episodeAdjustment is one applied episode-progress change, as the activity log
+// needs to see it.
+//
+// A struct rather than a parameter list (SonarQube go:S107): animeID, source and
+// correlationID sat adjacent as three strings, where swapping any two compiles
+// and writes the wrong activity row.
+type episodeAdjustment struct {
+	outcome       contracts.AnimePatchOutcome
+	current       *contracts.MobileAnime
+	animeID       string
+	source        string
+	correlationID string
+	occurredAtMs  int64
+	nextProgress  float64
 }
