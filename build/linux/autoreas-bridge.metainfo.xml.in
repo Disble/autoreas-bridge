@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata, rendered by build-linux.yml and installed to
+  /usr/share/metainfo/. This is what GNOME Software (and KDE Discover) read to
+  build the listing shown BEFORE the package is installed.
+
+  Without it the store falls back to a generic package icon and an empty
+  "No details for this release", even though the .deb already carries the
+  .desktop file and the icon: those are read by the desktop shell AFTER
+  installation, not by the store beforehand. Two different mechanisms.
+
+  This is a TEMPLATE on purpose. @VERSION@ and @DATE@ are substituted at build
+  time from wails.json -> info.productVersion, so the version stays declared in
+  exactly one place. Do not hardcode a version here.
+-->
+<component type="desktop-application">
+  <id>io.github.disble.autoreas-bridge</id>
+
+  <!-- Licence of THIS metadata file, not of the application. -->
+  <metadata_license>CC0-1.0</metadata_license>
+
+  <!--
+    The repository carries no LICENSE file, so the work is all-rights-reserved
+    by default. LicenseRef-proprietary states exactly that instead of naming a
+    licence that is not in the tree.
+  -->
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <name>Autoreas Bridge</name>
+  <summary>Track anime, schedule episode checks, and sync with paired devices</summary>
+
+  <description>
+    <p>
+      Autoreas Bridge is a desktop companion for following anime you are
+      watching. It keeps a local catalogue, shows what airs today, and records
+      your progress per episode.
+    </p>
+    <p>
+      Bridge also drives downloads through JDownloader on a schedule you choose,
+      and exposes a REST and WebSocket API so a paired phone stays in sync with
+      the desktop.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">autoreas-bridge.desktop</launchable>
+
+  <categories>
+    <category>Network</category>
+    <category>Utility</category>
+  </categories>
+
+  <url type="homepage">https://github.com/Disble/autoreas-bridge</url>
+  <url type="bugtracker">https://github.com/Disble/autoreas-bridge/issues</url>
+
+  <!-- No attributes means "nothing to declare" under OARS 1.1. -->
+  <content_rating type="oars-1.1" />
+
+  <!--
+    The release notes themselves are not duplicated here: CHANGELOG.md is their
+    single source, and the GitHub release already renders it. The link sends the
+    reader there instead of creating a second copy that drifts.
+  -->
+  <releases>
+    <release version="@VERSION@" date="@DATE@">
+      <url>https://github.com/Disble/autoreas-bridge/releases/tag/v@VERSION@</url>
+    </release>
+  </releases>
+</component>

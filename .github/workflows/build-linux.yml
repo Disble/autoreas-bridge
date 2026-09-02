@@ -106,6 +106,28 @@ jobs:
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
 
+      # The version is substituted rather than written into the XML, so
+      # wails.json stays the only place a version is declared.
+      - name: Render the AppStream metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p build/linux/generated
+          sed -e "s/@VERSION@/${VERSION}/g" -e "s/@DATE@/$(date -u +%Y-%m-%d)/g"             build/linux/autoreas-bridge.metainfo.xml.in             > build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+          if grep -q '@VERSION@\|@DATE@' build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml; then
+            echo "::error::the metainfo template still holds unsubstituted placeholders"
+            exit 1
+          fi
+          cat build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+
+      # Malformed AppStream is not a build error -- the package installs fine and
+      # the store listing is simply wrong again, which is the failure this file
+      # exists to fix. So it is validated here rather than discovered by a user.
+      - name: Validate the AppStream metadata
+        run: |
+          sudo apt-get install -y --no-install-recommends appstream
+          appstreamcli validate --no-net build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+
       # The .deb is the primary Linux artifact. The tarball ships a bare ELF, so
       # a machine without WebKitGTK 4.1 fails with
       # `libwebkit2gtk-4.1.so.0: cannot open shared object file` and nothing
@@ -144,7 +166,7 @@ jobs:
             echo "::error::package declares Version ${version}, expected ${VERSION}"
             exit 1
           fi
-          for path in ./usr/bin/autoreas-bridge ./usr/share/applications/autoreas-bridge.desktop ./usr/share/pixmaps/autoreas-bridge.png; do
+          for path in ./usr/bin/autoreas-bridge ./usr/share/applications/autoreas-bridge.desktop ./usr/share/pixmaps/autoreas-bridge.png ./usr/share/metainfo/io.github.disble.autoreas-bridge.metainfo.xml; do
             if ! dpkg-deb --contents "${deb}" | grep -q " ${path}\$"; then
               echo "::error::${deb} is missing ${path}"
               exit 1

@@ -1,4 +1,5 @@
 build/bin
+build/linux/generated
 node_modules
 frontend/dist
 resources/autoreas-data/*.dat

@@ -50,3 +50,11 @@ contents:
   # GNOME and KDE still search. Moving it under hicolor would require resizing.
   - src: ./build/appicon.png
     dst: /usr/share/pixmaps/autoreas-bridge.png
+
+  # Rendered from build/linux/autoreas-bridge.metainfo.xml.in by the workflow,
+  # which substitutes the version. This is what GNOME Software reads to build
+  # the listing shown BEFORE installing; the .desktop and icon above are read by
+  # the desktop shell AFTER installing. Without this the store shows a generic
+  # package icon and "No details for this release".
+  - src: ./build/linux/generated/io.github.disble.autoreas-bridge.metainfo.xml
+    dst: /usr/share/metainfo/io.github.disble.autoreas-bridge.metainfo.xml
