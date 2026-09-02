@@ -44,8 +44,8 @@ type App struct {
 	bootstrapBridgeDB          func() (*sql.DB, error)
 	newSelfEchoRegistry        func() anime.SelfEchoRegistry
 	newUpdateWriter            func(config anime.UpdateWriterConfig) anime.UpdateWriter
-	newChangelogStore          func(db *sql.DB) changelogPendingStore
-	newChangelogRecorder       func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder
+	newChangelogStore          func(db *sql.DB) changelogPendingInserter
+	newChangelogRecorder       func(bus events.Bus, store changelogPendingInserter, loggers ...sharedlogger.Logger) changelogRecorder
 	newDeviceStore             func(db *sql.DB) device.Store
 	newDeviceService           func(store device.Store) device.AuthService
 	newNotifier                func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier
@@ -56,8 +56,8 @@ type App struct {
 	newCaptureReader           func(db *sql.DB) *requestcapture.Reader
 	newTrayManager             func() tray.Manager
 	newAutoStartReconciler     func() autoStartReconciler
-	newTracerBulletRunner      func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner
-	newTracerBulletSink        func() tracerbullet.TraceSink
+	newTracerBulletRunner      func(bus events.Bus, sink tracerbullet.TraceRecorder, loggers ...sharedlogger.Logger) tracerBulletRunner
+	newTracerBulletSink        func() tracerbullet.TraceRecorder
 	emitFn                     func(ctx context.Context, eventName string, optionalData ...any)
 	hideWindow                 func(context.Context)
 	showWindow                 func(context.Context)
@@ -73,8 +73,8 @@ type App struct {
 	captureReader              *requestcapture.Reader
 	captureStore               requestcapture.Store
 	eventSink                  *eventlog.Sink
-	newEventQueue              func(db *sql.DB) eventLogQueue
-	eventQueue                 eventLogQueue
+	newEventQueue              func(db *sql.DB) eventLogStopper
+	eventQueue                 eventLogStopper
 	newEventReader             func(db *sql.DB) *eventlog.Reader
 	eventReader                *eventlog.Reader
 	trayManager                tray.Manager
@@ -165,7 +165,7 @@ type autoStartReconciler interface {
 
 var _ autoStartReconciler = (*autostart.Reconciler)(nil)
 
-type changelogPendingStore interface {
+type changelogPendingInserter interface {
 	InsertPending(ctx context.Context, entry bridgeSync.ChangelogEntry) error
 }
 
@@ -180,12 +180,12 @@ type captureQueue interface {
 	Stop(ctx context.Context) requestcapture.QueueStopResult
 }
 
-// eventLogQueue is the narrow shutdown-time seam for the runtime-event
+// eventLogStopper is the narrow shutdown-time seam for the runtime-event
 // persistence queue. *eventlog.Queue satisfies this via its existing Stop
 // method; a.eventSink.Bind is still called with the concrete *eventlog.Queue
 // (Sink's atomic.Pointer[Queue] binding needs the concrete type), so this
 // interface exists only for test-double injection at the App layer.
-type eventLogQueue interface {
+type eventLogStopper interface {
 	Stop(ctx context.Context) eventlog.QueueStopResult
 }
 

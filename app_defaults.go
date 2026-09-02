@@ -83,12 +83,12 @@ func (a *App) ensureAnimeRuntimeDependencies() {
 // ensureSyncRuntimeDependencies fills missing sync runtime dependencies.
 func (a *App) ensureSyncRuntimeDependencies() {
 	if a.newChangelogStore == nil {
-		a.newChangelogStore = func(db *sql.DB) changelogPendingStore {
+		a.newChangelogStore = func(db *sql.DB) changelogPendingInserter {
 			return bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(db))
 		}
 	}
 	if a.newChangelogRecorder == nil {
-		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore, loggers ...sharedlogger.Logger) changelogRecorder {
+		a.newChangelogRecorder = func(bus events.Bus, store changelogPendingInserter, loggers ...sharedlogger.Logger) changelogRecorder {
 			return bridgeSync.NewChangelogRecorder(bus, store, loggers...)
 		}
 	}
@@ -129,12 +129,12 @@ func (a *App) ensureSyncRuntimeDependencies() {
 		}
 	}
 	if a.newTracerBulletRunner == nil {
-		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink, loggers ...sharedlogger.Logger) tracerBulletRunner {
+		a.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceRecorder, loggers ...sharedlogger.Logger) tracerBulletRunner {
 			return tracerbullet.NewRunner(bus, sink, loggers...)
 		}
 	}
 	if a.newTracerBulletSink == nil {
-		a.newTracerBulletSink = func() tracerbullet.TraceSink {
+		a.newTracerBulletSink = func() tracerbullet.TraceRecorder {
 			return tracerbullet.NewStdoutSink()
 		}
 	}
@@ -283,7 +283,7 @@ func (a *App) ensureRuntimeObservability() {
 		a.eventBus = events.NewInstrumentedBus(events.NewBus(), a.sharedLogger)
 	}
 	if a.newEventQueue == nil {
-		a.newEventQueue = func(db *sql.DB) eventLogQueue {
+		a.newEventQueue = func(db *sql.DB) eventLogStopper {
 			return eventlog.NewQueue(eventlog.NewStore(db, eventlog.EventStoreConfig{}), eventlog.QueueConfig{})
 		}
 	}

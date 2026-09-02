@@ -6,7 +6,7 @@ import "fmt"
 type stdoutSink struct{}
 
 // NewStdoutSink creates a trace sink that writes messages to standard output.
-func NewStdoutSink() TraceSink {
+func NewStdoutSink() TraceRecorder {
 	return stdoutSink{}
 }
 

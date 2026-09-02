@@ -199,17 +199,17 @@ func TestAppStartupStartsTracerBulletWithSharedEventBus(t *testing.T) {
 	t.Parallel()
 
 	var receivedBus events.Bus
-	var receivedSink tracerbullet.TraceSink
+	var receivedSink tracerbullet.TraceRecorder
 	runner := &stubTracerBulletRunner{}
 	updateWriter := &stubAppUpdateWriter{}
 	recorder := &stubAppChangelogRecorder{}
 	app := newAppTestApp(t)
 	app.newUpdateWriter = func(anime.UpdateWriterConfig) anime.UpdateWriter { return updateWriter }
-	app.newChangelogRecorder = func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+	app.newChangelogRecorder = func(events.Bus, changelogPendingInserter, ...sharedlogger.Logger) changelogRecorder {
 		return recorder
 	}
-	app.newTracerBulletSink = func() tracerbullet.TraceSink { return &stubTraceSink{} }
-	app.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceSink, _ ...sharedlogger.Logger) tracerBulletRunner {
+	app.newTracerBulletSink = func() tracerbullet.TraceRecorder { return &stubTraceSink{} }
+	app.newTracerBulletRunner = func(bus events.Bus, sink tracerbullet.TraceRecorder, _ ...sharedlogger.Logger) tracerBulletRunner {
 		receivedBus = bus
 		receivedSink = sink
 		return runner

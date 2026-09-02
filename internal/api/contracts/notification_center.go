@@ -91,7 +91,7 @@ type NotificationAction struct {
 	ExecutedAtMs  int64  `json:"executedAtMs,omitempty"`
 	RefusedReason string `json:"refusedReason,omitempty"`
 	// Repeatable reports whether the registered handler behind Intent may be
-	// re-invoked by a second press. It is resolved from the live IntentRegistry
+	// re-invoked by a second press. It is resolved from the live IntentResolver
 	// at read time, never persisted: repeatability is a property of the handler
 	// wired today, not of the token frozen last week.
 	//
@@ -136,7 +136,7 @@ type NotificationMutationResult struct {
 // empty string on success; otherwise one of the four closed refusal
 // reasons. Deliberately carries no Degraded flag: an executor that is not
 // wired yet degrades to the same intent_unregistered refusal an empty
-// IntentRegistry already produces -- a refusal is always a first-class,
+// IntentResolver already produces -- a refusal is always a first-class,
 // closed-set outcome, never an out-of-band signal.
 type NotificationActionResult struct {
 	Executed     bool   `json:"executed"`

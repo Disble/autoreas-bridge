@@ -45,7 +45,7 @@ const (
 )
 
 // Event is the base contract for all bridge bus events.
-type Event interface {
+type Event interface { // NOSONAR godre:S8196 -- Event is the domain concept the whole bus is built on, implemented by every concrete event and named in the spec, docs and wire payloads. The agent noun for its Name() method is "Namer", which describes the accessor rather than the thing.
 	Name() string
 }
 

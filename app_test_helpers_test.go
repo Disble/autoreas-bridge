@@ -31,8 +31,8 @@ func newAppTestApp(t *testing.T) *App {
 		bootstrapBridgeDB:   func() (*sql.DB, error) { return &sql.DB{}, nil },
 		newSelfEchoRegistry: anime.NewSelfEchoRegistry,
 		newUpdateWriter:     func(anime.UpdateWriterConfig) anime.UpdateWriter { return &stubAppUpdateWriter{} },
-		newChangelogStore:   func(*sql.DB) changelogPendingStore { return &stubAppChangelogStore{} },
-		newChangelogRecorder: func(events.Bus, changelogPendingStore, ...sharedlogger.Logger) changelogRecorder {
+		newChangelogStore:   func(*sql.DB) changelogPendingInserter { return &stubAppChangelogStore{} },
+		newChangelogRecorder: func(events.Bus, changelogPendingInserter, ...sharedlogger.Logger) changelogRecorder {
 			return &stubAppChangelogRecorder{}
 		},
 		newDeviceStore:   func(*sql.DB) device.Store { return &stubAppDeviceStore{} },
@@ -41,7 +41,7 @@ func newAppTestApp(t *testing.T) *App {
 		newHTTPServer:    func(api.Config) api.Server { return &stubAppHTTPServer{} },
 		newCaptureQueue:  func(*sql.DB) captureQueue { return &stubCaptureQueue{} },
 		newCaptureReader: func(*sql.DB) *requestcapture.Reader { return nil },
-		newEventQueue:    func(*sql.DB) eventLogQueue { return &stubEventLogQueue{} },
+		newEventQueue:    func(*sql.DB) eventLogStopper { return &stubEventLogQueue{} },
 	}
 }
 
@@ -125,7 +125,7 @@ type stubCaptureQueue struct {
 	onStop func()
 }
 
-// stubEventLogQueue is an eventLogQueue test double that never touches
+// stubEventLogQueue is an eventLogStopper test double that never touches
 // SQLite, mirroring stubCaptureQueue -- newAppTestApp's default so tests
 // exercising startup/shutdown paths that don't care about event
 // persistence never accidentally drive the real eventlog.Queue against a

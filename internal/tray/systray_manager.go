@@ -2,7 +2,7 @@ package tray
 
 import "sync"
 
-type menuItem interface {
+type menuItem interface { // NOSONAR godre:S8196 -- Clicked() hands back a channel; the item does not click, it is clicked. "Clicker" would name the wrong actor, and the systray binding this abstracts really is a menu item.
 	Clicked() <-chan struct{}
 }
 

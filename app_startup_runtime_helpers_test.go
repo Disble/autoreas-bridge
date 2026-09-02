@@ -19,13 +19,13 @@ func configureStartupRuntimeDependencies(t *testing.T, app *App, wantDB *sql.DB)
 		}
 		return &stubAppUpdateWriter{}
 	}
-	app.newChangelogStore = func(db *sql.DB) changelogPendingStore {
+	app.newChangelogStore = func(db *sql.DB) changelogPendingInserter {
 		if db == nil {
 			t.Fatal("expected changelog store to receive sqlite db")
 		}
 		return &stubAppChangelogStore{}
 	}
-	app.newChangelogRecorder = func(bus events.Bus, store changelogPendingStore, _ ...sharedlogger.Logger) changelogRecorder {
+	app.newChangelogRecorder = func(bus events.Bus, store changelogPendingInserter, _ ...sharedlogger.Logger) changelogRecorder {
 		if bus == nil {
 			t.Fatal("expected changelog recorder to receive event bus")
 		}

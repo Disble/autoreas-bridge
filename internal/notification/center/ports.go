@@ -24,11 +24,11 @@ type IntentHandler interface {
 	Repeatable() bool
 }
 
-// IntentRegistry resolves an intent key to its bound handler. Declared here
+// IntentResolver resolves an intent key to its bound handler. Declared here
 // and filled by the composition root, which is what keeps center from
 // importing internal/download and recreating
 // notification->download->notification.
-type IntentRegistry interface {
+type IntentResolver interface {
 	Resolve(intent string) (IntentHandler, bool)
 }
 

@@ -478,7 +478,7 @@ func (a *App) isRepeatableIntent(intent string) bool {
 // ExecuteNotificationAction is the Wails-bound press-time entry point
 // (design §5.8/§5.7). A nil executor (store unavailable, or called before
 // wireNotificationCenterIntentExecutor ran) degrades to the same
-// intent_unregistered outcome an empty IntentRegistry already produces.
+// intent_unregistered outcome an empty IntentResolver already produces.
 func (a *App) ExecuteNotificationAction(notificationID int64, actionID string) contracts.NotificationActionResult {
 	if a.notificationCenterExecutor == nil {
 		return contracts.NotificationActionResult{Reason: string(center.RefusalIntentUnregistered)}
