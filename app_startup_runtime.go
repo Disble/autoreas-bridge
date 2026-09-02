@@ -23,7 +23,7 @@ import (
 type syncDeviceStateAdapter struct {
 	store interface {
 		ListDeviceSyncStates(ctx context.Context) ([]bridgeSync.DeviceSyncState, error)
-		AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error
+		AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID, lastSeenAtMs int64) error
 		MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error
 	}
 }
@@ -83,7 +83,7 @@ func openDevicesActions() []notification.ActionSpec {
 
 // notifyDeviceSyncHealth reports device staleness and prunes acknowledged changes.
 func (a *App) notifyDeviceSyncHealth(ctx context.Context, store interface {
-	EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) ([]bridgeSync.DeviceSyncState, error)
+	EvaluateDeviceStaleness(ctx context.Context, nowMs, staleAfterMs, warnBeforeStaleMs int64) ([]bridgeSync.DeviceSyncState, error)
 	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
 }) {
 	if store == nil || a.notifier == nil {

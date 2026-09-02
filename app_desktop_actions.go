@@ -48,8 +48,7 @@ func (a *App) CopyAnimeFolder(animeID string) contracts.EpisodeCommandResult {
 
 // runAnimeDesktopAction executes a desktop action and records its activity.
 func (a *App) runAnimeDesktopAction(
-	animeID string,
-	actionType string,
+	animeID, actionType string,
 	valueFn func(contracts.MobileAnime) *string,
 	run func(context.Context, string) error,
 ) contracts.EpisodeCommandResult {

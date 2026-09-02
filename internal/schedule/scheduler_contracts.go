@@ -32,7 +32,7 @@ type ConfigStore interface {
 	GetScheduleConfig(ctx context.Context) (download.ScheduleConfig, error)
 	MarkScheduleRun(ctx context.Context, lastAtMs int64, status string, nextAtMs int64) error
 	ApplyScheduleSettlement(ctx context.Context, req download.ScheduleSettlementRequest) (download.ScheduleSettlementResult, error)
-	RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error
+	RecordMissedStartupAttempt(ctx context.Context, localDate, status string) error
 }
 
 // RunFunc is the injected run-callback seam (design.md §3.9). Phase 6 wires the real

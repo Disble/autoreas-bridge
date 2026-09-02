@@ -35,5 +35,5 @@ type IntentRegistry interface {
 // Logger is the narrow logging port center needs, satisfied by
 // internal/logger.
 type Logger interface {
-	Warnf(domain string, format string, args ...any)
+	Warnf(domain, format string, args ...any)
 }

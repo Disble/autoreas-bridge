@@ -25,7 +25,7 @@ type changelogLookup interface {
 	ListPending(ctx context.Context) ([]ChangelogEntry, error)
 	LastID(ctx context.Context) (int64, error)
 	LastChangedAt(ctx context.Context) (*int64, error)
-	AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error
+	AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID, lastSeenAtMs int64) error
 	PruneAcknowledgedChangelog(ctx context.Context) (int64, error)
 }
 

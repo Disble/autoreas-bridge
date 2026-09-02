@@ -139,7 +139,7 @@ type Store interface {
 	SetScheduleConfig(ctx context.Context, cfg ScheduleConfig) error
 	MarkScheduleRun(ctx context.Context, lastAtMs int64, status string, nextAtMs int64) error
 	ApplyScheduleSettlement(ctx context.Context, req ScheduleSettlementRequest) (ScheduleSettlementResult, error)
-	RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error
+	RecordMissedStartupAttempt(ctx context.Context, localDate, status string) error
 
 	// Runs (download_runs).
 	// OpenRun writes the row at run start with the CONCRETE provisional status "running" and

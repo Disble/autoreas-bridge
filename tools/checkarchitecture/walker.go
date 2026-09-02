@@ -54,7 +54,7 @@ func walkArchitectureDir(logicalDir, physicalDir string, source architectureFS, 
 }
 
 // walkArchitectureEntry dispatches one directory entry to the proper visitor.
-func walkArchitectureEntry(logicalDir string, physicalDir string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) error {
+func walkArchitectureEntry(logicalDir, physicalDir string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) error {
 	logicalPath, physicalPath := architectureEntryPaths(logicalDir, physicalDir, entry)
 	if entry.IsDir() {
 		return walkArchitectureSubdir(logicalPath, physicalPath, source, ancestors, visit)
@@ -72,7 +72,7 @@ func architectureEntryPaths(logicalDir, physicalDir string, entry fs.DirEntry) (
 }
 
 // visitArchitectureFile reads and visits a scanned source file.
-func visitArchitectureFile(logicalPath string, physicalPath string, source architectureFS, visit func(string, []byte) error) error {
+func visitArchitectureFile(logicalPath, physicalPath string, source architectureFS, visit func(string, []byte) error) error {
 	if !scannedExtensions[filepath.Ext(logicalPath)] {
 		return nil
 	}
@@ -84,7 +84,7 @@ func visitArchitectureFile(logicalPath string, physicalPath string, source archi
 }
 
 // walkArchitectureSubdir visits a directory unless policy excludes it.
-func walkArchitectureSubdir(logicalPath string, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error) error {
+func walkArchitectureSubdir(logicalPath, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error) error {
 	if shouldSkipDir(logicalPath) {
 		return nil
 	}
@@ -92,7 +92,7 @@ func walkArchitectureSubdir(logicalPath string, physicalPath string, source arch
 }
 
 // walkArchitectureSymlink follows an eligible directory symlink safely.
-func walkArchitectureSymlink(logicalPath string, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) (bool, error) {
+func walkArchitectureSymlink(logicalPath, physicalPath string, source architectureFS, ancestors map[string]bool, visit func(string, []byte) error, entry fs.DirEntry) (bool, error) {
 	if entry.Type()&fs.ModeSymlink == 0 {
 		return false, nil
 	}
