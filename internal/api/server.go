@@ -212,7 +212,7 @@ func (s *HTTPServer) EffectiveAddress() string {
 // outboundProbeAddress is an off-machine address used only to ask the OS routing
 // table which local interface (and IP) would carry outbound traffic. No packets
 // are sent to it.
-const outboundProbeAddress = "8.8.8.8:80"
+const outboundProbeAddress = "8.8.8.8:80" // NOSONAR go:S1313 -- never dialled for real: net.Dial("udp") on this address only makes the OS pick a route, so the constant is a routing question and not a peer we talk to.
 
 // resolveEffectiveHost returns the LAN IPv4 a device on the same network (e.g. the
 // mobile app) can use to reach this bridge. It prefers the IP of the interface that

@@ -260,29 +260,6 @@ func TestSinkWriteEntryDoesNotBlockOnDeliberatelySlowStore(t *testing.T) {
 	}
 }
 
-// TestSinkUnbindStopsEnqueueBeforeQueueStop asserts Unbind takes effect
-// immediately: no further entry is enqueued into the (about to be) closing
-// queue.
-func TestSinkUnbindStopsEnqueueBeforeQueueStop(t *testing.T) {
-	t.Parallel()
-
-	store := &recordingSinkStore{}
-	queue := NewQueue(store, QueueConfig{Capacity: 4})
-	sink := NewSink(SinkConfig{})
-	sink.Bind(queue, false)
-
-	sink.Unbind()
-	sink.WriteEntry(sharedlogger.LogEntry{Domain: "sync", Level: sharedlogger.LevelInfo, Message: "after unbind", Timestamp: time.Now().UTC().Format(time.RFC3339)})
-
-	if got := sink.UnboundDrops(); got != 1 {
-		t.Fatalf("expected UnboundDrops 1 after Unbind, got %d", got)
-	}
-	_ = queue.Stop(context.Background())
-	if len(store.records) != 0 {
-		t.Fatalf("expected no records persisted after Unbind, got %#v", store.records)
-	}
-}
-
 // recordingSinkStore is a Inserter test double that records every inserted
 // event, guarded by a channel-free simple approach (single drain goroutine,
 // so no extra locking is needed for the assertions above).

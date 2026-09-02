@@ -7,7 +7,7 @@ import (
 
 // migrateLegacyChangelogSchema rebuilds the legacy changelog into the current schema.
 func migrateLegacyChangelogSchema(db *sql.DB) error {
-	tx, err := db.Begin()
+	tx, err := db.Begin() // NOSONAR godre:S8168 -- the rollback is the rollbackIfNeeded helper deferred three lines below; it inspects the named error so a committed transaction is not rolled back.
 	if err != nil {
 		return err
 	}

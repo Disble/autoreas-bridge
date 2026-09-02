@@ -1,8 +1,9 @@
 package sync
 
-import "slices"
-
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 const (
 	animeSnapshotsDDL = `

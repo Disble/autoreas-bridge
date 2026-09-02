@@ -103,7 +103,10 @@ func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore,
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
 	bus := events.NewBus()
-	ctx, cancel := context.WithCancel(context.Background())
+	// Deferring cancel here would kill the context when this helper RETURNS,
+	// before the test that owns it runs. It is cancelled in the t.Cleanup below,
+	// ordered ahead of writer.Wait() on purpose.
+	ctx, cancel := context.WithCancel(context.Background()) // NOSONAR godre:S8188
 	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
 	writer.StartAsync(ctx)
 	t.Cleanup(func() { cancel(); writer.Wait() })

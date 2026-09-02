@@ -17,6 +17,9 @@ func seedNotificationRecords(t *testing.T, db *sql.DB, count int, startAtMS int6
 	if err != nil {
 		t.Fatalf("begin seed tx: %v", err)
 	}
+	// No-op once Commit below succeeds; it only fires when a t.Fatalf between
+	// here and there unwinds the helper with the transaction still open.
+	defer func() { _ = tx.Rollback() }()
 	stmt, err := tx.Prepare(`INSERT INTO notification_records (created_at_ms, title, body, level, source) VALUES (?, ?, ?, ?, ?)`)
 	if err != nil {
 		t.Fatalf("prepare seed stmt: %v", err)

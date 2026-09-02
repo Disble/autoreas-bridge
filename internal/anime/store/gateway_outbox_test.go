@@ -83,7 +83,10 @@ func TestGatewayOutboxReplayUsesStableEventIDAndMarksOnlyAfterPublish(t *testing
 
 	published := []string{}
 	publishObserved := false
-	dispatchCtx, cancelDispatch := context.WithCancel(context.Background())
+	// cancelDispatch fires inside the publish callback below, which is the crash
+	// this test injects. Deferring it would cancel the context before the dispatch
+	// under test ever runs.
+	dispatchCtx, cancelDispatch := context.WithCancel(context.Background()) // NOSONAR godre:S8188
 	markFailure := errors.New("injected crash before mark")
 	failingOutbox := &markAfterPublishOutbox{
 		AnimeChangedOutboxStore: writeBases,

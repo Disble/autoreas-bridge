@@ -1,8 +1,9 @@
 package requestcapture
 
-import "strings"
-
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Search returns newest-first capture summaries, applying any supplied
 // filters as a conjunction with the pagination cursor. An unmatched

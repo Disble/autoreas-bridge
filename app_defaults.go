@@ -30,7 +30,10 @@ import (
 
 // defaultObservabilityEmit forwards an observability event to the Wails runtime.
 func defaultObservabilityEmit(ctx context.Context, eventName string, optionalData ...any) {
-	if ctx == nil || ctx == context.Background() || ctx == context.TODO() {
+	// This compares against the background context, it does not create one. A Wails
+	// runtime emit needs the context Wails handed to OnStartup; a bare background or
+	// TODO context is the signal to stay quiet.
+	if ctx == nil || ctx == context.Background() || ctx == context.TODO() { // NOSONAR godre:S8239
 		return
 	}
 	wruntime.EventsEmit(ctx, eventName, optionalData...)
