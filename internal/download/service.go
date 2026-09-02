@@ -258,9 +258,15 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 	// a run that errors on selection still started. A failed query therefore degrades to the
 	// subject-less sentence this notification used to be, never to silence.
 	animes, selectionErr := s.listActiveAnimesToday(ctx)
-	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
-		"Download run started", fmt.Sprintf("Download check started (%s).", trigger),
-		buildRunStartedRows(animes), runWideActions(kindRunStarted, runID))
+	s.notify(ctx, runNotification{
+		level:   notification.LevelInfo,
+		kind:    kindRunStarted,
+		runID:   runID,
+		title:   "Download run started",
+		body:    fmt.Sprintf("Download check started (%s).", trigger),
+		rows:    buildRunStartedRows(animes),
+		actions: runWideActions(kindRunStarted, runID),
+	})
 	// Raised before the pipeline runs, not after: this is the one notification that warns about
 	// what is about to happen rather than reporting what did.
 	s.raiseReadinessAttention(ctx, runID, trigger)
@@ -294,9 +300,15 @@ func (s *Service) RunAnime(ctx context.Context, trigger string, anime contracts.
 	s.logf(logger.LevelInfo, runID, anime.ID, "download.run_started", nil,
 		"download run %s started (trigger=%s, anime=%s)", runID, trigger, anime.Name)
 	s.publish(events.DownloadRunStartedEvent{RunID: runID, Trigger: trigger, CorrelationID: runID})
-	s.notifyWithRowsAndActions(ctx, notification.LevelInfo, kindRunStarted, runID,
-		"Anime download started", fmt.Sprintf("Download check started for %s.", anime.Name),
-		buildRunStartedRows([]contracts.MobileAnime{anime}), runWideActions(kindRunStarted, runID))
+	s.notify(ctx, runNotification{
+		level:   notification.LevelInfo,
+		kind:    kindRunStarted,
+		runID:   runID,
+		title:   "Anime download started",
+		body:    fmt.Sprintf("Download check started for %s.", anime.Name),
+		rows:    buildRunStartedRows([]contracts.MobileAnime{anime}),
+		actions: runWideActions(kindRunStarted, runID),
+	})
 
 	result := s.executeAnimeLive(ctx, runID, &run, anime)
 	s.finishRunLog(runID, &run)
@@ -451,22 +463,41 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 		// hoster 1" / "Copy hoster 2"). That is no longer this branch's business to arrange: the
 		// verb follows each row's own outcome, so a run that ALSO failed on some other anime hands
 		// that row its retry instead of leaving it with nothing.
-		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindJDownloaderOffline, runID, "MyJDownloader offline",
-			fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
-			outcomes)
+		s.notifyWithOutcomes(ctx, runNotification{
+			level: notification.LevelWarning,
+			kind:  kindJDownloaderOffline,
+			runID: runID,
+			title: "MyJDownloader offline",
+			body:  fmt.Sprintf("%d episode(s) need manual download: %s.", len(run.ManualLinks), summarizeManualLinks(run.ManualLinks, manualLinksSummaryLimit)),
+		}, outcomes)
 	case anyFailed && anySucceeded:
 		run.Status = RunStatusPartial
-		s.notifyWithOutcomes(ctx, notification.LevelWarning, kindRunStoppedEarly, runID, "Download run completed with errors",
-			"Some animes failed to download.", outcomes)
+		s.notifyWithOutcomes(ctx, runNotification{
+			level: notification.LevelWarning,
+			kind:  kindRunStoppedEarly,
+			runID: runID,
+			title: "Download run completed with errors",
+			body:  "Some animes failed to download.",
+		}, outcomes)
 	case anyFailed:
 		run.Status = RunStatusError
-		s.notifyWithOutcomes(ctx, notification.LevelError, kindRunStoppedEarly, runID, "Download run failed",
-			"All animes failed to download.", outcomes)
+		s.notifyWithOutcomes(ctx, runNotification{
+			level: notification.LevelError,
+			kind:  kindRunStoppedEarly,
+			runID: runID,
+			title: "Download run failed",
+			body:  "All animes failed to download.",
+		}, outcomes)
 	default:
 		run.Status = RunStatusOK
 		if run.EpisodesDownloaded > 0 {
-			s.notifyWithOutcomes(ctx, notification.LevelSuccess, kindRunCompleted, runID, "Download run completed",
-				fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded), outcomes)
+			s.notifyWithOutcomes(ctx, runNotification{
+				level: notification.LevelSuccess,
+				kind:  kindRunCompleted,
+				runID: runID,
+				title: "Download run completed",
+				body:  fmt.Sprintf("%d episode(s) downloaded.", run.EpisodesDownloaded),
+			}, outcomes)
 		}
 	}
 }
@@ -486,9 +517,13 @@ func (s *Service) markCanceled(ctx context.Context, runID string, run *Run, outc
 		return false
 	}
 	run.Status = RunStatusCanceled
-	s.notifyWithOutcomes(ctx, notification.LevelInfo, kindRunStoppedEarly, runID, "Download run stopped",
-		fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded),
-		outcomes)
+	s.notifyWithOutcomes(ctx, runNotification{
+		level: notification.LevelInfo,
+		kind:  kindRunStoppedEarly,
+		runID: runID,
+		title: "Download run stopped",
+		body:  fmt.Sprintf("Stopped by request -- %d episode(s) downloaded.", run.EpisodesDownloaded),
+	}, outcomes)
 	return true
 }
 

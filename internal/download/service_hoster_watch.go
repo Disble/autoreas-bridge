@@ -225,10 +225,15 @@ func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime co
 	// ────────────────── FASE 1 ──────────────────
 	started, probes := s.detectDownloadStartPhase(ctx, runID, anime.ID, folder, episode, attemptStart)
 	if !started {
-		if outcome := s.recheckDiskAfterGrace(ctx, runID, anime, hoster, folder, recursiveBaseline, episode, probes); outcome != nil {
+		attempt := graceAttempt{
+			runID: runID, anime: anime, hoster: hoster, folder: folder,
+			episode: episode, recursiveBaseline: recursiveBaseline,
+			isFirstHoster: isFirstHoster, probes: probes,
+		}
+		if outcome := s.recheckDiskAfterGrace(ctx, attempt); outcome != nil {
 			return *outcome
 		}
-		if outcome := s.evaluateJDAfterGrace(ctx, runID, anime, hoster, folder, episode, isFirstHoster, probes); outcome != nil {
+		if outcome := s.evaluateJDAfterGrace(ctx, attempt); outcome != nil {
 			return *outcome
 		}
 	}
@@ -283,11 +288,10 @@ func (s *Service) pollForCompletion(ctx context.Context, runID string, anime con
 // It MUST run before evaluateJDAfterGrace: RenameEpisodeByDestination resolves the newest finished
 // link under the destination, so the rename works only while JD still holds the package that
 // function removes.
-func (s *Service) recheckDiskAfterGrace(ctx context.Context, runID string, anime contracts.MobileAnime,
-	hoster, folder string, recursiveBaseline, episode int, probes []probe) *hosterOutcome {
-	if s.downloadedEpisodeRecursive(folder) > recursiveBaseline {
-		s.logDetectStartFailed(runID, anime, hoster, probes)
-		s.completeDownloadedEpisode(ctx, runID, anime, episode)
+func (s *Service) recheckDiskAfterGrace(ctx context.Context, a graceAttempt) *hosterOutcome {
+	if s.downloadedEpisodeRecursive(a.folder) > a.recursiveBaseline {
+		s.logDetectStartFailed(a.runID, a.anime, a.hoster, a.probes)
+		s.completeDownloadedEpisode(ctx, a.runID, a.anime, a.episode)
 		return &hosterOutcome{kind: hosterOutcomeSuccess, exit: exitGraceDiskConfirmed}
 	}
 	return nil
@@ -315,37 +319,37 @@ func (s *Service) logDetectStartFailed(runID string, anime contracts.MobileAnime
 //
 // probes is the detect phase's timeline; it is persisted here because this is where the failure to
 // observe a transfer start is first recorded.
-func (s *Service) evaluateJDAfterGrace(ctx context.Context, runID string, anime contracts.MobileAnime, hoster, folder string, episode int, isFirstHoster bool, probes []probe) *hosterOutcome {
-	s.logDetectStartFailed(runID, anime, hoster, probes)
+func (s *Service) evaluateJDAfterGrace(ctx context.Context, a graceAttempt) *hosterOutcome {
+	s.logDetectStartFailed(a.runID, a.anime, a.hoster, a.probes)
 
 	if s.deps.JD == nil {
-		return firstHosterOutcome(isFirstHoster, exitGraceClientAbsentFirst, exitGraceClientAbsentFallback)
+		return firstHosterOutcome(a.isFirstHoster, exitGraceClientAbsentFirst, exitGraceClientAbsentFallback)
 	}
 
-	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, folder)
+	status, err := s.deps.JD.PackageStatusByDestination(ctx, s.deps.JDDeviceName, a.folder)
 	if err != nil {
-		s.logf(logger.LevelWarn, runID, anime.ID, "download.jd_status_query_failed",
-			map[string]any{"hoster": hoster}, "anime %s: JD post-grace query failed for hoster %s: %v", anime.Name, hoster, err)
-		if isFirstHoster {
-			s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceQueryErrorFirst, nil)
+		s.logf(logger.LevelWarn, a.runID, a.anime.ID, "download.jd_status_query_failed",
+			map[string]any{"hoster": a.hoster}, "anime %s: JD post-grace query failed for hoster %s: %v", a.anime.Name, a.hoster, err)
+		if a.isFirstHoster {
+			s.jdRemove(ctx, a.runID, a.anime, a.hoster, a.folder, exitGraceQueryErrorFirst, nil)
 		}
-		return firstHosterOutcome(isFirstHoster, exitGraceQueryErrorFirst, exitGraceQueryErrorFallback)
+		return firstHosterOutcome(a.isFirstHoster, exitGraceQueryErrorFirst, exitGraceQueryErrorFallback)
 	}
 
 	if classifyJDStatus(status) == verdictDead {
-		s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceClassifiedDead, &status)
+		s.jdRemove(ctx, a.runID, a.anime, a.hoster, a.folder, exitGraceClassifiedDead, &status)
 		return &hosterOutcome{kind: hosterOutcomeDead, exit: exitGraceClassifiedDead}
 	}
 
 	if hasPositiveJDSignal(status) {
-		s.publish(events.DownloadEpisodeDownloadingEvent{RunID: runID, AnimeID: anime.ID, Episode: episode, CorrelationID: runID})
+		s.publish(events.DownloadEpisodeDownloadingEvent{RunID: a.runID, AnimeID: a.anime.ID, Episode: a.episode, CorrelationID: a.runID})
 		return nil
 	}
 
-	if isFirstHoster {
-		s.jdRemove(ctx, runID, anime, hoster, folder, exitGraceNoSignalFirst, &status)
+	if a.isFirstHoster {
+		s.jdRemove(ctx, a.runID, a.anime, a.hoster, a.folder, exitGraceNoSignalFirst, &status)
 	}
-	return firstHosterOutcome(isFirstHoster, exitGraceNoSignalFirst, exitGraceNoSignalFallback)
+	return firstHosterOutcome(a.isFirstHoster, exitGraceNoSignalFirst, exitGraceNoSignalFallback)
 }
 
 // firstHosterOutcome maps a post-grace dead end to its outcome: the first hoster is declared dead
@@ -381,4 +385,22 @@ func (s *Service) jdRemove(ctx context.Context, runID string, anime contracts.Mo
 			map[string]any{"hoster": hoster}, "anime %s: JD Remove failed for dead hoster %s (continuing): %v", anime.Name, hoster, err)
 	}
 	s.publish(events.DownloadRunProgressEvent{RunID: runID, CorrelationID: runID})
+}
+
+// graceAttempt is one hoster attempt as it stands when the 60-second detect grace
+// ends with no filesystem evidence. Both post-grace evaluations read exactly this
+// set, which is why they share it.
+//
+// A struct rather than a parameter list (SonarQube go:S107 on the eight-parameter
+// versions): hoster and folder sat adjacent as two strings, and so did
+// recursiveBaseline and episode as two ints. Swapping either pair compiled.
+type graceAttempt struct {
+	runID             string
+	anime             contracts.MobileAnime
+	hoster            string
+	folder            string
+	episode           int
+	recursiveBaseline int
+	isFirstHoster     bool
+	probes            []probe
 }
