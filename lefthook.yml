@@ -84,6 +84,19 @@ pre-commit:
             env: {GOMAXPROCS: "4"}
             run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
 
+          # The .ico files are generated, never hand-edited. This is what stops
+          # them drifting off build/appicon.png the way resources/tray-icon.ico
+          # did, which kept the pre-rebrand artwork for months without failing
+          # anything.
+          - name: app-icons
+            glob:
+              - "build/appicon.png"
+              - "build/windows/icon.ico"
+              - "internal/tray/tray-icon.ico"
+              - "tools/genicons/**"
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/genicons -check
+
           - name: sdd-gate
             glob:
               - "openspec/**"

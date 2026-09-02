@@ -14,6 +14,22 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows now draws a sharp app icon at every size.** The icon shipped with a
+  single 32×32 image, so Explorer's large and extra-large views, the taskbar on a
+  scaled display, and the installer's own window were all upscaling that one
+  small bitmap. The icon now carries 16, 24, 32, 48, 64, 128 and 256 pixel
+  versions.
+
+### Internal
+
+- Every app icon is now generated from one master image, `build/appicon.png`, by
+  `go run ./tools/genicons`, and a pre-commit check refuses a commit whose icons
+  no longer match it. Two orphaned image files were removed: an unreferenced copy
+  of the tray icon that still held the old pre-rebrand artwork, and the Wails
+  template logo that nothing in the frontend imported. See `docs/app-icons.md`.
+
 ## [1.8.3] — 2026-09-02
 
 ### Fixed
