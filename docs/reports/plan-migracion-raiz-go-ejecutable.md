@@ -469,6 +469,23 @@ estado persistido.
 
 ---
 
+### H8 — *(descubierta por el gate real)* Salir de `package main` publica la superficie exportada
+
+`revive` no comprueba un paquete `main`. En `package desktop` sí: **36 declaraciones** (26 metodos
+bindeados de `App` + 10 DTOs del editor) pasaron a ser superficie publica sin documentar. Y el gate
+corre **dos** perfiles de golangci-lint (`scripts/lint.ps1 -Profile all`): `.golangci.yml` y el
+compilado a medida con `.golangci.dlinter.yml`, que es el que lleva revive. **`golangci-lint run
+./...` a secas solo ejercita el primero y sale limpio** — otra vez el objeto equivocado.
+
+Tocar 24 archivos del frontend ademas heredo su deuda `dharness` acumulada (17 JSDoc + 7 valores con
+la supresion `role-file-shape` que `download-runtime-source.helpers.ts` ya usaba), porque el gate
+lintea `{staged_files}`. Adopcion incremental funcionando como esta disenada.
+
+**Y `dharness check` no puede correr desde un git hook dentro de un worktree**: `GIT_DIR` apunta a
+`.git/worktrees/<n>` y resuelve `frontend/frontend`. Pasa en solitario. Ver ADR-018.
+
+---
+
 ## 7. Riesgos, con probabilidad medida
 
 | Riesgo | Estado | Detectado por |

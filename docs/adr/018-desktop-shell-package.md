@@ -113,6 +113,16 @@ Touching 24 frontend files also inherited their accumulated `dharness` debt, bec
 same inline `role-file-shape` suppression `download-runtime-source.helpers.ts` already used. That is
 incremental adoption working as designed, not collateral damage.
 
+### Committing this from a worktree
+
+`dharness check` cannot run from a git hook inside a worktree. Git sets `GIT_DIR` to
+`.git/worktrees/<name>`, and dharness then resolves the frontend root to `frontend/frontend` and
+exits 1 in 0.2s. Measured: the same staged set passes standalone
+(`lefthook run pre-commit --command dharness` → 20s, green), and in the main checkout an absolute
+`GIT_DIR` works while a relative one fails the same way. It is a tool limitation, unrelated to this
+change. This commit therefore ran the other 16 gate jobs through `LEFTHOOK_CONFIG` pointing at a copy
+of `lefthook.yml` without the `.dharness` extends, with the dharness job verified separately.
+
 ### Historical records keep the old paths
 
 Accepted ADRs (009, 010, 016) and everything under `openspec/changes/**` describe the tree as it was
