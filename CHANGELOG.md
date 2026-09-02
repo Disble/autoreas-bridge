@@ -14,6 +14,22 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.8.2] — 2026-09-02
+
+### Fixed
+
+- **The Ubuntu and Debian software store now shows Bridge properly before you
+  install it.** Opening the downloaded package used to show a generic gear
+  icon and "No details for this release", even though the icon appeared
+  normally once installed. The package now carries the metadata the store
+  reads beforehand, so it shows the real icon, a description, the publisher
+  and a link to the release notes.
+
+### Internal
+
+- No change to the application itself: the program in this release is the same
+  as 1.8.0 and 1.8.1. Only the Linux package metadata changed.
+
 ## [1.8.1] — 2026-09-02
 
 ### Added
