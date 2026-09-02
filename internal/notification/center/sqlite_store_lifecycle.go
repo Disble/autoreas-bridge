@@ -50,7 +50,10 @@ func (s *Store) MarkRead(ctx context.Context, ids []int64, atMS int64) (int, err
 	}
 	placeholders, idArgs := idPlaceholders(ids)
 	args := append([]any{atMS}, idArgs...)
-	result, err := s.db.ExecContext(ctx, `
+	// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+	// data; every value still travels bound in args. database/sql has no array binding.
+	result, err := s.db.ExecContext(ctx, // NOSONAR
+		`
 		UPDATE notification_records
 		SET read_at_ms = ?
 		WHERE read_at_ms IS NULL AND id IN (`+placeholders+`)
@@ -80,7 +83,10 @@ func (s *Store) MarkUnread(ctx context.Context, ids []int64) (int, error) {
 		return 0, nil
 	}
 	placeholders, args := idPlaceholders(ids)
-	result, err := s.db.ExecContext(ctx, `
+	// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+	// data; every value still travels bound in args. database/sql has no array binding.
+	result, err := s.db.ExecContext(ctx, // NOSONAR
+		`
 		UPDATE notification_records
 		SET read_at_ms = NULL
 		WHERE read_at_ms IS NOT NULL AND id IN (`+placeholders+`)
@@ -114,7 +120,10 @@ func (s *Store) Archive(ctx context.Context, ids []int64, atMS int64) (affected 
 		}
 	}()
 
-	result, err := tx.ExecContext(ctx, `
+	// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+	// data; every value still travels bound in args. database/sql has no array binding.
+	result, err := tx.ExecContext(ctx, // NOSONAR
+		`
 		UPDATE notification_records
 		SET archived_at_ms = ?
 		WHERE archived_at_ms IS NULL AND id IN (`+placeholders+`)
@@ -127,7 +136,10 @@ func (s *Store) Archive(ctx context.Context, ids []int64, atMS int64) (affected 
 		return 0, err
 	}
 
-	if _, err = tx.ExecContext(ctx, `
+	// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+	// data; every value still travels bound in args. database/sql has no array binding.
+	if _, err = tx.ExecContext(ctx, // NOSONAR
+		`
 		UPDATE notification_records
 		SET read_at_ms = ?
 		WHERE read_at_ms IS NULL AND id IN (`+placeholders+`)
@@ -149,7 +161,10 @@ func (s *Store) Restore(ctx context.Context, ids []int64) (int, error) {
 		return 0, nil
 	}
 	placeholders, args := idPlaceholders(ids)
-	result, err := s.db.ExecContext(ctx, `
+	// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+	// data; every value still travels bound in args. database/sql has no array binding.
+	result, err := s.db.ExecContext(ctx, // NOSONAR
+		`
 		UPDATE notification_records
 		SET archived_at_ms = NULL
 		WHERE archived_at_ms IS NOT NULL AND id IN (`+placeholders+`)

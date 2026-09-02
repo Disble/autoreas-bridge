@@ -16,7 +16,9 @@ func (s *WriteBaseStore) FinalizeBatch(ctx context.Context, batchID string, comm
 		return fmt.Errorf("begin batch finalization %q: %w", batchID, err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	rows, err := tx.QueryContext(ctx, writeOperationSelect+` WHERE batch_id = ? AND status = ? ORDER BY batch_order ASC, operation_id ASC`, batchID, anime.WriteOperationStatusStaged)
+	// NOSONAR go:S2077 -- writeOperationSelect is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	rows, err := tx.QueryContext(ctx, writeOperationSelect+` WHERE batch_id = ? AND status = ? ORDER BY batch_order ASC, operation_id ASC`, batchID, anime.WriteOperationStatusStaged) // NOSONAR
 	if err != nil {
 		return fmt.Errorf("query batch operations %q: %w", batchID, err)
 	}
@@ -69,7 +71,10 @@ func (s *WriteBaseStore) AbortBatch(ctx context.Context, batchID string) error {
 
 // ListStaged returns staged write operations in deterministic recovery order.
 func (s *WriteBaseStore) ListStaged(ctx context.Context) (operations []anime.WriteOperation, err error) {
-	rows, err := s.db.QueryContext(ctx, writeOperationSelect+`
+	// NOSONAR go:S2077 -- writeOperationSelect is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	rows, err := s.db.QueryContext(ctx, // NOSONAR
+		writeOperationSelect+`
 		WHERE status = ?
 		ORDER BY created_at_ms ASC, batch_id ASC, batch_order ASC, operation_id ASC
 	`, anime.WriteOperationStatusStaged)

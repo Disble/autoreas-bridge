@@ -80,7 +80,9 @@ func renameCaptureTable(db *sql.DB, rename captureTableRename) error {
 	if currentExists {
 		return nil
 	}
-	if _, err := db.Exec(fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, rename.previous, rename.current)); err != nil {
+	// NOSONAR go:S2077 -- captureTableRenames is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	if _, err := db.Exec(fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, rename.previous, rename.current)); err != nil { // NOSONAR
 		return fmt.Errorf("rename capture table %s to %s: %w", rename.previous, rename.current, err)
 	}
 	return nil
@@ -92,7 +94,9 @@ func renameCaptureTable(db *sql.DB, rename captureTableRename) error {
 // have already been dropped.
 func dropStaleCaptureIndexes(db *sql.DB) error {
 	for _, index := range staleCaptureIndexes {
-		if _, err := db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS %s`, index)); err != nil {
+		// NOSONAR go:S2077 -- staleCaptureIndexes is a compile-time internal literal,
+		// never caller data; SQLite cannot bind an identifier as a parameter.
+		if _, err := db.Exec(fmt.Sprintf(`DROP INDEX IF EXISTS %s`, index)); err != nil { // NOSONAR
 			return fmt.Errorf("drop stale capture index %s: %w", index, err)
 		}
 	}
