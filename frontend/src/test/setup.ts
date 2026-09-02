@@ -5,7 +5,7 @@ import { afterEach } from 'vitest';
 declare global {
   interface Window {
     go?: {
-      main?: {
+      desktop?: {
         App?: Record<string, (...args: never[]) => unknown>;
       };
     };

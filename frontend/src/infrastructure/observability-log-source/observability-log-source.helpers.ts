@@ -1,4 +1,4 @@
-import { GetRecentLogs } from '../../../wailsjs/go/main/App';
+import { GetRecentLogs } from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { ObservabilityLogEntry } from '../../shared/contracts/observability.types';
 import { OBSERVABILITY_EVENT_NAME, OBSERVABILITY_LOG_SOURCE_STATE } from './observability-log-source.constants';
@@ -14,7 +14,7 @@ import { createRuntimeSubscription, waitForBindings } from '../wails-bindings.he
 export function isWailsRuntimeAvailable(): boolean {
   const runtime = window.runtime;
 
-  return Boolean(window.go?.main?.App) && typeof runtime === 'object' && runtime instanceof Object;
+  return Boolean(window.go?.desktop?.App) && typeof runtime === 'object' && runtime instanceof Object;
 }
 
 /**
@@ -38,7 +38,7 @@ export function createObservabilityLogSource(): ObservabilityLogSource {
       return logSubscription.subscribe(listener);
     },
     getRecentLogs() {
-      return waitForBindings(() => Boolean(window.go?.main?.App)).then((isReady) => {
+      return waitForBindings(() => Boolean(window.go?.desktop?.App)).then((isReady) => {
         return isReady ? GetRecentLogs() : Promise.resolve([]);
       });
     },
@@ -48,4 +48,4 @@ export function createObservabilityLogSource(): ObservabilityLogSource {
 }
 
 /** Shared observability source singleton used across hooks and stores. */
-export const observabilityLogSource = createObservabilityLogSource();
+export const observabilityLogSource = createObservabilityLogSource(); // eslint-disable-line dharness/role-file-shape

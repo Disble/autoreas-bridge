@@ -14,7 +14,7 @@ import {
   SetScheduleConfig,
   TriggerAnimeDownload,
   TriggerDownloadCheck,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { contracts } from '../../../wailsjs/go/models';
 import {

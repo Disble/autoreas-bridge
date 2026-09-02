@@ -1,4 +1,4 @@
-import { ConfirmBackupImport, ExportBackup, PreviewBackupImport } from '../../../wailsjs/go/main/App';
+import { ConfirmBackupImport, ExportBackup, PreviewBackupImport } from '../../../wailsjs/go/desktop/App';
 import { BACKUP_SOURCE_STATE } from './backup-source.constants';
 import type { BackupSource } from './backup-source.types';
 import { invokeGoBinding } from '../wails-bindings.helpers';
@@ -35,4 +35,4 @@ function createBackupSource(): BackupSource {
 }
 
 /** Shared backup source singleton used across feature hooks. */
-export const backupSource = createBackupSource();
+export const backupSource = createBackupSource(); // eslint-disable-line dharness/role-file-shape

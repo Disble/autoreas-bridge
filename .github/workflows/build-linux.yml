@@ -88,24 +88,45 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       # bridgeVersion is stamped at link time, not read from wails.json at
-      # runtime: app_backup.go declares `var bridgeVersion = "dev"` and every
-      # exported backup bundle carries it, surfaced to the user in the import
-      # preview. An unstamped release build labels its bundles "dev".
+      # runtime: internal/desktop/app_backup.go declares `var bridgeVersion = "dev"`
+      # and every exported backup bundle carries it, surfaced to the user in the
+      # import preview. An unstamped release build labels its bundles "dev".
+      #
+      # The import path is derived, never typed: `go list` fails loudly if the
+      # package moves, whereas a stale -X path links silently (ADR-018).
       - name: Build the app
         env:
           CGO_ENABLED: "1"
           VERSION: ${{ steps.version.outputs.version }}
-        run: wails build -platform linux/amd64 -clean -tags webkit2_41 -ldflags "-X main.bridgeVersion=${VERSION}"
+        run: |
+          pkg="$(go list -f '{{.ImportPath}}' ./internal/desktop)"
+          if [ -z "${pkg}" ]; then
+            echo "::error::could not resolve the desktop package for the -X stamp"
+            exit 1
+          fi
+          echo "STAMP_PKG=${pkg}" >> "${GITHUB_ENV}"
+          wails build -platform linux/amd64 -clean -tags webkit2_41 -ldflags "-X ${pkg}.bridgeVersion=${VERSION}"
 
-      - name: Verify the binary carries the stamped version
+      # Reads the stamp back from a companion, NON-stripped build of the same
+      # package with the same -X. Go's linker emits a `<path>.str` symbol only
+      # when -X actually resolved, so its absence is the failure. Measured: the
+      # correct path yields 2 bridgeVersion symbols, a stale one yields 1.
+      #
+      # The two obvious checks do not work. `go version -m` echoes back the very
+      # -ldflags argument the job just passed, so it matches even when nothing
+      # was stamped -- a binary reporting "dev" passed it. `go tool nm` on the
+      # shipped binary reports "no symbols", because wails appends `-w -s`.
+      - name: Verify the version stamp resolved
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if ! go version -m build/bin/autoreas-bridge | grep -q "bridgeVersion=${VERSION}"; then
-            echo "::error::build/bin/autoreas-bridge is not stamped with bridgeVersion=${VERSION}; backups exported by this build would report 'dev'"
+          go build -ldflags "-X ${STAMP_PKG}.bridgeVersion=${VERSION}" -o stamp-check .
+          if ! go tool nm stamp-check | grep -qF "${STAMP_PKG}.bridgeVersion.str"; then
+            echo "::error::the -X stamp did not resolve against ${STAMP_PKG}.bridgeVersion; backups exported by this build would report 'dev'"
             exit 1
           fi
-          echo "Stamped bridgeVersion=${VERSION}"
+          rm -f stamp-check
+          echo "Stamp resolved: ${STAMP_PKG}.bridgeVersion=${VERSION}"
 
       - name: Install nfpm
         # Pinned to a commit rather than the v2.47.0 tag (SonarQube

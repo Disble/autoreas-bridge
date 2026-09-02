@@ -228,7 +228,7 @@ describe('download-runtime-source', () => {
     };
 
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
-    window.go = { main: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
+    window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
     const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
@@ -264,7 +264,7 @@ describe('download-runtime-source', () => {
     };
 
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
-    window.go = { main: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
+    window.go = { desktop: { App: { GetDownloadConfig: vi.fn().mockResolvedValue(config) } } } as never;
 
     const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
@@ -290,7 +290,7 @@ describe('download-runtime-source', () => {
     const runMissedScheduleNowMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', terminalStatus: 'ok' });
     const ignoreMissedScheduleMock = vi.fn().mockResolvedValue({ kind: 'settled', localDate: '2026-07-26', settlementReason: 'ignored' });
     window.go = {
-      main: {
+      desktop: {
         App: {
           GetJDStatus: getJDStatusMock,
           GetScheduleConfig: getScheduleConfigMock,
@@ -332,7 +332,7 @@ describe('download-runtime-source', () => {
       scheduledBlocked: 1,
     };
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
-    window.go = { main: { App: { ListDownloadReadiness: vi.fn().mockResolvedValue(snapshot) } } } as never;
+    window.go = { desktop: { App: { ListDownloadReadiness: vi.fn().mockResolvedValue(snapshot) } } } as never;
 
     const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
@@ -396,7 +396,7 @@ describe('download-runtime-source', () => {
     const queryError = new Error('catalog unavailable');
     const listDownloadReadinessMock = vi.fn().mockRejectedValue(queryError);
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
-    window.go = { main: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
+    window.go = { desktop: { App: { ListDownloadReadiness: listDownloadReadinessMock } } } as never;
 
     const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();
@@ -408,7 +408,7 @@ describe('download-runtime-source', () => {
   it('forwards setHosterPriority to the live Wails binding with the configured site', async () => {
     const setHosterPriorityMock = vi.fn().mockResolvedValue('ok');
     window.runtime = { EventsOnMultiple: vi.fn().mockReturnValue(() => undefined) } as never;
-    window.go = { main: { App: { SetHosterPriority: setHosterPriorityMock } } } as never;
+    window.go = { desktop: { App: { SetHosterPriority: setHosterPriorityMock } } } as never;
 
     const { createDownloadRuntimeSource } = await import('../download-runtime-source/download-runtime-source.helpers');
     const source = createDownloadRuntimeSource();

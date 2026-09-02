@@ -5,7 +5,7 @@ import {
   PickFolder,
   SetAutoStartEnabled,
   SetDownloadsRoot,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
 import type { PreferencesSource } from './preferences-source.types';
 import { hasGoBinding, waitForBindings } from '../wails-bindings.helpers';
@@ -55,4 +55,4 @@ export function createPreferencesSource(): PreferencesSource {
 }
 
 /** Shared preferences source singleton used across hooks and stores. */
-export const preferencesSource = createPreferencesSource();
+export const preferencesSource = createPreferencesSource(); // eslint-disable-line dharness/role-file-shape

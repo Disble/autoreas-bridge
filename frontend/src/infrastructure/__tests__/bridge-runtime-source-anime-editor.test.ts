@@ -71,7 +71,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
     const applyPromise = source.applyAnimeEditorSchedule?.({ boardModifiedAt: 123, entries: [] });
 
     window.go = {
-      main: {
+      desktop: {
         App: {
           ApplyAnimeEditorSchedule: applyBoardMock,
           DeactivateAnime: deactivateAnimeMock,
@@ -130,7 +130,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
       ],
     });
 
-    window.go = { main: { App: { ApplyAnimeEditorSchedule: applyBoardMock } } } as never;
+    window.go = { desktop: { App: { ApplyAnimeEditorSchedule: applyBoardMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -182,7 +182,7 @@ describe('bridge-runtime-source anime editor bindings', () => {
 
     const recordPromise = source.getAnimeEditorRecord?.('anime-1');
 
-    window.go = { main: { App: { GetAnimeEditorRecord: getAnimeEditorRecordMock } } } as never;
+    window.go = { desktop: { App: { GetAnimeEditorRecord: getAnimeEditorRecordMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 

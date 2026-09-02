@@ -164,7 +164,8 @@ baseline guard, read the failing build as nine killed mutants.
 
 Measured: **9 mutants, 9 killed, a perfect 1.00**, each "dying" in 0.9–2.3s where
 one real run of that suite takes 4.95s. The truth is **8 killed and one
-survivor**, `app_defaults.go:43:26 → Comparison Replace`. It had been invisible.
+survivor**, `app_defaults.go:43:26 → Comparison Replace` (now
+`internal/desktop/app_defaults.go`, ADR-018). It had been invisible.
 
 Two things were needed and both are here: ditto v0.5.0 copies into its sandbox
 instead of linking, and `.ditto.json` names what git does not carry:

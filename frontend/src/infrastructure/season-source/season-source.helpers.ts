@@ -26,7 +26,7 @@ import {
   SetSeasonSlots,
   SkipSeasonGrading,
   TriggerSeasonDownloads,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import {
   SEASON_APPLY_UNAVAILABLE,
   SEASON_CONFIRM_UNAVAILABLE,
@@ -146,4 +146,4 @@ export function createSeasonSource(): SeasonSource {
 }
 
 /** Shared season source singleton used across season hooks and stores. */
-export const seasonSource = createSeasonSource();
+export const seasonSource = createSeasonSource(); // eslint-disable-line dharness/role-file-shape

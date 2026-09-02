@@ -8,8 +8,8 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 /** Files `wails generate module` must produce for the frontend to typecheck. */
 export const requiredBindings = [
-  'frontend/wailsjs/go/main/App.js',
-  'frontend/wailsjs/go/main/App.d.ts',
+  'frontend/wailsjs/go/desktop/App.js',
+  'frontend/wailsjs/go/desktop/App.d.ts',
   'frontend/wailsjs/go/models.ts',
   'frontend/wailsjs/runtime/runtime.js',
 ];

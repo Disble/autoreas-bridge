@@ -17,8 +17,9 @@ Wails event. This is additive: the existing event and its frontend subscriber
 - The bridge MUST emit exactly one `notification.Notification` when a pairing
   token is consumed, with `Source = "device"` and `Level = success`.
 - The notification MUST be emitted from the existing `OnPairingTokenConsumed`
-  composition-root callback (`app.go:409`), where the shared `Notifier`
-  (`a.notifier`, set at `app.go:375`) is already in scope. The `device` package
+  composition-root callback (`(*App).onSecondInstanceLaunch` in
+  `internal/desktop/app.go`), where the shared `Notifier`
+  (`a.notifier`, set by `ensureRuntimeDependencies`) is already in scope. The `device` package
   MUST NOT gain a `Notifier` dependency for this moment.
 - The existing bare `pairing.token-consumed` event emit MUST be preserved
   unchanged (both surfaces fire).

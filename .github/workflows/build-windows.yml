@@ -35,7 +35,7 @@ jobs:
     # (internal/tray/systray_bindings_windows_cgo.go). Pinned rather than left
     # to the runner's default, because the failure is silent: with CGO off that
     # file drops out, internal/tray/systray_manager.go keeps its no-op package
-    # vars, Start() still returns nil, and app.go:216 still wires the real
+    # vars, Start() still returns nil, and internal/desktop/app.go still wires the real
     # manager -- so the installer ships a tray that does nothing, with no build
     # error and no log line.
     env:
@@ -115,19 +115,38 @@ jobs:
           Write-Host "System tray bindings present: $files"
 
       # bridgeVersion is stamped at link time, not read from wails.json at
-      # runtime: app_backup.go declares `var bridgeVersion = "dev"` and every
-      # exported backup bundle carries it, surfaced to the user in the import
-      # preview. An unstamped release build labels its bundles "dev".
+      # runtime: internal/desktop/app_backup.go declares `var bridgeVersion = "dev"`
+      # and every exported backup bundle carries it, surfaced to the user in the
+      # import preview. An unstamped release build labels its bundles "dev".
+      #
+      # The import path is derived, never typed: `go list` fails loudly if the
+      # package moves, whereas a stale -X path links silently (ADR-018).
       - name: Build the app and the NSIS installer
-        run: wails build -platform windows/amd64 -nsis -clean -ldflags "-X main.bridgeVersion=${{ steps.version.outputs.version }}"
-
-      - name: Verify the binary carries the stamped version
         run: |
-          $info = (go version -m build/bin/autoreas-bridge.exe) -join "`n"
-          if ($info -notmatch 'bridgeVersion=${{ steps.version.outputs.version }}') {
-            throw "build/bin/autoreas-bridge.exe is not stamped with bridgeVersion=${{ steps.version.outputs.version }}; backups exported by this build would report 'dev'"
+          $pkg = (go list -f '{{.ImportPath}}' ./internal/desktop)
+          if ($LASTEXITCODE -ne 0 -or -not $pkg) { throw "could not resolve the desktop package for the -X stamp" }
+          "STAMP_PKG=$pkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          wails build -platform windows/amd64 -nsis -clean -ldflags "-X $pkg.bridgeVersion=${{ steps.version.outputs.version }}"
+
+      # Reads the stamp back from a companion, NON-stripped build of the same
+      # package with the same -X. Go's linker emits a `<path>.str` symbol only
+      # when -X actually resolved, so its absence is the failure. Measured: the
+      # correct path yields 2 bridgeVersion symbols, a stale one yields 1.
+      #
+      # The two obvious checks do not work. `go version -m` echoes back the very
+      # -ldflags argument the job just passed, so it matches even when nothing
+      # was stamped -- a binary reporting "dev" passed it. `go tool nm` on the
+      # shipped binary reports "no symbols", because wails appends `-w -s`.
+      - name: Verify the version stamp resolved
+        run: |
+          go build -ldflags "-X $env:STAMP_PKG.bridgeVersion=${{ steps.version.outputs.version }}" -o stamp-check.exe .
+          if ($LASTEXITCODE -ne 0) { throw "the stamp-check build failed" }
+          $syms = (go tool nm stamp-check.exe | Select-String -SimpleMatch "$env:STAMP_PKG.bridgeVersion.str")
+          if (-not $syms) {
+            throw "the -X stamp did not resolve against $env:STAMP_PKG.bridgeVersion; backups exported by this build would report 'dev'"
           }
-          Write-Host "Stamped bridgeVersion=${{ steps.version.outputs.version }}"
+          Remove-Item stamp-check.exe
+          Write-Host "Stamp resolved: $env:STAMP_PKG.bridgeVersion=${{ steps.version.outputs.version }}"
 
       # wails_tools.nsh is generated output, never hand-edited. Reading the
       # define back proves the installer that was just built carries the version

@@ -337,11 +337,11 @@ The API consumed by the companion mobile app is documented in
 
 ```text
 autoreas-bridge/
-├── app*.go                  # Wails composition root — bindings exposed to the frontend
-├── main.go                  # Entry point and Wails options
+├── main.go                  # Entry point only: //go:embed frontend/dist + wails.Run
 ├── cmd/
 │   └── autoreas-request-mcp/  # Read-only MCP sidecar over captured requests
-├── internal/                # Hexagonal core — no Wails runtime allowed below this line
+├── internal/                # Hexagonal core — no Wails runtime below this line except desktop/
+│   ├── desktop/             # Wails composition root — App and the bindings the frontend calls
 │   ├── anime/               # Anime domain: aggregate, storage codec, write pipeline
 │   │   ├── domain/          #   pure business rules (no I/O, no SQL, no HTTP)
 │   │   └── store/           #   SQLite gateway, stage→finalize→publish, outbox
@@ -406,7 +406,7 @@ split.
 flowchart TB
     subgraph desktop["Desktop app (Wails)"]
         ui["React 19 frontend<br/><i>dumb UI + smart hooks</i>"]
-        root["Composition root<br/>app.go / main.go"]
+        root["Composition root<br/>main.go + internal/desktop"]
         ui <-->|"generated bindings"| root
     end
 

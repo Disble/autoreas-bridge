@@ -127,7 +127,7 @@ Rules live in the colocated `frontend/eslint/` module. They enforce:
 The Hexagonal / Ports & Adapters boundaries are enforced deterministically:
 * **Domain purity:** `internal/anime/domain` cannot import `net/http`, `database/sql`, or the Wails runtime.
 * **Ports stay free of adapters:** `internal/api/contracts` cannot import `internal/api/handlers` or transport/persistence drivers.
-* **Transport confinement:** the Wails runtime stays in the composition root (`app.go`/`main.go`); no `internal/**` package may import it.
+* **Transport confinement:** the Wails runtime stays in the composition root — `main.go` plus `internal/desktop` (ADR-018); no other `internal/**` package may import it.
 
 ### Other barriers
 
