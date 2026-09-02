@@ -70,7 +70,7 @@ type trayLifecycleTestApp struct {
 	showWindowCalls       int
 	unminimiseWindowCalls int
 	quitCalls             int
-	lastHiddenContext     context.Context
+	lastHiddenContext     context.Context // NOSONAR godre:S8242 -- records the ctx the hook was called with so app_lifecycle_test.go can assert on it; nothing reads it as a context.
 }
 
 // newTrayLifecycleTestApp creates an application with observable tray hooks.

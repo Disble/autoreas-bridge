@@ -14,7 +14,7 @@ import (
 )
 
 type syncE2EHTTPEndpointEnv struct {
-	ctx            context.Context
+	ctx            context.Context // NOSONAR godre:S8242 -- test fixture carrying the suite's ctx to the cases in sync_e2e_endpoints_test.go.
 	handler        http.Handler
 	snapshotStore  *bridgeSync.AnimeSnapshotStore
 	changelogStore *bridgeSync.ChangelogStore

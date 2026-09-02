@@ -33,7 +33,7 @@ import (
 
 // App struct
 type App struct {
-	ctx                        context.Context
+	ctx                        context.Context // NOSONAR godre:S8242 -- Wails hands this to OnStartup, and the bindings and tray callbacks that need it have fixed signatures with no ctx to pass in.
 	bridgeDB                   *sql.DB
 	bridgeDBCloser             interface{ Close() error }
 	startupErr                 error
@@ -79,7 +79,7 @@ type App struct {
 	eventReader                *eventlog.Reader
 	trayManager                tray.Manager
 	tracerBulletRunner         tracerBulletRunner
-	catchUpContext             context.Context
+	catchUpContext             context.Context // NOSONAR godre:S8242 -- a lifetime, not a request scope: WithCancel(ctx) in startup, cancelled by catchUpCancel in shutdown.
 	catchUpCancel              context.CancelFunc
 	animeSelfEchoRegistry      anime.SelfEchoRegistry
 	deviceStore                device.Store

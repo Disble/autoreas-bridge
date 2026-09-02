@@ -8,7 +8,7 @@ import (
 )
 
 type capturedEmit struct {
-	ctx       context.Context
+	ctx       context.Context // NOSONAR godre:S8242 -- records the ctx an emit was called with, for assertion; nothing reads it as a context.
 	eventName string
 	data      []any
 }

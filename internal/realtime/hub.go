@@ -50,7 +50,7 @@ type MemoryHub struct {
 	mu              sync.RWMutex
 	clients         map[string]*clientState
 	broadcasts      chan []byte
-	ctx             context.Context
+	ctx             context.Context // NOSONAR godre:S8242 -- the hub's own lifetime, paired with cancel below; Register derives every client from it rather than from the caller's ctx, on purpose.
 	cancel          context.CancelFunc
 	closeOnce       sync.Once
 	clientBuffer    int
@@ -63,7 +63,7 @@ type MemoryHub struct {
 type clientState struct {
 	client Client
 	queue  chan []byte
-	ctx    context.Context
+	ctx    context.Context // NOSONAR godre:S8242 -- one client's lifetime, paired with cancel below and closed by state.cancel on disconnect.
 	cancel context.CancelFunc
 	done   chan struct{}
 }
