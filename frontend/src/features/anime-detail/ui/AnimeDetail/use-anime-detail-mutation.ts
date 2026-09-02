@@ -72,7 +72,7 @@ export function useAnimeDetailMutation(
     }
   }, [animeId, detail, routeGeneration]);
   const onRequestRestore = useCallback(() => {
-    if (detail !== null && detail !== undefined && detail.active === 0) {
+    if (detail?.active === 0) {
       setMutationState({
         animeId,
         routeGeneration,

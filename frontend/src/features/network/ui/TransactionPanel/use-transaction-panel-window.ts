@@ -136,5 +136,5 @@ function countPrependedRows(
 
   const previousHeadIndex = rows.findIndex((entry) => entry.id === previousHeadId);
 
-  return previousHeadIndex <= 0 ? 0 : previousHeadIndex;
+  return Math.max(previousHeadIndex, 0);
 }

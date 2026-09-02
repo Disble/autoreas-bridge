@@ -4,9 +4,12 @@ import { fileURLToPath } from 'node:url';
 import tsParser from '@typescript-eslint/parser';
 import { ESLint } from 'eslint';
 
+/** Effective-line count above which a file is reported as a warning. */
 export const warningThreshold = 400;
+/** Effective-line count ESLint's max-lines rule fails on; this script only warns below it. */
 export const hardLimit = 500;
 
+/** Matches ESLint's max-lines message so the effective count can be read back out of it. */
 const maxLinesPattern = /File has too many lines \((\d+)\)\. Maximum allowed is \d+\./u;
 
 /**
@@ -54,6 +57,12 @@ export function formatFileSizeWarnings(warnings) {
   ].join('\n');
 }
 
+/**
+ * Lints the tree for max-lines and returns only the files between the warning
+ * threshold and the hard limit, which is what makes this advisory rather than a gate.
+ * @param {object} [options] Injection seams, all defaulted for the normal run.
+ * @returns {Promise<object[]>} One entry per warned file.
+ */
 export async function runFileSizeWarnings({
   cwd = process.cwd(),
   patterns = ['src/**/*.{ts,tsx}'],
@@ -90,6 +99,11 @@ export async function runFileSizeWarnings({
   return collectFileSizeWarnings(results, cwd, warningThreshold, hardLimit);
 }
 
+/**
+ * Reads the effective line count out of one ESLint max-lines message.
+ * @param {string} message The rule's message text.
+ * @returns {number} The count, or 0 when the message is not a max-lines one.
+ */
 function parseEffectiveLines(message) {
   const match = message.match(maxLinesPattern);
   if (!match) {
@@ -99,21 +113,35 @@ function parseEffectiveLines(message) {
   return Number.parseInt(match[1], 10);
 }
 
+/**
+ * Renders a lint result path relative to the working directory, with forward slashes.
+ * @param {string} cwd The directory paths are reported against.
+ * @param {string} filePath The absolute path ESLint reported.
+ * @returns {string} The repo-relative path.
+ */
 function normalizeRelativePath(cwd, filePath) {
   return path.relative(cwd, filePath).split(path.sep).join('/');
 }
 
+/**
+ * Runs the warning pass over the whole tree and prints its report.
+ * @returns {Promise<void>} Resolves once the report has been written.
+ */
 async function main() {
   const warnings = await runFileSizeWarnings();
   process.stdout.write(`${formatFileSizeWarnings(warnings)}\n`);
 }
 
+/** The script node was actually asked to run, or '' when there is none. */
 const executedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+/** This module's own path, compared against executedPath to detect a direct run. */
 const modulePath = fileURLToPath(import.meta.url);
 
 if (executedPath === modulePath) {
-  main().catch((error) => {
+  try {
+    await main();
+  } catch (error) {
     process.stderr.write(`frontend file size warning check failed: ${error.message}\n`);
     process.exitCode = 1;
-  });
+  }
 }
