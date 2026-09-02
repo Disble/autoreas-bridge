@@ -283,7 +283,7 @@ func TestSinkUnbindStopsEnqueueBeforeQueueStop(t *testing.T) {
 	}
 }
 
-// recordingSinkStore is a Store test double that records every inserted
+// recordingSinkStore is a Inserter test double that records every inserted
 // event, guarded by a channel-free simple approach (single drain goroutine,
 // so no extra locking is needed for the assertions above).
 type recordingSinkStore struct {

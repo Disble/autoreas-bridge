@@ -51,7 +51,7 @@ type App struct {
 	newNotifier                func(emit func(ctx context.Context, eventName string, optionalData ...any), loggers ...sharedlogger.Logger) notification.Notifier
 	newRealtimeHub             func(ctx context.Context) realtime.Hub
 	newHTTPServer              func(config api.Config) api.Server
-	newCaptureStore            func(db *sql.DB) requestcapture.Store
+	newCaptureStore            func(db *sql.DB) requestcapture.Upserter
 	newCaptureQueue            func(db *sql.DB) captureQueue
 	newCaptureReader           func(db *sql.DB) *requestcapture.Reader
 	newTrayManager             func() tray.Manager
@@ -71,7 +71,7 @@ type App struct {
 	httpServer                 api.Server
 	captureQueue               captureQueue
 	captureReader              *requestcapture.Reader
-	captureStore               requestcapture.Store
+	captureStore               requestcapture.Upserter
 	eventSink                  *eventlog.Sink
 	newEventQueue              func(db *sql.DB) eventLogStopper
 	eventQueue                 eventLogStopper
@@ -266,7 +266,7 @@ func (a *App) initializeBridgeDatabase(ctx context.Context) bool {
 }
 
 // startHTTPServer constructs and starts the bridge HTTP server.
-func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, changelogStore *bridgeSync.ChangelogStore) {
+func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite contracts.AnimePatcher, conflictService *bridgeSync.ConflictStore, changelogStore *bridgeSync.ChangelogStore) {
 	statusService := bridgeSync.NewStatusService(changelogStore, func() string {
 		if a.httpServer == nil {
 			return ""
@@ -282,7 +282,7 @@ func (a *App) startHTTPServer(deviceService device.AuthService, mobileAnimeWrite
 }
 
 // wireEpisodeServiceWithWriter connects the episode service to its writer.
-func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimeWriteService) {
+func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 	if a.animeQuery == nil || writer == nil {
 		return
 	}

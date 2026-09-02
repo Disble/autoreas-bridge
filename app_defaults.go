@@ -144,7 +144,7 @@ func (a *App) ensureSyncRuntimeDependencies() {
 // by the queue/reader/fallback store wiring.
 func (a *App) ensureCaptureRuntimeDependencies() {
 	if a.newCaptureStore == nil {
-		a.newCaptureStore = func(db *sql.DB) requestcapture.Store {
+		a.newCaptureStore = func(db *sql.DB) requestcapture.Upserter {
 			return requestcapture.NewStore(db, requestcapture.StoreConfig{})
 		}
 	}

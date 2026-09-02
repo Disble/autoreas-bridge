@@ -29,7 +29,7 @@ type siteResolver interface {
 }
 
 // seasonAvailabilityProbe adapts the download sites registry to
-// season.AvailabilityProbe: an anime's ch.1 is available once the site reports a
+// season.AvailabilityReader: an anime's ch.1 is available once the site reports a
 // latest episode >= 1. An unsupported/unresolvable page degrades to "not
 // available" (not an error) so the recheck run never fails on a bad row.
 type seasonAvailabilityProbe struct {

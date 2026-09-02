@@ -323,4 +323,4 @@ func fromLegacySnapshot(record store.Snapshot) SnapshotRecord {
 }
 
 var _ contracts.AnimeQueryService = (*QueryService)(nil)
-var _ contracts.AnimeWriteService = (*WriteService)(nil)
+var _ contracts.AnimePatcher = (*WriteService)(nil)

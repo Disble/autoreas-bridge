@@ -21,7 +21,7 @@ func (a *App) GetSeasonMode() bool {
 
 // seasonModeReader returns a ctx-aware reader for the derived season-mode flag,
 // shared by the download selection seam (ServiceDeps.SeasonMode) and the
-// mobile-facing status read-model (StatusService). It is true iff a season is
+// mobile-facing status read-model (StatusReader). It is true iff a season is
 // open; it degrades to false when the season service is unavailable or errors.
 func (a *App) seasonModeReader() func(context.Context) bool {
 	return func(ctx context.Context) bool {

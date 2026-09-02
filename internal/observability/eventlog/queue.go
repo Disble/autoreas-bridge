@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-// Store persists one event record, applied by the single serialized drain
+// Inserter persists one event record, applied by the single serialized drain
 // goroutine.
-type Store interface {
+type Inserter interface {
 	InsertEvent(ctx context.Context, record EventRecord) error
 }
 
@@ -22,7 +22,7 @@ type QueueConfig struct {
 // requestcapture.Queue's zero-wait enqueue and single serialized drain
 // goroutine exactly, over EventRecord instead of CaptureRecord.
 type Queue struct {
-	store    Store
+	store    Inserter
 	ch       chan EventRecord
 	stopped  chan struct{}
 	stopOnce sync.Once
@@ -35,7 +35,7 @@ type Queue struct {
 }
 
 // NewQueue starts a bounded event-persistence worker.
-func NewQueue(store Store, config QueueConfig) *Queue {
+func NewQueue(store Inserter, config QueueConfig) *Queue {
 	capacity := config.Capacity
 	if capacity <= 0 {
 		capacity = 256

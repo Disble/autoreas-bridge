@@ -8,16 +8,16 @@ import (
 	"time"
 )
 
-// Store writes sanitized captures, inserting an arrival row or updating it
+// Upserter writes sanitized captures, inserting an arrival row or updating it
 // to its terminal state on a later write sharing the same request_id.
-type Store interface {
+type Upserter interface {
 	UpsertCapture(ctx context.Context, record CaptureRecord) error
 }
 
 // QueueConfig defines bounded queue behavior.
 type QueueConfig struct {
 	Capacity int
-	// OnPersist fires exactly once per record, after Store.UpsertCapture
+	// OnPersist fires exactly once per record, after Upserter.UpsertCapture
 	// succeeds for it, from the single serialized drain goroutine. Nil is a
 	// safe no-op. Used to emit the real-time "capture.transaction" event from
 	// the one choke point where a record is known to have actually persisted.
@@ -26,7 +26,7 @@ type QueueConfig struct {
 
 // Queue is the non-blocking capture worker.
 type Queue struct {
-	store     Store
+	store     Upserter
 	onPersist func(CaptureRecord)
 	ch        chan CaptureRecord
 	stopped   chan struct{}
@@ -40,7 +40,7 @@ type Queue struct {
 }
 
 // NewQueue starts a bounded capture worker.
-func NewQueue(store Store, config QueueConfig) *Queue {
+func NewQueue(store Upserter, config QueueConfig) *Queue {
 	capacity := config.Capacity
 	if capacity <= 0 {
 		capacity = 256

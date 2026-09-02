@@ -172,7 +172,7 @@ func (a *App) prepareAnimeRuntime(ctx context.Context) {
 }
 
 // buildHTTPServer creates the configured bridge HTTP server.
-func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimeWriteService, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
+func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contracts.AnimePatcher, conflictService *bridgeSync.ConflictStore, statusService *bridgeSync.StatusService, syncTrigger *bridgeSync.TriggerService) api.Server {
 	return a.newHTTPServer(api.Config{
 		Addr:                   a.resolveAPIAddr(),
 		DeviceService:          deviceService,

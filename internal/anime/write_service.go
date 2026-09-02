@@ -410,4 +410,4 @@ func defaultAnimeID() string {
 	return string(buf)
 }
 
-var _ contracts.AnimeWriteService = (*WriteService)(nil)
+var _ contracts.AnimePatcher = (*WriteService)(nil)

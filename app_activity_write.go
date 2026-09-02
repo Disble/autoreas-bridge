@@ -11,7 +11,7 @@ import (
 
 type activityAnimeWriteService struct {
 	query    contracts.AnimeQueryService
-	writer   contracts.AnimeWriteService
+	writer   contracts.AnimePatcher
 	recorder anime.ActivityRecorder
 	source   string
 	now      func() int64

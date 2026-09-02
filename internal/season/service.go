@@ -94,14 +94,14 @@ type Service struct {
 	now      func() time.Time
 	newID    func() string
 	searcher NameSearcher
-	probe    AvailabilityProbe
+	probe    AvailabilityReader
 	gateway  AnimeGateway
 }
 
 // SetAvailabilityDeps wires the availability probe + anime gateway (SDD-43).
 // Mirrors the optional-setter convention; RecheckAvailability errors until both
 // are set, every other operation works without them.
-func (s *Service) SetAvailabilityDeps(probe AvailabilityProbe, gateway AnimeGateway) {
+func (s *Service) SetAvailabilityDeps(probe AvailabilityReader, gateway AnimeGateway) {
 	s.probe = probe
 	s.gateway = gateway
 }
