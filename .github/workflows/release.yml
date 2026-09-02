@@ -10,6 +10,10 @@
 #
 # Running it manually from the Actions tab builds both platforms and publishes
 # nothing -- the publish job is tag-only.
+#
+# Branch model: `dev` carries development, `main` carries deployments. A release
+# therefore only exists once dev has been merged into main, and the guard job
+# below refuses to build a tag that does not sit on main.
 name: Release
 
 on:
@@ -26,10 +30,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Runs on every trigger so the build jobs can depend on it unconditionally;
+  # the check itself applies only to tags. A job-level `if` would skip this job
+  # on workflow_dispatch and skip everything that needs it along with it.
+  guard:
+    name: Branch policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The tagged commit must be on main
+        if: github.ref_type == 'tag'
+        run: |
+          git fetch --no-tags --quiet origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${GITHUB_REF_NAME} points at ${GITHUB_SHA}, which is not on main. main is the deployment branch: merge dev into main, then tag the merge."
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} -> ${GITHUB_SHA} is on main"
+
   windows:
+    needs: guard
     uses: ./.github/workflows/build-windows.yml
 
   linux:
+    needs: guard
     uses: ./.github/workflows/build-linux.yml
 
   publish:
