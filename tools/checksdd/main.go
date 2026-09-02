@@ -73,7 +73,7 @@ func detectActiveChange(root string) (string, error) {
 }
 
 // validateChange checks all required artifacts and their completion state.
-func validateChange(root string, changeName string) error {
+func validateChange(root, changeName string) error {
 	changeRoot := filepath.Join(root, "openspec", "changes", changeName)
 	for _, path := range []string{
 		filepath.Join(changeRoot, "proposal.md"),
@@ -95,7 +95,7 @@ func validateChange(root string, changeName string) error {
 }
 
 // validateSpecPresence confirms that the change contains at least one spec.
-func validateSpecPresence(specsRoot string, changeName string) error {
+func validateSpecPresence(specsRoot, changeName string) error {
 	var specCount int
 	err := filepath.Walk(specsRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
@@ -116,7 +116,7 @@ func validateSpecPresence(specsRoot string, changeName string) error {
 }
 
 // validateTasksComplete rejects changes with unchecked implementation tasks.
-func validateTasksComplete(tasksPath string, changeName string) error {
+func validateTasksComplete(tasksPath, changeName string) error {
 	tasksContent, err := os.ReadFile(tasksPath)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func validateTasksComplete(tasksPath string, changeName string) error {
 }
 
 // validateVerifyVerdict accepts only passing verification reports.
-func validateVerifyVerdict(verifyPath string, changeName string) error {
+func validateVerifyVerdict(verifyPath, changeName string) error {
 	verifyContent, err := os.ReadFile(verifyPath)
 	if err != nil {
 		return err

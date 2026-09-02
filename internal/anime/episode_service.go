@@ -255,7 +255,7 @@ func activityCorrelationID(animeID string, occurredAtMs int64) string {
 }
 
 // recordEpisodeAdjustment records an applied episode progress adjustment as activity.
-func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, outcome contracts.AnimePatchOutcome, current *contracts.MobileAnime, animeID string, source string, correlationID string, occurredAtMs int64, nextProgress float64) error {
+func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, outcome contracts.AnimePatchOutcome, current *contracts.MobileAnime, animeID, source, correlationID string, occurredAtMs int64, nextProgress float64) error {
 	if s.activity == nil || outcome != contracts.AnimePatchOutcomeApplied {
 		return nil
 	}

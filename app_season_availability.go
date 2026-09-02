@@ -86,7 +86,7 @@ func (s *seasonScheduleStore) ApplyScheduleSettlement(_ context.Context, req dow
 	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
 }
 
-func (s *seasonScheduleStore) RecordMissedStartupAttempt(_ context.Context, localDate string, status string) error {
+func (s *seasonScheduleStore) RecordMissedStartupAttempt(_ context.Context, localDate, status string) error {
 	return nil
 }
 

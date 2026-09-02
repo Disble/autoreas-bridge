@@ -62,7 +62,7 @@ func readRuntimeScheduleLinesByAnimeID(t *testing.T, store *bridgeSync.AnimeSnap
 }
 
 // assertRuntimeScheduleSnapshotWrites verifies changed and untouched snapshots.
-func assertRuntimeScheduleSnapshotWrites(t *testing.T, initialLines map[string]string, persistedLines map[string]string) {
+func assertRuntimeScheduleSnapshotWrites(t *testing.T, initialLines, persistedLines map[string]string) {
 	t.Helper()
 	changedAnimeIDs := make([]string, 0)
 	for animeID, initialLine := range initialLines {

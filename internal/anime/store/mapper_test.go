@@ -106,7 +106,7 @@ func TestLegacyMapperRestoreChangesOnlyActivation(t *testing.T) {
 }
 
 // assertRawJSONField verifies one raw JSON field using legacy JSON equality.
-func assertRawJSONField(t *testing.T, object map[string]json.RawMessage, key string, want string) {
+func assertRawJSONField(t *testing.T, object map[string]json.RawMessage, key, want string) {
 	t.Helper()
 
 	got, ok := object[key]

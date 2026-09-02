@@ -46,13 +46,13 @@ func main() {
 }
 
 // run generates every icon target from the master, or verifies them in place.
-func run(root string, check bool, stdout io.Writer, stderr io.Writer) error {
+func run(root string, check bool, stdout, stderr io.Writer) error {
 	return runTargets(root, targets, check, stdout, stderr)
 }
 
 // runTargets is run against an explicit target list, so the failure paths stay
 // reachable from a test without touching the repository's real icons.
-func runTargets(root string, list []iconTarget, check bool, stdout io.Writer, stderr io.Writer) error {
+func runTargets(root string, list []iconTarget, check bool, stdout, stderr io.Writer) error {
 	master, err := loadMaster(root)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "genicons: read master icon %s: %v\n", masterPath, err)
@@ -102,7 +102,7 @@ func matchesOnDisk(root string, target iconTarget, want []byte) bool {
 }
 
 // writeTarget creates the target's directory if needed and writes the icon.
-func writeTarget(root string, target iconTarget, want []byte, stdout io.Writer, stderr io.Writer) error {
+func writeTarget(root string, target iconTarget, want []byte, stdout, stderr io.Writer) error {
 	path := filepath.Join(root, filepath.FromSlash(target.Path))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		_, _ = fmt.Fprintf(stderr, "genicons: create directory for %s: %v\n", target.Path, err)

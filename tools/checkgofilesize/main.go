@@ -57,7 +57,7 @@ func main() {
 }
 
 // run checks Go file sizes against the repository baseline.
-func run(root string, manifestPath string, stdout io.Writer, stderr io.Writer) error {
+func run(root, manifestPath string, stdout, stderr io.Writer) error {
 	manifest, err := loadBaseline(root, manifestPath)
 	if err != nil {
 		return writeError(stderr, "load baseline manifest", err)
@@ -82,7 +82,7 @@ func run(root string, manifestPath string, stdout io.Writer, stderr io.Writer) e
 }
 
 // loadBaseline reads and validates the file-size baseline manifest.
-func loadBaseline(root string, manifestPath string) (baselineManifest, error) {
+func loadBaseline(root, manifestPath string) (baselineManifest, error) {
 	content, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return baselineManifest{}, fmt.Errorf("read baseline manifest: %w", err)
@@ -130,7 +130,7 @@ func validateBaselineEntry(root string, manifest baselineManifest, file baseline
 }
 
 // ensureBaselineEntryIsOversized confirms a baseline file exceeds the default limit.
-func ensureBaselineEntryIsOversized(root string, normalizedPath string, defaultLimit int) error {
+func ensureBaselineEntryIsOversized(root, normalizedPath string, defaultLimit int) error {
 	fullPath := filepath.Join(root, filepath.FromSlash(normalizedPath))
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
@@ -269,7 +269,7 @@ func walkDirectoryDecision(normalizedPath string, manifest baselineManifest) err
 }
 
 // shouldCollectGoFile reports whether a path belongs in the size check.
-func shouldCollectGoFile(currentPath string, normalizedPath string, manifest baselineManifest) bool {
+func shouldCollectGoFile(currentPath, normalizedPath string, manifest baselineManifest) bool {
 	if filepath.Ext(currentPath) != ".go" {
 		return false
 	}
@@ -324,7 +324,7 @@ func matchesAny(filePath string, patterns []string) bool {
 }
 
 // matchGlob matches a path against one glob pattern.
-func matchGlob(pattern string, filePath string) bool {
+func matchGlob(pattern, filePath string) bool {
 	if pattern == "" {
 		return false
 	}

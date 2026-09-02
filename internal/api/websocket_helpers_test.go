@@ -50,7 +50,7 @@ func closeWebsocket(t *testing.T, conn *websocket.Conn) {
 }
 
 // dialWebSocketWithToken dials the websocket with the provided bearer token.
-func dialWebSocketWithToken(t *testing.T, wsURL string, token string) *websocket.Conn {
+func dialWebSocketWithToken(t *testing.T, wsURL, token string) *websocket.Conn {
 	t.Helper()
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+token)
@@ -128,7 +128,7 @@ func (s stubWebSocketAnimeWrite) PatchAnime(context.Context, string, contracts.A
 }
 
 // assertJSONLineEqualForWebSocketTest compares two JSON lines structurally.
-func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) {
+func assertJSONLineEqualForWebSocketTest(t *testing.T, got, want string) {
 	t.Helper()
 	var gotValue any
 	if err := json.Unmarshal([]byte(got), &gotValue); err != nil {
@@ -144,7 +144,7 @@ func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) 
 }
 
 // deepEqualJSON compares JSON-compatible values by their encoded representation.
-func deepEqualJSON(got any, want any) bool {
+func deepEqualJSON(got, want any) bool {
 	left, err := json.Marshal(got)
 	if err != nil {
 		return false
@@ -157,7 +157,7 @@ func deepEqualJSON(got any, want any) bool {
 }
 
 // seedWebSocketAnimeSnapshot stores the baseline used by websocket write tests.
-func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
+func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string) {
 	t.Helper()
 	records := map[string]anime.SnapshotRecord{
 		animeID: {

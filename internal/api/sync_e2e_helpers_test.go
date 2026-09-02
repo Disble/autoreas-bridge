@@ -79,7 +79,7 @@ func seedSyncE2EDeviceService(t *testing.T, ctx context.Context, db *sql.DB) *de
 }
 
 // seedSyncE2ESnapshot stores a baseline anime snapshot for an end-to-end test.
-func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
+func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string) {
 	t.Helper()
 	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
 		animeID: {

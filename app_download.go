@@ -76,7 +76,7 @@ func (c *reconfigurableJDClient) client(ctx context.Context) (jdownloader.JDClie
 }
 
 // newJDownloaderClient constructs the underlying JDownloader API client.
-func newJDownloaderClient(email string, password string) jd.JdClient {
+func newJDownloaderClient(email, password string) jd.JdClient {
 	return jd.NewClient(email, password, slog.New(slog.DiscardHandler))
 }
 

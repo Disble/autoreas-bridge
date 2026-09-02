@@ -33,7 +33,7 @@ func schemaTables() []persistence.TableSchema {
 }
 
 // createOnlyTable builds a table descriptor without migration logic.
-func createOnlyTable(name string, ddl string) persistence.TableSchema {
+func createOnlyTable(name, ddl string) persistence.TableSchema {
 	return persistence.TableSchema{Name: name, CreateDDL: ddl}
 }
 

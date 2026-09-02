@@ -117,7 +117,7 @@ type recordingAckStore struct {
 	pruned       bool
 }
 
-func (s *recordingAckStore) AcknowledgeDevice(_ context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error {
+func (s *recordingAckStore) AcknowledgeDevice(_ context.Context, deviceID string, lastAckChangelogID, lastSeenAtMs int64) error {
 	s.deviceID = deviceID
 	s.lastAck = lastAckChangelogID
 	s.lastSeenAtMs = lastSeenAtMs

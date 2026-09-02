@@ -356,7 +356,7 @@ func (s *svcFakeDownloadStore) ApplyScheduleSettlement(ctx context.Context, req 
 	return ScheduleSettlementResult{Outcome: ScheduleSettlementApplied}, nil
 }
 
-func (s *svcFakeDownloadStore) RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error {
+func (s *svcFakeDownloadStore) RecordMissedStartupAttempt(ctx context.Context, localDate, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.scheduleCfg.LastMissedAttemptDate = localDate

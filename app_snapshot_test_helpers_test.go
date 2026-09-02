@@ -10,7 +10,7 @@ import (
 )
 
 // seedRuntimeAnimeSnapshot stores one runtime anime snapshot for tests.
-func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID string, payload string, modifiedAt int64) {
+func seedRuntimeAnimeSnapshot(t *testing.T, store anime.SnapshotStore, animeID, payload string, modifiedAt int64) {
 	t.Helper()
 	hashBytes := md5.Sum([]byte(payload))
 	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{

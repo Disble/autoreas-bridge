@@ -67,7 +67,7 @@ func (s *SQLiteStore) PruneExpiredPairingTokens(ctx context.Context, expiresBefo
 }
 
 // ConsumePairingToken marks a valid token as consumed.
-func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error {
+func (s *SQLiteStore) ConsumePairingToken(ctx context.Context, token string, consumedAtMs, expiresBeforeMs int64) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE pairing_tokens
 		SET consumed_at_ms = ?

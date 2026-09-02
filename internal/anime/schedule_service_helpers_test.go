@@ -51,7 +51,7 @@ func assertSchedulePlacement(t *testing.T, placementsByAnime map[string][]contra
 }
 
 // assertSchedulePublishedAnimeChanged verifies a published schedule event.
-func assertSchedulePublishedAnimeChanged(t *testing.T, event events.Event, wantID string, wantPayload string) {
+func assertSchedulePublishedAnimeChanged(t *testing.T, event events.Event, wantID, wantPayload string) {
 	t.Helper()
 	changed, ok := event.(events.AnimeChangedEvent)
 	if !ok {

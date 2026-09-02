@@ -31,7 +31,7 @@ func repoRootFromTest(t *testing.T) string {
 }
 
 // writeGoFile creates a test Go file beneath a temporary root.
-func writeGoFile(t *testing.T, root string, relativePath string, content string) {
+func writeGoFile(t *testing.T, root, relativePath, content string) {
 	t.Helper()
 
 	fullPath := filepath.Join(root, filepath.FromSlash(relativePath))
@@ -44,7 +44,7 @@ func writeGoFile(t *testing.T, root string, relativePath string, content string)
 }
 
 // mapsEqual reports whether two string-to-int maps contain the same entries.
-func mapsEqual(left map[string]int, right map[string]int) bool {
+func mapsEqual(left, right map[string]int) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -59,7 +59,7 @@ func mapsEqual(left map[string]int, right map[string]int) bool {
 }
 
 // readRepoFile reads a repository file for test assertions.
-func readRepoFile(t *testing.T, root string, relativePath string) []byte {
+func readRepoFile(t *testing.T, root, relativePath string) []byte {
 	t.Helper()
 
 	content, err := os.ReadFile(filepath.Join(root, relativePath))

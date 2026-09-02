@@ -67,7 +67,7 @@ func walkArchitectureEntry(logicalDir string, physicalDir string, source archite
 }
 
 // architectureEntryPaths derives logical and physical paths for an entry.
-func architectureEntryPaths(logicalDir string, physicalDir string, entry fs.DirEntry) (string, string) {
+func architectureEntryPaths(logicalDir, physicalDir string, entry fs.DirEntry) (string, string) {
 	return filepath.Join(logicalDir, entry.Name()), filepath.Join(physicalDir, entry.Name())
 }
 

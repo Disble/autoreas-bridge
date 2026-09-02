@@ -14,7 +14,7 @@ import (
 //
 // Averaging happens in premultiplied alpha so a transparent pixel contributes
 // its transparency without dragging its colour into the result.
-func resizeArea(src *image.NRGBA, dstW int, dstH int) *image.NRGBA {
+func resizeArea(src *image.NRGBA, dstW, dstH int) *image.NRGBA {
 	dst := image.NewNRGBA(image.Rect(0, 0, dstW, dstH))
 	bounds := src.Bounds()
 	srcW, srcH := bounds.Dx(), bounds.Dy()

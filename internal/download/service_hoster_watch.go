@@ -196,7 +196,7 @@ func hasPositiveJDSignal(st jdownloader.DestinationStatus) bool {
 //	FASE 2:    downloading → completed (filesystem-only 15s tick, 30 min safety cap).
 //
 // JD API is called at most twice per hoster attempt; FASE 2 never calls it.
-func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount int, episode int, isFirstHoster bool) hosterOutcome {
+func (s *Service) awaitHosterOutcome(ctx context.Context, runID string, anime contracts.MobileAnime, hoster string, baselineCount, episode int, isFirstHoster bool) hosterOutcome {
 	// attemptStart anchors every probe offset this attempt records. What separates it from the
 	// real enqueue instant is one mutex unlock and one error check, so it is enqueue-equivalent
 	// for every decision the offsets serve -- and capturing it here costs this function no

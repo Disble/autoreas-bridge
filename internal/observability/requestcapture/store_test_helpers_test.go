@@ -53,7 +53,7 @@ func readTelemetryRow(t *testing.T, db *sql.DB, requestID string) telemetryRow {
 }
 
 // assertTelemetryRow compares persisted telemetry with the expected values.
-func assertTelemetryRow(t *testing.T, row telemetryRow, want telemetryRow) {
+func assertTelemetryRow(t *testing.T, row, want telemetryRow) {
 	t.Helper()
 
 	assertNullableInt64(t, "duration_ms", row.duration, want.duration)

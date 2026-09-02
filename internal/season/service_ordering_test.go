@@ -153,7 +153,7 @@ func TestApplyScheduleStopsAtFirstNonSuccess(t *testing.T) {
 }
 
 // assertApplyScheduleFailureCase verifies one rejected ordering application.
-func assertApplyScheduleFailureCase(t *testing.T, name string, wantErr error, err error, res ApplyResult, gateway *scriptedOrderingGateway, svc *Service, ctx context.Context) {
+func assertApplyScheduleFailureCase(t *testing.T, name string, wantErr, err error, res ApplyResult, gateway *scriptedOrderingGateway, svc *Service, ctx context.Context) {
 	t.Helper()
 	if err == nil {
 		t.Fatalf("expected %s to fail closed, got res=%+v", name, res)
