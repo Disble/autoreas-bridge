@@ -28,6 +28,8 @@ import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { URL } from 'node:url';
 
+import { resolveServedFile } from './static-serve.helpers.mjs';
+
 /** Built fixture bundle this smoke test serves. */
 const DIST = path.resolve(import.meta.dirname, '..', 'dist-layout');
 /**
@@ -108,10 +110,7 @@ function buildFixtures() {
 function startServer() {
   const server = createServer((request, response) => {
     const requested = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-    let file = path.join(DIST, requested);
-    if (!existsSync(file) || requested === '/') {
-      file = ENTRY;
-    }
+    const file = resolveServedFile({ dist: DIST, requested, fallback: ENTRY });
     response.writeHead(200, { 'Content-Type': CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream' });
     response.end(readFileSync(file));
   });

@@ -30,6 +30,8 @@ import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { URL } from 'node:url';
 
+import { resolveServedFile } from './static-serve.helpers.mjs';
+
 // Resolves the binary from PATH on purpose: `bun` must resolve from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and arguments are passed as an array rather than through a shell.
 
 /** Built bundle the smoke server serves; the real production output, not a dev build. */
@@ -109,10 +111,7 @@ function buildDist() {
 function startServer() {
   const server = createServer((request, response) => {
     const requested = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-    let file = path.join(DIST, requested);
-    if (!existsSync(file) || requested === '/') {
-      file = path.join(DIST, 'index.html');
-    }
+    const file = resolveServedFile({ dist: DIST, requested, fallback: path.join(DIST, 'index.html') });
     response.writeHead(200, { 'Content-Type': CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream' });
     response.end(readFileSync(file));
   });
