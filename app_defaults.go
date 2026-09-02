@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
@@ -210,9 +212,7 @@ func (a *App) ensureRuntimeFunctions() {
 		a.copyText = wruntime.ClipboardSetText
 	}
 	if a.openFolder == nil {
-		a.openFolder = func(path string) error {
-			return exec.Command("explorer", path).Start()
-		}
+		a.openFolder = openFolderInFileManager
 	}
 	if a.pickFolder == nil {
 		a.pickFolder = func(ctx context.Context, title string) (string, error) {
@@ -290,4 +290,25 @@ func (a *App) ensureRuntimeObservability() {
 	if a.newEventReader == nil {
 		a.newEventReader = eventlog.NewReader
 	}
+}
+
+// openFolderInFileManager opens path in the operating system's file manager.
+//
+// The binary is resolved absolutely rather than from PATH (SonarQube
+// go:S4036, CWE-426). This runs inside a shipped desktop application, not a
+// build script: anything earlier on the user's PATH called explorer.exe would
+// otherwise run in its place the first time somebody opens an anime folder.
+// %SystemRoot% is set by Windows itself and its directory is not
+// user-writable, so joining against it removes the lookup entirely.
+//
+// The fallback to a bare "explorer" keeps the previous behaviour when
+// SystemRoot is unset, which is every non-Windows build. Those cannot open a
+// folder today either way -- there is no xdg-open or open branch here -- and
+// giving them one is a feature, not part of closing this finding.
+func openFolderInFileManager(path string) error {
+	explorer := "explorer"
+	if systemRoot := os.Getenv("SystemRoot"); systemRoot != "" {
+		explorer = filepath.Join(systemRoot, "explorer.exe")
+	}
+	return exec.Command(explorer, path).Start()
 }
