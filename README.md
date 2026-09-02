@@ -10,6 +10,7 @@
 [![Wails](https://img.shields.io/badge/Wails-v2-DF0000)](https://wails.io)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)](#installation)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 <img src="docs/images/today.webp" alt="Autoreas Bridge — Today view listing the anime airing today with one-tap progress controls" width="880">
 
@@ -550,7 +551,10 @@ Release body; a tag whose version has no changelog section fails the pipeline.
 
 ## License
 
-No license file is published for this repository yet, so the work is
-**all rights reserved** by default. If you want to use, modify or redistribute
-it, please [open an issue](https://github.com/Disble/autoreas-bridge/issues)
-first.
+[Apache License 2.0](LICENSE) — Copyright 2026 disble.
+
+You may use, modify and redistribute this software, commercial use included, as
+long as you keep the license and copyright notice and state your changes. It
+comes with no warranty. Apache 2.0 additionally grants an explicit patent
+license from every contributor and revokes it for anyone who starts patent
+litigation over the work — the practical difference from MIT.
