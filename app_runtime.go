@@ -13,6 +13,10 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
+// episodeServiceUnavailableMessage is what every episode binding returns when the episode
+// service was never wired. Shared with app_season_availability.go (same package).
+const episodeServiceUnavailableMessage = "episode service unavailable"
+
 func (a *App) GetBridgeStatus() string {
 	if a.startupErr != nil {
 		return a.startupErr.Error()
@@ -224,7 +228,7 @@ func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
 
 func (a *App) AdjustWatchedEpisodes(animeID string, delta float64, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.AdjustWatchedEpisodes(a.appContext(), anime.AdjustWatchedEpisodesCommand{
 		AnimeID: animeID,
@@ -240,7 +244,7 @@ func (a *App) AdjustWatchedEpisodes(animeID string, delta float64, base int64) c
 
 func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.SetAnimeState(a.appContext(), anime.SetAnimeStateCommand{
 		AnimeID: animeID,
@@ -256,7 +260,7 @@ func (a *App) SetAnimeState(animeID string, estado int, base int64) contracts.Ep
 
 func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.SetAnimeDays(a.appContext(), anime.SetAnimeDaysCommand{
 		AnimeID: animeID,
@@ -271,7 +275,7 @@ func (a *App) SetAnimeDays(animeID string, dias []string, base int64) contracts.
 
 func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.SoftDeleteAnime(a.appContext(), anime.SoftDeleteAnimeCommand{
 		AnimeID: animeID,
@@ -286,7 +290,7 @@ func (a *App) SoftDeleteAnime(animeID string, base int64) contracts.EpisodeComma
 
 func (a *App) RestoreAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.RestoreAnime(a.appContext(), anime.RestoreAnimeCommand{
 		AnimeID: animeID,
@@ -301,7 +305,7 @@ func (a *App) RestoreAnime(animeID string, base int64) contracts.EpisodeCommandR
 
 func (a *App) RepeatAnime(animeID string, base int64) contracts.EpisodeCommandResult {
 	if a.episodeService == nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: "episode service unavailable"}
+		return contracts.EpisodeCommandResult{Status: "error", Message: episodeServiceUnavailableMessage}
 	}
 	result, err := a.episodeService.RepeatAnime(a.appContext(), anime.RepeatAnimeCommand{
 		AnimeID: animeID,

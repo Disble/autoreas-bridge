@@ -11,6 +11,9 @@ import (
 	obs "autoreas-bridge/internal/observability/requestcapture"
 )
 
+// runtimeEventLogUnavailableMessage is the single wording every unavailable-log error carries.
+const runtimeEventLogUnavailableMessage = "runtime event log unavailable"
+
 // httpStatusPattern recognizes a bare HTTP status token (1xx-5xx) inside a
 // reference string.
 var httpStatusPattern = regexp.MustCompile(`\b[1-5]\d\d\b`)
@@ -142,7 +145,7 @@ func (r *sqliteReader) EventsAvailable() bool {
 // SearchEvents delegates to eventlog.Reader.Search over the shared handle.
 func (r *sqliteReader) SearchEvents(ctx context.Context, params eventlog.EventSearchParams) (eventlog.EventSearchPage, error) {
 	if r.events == nil {
-		return eventlog.EventSearchPage{}, obserr.Unavailable("runtime event log unavailable")
+		return eventlog.EventSearchPage{}, obserr.Unavailable(runtimeEventLogUnavailableMessage)
 	}
 	return r.events.Search(ctx, params)
 }
@@ -150,7 +153,7 @@ func (r *sqliteReader) SearchEvents(ctx context.Context, params eventlog.EventSe
 // SummaryEvents delegates to eventlog.Reader.Summary over the shared handle.
 func (r *sqliteReader) SummaryEvents(ctx context.Context, filters eventlog.EventFilters) (eventlog.EventSummaryResult, error) {
 	if r.events == nil {
-		return eventlog.EventSummaryResult{}, obserr.Unavailable("runtime event log unavailable")
+		return eventlog.EventSummaryResult{}, obserr.Unavailable(runtimeEventLogUnavailableMessage)
 	}
 	return r.events.Summary(ctx, filters)
 }
@@ -158,7 +161,7 @@ func (r *sqliteReader) SummaryEvents(ctx context.Context, filters eventlog.Event
 // EventsByCorrelation delegates to eventlog.Reader.EventsByCorrelation over the shared handle.
 func (r *sqliteReader) EventsByCorrelation(ctx context.Context, correlationID string, cap int) ([]eventlog.EventRecord, error) {
 	if r.events == nil {
-		return nil, obserr.Unavailable("runtime event log unavailable")
+		return nil, obserr.Unavailable(runtimeEventLogUnavailableMessage)
 	}
 	return r.events.EventsByCorrelation(ctx, correlationID, cap)
 }

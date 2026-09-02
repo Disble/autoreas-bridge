@@ -34,7 +34,7 @@ func (s *Service) finalize(ctx context.Context, run *Run) {
 	finalizeCtx, release := finalizeContext(ctx)
 	defer release()
 	if err := s.deps.Store.FinalizeRun(finalizeCtx, *run); err != nil {
-		s.logf(logger.LevelError, run.RunID, "", "download.failed", nil,
+		s.logf(logger.LevelError, run.RunID, "", events.EventNameDownloadFailed, nil,
 			"failed to finalize run %s: %v", run.RunID, err)
 	}
 }

@@ -6,6 +6,9 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
+// busPublishEventType is the structured-log EventType for every bus publish record.
+const busPublishEventType = "bus.publish"
+
 const slowHandlerThreshold = 500 * time.Millisecond
 
 // InstrumentedBus is a decorator around Bus that logs publish events at debug level
@@ -25,7 +28,7 @@ func NewInstrumentedBus(inner Bus, logger sharedlogger.Logger) *InstrumentedBus 
 func (b *InstrumentedBus) Publish(event Event) {
 	if b.logger != nil {
 		b.logger.Logf("bus", sharedlogger.LevelDebug, sharedlogger.Fields{
-			EventType: "bus.publish",
+			EventType: busPublishEventType,
 			Metadata:  map[string]any{"eventName": event.Name()},
 		}, "publish %s", event.Name())
 	}
@@ -36,7 +39,7 @@ func (b *InstrumentedBus) Publish(event Event) {
 
 	if b.logger != nil && elapsed >= slowHandlerThreshold {
 		b.logger.Logf("bus", sharedlogger.LevelWarn, sharedlogger.Fields{
-			EventType:  "bus.publish",
+			EventType:  busPublishEventType,
 			DurationMs: elapsed.Milliseconds(),
 			Metadata:   map[string]any{"eventName": event.Name()},
 		}, "slow handler chain for %s", event.Name())
@@ -52,7 +55,7 @@ func (b *InstrumentedBus) Subscribe(eventName string, handler Handler) func() {
 
 		if b.logger != nil && elapsed >= slowHandlerThreshold {
 			b.logger.Logf("bus", sharedlogger.LevelWarn, sharedlogger.Fields{
-				EventType:  "bus.publish",
+				EventType:  busPublishEventType,
 				DurationMs: elapsed.Milliseconds(),
 				Metadata:   map[string]any{"eventName": eventName},
 			}, "slow handler for %s", eventName)

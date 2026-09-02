@@ -254,7 +254,7 @@ type SendToVerHoyDTO struct {
 // offers a manual download so they still have episodes to watch today.
 func (a *App) SendSeasonAnimesToVerHoy(animeIDs []string) SendToVerHoyDTO {
 	if a.episodeService == nil {
-		return SendToVerHoyDTO{Status: "episode service unavailable"}
+		return SendToVerHoyDTO{Status: episodeServiceUnavailableMessage}
 	}
 	for _, id := range animeIDs {
 		result, err := a.episodeService.SetAnimeDays(a.seasonCtx(), anime.SetAnimeDaysCommand{

@@ -13,6 +13,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// schemaMismatchMessage is the single wording every schema-mismatch error carries.
+const schemaMismatchMessage = "request capture schema mismatch"
+
 // captureBaseColumns are the always-present (version-1) capture columns, in
 // the fixed SELECT order every query relies on.
 var captureBaseColumns = []string{
@@ -65,7 +68,7 @@ func resolveCaptureTables(db *sql.DB) (captureTables, error) {
 			return tables, nil
 		}
 	}
-	return captureTables{}, schemaMismatchError("request capture schema mismatch")
+	return captureTables{}, schemaMismatchError(schemaMismatchMessage)
 }
 
 // captureTableExists reports whether name exists as a table in sqlite_master.
@@ -164,7 +167,9 @@ type searchCursor struct {
 // so callers degrade gracefully.
 func detectOptionalColumns(db *sql.DB, tables captureTables) optionalColumns {
 	present := map[string]bool{}
-	rows, err := db.Query(fmt.Sprintf(`SELECT name FROM pragma_table_info('%s')`, tables.captures))
+	// NOSONAR go:S2077 -- tables.captures is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	rows, err := db.Query(fmt.Sprintf(`SELECT name FROM pragma_table_info('%s')`, tables.captures)) // NOSONAR
 	if err != nil {
 		return optionalColumns{}
 	}
@@ -211,7 +216,7 @@ func OpenReadOnlyDB(path string) (*ReadOnlyDB, error) {
 	tables, err := resolveCaptureTables(db)
 	if err != nil {
 		_ = db.Close()
-		return nil, schemaMismatchError("request capture schema mismatch")
+		return nil, schemaMismatchError(schemaMismatchMessage)
 	}
 	reader.tables = tables
 	var version string
@@ -220,10 +225,12 @@ func OpenReadOnlyDB(path string) (*ReadOnlyDB, error) {
 		`SELECT value, (SELECT count(*) FROM pragma_table_info('%s') WHERE name IN ('request_id','captured_at_ms','kind','route','transport','device_id','device_name','outcome','anime_id','http_status','payload_json','correlation_json','error_code')) FROM %s WHERE key = '%s'`,
 		tables.captures, tables.metadata, tables.versionKey,
 	)
-	err = db.QueryRow(versionQuery).Scan(&version, &columns)
+	// NOSONAR go:S2077 -- every %s in versionQuery (tables.captures/metadata/versionKey) is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	err = db.QueryRow(versionQuery).Scan(&version, &columns) // NOSONAR
 	if err != nil || !isSupportedCaptureSchemaVersion(version) || columns != 13 {
 		_ = db.Close()
-		return nil, schemaMismatchError("request capture schema mismatch")
+		return nil, schemaMismatchError(schemaMismatchMessage)
 	}
 	return reader, nil
 }

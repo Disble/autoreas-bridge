@@ -13,6 +13,14 @@ import (
 	jd "github.com/Disble/jdownloader-go/jdownloader"
 )
 
+// downloadSchedulerUnavailableMessage is returned by the scheduler bindings when the
+// download scheduler was never wired.
+const downloadSchedulerUnavailableMessage = "download scheduler unavailable"
+
+// downloadStoreUnavailableMessage is returned by the store-backed bindings when the
+// download store was never wired.
+const downloadStoreUnavailableMessage = "download store unavailable"
+
 // reconfigurableJDClient wraps the real jdownloader.JDClient adapter behind a lazily
 // (re)built client, since MyJDownloader credentials (email/password) can change at runtime
 // via SetJDConfig and jd.NewClient bakes credentials in at construction time (the
@@ -195,7 +203,7 @@ func (a *App) GetDownloadConfig() contracts.DownloadConfig {
 // success or an error string when the store is unavailable or the write fails.
 func (a *App) SetHosterPriority(site string, entries []contracts.HosterPriorityItem) string {
 	if a.downloadStore == nil {
-		return "download store unavailable"
+		return downloadStoreUnavailableMessage
 	}
 
 	domainEntries := make([]download.HosterPriorityEntry, 0, len(entries))
@@ -232,7 +240,7 @@ func (a *App) GetJDStatus() contracts.JDStatus {
 // write fails.
 func (a *App) SetJDConfig(input contracts.JDConfigInput) string {
 	if a.downloadStore == nil {
-		return "download store unavailable"
+		return downloadStoreUnavailableMessage
 	}
 
 	cfg := download.JDConfig{
@@ -266,7 +274,7 @@ func (a *App) GetScheduleConfig() contracts.ScheduleConfig {
 // success or an error string when the store is unavailable or the write fails.
 func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
 	if a.downloadStore == nil {
-		return "download store unavailable"
+		return downloadStoreUnavailableMessage
 	}
 
 	domainCfg := download.ScheduleConfig{
@@ -291,7 +299,7 @@ func (a *App) SetScheduleConfig(cfg contracts.ScheduleConfig) string {
 // RunMissedScheduleNow executes the startup-missed selected date under the scheduler's run guard.
 func (a *App) RunMissedScheduleNow(localDate string) contracts.ScheduleMissedActionResult {
 	if a.downloadScheduler == nil {
-		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
+		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: downloadSchedulerUnavailableMessage}
 	}
 	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionRunNow))
 }
@@ -299,7 +307,7 @@ func (a *App) RunMissedScheduleNow(localDate string) contracts.ScheduleMissedAct
 // IgnoreMissedSchedule settles the startup-missed selected date without rewriting actual run facts.
 func (a *App) IgnoreMissedSchedule(localDate string) contracts.ScheduleMissedActionResult {
 	if a.downloadScheduler == nil {
-		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: "download scheduler unavailable"}
+		return contracts.ScheduleMissedActionResult{Kind: string(schedule.MissedStartupActionError), LocalDate: localDate, Message: downloadSchedulerUnavailableMessage}
 	}
 	return toContractsMissedActionResult(a.resolveMissedStartupAction(a.downloadCtx(), localDate, schedule.MissedStartupActionIgnore))
 }
@@ -310,7 +318,7 @@ func (a *App) IgnoreMissedSchedule(localDate string) contracts.ScheduleMissedAct
 // (design-scheduler spec "Concurrent-Run Guard").
 func (a *App) TriggerDownloadCheck() string {
 	if a.downloadScheduler == nil {
-		return "download scheduler unavailable"
+		return downloadSchedulerUnavailableMessage
 	}
 	if err := a.downloadScheduler.TriggerNow(a.downloadCtx(), "manual"); err != nil {
 		return err.Error()
