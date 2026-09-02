@@ -54,8 +54,12 @@ jobs:
       # `wails build` runs the frontend itself through wails.json ->
       # frontend:install / frontend:build, so Bun has to exist before the build
       # step rather than before a frontend step -- there is no separate one.
+      # Pinned to a commit, not the `v2` tag: a tag can be repointed at different
+      # code by whoever controls the repository, which is what makes it a supply
+      # chain risk (SonarQube githubactions:S7637). The comment carries the
+      # human-readable version so an upgrade stays reviewable.
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -104,7 +108,11 @@ jobs:
           echo "Stamped bridgeVersion=${VERSION}"
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+        # Pinned to a commit rather than the v2.47.0 tag (SonarQube
+        # githubactions:S8545). Go's checksum database already makes a published
+        # version immutable, so this is belt-and-braces rather than a fix for a
+        # live hole -- but it costs nothing and states the intent outright.
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@40c7c8f7376400e9464d04a2a099045cf5598f8e # v2.47.0
 
       # Resizes the 1024x1024 source icon into the hicolor theme's standard
       # sizes. 1.8.2 shipped the 1024 original into /usr/share/pixmaps instead,
