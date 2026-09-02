@@ -91,7 +91,7 @@ function findEdge() {
 function buildDist() {
   // `vite build` only -- typechecking is frontend-typecheck's job, and paying for
   // it twice would make this gate cost more than the bug it catches.
-  const result = spawnSync('bun', ['x', 'vite', 'build'], {
+  const result = spawnSync('bun', ['x', 'vite', 'build'], { // NOSONAR javascript:S4036 -- resolved from PATH on purpose, so it comes from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and the arguments are passed as an array rather than through a shell. Pinning an absolute path would break across platforms and, on Windows, would have to guess between the .exe, .cmd and .bat shims these tools ship as.
     cwd: path.resolve(import.meta.dirname, '..'),
     stdio: 'pipe',
     shell: true,

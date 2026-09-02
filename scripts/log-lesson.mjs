@@ -98,7 +98,7 @@ if (lesson.length > MAX_LENGTH) {
 
 let root;
 try {
-  root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); // NOSONAR javascript:S4036 -- resolved from PATH like every other developer tool: this runs from a terminal, in the repository the developer chose, and there is no portable absolute path for git.
 } catch {
   fail('not inside a git repository.');
 }

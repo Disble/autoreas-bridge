@@ -27,7 +27,11 @@ func main() {
 		return
 	}
 
-	cmd := exec.Command("gofmt", append([]string{"-l"}, files...)...)
+	// NOSONAR go:S4036 -- gofmt has to come from the toolchain that is building
+	// this repository, which is exactly what PATH resolves. It is a repo-owned
+	// build tool run by the pre-commit gate, not shipped code, and there is no
+	// absolute path for gofmt that holds across a developer machine and CI.
+	cmd := exec.Command("gofmt", append([]string{"-l"}, files...)...) // NOSONAR
 	cmd.Dir = root
 	output, err := cmd.CombinedOutput()
 	if err != nil {

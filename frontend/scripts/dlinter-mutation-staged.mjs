@@ -9,9 +9,9 @@ const cwd = process.cwd();
 /** Stryker's CLI entrypoint, resolved locally so the hook never reaches the network. */
 const strykerEntrypoint = path.resolve(cwd, 'node_modules', '@stryker-mutator', 'core', 'bin', 'stryker.js');
 /** Absolute path of the repository root. */
-const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' }).trim();
+const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' }).trim(); // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
 /** Path to the Git directory, where the incremental cache is kept. */
-const gitDir = execFileSync('git', ['rev-parse', '--git-dir'], { cwd, encoding: 'utf8' }).trim();
+const gitDir = execFileSync('git', ['rev-parse', '--git-dir'], { cwd, encoding: 'utf8' }).trim(); // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
 /** This workspace's path relative to the repo root, e.g. `frontend`. */
 const surface = path.relative(root, cwd).replaceAll('\\', '/');
 /** `surface` as a path prefix, so repo-relative paths can be matched and stripped. */
@@ -24,7 +24,7 @@ const prefix = surface === '' ? '' : `${surface}/`;
  */
 const isProduction = (file) => file.startsWith(`${prefix}src/`) && /\.(ts|tsx)$/.test(file) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
 /** Raw `status<TAB>path[<TAB>destination]` lines describing the staged changes. */
-const output = execFileSync('git', ['diff', '--cached', '--name-status', '--diff-filter=ACMR'], { cwd, encoding: 'utf8' });
+const output = execFileSync('git', ['diff', '--cached', '--name-status', '--diff-filter=ACMR'], { cwd, encoding: 'utf8' }); // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
 /** Staged production TypeScript files, each carrying the path it was renamed from when there is one. */
 const staged = output
   .split(/\r?\n/)
@@ -41,7 +41,7 @@ if (staged.length === 0) {
 }
 
 for (const entry of staged) {
-  if (spawnSync('git', ['diff', '--quiet', '--', entry.path], { cwd: root }).status !== 0) {
+  if (spawnSync('git', ['diff', '--quiet', '--', entry.path], { cwd: root }).status !== 0) { // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
     throw new Error(`dlinter mutation guard: partial staging is unsupported for ${entry.path}; stage or revert its remaining changes.`);
   }
 }
@@ -65,7 +65,7 @@ for (const entry of staged) {
 /** Staged paths plus the source of every rename, so git can pair them. */
 const stagedPathspec = staged.flatMap((entry) => (entry.source === undefined ? [entry.path] : [entry.source, entry.path]));
 /** Zero-context diff of the staged files, the source of the mutated line ranges. */
-const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...stagedPathspec], { cwd: root, encoding: 'utf8' });
+const diff = execFileSync('git', ['diff', '--cached', '--unified=0', '--diff-filter=ACMR', '--', ...stagedPathspec], { cwd: root, encoding: 'utf8' }); // NOSONAR javascript:S4036 -- git itself invoked this script as a pre-commit hook, so the process already runs under git's own PATH; an attacker who could hijack git here has already won. There is also no portable absolute path for git across the platforms this repo builds on.
 /** Accumulated `file:start-end` ranges handed to Stryker's `--mutate`. */
 const ranges = [];
 /** File the diff parser is currently inside, tracked across hunk headers. */
