@@ -45,10 +45,3 @@ export const APP_LAYOUT_NAV_GROUPS: readonly NavGroup[] = [
   },
 ] as const;
 
-/** Shared bridge mark path data used by the shell brand glyph. */
-export const APP_LAYOUT_BRIDGE_MARK_PATHS = {
-  arc: 'M3 17c3-8 15-8 18 0',
-  leftNode: { cx: '5', cy: '17', r: '1.6' },
-  rightNode: { cx: '19', cy: '17', r: '1.6' },
-  mast: 'M12 4v3',
-} as const;
