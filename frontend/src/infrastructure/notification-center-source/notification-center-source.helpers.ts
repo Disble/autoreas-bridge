@@ -7,7 +7,7 @@ import {
   MarkNotificationsRead,
   MarkNotificationsUnread,
   RestoreNotifications,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import type {
   NotificationActionResult,
   NotificationDetailResult,

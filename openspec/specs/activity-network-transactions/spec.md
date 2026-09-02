@@ -11,7 +11,7 @@ Defines the in-process read path and frontend DevTools-style Network view over c
 > `mobile_request_captures` survives only as the tolerated legacy read generation
 > (`internal/observability/requestcapture/reader.go:39-52`). That change shipped no delta for
 > this capability, so the old names below are historical, not authoritative. The bindings are
-> `App.ListCaptureTransactions` and `App.GetCaptureTransaction` (`app_captures.go:12,26`).
+> `App.ListCaptureTransactions` and `App.GetCaptureTransaction` (`internal/desktop/app_captures.go`).
 
 ## Requirements
 

@@ -47,6 +47,106 @@
 extends:
   - .dharness/lefthook.yml
 
+# -- pre-merge-commit ---------------------------------------------------------
+# A merge commit does NOT run pre-commit. Git runs `pre-merge-commit` instead,
+# and until 2026-09-02 nothing was installed there, so every merge landed
+# unchecked. That is the one place two independently green branches produce a
+# broken tree: a changed signature on one side and a new caller on the other
+# each pass their own gate and only fail together. Measured on the
+# internal/desktop migration -- merging dev put 104 moved files against three
+# refactored `internal/` signatures, and nothing automated would have looked.
+#
+# This gate asks a DIFFERENT question from pre-commit. pre-commit judges a diff
+# and scopes most jobs to `{staged_files}`; a merge produces a tree. So every
+# job here is whole-tree and none is globbed -- a glob would compare against a
+# merge's own (empty) file list and skip.
+#
+# Two pre-commit jobs are deliberately absent. `frontend-lint` lints
+# `{staged_files}` because JSDoc adoption is incremental by construction (390
+# findings tree-wide, measured 2026-08-13), so a whole-tree run would fail every
+# merge and get removed within a week. `test:mutation:staged` measures staged
+# lines, and a merge contributes none of its own.
+#
+# A fast-forward merge writes no commit and runs no hook. Nothing to check: the
+# commits it moves already passed pre-commit individually, and no new tree
+# exists.
+#
+# Git's hook-bypass flag skips this like any other hook. Reach for it only when
+# the merge is already known-good and re-proving it is pure cost, never to get
+# past a red job.
+pre-merge-commit:
+  parallel: true
+  jobs:
+    # Same three-lane shape as pre-commit so a failure reads the same way.
+    - name: quick
+      group:
+        parallel: true
+        jobs:
+          - name: gofmt
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkgofmt
+
+          - name: go-filesize
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkgofilesize
+
+          - name: architecture
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkarchitecture
+
+          # -Profile all, not a bare `golangci-lint run`: the gate carries two
+          # profiles and the second (.golangci.dlinter.yml, custom-built) is the
+          # one holding revive. A bare run exercises only the first and reports
+          # clean -- it hid 36 findings once already.
+          - name: golangci-lint
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
+
+          # Cross-file pairings a merge can break without either side noticing:
+          # the spec against the router, the icons against their master, the SDD
+          # artifacts against the active change.
+          - name: openapi
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checkopenapi
+
+          - name: app-icons
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/genicons -check
+
+          - name: sdd-gate
+            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
+            run: go run ./tools/checksdd
+
+          - name: frontend-typecheck
+            run: bun --cwd="frontend" run typecheck
+
+    - name: go-heavy
+      group:
+        piped: true
+        jobs:
+          - name: go-vet
+            env: {GOMAXPROCS: "4"}
+            run: go vet -p 4 ./...
+
+          - name: go-cover
+            env: {GOMAXPROCS: "4"}
+            run: go test ./... -cover -p 4 -parallel 4
+
+    - name: frontend-heavy
+      group:
+        piped: true
+        jobs:
+          - name: frontend-test
+            run: bun --cwd="frontend" run test
+
+          # Both branches can pass jsdom and still merge into a blank window:
+          # these two mount the real production bundle in headless Edge.
+          - name: frontend-render-smoke
+            run: bun --cwd="frontend" run render:smoke
+
+          - name: frontend-layout-smoke
+            run: bun --cwd="frontend" run layout:smoke
+
 pre-commit:
   parallel: true
   jobs:

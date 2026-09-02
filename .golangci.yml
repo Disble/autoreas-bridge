@@ -67,6 +67,7 @@ linters:
         wails-confined-to-edge:
           files:
             - "**/internal/**"
+            - "!**/internal/desktop/**"
           deny:
             - pkg: "github.com/wailsapp/wails/v2"
-              desc: "the Wails runtime must stay in the composition root (app.go/main.go); inject runtime access into internal packages instead of importing Wails there"
+              desc: "the Wails runtime stays in the composition root (main.go + internal/desktop); inject runtime access into other internal packages instead of importing Wails there"

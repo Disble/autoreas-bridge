@@ -1,4 +1,4 @@
-import { SearchRuntimeEvents, SummarizeRuntimeEvents } from '../../../wailsjs/go/main/App';
+import { SearchRuntimeEvents, SummarizeRuntimeEvents } from '../../../wailsjs/go/desktop/App';
 import type { contracts as wailsContracts } from '../../../wailsjs/go/models';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type { ObservabilityLogEntry } from '../../shared/contracts/observability.types';

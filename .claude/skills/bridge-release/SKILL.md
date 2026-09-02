@@ -147,10 +147,25 @@ Linux builds with `-tags webkit2_41`: Wails' `gtk.go` pkg-configs
 Use this to smoke-test before tagging, or when you need an installer without
 publishing one.
 
-7. `wails build -platform windows/amd64 -nsis -clean -ldflags "-X main.bridgeVersion=X.Y.Z"`
-   — the `-ldflags` is not optional. `app_backup.go` defaults `bridgeVersion` to
-   `"dev"`, and every exported backup bundle carries it into the user-visible
-   import preview.
+7. Build with the stamp, deriving the import path instead of typing it:
+   ```bash
+   PKG=$(go list -f '{{.ImportPath}}' ./internal/desktop) || exit 1
+   wails build -platform windows/amd64 -nsis -clean -ldflags "-X ${PKG}.bridgeVersion=X.Y.Z"
+   ```
+   The `-ldflags` is not optional. `internal/desktop/app_backup.go` defaults
+   `bridgeVersion` to `"dev"`, and every exported backup bundle carries it into
+   the user-visible import preview. **Go ignores a `-X` whose symbol does not
+   exist — exit 0, no warning** — so a stale path ships `"dev"` in silence, which
+   is why `go list` derives it. Read the stamp back before trusting it:
+   ```bash
+   go build -ldflags "-X ${PKG}.bridgeVersion=X.Y.Z" -o stamp-check.exe .
+   go tool nm stamp-check.exe | rg -F "${PKG}.bridgeVersion.str"   # must print
+   ```
+   The `.str` symbol exists only when `-X` resolved. Neither obvious shortcut
+   works: `go version -m` echoes back the `-ldflags` argument the build just
+   passed (so it matches a binary that stamped nothing), and `go tool nm` on the
+   shipped binary reports `no symbols` because wails appends `-w -s`. See
+   ADR-018.
 8. Verify the regenerated define matches:
    `rg 'INFO_PRODUCTVERSION "' build/windows/installer/wails_tools.nsh`.
 9. Confirm the artifacts exist in `build/bin/`.

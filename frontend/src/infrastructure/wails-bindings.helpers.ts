@@ -1,8 +1,8 @@
 /** Poll interval (ms) while waiting for Wails bindings to become ready. */
-export const WAILS_BINDINGS_POLL_MS = 50;
+export const WAILS_BINDINGS_POLL_MS = 50; // eslint-disable-line dharness/role-file-shape
 
 /** Maximum time (ms) to wait for Wails bindings before degrading safely. */
-export const WAILS_BINDINGS_TIMEOUT_MS = 5000;
+export const WAILS_BINDINGS_TIMEOUT_MS = 5000; // eslint-disable-line dharness/role-file-shape
 
 /**
  * Checks whether a generated Go binding is currently attached to `window.go`.
@@ -10,7 +10,7 @@ export const WAILS_BINDINGS_TIMEOUT_MS = 5000;
  * still choose their own binding names, fallbacks, and payload handling.
  */
 export function hasGoBinding(name: string): boolean {
-  const app = window.go?.main?.App;
+  const app = window.go?.desktop?.App;
 
   return typeof app === 'object' && typeof app?.[name] === 'function';
 }

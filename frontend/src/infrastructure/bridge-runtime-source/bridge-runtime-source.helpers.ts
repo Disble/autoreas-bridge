@@ -29,9 +29,9 @@ import {
   SoftDeleteAnime,
   TriggerReconcile,
   UnpairDevice,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import { contracts as wailsContracts } from '../../../wailsjs/go/models';
-import type { main as wailsMain } from '../../../wailsjs/go/models';
+import type { desktop as wailsDesktop } from '../../../wailsjs/go/models';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import type {
   AnimeCreateCommand,
@@ -56,26 +56,46 @@ import {
 import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
+/**
+ * Builds the empty schedule board served when the Go bindings are unreachable,
+ * so the editor renders a real (if empty) board instead of failing to mount.
+ */
 function createRuntimeUnavailableScheduleBoard(originAnimeID: string): AnimeEditorScheduleBoard {
   return { originAnimeId: originAnimeID, boardModifiedAt: 0, destinations: [], entries: [] };
 }
 
+/**
+ * Unwraps one of the Go side's nullable patch wrappers, collapsing every kind
+ * other than `value` to `undefined`.
+ */
 function nullableValue<T>(value: { readonly kind: string; readonly value?: T }): T | undefined {
   return value.kind === 'value' ? value.value : undefined;
 }
 
+/**
+ * Narrows an outcome string from the wire to the union the UI switches on.
+ * Anything unrecognised becomes `error` rather than passing through, so a new
+ * backend outcome degrades loudly instead of falling through every branch.
+ */
 function toOutcome(outcome: string): AnimeEditorSaveResult['outcome'] {
   return outcome === 'applied' || outcome === 'no_op' || outcome === 'conflict' ? outcome : 'error';
 }
 
+/** Maps one wire day/order pair into the frontend's schedule placement. */
 function toSchedulePlacement(placement: wailsContracts.MobileAnimeDay): AnimeSchedulePlacement {
   return { day: placement.day, order: placement.order };
 }
 
+/** Maps a frontend schedule placement back into its wire shape. */
 function toWailsSchedulePlacement(placement: AnimeSchedulePlacement): wailsContracts.MobileAnimeDay {
   return { day: placement.day, order: placement.order };
 }
 
+/**
+ * Classifies the studios field into the four states the editor distinguishes.
+ * `empty` and `null` are deliberately different: a list explicitly emptied is
+ * not the same edit as one explicitly cleared.
+ */
 function toStudiosKind(record: wailsContracts.AnimeEditorRecord): 'missing' | 'null' | 'empty' | 'values' {
   if (record.details.studios.kind === 'null') {
     return 'null';
@@ -86,6 +106,11 @@ function toStudiosKind(record: wailsContracts.AnimeEditorRecord): 'missing' | 'n
   return 'missing';
 }
 
+/**
+ * Maps the frequently edited fields of an editor record. Optional fields are
+ * spread conditionally rather than set to `undefined`, so an absent field stays
+ * absent from the object instead of becoming a present-but-undefined key.
+ */
 function toAnimeEditorFrequentFields(record: wailsContracts.AnimeEditorRecord): AnimeEditorRecord['frequent'] {
   const totalEpisodes = nullableValue(record.frequent.totalEpisodes);
   const kind = nullableValue(record.frequent.kind);
@@ -101,6 +126,10 @@ function toAnimeEditorFrequentFields(record: wailsContracts.AnimeEditorRecord): 
   };
 }
 
+/**
+ * Maps the detail fields of an editor record, under the same conditional-spread
+ * rule as {@link toAnimeEditorFrequentFields}.
+ */
 function toAnimeEditorDetailFields(record: wailsContracts.AnimeEditorRecord): AnimeEditorRecord['details'] {
   const premieredAt = record.details.premieredAt.kind === 'value' ? record.details.premieredAt.unixMilli : undefined;
   const duration = nullableValue(record.details.duration);
@@ -115,10 +144,12 @@ function toAnimeEditorDetailFields(record: wailsContracts.AnimeEditorRecord): An
   };
 }
 
+/** Maps a whole editor record from its wire shape. */
 function toAnimeEditorRecord(record: wailsContracts.AnimeEditorRecord): AnimeEditorRecord {
   return { animeId: record.animeId, modifiedAt: record.modifiedAt, frequent: toAnimeEditorFrequentFields(record), details: toAnimeEditorDetailFields(record) };
 }
 
+/** Maps a record-load result, carrying the record only when one came back. */
 function toAnimeEditorRecordResult(result: wailsContracts.AnimeEditorRecordResult): AnimeEditorRecordResult {
   return {
     outcome: toOutcome(result.outcome),
@@ -128,6 +159,10 @@ function toAnimeEditorRecordResult(result: wailsContracts.AnimeEditorRecordResul
   };
 }
 
+/**
+ * Maps a save result. `conflictId` survives the mapping because a conflict
+ * outcome is only actionable if the UI can name the conflict it lost to.
+ */
 function toAnimeEditorSaveResult(result: wailsContracts.AnimeEditorSaveResult): AnimeEditorSaveResult {
   return {
     outcome: toOutcome(result.outcome),
@@ -140,6 +175,10 @@ function toAnimeEditorSaveResult(result: wailsContracts.AnimeEditorSaveResult): 
   };
 }
 
+/**
+ * Maps a whole schedule board. Destination kinds are narrowed to
+ * `special`/`weekday` here so the board never renders an unknown column type.
+ */
 function toAnimeEditorScheduleBoard(board: wailsContracts.AnimeEditorScheduleBoard): AnimeEditorScheduleBoard {
   return {
     originAnimeId: board.originAnimeId,
@@ -159,10 +198,15 @@ function toAnimeEditorScheduleBoard(board: wailsContracts.AnimeEditorScheduleBoa
   };
 }
 
+/** Maps a board-load result, carrying the board only when one came back. */
 function toAnimeEditorScheduleBoardResult(result: wailsContracts.AnimeEditorScheduleBoardResult): AnimeEditorScheduleBoardResult {
   return { outcome: toOutcome(result.outcome), message: result.message, details: result.details, ...(result.board === undefined ? {} : { board: toAnimeEditorScheduleBoard(result.board) }) };
 }
 
+/**
+ * Maps the result of applying a dragged board, including the refreshed board
+ * when the backend returned one.
+ */
 function toAnimeEditorScheduleApplyResult(result: wailsContracts.AnimeEditorScheduleApplyResult): AnimeEditorScheduleApplyResult {
   return {
     outcome: toOutcome(result.outcome), message: result.message, details: result.details,
@@ -171,7 +215,12 @@ function toAnimeEditorScheduleApplyResult(result: wailsContracts.AnimeEditorSche
   };
 }
 
-function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsMain.SaveAnimeEditorCommandDTO {
+/**
+ * Converts a save command into its wire DTO. Numeric patches are re-encoded
+ * from their string form, and an absent or cleared patch sends 0 alongside the
+ * flags that say so -- the flags, not the value, carry the intent.
+ */
+function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsDesktop.SaveAnimeEditorCommandDTO {
   const patch = command.patch;
   const numericPatch = (value: { readonly present: boolean; readonly clear: boolean; readonly value: string } | undefined) => ({
     present: value?.present ?? false,
@@ -208,7 +257,7 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsMain.SaveAn
       },
       active: patch.active,
     },
-  } as unknown as wailsMain.SaveAnimeEditorCommandDTO;
+  } as unknown as wailsDesktop.SaveAnimeEditorCommandDTO;
 }
 
 /**
@@ -219,7 +268,7 @@ function toSaveAnimeEditorDTO(command: SaveAnimeEditorCommand): wailsMain.SaveAn
  * own or rename in SDD-56/57, so the mapping stays isolated here. Optional
  * metadata already uses English keys.
  */
-function toAnimeCreateDTO(command: AnimeCreateCommand): wailsMain.AnimeCreateCommandDTO {
+function toAnimeCreateDTO(command: AnimeCreateCommand): wailsDesktop.AnimeCreateCommandDTO {
   return {
     creates: command.creates.map((item) => ({
       nombre: item.name,
@@ -240,9 +289,10 @@ function toAnimeCreateDTO(command: AnimeCreateCommand): wailsMain.AnimeCreateCom
       baseModifiedAt: entry.baseModifiedAt,
       placements: entry.placements.map(toWailsSchedulePlacement),
     })),
-  } as unknown as wailsMain.AnimeCreateCommandDTO;
+  } as unknown as wailsDesktop.AnimeCreateCommandDTO;
 }
 
+/** Maps an anime-creation result, defaulting a missing message to empty. */
 function toAnimeCreateResult(result: wailsContracts.AnimeCreateResult): AnimeCreateResult {
   return {
     outcome: toOutcome(result.outcome),
@@ -254,7 +304,8 @@ function toAnimeCreateResult(result: wailsContracts.AnimeCreateResult): AnimeCre
   };
 }
 
-function toApplyAnimeScheduleDraftDTO(command: ApplyAnimeScheduleDraftCommand): wailsMain.ApplyAnimeScheduleDraftCommandDTO {
+/** Converts a dragged schedule draft into its wire DTO. */
+function toApplyAnimeScheduleDraftDTO(command: ApplyAnimeScheduleDraftCommand): wailsDesktop.ApplyAnimeScheduleDraftCommandDTO {
   return {
     boardModifiedAt: command.boardModifiedAt,
     entries: command.entries.map((entry) => ({
@@ -262,7 +313,7 @@ function toApplyAnimeScheduleDraftDTO(command: ApplyAnimeScheduleDraftCommand): 
       baseModifiedAt: entry.baseModifiedAt,
       placements: entry.placements.map(toWailsSchedulePlacement),
     })),
-  } as wailsMain.ApplyAnimeScheduleDraftCommandDTO;
+  } as wailsDesktop.ApplyAnimeScheduleDraftCommandDTO;
 }
 
 /**
@@ -382,4 +433,4 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
 }
 
 /** Shared bridge source singleton used across feature hooks and stores. */
-export const bridgeRuntimeSource = createBridgeRuntimeSource();
+export const bridgeRuntimeSource = createBridgeRuntimeSource(); // eslint-disable-line dharness/role-file-shape

@@ -12,7 +12,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const statusPromise = source.getSQLiteStatus();
 
-    window.go = { main: { App: { GetSQLiteStatus: getSQLiteStatusMock } } } as never;
+    window.go = { desktop: { App: { GetSQLiteStatus: getSQLiteStatusMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -28,7 +28,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const addressPromise = source.getEffectiveAddress();
 
-    window.go = { main: { App: { GetEffectiveAddress: getEffectiveAddressMock } } } as never;
+    window.go = { desktop: { App: { GetEffectiveAddress: getEffectiveAddressMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -43,7 +43,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const tokenPromise = source.getPairingToken();
 
-    window.go = { main: { App: { GetPairingToken: getPairingTokenMock } } } as never;
+    window.go = { desktop: { App: { GetPairingToken: getPairingTokenMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -58,7 +58,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const animePromise = source.getAnimes();
 
-    window.go = { main: { App: { GetAnimes: getAnimesMock } } } as never;
+    window.go = { desktop: { App: { GetAnimes: getAnimesMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -69,7 +69,7 @@ describe('bridge-runtime-source read bindings', () => {
   it('preserves syncing anime items returned by the live Wails binding', async () => {
     const syncingItems = [{ animeId: 'anime-1', nombre: 'Frieren', progress: 0.5 }];
     const getSyncingAnimeItemsMock = vi.fn().mockResolvedValue(syncingItems);
-    window.go = { main: { App: { GetSyncingAnimeItems: getSyncingAnimeItemsMock } } } as never;
+    window.go = { desktop: { App: { GetSyncingAnimeItems: getSyncingAnimeItemsMock } } } as never;
 
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
@@ -97,7 +97,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const detailPromise = source.getAnimeDetail('anime-1');
 
-    window.go = { main: { App: { GetAnimeDetail: getAnimeDetailMock } } } as never;
+    window.go = { desktop: { App: { GetAnimeDetail: getAnimeDetailMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -114,7 +114,7 @@ describe('bridge-runtime-source read bindings', () => {
 
     const historyPromise = source.getAnimeHistory();
 
-    window.go = { main: { App: { GetAnimeHistory: getAnimeHistoryMock } } } as never;
+    window.go = { desktop: { App: { GetAnimeHistory: getAnimeHistoryMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 

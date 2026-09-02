@@ -29,8 +29,8 @@ describe('missingBindings', () => {
 
     try {
       expect(missingBindings(root)).toEqual([
-        'frontend/wailsjs/go/main/App.js',
-        'frontend/wailsjs/go/main/App.d.ts',
+        'frontend/wailsjs/go/desktop/App.js',
+        'frontend/wailsjs/go/desktop/App.d.ts',
         'frontend/wailsjs/go/models.ts',
         'frontend/wailsjs/runtime/runtime.js',
       ]);

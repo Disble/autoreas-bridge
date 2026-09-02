@@ -80,7 +80,8 @@ carry anime identity and no result status — `buildRunStartedRows`, not
 `buildRunDetailRows`, and a `queued` status word outside the outcome vocabulary.
 
 Kind constants live in `internal/download/service_notification_kinds.go` and
-`app_notification_kinds.go`. Routes are verified against `frontend/src/App.tsx`.
+`internal/desktop/app_notification_kinds.go`. Routes are verified against
+`frontend/src/App.tsx`.
 
 ## Table B — L2 for run rows, by `outcomeRowStatus`
 
@@ -229,7 +230,7 @@ One builder serves opposite outcomes. Three consequences:
 
 ### Why `season.past_download_window` needs an operation, not a link
 
-`seasonDownloadWindowPassed` (`app_season_availability.go:295`) reports true
+`seasonDownloadWindowPassed` (`internal/desktop/app_season_availability.go`) reports true
 when the schedule is disabled or `now` is past the configured `HH:MM` — the
 scheduled run will not pick that batch up today. The notification body already
 says so: *"Download them manually to watch today."* It states the required

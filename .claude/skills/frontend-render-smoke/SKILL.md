@@ -25,7 +25,7 @@ A Wails binary logs a full, healthy Go startup — bindings, event bus, HTTP ser
 `[WebView2] Environment created successfully` in the log, prove nothing about
 whether anything painted. Never report a launch as a smoke test.
 
-Note also that `BackgroundColour` in `main.go` (currently `RGB(27, 38, 54)`) is
+Note also that `BackgroundColour` in `internal/desktop/options.go` (currently `RGB(27, 38, 54)`) is
 what a blank window shows. A dark window is **not** evidence that CSS loaded — it
 is the Wails window colour with nothing on top of it.
 

@@ -30,6 +30,18 @@ called out explicitly under its release.
   of the tray icon that still held the old pre-rebrand artwork, and the Wails
   template logo that nothing in the frontend imported. See `docs/app-icons.md`.
 
+- The repository root no longer holds 104 Go files. The desktop shell moved to
+  `internal/desktop` and the root keeps only `main.go`, which is all Wails
+  actually requires beside `wails.json`. Nothing changed at runtime: no logic, no
+  renamed symbol, and the bound surface the frontend calls is identical apart
+  from its namespace (`main` to `desktop`). See
+  `docs/adr/018-desktop-shell-package.md`.
+- Release builds can no longer ship an unstamped version in silence. Go ignores
+  an `-ldflags -X` whose symbol does not exist, and the check both release
+  workflows used was reading back the flag they had just passed rather than the
+  binary, so it could not fail. The import path is now derived with `go list` and
+  the stamp is verified against the linker's own symbol.
+
 ## [1.8.3] — 2026-09-02
 
 ### Fixed
