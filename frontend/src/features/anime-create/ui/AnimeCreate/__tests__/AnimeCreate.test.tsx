@@ -8,6 +8,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
     getAnimeEditorScheduleBoard: vi.fn(),
     createAnime: vi.fn(),
     pickFolder: vi.fn(),
+    getAnimes: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -15,6 +16,8 @@ vi.mock('../../../../../infrastructure/preferences-source/preferences-source.hel
   preferencesSource: { getDownloadsRoot: vi.fn().mockResolvedValue('D:\\Anime') },
 }));
 
+/** A loaded schedule board with one weekday and no existing entries, so the cases
+ * exercise placement without any stored anime getting in the way. */
 const boardResult = {
   outcome: 'applied',
   message: 'loaded',
@@ -86,5 +89,25 @@ describe('AnimeCreate', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
     expect(screen.getByText('Remove this anime?')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Name')).toHaveLength(2);
+  });
+});
+
+describe('AnimeCreate duplicate name', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows the clash under the Name field instead of waiting for the schedule step', async () => {
+    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(boardResult as never);
+    vi.mocked(bridgeRuntimeSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
+
+    render(<AnimeCreate />);
+    await waitFor(() => expect(bridgeRuntimeSource.getAnimes).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Shokugeki no Souma'), { target: { value: 'Comic Girls' } });
+
+    await waitFor(() => expect(screen.getByText(/already exists in your library/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /place on schedule/i })).toBeDisabled();
   });
 });

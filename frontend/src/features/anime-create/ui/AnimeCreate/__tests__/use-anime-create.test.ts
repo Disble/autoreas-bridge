@@ -8,6 +8,7 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
     getAnimeEditorScheduleBoard: vi.fn(),
     createAnime: vi.fn(),
     pickFolder: vi.fn(),
+    getAnimes: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -15,6 +16,8 @@ vi.mock('../../../../../infrastructure/preferences-source/preferences-source.hel
   preferencesSource: { getDownloadsRoot: vi.fn().mockResolvedValue('') },
 }));
 
+/** A loaded schedule board with one weekday and no existing entries, so the cases
+ * exercise placement without any stored anime getting in the way. */
 const emptyBoardResult = {
   outcome: 'applied',
   message: 'loaded',
@@ -131,5 +134,41 @@ describe('useAnimeCreate', () => {
     expect(result.current.feedback).toBe('boom');
     expect(result.current.rows).toHaveLength(1);
     expect(result.current.rows[0].name).toBe('Frieren');
+  });
+});
+
+describe('useAnimeCreate name conflicts', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('flags a name the catalogue already holds and blocks the schedule step', async () => {
+    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
+    vi.mocked(bridgeRuntimeSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
+
+    const { result } = renderHook(() => useAnimeCreate());
+    await waitFor(() => expect(result.current.board).toBeDefined());
+
+    const draftId = result.current.rows[0].draftId;
+    act(() => result.current.onRowChange(draftId, { name: 'Comic Girls' }));
+    act(() => result.current.onRowChange(draftId, { page: 'https://jkanime.net/comic-girls' }));
+
+    await waitFor(() => expect(result.current.nameConflicts[draftId]).toBeDefined());
+    expect(result.current.canOpenBoard).toBe(false);
+  });
+
+  it('leaves a distinct name free to reach the schedule step', async () => {
+    vi.mocked(bridgeRuntimeSource.getAnimeEditorScheduleBoard).mockResolvedValue(emptyBoardResult as never);
+    vi.mocked(bridgeRuntimeSource.getAnimes).mockResolvedValue([{ id: 'existing', name: 'Comic Girls' }] as never);
+
+    const { result } = renderHook(() => useAnimeCreate());
+    await waitFor(() => expect(result.current.board).toBeDefined());
+
+    const draftId = result.current.rows[0].draftId;
+    act(() => result.current.onRowChange(draftId, { name: 'Sayonara Lara' }));
+    act(() => result.current.onRowChange(draftId, { page: 'https://jkanime.net/sayonara-lara' }));
+
+    await waitFor(() => expect(result.current.canOpenBoard).toBe(true));
+    expect(result.current.nameConflicts[draftId]).toBeUndefined();
   });
 });

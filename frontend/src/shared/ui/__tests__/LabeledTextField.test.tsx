@@ -48,3 +48,20 @@ describe('LabeledTextField', () => {
     expect(sourceText).toContain('Readonly<LabeledTextFieldProps>');
   });
 });
+
+describe('LabeledTextField rejection', () => {
+  afterEach(cleanup);
+
+  it('renders the rejection through the field error slot', () => {
+    render(<LabeledTextField errorMessage="That name is taken." label="Name" value="x" onChange={() => {}} />);
+
+    expect(screen.getByText('That name is taken.')).toBeInTheDocument();
+  });
+
+  it('says nothing when the value is accepted', () => {
+    render(<LabeledTextField description="Helper text." label="Name" value="x" onChange={() => {}} />);
+
+    expect(screen.getByText('Helper text.')).toBeInTheDocument();
+    expect(screen.queryByText('That name is taken.')).not.toBeInTheDocument();
+  });
+});

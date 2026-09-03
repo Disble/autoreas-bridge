@@ -25,6 +25,8 @@ export interface LabeledTextFieldProps
   readonly placeholder?: string;
   /** Optional helper text rendered via HeroUI Description. */
   readonly description?: string;
+  /** Why the current value is rejected. Replaces the description and marks the input invalid. */
+  readonly errorMessage?: string;
   /** Restricts the input to text, number, or date entry. */
   readonly type?: 'text' | 'number' | 'date';
   /** Numeric minimum for number/date inputs (forwarded to HeroUI Input). */
