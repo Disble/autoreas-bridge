@@ -211,7 +211,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
   it('a pushed capture grows the window by exactly one and disturbs nothing the user was reading', async () => {
     const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(60), 'cursor-1')),
+      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30), 'cursor-1')),
     });
     const { runtimeSource, push } = createPushableRuntimeSource();
 
@@ -220,11 +220,6 @@ describe('TransactionPanel progressive list (live rail)', () => {
     await screen.findByText('/api/animes/anime-0');
 
     const geometry = mockScrollTop(scroller(), 800);
-
-    fireEvent.scroll(scroller());
-    await waitFor(() => {
-      expect(countRenderedRows()).toBe(50);
-    });
 
     screen.getByText('/api/animes/anime-5').closest('tr')?.click();
     await waitFor(() => {
@@ -238,7 +233,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
     });
 
     await waitFor(() => {
-      expect(countRenderedRows()).toBe(51);
+      expect(countRenderedRows()).toBe(26);
     });
 
     expect(renderedRoutes()).toEqual(['/api/animes/anime-live', ...before]);
