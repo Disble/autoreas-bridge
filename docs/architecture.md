@@ -30,8 +30,10 @@ El sistema se divide en **Bounded Contexts (Dominios)** fuertemente separados. N
    - **Responsabilidad:** Gestionar el emparejamiento (Tokens de Pairing), la exposición de dirección de conexión (**IP/puerto + QR**), la lista de dispositivos de confianza y las conexiones en tiempo real (WebSockets).
    - **Mecanismo:** Persiste dispositivos en SQLite. La estrategia principal de conexión para mobile pasa a ser IP local explícita + QR/Token. mDNS queda despriorizado como capacidad opcional/best-effort futura: si alguna vez se habilita, jamás debe ser prerequisite ni punto único de falla para el flujo principal.
 
-4. **`internal/system/` (System Domain):**
-   - **Responsabilidad:** Arrancar la app, registrar Auto-start en el OS, gestionar el System Tray y encapsular Wails.
+4. **`internal/desktop/` (Desktop Shell / System Domain):**
+   - **Responsabilidad:** Arrancar la app, registrar Auto-start en el OS, gestionar el System Tray y encapsular Wails. Es el **composition root**: el struct `App` y los 99 metodos que el frontend invoca por bindings.
+   - **Deriva corregida el 2026-09-02:** este documento describia el dominio como `internal/system/`, un paquete que nunca existio. La responsabilidad vivia repartida en 104 archivos `package main` en la **raiz** del repositorio, porque se creia que Wails lo exigia. No lo exige. Que la doctrina llevara meses describiendo un arbol que no era el real es precisamente la condicion que deja al folklore instalarse: nadie compara la doctrina con el codigo si ambos suenan plausibles. Ver `docs/adr/018-desktop-shell-package.md`.
+   - **Frontera:** es el unico paquete bajo `internal/` autorizado a importar el runtime de Wails (`.golangci.yml` -> `wails-confined-to-edge`). `main.go` en la raiz queda reducido a lo que `//go:embed` y Wails obligan: el bundle embebido y `wails.Run(desktop.Options(assets))`.
 
 ---
 

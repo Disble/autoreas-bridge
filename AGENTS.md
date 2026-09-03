@@ -133,6 +133,15 @@
 
 - GREEN is provisional when the bug lives at the SQLite or Windows filesystem boundary.
 - GREEN is provisional at the Wails CLI boundary too: the gate never builds the desktop app. `go build`, `vet`, `test` and lint all pass without the Wails CLI ever loading a package, and it loads them through its OWN pinned `golang.org/x/tools` -- so a toolchain upgrade can break `wails dev` and `wails build` while every gate stays green. Measured 2026-08-28: Go 1.27 against wails v2.12.0 failed with `internal error: package "context" without types`, and no binary was produced. Run `wails build` before claiming a toolchain or dependency change works.
+- **A constraint attributed to a framework is a hypothesis until you have read that framework's
+  source.** The repository root carried 104 Go files because "Wails requires it". It does not:
+  Wails v2 runs a bare `go build` with cwd set to the `wails.json` directory and no package
+  argument, so only the `package main` must sit beside it -- one file, not 104. Nobody had
+  checked, and the claim hardened twice: into architecture doctrine, and into a depguard rule
+  that then made the correction impossible without amending it first. **That is the shape to
+  watch for: folklore that grows an enforcement mechanism, so the guard now defends the mistake.**
+  Before encoding a boundary because a tool "requires" it, read the tool and cite the file and
+  function. See `docs/adr/018-desktop-shell-package.md`.
 - Real behavior beats permissive mocks.
 - Anime state lives in `anime_snapshots.snapshot_json`, keyed by `_id`; effective state must be reasoned by `_id`, not by naive row-order diffs.
 - `activo=false` is not a tombstone.
@@ -141,6 +150,18 @@
 ## Delegation and Verification Guardrails
 
 - If docs, specs, or archived changes conflict with the code, treat the **codebase** as the runtime truth, document the drift, and only then plan the fix.
+- **Verify with the gate's own command, never with its cousin.** `golangci-lint run ./...` reports
+  clean on a tree the gate rejects: the gate runs `scripts/lint.ps1 -Profile all`, which is TWO
+  profiles, and the second (`.golangci.dlinter.yml`, custom-built) is the one carrying revive.
+  Measured 2026-09-02: 0 issues from the bare run, 36 from the gate. The general form of the trap
+  is worse than the instance -- a predicate proven against a convenient object proves nothing
+  about the real one. `go tool nm` verified a version stamp perfectly on a plain `go build`
+  binary and cannot read the shipped one at all, because `wails build` appends `-w -s`.
+- **A search is only as wide as the shapes you thought to search for.** Renaming the Wails binding
+  namespace looked like 9 import paths. It was also 1 type alias and **16 files using the runtime
+  global `window.go.<pkg>.App`**, two of them production, which no import-path grep can see and
+  which `tsc` blessed because the type declaration still named the old namespace. Only the test
+  suite caught it. Enumerate the shapes an identifier can take before trusting a grep count.
 - When delegating bugfix or apply work to sub-agents, prompts MUST include the exact reproduction steps/commands when known.
 - Those prompts MUST include both acceptance examples and rejection/negative examples; do not describe only the happy path.
 - Those prompts MUST name forbidden outputs or behaviors explicitly when the bug involves false positives, misleading fallbacks, or malformed UX.
