@@ -179,12 +179,20 @@ info:
         ever actually rewound, so no shipped consumer is known to be affected;
         this closes the trap for future clients that lack the guard. Clients
         should still refuse any non-advancing cursor.
-      - `applied_operations` and `AppliedOperation.applied` are now documented
-        rather than changed: always present, `[]` and never `null`, one entry
-        per pending operation sent and in the same order, and `applied: false`
-        for an unsupported operation type or a conflict. This behavior is
-        unchanged and was already relied upon; it had simply never been
-        written down, which is how it drifted out of consumers' models.
+      - `applied_operations` is always present (`[]` and never `null`), one
+        entry per pending operation sent and in the same order, and
+        `applied: false` for an unsupported operation type or a conflict.
+        This part was already true and is now simply documented. The
+        conflict half was NOT already true, and this note previously
+        claimed otherwise: before SDD-66, a conflict never reached the
+        `applied_operations` append at all — `applyPendingOperations`
+        aborted the batch mid-loop and the request failed with an
+        unreachable HTTP 500, discarding `applied_operations`,
+        `bridge_changes`, and `last_changelog_id` for the entire request.
+        SDD-66 (2026-09-04) is what makes conflict-as-a-per-operation-outcome
+        real and reachable for the first time, alongside the new
+        `modified_at` and `reason` fields on `AppliedOperation` — see that
+        schema and the `applied_operations` property description below.
       - Bridge-internal, announced per project convention: credential header
         VALUES (`Authorization`, `Proxy-Authorization`, `Cookie`,
         `Set-Cookie`) are replaced with `[redacted]` before a capture row is
@@ -382,9 +390,37 @@ components:
           type: boolean
           description: |
             `true` when the bridge durably applied the operation. `false` has exactly
-            two causes, which this flag does not distinguish: the operation type is
-            not supported (anything other than an update-compatible patch), or the
-            write lost an optimistic-concurrency check and resolved as a conflict.
+            two causes, now distinguished by `reason`: the operation type is not
+            supported (anything other than an update-compatible patch), or the write
+            lost an optimistic-concurrency check and resolved as a conflict.
+        modified_at:
+          type: integer
+          description: |
+            The bridge's current OCC token for this anime, present whenever a write
+            outcome was computed for this operation -- applied, no-op, or conflict --
+            including when the value is `0`, which is a legitimate live token in this
+            codebase, never a sentinel for "no token". Absent entirely for a skipped
+            operation (`reason: unsupported_operation`), since no write outcome exists
+            to report. Source per outcome: an applied write returns the new
+            strictly-increasing token; a no-op returns the anime's unchanged token
+            verbatim; a conflict returns the anime's current winning token, so the
+            client can re-base its next `base` on it. A client arms optimistic
+            concurrency by echoing this value back as `base` on its next write for the
+            same `anime_id`.
+        reason:
+          type: string
+          enum: [unsupported_operation, conflict]
+          description: |
+            Present only when `applied` is `false`; absent whenever `applied` is
+            `true`. `unsupported_operation` is permanent -- the operation type is not
+            an update-compatible patch, and the client should discard it, never retry.
+            `conflict` is recoverable -- the write lost an optimistic-concurrency
+            check; the client should re-base on the accompanying `modified_at` and
+            retry. A client receiving a `reason` value outside this enum MUST surface
+            it rather than silently discarding the operation: guessing "permanent" on
+            an unrecognised, potentially recoverable cause would silently drop a
+            user's edit. A future third cause is always a new named value, never
+            folded into one of these two.
 
     DeviceInfo:
       type: object
@@ -508,7 +544,23 @@ components:
             present: it serializes as `[]` when the request carried no pending
             operations, never as `null`. An operation the bridge refused is present
             with `applied: false` rather than absent, so a client can confirm every
-            operation it sent was seen — including the ones that did not land.
+            operation it sent was seen — including the ones that did not land. A
+            conflict never aborts the batch: the HTTP status, `last_changelog_id`,
+            and `bridge_changes` are unaffected, and every later operation in the
+            batch is still processed.
+
+            Intra-batch conflict guard: once an operation for a given `anime_id` has
+            conflicted within this batch, a later operation for that same `anime_id`
+            in the same batch that omits `base` is NOT applied -- it is reported
+            `applied: false, reason: conflict` with the same winning `modified_at` as
+            the operation that conflicted, and the write is never attempted. This
+            prevents the deliberate no-`base` OCC bypass from silently overwriting the
+            value the earlier conflict just protected. A later operation for that same
+            `anime_id` that DOES carry its own `base` is still evaluated normally and
+            can succeed. Retry-accounting caveat: a blocked operation did not fail on
+            its own merits -- it was blocked by an earlier one in the same batch -- so
+            a client with a bounded per-operation retry counter must not charge it as
+            its own failed attempt.
           items:
             $ref: '#/components/schemas/AppliedOperation'
         bridge_changes:
@@ -517,6 +569,14 @@ components:
             $ref: '#/components/schemas/AnimeChange'
         conflicts:
           type: array
+          deprecated: true
+          description: |
+            Always `[]`. Superseded by the per-operation `reason: conflict` +
+            `modified_at` on `AppliedOperation`, which carries the same fact at the
+            granularity a client can act on. Kept emitting `[]` for backward
+            compatibility with a consumer checking `response.conflicts.length`;
+            removal is a separate announced change, since `conflicts` is a required
+            field today.
           items:
             type: object
 

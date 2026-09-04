@@ -297,6 +297,12 @@ func TestSyncHandlerAppliesPendingUpdateOperationsBeforeReturning(t *testing.T) 
 	if applied.AnimeID != "anime-1" || applied.Operation != "update" || !applied.Applied {
 		t.Fatalf("unexpected applied operation %#v", applied)
 	}
+
+	entries := decodeAppliedOperationEntries(t, res.Body.Bytes())
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 applied operation entry, got %#v", entries)
+	}
+	assertAppliedEntry(t, entries[0], true, "", int64Ptr(1000))
 }
 
 func TestSyncHandlerReturnsBadRequestWhenPendingOperationIsInvalid(t *testing.T) {
@@ -399,4 +405,10 @@ func TestSyncHandlerIgnoresNonUpdatePendingOperations(t *testing.T) {
 	if applied.AnimeID != "anime-1" || applied.Operation != "delete" || applied.Applied {
 		t.Fatalf("expected unapplied delete marker, got %#v", applied)
 	}
+
+	entries := decodeAppliedOperationEntries(t, res.Body.Bytes())
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 applied operation entry, got %#v", entries)
+	}
+	assertAppliedEntry(t, entries[0], false, "unsupported_operation", nil)
 }
