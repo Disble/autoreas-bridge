@@ -50,23 +50,59 @@ type Telemetry struct {
 	ResponseHeaders map[string]string
 }
 
+// RedactedHeaderPlaceholder replaces the value of a credential-bearing header.
+// The header key is deliberately kept: Activity is a network inspector, and an
+// absent Authorization row would misreport an authenticated request as
+// anonymous. What it must not do is persist the credential itself.
+const RedactedHeaderPlaceholder = "[redacted]"
+
+// credentialHeaders are the headers whose VALUE is replaced by
+// RedactedHeaderPlaceholder before persistence, in canonical casing.
+//
+// This is a value-scoped denylist, not a key allowlist, and the distinction is
+// load-bearing: an allowlist has to enumerate every header that may ever be
+// useful, so it silently drops the ones nobody predicted -- which is exactly
+// how a future correlation header (the mobile client's X-Sync-Cycle-Id, say)
+// would vanish from the capture table with no error to notice.
+var credentialHeaders = map[string]bool{
+	"Authorization":       true,
+	"Proxy-Authorization": true,
+	"Cookie":              true,
+	"Set-Cookie":          true,
+}
+
 // SanitizeHeaders preserves the exact header values captured for local
-// debugging, joining repeated values with `, ` under the conventional header
-// casing so the persisted map stays faithful to the wire while fitting the
-// existing `map[string]string` contract.
+// debugging -- except the credential-bearing ones, whose values are redacted --
+// joining repeated values with `, ` under the conventional header casing so the
+// persisted map stays faithful to the wire while fitting the existing
+// `map[string]string` contract.
+//
+// The redaction exists because a bridge auth token never expires and is never
+// rotated (internal/device/service.go: PairDevice mints it once, and
+// FindByAuthToken matches it forever), so a captured Bearer token is a
+// permanent credential sitting at rest in a database that is routinely copied
+// alongside its own backups. That is a different exposure from a browser's
+// devtools showing the same header in memory, which is the comparison the
+// original passthrough was reasoning from.
 func SanitizeHeaders(header http.Header) map[string]string {
 	return sanitizeHeadersWithConfig(header, defaultSanitizerConfig())
 }
 
-// sanitizeHeadersWithConfig preserves exact header values. The config parameter
-// is retained only for API compatibility with existing tests/callers.
+// sanitizeHeadersWithConfig preserves exact header values except for
+// credentialHeaders, whose values are redacted. The config parameter is
+// retained only for API compatibility with existing tests/callers.
 func sanitizeHeadersWithConfig(header http.Header, config SanitizerConfig) map[string]string {
 	sanitized := map[string]string{}
 	for name, values := range header {
 		if len(values) == 0 {
 			continue
 		}
-		sanitized[canonicalHeaderName(name)] = strings.Join(values, ", ")
+		canonical := canonicalHeaderName(name)
+		if credentialHeaders[canonical] {
+			sanitized[canonical] = RedactedHeaderPlaceholder
+			continue
+		}
+		sanitized[canonical] = strings.Join(values, ", ")
 	}
 	return sanitized
 }
