@@ -281,11 +281,33 @@ type PendingOperation struct {
 	CreatedAt int64          `json:"created_at"`
 }
 
+// AppliedOperationReason is the closed vocabulary explaining `applied: false`.
+// A new value MUST be announced in docs/openapi.yaml and MUST NOT be folded
+// into an existing one; clients classify permanent vs recoverable from it.
+type AppliedOperationReason string
+
+const (
+	// AppliedOperationReasonUnsupportedOperation marks a permanent skip: the
+	// bridge never applied the operation, so the client should discard it.
+	AppliedOperationReasonUnsupportedOperation AppliedOperationReason = "unsupported_operation"
+	// AppliedOperationReasonConflict marks a recoverable outcome: the client
+	// should re-base on the echoed ModifiedAt and retry.
+	AppliedOperationReasonConflict AppliedOperationReason = "conflict"
+)
+
 // AppliedOperation reports whether a pending operation was applied.
 type AppliedOperation struct {
 	AnimeID   string `json:"anime_id"`
 	Operation string `json:"operation"`
 	Applied   bool   `json:"applied"`
+	// ModifiedAt is the bridge's OCC token for this anime whenever a write
+	// outcome was computed (applied, no-op, or conflict), including 0 -- a
+	// legitimate live token in this codebase, never a sentinel for "absent".
+	// It is a pointer so omitempty can distinguish "never computed" (nil,
+	// skipped operations) from "computed and zero".
+	ModifiedAt *int64 `json:"modified_at,omitempty"`
+	// Reason explains an `applied: false` entry. Absent whenever applied is true.
+	Reason AppliedOperationReason `json:"reason,omitempty"`
 }
 
 // ReconcileResponse returns reconciliation outcomes and bridge changes.

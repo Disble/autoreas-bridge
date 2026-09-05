@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"autoreas-bridge/internal/api/contracts"
@@ -263,4 +264,114 @@ func (l *recordingSyncLogger) entries() []sharedlogger.LogEntry {
 	out := make([]sharedlogger.LogEntry, len(l.entriesList))
 	copy(out, l.entriesList)
 	return out
+}
+
+// prunedChangelogLookup reproduces the state PruneAcknowledgedChangelog leaves
+// behind: once every device has acknowledged, the rows are deleted, so
+// `SELECT MAX(id) FROM changelog` is NULL and LastID reports 0 even though the
+// devices legitimately hold a much higher cursor.
+type prunedChangelogLookup struct {
+	stubPendingLookup
+	lastID  int64
+	entries []ChangelogEntry
+}
+
+func (s prunedChangelogLookup) LastID(context.Context) (int64, error) {
+	return s.lastID, nil
+}
+
+func (s prunedChangelogLookup) ListAfterID(context.Context, int64) ([]ChangelogEntry, error) {
+	return append([]ChangelogEntry(nil), s.entries...), nil
+}
+
+func TestListChangesAfterIDKeepsTheDeviceCursorWhenTheChangelogWasPruned(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), prunedChangelogLookup{lastID: 0})
+
+	changes, lastID, err := service.ListChangesAfterID(context.Background(), 2249)
+	if err != nil {
+		t.Fatalf("list changes after id: %v", err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes from an emptied changelog, got %#v", changes)
+	}
+	if lastID != 2249 {
+		t.Fatalf("expected the device cursor 2249 to survive an emptied changelog, got %d", lastID)
+	}
+}
+
+// TestListChangesAfterIDNeverReportsACursorBehindTheRequest pins the general
+// property rather than only the pruned-to-zero case: any stored maximum below
+// the caller's cursor would rewind a client that trusts the response.
+func TestListChangesAfterIDNeverReportsACursorBehindTheRequest(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), prunedChangelogLookup{lastID: 7})
+
+	_, lastID, err := service.ListChangesAfterID(context.Background(), 2249)
+	if err != nil {
+		t.Fatalf("list changes after id: %v", err)
+	}
+	if lastID != 2249 {
+		t.Fatalf("expected a stale maximum to be clamped to 2249, got %d", lastID)
+	}
+}
+
+func TestListChangesAfterIDStillReportsAnAdvancedCursor(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), prunedChangelogLookup{
+		lastID: 2254,
+		entries: []ChangelogEntry{{
+			ID:            2250,
+			AnimeID:       "anime-1",
+			ChangeType:    ChangelogTypeUpdate,
+			ChangedFields: []string{"episodesWatched"},
+			ChangedAtMs:   10,
+		}},
+	})
+
+	changes, lastID, err := service.ListChangesAfterID(context.Background(), 2249)
+	if err != nil {
+		t.Fatalf("list changes after id: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("expected the pending change to be returned, got %#v", changes)
+	}
+	if lastID != 2254 {
+		t.Fatalf("expected the advanced cursor 2254, got %d", lastID)
+	}
+}
+
+// failingChangelogLookup fails the changelog read so the error path of
+// ListChangesAfterID is exercised.
+type failingChangelogLookup struct {
+	stubPendingLookup
+}
+
+func (s failingChangelogLookup) ListAfterID(context.Context, int64) ([]ChangelogEntry, error) {
+	return nil, errors.New("changelog unavailable")
+}
+
+// TestListChangesAfterIDReportsNoCursorWhenTheLookupFails pins the failure
+// contract alongside the clamp: on error the cursor must be the zero value and
+// NOT the caller's position, because a non-zero cursor returned beside an error
+// is exactly the shape a careless caller would persist as progress it never
+// made.
+func TestListChangesAfterIDReportsNoCursorWhenTheLookupFails(t *testing.T) {
+	t.Parallel()
+
+	service := NewTriggerService(events.NewBus(), failingChangelogLookup{})
+
+	changes, lastID, err := service.ListChangesAfterID(context.Background(), 2249)
+	if err == nil {
+		t.Fatal("expected the changelog failure to propagate")
+	}
+	if changes != nil {
+		t.Fatalf("expected no changes alongside a failure, got %#v", changes)
+	}
+	if lastID != 0 {
+		t.Fatalf("expected a zero cursor alongside a failure, got %d", lastID)
+	}
 }

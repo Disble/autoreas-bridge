@@ -67,10 +67,26 @@ func (s *TriggerService) ListChangesSince(ctx context.Context, sinceMs int64) ([
 }
 
 // ListChangesAfterID returns sync changes whose changelog id is greater than lastID.
+//
+// The reported cursor is clamped so it never falls behind the caller's own
+// position. listChanges derives it from `SELECT MAX(id) FROM changelog`, which
+// answers "what is the newest row still stored", not "where should this client
+// now be" -- and those diverge every time PruneAcknowledgedChangelog empties
+// the table after every device has acknowledged, leaving MAX(id) NULL and the
+// raw cursor 0. A client that persisted that 0 would rewind to the beginning of
+// history. Clients are expected to defend themselves too, but a contract that
+// only works against defensive clients is a trap for the next one.
 func (s *TriggerService) ListChangesAfterID(ctx context.Context, lastID int64) ([]contracts.AnimeChange, int64, error) {
-	return s.listChanges(ctx, func(ctx context.Context) ([]ChangelogEntry, error) {
+	changes, newLastID, err := s.listChanges(ctx, func(ctx context.Context) ([]ChangelogEntry, error) {
 		return s.store.ListAfterID(ctx, lastID)
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+	if newLastID < lastID {
+		newLastID = lastID
+	}
+	return changes, newLastID, nil
 }
 
 // listChanges loads changelog entries and converts them to API changes.
