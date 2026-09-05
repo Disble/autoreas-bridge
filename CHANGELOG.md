@@ -18,96 +18,34 @@ called out explicitly under its release.
 
 ### Added
 
-- **Two anime can no longer share a name.** A name is how you find an anime in
-  both search rails and how its download folder is chosen, so two records with
-  the same name were indistinguishable in the app and collided on disk. Creating
-  one now warns inline under the Name field as you type, and the catalogue
-  refuses the duplicate outright — including when the existing record was only
-  sent to the trash.
-- **The navigation rail now shows the app's own mark.** The rail and the mobile
-  header drew a generic bridge glyph while the taskbar, the installer and the
-  tray all showed the "A". They now all show the same mark, traced from the same
-  master image every icon is generated from, so they cannot drift apart.
+- **Two anime can no longer share a name.** A name is how you find an anime in both search rails and how its download folder is chosen, so two records with the same name were indistinguishable in the app and collided on disk. Creating one now warns inline under the Name field as you type, and the catalogue refuses the duplicate outright — including when the existing record was only sent to the trash.
+- **The navigation rail now shows the app's own mark.** The rail and the mobile header drew a generic bridge glyph while the taskbar, the installer and the tray all showed the "A". They now all show the same mark, traced from the same master image every icon is generated from, so they cannot drift apart.
 
 ### Changed
 
-- **Wire change, additive — mobile clients are unaffected until they opt in.**
-  Each entry in `applied_operations` on `POST /api/sync/reconcile` now carries
-  two optional fields: `modified_at`, the bridge's version token for that anime,
-  and `reason`, which explains a rejected operation as either
-  `unsupported_operation` (permanent) or `conflict` (retry after re-basing).
-  Nothing was removed and no existing field changed shape, so a client that
-  ignores them behaves exactly as before. Together they let a mobile client
-  finally participate in conflict detection: until now it had no way to learn the
-  token it needed to send back, so its writes always silently overwrote whatever
-  the desktop had done. Announced in `docs/openapi.yaml`.
+- **Wire change, additive — mobile clients are unaffected until they opt in.** Each entry in `applied_operations` on `POST /api/sync/reconcile` now carries two optional fields: `modified_at`, the bridge's version token for that anime, and `reason`, which explains a rejected operation as either `unsupported_operation` (permanent) or `conflict` (retry after re-basing). Nothing was removed and no existing field changed shape, so a client that ignores them behaves exactly as before. Together they let a mobile client finally participate in conflict detection: until now it had no way to learn the token it needed to send back, so its writes always silently overwrote whatever the desktop had done. Announced in `docs/openapi.yaml`.
 
 ### Fixed
 
-- **A sync conflict no longer discards the whole exchange.** When the bridge
-  rejected one operation for editing a stale value, the entire request failed and
-  the client lost its list of applied operations, the pending changes it had not
-  seen yet, and its place in the change log — for every other operation in the
-  same batch. A conflict is now reported against the one operation it belongs to
-  and everything else in the batch still lands.
-- **The bridge no longer sends a mobile client backwards through its history.**
-  Once every paired device had acknowledged the change log, the position the
-  bridge reported fell back to zero, and a client that trusted it would restart
-  from the beginning and re-download everything.
+- **A sync conflict no longer discards the whole exchange.** When the bridge rejected one operation for editing a stale value, the entire request failed and the client lost its list of applied operations, the pending changes it had not seen yet, and its place in the change log — for every other operation in the same batch. A conflict is now reported against the one operation it belongs to and everything else in the batch still lands.
+- **The bridge no longer sends a mobile client backwards through its history.** Once every paired device had acknowledged the change log, the position the bridge reported fell back to zero, and a client that trusted it would restart from the beginning and re-download everything.
 - Episode card actions on Today no longer misfire.
-- **Opening an anime folder now launches Windows Explorer by its real path.**
-  It was resolved through the user's `PATH`, so anything earlier on that list
-  named `explorer.exe` would have run instead.
-- **Windows now draws a sharp app icon at every size.** The icon shipped with a
-  single 32×32 image, so Explorer's large and extra-large views, the taskbar on a
-  scaled display, and the installer's own window were all upscaling that one
-  small bitmap. The icon now carries 16, 24, 32, 48, 64, 128 and 256 pixel
-  versions.
+- **Opening an anime folder now launches Windows Explorer by its real path.** It was resolved through the user's `PATH`, so anything earlier on that list named `explorer.exe` would have run instead.
+- **Windows now draws a sharp app icon at every size.** The icon shipped with a single 32×32 image, so Explorer's large and extra-large views, the taskbar on a scaled display, and the installer's own window were all upscaling that one small bitmap. The icon now carries 16, 24, 32, 48, 64, 128 and 256 pixel versions.
 
 ### Security
 
-- **Paired-device tokens are no longer stored in the request log.** The
-  Authorization header was recorded exactly as sent, and a device token never
-  expires and is never rotated, so every captured request held a permanent
-  credential at rest — in a database that gets copied alongside its own backups.
-  The value is now replaced before the record is written. The header name is
-  kept, so the log still shows that a request was authenticated.
+- **Paired-device tokens are no longer stored in the request log.** The Authorization header was recorded exactly as sent, and a device token never expires and is never rotated, so every captured request held a permanent credential at rest — in a database that gets copied alongside its own backups. The value is now replaced before the record is written. The header name is kept, so the log still shows that a request was authenticated.
 
 ### Internal
 
-- The sync reconcile handler stopped treating a write conflict as a server
-  failure. It had been converted into an error that aborted the batch and
-  returned HTTP 500, which made the per-operation conflict outcome the API
-  documentation already described unreachable — and untested. Conflicts are now
-  reported per operation, a later operation for an already-conflicted anime that
-  carries no version token is refused rather than allowed to overwrite silently,
-  and the documentation was corrected to say this is new rather than
-  long-standing. See `openspec/changes/archive/2026-09-04-sdd-66-occ-token-echo/`.
-- Merge commits now run their own pre-merge gate. A merge of two independently
-  green branches ran no checks at all, which is the one place a broken tree can
-  appear without either side being wrong.
-- The project is licensed under Apache 2.0, and the README was rewritten as a
-  complete project reference.
-- A long SonarQube sweep across both languages: duplicated string literals named,
-  oversized signatures given parameter structs, single-method ports renamed after
-  what they do, and the false positives marked at the call site with the reason.
-- Every app icon is now generated from one master image, `build/appicon.png`, by
-  `go run ./tools/genicons`, and a pre-commit check refuses a commit whose icons
-  no longer match it. Two orphaned image files were removed: an unreferenced copy
-  of the tray icon that still held the old pre-rebrand artwork, and the Wails
-  template logo that nothing in the frontend imported. See `docs/app-icons.md`.
-
-- The repository root no longer holds 104 Go files. The desktop shell moved to
-  `internal/desktop` and the root keeps only `main.go`, which is all Wails
-  actually requires beside `wails.json`. Nothing changed at runtime: no logic, no
-  renamed symbol, and the bound surface the frontend calls is identical apart
-  from its namespace (`main` to `desktop`). See
-  `docs/adr/018-desktop-shell-package.md`.
-- Release builds can no longer ship an unstamped version in silence. Go ignores
-  an `-ldflags -X` whose symbol does not exist, and the check both release
-  workflows used was reading back the flag they had just passed rather than the
-  binary, so it could not fail. The import path is now derived with `go list` and
-  the stamp is verified against the linker's own symbol.
+- The sync reconcile handler stopped treating a write conflict as a server failure. It had been converted into an error that aborted the batch and returned HTTP 500, which made the per-operation conflict outcome the API documentation already described unreachable — and untested. Conflicts are now reported per operation, a later operation for an already-conflicted anime that carries no version token is refused rather than allowed to overwrite silently, and the documentation was corrected to say this is new rather than long-standing. See `openspec/changes/archive/2026-09-04-sdd-66-occ-token-echo/`.
+- Merge commits now run their own pre-merge gate. A merge of two independently green branches ran no checks at all, which is the one place a broken tree can appear without either side being wrong.
+- The project is licensed under Apache 2.0, and the README was rewritten as a complete project reference.
+- A long SonarQube sweep across both languages: duplicated string literals named, oversized signatures given parameter structs, single-method ports renamed after what they do, and the false positives marked at the call site with the reason.
+- Every app icon is now generated from one master image, `build/appicon.png`, by `go run ./tools/genicons`, and a pre-commit check refuses a commit whose icons no longer match it. Two orphaned image files were removed: an unreferenced copy of the tray icon that still held the old pre-rebrand artwork, and the Wails template logo that nothing in the frontend imported. See `docs/app-icons.md`.
+- The repository root no longer holds 104 Go files. The desktop shell moved to `internal/desktop` and the root keeps only `main.go`, which is all Wails actually requires beside `wails.json`. Nothing changed at runtime: no logic, no renamed symbol, and the bound surface the frontend calls is identical apart from its namespace (`main` to `desktop`). See `docs/adr/018-desktop-shell-package.md`.
+- Release builds can no longer ship an unstamped version in silence, and the guard that promises it now works. Go ignores an `-ldflags -X` whose symbol does not exist, so the failure is silent. Two checks shipped before this one and neither could report the truth: `go version -m` greps the binary for the very flag the build just passed, so it could not fail; its replacement grepped `go tool nm` for a symbol a Windows PE keeps and a Linux ELF never carries, so it could not pass. The value is now read from inside the package by a test, which is exact on both platforms.
 
 ## [1.8.3] — 2026-09-02
 
