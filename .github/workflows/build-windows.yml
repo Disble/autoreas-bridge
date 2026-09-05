@@ -139,13 +139,12 @@ jobs:
       # shipped binary reports "no symbols", because wails appends `-w -s`.
       - name: Verify the version stamp resolved
         run: |
-          go build -ldflags "-X $env:STAMP_PKG.bridgeVersion=${{ steps.version.outputs.version }}" -o stamp-check.exe .
-          if ($LASTEXITCODE -ne 0) { throw "the stamp-check build failed" }
-          $syms = (go tool nm stamp-check.exe | Select-String -SimpleMatch "$env:STAMP_PKG.bridgeVersion.str")
-          if (-not $syms) {
+          $probe = "stamp-probe-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $env:STAMP_PROBE_EXPECT = $probe
+          go test -count=1 -run TestBridgeVersionIsStampable -ldflags "-X $env:STAMP_PKG.bridgeVersion=$probe" ./internal/desktop/
+          if ($LASTEXITCODE -ne 0) {
             throw "the -X stamp did not resolve against $env:STAMP_PKG.bridgeVersion; backups exported by this build would report 'dev'"
           }
-          Remove-Item stamp-check.exe
           Write-Host "Stamp resolved: $env:STAMP_PKG.bridgeVersion=${{ steps.version.outputs.version }}"
 
       # wails_tools.nsh is generated output, never hand-edited. Reading the
