@@ -116,11 +116,19 @@ jobs:
       # -ldflags argument the job just passed, so it matches even when nothing
       # was stamped -- a binary reporting "dev" passed it. `go tool nm` on the
       # shipped binary reports "no symbols", because wails appends `-w -s`.
+      # The companion build MUST match the shipped build's configuration -- same
+      # tags, same CGO. Without `-tags webkit2_41` this compiled a different
+      # variant of the tree than the one `wails build` had just produced, so the
+      # readback answered for a binary nobody ships. It failed the v1.9.0 run
+      # while the identical check passed on Windows, which needs no tags. A
+      # guard that builds something other than the artifact verifies nothing,
+      # whichever way it answers.
       - name: Verify the version stamp resolved
         env:
+          CGO_ENABLED: "1"
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          go build -ldflags "-X ${STAMP_PKG}.bridgeVersion=${VERSION}" -o stamp-check .
+          go build -tags webkit2_41 -ldflags "-X ${STAMP_PKG}.bridgeVersion=${VERSION}" -o stamp-check .
           if ! go tool nm stamp-check | grep -qF "${STAMP_PKG}.bridgeVersion.str"; then
             echo "::error::the -X stamp did not resolve against ${STAMP_PKG}.bridgeVersion; backups exported by this build would report 'dev'"
             exit 1
