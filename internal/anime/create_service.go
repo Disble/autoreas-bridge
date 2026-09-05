@@ -59,8 +59,63 @@ func (s *CreateService) CreateAnime(ctx context.Context, create contracts.AnimeC
 	if err := validateCreateRequest(create); err != nil {
 		return PatchResult{}, err
 	}
+	if err := s.ensureNamesAreFree(ctx, []contracts.AnimeCreate{create}); err != nil {
+		return PatchResult{}, err
+	}
 
 	return s.writer.CreateCanonicalAnime(ctx, create, CreateMetadata{})
+}
+
+// normalizeAnimeName folds a name to the identity the catalogue treats as one
+// anime: case and surrounding whitespace never tell two animes apart.
+//
+// This mirrors the unique index in internal/sync, but is not byte-identical to
+// it: SQLite's lower() folds ASCII only, while this folds Unicode too. The
+// difference makes this check the stricter of the two, which is the safe
+// direction -- the index stays the guarantee and can never be bypassed, while
+// this exists to produce a readable refusal instead of a raw constraint error.
+func normalizeAnimeName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// ensureNamesAreFree refuses a create whose name another anime already holds,
+// naming that anime so the user can restore or rename it instead.
+//
+// A soft-deleted record still holds its name: deletion is a lifecycle state the
+// Editor can undo, so re-creating the anime would produce exactly the duplicate
+// this guard exists to prevent.
+//
+// With no catalogue wired the check is skipped rather than failing closed: both
+// production wirings supply one, and the unique index remains the guarantee
+// either way.
+func (s *CreateService) ensureNamesAreFree(ctx context.Context, creates []contracts.AnimeCreate) error {
+	if s.query == nil {
+		return nil
+	}
+	records, err := s.query.ListReadRecords(ctx)
+	if err != nil {
+		return err
+	}
+
+	holders := make(map[string]string, len(records))
+	for _, record := range records {
+		holders[normalizeAnimeName(record.Value.Title)] = record.Value.ID
+	}
+	for _, create := range creates {
+		key := normalizeAnimeName(create.Nombre)
+		holder, taken := holders[key]
+		if !taken {
+			holders[key] = ""
+			continue
+		}
+		if holder == "" {
+			return fmt.Errorf("this batch would create the anime %q twice", strings.TrimSpace(create.Nombre))
+		}
+		return fmt.Errorf(
+			"the anime %q already exists as %q; rename this one, or restore the existing record from the Editor",
+			strings.TrimSpace(create.Nombre), holder)
+	}
+	return nil
 }
 
 // validateCreateRequest checks that an anime creation payload has a non-empty trimmed title
@@ -100,6 +155,10 @@ func (s *CreateService) CreateBatch(
 	}
 	if len(creates) == 0 {
 		return contracts.AnimeCreateResult{}, fmt.Errorf("at least one anime create is required")
+	}
+
+	if err := s.ensureNamesAreFree(ctx, creates); err != nil {
+		return contracts.AnimeCreateResult{}, err
 	}
 
 	operations := make([]store.BatchOperation, 0, len(creates)+len(neighbors))

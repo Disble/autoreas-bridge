@@ -30,13 +30,13 @@ var refusalMessages = map[RefusalReason]string{
 // why this is a separate type from Service rather than a field on it.
 type Executor struct {
 	store    *Store
-	registry IntentRegistry
+	registry IntentResolver
 	now      func() time.Time
 }
 
 // NewExecutor builds an Executor over store and registry, defaulting the
 // clock to time.Now.
-func NewExecutor(store *Store, registry IntentRegistry) *Executor {
+func NewExecutor(store *Store, registry IntentResolver) *Executor {
 	return &Executor{store: store, registry: registry, now: time.Now}
 }
 
@@ -56,7 +56,7 @@ func (e *Executor) refuse(ctx context.Context, actionID string, reason RefusalRe
 //
 //	(a) does actionID belong to THIS notificationID?     -> foreign_action
 //	(b) has it already executed (and is not repeatable)? -> already_executed
-//	(c) is intent registered in the IntentRegistry?      -> intent_unregistered
+//	(c) is intent registered in the IntentResolver?      -> intent_unregistered
 //	(d) does the bound handler accept the frozen args?   -> target_missing
 //
 // An unregistered key is refused outright: never resolved by name lookup,

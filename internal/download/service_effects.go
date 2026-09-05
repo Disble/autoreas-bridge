@@ -34,7 +34,7 @@ func (s *Service) finalize(ctx context.Context, run *Run) {
 	finalizeCtx, release := finalizeContext(ctx)
 	defer release()
 	if err := s.deps.Store.FinalizeRun(finalizeCtx, *run); err != nil {
-		s.logf(logger.LevelError, run.RunID, "", "download.failed", nil,
+		s.logf(logger.LevelError, run.RunID, "", events.EventNameDownloadFailed, nil,
 			"failed to finalize run %s: %v", run.RunID, err)
 	}
 }
@@ -71,8 +71,27 @@ func (s *Service) publish(event events.Event) {
 // the hoster links a blocked anime offers -- lives on the outcome and never reaches the row. An
 // empty outcome slice produces a notification with no rows and its whole-notification tokens
 // alone, which is exactly what a run that selected nothing should say.
-func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Level, kind, runID, title, body string, outcomes []animeRunOutcome) {
-	s.notifyWithRowsAndActions(ctx, level, kind, runID, title, body, buildRunDetailRows(outcomes), buildOutcomeActions(kind, runID, outcomes))
+func (s *Service) notifyWithOutcomes(ctx context.Context, n runNotification, outcomes []animeRunOutcome) {
+	n.rows = buildRunDetailRows(outcomes)
+	n.actions = buildOutcomeActions(n.kind, n.runID, outcomes)
+	s.notify(ctx, n)
+}
+
+// runNotification is one user-facing download notification.
+//
+// A struct rather than a parameter list because the positional form put kind,
+// runID, title and body beside each other as four adjacent strings (SonarQube
+// go:S107 on the nine-parameter version). Swapping any two of them compiled,
+// passed every test, and would have shipped a notification with the run id in
+// its title.
+type runNotification struct {
+	level   notification.Level
+	kind    string
+	runID   string
+	title   string
+	body    string
+	rows    []notification.DetailItem
+	actions []notification.ActionSpec
 }
 
 // notifyWithRowsAndActions is the single Notifier call site: it sends one user-facing
@@ -87,7 +106,7 @@ func (s *Service) notifyWithOutcomes(ctx context.Context, level notification.Lev
 // kind is passed per call site rather than derived from the run status: run_started has no
 // status at all, and deriving the rest would bury the mapping in a switch far from the title and
 // body that were chosen alongside it.
-func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notification.Level, kind, runID, title, body string, rows []notification.DetailItem, actions []notification.ActionSpec) {
+func (s *Service) notify(ctx context.Context, n runNotification) {
 	if s.deps.Notifier == nil {
 		return
 	}
@@ -95,18 +114,18 @@ func (s *Service) notifyWithRowsAndActions(ctx context.Context, level notificati
 	// fan-out isolation internally; this call site additionally never propagates the error to
 	// RunOnce's caller).
 	if err := s.deps.Notifier.Notify(ctx, notification.Notification{
-		Title:         title,
-		Body:          body,
-		Level:         level,
+		Title:         n.title,
+		Body:          n.body,
+		Level:         n.level,
 		Source:        "download",
-		Kind:          kind,
-		CorrelationID: runID,
+		Kind:          n.kind,
+		CorrelationID: n.runID,
 		Timestamp:     s.deps.Clock(),
-		Rows:          rows,
-		Actions:       actions,
+		Rows:          n.rows,
+		Actions:       n.actions,
 	}); err != nil {
-		s.logf(logger.LevelWarn, runID, "", "download.notification_failed", nil,
-			"download notification %q failed: %v", title, err)
+		s.logf(logger.LevelWarn, n.runID, "", "download.notification_failed", nil,
+			"download notification %q failed: %v", n.title, err)
 	}
 }
 

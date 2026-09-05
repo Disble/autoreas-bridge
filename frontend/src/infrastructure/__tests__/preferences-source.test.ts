@@ -35,7 +35,7 @@ describe('preferences-source', () => {
     const getAutoStartEnabledMock = vi.fn().mockResolvedValue(true);
     const setAutoStartEnabledMock = vi.fn().mockResolvedValue('ok');
     window.go = {
-      main: {
+      desktop: {
         App: {
           GetDownloadsRoot: getDownloadsRootMock,
           GetSeasonMode: getSeasonModeMock,

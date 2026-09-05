@@ -92,7 +92,7 @@ func assertLegacyJSONEqual(t *testing.T, want string, got []byte) {
 }
 
 // legacyJSONEqual recursively compares legacy JSON values.
-func legacyJSONEqual(want any, got any) bool {
+func legacyJSONEqual(want, got any) bool {
 	if wantObject, gotObject, ok := legacyJSONObjectPair(want, got); ok {
 		return legacyJSONObjectEqual(wantObject, gotObject)
 	}
@@ -141,7 +141,7 @@ func decodeLegacyVariantID(t *testing.T, line string) string {
 }
 
 // legacyJSONObjectPair extracts comparable JSON object values.
-func legacyJSONObjectPair(want any, got any) (map[string]any, map[string]any, bool) {
+func legacyJSONObjectPair(want, got any) (map[string]any, map[string]any, bool) {
 	switch wantTyped := want.(type) {
 	case map[string]any:
 		gotTyped, ok := got.(map[string]any)
@@ -152,7 +152,7 @@ func legacyJSONObjectPair(want any, got any) (map[string]any, map[string]any, bo
 }
 
 // legacyJSONObjectEqual recursively compares JSON objects.
-func legacyJSONObjectEqual(want map[string]any, got map[string]any) bool {
+func legacyJSONObjectEqual(want, got map[string]any) bool {
 	if len(want) != len(got) {
 		return false
 	}
@@ -166,7 +166,7 @@ func legacyJSONObjectEqual(want map[string]any, got map[string]any) bool {
 }
 
 // legacyJSONArrayPair extracts comparable JSON array values.
-func legacyJSONArrayPair(want any, got any) ([]any, []any, bool) {
+func legacyJSONArrayPair(want, got any) ([]any, []any, bool) {
 	wantTyped, ok := want.([]any)
 	if !ok {
 		return nil, nil, false
@@ -180,7 +180,7 @@ func legacyJSONArrayPair(want any, got any) ([]any, []any, bool) {
 }
 
 // legacyJSONArrayEqual recursively compares JSON arrays.
-func legacyJSONArrayEqual(want []any, got []any) bool {
+func legacyJSONArrayEqual(want, got []any) bool {
 	if len(want) != len(got) {
 		return false
 	}

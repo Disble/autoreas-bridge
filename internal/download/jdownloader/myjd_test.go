@@ -87,7 +87,7 @@ func (l *fakeLinkGrabber) Add(links []string, opts ...jd.AddLinksOptions) (*jd.D
 	return &jd.DataResponse{}, nil
 }
 func (l *fakeLinkGrabber) IsCollecting() (bool, error) { return false, nil }
-func (l *fakeLinkGrabber) Remove(linkIDs []int64, packageIDs []int64) error {
+func (l *fakeLinkGrabber) Remove(linkIDs, packageIDs []int64) error {
 	l.removeLinkIDs = linkIDs
 	l.removePackageIDs = packageIDs
 	return l.removeErr
@@ -122,7 +122,7 @@ func (d *fakeDownloader) Rename(linkID int64, name string) error {
 	d.renamedTo = name
 	return d.renameErr
 }
-func (d *fakeDownloader) Remove(linkIDs []int64, packageIDs []int64) error {
+func (d *fakeDownloader) Remove(linkIDs, packageIDs []int64) error {
 	d.removeLinkIDs = linkIDs
 	d.removePackageIDs = packageIDs
 	return d.removeErr
@@ -131,7 +131,7 @@ func (d *fakeDownloader) Start() (bool, error)                  { return true, n
 func (d *fakeDownloader) Stop() (bool, error)                   { return true, nil }
 func (d *fakeDownloader) Pause() (bool, error)                  { return true, nil }
 func (d *fakeDownloader) Speed() (*jd.DownloadSpeedInfo, error) { return &jd.DownloadSpeedInfo{}, nil }
-func (d *fakeDownloader) Force(_ []int64, _ []int64) error      { return nil }
+func (d *fakeDownloader) Force(_, _ []int64) error              { return nil }
 func (d *fakeDownloader) State() (*jd.DownloadState, error)     { return &jd.DownloadState{}, nil }
 
 // --- EnsureOnline / ListDevices liveness gate (4.7) ---

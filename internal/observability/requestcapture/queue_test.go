@@ -13,16 +13,35 @@ import (
 func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 	t.Parallel()
 
-	store := &blockingQueueStore{release: make(chan struct{})}
+	store := &blockingQueueStore{release: make(chan struct{}), entered: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 1})
 
 	first := NewCaptureRecord("patch", "device-1")
 	second := NewCaptureRecord("patch", "device-2")
+	third := NewCaptureRecord("patch", "device-3")
 
-	if ok := queue.TryEnqueue(first); !ok {
+	if !queue.TryEnqueue(first) {
 		t.Fatal("expected first enqueue to succeed")
 	}
-	if ok := queue.TryEnqueue(second); ok {
+
+	// NewQueue starts the drain goroutine immediately, and run() RECEIVES from
+	// the buffered channel before it blocks in the store -- which frees the
+	// single capacity slot. So a Capacity-1 queue really holds two records: one
+	// in the goroutine's hand and one in the buffer. Waiting until the store has
+	// actually been entered is what turns "the queue is full" into a fact.
+	// Without this wait the second enqueue lands in the freed slot whenever the
+	// goroutine got scheduled first, no drop is observed, and the test fails --
+	// which is what it did under a loaded 'go test -p=4' across the repo.
+	select {
+	case <-store.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain goroutine never reached the store")
+	}
+
+	if !queue.TryEnqueue(second) {
+		t.Fatal("expected the second enqueue to take the slot the drain goroutine freed")
+	}
+	if queue.TryEnqueue(third) {
 		t.Fatal("expected overflow enqueue to be dropped")
 	}
 	if got := queue.DroppedTotal(); got != 1 {
@@ -36,8 +55,11 @@ func TestQueueDropsOverflowWithoutBlockingCanonicalFlow(t *testing.T) {
 	if result.UnfinishedItems != 0 {
 		t.Fatalf("expected no unfinished items after successful drain, got %d", result.UnfinishedItems)
 	}
-	if len(store.records) != 1 || store.records[0].Device.DeviceID != "device-1" {
-		t.Fatalf("expected only the first record to be stored, got %#v", store.records)
+	if len(store.records) != 2 {
+		t.Fatalf("expected the two accepted records to be stored, got %#v", store.records)
+	}
+	if store.records[0].Device.DeviceID != "device-1" || store.records[1].Device.DeviceID != "device-2" {
+		t.Fatalf("expected device-1 then device-2 stored in order, got %#v", store.records)
 	}
 }
 
@@ -56,10 +78,10 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	store := &blockingQueueStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 2})
 
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-1")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected enqueue to succeed")
 	}
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-2")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-2")) {
 		t.Fatal("expected second enqueue to succeed")
 	}
 
@@ -124,7 +146,7 @@ func TestQueueOnPersistFiresOncePerPersistedRecordAfterStoreWrite(t *testing.T) 
 
 	record := NewCaptureRecord("patch", "device-1")
 	record.RequestID = "req-onpersist"
-	if ok := queue.TryEnqueue(record); !ok {
+	if !queue.TryEnqueue(record) {
 		t.Fatal("expected enqueue to succeed")
 	}
 
@@ -157,7 +179,7 @@ func TestQueueOnPersistDoesNotFireOnStoreWriteFailure(t *testing.T) {
 		persisted = append(persisted, record)
 	}})
 
-	if ok := queue.TryEnqueue(NewCaptureRecord("patch", "device-1")); !ok {
+	if !queue.TryEnqueue(NewCaptureRecord("patch", "device-1")) {
 		t.Fatal("expected enqueue to succeed")
 	}
 
@@ -176,9 +198,17 @@ type blockingQueueStore struct {
 	records   []CaptureRecord
 	release   chan struct{}
 	insertErr error
+	// entered, when non-nil, is closed the first time the drain goroutine
+	// reaches this store. It is the only way a test can know the goroutine has
+	// already taken a record OUT of the queue channel.
+	entered     chan struct{}
+	enteredOnce sync.Once
 }
 
 func (s *blockingQueueStore) UpsertCapture(ctx context.Context, record CaptureRecord) error {
+	if s.entered != nil {
+		s.enteredOnce.Do(func() { close(s.entered) })
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

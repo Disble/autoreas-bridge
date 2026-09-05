@@ -12,6 +12,9 @@ import (
 	"autoreas-bridge/internal/observability/requestcapture"
 )
 
+// websocketBroadcastEventType is the structured-log EventType for every hub broadcast.
+const websocketBroadcastEventType = "websocket.broadcast"
+
 const defaultSendTimeout = 100 * time.Millisecond
 
 // Client is one websocket connection managed by the realtime hub.
@@ -47,7 +50,7 @@ type MemoryHub struct {
 	mu              sync.RWMutex
 	clients         map[string]*clientState
 	broadcasts      chan []byte
-	ctx             context.Context
+	ctx             context.Context // NOSONAR godre:S8242 -- the hub's own lifetime, paired with cancel below; Register derives every client from it rather than from the caller's ctx, on purpose.
 	cancel          context.CancelFunc
 	closeOnce       sync.Once
 	clientBuffer    int
@@ -60,7 +63,7 @@ type MemoryHub struct {
 type clientState struct {
 	client Client
 	queue  chan []byte
-	ctx    context.Context
+	ctx    context.Context // NOSONAR godre:S8242 -- one client's lifetime, paired with cancel below and closed by state.cancel on disconnect.
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -172,7 +175,7 @@ func (h *MemoryHub) BroadcastAnimeChanged(_ context.Context, event events.AnimeC
 	if h.logger != nil {
 		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
 			EntityID:      event.AnimeID,
-			EventType:     "websocket.broadcast",
+			EventType:     websocketBroadcastEventType,
 			CorrelationID: event.CorrelationID,
 			Metadata:      map[string]any{"clientCount": clientCount},
 		}, "broadcast anime.changed for %s", event.AnimeID)
@@ -195,7 +198,7 @@ func (h *MemoryHub) BroadcastPreferencesChanged(_ context.Context, seasonMode bo
 
 	if h.logger != nil {
 		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
-			EventType: "websocket.broadcast",
+			EventType: websocketBroadcastEventType,
 			Metadata:  map[string]any{"clientCount": clientCount, "seasonMode": seasonMode},
 		}, "broadcast preferences.changed (seasonMode=%v)", seasonMode)
 	}
@@ -219,7 +222,7 @@ func (h *MemoryHub) BroadcastSeasonChanged(_ context.Context, seasonID, status s
 
 	if h.logger != nil {
 		h.logger.Logf("websocket", sharedlogger.LevelInfo, sharedlogger.Fields{
-			EventType: "websocket.broadcast",
+			EventType: websocketBroadcastEventType,
 			Metadata:  map[string]any{"clientCount": clientCount, "seasonID": seasonID, "status": status},
 		}, "broadcast season.changed (id=%s status=%s)", seasonID, status)
 	}

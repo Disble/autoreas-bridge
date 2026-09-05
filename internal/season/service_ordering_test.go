@@ -147,14 +147,36 @@ func TestApplyScheduleStopsAtFirstNonSuccess(t *testing.T) {
 			}))
 
 			res, err := svc.ApplySchedule(ctx)
-			assertApplyScheduleFailureCase(t, tt.name, tt.wantErr, err, res, gateway, svc, ctx)
+			assertApplyScheduleFailureCase(t, ctx, scheduleFailureCase{
+				name: tt.name, wantErr: tt.wantErr, err: err,
+				res: res, gateway: gateway, svc: svc,
+			})
 		})
 	}
 }
 
 // assertApplyScheduleFailureCase verifies one rejected ordering application.
-func assertApplyScheduleFailureCase(t *testing.T, name string, wantErr error, err error, res ApplyResult, gateway *scriptedOrderingGateway, svc *Service, ctx context.Context) {
+// scheduleFailureCase is one fail-closed apply case, as its assertions need it.
+//
+// A struct rather than a parameter list (SonarQube go:S107). wantErr and err sat
+// adjacent as two errors, and transposing them turns "the error we expected"
+// into "the error we got" -- an assertion that would still compile and would
+// still pass on the happy path.
+type scheduleFailureCase struct {
+	name    string
+	wantErr error
+	err     error
+	res     ApplyResult
+	gateway *scriptedOrderingGateway
+	svc     *Service
+}
+
+// assertApplyScheduleFailureCase asserts one fail-closed apply case: the error
+// surfaced, the partial result stopped where it should, and no milestone was
+// stamped.
+func assertApplyScheduleFailureCase(t *testing.T, ctx context.Context, c scheduleFailureCase) {
 	t.Helper()
+	name, wantErr, err, res, gateway, svc := c.name, c.wantErr, c.err, c.res, c.gateway, c.svc
 	if err == nil {
 		t.Fatalf("expected %s to fail closed, got res=%+v", name, res)
 	}

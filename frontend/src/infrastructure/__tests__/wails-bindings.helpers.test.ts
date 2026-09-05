@@ -16,7 +16,7 @@ describe('wails-bindings.helpers', () => {
   it('detects a live Go binding by name', async () => {
     const { hasGoBinding, hasRuntimeBindings } = await import('../wails-bindings.helpers');
 
-    window.go = { main: { App: { GetSeason: vi.fn() } } } as never;
+    window.go = { desktop: { App: { GetSeason: vi.fn() } } } as never;
 
     expect(hasGoBinding('GetSeason')).toBe(true);
     expect(hasGoBinding('CreateSeason')).toBe(false);
@@ -69,7 +69,7 @@ describe('wails-bindings.helpers', () => {
     const invoke = vi.fn().mockResolvedValue('runtime value');
     const fallback = vi.fn().mockReturnValue('fallback value');
 
-    window.go = { main: { App: { GetSeason: invoke } } } as never;
+    window.go = { desktop: { App: { GetSeason: invoke } } } as never;
 
     await expect(invokeGoBinding('GetSeason', invoke, fallback)).resolves.toBe('runtime value');
     expect(fallback).not.toHaveBeenCalled();

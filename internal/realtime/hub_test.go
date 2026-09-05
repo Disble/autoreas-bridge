@@ -337,7 +337,7 @@ func assertPreferencesChangedPayload(t *testing.T, payload []byte, wantSeasonMod
 }
 
 // assertAnimeIDPayload verifies a create or delete anime payload.
-func assertAnimeIDPayload(t *testing.T, payload []byte, wantType string, wantAnimeID string) {
+func assertAnimeIDPayload(t *testing.T, payload []byte, wantType, wantAnimeID string) {
 	t.Helper()
 
 	var msg AnimeIDMessage

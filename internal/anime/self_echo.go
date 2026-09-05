@@ -1,7 +1,7 @@
 package anime
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"sync"
 )
@@ -17,19 +17,19 @@ type SelfEchoRegistry interface {
 	ReplacementInFlight() bool
 }
 
-type md5SelfEchoRegistry struct {
+type selfEchoRegistry struct {
 	mu           sync.Mutex
 	counts       map[string]int
 	replacements int
 }
 
-func (r *md5SelfEchoRegistry) BeginReplacement() {
+func (r *selfEchoRegistry) BeginReplacement() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.replacements++
 }
 
-func (r *md5SelfEchoRegistry) EndReplacement() {
+func (r *selfEchoRegistry) EndReplacement() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.replacements > 0 {
@@ -37,7 +37,7 @@ func (r *md5SelfEchoRegistry) EndReplacement() {
 	}
 }
 
-func (r *md5SelfEchoRegistry) ReplacementInFlight() bool {
+func (r *selfEchoRegistry) ReplacementInFlight() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.replacements > 0
@@ -45,26 +45,26 @@ func (r *md5SelfEchoRegistry) ReplacementInFlight() bool {
 
 // NewSelfEchoRegistry builds the default hash-based self-echo registry.
 func NewSelfEchoRegistry() SelfEchoRegistry {
-	return &md5SelfEchoRegistry{counts: make(map[string]int)}
+	return &selfEchoRegistry{counts: make(map[string]int)}
 }
 
-func (r *md5SelfEchoRegistry) Remember(payload []byte) {
+func (r *selfEchoRegistry) Remember(payload []byte) {
 	if len(payload) == 0 {
 		return
 	}
 
-	key := md5Payload(payload)
+	key := payloadFingerprint(payload)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.counts[key]++
 }
 
-func (r *md5SelfEchoRegistry) Forget(payload []byte) {
+func (r *selfEchoRegistry) Forget(payload []byte) {
 	if len(payload) == 0 {
 		return
 	}
 
-	key := md5Payload(payload)
+	key := payloadFingerprint(payload)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -77,12 +77,12 @@ func (r *md5SelfEchoRegistry) Forget(payload []byte) {
 	r.counts[key] = count - 1
 }
 
-func (r *md5SelfEchoRegistry) ConsumeIfPresent(payload []byte) bool {
+func (r *selfEchoRegistry) ConsumeIfPresent(payload []byte) bool {
 	if len(payload) == 0 {
 		return false
 	}
 
-	key := md5Payload(payload)
+	key := payloadFingerprint(payload)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -100,8 +100,10 @@ func (r *md5SelfEchoRegistry) ConsumeIfPresent(payload []byte) bool {
 	return true
 }
 
-// md5Payload returns the hexadecimal digest used to identify a payload.
-func md5Payload(payload []byte) string {
-	sum := md5.Sum(payload)
+// payloadFingerprint returns the digest used to recognise a payload the writer
+// just emitted. It is an in-memory dedupe key: never persisted, never sent, and
+// never compared against anything a caller supplies.
+func payloadFingerprint(payload []byte) string {
+	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
 }

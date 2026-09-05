@@ -54,8 +54,12 @@ jobs:
       # `wails build` runs the frontend itself through wails.json ->
       # frontend:install / frontend:build, so Bun has to exist before the build
       # step rather than before a frontend step -- there is no separate one.
+      # Pinned to a commit, not the `v2` tag: a tag can be repointed at different
+      # code by whoever controls the repository, which is what makes it a supply
+      # chain risk (SonarQube githubactions:S7637). The comment carries the
+      # human-readable version so an upgrade stays reviewable.
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
@@ -84,27 +88,52 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
       # bridgeVersion is stamped at link time, not read from wails.json at
-      # runtime: app_backup.go declares `var bridgeVersion = "dev"` and every
-      # exported backup bundle carries it, surfaced to the user in the import
-      # preview. An unstamped release build labels its bundles "dev".
+      # runtime: internal/desktop/app_backup.go declares `var bridgeVersion = "dev"`
+      # and every exported backup bundle carries it, surfaced to the user in the
+      # import preview. An unstamped release build labels its bundles "dev".
+      #
+      # The import path is derived, never typed: `go list` fails loudly if the
+      # package moves, whereas a stale -X path links silently (ADR-018).
       - name: Build the app
         env:
           CGO_ENABLED: "1"
           VERSION: ${{ steps.version.outputs.version }}
-        run: wails build -platform linux/amd64 -clean -tags webkit2_41 -ldflags "-X main.bridgeVersion=${VERSION}"
+        run: |
+          pkg="$(go list -f '{{.ImportPath}}' ./internal/desktop)"
+          if [ -z "${pkg}" ]; then
+            echo "::error::could not resolve the desktop package for the -X stamp"
+            exit 1
+          fi
+          echo "STAMP_PKG=${pkg}" >> "${GITHUB_ENV}"
+          wails build -platform linux/amd64 -clean -tags webkit2_41 -ldflags "-X ${pkg}.bridgeVersion=${VERSION}"
 
-      - name: Verify the binary carries the stamped version
+      # Reads the stamp back from a companion, NON-stripped build of the same
+      # package with the same -X. Go's linker emits a `<path>.str` symbol only
+      # when -X actually resolved, so its absence is the failure. Measured: the
+      # correct path yields 2 bridgeVersion symbols, a stale one yields 1.
+      #
+      # The two obvious checks do not work. `go version -m` echoes back the very
+      # -ldflags argument the job just passed, so it matches even when nothing
+      # was stamped -- a binary reporting "dev" passed it. `go tool nm` on the
+      # shipped binary reports "no symbols", because wails appends `-w -s`.
+      - name: Verify the version stamp resolved
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if ! go version -m build/bin/autoreas-bridge | grep -q "bridgeVersion=${VERSION}"; then
-            echo "::error::build/bin/autoreas-bridge is not stamped with bridgeVersion=${VERSION}; backups exported by this build would report 'dev'"
+          go build -ldflags "-X ${STAMP_PKG}.bridgeVersion=${VERSION}" -o stamp-check .
+          if ! go tool nm stamp-check | grep -qF "${STAMP_PKG}.bridgeVersion.str"; then
+            echo "::error::the -X stamp did not resolve against ${STAMP_PKG}.bridgeVersion; backups exported by this build would report 'dev'"
             exit 1
           fi
-          echo "Stamped bridgeVersion=${VERSION}"
+          rm -f stamp-check
+          echo "Stamp resolved: ${STAMP_PKG}.bridgeVersion=${VERSION}"
 
       - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+        # Pinned to a commit rather than the v2.47.0 tag (SonarQube
+        # githubactions:S8545). Go's checksum database already makes a published
+        # version immutable, so this is belt-and-braces rather than a fix for a
+        # live hole -- but it costs nothing and states the intent outright.
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@40c7c8f7376400e9464d04a2a099045cf5598f8e # v2.47.0
 
       # Resizes the 1024x1024 source icon into the hicolor theme's standard
       # sizes. 1.8.2 shipped the 1024 original into /usr/share/pixmaps instead,

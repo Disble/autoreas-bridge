@@ -100,7 +100,7 @@ func assertDeterministicLegacySnapshots(t *testing.T, iteration int, ctx context
 }
 
 // assertEditorBoardPlacement verifies one editor board placement.
-func assertEditorBoardPlacement(t *testing.T, iteration int, got []contracts.MobileAnimeDay, animeID string, wantDay string, wantOrder int) {
+func assertEditorBoardPlacement(t *testing.T, iteration int, got []contracts.MobileAnimeDay, animeID, wantDay string, wantOrder int) {
 	t.Helper()
 	if len(got) != 1 || got[0].Day != wantDay || got[0].Order != wantOrder {
 		t.Fatalf("iteration %d expected %s at %s#%d, got %+v", iteration, animeID, wantDay, wantOrder, got)
@@ -108,7 +108,7 @@ func assertEditorBoardPlacement(t *testing.T, iteration int, got []contracts.Mob
 }
 
 // assertLegacySchedulePlacement verifies one legacy schedule placement.
-func assertLegacySchedulePlacement(t *testing.T, iteration int, payload []byte, animeID string, wantDay string, wantOrder float64) {
+func assertLegacySchedulePlacement(t *testing.T, iteration int, payload []byte, animeID, wantDay string, wantOrder float64) {
 	t.Helper()
 	got := decodeSchedulePayloadDays(t, payload)
 	if len(got) != 1 || got[0].Day != wantDay || got[0].Order != wantOrder {

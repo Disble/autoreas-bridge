@@ -8,8 +8,8 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 /** Files `wails generate module` must produce for the frontend to typecheck. */
 export const requiredBindings = [
-  'frontend/wailsjs/go/main/App.js',
-  'frontend/wailsjs/go/main/App.d.ts',
+  'frontend/wailsjs/go/desktop/App.js',
+  'frontend/wailsjs/go/desktop/App.d.ts',
   'frontend/wailsjs/go/models.ts',
   'frontend/wailsjs/runtime/runtime.js',
 ];
@@ -35,7 +35,7 @@ export function missingBindings(root) {
  * exit code alone proves nothing and the output is verified instead.
  */
 function main() {
-  const result = spawnSync('wails', ['generate', 'module'], {
+  const result = spawnSync('wails', ['generate', 'module'], { // NOSONAR javascript:S4036 -- resolved from PATH on purpose, so it comes from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and the arguments are passed as an array rather than through a shell. Pinning an absolute path would break across platforms and, on Windows, would have to guess between the .exe, .cmd and .bat shims these tools ship as.
     cwd: projectRoot,
     stdio: 'inherit',
     shell: true,

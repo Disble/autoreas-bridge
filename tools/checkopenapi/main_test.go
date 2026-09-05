@@ -51,21 +51,7 @@ func patchAnimeRequestBodyProperties(t *testing.T, yamlPath string) map[string]a
 		t.Fatalf("read %s: %v", yamlPath, err)
 	}
 
-	var doc struct {
-		Paths map[string]struct {
-			Patch struct {
-				RequestBody struct {
-					Content struct {
-						JSON struct {
-							Schema struct {
-								Properties map[string]any `yaml:"properties"`
-							} `yaml:"schema"`
-						} `yaml:"application/json"`
-					} `yaml:"content"`
-				} `yaml:"requestBody"`
-			} `yaml:"patch"`
-		} `yaml:"paths"`
-	}
+	var doc openAPIDocument
 	if err := yaml.Unmarshal(content, &doc); err != nil {
 		t.Fatalf("unmarshal %s: %v", yamlPath, err)
 	}
@@ -132,4 +118,42 @@ func findRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// The OpenAPI subset these checks read. Named rather than a nested anonymous
+// struct (SonarQube godre:S8205): the anonymous form was seven levels deep, so
+// the yaml tag and the Go field it belonged to were pages apart.
+type openAPIDocument struct {
+	Paths map[string]openAPIPathItem `yaml:"paths"`
+}
+
+// openAPIPathItem is the subset of one path entry these checks read.
+type openAPIPathItem struct {
+	Patch openAPIOperation `yaml:"patch"`
+}
+
+// openAPIOperation is the subset of one operation these checks read.
+type openAPIOperation struct {
+	RequestBody openAPIRequestBody `yaml:"requestBody"`
+}
+
+// openAPIRequestBody carries the media types of a request body.
+type openAPIRequestBody struct {
+	Content openAPIContent `yaml:"content"`
+}
+
+// openAPIContent carries the JSON media type only; nothing here reads another.
+type openAPIContent struct {
+	JSON openAPIMediaType `yaml:"application/json"`
+}
+
+// openAPIMediaType carries the schema of one media type.
+type openAPIMediaType struct {
+	Schema openAPISchema `yaml:"schema"`
+}
+
+// openAPISchema carries the property names these checks compare against the
+// Go request struct.
+type openAPISchema struct {
+	Properties map[string]any `yaml:"properties"`
 }

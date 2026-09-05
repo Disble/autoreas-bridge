@@ -33,7 +33,7 @@ describe('season-source', () => {
 
   it('degrades mutators without calling a missing Wails binding', async () => {
     const createSeasonMock = vi.fn().mockResolvedValue('created');
-    window.go = { main: { App: { CreateSeason: createSeasonMock } } } as never;
+    window.go = { desktop: { App: { CreateSeason: createSeasonMock } } } as never;
 
     const { createSeasonSource } = await import('../season-source/season-source.helpers');
     const { SEASON_RUNTIME_UNAVAILABLE } = await import('../season-source/season-source.constants');
@@ -63,7 +63,7 @@ describe('season-source', () => {
 
     const resultPromise = source.getSeason();
 
-    window.go = { main: { App: { GetSeason: getSeasonMock } } } as never;
+    window.go = { desktop: { App: { GetSeason: getSeasonMock } } } as never;
     await vi.advanceTimersByTimeAsync(50);
 
     await expect(resultPromise).resolves.toEqual(season);
@@ -84,7 +84,7 @@ describe('season-source', () => {
     const getPastSeasonMock = vi.fn().mockResolvedValue(season);
     const listSeasonsMock = vi.fn().mockResolvedValue([season]);
     window.go = {
-      main: {
+      desktop: {
         App: {
           GetPastSeason: getPastSeasonMock,
           GetSeasonAnimes: getSeasonAnimesMock,

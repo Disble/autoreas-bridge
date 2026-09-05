@@ -95,7 +95,9 @@ func (s *AnimeSnapshotStore) ReplaceBaseline(ctx context.Context, current map[st
 		}
 
 		query := fmt.Sprintf(`DELETE FROM anime_snapshots WHERE anime_id IN (%s)`, strings.Join(placeholders, ","))
-		if _, execErr := tx.ExecContext(ctx, query, args...); execErr != nil {
+		// NOSONAR go:S2077 -- the ?,?,? list is built from len(ids), never from caller
+		// data; every value still travels bound in args. database/sql has no array binding.
+		if _, execErr := tx.ExecContext(ctx, query, args...); execErr != nil { // NOSONAR
 			err = fmt.Errorf("prune anime snapshots: %w", execErr)
 			return err
 		}

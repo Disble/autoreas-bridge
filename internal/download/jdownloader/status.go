@@ -150,7 +150,7 @@ func matchedDownloadPackages(device jd.Device, destination string, status *Desti
 }
 
 // appendDownloadLinks appends link signals for matched download packages.
-func appendDownloadLinks(device jd.Device, matched map[int64]bool, running map[int64]bool, status *DestinationStatus) error {
+func appendDownloadLinks(device jd.Device, matched, running map[int64]bool, status *DestinationStatus) error {
 	if len(matched) == 0 {
 		return nil
 	}

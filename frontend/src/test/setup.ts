@@ -5,7 +5,7 @@ import { afterEach } from 'vitest';
 declare global {
   interface Window {
     go?: {
-      main?: {
+      desktop?: {
         App?: Record<string, (...args: never[]) => unknown>;
       };
     };
@@ -19,9 +19,17 @@ declare global {
 
 /** jsdom does not implement ResizeObserver; every component under test gets a no-op stub instead. */
 class ResizeObserverMock {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() {
+        // Deliberately inert: jsdom has no layout, so nothing can ever be observed.
+    }
+
+    unobserve() {
+        // Deliberately inert: nothing was ever observed.
+    }
+
+    disconnect() {
+        // Deliberately inert: there is no observation to tear down.
+    }
 }
 
 Object.defineProperty(globalThis, 'ResizeObserver', {
@@ -39,6 +47,8 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
  * `triggerIntersectionObservers` and call it after the sentinel has mounted.
  */
 class IntersectionObserverMock implements IntersectionObserver {
+    // NOSONAR typescript:S1444 -- reassigned on disconnect and by the reset helper
+    // below, so readonly would not compile.
     static instances: IntersectionObserverMock[] = [];
 
     readonly root: Element | Document | null = null;

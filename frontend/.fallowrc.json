@@ -28,7 +28,10 @@
     "vite.layout.config.ts",
     // Another ESM script test outside `src`, and the only importer of
     // `layout-smoke.mjs`'s verdict parser.
-    "scripts/__tests__/layout-smoke.test.mjs"
+    "scripts/__tests__/layout-smoke.test.mjs",
+    // Same blind spot once more: an ESM script test outside `src`, and the only
+    // importer of the request-path resolver both smoke servers share.
+    "scripts/__tests__/static-serve.helpers.test.mjs"
   ],
   "ignoreDependencies": [
     // `eslint` is imported only by `scripts/check-file-size-warnings.mjs`, a

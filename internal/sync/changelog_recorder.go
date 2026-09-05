@@ -9,14 +9,14 @@ import (
 	sharedlogger "autoreas-bridge/internal/logger"
 )
 
-type pendingChangelogStore interface {
+type pendingChangelogInserter interface {
 	InsertPending(ctx context.Context, entry ChangelogEntry) error
 }
 
 // ChangelogRecorder subscribes to anime.changed events and records pending changelog rows.
 type ChangelogRecorder struct {
 	bus   events.Bus
-	store pendingChangelogStore
+	store pendingChangelogInserter
 	now   func() time.Time
 	log   sharedlogger.Logger
 
@@ -26,7 +26,7 @@ type ChangelogRecorder struct {
 }
 
 // NewChangelogRecorder builds the event-bus recorder that persists pending changelog rows.
-func NewChangelogRecorder(bus events.Bus, store pendingChangelogStore, loggers ...sharedlogger.Logger) *ChangelogRecorder {
+func NewChangelogRecorder(bus events.Bus, store pendingChangelogInserter, loggers ...sharedlogger.Logger) *ChangelogRecorder {
 	recorder := &ChangelogRecorder{bus: bus, store: store, now: time.Now}
 	if len(loggers) > 0 {
 		recorder.log = loggers[0]

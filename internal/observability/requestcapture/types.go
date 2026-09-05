@@ -157,7 +157,7 @@ type QueueStopResult struct {
 }
 
 // NewCaptureRecord creates a minimal capture record for tests and callers.
-func NewCaptureRecord(kind string, deviceID string) CaptureRecord {
+func NewCaptureRecord(kind, deviceID string) CaptureRecord {
 	return CaptureRecord{
 		Kind:      kind,
 		Route:     "/api/animes/test",

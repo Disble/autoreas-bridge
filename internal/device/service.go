@@ -63,7 +63,7 @@ type SyncStateStore interface {
 // Store persists pairing tokens and paired-device records.
 type Store interface {
 	SavePairingToken(ctx context.Context, token string, createdAtMs int64) error
-	ConsumePairingToken(ctx context.Context, token string, consumedAtMs int64, expiresBeforeMs int64) error
+	ConsumePairingToken(ctx context.Context, token string, consumedAtMs, expiresBeforeMs int64) error
 	FindActivePairingToken(ctx context.Context, createdAfterOrAtMs int64) (string, error)
 	PruneExpiredPairingTokens(ctx context.Context, expiresBeforeMs int64) (int64, error)
 	InsertPairedDevice(ctx context.Context, device StoredDevice) error

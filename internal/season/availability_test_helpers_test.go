@@ -114,14 +114,14 @@ func seedMatched(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name,
 }
 
 // seedCreated adds a created availability row to the test repository.
-func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seasonID, id, name, slug, animeID string, episodes int) {
+func seedCreated(t *testing.T, svc *Service, repo *fakeRepo, seed createdSeed) {
 	t.Helper()
-	sa := domain.NewSeasonAnime(id, seasonID, name, svc.now())
+	sa := domain.NewSeasonAnime(seed.id, seed.seasonID, seed.name, svc.now())
 	sa.MatchStatus = domain.MatchMatched
-	sa.MatchedSlug = slug
+	sa.MatchedSlug = seed.slug
 	sa.Availability = domain.AvailabilityCreated
-	sa.AnimeID = animeID
-	sa.AvailableEpisodes = episodes
+	sa.AnimeID = seed.animeID
+	sa.AvailableEpisodes = seed.episodes
 	if err := repo.CreateSeasonAnime(context.Background(), sa); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -151,4 +151,16 @@ type gatewayPlacementsErr struct {
 
 func (g *gatewayPlacementsErr) CurrentPlacements(_ context.Context, _ []string) (map[string][]domain.Placement, error) {
 	return nil, errors.New("placements lookup failed")
+}
+
+// createdSeed describes one already-created season anime for the availability
+// tests. A struct rather than a parameter list (SonarQube go:S107): seasonID,
+// id, name, slug and animeID were five adjacent strings.
+type createdSeed struct {
+	seasonID string
+	id       string
+	name     string
+	slug     string
+	animeID  string
+	episodes int
 }

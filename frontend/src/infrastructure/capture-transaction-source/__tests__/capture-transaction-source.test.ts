@@ -58,7 +58,7 @@ describe('capture-transaction-source', () => {
 
     const pagePromise = source.listTransactions({ route: '/api/animes/anime-1', limit: 10 });
 
-    window.go = { main: { App: { ListCaptureTransactions: listMock, GetCaptureTransaction: vi.fn() } } } as never;
+    window.go = { desktop: { App: { ListCaptureTransactions: listMock, GetCaptureTransaction: vi.fn() } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await pagePromise;
@@ -93,7 +93,7 @@ describe('capture-transaction-source', () => {
 
     const pagePromise = source.listTransactions({ deviceId: 'device-9', changelogId: 0, httpStatus: 404 });
 
-    window.go = { main: { App: { ListCaptureTransactions: listMock, GetCaptureTransaction: vi.fn() } } } as never;
+    window.go = { desktop: { App: { ListCaptureTransactions: listMock, GetCaptureTransaction: vi.fn() } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await pagePromise;
@@ -129,7 +129,7 @@ describe('capture-transaction-source', () => {
     const summaryPromise = source.summarizeTransactions({ route: '/api/animes/anime-1', deviceId: 'device-9', changelogId: 0 });
 
     window.go = {
-      main: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: vi.fn(), SummarizeCaptureTransactions: summarizeMock } },
+      desktop: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: vi.fn(), SummarizeCaptureTransactions: summarizeMock } },
     } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
@@ -175,7 +175,7 @@ describe('capture-transaction-source', () => {
 
     const resultPromise = source.getTransaction('req-1');
 
-    window.go = { main: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: getMock } } } as never;
+    window.go = { desktop: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: getMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await resultPromise;
@@ -198,7 +198,7 @@ describe('capture-transaction-source', () => {
   it('reports the capture transaction runtime as available once both bindings are attached', async () => {
     const { isCaptureTransactionRuntimeAvailable } = await import('../capture-transaction-source.helpers');
 
-    window.go = { main: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: vi.fn() } } } as never;
+    window.go = { desktop: { App: { ListCaptureTransactions: vi.fn(), GetCaptureTransaction: vi.fn() } } } as never;
 
     expect(isCaptureTransactionRuntimeAvailable()).toBe(true);
   });

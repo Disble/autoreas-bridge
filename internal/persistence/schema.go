@@ -106,7 +106,9 @@ func wrapSchemaError(operation string, err error) error {
 // tableColumns returns the column names of tableName via PRAGMA table_info.
 // Returns an empty non-nil slice (without error) when the table does not exist.
 func tableColumns(db *sql.DB, tableName string) (columns []string, err error) {
-	rows, err := db.Query(`PRAGMA table_info(` + tableName + `)`)
+	// NOSONAR go:S2077 -- tableName (every caller passes a TableSchema.Name literal) is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	rows, err := db.Query(`PRAGMA table_info(` + tableName + `)`) // NOSONAR
 	if err != nil {
 		return nil, err
 	}

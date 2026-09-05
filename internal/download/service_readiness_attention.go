@@ -75,10 +75,15 @@ func (s *Service) raiseReadinessAttention(ctx context.Context, runID, trigger st
 		return
 	}
 	rows := buildReadinessAttentionRows(blocked)
-	s.notifyWithRowsAndActions(ctx, notification.LevelWarning, kindReadinessAttention, runID,
-		readinessAttentionTitle,
-		fmt.Sprintf("%d scheduled anime cannot download and will be skipped on this run.", len(blocked)),
-		rows, buildReadinessAttentionActions(runID, rows))
+	s.notify(ctx, runNotification{
+		level:   notification.LevelWarning,
+		kind:    kindReadinessAttention,
+		runID:   runID,
+		title:   readinessAttentionTitle,
+		body:    fmt.Sprintf("%d scheduled anime cannot download and will be skipped on this run.", len(blocked)),
+		rows:    rows,
+		actions: buildReadinessAttentionActions(runID, rows),
+	})
 }
 
 // scheduledBlockedAnimes narrows a readiness snapshot to the anime this notice is about: the ones

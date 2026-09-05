@@ -22,20 +22,20 @@ const tracerDomain = "tracer-bullet"
 // health rollups can exclude synthetic traffic from a real-entity ratio.
 const tracerEventType = "tracer.step"
 
-// TraceSink records tracer-bullet messages.
-type TraceSink interface {
+// TraceRecorder records tracer-bullet messages.
+type TraceRecorder interface {
 	Record(message string)
 }
 
 // Runner publishes the tracer-bullet event sequence.
 type Runner struct {
 	bus  events.Bus
-	sink TraceSink
+	sink TraceRecorder
 	log  sharedlogger.Logger
 }
 
 // NewRunner creates a tracer-bullet runner.
-func NewRunner(bus events.Bus, sink TraceSink, loggers ...sharedlogger.Logger) *Runner {
+func NewRunner(bus events.Bus, sink TraceRecorder, loggers ...sharedlogger.Logger) *Runner {
 	runner := &Runner{
 		bus:  bus,
 		sink: sink,

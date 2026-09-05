@@ -47,7 +47,7 @@ type Logger interface {
 	Logf(domain, level string, fields Fields, format string, args ...any)
 }
 
-type entrySink interface {
+type entryWriter interface {
 	WriteEntry(entry LogEntry)
 }
 

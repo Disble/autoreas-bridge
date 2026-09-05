@@ -231,3 +231,53 @@ function pruneUnprovidedFields(fields: Readonly<Record<string, unknown>>) {
     Object.entries(fields).filter(([, value]) => value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)),
   );
 }
+
+/**
+ * Folds a name to the identity the catalogue treats as one anime, matching the
+ * unique index in `internal/sync`: case and surrounding whitespace never tell
+ * two animes apart.
+ * @param name The raw name as typed.
+ * @returns The comparable key for that name.
+ */
+function toAnimeNameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * Reports, per draft row, why its name cannot be used: another anime in the
+ * catalogue already holds it, or an earlier row in this same batch does.
+ *
+ * This is the early half of a two-layer guard, not the guard itself. The
+ * backend refuses the same collision and the database index makes it
+ * unbypassable; this exists so the refusal arrives while the user is still on
+ * the name, instead of after they have filled the row and placed it on the
+ * schedule.
+ * @param rows The current batch-create rows.
+ * @param storedNames Every name already in the catalogue, deleted records included.
+ * @returns A message per conflicting draft id; rows without a conflict are absent.
+ */
+export function findAnimeCreateNameConflicts(
+  rows: readonly Readonly<AnimeCreateRowDraft>[],
+  storedNames: readonly string[],
+): Readonly<Record<string, string>> {
+  const stored = new Set(storedNames.map(toAnimeNameKey));
+  const conflicts: Record<string, string> = {};
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const key = toAnimeNameKey(row.name);
+    if (key === '') {
+      continue;
+    }
+    if (stored.has(key)) {
+      conflicts[row.draftId] = `An anime named "${row.name.trim()}" already exists in your library.`;
+      continue;
+    }
+    if (seen.has(key)) {
+      conflicts[row.draftId] = `Another title in this batch is already called "${row.name.trim()}".`;
+      continue;
+    }
+    seen.add(key);
+  }
+  return conflicts;
+}

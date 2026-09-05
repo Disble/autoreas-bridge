@@ -23,7 +23,13 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <LabeledTextField label="Name" placeholder="e.g. Shokugeki no Souma" value={row.name} onChange={(value) => viewModel.onRowChange(draftId, { name: value })} />
+          <LabeledTextField
+            errorMessage={viewModel.nameConflicts[draftId]}
+            label="Name"
+            placeholder="e.g. Shokugeki no Souma"
+            value={row.name}
+            onChange={(value) => viewModel.onRowChange(draftId, { name: value })}
+          />
           <LabeledSelect
             ariaLabel="Type"
             fallbackValue={row.kind}

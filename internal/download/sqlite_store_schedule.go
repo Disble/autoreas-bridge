@@ -184,7 +184,7 @@ func (s *SQLiteStore) ApplyScheduleSettlement(ctx context.Context, req ScheduleS
 }
 
 // RecordMissedStartupAttempt persists the latest unresolved missed-startup terminal truth.
-func (s *SQLiteStore) RecordMissedStartupAttempt(ctx context.Context, localDate string, status string) error {
+func (s *SQLiteStore) RecordMissedStartupAttempt(ctx context.Context, localDate, status string) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO download_schedule_config (id, last_missed_attempt_local_date, last_missed_attempt_status)
 		VALUES (1, ?, ?)

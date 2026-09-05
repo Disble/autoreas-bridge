@@ -35,7 +35,7 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
     const result = await options.activateRecord();
     // Restore is a lifecycle command (EpisodeCommandResult); "ok" means the
     // anime is active again, so refresh the rail to re-home it under "Watching now".
-    if (result !== undefined && result.status === 'ok') await options.loadItems();
+    if (result?.status === 'ok') await options.loadItems();
   }, [options]);
   const onApplySchedule = useCallback(async (entries: readonly ApplyAnimeScheduleDraftEntry[]) => {
     const result = await options.applySchedule(entries);

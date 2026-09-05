@@ -259,6 +259,10 @@ func TestSQLiteStoreRecordMissedStartupAttemptPersistsSeparateUnresolvedTruth(t 
 	}
 }
 
+// NOSONAR go:S3776 -- same finding as the gocognit nolint below and the same reason:
+// this is a table-driven integration test whose branches are persistence
+// round-trips, not logic. Splitting it would hide which round-trip failed.
+//
 //nolint:gocognit // integration test exercising multiple persistence round-trips
 func TestSQLiteStoreSchedulePreferenceSavePreservesMissedDayTruthAcrossStoreRestart(t *testing.T) {
 	t.Parallel()

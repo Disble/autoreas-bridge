@@ -56,6 +56,19 @@ export function measureWhenReady(isReady: () => boolean, onMeasured: () => void)
 }
 
 /**
+ * Reduces a fixture's checks to the single word the smoke reader parses.
+ * @param checks Every check the fixture measured, or undefined before it ran.
+ * @returns 'pending' when nothing measured, 'pass' when all passed, else 'fail'.
+ */
+function resolveVerdict(checks: readonly Check[] | undefined): 'pending' | 'pass' | 'fail' {
+  if (checks === undefined) {
+    return 'pending';
+  }
+
+  return checks.every((check) => check.ok) ? 'pass' : 'fail';
+}
+
+/**
  * The node `layout-smoke.mjs` reads back with `--dump-dom`.
  *
  * `pending` (nothing measured yet) is deliberately its own value rather than a
@@ -63,7 +76,7 @@ export function measureWhenReady(isReady: () => boolean, onMeasured: () => void)
  * is the state a broken fixture leaves behind.
  */
 export function VerdictReport({ checks }: Readonly<{ checks: readonly Check[] | undefined }>) {
-  const verdict = checks === undefined ? 'pending' : checks.every((check) => check.ok) ? 'pass' : 'fail';
+  const verdict = resolveVerdict(checks);
 
   return (
     <pre data-layout-verdict={verdict}>

@@ -44,7 +44,7 @@ describe('bridge-runtime-source cover and events', () => {
     const getEpisodeDayCounts = vi.fn().mockResolvedValue([{ count: 2, day: 'Lunes' }]);
     const coverPromise = source.getAnimeCover?.('anime-1');
     const countsPromise = source.getEpisodeDayCounts?.();
-    window.go = { main: { App: { GetAnimeCover: getAnimeCover, GetEpisodeDayCounts: getEpisodeDayCounts } } } as never;
+    window.go = { desktop: { App: { GetAnimeCover: getAnimeCover, GetEpisodeDayCounts: getEpisodeDayCounts } } } as never;
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await expect(coverPromise).resolves.toEqual({ dataUrl: 'data:image/jpeg;base64,abc', source: 'cover' });
     await expect(countsPromise).resolves.toEqual([{ count: 2, day: 'Lunes' }]);

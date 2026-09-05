@@ -14,7 +14,7 @@ import (
 )
 
 type syncE2EHTTPEndpointEnv struct {
-	ctx            context.Context
+	ctx            context.Context // NOSONAR godre:S8242 -- test fixture carrying the suite's ctx to the cases in sync_e2e_endpoints_test.go.
 	handler        http.Handler
 	snapshotStore  *bridgeSync.AnimeSnapshotStore
 	changelogStore *bridgeSync.ChangelogStore
@@ -79,7 +79,7 @@ func seedSyncE2EDeviceService(t *testing.T, ctx context.Context, db *sql.DB) *de
 }
 
 // seedSyncE2ESnapshot stores a baseline anime snapshot for an end-to-end test.
-func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
+func seedSyncE2ESnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string) {
 	t.Helper()
 	if err := store.ReplaceBaseline(context.Background(), map[string]anime.SnapshotRecord{
 		animeID: {

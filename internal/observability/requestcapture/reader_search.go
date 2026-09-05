@@ -1,8 +1,9 @@
 package requestcapture
 
-import "strings"
-
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Search returns newest-first capture summaries, applying any supplied
 // filters as a conjunction with the pagination cursor. An unmatched
@@ -68,7 +69,9 @@ func (r *Reader) Search(ctx context.Context, params SearchParams) (SearchPage, e
 func (r *Reader) Get(ctx context.Context, requestID string) (GetResult, error) {
 	columns := r.optional.selectColumns()
 	query := "SELECT " + selectColumnList(columns) + " FROM " + r.tables.captures + " ORDER BY captured_at_ms DESC, request_id DESC"
-	rows, err := r.db.QueryContext(ctx, query)
+	// NOSONAR go:S2077 -- r.tables.captures, and selectColumnList's output is a compile-time internal literal,
+	// never caller data; SQLite cannot bind an identifier as a parameter.
+	rows, err := r.db.QueryContext(ctx, query) // NOSONAR
 	if err != nil {
 		return GetResult{}, err
 	}

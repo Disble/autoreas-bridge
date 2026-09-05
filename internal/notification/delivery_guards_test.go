@@ -63,7 +63,7 @@ type recordingLogger struct {
 	messages []string
 }
 
-func (r *recordingLogger) Logf(_ string, _ string, _ sharedlogger.Fields, format string, args ...any) {
+func (r *recordingLogger) Logf(_, _ string, _ sharedlogger.Fields, format string, args ...any) {
 	r.messages = append(r.messages, sprintfLike(format, args...))
 }
 

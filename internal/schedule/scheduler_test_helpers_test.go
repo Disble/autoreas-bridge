@@ -144,7 +144,7 @@ func (s *fakeConfigStore) ApplyScheduleSettlement(_ context.Context, req downloa
 	return download.ScheduleSettlementResult{Outcome: download.ScheduleSettlementApplied}, nil
 }
 
-func (s *fakeConfigStore) RecordMissedStartupAttempt(_ context.Context, localDate string, status string) error {
+func (s *fakeConfigStore) RecordMissedStartupAttempt(_ context.Context, localDate, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cfg.LastMissedAttemptDate = localDate

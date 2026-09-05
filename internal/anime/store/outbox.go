@@ -42,7 +42,11 @@ func (g *Gateway) DrainOutbox(ctx context.Context) error {
 	}
 	for _, event := range pending {
 		g.config.PublishChanged(event.EventID, event.AnimeID, append([]byte(nil), event.Payload...), append([]string(nil), event.ChangedFields...))
-		markCtx, cancel := context.WithTimeout(context.Background(), writeCleanupTimeout)
+		// Detached from ctx on purpose. The in-memory publish on the line above has
+		// already happened; if the caller cancels here the row must still be marked,
+		// or the event republishes on the next drain. That is the at-least-once
+		// guarantee this function documents.
+		markCtx, cancel := context.WithTimeout(context.Background(), writeCleanupTimeout) // NOSONAR godre:S8239
 		err := g.config.Outbox.MarkAnimeChangedPublished(markCtx, event.EventID, g.config.Now().UnixMilli())
 		cancel()
 		if err != nil {

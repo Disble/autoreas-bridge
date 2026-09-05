@@ -289,8 +289,11 @@ func (s *failFinalizeOnceStore) Finalize(ctx context.Context, operationID string
 var errFinalizeInjected = fmt.Errorf("injected finalize failure")
 
 // gatewayAnimeJSON creates a minimal stored anime payload for gateway tests.
+// The name is derived from the id rather than fixed: the catalogue enforces
+// unique anime names, so a shared fixture name makes any case seeding two
+// animes fail on the constraint instead of on what it set out to prove.
 func gatewayAnimeJSON(id string, progress float64) []byte {
-	return []byte(`{"id":"` + id + `","name":"Test","episodesWatched":` + jsonNumber(progress) + `,"status":2,"active":true}`)
+	return []byte(`{"id":"` + id + `","name":"Test ` + id + `","episodesWatched":` + jsonNumber(progress) + `,"status":2,"active":true}`)
 }
 
 // jsonNumber encodes a numeric fixture value as JSON.

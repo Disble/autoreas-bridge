@@ -45,6 +45,8 @@ export interface AnimeCreateViewModel {
   readonly board?: AnimeEditorScheduleBoard;
   readonly draftEntries: readonly AnimeScheduleOrderingDraftEntry[];
   readonly lockedAnimeIds: readonly string[];
+  /** Why a row's name cannot be used, keyed by draft id; absent when it is free. */
+  readonly nameConflicts: Readonly<Record<string, string>>;
   readonly feedback?: string;
   readonly isSubmitting: boolean;
   readonly canRemoveRow: boolean;

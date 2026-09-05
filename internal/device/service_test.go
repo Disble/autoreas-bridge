@@ -240,7 +240,7 @@ func (s *stubStore) SavePairingToken(context.Context, string, int64) error {
 	return nil
 }
 
-func (s *stubStore) ConsumePairingToken(_ context.Context, token string, _ int64, _ int64) error {
+func (s *stubStore) ConsumePairingToken(_ context.Context, token string, _, _ int64) error {
 	s.consumedToken = token
 	return s.consumeErr
 }

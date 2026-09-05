@@ -66,7 +66,7 @@ const (
 	ArgKeyText = "text"
 )
 
-// StaticRegistry is the default IntentRegistry: an explicit map filled at
+// StaticRegistry is the default IntentResolver: an explicit map filled at
 // the composition root (app_notification_center.go), never from inside this
 // package -- that is what keeps center from importing internal/download and
 // recreating notification->download->notification. Shape precedent:

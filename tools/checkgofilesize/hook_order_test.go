@@ -43,7 +43,7 @@ func findGoHookOrder(t *testing.T, jobs []lefthookJob) (int, int) {
 }
 
 // assertGoHookOrder verifies the deterministic Go hook ordering.
-func assertGoHookOrder(t *testing.T, jobs []lefthookJob, goFileSizeIndex int, golangciIndex int) {
+func assertGoHookOrder(t *testing.T, jobs []lefthookJob, goFileSizeIndex, golangciIndex int) {
 	t.Helper()
 	if goFileSizeIndex == -1 {
 		t.Fatal("lefthook.yml is missing pre-commit job go-filesize")

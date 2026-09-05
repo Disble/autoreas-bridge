@@ -50,4 +50,4 @@ func (s *StatusService) GetStatus(ctx context.Context) (contracts.StatusInfo, er
 	return status, nil
 }
 
-var _ contracts.StatusService = (*StatusService)(nil)
+var _ contracts.StatusReader = (*StatusService)(nil)

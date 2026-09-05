@@ -106,8 +106,8 @@ type AnimeQueryService interface {
 	GetAnimeDetail(ctx context.Context, id string) (*AnimeDetail, error)
 }
 
-// AnimeWriteService applies anime mutations.
-type AnimeWriteService interface {
+// AnimePatcher applies anime mutations.
+type AnimePatcher interface {
 	PatchAnime(ctx context.Context, id string, patch AnimePatch) (AnimePatchResult, error)
 }
 
@@ -120,8 +120,8 @@ type SyncTriggerService interface {
 	LastChangedAt(ctx context.Context) (*int64, error)
 }
 
-// StatusService provides the current bridge status.
-type StatusService interface {
+// StatusReader provides the current bridge status.
+type StatusReader interface {
 	GetStatus(ctx context.Context) (StatusInfo, error)
 }
 

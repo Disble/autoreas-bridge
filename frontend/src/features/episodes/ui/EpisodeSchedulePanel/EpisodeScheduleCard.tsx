@@ -30,13 +30,13 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
             <CoverPlaceholderScene className="absolute inset-0 size-full" />
           </div>
         )}
-        <Card.Content className="flex flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card.Content className="grid min-w-0 flex-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Typography type="h2" className="truncate text-base font-semibold text-foreground">
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+              <Typography type="h2" className="min-w-0 flex-initial truncate text-base font-semibold text-foreground">
                 {row.name}
               </Typography>
-              <Chip size="sm" color={row.isProgressBlocked ? 'warning' : 'success'} variant="soft">
+              <Chip className="shrink-0" size="sm" color={row.isProgressBlocked ? 'warning' : 'success'} variant="soft">
                 {row.stateLabel}
               </Chip>
             </div>
@@ -60,7 +60,7 @@ export function EpisodeScheduleCard(props: Readonly<EpisodeScheduleCardProps>) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex shrink-0 flex-nowrap items-center gap-2 sm:justify-end">
             <Button
               isIconOnly
               aria-label={`Subtract one episode for ${row.name}. Secondary click subtracts half episode.`}

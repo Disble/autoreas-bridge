@@ -47,7 +47,7 @@ describe('bridge-runtime-source degraded paths', () => {
 
     const animePromise = source.getSyncingAnimeItems();
 
-    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+    window.go = { desktop: { App: { GetSQLiteStatus: vi.fn() } } } as never;
 
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -71,7 +71,7 @@ describe('bridge-runtime-source degraded paths', () => {
 
     const historyPromise = source.getAnimeHistory();
 
-    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+    window.go = { desktop: { App: { GetSQLiteStatus: vi.fn() } } } as never;
 
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -95,7 +95,7 @@ describe('bridge-runtime-source degraded paths', () => {
 
     const detailPromise = source.getAnimeDetail('anime-1');
 
-    window.go = { main: { App: { GetSQLiteStatus: vi.fn() } } } as never;
+    window.go = { desktop: { App: { GetSQLiteStatus: vi.fn() } } } as never;
 
     await vi.advanceTimersByTimeAsync(5000);
 

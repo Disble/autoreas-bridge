@@ -1,10 +1,29 @@
 package sync
 
-import "slices"
-
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 const (
+	// animeSnapshotsNameKeyExpr is the anime identity the catalogue already
+	// assumes everywhere: the search rails filter by name, and the download
+	// destination is derived from it (internal/download/destination.go), so two
+	// animes sharing a name are indistinguishable in the UI and collide on disk.
+	// Case and surrounding whitespace never distinguish two animes, so the key
+	// folds both away.
+	//
+	// The json_valid guard is load-bearing, not defensive dressing: a generated
+	// column is evaluated on every insert, and the backup import legitimately
+	// writes a record whose snapshot_json is empty (ImportAnimeSnapshots defaults
+	// an absent field to ""). Calling json_extract on that raises "malformed
+	// JSON" and fails the whole import. Yielding NULL instead leaves such a row
+	// unconstrained, which is the right answer twice over: SQLite treats NULLs as
+	// distinct in a unique index, and a record with no readable name has no name
+	// to be unique about.
+	animeSnapshotsNameKeyExpr = `CASE WHEN json_valid(snapshot_json) ` +
+		`THEN lower(trim(json_extract(snapshot_json, '$.name'))) END`
+
 	animeSnapshotsDDL = `
 		CREATE TABLE IF NOT EXISTS anime_snapshots (
 			anime_id TEXT PRIMARY KEY,
@@ -12,8 +31,17 @@ const (
 			snapshot_hash TEXT NOT NULL,
 			modified_at INTEGER NOT NULL DEFAULT 0,
 			schedule_day_migrated_at INTEGER NOT NULL DEFAULT 0,
-			vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0
+			vocabulary_migrated_at INTEGER NOT NULL DEFAULT 0,
+			name_key TEXT GENERATED ALWAYS AS (` + animeSnapshotsNameKeyExpr + `) VIRTUAL
 		)`
+
+	// animeSnapshotsNameKeyIndexDDL is the deterministic half of the anime
+	// identity guard. The service layer produces the readable error; this makes
+	// the invariant unbypassable, including by write paths that never reach a
+	// service -- backup_import.go inserts straight into the table.
+	animeSnapshotsNameKeyIndexDDL = `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_snapshots_name_key
+		ON anime_snapshots (name_key)`
 
 	// schemaMigrationMarkersDDL creates the dedicated global one-shot migration
 	// marker table (SDD-56). A per-row column on anime_snapshots cannot safely

@@ -87,7 +87,7 @@ func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
 }
 
 // seedAnimeSnapshot inserts a snapshot fixture into the test store.
-func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
+func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string) {
 	t.Helper()
 
 	records := map[string]anime.SnapshotRecord{
@@ -103,7 +103,7 @@ func seedAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, anime
 }
 
 // seedAnimeSnapshotWithModifiedAt inserts a snapshot fixture with an OCC token.
-func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string, modifiedAt int64) {
+func seedAnimeSnapshotWithModifiedAt(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string, modifiedAt int64) {
 	t.Helper()
 
 	records := map[string]anime.SnapshotRecord{

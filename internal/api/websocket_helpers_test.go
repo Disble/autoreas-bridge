@@ -50,7 +50,7 @@ func closeWebsocket(t *testing.T, conn *websocket.Conn) {
 }
 
 // dialWebSocketWithToken dials the websocket with the provided bearer token.
-func dialWebSocketWithToken(t *testing.T, wsURL string, token string) *websocket.Conn {
+func dialWebSocketWithToken(t *testing.T, wsURL, token string) *websocket.Conn {
 	t.Helper()
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+token)
@@ -103,7 +103,10 @@ func newWebSocketWriteEnvironment(t *testing.T) (*bridgeSync.AnimeSnapshotStore,
 	store := bridgeSync.NewAnimeSnapshotStore(db)
 	seedWebSocketAnimeSnapshot(t, store, "anime-1", seed)
 	bus := events.NewBus()
-	ctx, cancel := context.WithCancel(context.Background())
+	// Deferring cancel here would kill the context when this helper RETURNS,
+	// before the test that owns it runs. It is cancelled in the t.Cleanup below,
+	// ordered ahead of writer.Wait() on purpose.
+	ctx, cancel := context.WithCancel(context.Background()) // NOSONAR godre:S8188
 	writer := anime.NewUpdateWriter(anime.UpdateWriterConfig{Bus: bus, Publisher: bus, Logger: websocketWarningLogger{}, SelfEchoRegistry: anime.NewSelfEchoRegistry()})
 	writer.StartAsync(ctx)
 	t.Cleanup(func() { cancel(); writer.Wait() })
@@ -128,7 +131,7 @@ func (s stubWebSocketAnimeWrite) PatchAnime(context.Context, string, contracts.A
 }
 
 // assertJSONLineEqualForWebSocketTest compares two JSON lines structurally.
-func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) {
+func assertJSONLineEqualForWebSocketTest(t *testing.T, got, want string) {
 	t.Helper()
 	var gotValue any
 	if err := json.Unmarshal([]byte(got), &gotValue); err != nil {
@@ -144,7 +147,7 @@ func assertJSONLineEqualForWebSocketTest(t *testing.T, got string, want string) 
 }
 
 // deepEqualJSON compares JSON-compatible values by their encoded representation.
-func deepEqualJSON(got any, want any) bool {
+func deepEqualJSON(got, want any) bool {
 	left, err := json.Marshal(got)
 	if err != nil {
 		return false
@@ -157,7 +160,7 @@ func deepEqualJSON(got any, want any) bool {
 }
 
 // seedWebSocketAnimeSnapshot stores the baseline used by websocket write tests.
-func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID string, payload string) {
+func seedWebSocketAnimeSnapshot(t *testing.T, store *bridgeSync.AnimeSnapshotStore, animeID, payload string) {
 	t.Helper()
 	records := map[string]anime.SnapshotRecord{
 		animeID: {

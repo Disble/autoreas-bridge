@@ -30,7 +30,7 @@ describe('observability-log-source', () => {
   it('reports the runtime as available when Go bindings and the runtime object exist', async () => {
     const { isWailsRuntimeAvailable } = await import('../observability-log-source/observability-log-source.helpers');
 
-    window.go = { main: { App: {} } } as never;
+    window.go = { desktop: { App: {} } } as never;
     window.runtime = {} as never;
 
     expect(isWailsRuntimeAvailable()).toBe(true);
@@ -39,7 +39,7 @@ describe('observability-log-source', () => {
   it('reports the runtime as unavailable when the runtime object is null', async () => {
     const { isWailsRuntimeAvailable } = await import('../observability-log-source/observability-log-source.helpers');
 
-    window.go = { main: { App: {} } } as never;
+    window.go = { desktop: { App: {} } } as never;
     window.runtime = null as never;
 
     expect(isWailsRuntimeAvailable()).toBe(false);
@@ -54,7 +54,7 @@ describe('observability-log-source', () => {
     const recentLogsPromise = source.getRecentLogs();
 
     window.go = {
-      main: {
+      desktop: {
         App: {
           GetRecentLogs: getRecentLogsMock,
         },

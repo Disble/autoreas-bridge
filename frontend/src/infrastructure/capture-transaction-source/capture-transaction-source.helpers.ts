@@ -2,7 +2,7 @@ import {
   GetCaptureTransaction,
   ListCaptureTransactions,
   SummarizeCaptureTransactions,
-} from '../../../wailsjs/go/main/App';
+} from '../../../wailsjs/go/desktop/App';
 import type {
   CaptureDetailResult,
   CapturePage,

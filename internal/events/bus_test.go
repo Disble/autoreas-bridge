@@ -275,7 +275,7 @@ func TestInstrumentedBusDoesNotWarnOnFastHandler(t *testing.T) {
 }
 
 // assertAnimeChangedEvent verifies the identity and payload of an anime change event.
-func assertAnimeChangedEvent(t *testing.T, event Event, wantAnimeID string, wantPayload string) {
+func assertAnimeChangedEvent(t *testing.T, event Event, wantAnimeID, wantPayload string) {
 	t.Helper()
 
 	changed, ok := event.(AnimeChangedEvent)

@@ -48,7 +48,7 @@ var pendingOperationPatchCases = []struct {
 }
 
 // equalAnimePatch compares all fields of two decoded anime patches.
-func equalAnimePatch(got AnimePatch, want AnimePatch) bool {
+func equalAnimePatch(got, want AnimePatch) bool {
 	if !equalIntPointers(got.Estado, want.Estado) {
 		return false
 	}
@@ -73,7 +73,7 @@ func equalAnimePatch(got AnimePatch, want AnimePatch) bool {
 }
 
 // equalIntPointers compares optional integer values.
-func equalIntPointers(got *int, want *int) bool {
+func equalIntPointers(got, want *int) bool {
 	if got == nil || want == nil {
 		return got == nil && want == nil
 	}
@@ -81,7 +81,7 @@ func equalIntPointers(got *int, want *int) bool {
 }
 
 // equalFloatPointers compares optional floating-point values.
-func equalFloatPointers(got *float64, want *float64) bool {
+func equalFloatPointers(got, want *float64) bool {
 	if got == nil || want == nil {
 		return got == nil && want == nil
 	}
@@ -89,7 +89,7 @@ func equalFloatPointers(got *float64, want *float64) bool {
 }
 
 // equalInt64Pointers compares optional int64 values.
-func equalInt64Pointers(got *int64, want *int64) bool {
+func equalInt64Pointers(got, want *int64) bool {
 	if got == nil || want == nil {
 		return got == nil && want == nil
 	}

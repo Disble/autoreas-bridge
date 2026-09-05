@@ -19,7 +19,8 @@ strings. This covers the `episode_service*` file family, exported contracts
 `ListEpisodeSchedule`, `AdjustWatchedEpisodes`, `ListEpisodeDayCounts`),
 wiring helpers (`wireEpisodeService*`, `a.episodeService`),
 the `remainingEpisodes` helper, and the Wails-bound
-`App` methods in `app_runtime.go`/`app_desktop_actions.go`. This is a pure
+`App` methods in `internal/desktop/app_runtime.go` and
+`internal/desktop/app_desktop_actions.go`. This is a pure
 rename: no scheduling, availability, or download behavior changes.
 
 This requirement additionally covers the weekday-matching vocabulary used by
@@ -51,8 +52,8 @@ unaffected.
 - **THEN** the calls use `EpisodeScheduleItem`, `EpisodeDayCount`, `EpisodeCommandResult`,
   `ListEpisodeSchedule`, `AdjustWatchedEpisodes`, and `ListEpisodeDayCounts` —
   no `Chapter`-named symbol remains reachable from `internal/anime`,
-  `internal/api/contracts`, `app.go`, `app_runtime.go`, `app_desktop_actions.go`,
-  or `app_season_availability.go`
+  `internal/api/contracts`, or `internal/desktop/{app,app_runtime,app_desktop_actions,
+  app_season_availability}.go`
 
 #### Scenario: Persisted schedule-day keys rename, the weekday value does not
 

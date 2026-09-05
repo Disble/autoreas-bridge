@@ -5,8 +5,16 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRecord, AnimeEditorSaveResult } from '../../../../../shared/contracts/anime.types';
 import { useAnimeEditorWorkspace } from '../use-anime-editor-workspace';
 
+/** Router context the hook needs, since it reads and writes navigation state. */
 const wrapper = ({ children }: Readonly<{ children: React.ReactNode }>) => createElement(MemoryRouter, undefined, children);
 
+/**
+ * Builds one editor record with everything defaulted except the id.
+ * @param animeId The record's id.
+ * @param name Display name; defaults to the id.
+ * @param modifiedAt Optimistic-concurrency stamp.
+ * @returns The record.
+ */
 function record(animeId: string, name = animeId, modifiedAt = 100): AnimeEditorRecord {
   return {
     animeId,
@@ -26,6 +34,12 @@ function record(animeId: string, name = animeId, modifiedAt = 100): AnimeEditorR
   };
 }
 
+/**
+ * Builds one save result, optionally carrying the server's authoritative record.
+ * @param outcome The outcome the save reported.
+ * @param authority The record the server considers current, when it sent one.
+ * @returns The save result.
+ */
 function mutation(outcome: AnimeEditorSaveResult['outcome'], authority?: AnimeEditorRecord): AnimeEditorSaveResult {
   return {
     animeId: authority?.animeId,
@@ -36,6 +50,10 @@ function mutation(outcome: AnimeEditorSaveResult['outcome'], authority?: AnimeEd
   };
 }
 
+/**
+ * Builds the editor's data source with every call stubbed.
+ * @returns The stubbed source.
+ */
 function createSource() {
   return {
     getAnimes: vi.fn().mockResolvedValue([
@@ -51,6 +69,11 @@ function createSource() {
   };
 }
 
+/**
+ * Renders the hook and waits until it has selected its first record.
+ * @param source The data source to render against.
+ * @returns The render result plus the source it was given.
+ */
 async function loadHook(source = createSource()) {
   const rendered = renderHook(() => useAnimeEditorWorkspace({ initialAnimeId: 'anime-1' }, source as never), { wrapper });
   await waitFor(() => expect(rendered.result.current.selectedRecord?.animeId).toBe('anime-1'));
@@ -138,7 +161,7 @@ describe('useAnimeEditorWorkspace', () => {
     const link = document.createElement('a');
     link.href = '/catalog';
     document.body.append(link);
-    act(() => fireEvent.click(link));
+    fireEvent.click(link);
     expect(result.current.isGuardOpen).toBe(true);
     act(() => result.current.onStayWithCurrentEditor());
 

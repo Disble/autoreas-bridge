@@ -254,9 +254,6 @@ func (h *Handler) handleAnimeByID(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, item)
 		return
-	case http.MethodDelete:
-		writeMethodNotAllowed(w)
-		return
 	case http.MethodPatch:
 		h.patchAnime.ServeHTTP(w, r)
 		return

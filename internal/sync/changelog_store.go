@@ -103,7 +103,7 @@ func (s *ChangelogStore) LastChangedAt(ctx context.Context) (*int64, error) {
 }
 
 // AcknowledgeDevice records the latest changelog seen by a paired device.
-func (s *ChangelogStore) AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID int64, lastSeenAtMs int64) error {
+func (s *ChangelogStore) AcknowledgeDevice(ctx context.Context, deviceID string, lastAckChangelogID, lastSeenAtMs int64) error {
 	if deviceID == "" {
 		return fmt.Errorf("acknowledge device: device id is required")
 	}
@@ -124,7 +124,7 @@ func (s *ChangelogStore) AcknowledgeDevice(ctx context.Context, deviceID string,
 }
 
 // SetDeviceSyncStatus updates the persisted sync-health state for one device.
-func (s *ChangelogStore) SetDeviceSyncStatus(ctx context.Context, deviceID string, status string) error {
+func (s *ChangelogStore) SetDeviceSyncStatus(ctx context.Context, deviceID, status string) error {
 	if deviceID == "" {
 		return fmt.Errorf("set device sync status: device id is required")
 	}
@@ -215,7 +215,7 @@ func (s *ChangelogStore) ListDeviceSyncStates(ctx context.Context) (states []Dev
 }
 
 // EvaluateDeviceStaleness classifies every device using the given stale thresholds.
-func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs int64, staleAfterMs int64, warnBeforeStaleMs int64) (states []DeviceSyncState, err error) {
+func (s *ChangelogStore) EvaluateDeviceStaleness(ctx context.Context, nowMs, staleAfterMs, warnBeforeStaleMs int64) (states []DeviceSyncState, err error) {
 	staleCutoff := nowMs - staleAfterMs
 	warningCutoff := staleCutoff + warnBeforeStaleMs
 

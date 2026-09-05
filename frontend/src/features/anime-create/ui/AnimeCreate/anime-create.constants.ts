@@ -15,3 +15,10 @@ export const ANIME_CREATE_COVER_TYPE_OPTIONS = [
   { value: 'url', label: 'URL' },
   { value: 'image', label: 'Image' },
 ] as const;
+
+/**
+ * How long the name field settles before it is checked against the catalogue.
+ * The check is local (the catalogue is loaded once at mount), so this exists to
+ * keep the message from flickering mid-word, not to spare a round trip.
+ */
+export const ANIME_CREATE_NAME_CHECK_DEBOUNCE_MS = 300;

@@ -31,8 +31,14 @@ func TestGatewayPartialRecoveryRetainsEarlierCommittedOutbox(t *testing.T) {
 		t.Fatalf("seed recovery snapshots: %v", err)
 	}
 	writeBases := bridgeSync.NewWriteBaseStore(db)
-	stageGatewayOperation(t, writeBases, "operation-a", "anime-a", 100, 200, baseA, desiredA, 100)
-	stageGatewayOperation(t, writeBases, "operation-b", "anime-b", 100, 201, baseB, desiredB, 101)
+	stageGatewayOperation(t, writeBases, stagedOperation{
+		operationID: "operation-a", animeID: "anime-a", baseToken: 100, intended: 200,
+		base: baseA, desired: desiredA, createdAt: 100,
+	})
+	stageGatewayOperation(t, writeBases, stagedOperation{
+		operationID: "operation-b", animeID: "anime-b", baseToken: 100, intended: 201,
+		base: baseB, desired: desiredB, createdAt: 101,
+	})
 
 	failSecond := &failFinalizeForOperationStore{WriteBaseStore: writeBases, failOperationID: "operation-b"}
 	first := newGateway(t, gatewayConfig{db: db, clock: 300, operations: failSecond})
@@ -83,7 +89,10 @@ func TestGatewayOutboxReplayUsesStableEventIDAndMarksOnlyAfterPublish(t *testing
 
 	published := []string{}
 	publishObserved := false
-	dispatchCtx, cancelDispatch := context.WithCancel(context.Background())
+	// cancelDispatch fires inside the publish callback below, which is the crash
+	// this test injects. Deferring it would cancel the context before the dispatch
+	// under test ever runs.
+	dispatchCtx, cancelDispatch := context.WithCancel(context.Background()) // NOSONAR godre:S8188
 	markFailure := errors.New("injected crash before mark")
 	failingOutbox := &markAfterPublishOutbox{
 		AnimeChangedOutboxStore: writeBases,
@@ -156,17 +165,32 @@ func canonicalGatewayPayload(t *testing.T, payload []byte) []byte {
 }
 
 // stageGatewayOperation stores a staged operation for gateway tests.
-func stageGatewayOperation(t *testing.T, writeBases *bridgeSync.WriteBaseStore, operationID, animeID string, baseToken, intended int64, base, desired []byte, createdAt int64) {
+// stagedOperation describes one staged gateway write for these tests. A struct
+// rather than a parameter list (SonarQube go:S107): operationID/animeID were two
+// adjacent strings, baseToken/intended two adjacent int64s, and base/desired two
+// adjacent byte slices -- three separate pairs a positional call can transpose.
+type stagedOperation struct {
+	operationID string
+	animeID     string
+	baseToken   int64
+	intended    int64
+	base        []byte
+	desired     []byte
+	createdAt   int64
+}
+
+// stageGatewayOperation stores a staged operation for gateway tests.
+func stageGatewayOperation(t *testing.T, writeBases *bridgeSync.WriteBaseStore, op stagedOperation) {
 	t.Helper()
 	err := writeBases.Stage(context.Background(), anime.WriteOperation{
-		OperationID: operationID, AnimeID: animeID,
-		BaseModifiedAt: baseToken, IntendedModifiedAt: intended,
-		BaseSnapshotJSON: base, BaseHash: anime.HashSnapshot(base),
-		DesiredSnapshotJSON: desired, DesiredHash: anime.HashSnapshot(desired),
-		Status: store.WriteOperationStatusStaged, CreatedAtMs: createdAt,
+		OperationID: op.operationID, AnimeID: op.animeID,
+		BaseModifiedAt: op.baseToken, IntendedModifiedAt: op.intended,
+		BaseSnapshotJSON: op.base, BaseHash: anime.HashSnapshot(op.base),
+		DesiredSnapshotJSON: op.desired, DesiredHash: anime.HashSnapshot(op.desired),
+		Status: store.WriteOperationStatusStaged, CreatedAtMs: op.createdAt,
 	})
 	if err != nil {
-		t.Fatalf("stage gateway operation %s: %v", operationID, err)
+		t.Fatalf("stage gateway operation %s: %v", op.operationID, err)
 	}
 }
 
@@ -187,7 +211,10 @@ func TestDrainOutboxDeliversDerivedChangedFields(t *testing.T) {
 		t.Fatalf("seed snapshot: %v", err)
 	}
 	writeBases := bridgeSync.NewWriteBaseStore(db)
-	stageGatewayOperation(t, writeBases, "operation-fields", "anime-fields", 100, 200, base, desired, 100)
+	stageGatewayOperation(t, writeBases, stagedOperation{
+		operationID: "operation-fields", animeID: "anime-fields", baseToken: 100, intended: 200,
+		base: base, desired: desired, createdAt: 100,
+	})
 
 	delivered := map[string][]string{}
 	gateway := newGateway(t, gatewayConfig{

@@ -26,7 +26,7 @@ func TestQueueDropsOverflowWithoutBlocking(t *testing.T) {
 	store := &blockingSinkStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 1})
 
-	if ok := queue.TryEnqueue(EventRecord{Message: "first"}); !ok {
+	if !queue.TryEnqueue(EventRecord{Message: "first"}) {
 		t.Fatal("expected first enqueue to succeed")
 	}
 	// Capacity 1 plus at most one record already claimed by the drain
@@ -39,7 +39,7 @@ func TestQueueDropsOverflowWithoutBlocking(t *testing.T) {
 	if !overflowed {
 		t.Fatal("expected a bounded queue to refuse a record once full")
 	}
-	if got := queue.DroppedTotal(); got == 0 {
+	if queue.DroppedTotal() == 0 {
 		t.Fatal("expected the refused record to be counted in DroppedTotal")
 	}
 
@@ -70,10 +70,10 @@ func TestQueueStopReportsUnfinishedItemsAfterDeadline(t *testing.T) {
 	store := &blockingSinkStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 2})
 
-	if ok := queue.TryEnqueue(EventRecord{Message: "one"}); !ok {
+	if !queue.TryEnqueue(EventRecord{Message: "one"}) {
 		t.Fatal("expected enqueue to succeed")
 	}
-	if ok := queue.TryEnqueue(EventRecord{Message: "two"}); !ok {
+	if !queue.TryEnqueue(EventRecord{Message: "two"}) {
 		t.Fatal("expected second enqueue to succeed")
 	}
 
@@ -140,7 +140,7 @@ func TestQueueRecordsStoreErrorAndKeepsDraining(t *testing.T) {
 	queue := NewQueue(store, QueueConfig{Capacity: 4})
 
 	for i := range 3 {
-		if ok := queue.TryEnqueue(EventRecord{Message: "doomed"}); !ok {
+		if !queue.TryEnqueue(EventRecord{Message: "doomed"}) {
 			t.Fatalf("expected enqueue %d to succeed", i)
 		}
 	}
@@ -164,7 +164,7 @@ func TestQueueWithNilStoreDrainsWithoutPanicking(t *testing.T) {
 	t.Parallel()
 
 	queue := NewQueue(nil, QueueConfig{Capacity: 2})
-	if ok := queue.TryEnqueue(EventRecord{Message: "into the void"}); !ok {
+	if !queue.TryEnqueue(EventRecord{Message: "into the void"}) {
 		t.Fatal("expected enqueue to succeed even without a store")
 	}
 
@@ -185,7 +185,7 @@ func TestNewQueueAppliesDefaultCapacityWhenUnset(t *testing.T) {
 
 	defaulted := NewQueue(&blockingSinkStore{release: make(chan struct{})}, QueueConfig{})
 	for i := range 200 {
-		if ok := defaulted.TryEnqueue(EventRecord{Message: "buffered"}); !ok {
+		if !defaulted.TryEnqueue(EventRecord{Message: "buffered"}) {
 			t.Fatalf("expected the default capacity to accept 200 records, refused at %d", i)
 		}
 	}
@@ -218,7 +218,7 @@ func TestQueueStopClampsNegativeUnfinishedCount(t *testing.T) {
 
 	store := &blockingSinkStore{release: make(chan struct{})}
 	queue := NewQueue(store, QueueConfig{Capacity: 1})
-	if ok := queue.TryEnqueue(EventRecord{Message: "stuck"}); !ok {
+	if !queue.TryEnqueue(EventRecord{Message: "stuck"}) {
 		t.Fatal("expected enqueue to succeed")
 	}
 	// Force dequeued past queued so the subtraction goes negative.

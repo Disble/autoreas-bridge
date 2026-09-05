@@ -36,11 +36,12 @@ export function deriveDownloadFolder(root: string, name: string): string {
   if (root === '') {
     return '';
   }
-  // Windows-illegal filename chars plus ASCII control chars (U+0000–U+001F). Built
-  // via the RegExp constructor so no literal control bytes appear in source; mirrors
-  // the backend sanitizeFolderName (internal/season/folder.go).
-  // Control-char range is deliberate: deliberate control-char strip, not an accidental range.
-  const illegalFolderChars = new RegExp('[<>:"/\\\\|?*\\u0000-\\u001f]', 'g');
+  // Windows-illegal filename chars plus ASCII control chars (U+0000-U+001F).
+  // A literal rather than the RegExp constructor it used to be: the unicode escape
+  // is an escape in both forms, so the constructor bought nothing except a second
+  // level of backslashes. Mirrors the backend sanitizeFolderName
+  // (internal/season/folder.go).
+  const illegalFolderChars = /[<>:"/\\|?*\u0000-\u001f]/g;
   const segment = name
     .replace(illegalFolderChars, ' ')
     .trim()

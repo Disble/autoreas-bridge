@@ -191,8 +191,8 @@ func TestServiceDepsHasNoAnimeWriteServiceDependency(t *testing.T) {
 
 	deps := baseDeps(t)
 	_ = contracts.AnimeQueryService(deps.Animes)
-	if _, isWriter := deps.Animes.(contracts.AnimeWriteService); isWriter {
-		t.Fatal("ServiceDeps.Animes must not also satisfy AnimeWriteService -- download is read-only")
+	if _, isWriter := deps.Animes.(contracts.AnimePatcher); isWriter {
+		t.Fatal("ServiceDeps.Animes must not also satisfy AnimePatcher -- download is read-only")
 	}
 }
 

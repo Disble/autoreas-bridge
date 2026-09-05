@@ -69,10 +69,10 @@ type NameSearcher interface {
 	Search(ctx context.Context, query string) ([]match.Candidate, error)
 }
 
-// AvailabilityProbe reports how many episodes of an anime page are online yet (0
+// AvailabilityReader reports how many episodes of an anime page are online yet (0
 // = none available). Implemented at the composition root over the download sites
 // registry. It only READS availability — creation is a separate, explicit action.
-type AvailabilityProbe interface {
+type AvailabilityReader interface {
 	AvailableEpisodes(ctx context.Context, pageURL string) (int, error)
 }
 

@@ -24,7 +24,7 @@ describe('bridge-runtime-source mutating bindings', () => {
     const restorePromise = source.restoreAnime?.('anime-1', 1001);
     const repeatPromise = source.repeatAnime?.('anime-1', 1002);
 
-    window.go = { main: { App: { RepeatAnime: repeatMock, RestoreAnime: restoreMock, SoftDeleteAnime: softDeleteMock } } } as never;
+    window.go = { desktop: { App: { RepeatAnime: repeatMock, RestoreAnime: restoreMock, SoftDeleteAnime: softDeleteMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -51,7 +51,7 @@ describe('bridge-runtime-source mutating bindings', () => {
     const copyFolderPromise = source.copyAnimeFolder?.('anime-1');
 
     window.go = {
-      main: {
+      desktop: {
         App: {
           CopyAnimeFolder: copyFolderMock,
           CopyAnimePage: copyPageMock,
@@ -106,7 +106,7 @@ describe('bridge-runtime-source mutating bindings', () => {
       ],
     });
 
-    window.go = { main: { App: { CreateAnime: createAnimeMock } } } as never;
+    window.go = { desktop: { App: { CreateAnime: createAnimeMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -147,7 +147,7 @@ describe('bridge-runtime-source mutating bindings', () => {
 
     const reconcilePromise = source.triggerReconcile();
 
-    window.go = { main: { App: { TriggerReconcile: triggerReconcileMock } } } as never;
+    window.go = { desktop: { App: { TriggerReconcile: triggerReconcileMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 

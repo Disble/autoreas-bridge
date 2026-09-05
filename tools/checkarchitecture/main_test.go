@@ -80,7 +80,7 @@ func readSettings() { _, _ = os.ReadFile("settings.json") }
 }
 
 // writeFile creates a source fixture beneath a temporary root.
-func writeFile(t *testing.T, root string, name string, content string) {
+func writeFile(t *testing.T, root, name, content string) {
 	t.Helper()
 
 	path := filepath.Join(root, filepath.FromSlash(name))

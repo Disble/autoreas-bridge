@@ -86,7 +86,10 @@ func TestRecheckAvailabilityRefreshesSinVerCreatedRow(t *testing.T) {
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+	seedCreated(t, svc, repo, createdSeed{
+		seasonID: season.ID, id: "sa-created", name: "Anime Created",
+		slug: "https://jkanime.net/created/", animeID: "anime-created", episodes: 2,
+	})
 
 	res, err := svc.RecheckAvailability(ctx, season.ID)
 	if err != nil {
@@ -128,7 +131,10 @@ func TestRecheckAvailabilitySkipsCreatedRowsInSpecialQueues(t *testing.T) {
 			ctx := context.Background()
 			season, _ := svc.CreateSeason(ctx, "Julio 2026")
 			rowID := "sa-" + test.name
-			seedCreated(t, svc, repo, season.ID, rowID, "Anime "+test.name, "https://jkanime.net/"+test.name, animeID, test.available)
+			seedCreated(t, svc, repo, createdSeed{
+				seasonID: season.ID, id: rowID, name: "Anime " + test.name,
+				slug: "https://jkanime.net/" + test.name, animeID: animeID, episodes: test.available,
+			})
 			res, err := svc.RecheckAvailability(ctx, season.ID)
 			if err != nil {
 				t.Fatalf("RecheckAvailability: %v", err)
@@ -155,7 +161,10 @@ func TestRecheckAvailabilitySkipsCreatedRowWithNoResolvableSection(t *testing.T)
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-unresolved", "Anime Unresolved", "https://jkanime.net/unresolved/", "anime-unresolved", 1)
+	seedCreated(t, svc, repo, createdSeed{
+		seasonID: season.ID, id: "sa-unresolved", name: "Anime Unresolved",
+		slug: "https://jkanime.net/unresolved/", animeID: "anime-unresolved", episodes: 1,
+	})
 
 	res, err := svc.RecheckAvailability(ctx, season.ID)
 	if err != nil {
@@ -186,7 +195,10 @@ func TestRecheckAvailabilityToleratesPlacementsError(t *testing.T) {
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+	seedCreated(t, svc, repo, createdSeed{
+		seasonID: season.ID, id: "sa-created", name: "Anime Created",
+		slug: "https://jkanime.net/created/", animeID: "anime-created", episodes: 2,
+	})
 	seedMatched(t, svc, repo, season.ID, "sa-a", "Anime A", "https://jkanime.net/a/")
 
 	res, err := svc.RecheckAvailability(ctx, season.ID)
@@ -221,7 +233,10 @@ func TestRecheckAvailabilitySinVerCreatedRowIsIdempotent(t *testing.T) {
 
 	ctx := context.Background()
 	season, _ := svc.CreateSeason(ctx, "Julio 2026")
-	seedCreated(t, svc, repo, season.ID, "sa-created", "Anime Created", "https://jkanime.net/created/", "anime-created", 2)
+	seedCreated(t, svc, repo, createdSeed{
+		seasonID: season.ID, id: "sa-created", name: "Anime Created",
+		slug: "https://jkanime.net/created/", animeID: "anime-created", episodes: 2,
+	})
 
 	if _, err := svc.RecheckAvailability(ctx, season.ID); err != nil {
 		t.Fatalf("first recheck: %v", err)

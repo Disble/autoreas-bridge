@@ -71,7 +71,7 @@ describe('runtime-event-source', () => {
       filters: { domain: 'download', level: 'error', text: 'timeout', startMs: 10, endMs: 20 },
     });
 
-    window.go = { main: { App: { SearchRuntimeEvents: searchMock } } } as never;
+    window.go = { desktop: { App: { SearchRuntimeEvents: searchMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await pagePromise;
@@ -107,7 +107,7 @@ describe('runtime-event-source', () => {
 
     const pagePromise = source.searchEvents({});
 
-    window.go = { main: { App: { SearchRuntimeEvents: searchMock } } } as never;
+    window.go = { desktop: { App: { SearchRuntimeEvents: searchMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await pagePromise;
@@ -143,7 +143,7 @@ describe('runtime-event-source', () => {
 
     const summaryPromise = source.summarizeEvents({});
 
-    window.go = { main: { App: { SummarizeRuntimeEvents: summarizeMock } } } as never;
+    window.go = { desktop: { App: { SummarizeRuntimeEvents: summarizeMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -241,7 +241,7 @@ describe('runtime-event-source', () => {
   it('reports the runtime-event bindings as available once both reads are attached', async () => {
     const { isRuntimeEventSourceAvailable } = await import('../runtime-event-source.helpers');
 
-    window.go = { main: { App: { SearchRuntimeEvents: vi.fn(), SummarizeRuntimeEvents: vi.fn() } } } as never;
+    window.go = { desktop: { App: { SearchRuntimeEvents: vi.fn(), SummarizeRuntimeEvents: vi.fn() } } } as never;
 
     expect(isRuntimeEventSourceAvailable()).toBe(true);
   });
@@ -249,7 +249,7 @@ describe('runtime-event-source', () => {
   it('reports the runtime-event bindings as unavailable when only the search read is attached', async () => {
     const { isRuntimeEventSourceAvailable } = await import('../runtime-event-source.helpers');
 
-    window.go = { main: { App: { SearchRuntimeEvents: vi.fn() } } } as never;
+    window.go = { desktop: { App: { SearchRuntimeEvents: vi.fn() } } } as never;
 
     expect(isRuntimeEventSourceAvailable()).toBe(false);
   });
@@ -257,7 +257,7 @@ describe('runtime-event-source', () => {
   it('reports the runtime-event bindings as unavailable when only the summary read is attached', async () => {
     const { isRuntimeEventSourceAvailable } = await import('../runtime-event-source.helpers');
 
-    window.go = { main: { App: { SummarizeRuntimeEvents: vi.fn() } } } as never;
+    window.go = { desktop: { App: { SummarizeRuntimeEvents: vi.fn() } } } as never;
 
     expect(isRuntimeEventSourceAvailable()).toBe(false);
   });

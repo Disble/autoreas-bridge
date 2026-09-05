@@ -73,7 +73,11 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 
 	defer func() {
 		recovered := recover()
-		terminal := buildTerminalCaptureRecord(requestID, startedAt, kind, r.URL.Path, writer, requestHeaders, requestBody, enr, recovered != nil)
+		terminal := buildTerminalCaptureRecord(terminalCapture{
+			requestID: requestID, startedAt: startedAt, kind: kind, route: r.URL.Path,
+			writer: writer, requestHeaders: requestHeaders, requestBody: requestBody,
+			enrichment: enr, panicked: recovered != nil,
+		})
 		terminalAccepted := capture(terminal)
 		if arrivalAccepted && !terminalAccepted && persistTerminal != nil {
 			persistTerminal(terminal)
@@ -91,25 +95,41 @@ func captureRequest(next http.Handler, w http.ResponseWriter, r *http.Request, c
 // whatever semantic facts the handler contributed via requestcapture.Enrich.
 // panicked reports whether next panicked, which decides the status recorded
 // for a handler that never wrote one.
-func buildTerminalCaptureRecord(requestID string, startedAt time.Time, kind, route string, writer *capturingResponseWriter, requestHeaders http.Header, requestBody requestBodyCapture, enr *requestcapture.CaptureEnrichment, panicked bool) requestcapture.CaptureRecord {
-	transport := requestcapture.BuildTransportCaptureRecord(requestID, startedAt.UnixMilli(), kind, route, "http")
-	status := resolveCapturedStatus(writer.status, panicked)
+func buildTerminalCaptureRecord(c terminalCapture) requestcapture.CaptureRecord {
+	transport := requestcapture.BuildTransportCaptureRecord(c.requestID, c.startedAt.UnixMilli(), c.kind, c.route, "http")
+	status := resolveCapturedStatus(c.writer.status, c.panicked)
 	transport.HTTPStatus = &status
-	duration := time.Since(startedAt).Milliseconds()
+	duration := time.Since(c.startedAt).Milliseconds()
 	transport.DurationMS = &duration
-	transport.RequestBody = requestBody.body
-	transport.RequestBodyState = requestBody.state
-	transport.RequestHeaders = requestcapture.SanitizeHeaders(requestHeaders)
-	transport.ResponseHeaders = requestcapture.SanitizeHeaders(writer.Header())
-	if len(writer.body) > 0 {
-		transport.ResponseBody = requestcapture.SanitizeResponseBody(writer.body)
+	transport.RequestBody = c.requestBody.body
+	transport.RequestBodyState = c.requestBody.state
+	transport.RequestHeaders = requestcapture.SanitizeHeaders(c.requestHeaders)
+	transport.ResponseHeaders = requestcapture.SanitizeHeaders(c.writer.Header())
+	if len(c.writer.body) > 0 {
+		transport.ResponseBody = requestcapture.SanitizeResponseBody(c.writer.body)
 	}
-	transport.ResponseBodyState = writer.bodyState
-	merged := requestcapture.MergeEnrichment(transport, enr)
+	transport.ResponseBodyState = c.writer.bodyState
+	merged := requestcapture.MergeEnrichment(transport, c.enrichment)
 	if merged.Outcome == "pending" {
 		merged.Outcome = "completed"
 	}
 	return merged
+}
+
+// terminalCapture is everything one finished HTTP exchange contributes to its
+// capture row. A struct rather than a parameter list (SonarQube go:S107): kind
+// and route sat adjacent as two strings, and swapping them mislabels every
+// captured request.
+type terminalCapture struct {
+	requestID      string
+	startedAt      time.Time
+	kind           string
+	route          string
+	writer         *capturingResponseWriter
+	requestHeaders http.Header
+	requestBody    requestBodyCapture
+	enrichment     *requestcapture.CaptureEnrichment
+	panicked       bool
 }
 
 type requestBodyCapture struct {

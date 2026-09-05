@@ -95,7 +95,7 @@ var ErrAnimePatchConflict = errors.New("anime patch conflict")
 
 // AdaptAnimePatchWriter keeps the established HTTP/mobile error-only seam while
 // refusing to downgrade a semantic conflict into transport success.
-func AdaptAnimePatchWriter(writer contracts.AnimeWriteService) PatchAnimeFunc {
+func AdaptAnimePatchWriter(writer contracts.AnimePatcher) PatchAnimeFunc {
 	return func(ctx context.Context, id string, patch AnimePatch) (contracts.AnimePatchResult, error) {
 		result, err := writer.PatchAnime(ctx, id, patch)
 		if err != nil {

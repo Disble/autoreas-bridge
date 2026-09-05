@@ -18,7 +18,7 @@ forwarded INTO the log, and a log write NEVER triggers a notification.
 - A new `logForwardAdapter` MUST live in `internal/notification` and implement the
   existing `Adapter` interface (`Deliver(ctx, Notification) error`).
 - It MUST be assembled into the `Dispatcher` inside `defaultNotifier`
-  (`app.go:99`), using the shared logger already passed via the `loggers`
+  (`internal/desktop/app.go`), using the shared logger already passed via the `loggers`
   variadic. It MUST be registered only when a non-nil logger is supplied.
 - `Deliver` MUST map a `Notification` onto a single shared-logger write:
   - `Level` → logger level: `error` → error, `warning` → warn,

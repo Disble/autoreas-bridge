@@ -28,6 +28,8 @@ import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { URL } from 'node:url';
 
+import { resolveServedFile } from './static-serve.helpers.mjs';
+
 /** Built fixture bundle this smoke test serves. */
 const DIST = path.resolve(import.meta.dirname, '..', 'dist-layout');
 /**
@@ -76,9 +78,9 @@ const CONTENT_TYPES = {
 function findEdge() {
   const candidates = [
     process.env.EDGE_PATH,
-    `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    `${process.env.PROGRAMFILES}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    `${process.env.LOCALAPPDATA}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    String.raw`${process.env['PROGRAMFILES(X86)']}\Microsoft\Edge\Application\msedge.exe`,
+    String.raw`${process.env.PROGRAMFILES}\Microsoft\Edge\Application\msedge.exe`,
+    String.raw`${process.env.LOCALAPPDATA}\Microsoft\Edge\Application\msedge.exe`,
   ];
   return candidates.find((candidate) => candidate && existsSync(candidate));
 }
@@ -89,7 +91,7 @@ function findEdge() {
  * @returns {void}
  */
 function buildFixtures() {
-  const result = spawnSync('bun', ['x', 'vite', 'build', '--config', 'vite.layout.config.ts'], {
+  const result = spawnSync('bun', ['x', 'vite', 'build', '--config', 'vite.layout.config.ts'], { // NOSONAR javascript:S4036 -- resolved from PATH on purpose, so it comes from the developer environment that launched this hook, exactly as every other frontend job in lefthook.yml resolves it. The repository cannot control that lookup, and the arguments are passed as an array rather than through a shell. Pinning an absolute path would break across platforms and, on Windows, would have to guess between the .exe, .cmd and .bat shims these tools ship as.
     cwd: path.resolve(import.meta.dirname, '..'),
     stdio: 'pipe',
     shell: true,
@@ -108,10 +110,7 @@ function buildFixtures() {
 function startServer() {
   const server = createServer((request, response) => {
     const requested = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-    let file = path.join(DIST, requested);
-    if (!existsSync(file) || requested === '/') {
-      file = ENTRY;
-    }
+    const file = resolveServedFile({ dist: DIST, requested, fallback: ENTRY });
     response.writeHead(200, { 'Content-Type': CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream' });
     response.end(readFileSync(file));
   });

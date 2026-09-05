@@ -103,7 +103,7 @@ describe('notification-center-source', () => {
     const request = { view: 'active', unreadOnly: false, search: '', sources: [], levels: [], cursor: '', limit: 25 };
     const pagePromise = source.listNotifications(request);
 
-    window.go = { main: { App: { ListNotifications: listMock } } } as never;
+    window.go = { desktop: { App: { ListNotifications: listMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -138,7 +138,7 @@ describe('notification-center-source', () => {
 
     const resultPromise = source.getNotification(1);
 
-    window.go = { main: { App: { GetNotification: getMock } } } as never;
+    window.go = { desktop: { App: { GetNotification: getMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
     await resultPromise;
@@ -162,7 +162,7 @@ describe('notification-center-source', () => {
     const restorePromise = source.restore([7]);
 
     window.go = {
-      main: {
+      desktop: {
         App: {
           MarkNotificationsRead: markMock,
           MarkNotificationsUnread: markUnreadMock,
@@ -193,7 +193,7 @@ describe('notification-center-source', () => {
 
     const markUnreadPromise = source.markUnread([7]);
 
-    window.go = { main: { App: { MarkNotificationsUnread: markUnreadMock } } } as never;
+    window.go = { desktop: { App: { MarkNotificationsUnread: markUnreadMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -219,7 +219,7 @@ describe('notification-center-source', () => {
 
     const resultPromise = source.executeAction(1, 'action-1');
 
-    window.go = { main: { App: { ExecuteNotificationAction: executeMock } } } as never;
+    window.go = { desktop: { App: { ExecuteNotificationAction: executeMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
@@ -243,7 +243,7 @@ describe('notification-center-source', () => {
     const { isNotificationCenterRuntimeAvailable } = await import('../notification-center-source.helpers');
 
     window.go = {
-      main: {
+      desktop: {
         App: {
           ListNotifications: vi.fn(),
           GetNotification: vi.fn(),
@@ -263,7 +263,7 @@ describe('notification-center-source', () => {
   it('reports the notification center runtime as unavailable when only some bindings are attached', async () => {
     const { isNotificationCenterRuntimeAvailable } = await import('../notification-center-source.helpers');
 
-    window.go = { main: { App: { ListNotifications: vi.fn() } } } as never;
+    window.go = { desktop: { App: { ListNotifications: vi.fn() } } } as never;
 
     expect(isNotificationCenterRuntimeAvailable()).toBe(false);
   });

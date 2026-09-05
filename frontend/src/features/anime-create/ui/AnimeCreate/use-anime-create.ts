@@ -7,6 +7,7 @@ import { ANIME_CREATE_RUNTIME_UNAVAILABLE_MESSAGE } from './anime-create.constan
 import { buildAnimeCreateCommand, validateAnimeCreateRows } from './anime-create.helpers';
 import type { AnimeCreateViewModel } from './anime-create.types';
 import { useAnimeCreateBootstrap } from './use-anime-create-bootstrap';
+import { useAnimeCreateNameConflicts } from './use-anime-create-name-conflicts';
 import { useAnimeCreateRows } from './use-anime-create-rows';
 
 /**
@@ -30,13 +31,17 @@ export function useAnimeCreate(): AnimeCreateViewModel {
   // 3. Context/3rd Party Hooks
   const rowState = useAnimeCreateRows(downloadsRoot);
   const { rows, resetRows } = rowState;
+  const { nameConflicts, hasNameConflict } = useAnimeCreateNameConflicts(rows);
 
   // 4. Queries/Mutations
 
   // 5. Derived State (useMemo)
   const draftEntries = useMemo(() => rows.map((row) => ({ draftId: row.draftId, name: row.name.trim() === '' ? 'New anime' : row.name })), [rows]);
   const lockedAnimeIds = useMemo(() => (board?.entries ?? []).map((entry) => entry.animeId), [board]);
-  const canOpenBoard = useMemo(() => board !== undefined && rows.every((row) => row.name.trim() !== '' && isValidDownloadPageUrl(row.page)), [board, rows]);
+  const canOpenBoard = useMemo(
+    () => board !== undefined && !hasNameConflict && rows.every((row) => row.name.trim() !== '' && isValidDownloadPageUrl(row.page)),
+    [board, hasNameConflict, rows],
+  );
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onOpenBoard = useCallback(() => {
@@ -83,6 +88,7 @@ export function useAnimeCreate(): AnimeCreateViewModel {
     board,
     draftEntries,
     lockedAnimeIds,
+    nameConflicts,
     feedback,
     isSubmitting,
     canRemoveRow: rowState.canRemoveRow,

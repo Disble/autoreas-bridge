@@ -108,7 +108,7 @@ func (f *fallbackAwareJDClient) PackageStatusByDestination(context.Context, stri
 	return jdownloader.DestinationStatus{}, nil
 }
 
-func (f *fallbackAwareJDClient) RemoveByDestination(_ context.Context, _ string, destination string) error {
+func (f *fallbackAwareJDClient) RemoveByDestination(_ context.Context, _, destination string) error {
 	f.mu.Lock()
 	f.removedDestinations = append(f.removedDestinations, destination)
 	f.mu.Unlock()

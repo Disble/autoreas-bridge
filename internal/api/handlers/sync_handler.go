@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -156,11 +157,17 @@ func listReconcileChanges(w http.ResponseWriter, ctx context.Context, afterID in
 }
 
 // applyPendingOperations applies supported pending anime operations in order.
+// A conflict is a per-operation outcome, not a batch abort: once an anime id
+// has conflicted within this batch, a later base-less operation for that same
+// id is blocked without reaching the writer, so it cannot silently overwrite
+// the value the conflict just protected (see design's "a base-less operation
+// after a conflict on the same anime is not applied").
 func applyPendingOperations(ctx context.Context, operations []contracts.PendingOperation, applyPendingPatch PatchAnimeFunc) ([]contracts.AppliedOperation, error) {
 	results := make([]contracts.AppliedOperation, 0, len(operations))
+	conflicted := map[string]int64{}
 	for _, operation := range operations {
 		if !isPendingPatchOperation(operation.Operation) {
-			results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: false})
+			results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: false, Reason: contracts.AppliedOperationReasonUnsupportedOperation})
 			continue
 		}
 		patch, err := decodePendingOperationPatch(operation)
@@ -170,11 +177,20 @@ func applyPendingOperations(ctx context.Context, operations []contracts.PendingO
 		if applyPendingPatch == nil {
 			return nil, pendingPatchUnavailableError{}
 		}
+		if token, wasConflicted := conflicted[operation.AnimeID]; wasConflicted && patch.Base == nil {
+			results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: false, ModifiedAt: &token, Reason: contracts.AppliedOperationReasonConflict})
+			continue
+		}
 		result, err := applyPendingPatch(ctx, operation.AnimeID, patch)
-		if err != nil {
+		switch {
+		case err == nil:
+			results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: true, ModifiedAt: &result.ModifiedAt})
+		case errors.Is(err, ErrAnimePatchConflict):
+			conflicted[operation.AnimeID] = result.ModifiedAt
+			results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: false, ModifiedAt: &result.ModifiedAt, Reason: contracts.AppliedOperationReasonConflict})
+		default:
 			return results, err
 		}
-		results = append(results, contracts.AppliedOperation{AnimeID: operation.AnimeID, Operation: operation.Operation, Applied: err == nil && result.Outcome != contracts.AnimePatchOutcomeConflict})
 	}
 	return results, nil
 }
@@ -184,8 +200,11 @@ func operationRefsFromAppliedOperations(applied []contracts.AppliedOperation) []
 	refs := make([]requestcapture.OperationRef, 0, len(applied))
 	for _, operation := range applied {
 		outcome := "skipped"
-		if operation.Applied {
+		switch {
+		case operation.Applied:
 			outcome = "applied"
+		case operation.Reason == contracts.AppliedOperationReasonConflict:
+			outcome = "conflict"
 		}
 		refs = append(refs, requestcapture.OperationRef{AnimeID: operation.AnimeID, Operation: operation.Operation, Outcome: outcome})
 	}

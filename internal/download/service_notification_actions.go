@@ -59,7 +59,7 @@ const (
 // Kept as a function rather than a package-level slice because an ActionSpec carries a mutable
 // Args map -- a shared literal would let one notification's frozen arguments be rewritten
 // through another's, which is precisely the immutability the token pattern exists to provide.
-func runWideActions(kind string, runID string) []notification.ActionSpec {
+func runWideActions(kind, runID string) []notification.ActionSpec {
 	actions := []notification.ActionSpec{{
 		Label:  seeThisRunActionLabel,
 		Intent: center.IntentNavigationOpen,
@@ -87,7 +87,7 @@ func runWideActions(kind string, runID string) []notification.ActionSpec {
 //
 // An outcome with no id is skipped outright: every verb below addresses a record, so a token
 // frozen against no id would refuse the moment it was pressed.
-func buildOutcomeActions(kind string, runID string, outcomes []animeRunOutcome) []notification.ActionSpec {
+func buildOutcomeActions(kind, runID string, outcomes []animeRunOutcome) []notification.ActionSpec {
 	actions := runWideActions(kind, runID)
 	for _, outcome := range outcomes {
 		if outcome.animeID == "" {

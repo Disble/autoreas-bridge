@@ -167,6 +167,9 @@ export function buildIntegerTicks(total: number): number[] {
   if (total <= 0) {
     return [0];
   }
+  // NOSONAR typescript:S7755 -- .at(-1) is number | undefined, and this tsconfig does
+  // not set noUncheckedIndexedAccess, so the index form is what keeps step a number
+  // without a fallback that would invent a tick size.
   const step = TICK_STEPS.find((s) => total / s <= 8) ?? TICK_STEPS[TICK_STEPS.length - 1];
   const ticks: number[] = [];
   for (let t = 0; t <= total; t += step) {
