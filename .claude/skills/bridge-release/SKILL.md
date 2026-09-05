@@ -50,6 +50,15 @@ answer to "cut a release" on its own.
 - Group under Keep a Changelog headings — `Added`, `Changed`, `Deprecated`,
   `Removed`, `Fixed`, `Security` — plus `Internal` for changes with no
   user-visible effect. Omit headings with nothing under them.
+- **Never hard-wrap a CHANGELOG entry. One bullet is one line, however long.**
+  `release.yml` copies the section verbatim into the release body, and GitHub
+  renders a release body with soft line breaks turned into `<br>` — unlike a
+  `.md` file in the repo, where it joins them. So an 80-column wrap that is
+  invisible in the file becomes a forced break every 80 characters on the
+  release page: the text runs down the left half and leaves the right half
+  empty. Measured on v1.9.0, which shipped that way and had to be re-edited.
+  Long source lines are the cost; they render correctly in both places, which
+  the wrapped form does not.
 - **Call out wire changes explicitly.** REST/WS contracts have mobile consumers;
   a wire-affecting release says so under its heading, and a breaking one is a
   major bump announced in `docs/openapi.yaml`.
