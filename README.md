@@ -29,6 +29,7 @@
 - [Project structure](#project-structure)
 - [Architecture](#architecture)
 - [Testing and quality gates](#testing-and-quality-gates)
+- [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -288,7 +289,7 @@ wails build -nsis      # Windows: also produce the NSIS installer
 A local build is a rehearsal for smoke-testing. Actual releases ship through CI:
 pushing a `vX.Y.Z` tag builds both platforms and publishes a GitHub Release with
 the installer, the Linux packages and the checksums. See
-[`.claude/skills/bridge-release/SKILL.md`](.claude/skills/bridge-release/SKILL.md).
+[`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ---
 
@@ -511,6 +512,30 @@ mutant, sequentially. See [`docs/mutation-testing.md`](docs/mutation-testing.md)
 
 ---
 
+## Deployment
+
+Releases are cut by pushing a `vX.Y.Z` tag onto `main`. GitHub Actions builds
+both platforms, runs a set of release-blocking guards, and publishes a GitHub
+Release whose notes are the matching `CHANGELOG.md` section.
+
+```bash
+# On dev: bump wails.json -> info.productVersion, update CHANGELOG.md, commit.
+# Then:
+git checkout main && git merge dev && git push
+git tag vX.Y.Z && git push origin refs/tags/vX.Y.Z
+```
+
+There is no server and no environment to promote through — "deployment" here
+means publishing installable artifacts, and there is no rollback: corrections
+ship as a new patch release.
+
+**[`DEPLOYMENT.md`](DEPLOYMENT.md)** carries the full procedure: the version
+source of truth, what each workflow does, every release-blocking guard and what
+it catches, local builds, what the installed app touches on a user's machine,
+and how to read a failed run.
+
+---
+
 ## Contributing
 
 This project runs on **Spec-Driven Development (SDD)**, orchestrated through
@@ -546,6 +571,7 @@ of `main`.
 
 Release notes live in [`CHANGELOG.md`](CHANGELOG.md) and become the GitHub
 Release body; a tag whose version has no changelog section fails the pipeline.
+The full release procedure is in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ---
 
