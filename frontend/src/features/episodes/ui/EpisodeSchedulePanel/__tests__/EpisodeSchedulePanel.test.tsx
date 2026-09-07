@@ -1,7 +1,25 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EpisodeSchedulePanel } from '../EpisodeSchedulePanel';
 import type { EpisodeScheduleSource } from '../episode-schedule-panel.types';
+
+/**
+ * Mounts the panel on the routed surface it occupies in production, with a
+ * probe on the Create destination so the empty state's navigation is observable
+ * rather than mocked.
+ */
+function renderPanel(ui: ReactElement) {
+  return render(
+    <MemoryRouter initialEntries={['/today']}>
+      <Routes>
+        <Route element={ui} path="/today" />
+        <Route element={<h2>Create workspace</h2>} path="/editor/create" />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
 
 /**
  * Builds a fully stubbed episode schedule source so each test only spells out
@@ -60,7 +78,7 @@ describe('EpisodeSchedulePanel', () => {
       ]),
     });
 
-    render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
     expect(await screen.findByText('Frieren')).toBeInTheDocument();
     expect(screen.getByText('10.5 watched')).toHaveClass('group-hover:hidden');
@@ -93,7 +111,7 @@ describe('EpisodeSchedulePanel', () => {
       setAnimeState,
     });
 
-    render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Change status for Frieren. Current status: Viendo.' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set Frieren as Finalizado' }));
@@ -124,7 +142,7 @@ describe('EpisodeSchedulePanel', () => {
       ]),
     });
 
-    render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
     fireEvent.contextMenu(await screen.findByRole('button', { name: 'Open page for Frieren. Secondary click copies page URL.' }));
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Open folder for Frieren. Secondary click copies folder path.' }));
@@ -149,7 +167,7 @@ describe('EpisodeSchedulePanel', () => {
       ]),
     });
 
-    render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
     expect(await screen.findByRole('heading', { name: 'Paused' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add one episode for Paused. Secondary click adds half episode.' })).toBeDisabled();
@@ -159,7 +177,7 @@ describe('EpisodeSchedulePanel', () => {
     it('switches the filter row from season lenses to weekdays when Daily is selected, with season mode on', async () => {
       const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
 
-      render(<EpisodeSchedulePanel source={source} />);
+      renderPanel(<EpisodeSchedulePanel source={source} />);
 
       expect(await screen.findByRole('radio', { name: /Sin ver/ })).toBeInTheDocument();
 
@@ -174,7 +192,7 @@ describe('EpisodeSchedulePanel', () => {
     it('shows a count badge on a day ToggleButton with qualifying entries', async () => {
       const source = createSource({ getEpisodeDayCounts: vi.fn().mockResolvedValue([{ count: 2, day: 'Viernes' }]) });
 
-      render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+      renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
       const viernesOption = await screen.findByRole('radio', { name: /Friday/ });
       expect(viernesOption).toHaveTextContent('2');
@@ -184,7 +202,7 @@ describe('EpisodeSchedulePanel', () => {
       pinToday(new Date(2026, 7, 30, 12, 0, 0));
       const source = createSource({ getEpisodeDayCounts: vi.fn().mockResolvedValue([{ count: 0, day: 'Viernes' }]) });
 
-      render(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+      renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
       const viernesOption = await screen.findByRole('radio', { name: 'Friday' });
       expect(viernesOption).toHaveTextContent('Friday');
@@ -196,7 +214,7 @@ describe('EpisodeSchedulePanel', () => {
     it('marks the current weekday tab while a different day is selected', async () => {
       pinToday(new Date(2026, 7, 30, 12, 0, 0));
 
-      render(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
+      renderPanel(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
 
       const todayTab = await screen.findByRole('radio', { name: 'Sunday, today' });
       expect(todayTab.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-current');
@@ -206,10 +224,96 @@ describe('EpisodeSchedulePanel', () => {
     it('follows the clock instead of a fixed weekday', async () => {
       pinToday(new Date(2026, 7, 26, 12, 0, 0));
 
-      render(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
+      renderPanel(<EpisodeSchedulePanel initialDay="Lunes" source={createSource()} />);
 
       expect(await screen.findByRole('radio', { name: 'Wednesday, today' })).toBeInTheDocument();
       expect(screen.getByRole('radio', { name: 'Sunday' })).toBeInTheDocument();
     });
+  });
+});
+
+describe('EpisodeSchedulePanel resolved-empty guidance', () => {
+  it('guides creation with day context once the schedule resolves with no rows', async () => {
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
+
+    expect(await screen.findByText('Nothing scheduled for Friday')).toBeInTheDocument();
+    expect(screen.getByText('No active anime are scheduled for Friday. Create one to put it on your schedule.')).toBeInTheDocument();
+
+    const image = document.querySelector('img[aria-hidden="true"]');
+    if (image === null) {
+      throw new Error('Expected the Today Airis artwork.');
+    }
+    expect(image).toHaveAttribute('width', '512');
+  });
+
+  it('names the season lens instead of a weekday when the season lens is selected', async () => {
+    const source = createSource({ getSeasonMode: vi.fn().mockResolvedValue(true) });
+
+    renderPanel(<EpisodeSchedulePanel source={source} />);
+
+    expect(await screen.findByText('Nothing in Ver hoy')).toBeInTheDocument();
+  });
+
+  it('navigates to the Create workspace when Create an anime is pressed', async () => {
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create an anime' }));
+
+    expect(await screen.findByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
+  });
+
+  it('keeps the day and lens controls available while the empty state shows', async () => {
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={createSource()} />);
+
+    expect(await screen.findByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Friday/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Daily' })).toBeInTheDocument();
+  });
+
+  it('shows loading feedback instead of empty guidance while the request is unresolved', async () => {
+    const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+
+    expect(await screen.findByText('Loading the schedule...')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('shows the failure alert instead of empty guidance when the request rejects', async () => {
+    const source = createSource({ getEpisodeSchedule: vi.fn().mockRejectedValue(new Error('binding missing')) });
+
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+
+    expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+  });
+});
+
+describe('EpisodeSchedulePanel resolved-non-empty precedence', () => {
+  it('shows the rows and no empty guidance once the schedule resolves with anime', async () => {
+    const source = createSource({
+      getEpisodeSchedule: vi.fn().mockResolvedValue([
+        {
+          animeId: 'anime-1',
+          animeName: 'Frieren',
+          day: 'Viernes',
+          dayOrder: 1,
+          status: 0,
+          hasCover: false,
+          modified_at: 1000,
+          episodesWatched: 10,
+          totalEpisodes: 28,
+        },
+      ]),
+    });
+
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+
+    expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(screen.queryByText('Loading the schedule...')).toBeNull();
   });
 });

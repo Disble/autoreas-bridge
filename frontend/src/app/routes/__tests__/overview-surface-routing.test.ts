@@ -29,6 +29,11 @@ describe('the Activity Overview surface', () => {
       '/catalog',
       '/catalog/detail/:id',
       '/editor',
+      // Before '/editor/:id' on purpose: react-router matches in declaration
+      // order, so a static Create route listed after the identifier route would
+      // be read as an anime called "create". This change ships its ROUTE_MARKERS
+      // entry and its desktop-navigation spec delta.
+      '/editor/create',
       '/editor/:id',
       '/history',
       '/downloads',

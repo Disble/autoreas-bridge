@@ -35,8 +35,8 @@ export const EPISODE_LENS_OPTIONS: readonly { readonly id: EpisodeViewLens; read
   { id: 'daily', label: 'Daily' },
 ];
 
-/** Empty-state copy for days with no active scheduled anime. */
-export const EPISODES_EMPTY_MESSAGE = 'No active anime are scheduled for this filter.';
+/** Feedback shown while the schedule request for the selected filter is unresolved. */
+export const EPISODES_LOADING_MESSAGE = 'Loading the schedule...';
 
 /**
  * User-facing labels for Legacy anime state ids. Sourced from the canonical

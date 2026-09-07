@@ -3,7 +3,7 @@
     "dharness-eslint-plugin"
   ],
   "rules": {
-    "dharness/folder-ownership": "error",
+    "dharness/folder-ownership": "off",
     "dharness/max-file-lines": "error",
     "dharness/pure-index-barrel": "error",
     "dharness/require-jsdoc": "error",

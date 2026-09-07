@@ -1,6 +1,11 @@
 import { Alert, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
+import { useNavigate } from 'react-router';
+import todayAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
-import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_EMPTY_MESSAGE } from './episode-schedule-panel.constants';
+import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
 import { dayBadge, episodeDayLabel, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
 import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
@@ -9,7 +14,8 @@ import { useEpisodeSchedulePanel } from './use-episode-schedule-panel';
  * Renders the operational schedule for updating anime episode progress.
  */
 export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>) {
-  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, errorMessage, filterOptions, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
+  const { adjustWatchedEpisodes, copyAnimeFolder, copyAnimePage, dayCounts, emptyStateCopy, errorMessage, filterOptions, isLoadingSchedule, lens, openAnimeFolder, openAnimePage, rows, selectDay, selectLens, selectedDay, setAnimeState, todayDay } = useEpisodeSchedulePanel(props);
+  const navigate = useNavigate();
 
   if (errorMessage !== '') {
     return (
@@ -57,7 +63,16 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
         </ToggleButtonGroup>
       </div>
 
-      {rows.length === 0 ? <Typography type="body-sm" color="muted">{EPISODES_EMPTY_MESSAGE}</Typography> : null}
+      {isLoadingSchedule ? <Typography type="body-sm" color="muted">{EPISODES_LOADING_MESSAGE}</Typography> : null}
+
+      {!isLoadingSchedule && rows.length === 0 ? (
+        <AirisEmptyState
+          action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }}
+          description={emptyStateCopy.description}
+          imageSrc={todayAirisArtwork}
+          title={emptyStateCopy.title}
+        />
+      ) : null}
 
       <div className="grid gap-3">
         {rows.map((row) => (

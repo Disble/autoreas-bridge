@@ -1,5 +1,5 @@
 import { ANIME_ESTADO_LABELS, ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
-import type { AnimeEditorDraft, AnimeEditorStatusOption } from './anime-editor-workspace.types';
+import type { AnimeEditorDraft, AnimeEditorEmptyStateCopy, AnimeEditorStatusOption } from './anime-editor-workspace.types';
 
 /** Default empty draft used before the first editor record loads. */
 export const ANIME_EDITOR_DEFAULT_DRAFT: AnimeEditorDraft = {
@@ -56,3 +56,20 @@ export const ANIME_EDITOR_STATUS_OPTIONS: readonly AnimeEditorStatusOption[] = A
   value,
   label: ANIME_ESTADO_LABELS[value] ?? String(value),
 }));
+
+/**
+ * Copy for each Library empty state. The actual-empty wording states the
+ * library is empty; the criteria-empty wording deliberately never does, because
+ * a filtered-down rail that claims the library is empty sends the user off to
+ * re-create anime they already have.
+ */
+export const ANIME_EDITOR_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', AnimeEditorEmptyStateCopy>> = {
+  actual: {
+    title: 'Your library is empty',
+    description: 'No anime are stored yet. Create one to start building your library.',
+  },
+  criteria: {
+    title: 'No anime match your criteria',
+    description: 'The current search and filters hide every anime in your library.',
+  },
+};

@@ -45,3 +45,9 @@ export const APP_LAYOUT_NAV_GROUPS: readonly NavGroup[] = [
   },
 ] as const;
 
+
+/**
+ * Destination of every "Create an anime" recovery action. Static, and resolved
+ * ahead of `/editor/:id` so `create` is never read as an anime identifier.
+ */
+export const ANIME_CREATE_ROUTE = '/editor/create';

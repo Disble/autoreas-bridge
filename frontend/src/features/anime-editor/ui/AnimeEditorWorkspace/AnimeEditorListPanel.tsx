@@ -1,11 +1,18 @@
 import { Button, Card, Chip, cn, SearchField, ToggleButton, ToggleButtonGroup, Typography } from '@heroui/react';
-import { ANIME_EDITOR_FILTER_OPTIONS } from './anime-editor-workspace.constants';
+import { useNavigate } from 'react-router';
+import editorLibraryAirisArtwork from '../../../../assets/airis-empty-states/editor-library.webp';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
+import { ANIME_EDITOR_EMPTY_STATE_COPY, ANIME_EDITOR_FILTER_OPTIONS } from './anime-editor-workspace.constants';
 import type { AnimeEditorListPanelProps } from './anime-editor-workspace.types';
 
 /** Renders the progressively loaded watching-first search and selection rail (800+ items). */
 export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPanelProps>) {
+  const navigate = useNavigate();
   const { scrollRef, onScroll, visibleCount } = viewModel.listWindow;
   const visibleItems = viewModel.items.slice(0, visibleCount);
+  const emptyState = viewModel.listEmptyState;
   return (
     <Card className="flex h-[80vh] min-w-0 flex-col xl:sticky xl:top-6 xl:h-[calc(100dvh-7rem)]"><Card.Content className="flex h-full min-h-0 min-w-0 flex-col gap-3 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -19,7 +26,16 @@ export function AnimeEditorListPanel({ viewModel }: Readonly<AnimeEditorListPane
         {ANIME_EDITOR_FILTER_OPTIONS.map((option) => <ToggleButton id={option.id} key={option.id}>{option.label}</ToggleButton>)}
       </ToggleButtonGroup>
       {viewModel.isLoadingList && <Typography color="muted" type="body-sm">Loading anime list...</Typography>}
-      {!viewModel.isLoadingList && viewModel.items.length === 0 && <Typography color="muted" type="body-sm">No anime match your search.</Typography>}
+      {emptyState !== 'none' && (
+        <AirisEmptyState
+          action={emptyState === 'actual'
+            ? { label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }
+            : { label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: viewModel.onClearCriteria }}
+          description={ANIME_EDITOR_EMPTY_STATE_COPY[emptyState].description}
+          imageSrc={editorLibraryAirisArtwork}
+          title={ANIME_EDITOR_EMPTY_STATE_COPY[emptyState].title}
+        />
+      )}
       {!viewModel.isLoadingList && viewModel.items.length > 0 && (
         <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto" data-testid="anime-editor-list-scroll" onScroll={onScroll} ref={scrollRef}>
           <div className="flex flex-col gap-0.5">

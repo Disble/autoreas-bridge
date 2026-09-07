@@ -111,3 +111,18 @@ export interface EpisodeScheduleCardProps {
   readonly openAnimeFolder: (animeID: string) => Promise<void>;
   readonly copyAnimeFolder: (animeID: string) => Promise<void>;
 }
+
+/** Contextual Today empty-state wording naming the day or lens that resolved empty. */
+export interface EpisodeEmptyStateCopy {
+  readonly title: string;
+  readonly description: string;
+}
+
+/** Collaborators the Today write commands need, and nothing more. */
+export interface UseEpisodeProgressCommandsOptions {
+  readonly source: EpisodeScheduleSource;
+  /** Called with the message a rejected write should surface, or '' to clear it. */
+  readonly onError: (message: string) => void;
+  /** Called after an accepted write, to re-read whatever it may have moved. */
+  readonly onCommitted: () => void;
+}

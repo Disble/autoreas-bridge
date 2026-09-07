@@ -133,3 +133,33 @@ repeated in the wrong form: it claimed "ESLint cannot catch a barrel that
 nothing imports yet". That reasoning is wrong — ESLint lints by glob, not by
 import graph, so it does see the file. The script was still necessary, for the
 other reason: no available rule *fails* a pure barrel.
+
+## 2026-09-07: `dharness/folder-ownership` cannot coexist with this ADR
+
+`dharness/folder-ownership` requires the opposite of this decision. Once a module
+splits into role files it demands that the unit sit in a folder of its own **with
+an `index.ts` as its entrypoint** — a folder that already has one reports
+`missingFolderIndex`, and a split module that sits flat reports
+`flatSplitModule`. Both messages have the same remedy: create a barrel.
+
+The two configs that carry the rule had drifted apart:
+
+| Host | Setting | Reads |
+|---|---|---|
+| `.dharness/eslint.config.js` | `off` | the ESLint layer spliced into `frontend/eslint.config.js` |
+| `frontend/doctor.config.json` | `error` | react-doctor, which the `dharness` pre-commit job runs |
+
+Only the ESLint layer honored this ADR, so the rule was inert on every commit
+that did not stage one of the eight affected modules and blocking on any that
+did. That is the worst of both: no enforcement of anything, and a gate that
+fires on whoever happens to touch one of these files next. It first fired on
+`shared/hooks/use-async-list/use-async-list.ts` (SDD Airis empty states), a
+folder and split that both predate that change.
+
+`doctor.config.json` is now `off` too. The eight modules the rule would reject —
+`use-async-list`, `use-elapsed-clock`, `use-missed-schedule-notice`,
+`use-progressive-list-window`, and the `download-runtime-store`,
+`network-store`, `preferences-store` and `season-store` modules — are correct as
+they stand under this ADR; the rule, not the code, is what does not apply here.
+`role-file-shape`, `max-file-lines`, `pure-index-barrel`, `require-jsdoc` and
+`require-variable-jsdoc` stay on in both hosts.

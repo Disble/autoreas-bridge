@@ -1,17 +1,23 @@
-import { Card, Chip, Spinner } from '@heroui/react';
-import { Link } from 'react-router';
+import { Alert, Card, Chip, Spinner } from '@heroui/react';
+import { Link, useNavigate } from 'react-router';
+import catalogAirisArtwork from '../../../../assets/airis-empty-states/catalog.webp';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
 import type { CatalogPanelProps } from './catalog-panel.types';
 import {
-  CATALOG_PANEL_EMPTY_MESSAGE,
-  CATALOG_PANEL_EMPTY_TITLE,
+  CATALOG_PANEL_EMPTY_STATE_COPY,
+  CATALOG_PANEL_ERROR_TITLE,
 } from './catalog-panel.constants';
 import { useCatalogPanel } from './use-catalog-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
 export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
+  const navigate = useNavigate();
   const {
-    isEmpty,
+    emptyState,
+    error,
     isLoading,
     items,
     listWindow,
@@ -29,6 +35,7 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
     onDiaChange,
     onGenerosChange,
     onGapChange,
+    onClearCriteria,
   } = useCatalogPanel(props);
 
   return (
@@ -57,14 +64,27 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           </div>
         ) : null}
 
-        {isEmpty ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">{CATALOG_PANEL_EMPTY_TITLE}</p>
-            <p className="mt-2 text-sm text-muted">{CATALOG_PANEL_EMPTY_MESSAGE}</p>
-          </div>
-        ) : null}
+        {error === undefined ? null : (
+          <Alert status="danger">
+            <Alert.Content>
+              <Alert.Title>{CATALOG_PANEL_ERROR_TITLE}</Alert.Title>
+              <Alert.Description>{error.message}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
 
-        {!isLoading && !isEmpty ? (
+        {emptyState === 'none' ? null : (
+          <AirisEmptyState
+            action={emptyState === 'actual'
+              ? { label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }
+              : { label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: onClearCriteria }}
+            description={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].description}
+            imageSrc={catalogAirisArtwork}
+            title={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].title}
+          />
+        )}
+
+        {!isLoading && emptyState === 'none' && error === undefined ? (
           <menu
             aria-label="Anime catalog"
             className="flex max-h-[28rem] min-h-0 flex-col gap-3 overflow-y-auto pr-1"

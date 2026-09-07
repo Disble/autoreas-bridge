@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -161,5 +161,48 @@ describe('anime-editor-workspace.helpers', () => {
   it('normalizes runtime feedback messages to a safe string', () => {
     expect(resolveAnimeEditorFeedbackMessage({ message: 'runtime unavailable' }, 'fallback')).toBe('runtime unavailable');
     expect(resolveAnimeEditorFeedbackMessage({ message: 42 }, 'fallback')).toBe('fallback');
+  });
+});
+
+describe('classifyAnimeEditorEmptyState', () => {
+  /** Baseline: a resolved library holding rows, with no criteria narrowing it. */
+  const resolved = { isLoadingList: false, sourceCount: 3, visibleCount: 3, query: '', filter: 'all' } as const;
+
+  it('classifies nothing while the library request is unresolved', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, isLoadingList: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
+  });
+
+  it('classifies a resolved library with no stored anime as actually empty', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, sourceCount: 0, visibleCount: 0 })).toBe('actual');
+  });
+
+  it('classifies visible rows as not empty at all', () => {
+    expect(classifyAnimeEditorEmptyState(resolved)).toBe('none');
+  });
+
+  it('classifies zero visible rows under an active search as criteria-empty', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, query: 'frieren' })).toBe('criteria');
+  });
+
+  it('classifies zero visible rows under a non-default filter as criteria-empty', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, filter: 'watching' })).toBe('criteria');
+  });
+
+  it('refuses to call zero visible rows criteria-empty when no criteria are active', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0 })).toBe('none');
+  });
+
+  it('treats a whitespace-only search as no search at all', () => {
+    expect(classifyAnimeEditorEmptyState({ ...resolved, visibleCount: 0, query: '   ' })).toBe('none');
+  });
+});
+
+describe('classifyAnimeEditorEmptyState with visible rows', () => {
+  it('keeps visible rows out of every empty state even while a search is active', () => {
+    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 1, query: 'frieren', filter: 'all' })).toBe('none');
+  });
+
+  it('keeps visible rows out of every empty state even under a non-default filter', () => {
+    expect(classifyAnimeEditorEmptyState({ isLoadingList: false, sourceCount: 3, visibleCount: 2, query: '', filter: 'watching' })).toBe('none');
   });
 });

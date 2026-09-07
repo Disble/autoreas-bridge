@@ -55,3 +55,85 @@ describe('useAsyncList', () => {
     await waitFor(() => expect(result.current.items).toEqual(['history']));
   });
 });
+
+describe('useAsyncList error lifecycle', () => {
+  it('exposes the rejection reason while still settling with an empty list', async () => {
+    const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
+    const { result } = renderHook(() => useAsyncList(load));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error?.message).toBe('runtime unavailable');
+    expect(result.current.items).toEqual([]);
+  });
+
+  it('normalizes a non-Error rejection into an Error', async () => {
+    const load = vi.fn().mockRejectedValue('binding missing');
+    const { result } = renderHook(() => useAsyncList(load));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.error?.message).toBe('binding missing');
+  });
+
+  it('reports no error for a successful request', async () => {
+    const load = vi.fn().mockResolvedValue(['one']);
+    const { result } = renderHook(() => useAsyncList(load));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('clears a previous error as soon as an explicit reload starts', async () => {
+    const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
+    const { result } = renderHook(() => useAsyncList(load));
+
+    await waitFor(() => expect(result.current.error?.message).toBe('runtime unavailable'));
+
+    load.mockReturnValue(new Promise(() => undefined));
+    act(() => result.current.reload());
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('clears a previous error when the source key starts a fresh request', async () => {
+    const load = vi.fn().mockRejectedValue(new Error('runtime unavailable'));
+    const { result, rerender } = renderHook(({ sourceKey }) => useAsyncList(load, undefined, sourceKey), {
+      initialProps: { sourceKey: 'catalog' },
+    });
+
+    await waitFor(() => expect(result.current.error?.message).toBe('runtime unavailable'));
+
+    load.mockResolvedValue(['history']);
+    rerender({ sourceKey: 'history' });
+
+    expect(result.current.error).toBeUndefined();
+    await waitFor(() => expect(result.current.items).toEqual(['history']));
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('ignores a cancelled request that rejects after a newer one succeeded', async () => {
+    let rejectStale: (reason: Error) => void = () => undefined;
+    const load = vi.fn().mockImplementation(() => new Promise<readonly string[]>((_resolve, reject) => {
+      rejectStale = reject;
+    }));
+    const { result, rerender } = renderHook(({ sourceKey }) => useAsyncList(load, undefined, sourceKey), {
+      initialProps: { sourceKey: 'catalog' },
+    });
+
+    load.mockResolvedValue(['history']);
+    rerender({ sourceKey: 'history' });
+    await waitFor(() => expect(result.current.items).toEqual(['history']));
+
+    await act(async () => {
+      rejectStale(new Error('stale rejection'));
+      await Promise.resolve();
+    });
+
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.items).toEqual(['history']);
+  });
+});

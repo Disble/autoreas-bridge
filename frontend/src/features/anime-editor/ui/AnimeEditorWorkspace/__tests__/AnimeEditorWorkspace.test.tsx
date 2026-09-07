@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
+/** Stands in for the workspace hook so this suite asserts composition only. */
 const useAnimeEditorWorkspaceMock = vi.fn();
 
 vi.mock('../use-anime-editor-workspace', () => ({
@@ -16,6 +17,7 @@ describe('AnimeEditorWorkspace', () => {
       query: '',
       filter: 'watching',
       items: [{ id: 'anime-1', animeId: 'anime-1', nombre: 'Frieren', subtitle: '12 watched', selected: true }],
+      listEmptyState: 'none',
       listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 1 },
       selectedRecord: { frequent: { name: 'Frieren' } },
       draft: { name: 'Frieren', status: 0, progress: '12', totalEpisodes: '28', kind: '', page: '', folder: '', premieredAt: '', origin: '', duration: '', genres: '', studios: '', coverPath: '' },
@@ -35,6 +37,7 @@ describe('AnimeEditorWorkspace', () => {
       canSave: true,
       onQueryChange: vi.fn(),
       onFilterChange: vi.fn(),
+      onClearCriteria: vi.fn(),
       onSelectAnime: vi.fn(),
       onDraftChange: vi.fn(),
       onToggleDetails: vi.fn(),

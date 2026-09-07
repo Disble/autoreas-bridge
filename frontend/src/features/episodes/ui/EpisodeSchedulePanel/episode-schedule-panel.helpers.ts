@@ -10,7 +10,7 @@ import {
 import { animeRuntimeSource } from '../../../../infrastructure/anime-runtime-source/anime-runtime-source.helpers';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import { preferencesSource } from '../../../../infrastructure/preferences-source/preferences-source.helpers';
-import type { AnimeCover, EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput } from './episode-schedule-panel.types';
+import type { AnimeCover, EpisodeDayCount, EpisodeEmptyStateCopy, EpisodeScheduleItem, EpisodeScheduleRow, EpisodeScheduleSource, EpisodeViewLens, CoverEntry, InitialEpisodeSelectionInput } from './episode-schedule-panel.types';
 
 /**
  * Returns an injected schedule source when supplied, otherwise assembles the
@@ -146,4 +146,24 @@ export function episodeDayLabel(dayKey: string): string {
  */
 function formatEpisodeNumber(value: number): string {
   return String(value);
+}
+
+/**
+ * Builds the Today empty-state copy for the filter the user is actually looking
+ * at. The context is named rather than described generically, because "nothing
+ * here" on a schedule board reads as a broken load unless the copy says which
+ * day or lens resolved empty.
+ */
+export function getEpisodeEmptyStateCopy(lens: EpisodeViewLens, selectedDay: string): EpisodeEmptyStateCopy {
+  const context = episodeDayLabel(selectedDay);
+  if (lens === 'season') {
+    return {
+      title: `Nothing in ${context}`,
+      description: `No anime are grouped under ${context} right now. Create one to start tracking it here.`,
+    };
+  }
+  return {
+    title: `Nothing scheduled for ${context}`,
+    description: `No active anime are scheduled for ${context}. Create one to put it on your schedule.`,
+  };
 }

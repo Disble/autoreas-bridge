@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
 import type { Anime } from '../../../../shared/contracts/anime.types';
 import { isScheduledAnime } from '../../../../shared/helpers/anime-estado.helpers';
-import { createAnimeEditorListItems } from './anime-editor-workspace.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorListItems } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFilter, UseAnimeEditorListOptions } from './anime-editor-workspace.types';
 
 /** Owns watching-first catalog loading, filters, search, and selected identity. */
@@ -27,8 +27,16 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
 
   // 5. Derived State (useMemo)
   const itemViewModels = useMemo(() => createAnimeEditorListItems(items, filter, query, selectedAnimeId), [filter, items, query, selectedAnimeId]);
+  const emptyState = useMemo(
+    () => classifyAnimeEditorEmptyState({ isLoadingList, sourceCount: items.length, visibleCount: itemViewModels.length, query, filter }),
+    [filter, isLoadingList, itemViewModels.length, items.length, query],
+  );
 
   // 6. Callbacks (useCallback calling pure helpers)
+  const onClearCriteria = useCallback(() => {
+    setQuery('');
+    setFilter('all');
+  }, []);
   const loadItems = useCallback(async () => {
     setIsLoadingList(true);
     try {
@@ -44,5 +52,5 @@ export function useAnimeEditorList(options: Readonly<UseAnimeEditorListOptions>)
   // 7. Effects
   useEffect(() => { void loadItems(); }, [loadItems]);
 
-  return { query, filter, items: itemViewModels, selectedAnimeId, isLoadingList, setQuery, setSelectedAnimeId, onFilterChange, loadItems };
+  return { query, filter, items: itemViewModels, emptyState, selectedAnimeId, isLoadingList, setQuery, setSelectedAnimeId, onFilterChange, onClearCriteria, loadItems };
 }

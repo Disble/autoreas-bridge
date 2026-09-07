@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router';
 import { NotificationToasts } from '../../src/features/notifications/ui/NotificationToasts/NotificationToasts';
 import { renderAppNotificationToast } from '../../src/features/notifications/ui/NotificationToasts/app-notification.helpers';
 import { ActivityDetailFixture } from './activity-detail-fixture';
+import { AirisEmptyStatesFixture } from './airis-empty-states-fixture';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 import '../../src/style.css';
 
@@ -230,6 +231,7 @@ function LayoutFixtures() {
     <>
       <ToastFixture />
       <ActivityDetailFixture />
+      <AirisEmptyStatesFixture />
     </>
   );
 }
