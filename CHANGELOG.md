@@ -14,6 +14,12 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Windows notifications now say how many anime a run is about, in their first line.** Windows folds a notification's whole detail list into a single block of text and cuts it wherever it stops fitting, so a run that started three downloads could show only two and give you no way to tell. "Download run completed" was already safe because it opened with "3 episode(s) downloaded"; the others were not. A started run now reads "Download check started (scheduled) — 3 anime queued", and a run with failures says "2 of 5 animes failed to download" instead of "some animes failed". The count is in the part Windows cannot cut.
+- **A Windows notification no longer hands the system more text than it can show.** A scheduled run naming fifty anime built a single 2,500-character message and left Windows to cut it wherever it liked. The list is now bounded before it is sent, so what arrives is predictable; nothing is lost, because the totals are in the first line and the full record is one click away in the notification centre.
+- **Long anime names are shortened inside Windows notifications so each one keeps to a single line.** A name like "Nijuuseiki Denki Mokuroku: Eureka·Evrika" wrapped onto two lines and took the space two other anime would have used, which is why a run over three anime could look like a run over two. Names are now shortened with a "…" — never the line saying what happened to the anime, and never below the point where you can still tell which show it is. The full name is intact everywhere else, including the notification centre.
+
 ## [1.9.0] — 2026-09-04
 
 ### Added

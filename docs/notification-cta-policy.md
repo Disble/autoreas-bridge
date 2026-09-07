@@ -129,7 +129,7 @@ silently lost.
 | `Level` | severity chip | toast `variant` | `Audio` selection — the medium has no severity styling | log level |
 | `Kind` | — not shown | — | — | fixed `EventType: "notification"` |
 | `CorrelationID` | — not shown; it becomes the `See this run` verb | carried, not shown | `ActivationArguments` | `Fields.CorrelationID` |
-| `Rows` | bounded row block with cover art | same block | collapse into `Body`; a single-subject record lends its cover to `Icon` | — |
+| `Rows` | bounded row block with cover art | same block | collapse into `Body` under a character budget; a single-subject record lends its cover to `Icon` | — |
 | Row cover art | `GetAnimeCover` at render | `GetAnimeCover` at render | `Icon` (single subject) or the app icon | — |
 | **L1 verbs** (`RowRef` empty) | footer buttons | one `ToastActionButton` each | `Actions`, capped at 5 by the OS | — |
 | **L2 verbs** (`RowRef` set) | button inside its row | — the row is identity here | — no row concept | — |
@@ -143,6 +143,53 @@ one press away for anything finer.
 
 **Windows collapses rows into the body.** Its toast has images, buttons and
 inputs but no repeatable row. Collapsing is a translation; dropping is not.
+
+**The body states its own numbers. Producers, this one is on you.**
+
+Read the template the adapter renders — `tmpl/xml.go.tmpl` in
+`git.sr.ht/~jackmordaunt/go-toast/v2`. The folded body, *every row line
+included*, becomes **one** `<text>` element, and that element carries no
+`hint-maxLines`. Windows is not paginating rows there; it is wrapping a single
+string and clipping it at its own default.
+
+Two consequences, and neither is negotiable:
+
+1. **The clip point moves with string WIDTH, not with row count.** A run naming
+   three short anime shows all three. A run naming two long ones already
+   overflows. `desktopToastBodyBudget` therefore bounds *characters*, and it is
+   a floor taken from real Action Center captures (195 runes rendered in full),
+   not a fitted number — a tighter bound would delete rows Windows was willing
+   to show.
+2. **A fact carried only by the rows is a fact the user may not get.** The
+   body's first line is the one part no wrap can push off the toast. So every
+   count belongs there, in the producer, before the rows repeat it in detail.
+
+This is why `run_completed` never had the defect and `run_started` did.
+`"3 episode(s) downloaded."` survives any clip; `"Download check started
+(scheduled)."` left the reader counting rows that Windows had already cut. The
+failure branches had the same defect in prose form — `"Some animes failed"` is
+equally true of one failure in twelve and eleven in twelve.
+
+The bodies live in `internal/download/service_notification_bodies.go`, which
+exists to keep that rule in one place. A new run notification states its scale
+in its first sentence or it is not finished.
+
+**Two bounds, two questions.** `desktopToastBodyBudget` decides how many rows
+are *sent*. `desktopToastRowLineLimit` decides what each one *costs on arrival* —
+because Windows wraps that single element, an untrimmed 76-rune row occupies the
+space two short ones would. So a long anime name is shortened with `…` inside
+this adapter, and only here: the Center and the HeroUI toast have real rows and
+draw the name in full.
+
+Which half gives way is not arbitrary. The **detail is never shortened** — it is
+the sentence saying what happened, and half of it is not a smaller truth but a
+different one. The name is, down to `desktopToastRowNameFloor` and no further:
+past that it identifies no anime, and a wrapped line beats an unrecognisable one.
+
+Note what this does **not** ask for: a `+N more` marker on the folded body.
+Neither this bound nor `desktopToastActionsLimit` leaves one, for the same
+reason — the marker is the first thing a clip eats, the count is already in
+line 1, and the full record is one press away.
 
 **The log forward ignores rows and actions, and that is correct.** A forensic log
 line has no affordances, so ignoring them is already a complete projection. It is
