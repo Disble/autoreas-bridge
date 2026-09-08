@@ -14,6 +14,27 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-09-08
+
+### Added
+
+- **Wire change.** Paired mobile devices can now send their sync diagnostics to a dedicated endpoint, `POST /api/sync/diagnostics`, instead of folding them into the body of a sync request. Each report is one sync cycle's post-mortem, and the bridge acknowledges it only once the record is actually stored — which is what lets a device delete its local copy safely. Documented in `docs/openapi.yaml`.
+- Diagnostic reports are stored with their cycle id, trigger and outcome as real, searchable columns rather than as an opaque blob, so questions like "how did the last background syncs end on this device?" can be answered directly instead of by reading raw request bodies.
+- Every field on an incoming report is checked against a fixed list of permitted values, and anything outside it is rejected with the offending field named rather than quietly rewritten. Reports carry no free-form text at all, so nothing arbitrary from a device is ever persisted.
+
+### Changed
+
+- Under database contention the diagnostics endpoint answers immediately with "try again shortly" instead of waiting for its turn. Diagnostics are the least important traffic the bridge handles, so they now yield to real sync work rather than competing with it, and a device that gets that answer keeps its report and sends it on the next cycle.
+- Sending the same report twice is now harmless: the bridge accepts the repeat without storing a second copy, so a device that never received the first acknowledgement can safely retry.
+
+### Deprecated
+
+- **Wire change.** The `client_telemetry` field on the sync reconcile request is deprecated in favour of the new endpoint. It is still accepted and still ignored, exactly as before, and is now declared and documented instead of being an undocumented field that no part of the bridge referenced. Mobile clients send it on both paths during the transition; nothing breaks when they stop.
+
+### Internal
+
+- Recorded two defects found while verifying this release rather than fixing them here: the OpenAPI documentation gate reads only one of the thirteen registered routes and has therefore been passing without checking anything since the router moved to a table, and neither the bridge nor the mobile client bounds a request that stalls on the shared database connection, which is the leading candidate for the background syncs that run their full timeout in silence.
+
 ## [1.10.0] — 2026-09-08
 
 ### Added
