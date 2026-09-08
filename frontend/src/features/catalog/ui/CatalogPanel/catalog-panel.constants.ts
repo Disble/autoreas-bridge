@@ -10,6 +10,21 @@ import type { AnimeFilterOption, AnimeFilterState, CatalogEmptyStateCopy } from 
 export const CATALOG_PANEL_ERROR_TITLE = 'Catalog unavailable';
 
 /**
+ * Feedback shown, as the accessible name of the loading status region, while
+ * the catalog request is unresolved.
+ */
+export const CATALOG_PANEL_LOADING_LABEL = 'Loading animes...';
+
+/**
+ * Shape shared by the real `CatalogListRow` and its `CatalogListSkeleton`
+ * placeholder, so the two cannot drift apart silently.
+ */
+export const CATALOG_LIST_ROW_CLASS = 'rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]';
+
+/** How many placeholder rows Catalog draws while its request is unresolved. */
+export const CATALOG_SKELETON_ROW_COUNT = 4;
+
+/**
  * Copy for each Catalog empty state. The criteria wording deliberately never
  * claims the catalog is empty, because the anime are there — the filters are
  * hiding them.

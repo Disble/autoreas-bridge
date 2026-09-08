@@ -5,6 +5,7 @@ import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.con
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { EpisodeScheduleCard } from './EpisodeScheduleCard';
+import { EpisodeScheduleSkeleton } from './EpisodeScheduleSkeleton';
 import { EPISODE_LENS_OPTIONS, EPISODE_LENS_TOGGLE_LABEL, EPISODE_TODAY_DOT_CLASS, EPISODE_TODAY_MARKER_LABEL, EPISODES_LOADING_MESSAGE } from './episode-schedule-panel.constants';
 import { dayBadge, episodeDayLabel, toEpisodeViewLens } from './episode-schedule-panel.helpers';
 import type { EpisodeSchedulePanelProps } from './episode-schedule-panel.types';
@@ -63,7 +64,12 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
         </ToggleButtonGroup>
       </div>
 
-      {isLoadingSchedule ? <Typography type="body-sm" color="muted">{EPISODES_LOADING_MESSAGE}</Typography> : null}
+      {isLoadingSchedule ? (
+        <div aria-labelledby="episode-schedule-loading-label" aria-live="polite" className="grid gap-3" role="status">
+          <span className="sr-only" id="episode-schedule-loading-label">{EPISODES_LOADING_MESSAGE}</span>
+          <EpisodeScheduleSkeleton />
+        </div>
+      ) : null}
 
       {!isLoadingSchedule && rows.length === 0 ? (
         <AirisEmptyState

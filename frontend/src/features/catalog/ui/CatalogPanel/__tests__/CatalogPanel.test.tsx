@@ -88,6 +88,11 @@ describe('CatalogPanel', () => {
     expect(screen.getByText('10 / 24')).toBeInTheDocument();
     expect(screen.getByTestId('anime-status-anime-active')).toHaveTextContent('Active');
     expect(screen.getByTestId('anime-status-anime-inactive')).toHaveTextContent('Inactive');
+    // The colour is the only thing separating the two states at a glance, and
+    // HeroUI publishes it as a BEM class, so this asserts the component's own
+    // contract rather than an incidental utility class.
+    expect(screen.getByTestId('anime-status-anime-active')).toHaveClass('chip--success');
+    expect(screen.getByTestId('anime-status-anime-inactive')).toHaveClass('chip--default');
   });
 
   it('offers creation, and never criteria recovery, when the catalog resolved with no anime', () => {
@@ -137,7 +142,7 @@ describe('CatalogPanel', () => {
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
   });
 
-  it('renders the loading state', () => {
+  it('announces loading through a named status region', () => {
     useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, items: [] }));
 
     render(
@@ -146,7 +151,19 @@ describe('CatalogPanel', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Loading animes...')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading animes...' })).toBeInTheDocument();
+  });
+
+  it('renders exactly four placeholder rows while loading', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, items: [] }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByTestId('catalog-skeleton-row')).toHaveLength(4);
   });
 
   it('renders a gap badge for animes missing a download page or folder', () => {
@@ -275,6 +292,24 @@ describe('CatalogPanel list visibility', () => {
     );
 
     expect(screen.getByTestId('catalog-list-scroll')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['resolved with rows', { items: [{ id: 'anime-active', nombre: 'Active Anime', estado: 2, progressLabel: '10 / 24', status: 'active', statusLabel: 'Active' }] }],
+    ['actually empty', { emptyState: 'actual' }],
+    ['criteria empty', { emptyState: 'criteria' }],
+    ['failed', { error: new Error('runtime unavailable') }],
+  ])('renders no status region and no skeleton once the catalog is %s', (_label, override) => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ items: [], ...override }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('catalog-skeleton-row')).toBeNull();
   });
 
   it('navigates to the Create workspace from the actually-empty catalog', () => {

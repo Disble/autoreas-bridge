@@ -275,9 +275,18 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
 
     renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
 
-    expect(await screen.findByText('Loading the schedule...')).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading the schedule...' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('renders exactly three placeholder rows while the schedule request is unresolved', async () => {
+    const source = createSource({ getEpisodeSchedule: vi.fn().mockReturnValue(new Promise(() => undefined)) });
+
+    renderPanel(<EpisodeSchedulePanel initialDay="Viernes" source={source} />);
+
+    await screen.findByRole('status', { name: 'Loading the schedule...' });
+    expect(screen.getAllByTestId('episode-schedule-skeleton-row')).toHaveLength(3);
   });
 
   it('shows the failure alert instead of empty guidance when the request rejects', async () => {
@@ -288,6 +297,8 @@ describe('EpisodeSchedulePanel resolved-empty guidance', () => {
     expect(await screen.findByText('Episode schedule unavailable')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
   });
 });
 
@@ -314,6 +325,7 @@ describe('EpisodeSchedulePanel resolved-non-empty precedence', () => {
     expect(await screen.findByRole('heading', { name: 'Frieren' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
-    expect(screen.queryByText('Loading the schedule...')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
   });
 });

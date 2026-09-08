@@ -58,6 +58,21 @@ export const ANIME_EDITOR_STATUS_OPTIONS: readonly AnimeEditorStatusOption[] = A
 }));
 
 /**
+ * Feedback shown, as the accessible name of the loading status region, while
+ * the Editor Library's watching-first list request is unresolved.
+ */
+export const ANIME_EDITOR_LIST_LOADING_LABEL = 'Loading anime list...';
+
+/**
+ * Shape shared by the real `AnimeEditorListRow` and its `AnimeEditorListSkeleton`
+ * placeholder, so the two cannot drift apart silently.
+ */
+export const ANIME_EDITOR_LIST_ROW_CLASS = 'min-h-14 h-auto w-full min-w-0 justify-start rounded-xl border-l-2 px-3 py-1.5 transition-colors';
+
+/** How many placeholder rows the Editor Library draws while its list request is unresolved. */
+export const ANIME_EDITOR_SKELETON_ROW_COUNT = 6;
+
+/**
  * Copy for each Library empty state. The actual-empty wording states the
  * library is empty; the criteria-empty wording deliberately never does, because
  * a filtered-down rail that claims the library is empty sends the user off to

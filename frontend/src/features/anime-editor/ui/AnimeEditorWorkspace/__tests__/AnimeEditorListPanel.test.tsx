@@ -111,8 +111,27 @@ describe('AnimeEditorListPanel empty states', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText('Loading anime list...')).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading anime list...' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Clear search and filters' })).toBeNull();
+  });
+
+  it('renders exactly six placeholder rows while the library request is unresolved', async () => {
+    mockSource.getAnimes.mockReturnValue(new Promise(() => undefined));
+
+    renderWorkspace();
+
+    await screen.findByRole('status', { name: 'Loading anime list...' });
+    expect(screen.getAllByTestId('anime-editor-skeleton-row')).toHaveLength(6);
+  });
+
+  it('renders no status region and no placeholder once the library request resolved', async () => {
+    mockSource.getAnimes.mockResolvedValue([SCHEDULED_ANIME]);
+
+    renderWorkspace();
+
+    await screen.findByText('Frieren');
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('anime-editor-skeleton-row')).toBeNull();
   });
 });

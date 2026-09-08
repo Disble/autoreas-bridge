@@ -100,6 +100,12 @@ export interface AnimeEditorListItemViewModel {
   readonly selected: boolean;
 }
 
+/** Props for one rendered row of the Editor Library's rail. */
+export interface AnimeEditorListRowProps {
+  readonly item: AnimeEditorListItemViewModel;
+  readonly onSelectAnime: (animeId: string) => void;
+}
+
 /** Inferred view model consumed by the dumb editor components. */
 export type AnimeEditorWorkspaceViewModel = ReturnType<typeof import('./use-anime-editor-workspace').useAnimeEditorWorkspace>;
 

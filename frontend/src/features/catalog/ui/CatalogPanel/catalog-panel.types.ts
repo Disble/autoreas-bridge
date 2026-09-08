@@ -34,6 +34,11 @@ export interface AnimeViewModel {
   readonly gapLabel: string | undefined;
 }
 
+/** Props for one rendered row of the Catalog's anime list. */
+export interface CatalogListRowProps {
+  readonly item: AnimeViewModel;
+}
+
 /** Single option rendered by a Catalog filter select control. */
 export type AnimeFilterOption = LabeledSelectOption;
 

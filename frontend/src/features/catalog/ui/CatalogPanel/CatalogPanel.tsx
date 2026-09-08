@@ -1,14 +1,17 @@
-import { Alert, Card, Chip, Spinner } from '@heroui/react';
-import { Link, useNavigate } from 'react-router';
+import { Alert, Card } from '@heroui/react';
+import { useNavigate } from 'react-router';
 import catalogAirisArtwork from '../../../../assets/airis-empty-states/catalog.webp';
 import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
+import { CatalogListRow } from './CatalogListRow';
+import { CatalogListSkeleton } from './CatalogListSkeleton';
 import type { CatalogPanelProps } from './catalog-panel.types';
 import {
   CATALOG_PANEL_EMPTY_STATE_COPY,
   CATALOG_PANEL_ERROR_TITLE,
+  CATALOG_PANEL_LOADING_LABEL,
 } from './catalog-panel.constants';
 import { useCatalogPanel } from './use-catalog-panel';
 
@@ -58,9 +61,9 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           onGapChange={onGapChange}
         />
         {isLoading ? (
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
-            <Spinner size="sm" />
-            <span>Loading animes...</span>
+          <div aria-labelledby="catalog-panel-loading-label" aria-live="polite" className="flex flex-col gap-3" role="status">
+            <span className="sr-only" id="catalog-panel-loading-label">{CATALOG_PANEL_LOADING_LABEL}</span>
+            <CatalogListSkeleton />
           </div>
         ) : null}
 
@@ -93,37 +96,7 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
             ref={listWindow.scrollRef}
           >
             {items.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <Link className="min-w-0 flex-1" to={`/catalog/detail/${item.id}`}>
-                    <h3 className="truncate text-sm font-semibold text-foreground">{item.nombre}</h3>
-                    <p className="mt-1 text-xs text-muted">{item.progressLabel}</p>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {item.hasDownloadGap ? (
-                      <Chip
-                        color="warning"
-                        data-testid={`anime-gap-${item.id}`}
-                        size="sm"
-                        variant="soft"
-                      >
-                        <Chip.Label>{item.gapLabel}</Chip.Label>
-                      </Chip>
-                    ) : null}
-                    <Chip
-                      color={item.status === 'active' ? 'success' : 'default'}
-                      data-testid={`anime-status-${item.id}`}
-                      size="sm"
-                      variant="soft"
-                    >
-                      <Chip.Label>{item.statusLabel}</Chip.Label>
-                    </Chip>
-                  </div>
-                </div>
-              </li>
+              <CatalogListRow item={item} key={item.id} />
             ))}
           </menu>
         ) : null}
