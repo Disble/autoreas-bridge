@@ -27,6 +27,40 @@ const CARD_BOUNDS_TOLERANCE_PX = 1;
 /** The intrinsic size every Airis composition is authored and specified at. */
 const EXPECTED_INTRINSIC_SIZE = 512;
 
+/**
+ * The widest the artwork may actually render.
+ *
+ * The assets are authored at 512 so they stay sharp on a high-DPI panel; that
+ * is a source size, not a display size. Without this cap the browser renders
+ * the source size, which is what shipped: a 512px illustration filling the
+ * Today panel and pushing its own recovery button below the fold.
+ */
+const MAX_ARTWORK_DISPLAY_PX = 200;
+
+/** The tallest an empty state may grow, on a page wide enough not to wrap. */
+const MAX_CARD_HEIGHT_PX = 420;
+
+/**
+ * The same budget for a narrow column, where the copy legitimately wraps onto
+ * more lines. Stated separately rather than by raising the wide cap: a single
+ * number loose enough for the rail would let the full-width card regain most of
+ * the height this fixture exists to keep off it.
+ */
+const MAX_RAIL_CARD_HEIGHT_PX = 480;
+
+/** The share of its card the artwork may occupy before it crowds out the copy. */
+const MAX_ARTWORK_CARD_SHARE = 0.6;
+
+/** How far the rendered box may drift from square before the art is distorted. */
+const ASPECT_TOLERANCE_PX = 1;
+
+/**
+ * The Editor Library rail's column width, the narrowest container any Airis
+ * state renders in. The first version of this fixture only ever measured a
+ * full-width page, so nothing proved the artwork fitted the rail at all.
+ */
+const RAIL_CONTAINER_WIDTH_PX = 320;
+
 /** One composition under measurement: its subject name, artwork, and copy. */
 interface AirisComposition {
   readonly subject: string;
@@ -68,7 +102,7 @@ const COMPOSITIONS: readonly AirisComposition[] = [
  * @param subject Which composition is being measured, for the report.
  * @returns Every check this composition must pass.
  */
-function measureComposition(root: HTMLElement | null, subject: string): readonly Check[] {
+function measureComposition(root: HTMLElement | null, subject: string, maxCardHeightPx: number): readonly Check[] {
   const card = queryCard(root);
   const image = queryImage(root);
 
@@ -76,10 +110,50 @@ function measureComposition(root: HTMLElement | null, subject: string): readonly
     return [{ name: `${subject}: the empty state rendered its card and artwork`, ok: false, detail: describePresence(card, image) }];
   }
 
+  const imageBox = image.getBoundingClientRect();
+  const cardBox = card.getBoundingClientRect();
+
   return [
     checkTheDecode(image, subject),
-    ...checkTheBox(image.getBoundingClientRect(), card.getBoundingClientRect(), subject),
+    ...checkTheBox(imageBox, cardBox, subject),
+    ...checkTheScale(imageBox, cardBox, subject, maxCardHeightPx),
     checkThePage(subject),
+  ];
+}
+
+/**
+ * Whether the artwork is a hint or a wall.
+ *
+ * This is the check the first version of this fixture lacked, and the gap is
+ * worth naming: it measured that the image was present, that it had a non-zero
+ * box, and that it sat inside its card — all three of which a 512px
+ * illustration filling the entire panel satisfies. It shipped exactly that, and
+ * the recovery button landed below the fold on an ordinary window.
+ *
+ * Presence and containment are not proportion. These four measure proportion.
+ */
+function checkTheScale(imageBox: DOMRect, cardBox: DOMRect, subject: string, maxCardHeightPx: number): readonly Check[] {
+  return [
+    {
+      name: `${subject}: the artwork renders at a display size, not its authored 512px`,
+      ok: imageBox.width <= MAX_ARTWORK_DISPLAY_PX,
+      detail: `${Math.round(imageBox.width)}px wide, cap ${MAX_ARTWORK_DISPLAY_PX}px`,
+    },
+    {
+      name: `${subject}: the artwork keeps its square aspect`,
+      ok: Math.abs(imageBox.width - imageBox.height) <= ASPECT_TOLERANCE_PX,
+      detail: `${Math.round(imageBox.width)}x${Math.round(imageBox.height)}`,
+    },
+    {
+      name: `${subject}: the artwork leaves the copy and the action their room`,
+      ok: imageBox.height <= cardBox.height * MAX_ARTWORK_CARD_SHARE,
+      detail: `image ${Math.round(imageBox.height)}px of a ${Math.round(cardBox.height)}px card`,
+    },
+    {
+      name: `${subject}: the empty state stays a hint rather than a page`,
+      ok: cardBox.height <= maxCardHeightPx,
+      detail: `card ${Math.round(cardBox.height)}px tall, cap ${maxCardHeightPx}px`,
+    },
   ];
 }
 
@@ -152,21 +226,22 @@ function isInside(inner: DOMRect, outer: DOMRect): boolean {
  * @param composition The surface's artwork and copy under measurement.
  * @returns The mounted empty state with its own verdict node.
  */
-function CompositionFixture({ composition }: Readonly<{ composition: AirisComposition }>) {
+function CompositionFixture({ placement }: Readonly<{ placement: AirisPlacement }>) {
   const [checks, setChecks] = useState<readonly Check[] | undefined>();
+  const { composition, subject, widthPx, maxCardHeightPx } = placement;
 
   useEffect(() => {
-    const root = document.querySelector<HTMLElement>(`[data-airis-fixture="${composition.subject}"]`);
+    const root = document.querySelector<HTMLElement>(`[data-airis-fixture="${subject}"]`);
 
     return measureWhenReady(
       () => hasDecodedImage(root),
-      () => setChecks(measureComposition(root, composition.subject)),
+      () => setChecks(measureComposition(root, subject, maxCardHeightPx)),
     );
-  }, [composition.subject]);
+  }, [maxCardHeightPx, subject]);
 
   return (
     <>
-      <div data-airis-fixture={composition.subject}>
+      <div data-airis-fixture={subject} style={widthPx === undefined ? undefined : { width: `${widthPx}px` }}>
         <AirisEmptyState
           action={{ label: AIRIS_CREATE_ANIME_LABEL, onPress: () => undefined }}
           description={composition.description}
@@ -179,12 +254,33 @@ function CompositionFixture({ composition }: Readonly<{ composition: AirisCompos
   );
 }
 
-/** Every Airis composition on the shared fixture page, measured independently. */
+/** One measured placement: a composition rendered at one container width. */
+interface AirisPlacement {
+  readonly composition: AirisComposition;
+  readonly subject: string;
+  /** Undefined means the full page width; a number pins a narrow container. */
+  readonly widthPx?: number;
+  /** The height budget for this geometry — a wrapping column earns more room. */
+  readonly maxCardHeightPx: number;
+}
+
+/**
+ * Every composition twice: once at full width, as Today and Catalog render it,
+ * and once in the Editor rail's narrow column. Both matter — a cap that only
+ * works on a wide page still overflows the rail, and a rail that fits proves
+ * nothing about the panel that pushed its own button off screen.
+ */
+const PLACEMENTS: readonly AirisPlacement[] = COMPOSITIONS.flatMap((composition) => [
+  { composition, subject: composition.subject, maxCardHeightPx: MAX_CARD_HEIGHT_PX },
+  { composition, subject: `${composition.subject} in a rail`, widthPx: RAIL_CONTAINER_WIDTH_PX, maxCardHeightPx: MAX_RAIL_CARD_HEIGHT_PX },
+]);
+
+/** Every Airis placement on the shared fixture page, measured independently. */
 export function AirisEmptyStatesFixture() {
   return (
     <>
-      {COMPOSITIONS.map((composition) => (
-        <CompositionFixture composition={composition} key={composition.subject} />
+      {PLACEMENTS.map((placement) => (
+        <CompositionFixture key={placement.subject} placement={placement} />
       ))}
     </>
   );
