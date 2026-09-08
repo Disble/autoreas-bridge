@@ -20,6 +20,7 @@ type Handler struct {
 	syncReconcile          http.Handler
 	seasonRatings          http.Handler
 	activeSeason           http.Handler
+	syncDiagnostics        http.Handler
 	mux                    *http.ServeMux
 	captureMux             http.Handler
 	config                 Config
@@ -33,6 +34,7 @@ func NewHandler(config Config) http.Handler {
 	h.syncReconcile = apiHandlers.NewSyncHandler(buildSyncHandlerConfig(h, config))
 	h.seasonRatings = buildSeasonRatingHandler(h, config)
 	h.activeSeason = buildActiveSeasonHandler(h, config)
+	h.syncDiagnostics = buildSyncDiagnosticsHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
 	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
 	return h
@@ -88,6 +90,13 @@ func buildActiveSeasonHandler(h *Handler, config Config) http.Handler {
 	return apiHandlers.NewActiveSeasonHandler(apiHandlers.ActiveSeasonConfig{Authenticate: h.authenticate, Snapshot: config.ActiveSeasonSnapshot})
 }
 
+// buildSyncDiagnosticsHandler creates the sync-diagnostics ingestion handler
+// when configured. A nil seam still builds the handler so it reports 503
+// itself, matching NewSyncDiagnosticsHandler's own nil-safe contract.
+func buildSyncDiagnosticsHandler(h *Handler, config Config) http.Handler {
+	return apiHandlers.NewSyncDiagnosticsHandler(apiHandlers.SyncDiagnosticsConfig{Authenticate: h.authenticate, Ingest: config.IngestSyncDiagnostics})
+}
+
 // buildHandlerMux registers the bridge API routes on a new multiplexer.
 func buildHandlerMux(h *Handler, config Config) *http.ServeMux {
 	mux := http.NewServeMux()
@@ -104,6 +113,7 @@ func buildHandlerMux(h *Handler, config Config) *http.ServeMux {
 		{path: "/api/conflicts", handler: h.handleConflicts},
 		{path: "/api/conflicts/", handler: h.handleConflictByID},
 		{path: "/api/sync/reconcile", handler: h.handleSyncReconcile},
+		{path: "/api/sync/diagnostics", handler: h.syncDiagnostics.ServeHTTP},
 		{path: "/api/seasons/active", handler: h.handleActiveSeason},
 		{path: "/api/seasons/active/ratings", handler: h.handleSeasonRatings},
 	} {

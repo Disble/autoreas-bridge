@@ -58,6 +58,9 @@ type RecordSeasonRatingFunc = apiHandlers.RecordSeasonRatingFunc
 // ActiveSeasonSnapshotFunc aliases the active-season snapshot query signature.
 type ActiveSeasonSnapshotFunc = apiHandlers.ActiveSeasonSnapshotFunc
 
+// IngestSyncDiagnosticsFunc aliases the sync-diagnostics ingestion seam signature.
+type IngestSyncDiagnosticsFunc = apiHandlers.IngestSyncDiagnosticsFunc
+
 // CaptureFunc aliases the request-capture queue seam.
 type CaptureFunc = apiHandlers.CaptureFunc
 
@@ -76,6 +79,7 @@ type Config struct {
 	Conflicts              ConflictService
 	RecordSeasonRating     RecordSeasonRatingFunc
 	ActiveSeasonSnapshot   ActiveSeasonSnapshotFunc
+	IngestSyncDiagnostics  IngestSyncDiagnosticsFunc
 	RealtimeHub            realtime.Hub
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()
