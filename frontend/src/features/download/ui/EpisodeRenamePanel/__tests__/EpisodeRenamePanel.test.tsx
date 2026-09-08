@@ -8,9 +8,12 @@ vi.mock('../use-episode-rename-panel', () => ({
   useEpisodeRenamePanel: vi.fn(),
 }));
 
+/** Typed handle onto the mocked hook so overrides get hook-return type checking. */
 const mockedHook = vi.mocked(useEpisodeRenamePanel);
+/** Shape of the hook's return value, reused to type mock overrides. */
 type HookReturn = ReturnType<typeof useEpisodeRenamePanel>;
 
+/** Builds a ready hook state each case overrides one field of, and applies it to the mock. */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     status: 'ready',
@@ -32,7 +35,7 @@ describe('EpisodeRenamePanel', () => {
 
     render(<EpisodeRenamePanel />);
 
-    expect(screen.getByLabelText('Loading episode rename setting')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading episode rename setting' })).toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 

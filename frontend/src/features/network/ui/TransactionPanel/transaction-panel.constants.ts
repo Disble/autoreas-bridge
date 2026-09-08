@@ -58,6 +58,9 @@ export const TRANSACTION_EMPTY_STATE_MESSAGE = 'No captured transactions match t
 export const TRANSACTION_CAPTURE_DEGRADED_MESSAGE =
   'Captured transaction data is temporarily unavailable. Showing whatever was already loaded.';
 
+/** Placeholder rows `TransactionTable` renders per unresolved page fetch, mirroring its six columns. */
+export const TRANSACTION_TABLE_SKELETON_ROW_COUNT = 6;
+
 /** Detail inspector tab labels. */
 export const TRANSACTION_DETAIL_TAB_LABELS = {
   general: 'General',

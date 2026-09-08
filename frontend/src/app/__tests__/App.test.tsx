@@ -1,6 +1,6 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useNavigate } from 'react-router';
 import App from '../../App';
 import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
@@ -262,5 +262,43 @@ describe('App routing', () => {
 
       expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument();
     });
+  });
+});
+
+/** Fires the in-app navigation the Airis Create action performs. */
+function CreateNavigationProbe() {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate('/editor/create')} type="button">Go to create</button>;
+}
+
+describe('App editor routes', () => {
+  afterEach(() => {
+    cleanup();
+    resetNetworkStore();
+  });
+
+  it('resolves /editor/create to the Create workspace rather than an anime identifier', async () => {
+    render(
+      <MemoryRouter initialEntries={['/editor/create']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
+  });
+
+  it('reselects Create when an already-mounted Library route navigates to /editor/create', async () => {
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <CreateNavigationProbe />
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editor' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to create' }));
+
+    expect(await screen.findByRole('heading', { name: 'Create anime' })).toBeInTheDocument();
   });
 });

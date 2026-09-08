@@ -56,6 +56,11 @@ const ROUTE_MARKERS = {
   // a marker that waited on a degraded read would only prove the timeout fired.
   '/#/activity': ['Captured HTTP transactions between mobile clients and the bridge', 'Runtime Events'],
   '/#/activity/runtime-events': ['Debug-level events are not persisted', 'Runtime Events'],
+  // The static Create deep link every Airis empty state points at. It must
+  // resolve BEFORE `/editor/:id`, so the marker is the Create workspace's own
+  // heading: if the identifier route ever wins again, the Library workspace
+  // renders here instead and this marker disappears.
+  '/#/editor/create': ['Create anime'],
 };
 
 /** Extension-to-MIME map for the throwaway static server. */
@@ -223,7 +228,7 @@ try {
   // Requesting "/downloads" would silently serve index.html with an empty hash
   // and render the default route instead -- a check that looks like it covers
   // Downloads while never leaving Today.
-  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events']) {
+  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events', '/#/editor/create']) {
     const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
     failures.push(...checkDom(dom, route));
   }

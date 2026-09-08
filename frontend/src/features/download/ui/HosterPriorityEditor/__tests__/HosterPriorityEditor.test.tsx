@@ -7,8 +7,10 @@ vi.mock('../use-hoster-priority-editor', () => ({
   useHosterPriorityEditor: vi.fn(),
 }));
 
+/** Typed handle onto the mocked hook so overrides get hook-return type checking. */
 const mockedUseHosterPriorityEditor = vi.mocked(useHosterPriorityEditor);
 
+/** Builds a ready hoster-priority view model each case overrides one field of. */
 function viewModel(overrides: Partial<ReturnType<typeof useHosterPriorityEditor>> = {}) {
   return {
     status: 'ready' as const,
@@ -32,7 +34,7 @@ describe('HosterPriorityEditor', () => {
 
     render(<HosterPriorityEditor />);
 
-    expect(screen.getByLabelText('Loading hoster priority')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading hoster priority' })).toBeInTheDocument();
   });
 
   it('renders an empty state when there are no configured hosters', () => {

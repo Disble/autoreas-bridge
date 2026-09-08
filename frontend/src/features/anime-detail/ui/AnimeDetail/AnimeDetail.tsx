@@ -1,9 +1,11 @@
 import { Button, Card, Chip, ProgressBar } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
+import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
 import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
 import {
   ANIME_DETAIL_BACK_LABEL,
+  ANIME_DETAIL_HERO_AVATAR_CLASS,
   ANIME_DETAIL_LOADING_MESSAGE,
   ANIME_DETAIL_NOT_FOUND_MESSAGE,
   ANIME_DETAIL_NO_GENEROS_MESSAGE,
@@ -11,6 +13,7 @@ import {
   ANIME_DETAIL_NO_REPETITIONS_MESSAGE,
   ANIME_DETAIL_PORTADA_ALT,
   ANIME_DETAIL_PROGRESS_LABEL,
+  ANIME_DETAIL_STAT_TILE_CLASS,
 } from './anime-detail.constants';
 import type { AnimeDetailProps } from './anime-detail.types';
 import { useAnimeDetail } from './use-anime-detail';
@@ -40,7 +43,14 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
   }
 
   if (loadState === 'loading' || detail === undefined) {
-    return <p className="text-sm text-muted">{ANIME_DETAIL_LOADING_MESSAGE}</p>;
+    return (
+      <div aria-labelledby="anime-detail-loading-label" aria-live="polite" role="status">
+        <span className="sr-only" id="anime-detail-loading-label">
+          {ANIME_DETAIL_LOADING_MESSAGE}
+        </span>
+        <AnimeDetailSkeleton className={props.className} />
+      </div>
+    );
   }
 
   return (
@@ -53,7 +63,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
           {showPortadaPlaceholder ? (
             <div
-              className="flex size-24 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-muted"
+              className={`flex items-center justify-center bg-white/[0.04] text-muted ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
               data-testid="anime-detail-portada-placeholder"
             >
               <AnimeCoverPlaceholder className="size-16" />
@@ -61,7 +71,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           ) : (
             <img
               alt={ANIME_DETAIL_PORTADA_ALT}
-              className="size-24 shrink-0 rounded-full object-cover"
+              className={`object-cover ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
               onError={onPortadaError}
               onLoad={onPortadaLoad}
               src={detail.portadaUrl}
@@ -96,7 +106,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           <h3 className="text-sm font-semibold text-foreground">Episode info</h3>
           <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
             {detail.statTiles.map((tile) => (
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2" key={tile.label}>
+              <div className={ANIME_DETAIL_STAT_TILE_CLASS} key={tile.label}>
                 <dt className="text-muted">{tile.label}</dt>
                 <dd className="text-foreground">{tile.value}</dd>
               </div>

@@ -1,4 +1,5 @@
-import type { DownloadRunView } from '../../../../shared/contracts/download.types';
+import type { RefObject, UIEvent } from 'react';
+import type { DownloadRunView, ManualLink } from '../../../../shared/contracts/download.types';
 
 /** Props for the `RunHistoryPanel` dumb-UI component. */
 export interface RunHistoryPanelProps {
@@ -38,6 +39,34 @@ export interface RunHistoryPanelViewModel {
   readonly isStopping: boolean;
   readonly selectedRun?: DownloadRunView;
   readonly errorMessage?: string;
+}
+
+/** Props for the `RunHistoryStopBanner` dumb-UI component. */
+export interface RunHistoryStopBannerProps {
+  /** Whether a run is currently open; the banner renders nothing when false. */
+  readonly runInProgress: boolean;
+  readonly isStopping: boolean;
+  readonly onCancel: () => void;
+}
+
+/** Props for the `RunHistoryMasterList` dumb-UI component. */
+export interface RunHistoryMasterListProps {
+  readonly rows: readonly RunHistoryRowViewModel[];
+  readonly scrollRef: RefObject<HTMLDivElement | null>;
+  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  readonly onSelectRun: (runId: string) => void;
+}
+
+/** Props for the `RunHistoryManualLinks` dumb-UI component. */
+export interface RunHistoryManualLinksProps {
+  /** Undefined or empty renders nothing — only a `jd_offline` run ever carries these. */
+  readonly manualLinks: readonly ManualLink[] | undefined;
+}
+
+/** Props for the `RunHistoryDetailPane` dumb-UI component. */
+export interface RunHistoryDetailPaneProps {
+  /** Undefined renders the "select a run" prompt in place of the detail. */
+  readonly selectedRun: DownloadRunView | undefined;
 }
 
 /** Props for the `RunProgressBar` episode-segments visualisation. */

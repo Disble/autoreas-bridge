@@ -1,17 +1,26 @@
-import { Card, Chip, Spinner } from '@heroui/react';
-import { Link } from 'react-router';
+import { Alert, Card } from '@heroui/react';
+import { useNavigate } from 'react-router';
+import catalogAirisArtwork from '../../../../assets/airis-empty-states/catalog.webp';
+import { ANIME_CREATE_ROUTE } from '../../../../shared/navigation/app-layout.constants';
+import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
+import { AIRIS_CLEAR_CRITERIA_LABEL, AIRIS_CREATE_ANIME_LABEL } from '../../../../shared/ui/AirisEmptyState/airis-empty-state.constants';
 import { CatalogFilterBar } from '../CatalogFilterBar/CatalogFilterBar';
+import { CatalogListRow } from './CatalogListRow';
+import { CatalogListSkeleton } from './CatalogListSkeleton';
 import type { CatalogPanelProps } from './catalog-panel.types';
 import {
-  CATALOG_PANEL_EMPTY_MESSAGE,
-  CATALOG_PANEL_EMPTY_TITLE,
+  CATALOG_PANEL_EMPTY_STATE_COPY,
+  CATALOG_PANEL_ERROR_TITLE,
+  CATALOG_PANEL_LOADING_LABEL,
 } from './catalog-panel.constants';
 import { useCatalogPanel } from './use-catalog-panel';
 
 /** Panel showing the full local anime catalog with active/inactive status. */
 export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
+  const navigate = useNavigate();
   const {
-    isEmpty,
+    emptyState,
+    error,
     isLoading,
     items,
     listWindow,
@@ -29,6 +38,7 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
     onDiaChange,
     onGenerosChange,
     onGapChange,
+    onClearCriteria,
   } = useCatalogPanel(props);
 
   return (
@@ -51,20 +61,33 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
           onGapChange={onGapChange}
         />
         {isLoading ? (
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-muted">
-            <Spinner size="sm" />
-            <span>Loading animes...</span>
+          <div aria-labelledby="catalog-panel-loading-label" aria-live="polite" className="flex flex-col gap-3" role="status">
+            <span className="sr-only" id="catalog-panel-loading-label">{CATALOG_PANEL_LOADING_LABEL}</span>
+            <CatalogListSkeleton />
           </div>
         ) : null}
 
-        {isEmpty ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-5 py-8 text-center">
-            <p className="text-sm font-medium text-foreground">{CATALOG_PANEL_EMPTY_TITLE}</p>
-            <p className="mt-2 text-sm text-muted">{CATALOG_PANEL_EMPTY_MESSAGE}</p>
-          </div>
-        ) : null}
+        {error === undefined ? null : (
+          <Alert status="danger">
+            <Alert.Content>
+              <Alert.Title>{CATALOG_PANEL_ERROR_TITLE}</Alert.Title>
+              <Alert.Description>{error.message}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
 
-        {!isLoading && !isEmpty ? (
+        {emptyState === 'none' ? null : (
+          <AirisEmptyState
+            action={emptyState === 'actual'
+              ? { label: AIRIS_CREATE_ANIME_LABEL, onPress: () => void navigate(ANIME_CREATE_ROUTE) }
+              : { label: AIRIS_CLEAR_CRITERIA_LABEL, onPress: onClearCriteria }}
+            description={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].description}
+            imageSrc={catalogAirisArtwork}
+            title={CATALOG_PANEL_EMPTY_STATE_COPY[emptyState].title}
+          />
+        )}
+
+        {!isLoading && emptyState === 'none' && error === undefined ? (
           <menu
             aria-label="Anime catalog"
             className="flex max-h-[28rem] min-h-0 flex-col gap-3 overflow-y-auto pr-1"
@@ -73,37 +96,7 @@ export function CatalogPanel(props: Readonly<CatalogPanelProps>) {
             ref={listWindow.scrollRef}
           >
             {items.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <Link className="min-w-0 flex-1" to={`/catalog/detail/${item.id}`}>
-                    <h3 className="truncate text-sm font-semibold text-foreground">{item.nombre}</h3>
-                    <p className="mt-1 text-xs text-muted">{item.progressLabel}</p>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {item.hasDownloadGap ? (
-                      <Chip
-                        color="warning"
-                        data-testid={`anime-gap-${item.id}`}
-                        size="sm"
-                        variant="soft"
-                      >
-                        <Chip.Label>{item.gapLabel}</Chip.Label>
-                      </Chip>
-                    ) : null}
-                    <Chip
-                      color={item.status === 'active' ? 'success' : 'default'}
-                      data-testid={`anime-status-${item.id}`}
-                      size="sm"
-                      variant="soft"
-                    >
-                      <Chip.Label>{item.statusLabel}</Chip.Label>
-                    </Chip>
-                  </div>
-                </div>
-              </li>
+              <CatalogListRow item={item} key={item.id} />
             ))}
           </menu>
         ) : null}

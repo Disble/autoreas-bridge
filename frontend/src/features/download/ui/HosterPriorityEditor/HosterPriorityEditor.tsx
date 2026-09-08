@@ -1,5 +1,6 @@
 import { DragDropProvider } from '@dnd-kit/react';
-import { EmptyState, Skeleton } from '@heroui/react';
+import { EmptyState } from '@heroui/react';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { SortableHosterRow } from './SortableHosterRow';
 import { useHosterPriorityEditor } from './use-hoster-priority-editor';
 import type { HosterPriorityEditorProps } from './hoster-priority-editor.types';
@@ -16,13 +17,7 @@ export function HosterPriorityEditor({ className }: Readonly<HosterPriorityEdito
   const { status, items, isSaving, errorMessage, onDragEnd } = useHosterPriorityEditor();
 
   if (status === 'loading') {
-    return (
-      <section aria-label="Loading hoster priority" className={className}>
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
-        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
-      </section>
-    );
+    return <LoadingBars className={className} count={3} label="Loading hoster priority" />;
   }
 
   if (status === 'empty') {

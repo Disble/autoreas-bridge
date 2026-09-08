@@ -11,6 +11,11 @@ export interface AnimeDetailProps {
   readonly className?: string;
 }
 
+/** Props for the shape-mirroring `AnimeDetailSkeleton` loading placeholder. */
+export interface AnimeDetailSkeletonProps {
+  readonly className?: string;
+}
+
 /**
  * HeroUI chip color tokens supported by the project's design system (mirrors
  * `HistoryTable`'s `HeroChipColor`, duplicated per this repo's

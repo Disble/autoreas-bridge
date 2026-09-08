@@ -27,6 +27,7 @@ function App() {
                 <Route path="/catalog" element={<CatalogRoute />} />
                 <Route path="/catalog/detail/:id" element={<AnimeDetailRoute />} />
                 <Route path="/editor" element={<AnimeEditorRoute />} />
+                <Route path="/editor/create" element={<AnimeEditorRoute initialTab="create" />} />
                 <Route path="/editor/:id" element={<AnimeEditorRoute />} />
                 <Route path="/history" element={<HistoryRoute />} />
                 <Route path="/downloads" element={<DownloadsRoute />} />

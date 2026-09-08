@@ -51,14 +51,14 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
   // 7. Effects
 
   return {
-    query: list.query, filter: list.filter, items: list.items, selectedAnimeId: list.selectedAnimeId,
+    query: list.query, filter: list.filter, items: list.items, listEmptyState: list.emptyState, selectedAnimeId: list.selectedAnimeId,
     selectedRecord: record.selectedRecord, draft: record.draft,
     isLoadingList: list.isLoadingList, isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving,
     isApplyingSchedule: schedule.isApplyingSchedule, isDirty: record.isDirty,
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, isDeactivateConfirmOpen,
-    onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
+    onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
     onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate, onActivate: transitions.onActivate,
     onRequestDeactivate, onCancelDeactivate, onConfirmDeactivate,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,

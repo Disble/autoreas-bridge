@@ -4,6 +4,7 @@ import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-r
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import { useCatalogPanel } from '../use-catalog-panel';
 
+/** An active, fully configured record. */
 const animeA: Anime = {
   id: 'anime-a',
   name: 'Alpha',
@@ -17,6 +18,7 @@ const animeA: Anime = {
   hasFolder: true,
 };
 
+/** An inactive record missing its download page. */
 const animeB: Anime = {
   id: 'anime-b',
   name: 'Beta',
@@ -29,6 +31,7 @@ const animeB: Anime = {
   hasFolder: true,
 };
 
+/** Builds a runtime source that resolves the given records, or rejects on demand. */
 function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
@@ -51,7 +54,7 @@ describe('useCatalogPanel', () => {
     const { result } = renderHook(() => useCatalogPanel({}, source));
 
     expect(result.current.isLoading).toBe(true);
-    expect(result.current.isEmpty).toBe(false);
+    expect(result.current.emptyState).toBe('none');
     expect(result.current.items).toEqual([]);
   });
 
@@ -80,22 +83,23 @@ describe('useCatalogPanel', () => {
     await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['anime-a', 'anime-b']));
   });
 
-  it('returns empty when the source returns an empty list', async () => {
+  it('returns the actual-empty state when the source returns an empty list', async () => {
     const source = createSource([]);
     const { result } = renderHook(() => useCatalogPanel({}, source));
 
-    await waitFor(() => expect(result.current.isEmpty).toBe(true));
+    await waitFor(() => expect(result.current.emptyState).toBe('actual'));
 
     expect(result.current.items).toEqual([]);
   });
 
-  it('returns empty when the source rejects', async () => {
+  it('degrades a rejected source to an empty list without calling the catalog empty', async () => {
     const source = createSource([], true);
     const { result } = renderHook(() => useCatalogPanel({}, source));
 
-    await waitFor(() => expect(result.current.isEmpty).toBe(true));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.items).toEqual([]);
+    expect(result.current.emptyState).toBe('none');
   });
 
   it('exposes the canonical named tipo options regardless of catalog contents', async () => {
@@ -135,5 +139,82 @@ describe('useCatalogPanel', () => {
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     expect(result.current.items[0].id).toBe('anime-b');
     expect(result.current.items[0].hasDownloadGap).toBe(true);
+  });
+});
+
+describe('useCatalogPanel empty-state truth', () => {
+  it('classifies nothing while the catalog request is unresolved', () => {
+    const source = createSource([animeA]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    expect(result.current.emptyState).toBe('none');
+  });
+
+  it('classifies a resolved catalog with no anime as actually empty', async () => {
+    const source = createSource([]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.emptyState).toBe('actual');
+  });
+
+  it('classifies a filtered-away catalog as criteria-empty rather than empty', async () => {
+    const source = createSource([animeA]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.onTipoChange('Serie'));
+
+    await waitFor(() => expect(result.current.emptyState).toBe('criteria'));
+  });
+
+  it('surfaces a rejected catalog request as an error rather than an empty catalog', async () => {
+    const source = createSource([], true);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error?.message).toBe('boom');
+    expect(result.current.emptyState).toBe('none');
+  });
+
+  it('restores every filter to the all-records default', async () => {
+    const source = createSource([animeA, animeB]);
+    const { result } = renderHook(() => useCatalogPanel({}, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.onQueryChange('alpha'));
+    act(() => result.current.onEstadoChange('2'));
+    act(() => result.current.onActivoChange('1'));
+    act(() => result.current.onTipoChange('Serie'));
+    act(() => result.current.onDiaChange('Lunes'));
+    act(() => result.current.onGapChange('missing'));
+    act(() => result.current.onGenerosChange(['Action']));
+
+    // Asserted BEFORE the reset, and field by field. Only checking the state
+    // after `onClearCriteria` proves the reset works while saying nothing about
+    // which field each setter wrote — a setter that did nothing, or wrote to the
+    // wrong key, produced exactly the same cleared object.
+    expect(result.current.filters).toEqual({
+      query: 'alpha',
+      estado: '2',
+      activo: '1',
+      tipo: 'Serie',
+      dia: 'Lunes',
+      generos: ['Action'],
+      gap: 'missing',
+    });
+
+    act(() => result.current.onClearCriteria());
+
+    expect(result.current.filters).toEqual({
+      query: '',
+      estado: 'all',
+      activo: 'all',
+      tipo: 'all',
+      dia: 'all',
+      generos: [],
+      gap: 'all',
+    });
   });
 });

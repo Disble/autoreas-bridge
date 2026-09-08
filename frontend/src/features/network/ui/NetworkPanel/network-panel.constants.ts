@@ -137,3 +137,6 @@ export const NETWORK_LEVEL_ACCENT_BORDER_CLASS: Readonly<Record<string, string>>
   error: 'border-l-danger',
   debug: 'border-l-accent',
 };
+
+/** Placeholder rows `NetworkTable` renders per unresolved page fetch, mirroring its five columns. */
+export const NETWORK_TABLE_SKELETON_ROW_COUNT = 6;

@@ -263,7 +263,7 @@ func (s *Service) RunOnce(ctx context.Context, trigger string) (RunResult, error
 		kind:    kindRunStarted,
 		runID:   runID,
 		title:   "Download run started",
-		body:    fmt.Sprintf("Download check started (%s).", trigger),
+		body:    runStartedBody(trigger, animes, selectionErr),
 		rows:    buildRunStartedRows(animes),
 		actions: runWideActions(kindRunStarted, runID),
 	})
@@ -477,7 +477,7 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 			kind:  kindRunStoppedEarly,
 			runID: runID,
 			title: "Download run completed with errors",
-			body:  "Some animes failed to download.",
+			body:  runPartialFailureBody(outcomes),
 		}, outcomes)
 	case anyFailed:
 		run.Status = RunStatusError
@@ -486,7 +486,7 @@ func (s *Service) setRunCompletionStatus(ctx context.Context, runID string, run 
 			kind:  kindRunStoppedEarly,
 			runID: runID,
 			title: "Download run failed",
-			body:  "All animes failed to download.",
+			body:  runTotalFailureBody(outcomes),
 		}, outcomes)
 	default:
 		run.Status = RunStatusOK

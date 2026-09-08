@@ -1,17 +1,32 @@
 import { Chip, Table } from '@heroui/react';
 import { ACTIVITY_RAIL_SCROLLER_CLASS } from '../ActivityView/activity-view.constants';
+import { NETWORK_LOADING_STATE_MESSAGE } from '../NetworkPanel/network-panel.constants';
 import { getNetworkDomainColor, getNetworkLevelAccentBorderClass, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
 import type { NetworkTableProps } from '../NetworkPanel/network-panel.types';
+import { buildNetworkTableSkeletonRows } from './NetworkTableSkeletonRows';
 
-/** Dumb dense data grid rendering the windowed per-event Network rows on HeroUI Table (React Aria), DevTools-Network density. Selection and the scroll-near-bottom trigger are driven entirely by props; rows accumulate and are never unmounted (ADR-012, live branch). */
-export function NetworkTable({ rows, selectedId, onSelect, onScroll, emptyMessage }: Readonly<NetworkTableProps>) {
+/**
+ * Dumb dense data grid rendering the windowed per-event Network rows on HeroUI Table (React Aria), DevTools-Network density. Selection and the scroll-near-bottom trigger are driven entirely by props; rows accumulate and are never unmounted (ADR-012, live branch).
+ *
+ * While `isLoading`, the header and column widths stay put and the body swaps
+ * in skeleton rows instead of the real ones, so the table never resizes once
+ * the page resolves. A `role="status"` region cannot nest inside table
+ * markup, so the loading announcement sits as a sibling of the table and the
+ * table itself is marked `aria-busy`.
+ */
+export function NetworkTable({ rows, selectedId, onSelect, onScroll, emptyMessage, isLoading }: Readonly<NetworkTableProps>) {
   return (
     <div
       className={ACTIVITY_RAIL_SCROLLER_CLASS}
       data-network-scroll
       onScroll={onScroll}
     >
-      <Table aria-label="Runtime events" variant="secondary">
+      {isLoading ? (
+        <div aria-labelledby="network-table-loading-label" aria-live="polite" className="sr-only" role="status">
+          <span id="network-table-loading-label">{NETWORK_LOADING_STATE_MESSAGE}</span>
+        </div>
+      ) : null}
+      <Table aria-busy={isLoading} aria-label="Runtime events" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
             aria-label="Runtime events"
@@ -37,7 +52,7 @@ export function NetworkTable({ rows, selectedId, onSelect, onScroll, emptyMessag
               <Table.Column className="w-[104px]">Duration</Table.Column>
             </Table.Header>
             <Table.Body renderEmptyState={() => <span className="text-sm text-default-400">{emptyMessage}</span>}>
-              {rows.map((row) => (
+              {isLoading ? buildNetworkTableSkeletonRows() : rows.map((row) => (
                 <Table.Row className={`border-l-2 ${getNetworkLevelAccentBorderClass(row.level)}`} id={row.id} key={row.id}>
                   <Table.Cell>
                     <span className="font-mono text-[11px] text-default-500">{row.timeLabel}</span>

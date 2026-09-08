@@ -100,6 +100,12 @@ export interface AnimeEditorListItemViewModel {
   readonly selected: boolean;
 }
 
+/** Props for one rendered row of the Editor Library's rail. */
+export interface AnimeEditorListRowProps {
+  readonly item: AnimeEditorListItemViewModel;
+  readonly onSelectAnime: (animeId: string) => void;
+}
+
 /** Inferred view model consumed by the dumb editor components. */
 export type AnimeEditorWorkspaceViewModel = ReturnType<typeof import('./use-anime-editor-workspace').useAnimeEditorWorkspace>;
 
@@ -132,4 +138,24 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;
   readonly isDirty: boolean;
+}
+
+/** Which Library empty state a resolved request produced, if any. */
+export type AnimeEditorEmptyState = 'none' | 'actual' | 'criteria';
+
+/** Everything the Library empty-state classifier reads, and nothing more. */
+export interface AnimeEditorEmptyStateInput {
+  readonly isLoadingList: boolean;
+  /** Rows the resolved source returned, before search and filters. */
+  readonly sourceCount: number;
+  /** Rows left after search and filters. */
+  readonly visibleCount: number;
+  readonly query: string;
+  readonly filter: AnimeEditorFilter;
+}
+
+/** Title and description shown by one Library empty state. */
+export interface AnimeEditorEmptyStateCopy {
+  readonly title: string;
+  readonly description: string;
 }

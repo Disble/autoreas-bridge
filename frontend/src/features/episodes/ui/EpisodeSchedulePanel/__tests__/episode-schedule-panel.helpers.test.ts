@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
+import { createEpisodeScheduleSource, dayBadge, episodeDayLabel, getEpisodeEmptyStateCopy, getEpisodeFilterOptions, getDefaultEpisodeDay, getDefaultLensSelection, getInitialEpisodeSelection, toEpisodeScheduleRows, toEpisodeViewLens } from '../episode-schedule-panel.helpers';
 import type { EpisodeDayCount, EpisodeScheduleItem, EpisodeScheduleSource, CoverEntry } from '../episode-schedule-panel.types';
 
 describe('toEpisodeScheduleRows', () => {
@@ -224,5 +224,21 @@ describe('episodeDayLabel', () => {
     expect(episodeDayLabel('Ver hoy')).toBe('Ver hoy');
     expect(episodeDayLabel('Visto')).toBe('Visto');
     expect(episodeDayLabel('Sin ver')).toBe('Sin ver');
+  });
+});
+
+describe('getEpisodeEmptyStateCopy', () => {
+  it('names the selected weekday in both the daily title and description', () => {
+    expect(getEpisodeEmptyStateCopy('daily', 'Viernes')).toEqual({
+      title: 'Nothing scheduled for Friday',
+      description: 'No active anime are scheduled for Friday. Create one to put it on your schedule.',
+    });
+  });
+
+  it('names the selected season lens in both the season title and description', () => {
+    expect(getEpisodeEmptyStateCopy('season', 'Ver hoy')).toEqual({
+      title: 'Nothing in Ver hoy',
+      description: 'No anime are grouped under Ver hoy right now. Create one to start tracking it here.',
+    });
   });
 });

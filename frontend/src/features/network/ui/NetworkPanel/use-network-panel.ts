@@ -2,16 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.helpers';
 import type { RuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import { EVENT_PAGE_SIZE } from './network-panel.constants';
-import {
-  getNetworkPanelRows,
-  getNetworkPanelSelection,
-  getNetworkPanelSummary,
-  readCorrelationId,
-  resolveEventEmptyMessage,
-  resolveEventStatusMessage,
-} from './network-panel.helpers';
-import type { NetworkDetailTab, NetworkLevelFilter, RuntimeEventRow } from './network-panel.types';
+import { readCorrelationId } from './network-panel.helpers';
+import type { RuntimeEventRow } from './network-panel.types';
+import { useNetworkPanelActions } from './use-network-panel-actions';
+import { useNetworkPanelDetailTab } from './use-network-panel-detail-tab';
 import { useNetworkPanelSync } from './use-network-panel-sync';
+import { useNetworkPanelViewModel } from './use-network-panel-view-model';
 import { useNetworkPanelWindow } from './use-network-panel-window';
 import { useNetworkStoreBindings } from './use-network-store-bindings';
 
@@ -38,7 +34,6 @@ export function useNetworkPanel(
   limit: number = EVENT_PAGE_SIZE,
 ) {
   // 1. Refs
-  const previousSelectedIdRef = useRef<string | null>(null);
   // The window triggers load-more, but the sync hook that owns it is declared
   // below with the other effects. A ref bridges the two without reordering the
   // hook anatomy and keeps `onReachEnd` stable across renders.
@@ -48,7 +43,6 @@ export function useNetworkPanel(
   const [isLoading, setIsLoading] = useState(true);
   const [degraded, setDegraded] = useState(false);
   const [traceSiblings, setTraceSiblings] = useState<readonly RuntimeEventRow[]>([]);
-  const [detailTab, setDetailTab] = useState<NetworkDetailTab>('general');
 
   // 3. Context/3rd Party Hooks
   const store = useNetworkStoreBindings();
@@ -67,32 +61,24 @@ export function useNetworkPanel(
     selectedId: store.selectedId,
     onReachEnd,
   });
-  const rows = useMemo(() => getNetworkPanelRows(visibleRows), [visibleRows]);
-  const { selectedEntry, selectedDetail } = useMemo(
-    () => getNetworkPanelSelection(feedRows, store.selectedId, traceSiblings),
-    [feedRows, store.selectedId, traceSiblings],
-  );
-  const statusMessage = resolveEventStatusMessage(store.available, degraded);
-  const emptyMessage = resolveEventEmptyMessage(isLoading, statusMessage);
-  const { entryCount, errorCount, shownCount } = useMemo(
-    () => getNetworkPanelSummary(feedRows, rows.length),
-    [feedRows, rows.length],
-  );
+  const { detailTab, onDetailTabChange } = useNetworkPanelDetailTab(store.selectedId);
+  const { rows, selectedEntry, selectedDetail, statusMessage, emptyMessage, entryCount, errorCount, shownCount } =
+    useNetworkPanelViewModel({
+      visibleRows,
+      feedRows,
+      selectedId: store.selectedId,
+      traceSiblings,
+      available: store.available,
+      degraded,
+    });
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const { select, setQuery, setLevelFilter, setDomainFilter } = store;
-  const onSelect = useCallback((id: string) => select(id), [select]);
-  const onQueryChange = useCallback((nextQuery: string) => setQuery(nextQuery), [setQuery]);
-  const onLevelFilterChange = useCallback(
-    (nextLevelFilter: NetworkLevelFilter) => setLevelFilter(nextLevelFilter),
-    [setLevelFilter],
-  );
-  const onDomainFilterChange = useCallback(
-    (nextDomainFilter: string) => setDomainFilter(nextDomainFilter),
-    [setDomainFilter],
-  );
-  const onDetailTabChange = useCallback((nextTab: NetworkDetailTab) => setDetailTab(nextTab), []);
-  const onClose = useCallback(() => select(null), [select]);
+  const { onSelect, onQueryChange, onLevelFilterChange, onDomainFilterChange, onClose } = useNetworkPanelActions({
+    select: store.select,
+    setQuery: store.setQuery,
+    setLevelFilter: store.setLevelFilter,
+    setDomainFilter: store.setDomainFilter,
+  });
 
   // 7. Effects
   const { loadMore } = useNetworkPanelSync({
@@ -109,13 +95,6 @@ export function useNetworkPanel(
   useEffect(() => {
     loadMoreRef.current = loadMore;
   }, [loadMore]);
-
-  useEffect(() => {
-    if (previousSelectedIdRef.current !== store.selectedId) {
-      previousSelectedIdRef.current = store.selectedId;
-      setDetailTab('general');
-    }
-  }, [store.selectedId]);
 
   return {
     rows,

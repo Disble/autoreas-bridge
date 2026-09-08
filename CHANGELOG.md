@@ -14,6 +14,32 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-09-08
+
+### Added
+
+- **Every screen that comes back empty now tells you what to do next.** Today, the Editor library and the Catalogue each answered "nothing here" with a bare line of text, and none of them could tell an empty collection apart from filters that hide everything — or from a request that had not finished yet. Each screen now shows artwork and the single action that fits what actually happened: "Create an anime" when you genuinely have none, "Clear search and filters" when they are only hidden. Today used to show its empty message before it had even asked what you had, inviting you to create anime you already owned.
+- **Loading now shows the shape of what is arriving instead of the word "Loading".** Every screen in the app draws placeholder rows the size of the rows about to replace them, so the page no longer jumps when the data lands, and tables keep their header and column widths in place while their rows fill in. Screen readers are now told what is loading the moment it starts, on screens that previously announced nothing at all.
+
+### Changed
+
+- **Windows notifications now say how many anime a run is about, in their first line.** Windows folds a notification's whole detail list into a single block of text and cuts it wherever it stops fitting, so a run that started three downloads could show only two and give you no way to tell. "Download run completed" was already safe because it opened with "3 episode(s) downloaded"; the others were not. A started run now reads "Download check started (scheduled) — 3 anime queued", and a run with failures says "2 of 5 animes failed to download" instead of "some animes failed". The count is in the part Windows cannot cut.
+- **A Windows notification no longer hands the system more text than it can show.** A scheduled run naming fifty anime built a single 2,500-character message and left Windows to cut it wherever it liked. The list is now bounded before it is sent, so what arrives is predictable; nothing is lost, because the totals are in the first line and the full record is one click away in the notification centre.
+- **Long anime names are shortened inside Windows notifications so each one keeps to a single line.** A name like "Nijuuseiki Denki Mokuroku: Eureka·Evrika" wrapped onto two lines and took the space two other anime would have used, which is why a run over three anime could look like a run over two. Names are now shortened with a "…" — never the line saying what happened to the anime, and never below the point where you can still tell which show it is. The full name is intact everywhere else, including the notification centre.
+
+### Fixed
+
+- **The empty-screen artwork no longer takes over the panel it is meant to decorate.** It is authored at 512 pixels so it stays sharp on a high-DPI display, and nothing capped the size it was drawn at, so on Today the illustration filled the panel and pushed its own "Create an anime" button below the fold on an ordinary window. The empty card is now 328 pixels tall instead of 680, with the button on screen.
+
+### Internal
+
+- Every loading branch in the frontend is now either a shape-mirroring placeholder or a shared `LoadingBars`, and each one sits in a `role="status"` region named by an `sr-only` span — `status` takes its accessible name from the author, so a region named only by its contents announces nothing. Seven panels that already drew skeleton bars had exactly that gap, and were seven copies of the same markup; one shared component closed both at once. See `openspec/changes/archive/2026-09-08-loading-skeletons-completion/`.
+- Three surfaces had written the placeholder as a block added *above* the content rather than one that replaces it, so a refetching screen stacked skeletons on top of the real cards. The tests could not fail on it: asserting that a skeleton appears and later disappears passes while both blocks render. The missing assertion is the negative — no real content while loading — and it is now on every surface, proved load-bearing by un-gating a content branch and watching it go red. The three-state rule (skeleton, `AirisEmptyState`, error) is now mandatory in `.claude/skills/autoreas-theme/SKILL.md` rather than conventional.
+- A placeholder's height is a contract, so a layout fixture measures every placeholder against the real row it stands in for, in headless Edge at two viewports — jsdom has no layout engine and passes a half-height placeholder. The same fixture had previously reported green on the oversized artwork by checking that it was present, non-zero and inside its card, all of which a wall of illustration satisfies; presence and containment are not proportion, and four proportion checks now run per composition.
+- `frontend/src/test/setup.ts` registers `afterEach(cleanup)` once. Testing Library only does that under `globals: true`, and 19 of 115 component suites had never registered it. Adding it unmasked zero failures.
+- Complexity attributed to this work by the changed-code gate was paid down by extraction rather than suppression: `SchedulePanel` 16 to 5, `RunHistoryPanel` 17 to 7, `SoloAnimeDownloadPanel` 16 to 3, `useNetworkPanel` 23 to 14.
+- No wire change: the REST and WS contracts are identical to 1.9.0, so mobile clients need no update.
+
 ## [1.9.0] — 2026-09-04
 
 ### Added

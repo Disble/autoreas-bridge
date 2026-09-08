@@ -6,6 +6,7 @@ import { HistoryTable } from '../HistoryTable';
 
 // Spy instead of vi.mock: with deps.optimizer enabled, importOriginal-based
 // partial mocks cannot re-import the original module.
+/** Captures navigation calls from the spied react-router hook. */
 const navigateMock = vi.fn();
 import * as useHistoryTableModule from '../use-history-table';
 import {
@@ -16,6 +17,7 @@ import {
 } from '../history-table.constants';
 import type { HistoryTableState } from '../history-table.types';
 
+/** Baseline empty history-table state each case overrides one field of. */
 function mockState(overrides: Partial<HistoryTableState>): HistoryTableState {
   return {
     rows: [],
@@ -40,6 +42,7 @@ function mockState(overrides: Partial<HistoryTableState>): HistoryTableState {
   };
 }
 
+/** Renders HistoryTable behind a router with the hook stubbed to the given state. */
 function renderTable(overrides: Partial<HistoryTableState>) {
   vi.spyOn(ReactRouter, 'useNavigate').mockReturnValue(navigateMock);
   vi.spyOn(useHistoryTableModule, 'useHistoryTable').mockReturnValue(mockState(overrides));
@@ -85,10 +88,10 @@ describe('HistoryTable', () => {
     expect(screen.getByText('Sort')).toBeInTheDocument();
   });
 
-  it('renders a skeleton loading state', () => {
+  it('announces loading through a named status region', () => {
     renderTable({ isLoading: true, isEmpty: false });
 
-    expect(screen.getByText('Loading history...')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading history...' })).toBeInTheDocument();
   });
 
   it('renders an explicit empty state when zero entries match', () => {

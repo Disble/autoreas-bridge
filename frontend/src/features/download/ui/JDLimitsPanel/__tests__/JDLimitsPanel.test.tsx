@@ -8,9 +8,12 @@ vi.mock('../use-jdlimits-panel', () => ({
   useJDLimitsPanel: vi.fn(),
 }));
 
+/** Typed handle onto the mocked hook so overrides get hook-return type checking. */
 const mockedHook = vi.mocked(useJDLimitsPanel);
+/** Shape of the hook's return value, reused to type mock overrides. */
 type HookReturn = ReturnType<typeof useJDLimitsPanel>;
 
+/** Builds a ready hook state each case overrides one field of, and applies it to the mock. */
 function mockHook(overrides: Partial<HookReturn> = {}): HookReturn {
   const value: HookReturn = {
     status: 'ready',
@@ -33,7 +36,7 @@ describe('JDLimitsPanel', () => {
 
     render(<JDLimitsPanel />);
 
-    expect(screen.getByLabelText('Loading JDownloader download limit')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading JDownloader download limit' })).toBeInTheDocument();
   });
 
   it('shows the configured limit', () => {

@@ -2,7 +2,7 @@ import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCo
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
+import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 
 /**
@@ -245,4 +245,28 @@ export function reduceAnimeEditorGuard(state: AnimeEditorGuardState, event: Anim
     return { pendingAction: event.action };
   }
   return { pendingAction: undefined };
+}
+
+/**
+ * Tells an empty Library apart from a Library the user has filtered down to
+ * nothing. The two need opposite recovery actions, and offering the wrong one
+ * either hides the only route out of an empty library or invites the user to
+ * create a duplicate of an anime the search is hiding.
+ *
+ * Zero visible rows with no active criteria is deliberately not criteria-empty:
+ * nothing the user could clear would bring a row back, so claiming otherwise
+ * would be a dead end.
+ */
+export function classifyAnimeEditorEmptyState(input: AnimeEditorEmptyStateInput): AnimeEditorEmptyState {
+  if (input.isLoadingList) {
+    return 'none';
+  }
+  if (input.sourceCount === 0) {
+    return 'actual';
+  }
+  if (input.visibleCount > 0) {
+    return 'none';
+  }
+  const hasActiveCriteria = input.query.trim().length > 0 || input.filter !== 'all';
+  return hasActiveCriteria ? 'criteria' : 'none';
 }

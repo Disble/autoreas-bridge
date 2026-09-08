@@ -58,6 +58,22 @@ export const OVERVIEW_EVENTS_EMPTY_MESSAGE = 'No persisted runtime events have b
 /** Copy shown while the two aggregations have not resolved. */
 export const OVERVIEW_LOADING_MESSAGE = 'Loading the activity summary…';
 
+/** Placeholder rows each ActivityOverview table renders per unresolved read. */
+export const OVERVIEW_SKELETON_ROW_COUNT = 4;
+
+/**
+ * Skeleton column-width classes for the request-health table (Route, Status,
+ * Outcome, Count, Latest errors), proportioned to mirror its header widths.
+ */
+export const OVERVIEW_REQUEST_SKELETON_COLUMN_WIDTHS: readonly string[] = ['w-full', 'w-16', 'w-20', 'w-10', 'w-24'];
+
+/**
+ * Skeleton column-width classes for an event-summary table (Key, Count,
+ * Share), shared by all three grouping sections since they are the same
+ * three-column shape.
+ */
+export const OVERVIEW_EVENT_SKELETON_COLUMN_WIDTHS: readonly string[] = ['w-full', 'w-10', 'w-10'];
+
 /**
  * Standing note that the overview covers six of the MCP's seven read tools.
  *

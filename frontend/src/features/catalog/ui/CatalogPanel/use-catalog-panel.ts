@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { Anime } from '../../../../shared/contracts/anime.types';
@@ -8,19 +8,20 @@ import { useProgressiveListWindow } from '../../../../shared/hooks/use-progressi
 import {
   ANIME_ACTIVO_OPTIONS,
   ANIME_ESTADO_OPTIONS,
-  ANIME_FILTER_ALL_VALUE,
   ANIME_FILTER_DEBOUNCE_MS,
   ANIME_GAP_OPTIONS,
   ANIME_TIPO_OPTIONS,
 } from './catalog-panel.constants';
 import {
+  classifyCatalogEmptyState,
   filterAnimes,
   getUniqueDiaOptions,
   getUniqueGeneroOptions,
   sortAnimesByName,
   toAnimeViewModel,
 } from './catalog-panel.helpers';
-import type { AnimeFilterState, CatalogPanelProps, CatalogPanelState, AnimeViewModel } from './catalog-panel.types';
+import type { CatalogPanelProps, CatalogPanelState, AnimeFilterState, AnimeViewModel } from './catalog-panel.types';
+import { useCatalogFilters } from './use-catalog-filters';
 
 /** Drives the CatalogPanel by fetching the full anime catalog from the runtime. */
 export function useCatalogPanel(
@@ -30,20 +31,12 @@ export function useCatalogPanel(
   // 1. Refs
 
   // 2. State
-  const [filters, setFilters] = useState<AnimeFilterState>({
-    query: '',
-    estado: ANIME_FILTER_ALL_VALUE,
-    activo: ANIME_FILTER_ALL_VALUE,
-    tipo: ANIME_FILTER_ALL_VALUE,
-    dia: ANIME_FILTER_ALL_VALUE,
-    generos: [],
-    gap: ANIME_FILTER_ALL_VALUE,
-  });
 
   // 3. Context/3rd Party Hooks
+  const { filters, onQueryChange, onEstadoChange, onActivoChange, onTipoChange, onDiaChange, onGenerosChange, onGapChange, onClearCriteria } = useCatalogFilters();
 
   // 4. Queries/Mutations
-  const { items, isLoading } = useAsyncList<Anime>(() => source.getAnimes(), source);
+  const { items, isLoading, error } = useAsyncList<Anime>(() => source.getAnimes(), source);
 
   // 5. Derived State (useMemo)
   const debouncedQuery = useDebounce(filters.query, ANIME_FILTER_DEBOUNCE_MS);
@@ -59,7 +52,16 @@ export function useCatalogPanel(
     () => filteredItems.map(toAnimeViewModel),
     [filteredItems],
   );
-  const isEmpty = useMemo(() => !isLoading && viewItems.length === 0, [isLoading, viewItems.length]);
+  const emptyState = useMemo(
+    () => classifyCatalogEmptyState({
+      isLoading,
+      hasError: error !== undefined,
+      sourceCount: items.length,
+      visibleCount: viewItems.length,
+      filters: activeFilters,
+    }),
+    [activeFilters, error, isLoading, items.length, viewItems.length],
+  );
   // Static list (ADR-012): the count only moves when a filter or the search
   // changes, which is exactly when restarting at the first batch is correct.
   const listWindow = useProgressiveListWindow(viewItems.length);
@@ -71,36 +73,14 @@ export function useCatalogPanel(
   const generoOptions = useMemo(() => getUniqueGeneroOptions(items), [items]);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const onQueryChange = useCallback((query: string) => {
-    setFilters((previous) => ({ ...previous, query }));
-  }, []);
-  const onEstadoChange = useCallback((estado: string) => {
-    setFilters((previous) => ({ ...previous, estado }));
-  }, []);
-  const onActivoChange = useCallback((activo: string) => {
-    setFilters((previous) => ({ ...previous, activo }));
-  }, []);
-  const onTipoChange = useCallback((tipo: string) => {
-    setFilters((previous) => ({ ...previous, tipo }));
-  }, []);
-  const onDiaChange = useCallback((dia: string) => {
-    setFilters((previous) => ({ ...previous, dia }));
-  }, []);
-  const onGenerosChange = useCallback((values: readonly (string | number)[]) => {
-    const generos = values.map((value) => (typeof value === 'number' ? String(value) : value));
-
-    setFilters((previous) => ({ ...previous, generos }));
-  }, []);
-  const onGapChange = useCallback((gap: string) => {
-    setFilters((previous) => ({ ...previous, gap }));
-  }, []);
 
   // 7. Effects
 
   return {
     items: visibleItems,
     isLoading,
-    isEmpty,
+    error,
+    emptyState,
     listWindow,
     filters,
     estadoOptions: ANIME_ESTADO_OPTIONS,
@@ -116,5 +96,6 @@ export function useCatalogPanel(
     onDiaChange,
     onGenerosChange,
     onGapChange,
+    onClearCriteria,
   };
 }

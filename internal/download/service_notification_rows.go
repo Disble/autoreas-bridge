@@ -75,12 +75,7 @@ const runStartedRowStatus = "queued"
 // An anime with no id is skipped: the pane addresses a row by its RefID to resolve its cover, so a
 // row that names no record renders as art that never arrives.
 func buildRunStartedRows(animes []contracts.MobileAnime) []notification.DetailItem {
-	addressable := make([]contracts.MobileAnime, 0, len(animes))
-	for _, anime := range animes {
-		if anime.ID != "" {
-			addressable = append(addressable, anime)
-		}
-	}
+	addressable := addressableAnimes(animes)
 	if len(addressable) == 0 {
 		return nil
 	}

@@ -1,11 +1,16 @@
 import { Alert, Card, Chip, Table, Typography } from '@heroui/react';
 import { getNetworkDomainColor, getNetworkLevelColor } from '../NetworkPanel/network-panel.helpers';
+import { ActivityOverviewSampleSkeletonRows, buildActivityOverviewSkeletonRows } from './ActivityOverviewSkeletonRows';
 import {
   OVERVIEW_EVENT_SAMPLES_TITLE,
+  OVERVIEW_EVENT_SKELETON_COLUMN_WIDTHS,
   OVERVIEW_EVENT_SUMMARY_DESCRIPTION,
   OVERVIEW_EVENT_SUMMARY_TITLE,
+  OVERVIEW_LOADING_MESSAGE,
   OVERVIEW_PARITY_NOTE,
   OVERVIEW_REQUEST_HEALTH_TITLE,
+  OVERVIEW_REQUEST_SKELETON_COLUMN_WIDTHS,
+  OVERVIEW_SKELETON_ROW_COUNT,
   OVERVIEW_UNMEASURED_DESCRIPTION,
 } from './activity-overview.constants';
 import type { ActivityOverviewProps } from './activity-overview.types';
@@ -22,9 +27,15 @@ import { useActivityOverview } from './use-activity-overview';
  * keyed on different values, so a combined correlation timeline would render an
  * empty request side by construction. All data flows from `useActivityOverview`;
  * this component only renders.
+ *
+ * While either aggregation is unresolved, every affected table keeps its
+ * header and swaps in skeleton rows instead of the real ones, and is marked
+ * `aria-busy`. A `role="status"` region cannot nest inside table markup, so
+ * one sits as a sibling of each table group naming what is loading.
  */
 export function ActivityOverview({ captureSource, eventSource }: Readonly<ActivityOverviewProps>) {
   const {
+    isLoading,
     requestRows,
     requestCount,
     requestStatusMessage,
@@ -57,48 +68,62 @@ export function ActivityOverview({ captureSource, eventSource }: Readonly<Activi
               </Alert.Content>
             </Alert>
           ) : (
-            <Table aria-label="Request health" variant="secondary">
-              <Table.ScrollContainer>
-                <Table.Content aria-label="Request health" className="w-full table-fixed">
-                  <Table.Header>
-                    <Table.Column isRowHeader>Route</Table.Column>
-                    <Table.Column className="w-[104px]">Status</Table.Column>
-                    <Table.Column className="w-[128px]">Outcome</Table.Column>
-                    <Table.Column className="w-[88px]">Count</Table.Column>
-                    <Table.Column className="w-[200px]">Latest errors</Table.Column>
-                  </Table.Header>
-                  <Table.Body renderEmptyState={() => <span className="text-sm text-muted">{requestEmptyMessage}</span>}>
-                    {requestRows.map((row) => (
-                      <Table.Row id={row.id} key={row.id}>
-                        <Table.Cell>
-                          <span className="block truncate text-foreground" title={row.route}>
-                            {row.route}
-                          </span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span className="font-mono text-[11px] text-muted">{row.statusLabel}</span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span className="block truncate text-muted">{row.outcome}</span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span className="font-mono text-[11px] text-foreground">{row.count}</span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <div className="flex flex-wrap gap-1">
-                            {row.errorSamples.map((sample) => (
-                              <Chip color="danger" key={sample.requestId} size="sm" variant="soft">
-                                {sample.errorCode}
-                              </Chip>
-                            ))}
-                          </div>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
-              </Table.ScrollContainer>
-            </Table>
+            <>
+              {isLoading ? (
+                <div aria-labelledby="activity-overview-request-loading-label" aria-live="polite" className="sr-only" role="status">
+                  <span id="activity-overview-request-loading-label">{OVERVIEW_LOADING_MESSAGE}</span>
+                </div>
+              ) : null}
+              <Table aria-busy={isLoading} aria-label="Request health" variant="secondary">
+                <Table.ScrollContainer>
+                  <Table.Content aria-label="Request health" className="w-full table-fixed">
+                    <Table.Header>
+                      <Table.Column isRowHeader>Route</Table.Column>
+                      <Table.Column className="w-[104px]">Status</Table.Column>
+                      <Table.Column className="w-[128px]">Outcome</Table.Column>
+                      <Table.Column className="w-[88px]">Count</Table.Column>
+                      <Table.Column className="w-[200px]">Latest errors</Table.Column>
+                    </Table.Header>
+                    <Table.Body renderEmptyState={() => <span className="text-sm text-muted">{requestEmptyMessage}</span>}>
+                      {isLoading
+                        ? buildActivityOverviewSkeletonRows({
+                            columnWidths: OVERVIEW_REQUEST_SKELETON_COLUMN_WIDTHS,
+                            idPrefix: 'activity-overview-request-skeleton',
+                            rowCount: OVERVIEW_SKELETON_ROW_COUNT,
+                            testId: 'activity-overview-request-skeleton-row',
+                          })
+                        : requestRows.map((row) => (
+                            <Table.Row id={row.id} key={row.id}>
+                              <Table.Cell>
+                                <span className="block truncate text-foreground" title={row.route}>
+                                  {row.route}
+                                </span>
+                              </Table.Cell>
+                              <Table.Cell>
+                                <span className="font-mono text-[11px] text-muted">{row.statusLabel}</span>
+                              </Table.Cell>
+                              <Table.Cell>
+                                <span className="block truncate text-muted">{row.outcome}</span>
+                              </Table.Cell>
+                              <Table.Cell>
+                                <span className="font-mono text-[11px] text-foreground">{row.count}</span>
+                              </Table.Cell>
+                              <Table.Cell>
+                                <div className="flex flex-wrap gap-1">
+                                  {row.errorSamples.map((sample) => (
+                                    <Chip color="danger" key={sample.requestId} size="sm" variant="soft">
+                                      {sample.errorCode}
+                                    </Chip>
+                                  ))}
+                                </div>
+                              </Table.Cell>
+                            </Table.Row>
+                          ))}
+                    </Table.Body>
+                  </Table.Content>
+                </Table.ScrollContainer>
+              </Table>
+            </>
           )}
         </Card.Content>
       </Card>
@@ -120,11 +145,16 @@ export function ActivityOverview({ captureSource, eventSource }: Readonly<Activi
             </Alert>
           ) : (
             <>
+              {isLoading ? (
+                <div aria-labelledby="activity-overview-event-loading-label" aria-live="polite" className="sr-only" role="status">
+                  <span id="activity-overview-event-loading-label">{OVERVIEW_LOADING_MESSAGE}</span>
+                </div>
+              ) : null}
               <div className="grid gap-4 lg:grid-cols-3">
                 {eventSections.map((section) => (
                   <section className="flex min-w-0 flex-col gap-2" key={section.id}>
                     <Typography type="h6">{section.title}</Typography>
-                    <Table aria-label={section.title} variant="secondary">
+                    <Table aria-busy={isLoading} aria-label={section.title} variant="secondary">
                       <Table.ScrollContainer>
                         <Table.Content aria-label={section.title} className="w-full table-fixed">
                           <Table.Header>
@@ -135,21 +165,28 @@ export function ActivityOverview({ captureSource, eventSource }: Readonly<Activi
                           <Table.Body
                             renderEmptyState={() => <span className="text-sm text-muted">{eventEmptyMessage}</span>}
                           >
-                            {section.rows.map((row) => (
-                              <Table.Row id={row.key} key={row.key}>
-                                <Table.Cell>
-                                  <span className="block truncate text-foreground" title={row.label}>
-                                    {row.label}
-                                  </span>
-                                </Table.Cell>
-                                <Table.Cell>
-                                  <span className="font-mono text-[11px] text-foreground">{row.count}</span>
-                                </Table.Cell>
-                                <Table.Cell>
-                                  <span className="font-mono text-[11px] text-muted">{row.shareLabel}</span>
-                                </Table.Cell>
-                              </Table.Row>
-                            ))}
+                            {isLoading
+                              ? buildActivityOverviewSkeletonRows({
+                                  columnWidths: OVERVIEW_EVENT_SKELETON_COLUMN_WIDTHS,
+                                  idPrefix: `activity-overview-event-skeleton-${section.id}`,
+                                  rowCount: OVERVIEW_SKELETON_ROW_COUNT,
+                                  testId: 'activity-overview-event-skeleton-row',
+                                })
+                              : section.rows.map((row) => (
+                                  <Table.Row id={row.key} key={row.key}>
+                                    <Table.Cell>
+                                      <span className="block truncate text-foreground" title={row.label}>
+                                        {row.label}
+                                      </span>
+                                    </Table.Cell>
+                                    <Table.Cell>
+                                      <span className="font-mono text-[11px] text-foreground">{row.count}</span>
+                                    </Table.Cell>
+                                    <Table.Cell>
+                                      <span className="font-mono text-[11px] text-muted">{row.shareLabel}</span>
+                                    </Table.Cell>
+                                  </Table.Row>
+                                ))}
                           </Table.Body>
                         </Table.Content>
                       </Table.ScrollContainer>
@@ -161,7 +198,8 @@ export function ActivityOverview({ captureSource, eventSource }: Readonly<Activi
               <section className="flex min-w-0 flex-col gap-2">
                 <Typography type="h6">{OVERVIEW_EVENT_SAMPLES_TITLE}</Typography>
                 <ul className="flex flex-col gap-1">
-                  {eventSamples.map((sample) => (
+                  {isLoading ? <ActivityOverviewSampleSkeletonRows rowCount={OVERVIEW_SKELETON_ROW_COUNT} /> : null}
+                  {isLoading ? null : eventSamples.map((sample) => (
                     <li className="flex min-w-0 items-center gap-2 text-[11px]" key={sample.id}>
                       <span className="shrink-0 font-mono text-muted">{sample.timeLabel}</span>
                       <Chip color={getNetworkDomainColor(sample.domain)} size="sm" variant="soft">

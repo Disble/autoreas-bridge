@@ -6,7 +6,6 @@ import {
   NETWORK_EVENTS_UNAVAILABLE_MESSAGE,
   NETWORK_HTTP_EVENT_TYPE,
   NETWORK_LEVEL_ACCENT_BORDER_CLASS,
-  NETWORK_LOADING_STATE_MESSAGE,
   NETWORK_METADATA_JSON_INDENT,
   NETWORK_METADATA_MARKER_KEY_COUNT,
   NETWORK_METADATA_ORIGINAL_KEYS_KEY,
@@ -449,17 +448,14 @@ export function resolveEventStatusMessage(available: boolean, degraded: boolean)
 }
 
 /**
- * Resolves the copy the table shows in place of rows. A disclosed reason
- * outranks both the loading and the empty copy: an unreadable store is not a
- * measured "nothing happened", and rendering the ordinary empty state would
- * say exactly that.
+ * Resolves the copy the table shows in place of rows once resolved. A
+ * disclosed reason outranks the ordinary empty copy: an unreadable store is
+ * not a measured "nothing happened", and rendering the ordinary empty state
+ * would say exactly that. The loading copy no longer flows through here — a
+ * loading page renders skeleton rows instead of reaching this slot at all.
  */
-export function resolveEventEmptyMessage(isLoading: boolean, statusMessage: string | null): string {
-  if (statusMessage !== null) {
-    return statusMessage;
-  }
-
-  return isLoading ? NETWORK_LOADING_STATE_MESSAGE : NETWORK_EMPTY_STATE_MESSAGE;
+export function resolveEventEmptyMessage(statusMessage: string | null): string {
+  return statusMessage ?? NETWORK_EMPTY_STATE_MESSAGE;
 }
 
 /**

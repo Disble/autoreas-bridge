@@ -5,9 +5,12 @@ import { useSoloAnimeDownloadPanel } from '../use-solo-anime-download-panel';
 
 vi.mock('../use-solo-anime-download-panel', () => ({ useSoloAnimeDownloadPanel: vi.fn() }));
 
+/** Typed handle onto the mocked hook so overrides get hook-return type checking. */
 const mockedUseSoloAnimeDownloadPanel = vi.mocked(useSoloAnimeDownloadPanel);
 
+/** A ready-to-download anime option with no blockers. */
 const readyOption = { id: 'ready', name: 'Ready Anime', ready: true, reasonLabels: [], statusTag: undefined };
+/** A blocked anime option carrying the reason it cannot start a download. */
 const blockedOption = {
   id: 'blocked',
   name: 'Blocked Anime',
@@ -16,6 +19,7 @@ const blockedOption = {
   statusTag: 'No destination',
 };
 
+/** Configures the mocked hook with a ready default state, merging in each case's overrides. */
 function mockHook(overrides: Partial<ReturnType<typeof useSoloAnimeDownloadPanel>> = {}): void {
   mockedUseSoloAnimeDownloadPanel.mockReturnValue({
     status: 'ready',
@@ -133,5 +137,34 @@ describe('SoloAnimeDownloadPanel', () => {
     expect(screen.getByText('JDownloader is unavailable')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download missing episodes' })).toBeEnabled();
+  });
+
+  it('announces loading through a named status region while readiness resolves', () => {
+    mockHook({ status: 'loading', options: [] });
+    render(<SoloAnimeDownloadPanel />);
+
+    expect(screen.getByRole('status', { name: 'Loading readiness...' })).toBeInTheDocument();
+  });
+
+  it('mirrors the rail row shape with placeholder rows while readiness resolves', () => {
+    // `options` is deliberately NOT empty. With an empty list the rail returns
+    // early on `options.length === 0`, so the loading guard is never the branch
+    // that decides anything and a broken guard still passes. A reload keeps the
+    // previous readiness list in state, so this is also the real prop shape.
+    mockHook({ status: 'loading', options: [readyOption, blockedOption] });
+    render(<SoloAnimeDownloadPanel />);
+
+    expect(screen.getAllByTestId('solo-anime-download-skeleton-row').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Ready Anime')).toBeNull();
+    expect(screen.queryByText('Blocked Anime')).toBeNull();
+    expect(screen.queryByTestId('solo-anime-download-scroll')).toBeNull();
+  });
+
+  it('does not render the loading status region or the empty-selection message once resolved', () => {
+    mockHook();
+    render(<SoloAnimeDownloadPanel />);
+
+    expect(screen.queryByRole('status', { name: 'Loading readiness...' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('solo-anime-download-skeleton-row')).not.toBeInTheDocument();
   });
 });

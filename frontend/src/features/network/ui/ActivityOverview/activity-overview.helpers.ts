@@ -6,7 +6,6 @@ import type {
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 import {
   OVERVIEW_EVENT_SECTION_TITLES,
-  OVERVIEW_LOADING_MESSAGE,
   OVERVIEW_NO_STATUS_LABEL,
   OVERVIEW_REQUESTS_DEGRADED_MESSAGE,
   OVERVIEW_UNLABELLED_KEY_LABEL,
@@ -155,15 +154,3 @@ export function resolveRequestSummaryStatusMessage(degraded: boolean): string | 
   return null;
 }
 
-/**
- * Resolves the copy an overview table shows in place of rows.
- *
- * It never carries a disclosed reason. Unlike the Runtime Events rail, a
- * degraded overview read returns nothing to keep showing, so the surface
- * replaces the whole table with the disclosure instead of repeating that
- * sentence once per table — and the empty copy here only ever describes a
- * healthy, resolved, empty read.
- */
-export function resolveOverviewEmptyMessage(isLoading: boolean, emptyMessage: string): string {
-  return isLoading ? OVERVIEW_LOADING_MESSAGE : emptyMessage;
-}

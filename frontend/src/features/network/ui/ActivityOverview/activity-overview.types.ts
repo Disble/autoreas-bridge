@@ -64,3 +64,23 @@ export interface EventSampleRowViewModel {
   readonly level: string;
   readonly message: string;
 }
+
+/**
+ * Props for `buildActivityOverviewSkeletonRows`, the placeholder builder
+ * shared by the request-health and event-summary tables. Both are plain count
+ * tables that differ only in column count and width, so one builder covers
+ * both rather than duplicating the same row markup per table.
+ */
+export interface ActivityOverviewSkeletonRowsProps {
+  readonly rowCount: number;
+  readonly columnWidths: readonly string[];
+  /** `data-testid` stamped on every placeholder row, distinguishing which table it belongs to. */
+  readonly testId: string;
+  /**
+   * Prefix for each placeholder row's `id`, kept separate from `testId` so
+   * three simultaneously loading event-summary tables never render the same
+   * DOM id: `testId` stays constant for the assertion, `idPrefix` carries the
+   * per-table identity.
+   */
+  readonly idPrefix: string;
+}

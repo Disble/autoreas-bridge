@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/** Stands in for the anime-detail hook so this suite asserts rendering only. */
 const useAnimeDetailMock = vi.fn();
 
 vi.mock('../use-anime-detail', () => ({
@@ -9,6 +10,7 @@ vi.mock('../use-anime-detail', () => ({
 
 import { AnimeDetail } from '../AnimeDetail';
 
+/** Baseline loaded anime-detail view model each case overrides one field of. */
 function createDetailViewModel(overrides = {}) {
   return {
     id: 'anime-1',
@@ -44,6 +46,7 @@ function createDetailViewModel(overrides = {}) {
   };
 }
 
+/** Configures the mocked hook to report a fully loaded, ready-to-render state. */
 function mockAnimeDetailState(overrides = {}) {
   useAnimeDetailMock.mockReturnValue({
     loadState: 'loaded',
@@ -70,7 +73,7 @@ describe('AnimeDetail', () => {
     cleanup();
   });
 
-  it('renders a loading message while loadState is loading', () => {
+  it('announces loading through a named status region while loadState is loading', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
@@ -80,7 +83,30 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByText('Loading anime detail...')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading anime detail...' })).toBeInTheDocument();
+  });
+
+  it('mirrors the resolved shape with placeholder tiles and field groups while loading', () => {
+    useAnimeDetailMock.mockReturnValue({
+      loadState: 'loading',
+      detail: undefined,
+      showPortadaPlaceholder: true,
+      onPortadaError: vi.fn(),
+    });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getAllByTestId('anime-detail-skeleton-tile')).toHaveLength(3);
+    expect(screen.getAllByTestId('anime-detail-skeleton-field-group')).toHaveLength(3);
+  });
+
+  it('does not render the loading status region once resolved', () => {
+    mockAnimeDetailState();
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.queryByRole('status', { name: 'Loading anime detail...' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('anime-detail-skeleton-tile')).not.toBeInTheDocument();
   });
 
   it('renders a not-found message when loadState is not-found', () => {

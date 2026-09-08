@@ -34,6 +34,11 @@ export interface AnimeViewModel {
   readonly gapLabel: string | undefined;
 }
 
+/** Props for one rendered row of the Catalog's anime list. */
+export interface CatalogListRowProps {
+  readonly item: AnimeViewModel;
+}
+
 /** Single option rendered by a Catalog filter select control. */
 export type AnimeFilterOption = LabeledSelectOption;
 
@@ -78,7 +83,9 @@ export interface CatalogPanelState {
   /** Only the currently revealed slice — see `listWindow` and ADR-012. */
   readonly items: readonly AnimeViewModel[];
   readonly isLoading: boolean;
-  readonly isEmpty: boolean;
+  /** Why the last settled request failed, or `undefined` when it succeeded. */
+  readonly error: Error | undefined;
+  readonly emptyState: CatalogEmptyState;
   readonly listWindow: ProgressiveListWindow;
   readonly filters: AnimeFilterState;
   readonly estadoOptions: readonly AnimeFilterOption[];
@@ -94,4 +101,41 @@ export interface CatalogPanelState {
   readonly onDiaChange: (value: string) => void;
   readonly onGenerosChange: (values: readonly (string | number)[]) => void;
   readonly onGapChange: (value: string) => void;
+  /** Restores every filter to the all-records default. */
+  readonly onClearCriteria: () => void;
+}
+
+/** Which Catalog empty state a resolved request produced, if any. */
+export type CatalogEmptyState = 'none' | 'actual' | 'criteria';
+
+/** Everything the Catalog empty-state classifier reads, and nothing more. */
+export interface CatalogEmptyStateInput {
+  readonly isLoading: boolean;
+  /** True while the last settled catalog request failed. */
+  readonly hasError: boolean;
+  /** Rows the resolved source returned, before search and filters. */
+  readonly sourceCount: number;
+  /** Rows left after search and filters. */
+  readonly visibleCount: number;
+  readonly filters: AnimeFilterState;
+}
+
+/** Title and description shown by one Catalog empty state. */
+export interface CatalogEmptyStateCopy {
+  readonly title: string;
+  readonly description: string;
+}
+
+/** Filter values and the control callbacks that change them. */
+export interface UseCatalogFiltersResult {
+  readonly filters: AnimeFilterState;
+  readonly onQueryChange: (query: string) => void;
+  readonly onEstadoChange: (value: string) => void;
+  readonly onActivoChange: (value: string) => void;
+  readonly onTipoChange: (value: string) => void;
+  readonly onDiaChange: (value: string) => void;
+  readonly onGenerosChange: (values: readonly (string | number)[]) => void;
+  readonly onGapChange: (value: string) => void;
+  /** Restores every filter to the all-records default. */
+  readonly onClearCriteria: () => void;
 }

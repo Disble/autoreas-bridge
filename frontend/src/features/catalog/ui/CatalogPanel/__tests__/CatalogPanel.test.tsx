@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { ANIME_FILTER_ALL_VALUE } from '../catalog-panel.constants';
 
+/** Stands in for the catalog hook so this suite asserts rendering only. */
 const useCatalogPanelMock = vi.fn();
 
 vi.mock('../use-catalog-panel', () => ({
@@ -11,10 +12,12 @@ vi.mock('../use-catalog-panel', () => ({
 
 import { CatalogPanel } from '../CatalogPanel';
 
+/** Builds a complete catalog view state so each case overrides only what it exercises. */
 function createHookReturn(overrides = {}) {
   return {
     isLoading: false,
-    isEmpty: false,
+    emptyState: 'none',
+    error: undefined,
     items: [],
     listWindow: { scrollRef: { current: null }, onScroll: vi.fn(), visibleCount: 20 },
     filters: {
@@ -39,6 +42,7 @@ function createHookReturn(overrides = {}) {
     onDiaChange: vi.fn(),
     onGenerosChange: vi.fn(),
     onGapChange: vi.fn(),
+    onClearCriteria: vi.fn(),
     ...overrides,
   };
 }
@@ -51,7 +55,7 @@ describe('CatalogPanel', () => {
   it('renders active and inactive animes with status badges', () => {
     useCatalogPanelMock.mockReturnValue(
       createHookReturn({
-        isEmpty: false,
+        emptyState: 'none',
         items: [
           {
             id: 'anime-active',
@@ -84,10 +88,15 @@ describe('CatalogPanel', () => {
     expect(screen.getByText('10 / 24')).toBeInTheDocument();
     expect(screen.getByTestId('anime-status-anime-active')).toHaveTextContent('Active');
     expect(screen.getByTestId('anime-status-anime-inactive')).toHaveTextContent('Inactive');
+    // The colour is the only thing separating the two states at a glance, and
+    // HeroUI publishes it as a BEM class, so this asserts the component's own
+    // contract rather than an incidental utility class.
+    expect(screen.getByTestId('anime-status-anime-active')).toHaveClass('chip--success');
+    expect(screen.getByTestId('anime-status-anime-inactive')).toHaveClass('chip--default');
   });
 
-  it('renders the empty state when no animes are available', () => {
-    useCatalogPanelMock.mockReturnValue(createHookReturn({ isEmpty: true, items: [] }));
+  it('offers creation, and never criteria recovery, when the catalog resolved with no anime', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ emptyState: 'actual', items: [] }));
 
     render(
       <MemoryRouter>
@@ -95,11 +104,14 @@ describe('CatalogPanel', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('No animes found')).toBeInTheDocument();
+    expect(screen.getByText('Your catalog is empty')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear search and filters' })).toBeNull();
   });
 
-  it('renders the loading state', () => {
-    useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, isEmpty: false, items: [] }));
+  it('offers criteria recovery, and never creation, when filters hide every anime', () => {
+    const onClearCriteria = vi.fn();
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ emptyState: 'criteria', items: [], onClearCriteria }));
 
     render(
       <MemoryRouter>
@@ -107,13 +119,57 @@ describe('CatalogPanel', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Loading animes...')).toBeInTheDocument();
+    expect(screen.getByText('No anime match your criteria')).toBeInTheDocument();
+    expect(screen.queryByText('Your catalog is empty')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create an anime' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
+
+    expect(onClearCriteria).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed catalog request instead of any empty state', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ error: new Error('runtime unavailable'), items: [] }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Catalog unavailable')).toBeInTheDocument();
+    expect(screen.getByText('runtime unavailable')).toBeInTheDocument();
+    expect(document.querySelector('img[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('announces loading through a named status region', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, items: [] }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('status', { name: 'Loading animes...' })).toBeInTheDocument();
+  });
+
+  it('renders exactly four placeholder rows while loading', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ isLoading: true, items: [] }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByTestId('catalog-skeleton-row')).toHaveLength(4);
   });
 
   it('renders a gap badge for animes missing a download page or folder', () => {
     useCatalogPanelMock.mockReturnValue(
       createHookReturn({
-        isEmpty: false,
+        emptyState: 'none',
         items: [
           {
             id: 'anime-gap',
@@ -143,7 +199,7 @@ describe('CatalogPanel', () => {
   it('does not render a gap badge for animes with both page and folder', () => {
     useCatalogPanelMock.mockReturnValue(
       createHookReturn({
-        isEmpty: false,
+        emptyState: 'none',
         items: [
           {
             id: 'anime-complete',
@@ -173,7 +229,7 @@ describe('CatalogPanel', () => {
   it('links each anime row to its shared detail route', () => {
     useCatalogPanelMock.mockReturnValue(
       createHookReturn({
-        isEmpty: false,
+        emptyState: 'none',
         items: [
           {
             id: 'anime-active',
@@ -197,5 +253,103 @@ describe('CatalogPanel', () => {
       'href',
       '/catalog/detail/anime-active',
     );
+  });
+});
+
+describe('CatalogPanel list visibility', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it.each([
+    ['loading', { isLoading: true }],
+    ['actually empty', { emptyState: 'actual' }],
+    ['criteria empty', { emptyState: 'criteria' }],
+    ['failed', { error: new Error('runtime unavailable') }],
+  ])('renders no catalog list while the catalog is %s', (_label, override) => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ items: [], ...override }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('catalog-list-scroll')).toBeNull();
+  });
+
+  it('renders no catalog row while a refetch keeps the previous rows and sets isLoading', () => {
+    // The hook is mocked, so this reproduces the exact prop combination a real
+    // refetch produces: isLoading flips back to true before the request
+    // resolves, but the rows from the previous, already-resolved read are
+    // still sitting in state until it does. A skeleton-over-content bug (three
+    // shipped surfaces gated on `items.length` alone) is invisible on first
+    // mount, where items start empty, and only shows up here.
+    useCatalogPanelMock.mockReturnValue(
+      createHookReturn({
+        isLoading: true,
+        items: [{ id: 'anime-active', nombre: 'Active Anime', estado: 2, progressLabel: '10 / 24', status: 'active', statusLabel: 'Active' }],
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('catalog-list-scroll')).toBeNull();
+    expect(screen.queryByText('Active Anime')).toBeNull();
+  });
+
+  it('renders the catalog list once the request resolved with visible rows', () => {
+    useCatalogPanelMock.mockReturnValue(
+      createHookReturn({
+        items: [{ id: 'anime-active', nombre: 'Active Anime', estado: 2, progressLabel: '10 / 24', status: 'active', statusLabel: 'Active' }],
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('catalog-list-scroll')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['resolved with rows', { items: [{ id: 'anime-active', nombre: 'Active Anime', estado: 2, progressLabel: '10 / 24', status: 'active', statusLabel: 'Active' }] }],
+    ['actually empty', { emptyState: 'actual' }],
+    ['criteria empty', { emptyState: 'criteria' }],
+    ['failed', { error: new Error('runtime unavailable') }],
+  ])('renders no status region and no skeleton once the catalog is %s', (_label, override) => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ items: [], ...override }));
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByTestId('catalog-skeleton-row')).toBeNull();
+  });
+
+  it('navigates to the Create workspace from the actually-empty catalog', () => {
+    useCatalogPanelMock.mockReturnValue(createHookReturn({ emptyState: 'actual', items: [] }));
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <Routes>
+          <Route element={<CatalogPanel />} path="/catalog" />
+          <Route element={<h2>Create workspace</h2>} path="/editor/create" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create an anime' }));
+
+    expect(screen.getByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
   });
 });

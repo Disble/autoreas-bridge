@@ -9,7 +9,7 @@ import {
   ANIME_STATUS_ACTIVE_LABEL,
   ANIME_STATUS_INACTIVE_LABEL,
 } from './catalog-panel.constants';
-import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel } from './catalog-panel.types';
+import type { AnimeFilterOption, AnimeFilterState, AnimeStatus, AnimeViewModel, CatalogEmptyState, CatalogEmptyStateInput } from './catalog-panel.types';
 
 /**
  * Maps the backend `activo` flag (1 = active, 0 = inactive/absent) to a
@@ -210,6 +210,7 @@ export function filterAnimes(
   );
 }
 
+/** Trims, de-duplicates and alphabetically orders values discovered in catalog data. */
 function uniqueSortedStrings(values: readonly string[]): readonly string[] {
   const unique = new Set<string>();
 
@@ -223,6 +224,7 @@ function uniqueSortedStrings(values: readonly string[]): readonly string[] {
   return Array.from(unique).sort((a, b) => a.localeCompare(b));
 }
 
+/** Builds a filter select's options from data-discovered values, led by the All sentinel. */
 function toDynamicOptions(values: readonly string[]): readonly AnimeFilterOption[] {
   return [
     { value: ANIME_FILTER_ALL_VALUE, label: 'All' },
@@ -247,4 +249,39 @@ export function getUniqueGeneroOptions(items: readonly Anime[]): readonly AnimeF
     value,
     label: value,
   }));
+}
+
+/**
+ * Reports whether anything the user could clear is currently narrowing the
+ * catalog. Compared field by field against the all-records default rather than
+ * inferred from a "not empty" flag, so a filter added later cannot silently
+ * stop counting as criteria.
+ */
+function hasActiveCatalogCriteria(filters: AnimeFilterState): boolean {
+  return filters.query.trim().length > 0
+    || filters.estado !== ANIME_FILTER_ALL_VALUE
+    || filters.activo !== ANIME_FILTER_ALL_VALUE
+    || filters.tipo !== ANIME_FILTER_ALL_VALUE
+    || filters.dia !== ANIME_FILTER_ALL_VALUE
+    || filters.gap !== ANIME_FILTER_ALL_VALUE
+    || filters.generos.length > 0;
+}
+
+/**
+ * Tells an empty catalog apart from a catalog the user has filtered down to
+ * nothing, and refuses to classify either one before the request has actually
+ * resolved. A failed read is not an empty catalog: inviting the user to create
+ * anime because a binding was unavailable is how duplicates get made.
+ */
+export function classifyCatalogEmptyState(input: CatalogEmptyStateInput): CatalogEmptyState {
+  if (input.isLoading || input.hasError) {
+    return 'none';
+  }
+  if (input.sourceCount === 0) {
+    return 'actual';
+  }
+  if (input.visibleCount > 0) {
+    return 'none';
+  }
+  return hasActiveCatalogCriteria(input.filters) ? 'criteria' : 'none';
 }

@@ -1,4 +1,5 @@
-import { Button, Skeleton } from '@heroui/react';
+import { Button } from '@heroui/react';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { useJDLimitsPanel } from './use-jdlimits-panel';
 import type { JDLimitsPanelProps } from './jdlimits-panel.types';
 
@@ -14,11 +15,7 @@ export function JDLimitsPanel({ className }: Readonly<JDLimitsPanelProps>) {
   const { status, maxSimultaneousDownloads, isAvailable, isRefreshing, errorMessage, refresh } = useJDLimitsPanel();
 
   if (status === 'loading') {
-    return (
-      <section aria-label="Loading JDownloader download limit" className={className}>
-        <Skeleton className="h-10 w-full rounded-lg" />
-      </section>
-    );
+    return <LoadingBars className={className} count={1} label="Loading JDownloader download limit" />;
   }
 
   return (

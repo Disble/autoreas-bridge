@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.0.19"
+  version: "1.1.1"
   scope: project
   updates: living
 ---
@@ -39,6 +39,94 @@ This is the project's UI source of truth. **The mandate: never hand-roll a `<div
 | Large **static** list (100s+ rows; count changes only on filter/search) | **`useProgressiveListWindow`** (`shared/hooks/use-progressive-list-window.ts`) → `{ scrollRef, onScroll, visibleCount }`; render `items.slice(0, visibleCount)` of selectable `Button` rows in a height-bounded `overflow-y-auto` div (short scrollbar that *grows*) | re-implementing the window per feature; a full mapped `Button` column (renders all 800); **ListBox + `Virtualizer`/`ListLayout` windowing** — tried and rejected here (see changelog `1.0.11`) |
 | Large **live** list (an event stream pushes items into a store) | The panel's own window reconciliation + **only** `isNearListBottom` from `shared/helpers/progressive-list.helpers.ts` for the scroll trigger (`RunHistoryPanel` is the reference) | `useProgressiveListWindow` — its render-phase reset snaps the user back to the first batch every time an event lands. See `docs/adr/012-progressive-list-rendering.md` |
 | Status column in a list row | One `shrink-0` fixed-width slot + `min-w-0 flex-1` name, with a **one-word** tag | a full sentence inline next to the name — it makes row width track the message and repeats identically on every row |
+| **Unresolved request** | A shape-mirroring **skeleton** in a status region, or **`LoadingBars`** (`shared/ui/LoadingBars/`) when the placeholder is a stack of uniform bars. See the mandatory section below | a sentence like "Loading animes…", a lone `Spinner`, or a skeleton with no `role="status"` |
+| **Resolved-empty result** | **`AirisEmptyState`** (`shared/ui/AirisEmptyState/`) with surface-owned copy and at most one recovery action | a bare "No results" line, or an empty state that renders while the request is still unresolved |
+
+## Loading and empty states — MANDATORY
+
+Three states, three components, no exceptions. A surface that shows a sentence while it loads, or a
+spinner alone, is not finished.
+
+| State | What to render |
+|-------|----------------|
+| Request unresolved | A **skeleton mirroring the shape of the content that will replace it**, inside a status region |
+| Request resolved, nothing to show | **`AirisEmptyState`** — artwork, surface-owned copy, at most one recovery action |
+| Request failed | The surface's error `Alert`. Never an empty state, never a skeleton |
+
+### The states are EXCLUSIVE — this is the one that gets missed
+
+The placeholder **replaces** the content. It is not a block you add above it. Gate the content branch
+on the request, never on the collection alone:
+
+```tsx
+{/* WRONG — both blocks render together on any reload that keeps prior data */}
+{isLoading ? <XSkeleton /> : null}
+<div>{rows.map(renderRow)}</div>
+
+{/* WRONG for the same reason — `rows.length > 0` is true while reloading */}
+{rows.length > 0 ? <div>{rows.map(renderRow)}</div> : null}
+
+{/* RIGHT */}
+{isLoading ? <XSkeleton /> : null}
+<div>{isLoading ? null : rows.map(renderRow)}</div>
+```
+
+Why it slips through: a surface that refetches keeps the previous rows in state while the next request
+is in flight, so `isLoading` and `rows.length > 0` are BOTH true. On first mount they never are, so the
+bug is invisible until someone switches a filter, a day, or a tab. It shipped on three surfaces here
+before a user screenshotted a skeleton block stacked on top of the real cards.
+
+**Every loading test must assert the negative**, or it will not catch this:
+
+```ts
+expect(await screen.findByRole('status', { name: LABEL })).toBeInTheDocument();
+expect(screen.queryByRole('heading', { name: 'A real row' })).toBeNull(); // ← the half that matters
+```
+
+Asserting only that the skeleton appears, and that it disappears once resolved, passes happily while
+both blocks render at once. That exact gap is how this shipped.
+
+### The status region — copy this exactly
+
+```tsx
+<div aria-labelledby="x-loading-label" aria-live="polite" role="status">
+  <span className="sr-only" id="x-loading-label">{LOADING_LABEL}</span>
+  {placeholder}
+</div>
+```
+
+Both halves are load-bearing, and the reason is not obvious:
+
+- The `sr-only` span is what a polite live region **announces**. A `Skeleton` is a decorative `div`
+  and contributes no text, so a region holding only skeletons announces nothing.
+- **`aria-labelledby` is required, not optional.** `role="status"` takes its accessible name from the
+  author; ARIA's name-from-content allowlist excludes it. A region named only by its contents computes
+  an accessible name of `""`, and `getByRole('status', { name })` fails against it. This cost a full
+  RED→GREEN cycle to discover — do not re-derive it.
+
+Tables cannot nest that region inside table markup: put a visually hidden status region **beside** the
+table and set `aria-busy` on the table while loading.
+
+### Shape-mirroring, and why it is the whole point
+
+A skeleton beats a spinner only because it stops the content jumping when it arrives. That makes the
+placeholder's **height** a contract, not a detail:
+
+- Share ONE row-shape class between the real row and its placeholder so the two cannot drift
+  (`CATALOG_LIST_ROW_CLASS`, `ANIME_EDITOR_LIST_ROW_CLASS`, `EPISODE_COVER_SLOT_CLASS`).
+- Render **more than one** placeholder row for list- and table-shaped content, from a named
+  `*_SKELETON_ROW_COUNT` constant.
+- For tables, render skeleton **`Table.Row`s as `Table.Body` children** — never a pre-table branch.
+  Replacing the table loses the header, so columns appear and resize when data lands.
+- Prove it: `scripts/layout-fixtures/loading-skeletons-fixture.tsx` measures each placeholder against
+  its real row in headless Edge. jsdom has no layout engine, so a half-height placeholder passes every
+  unit test in the suite.
+
+### What the tests must assert
+
+`getByRole('status', { name })` while loading, the placeholder count, and that **neither the region
+nor the placeholder survives** once the request settles — success or failure. Asserting the visible
+loading text is weaker: it proves the words are on screen but not that anything announces them.
 
 ## Color conventions (semantic, NOT raw colors)
 
@@ -191,6 +279,8 @@ Containment and fill are the same mechanism from opposite ends, and a card needs
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.1.1` — Added "The states are EXCLUSIVE" to the mandatory loading section, after a user screenshotted a block of skeletons stacked directly on top of the real anime cards on Today. The placeholder REPLACES the content; it is not a block added above it. The trap is that a refetching surface keeps its previous rows in state, so `isLoading` and `rows.length > 0` are both true — on first mount they never are, which is why it is invisible until someone switches a day, filter or tab. Three surfaces shipped with it (`EpisodeSchedulePanel` mapped rows unconditionally, `SoloAnimeDownloadPanel` gated on `options.length > 0` alone, `ActivityOverview`'s sample list mapped unconditionally). The root cause was in the TESTS, not the markup: they asserted the skeleton appears and later disappears, and never that real content is absent while loading — which passes happily while both blocks render. Every loading test now asserts that negative.
+- `1.1.0` — Loading and empty states became **mandatory** rather than conventional, after three changes shipped three different answers across nine surfaces: a sentence, a lone `Spinner`, and a silent skeleton. The rule is three states to three components — a shape-mirroring skeleton for unresolved, `AirisEmptyState` for resolved-empty, the surface's error `Alert` for failed — plus `LoadingBars` (`shared/ui/LoadingBars/`) for the uniform-bar placeholder that had been copied seven times, each copy carrying the same announcement gap because the markup was the same. Two findings are recorded in full because each cost a cycle. **`role="status"` takes its accessible name from the author**, so a region named only by an inner `sr-only` span computes `""` and `getByRole('status', { name })` fails — `aria-labelledby` is required, and the span must still be there because that is what a polite live region announces. And **a placeholder's height is a contract**: the row-shape class is shared with the real row so the two cannot drift, and `loading-skeletons-fixture.tsx` measures them against each other in headless Edge, because jsdom has no layout engine and passes a half-height placeholder. Tables get skeleton `Table.Row`s as `Table.Body` children, never the pre-table branch `HistoryTable` used — that one loses the header, so the columns resize when data lands.
 - `1.0.19` — Current-day marker on the Today weekday tabs: a `size-1.5 rounded-full bg-current` dot plus an `sr-only` phrase, so the tab strip always says which day is today even while another day is selected. `bg-current` is the load-bearing choice — `.toggle-button` sets `color` explicitly in BOTH states (`--toggle-button-fg: currentColor` unselected, `--accent-soft-foreground` selected), so a fixed `bg-accent` would vanish on the selected tab while `currentColor` never does. Two testing gotchas recorded above: the accessible name concatenates sibling text with no separator (`Sundaytoday`), and a today marker turns any exact weekday-name query into a date-dependent test.
 - `1.0.18` — Added "Filling the height: the vertical mirror of `min-w-0`" after the `1.0.17` containment fix left both Activity detail cards with a wide empty band (measured: 261px under the Trace list, 165px under the body pane). The rule that matters is **cap the CARD, fill the panes**: a fixed `max-h-64` on a pane contains it but cannot grow into a card the grid stretched, while a `flex-1 min-h-0` pane needs the card capped or it grows the grid row to the height of a 6916px list — a `flex-basis: 0` item still contributes its content height to its container's intrinsic size. Three measured corrections: `min-h-0` is needed at EVERY level (HeroUI's `.card`/`.card__content` bring `flex flex-col` and `flex-1` but never release the automatic minimum size, and `.tabs__panel` is a plain block); a filling pane takes only the REMAINDER, so an unbounded headers block starved it to 22px of a 512px card, fixed with a scroller on the block and a floor on `CodeBlock`'s **wrapper** (on the `<pre>` the floor did nothing — its `min-h-0` wrapper let it overflow instead of pushing back); and a fill guard needs ORDINARY chrome plus a **second viewport**, because with hostile content the pane never reaches the old cap and at 1280 a re-added `max-h-64` is inert. `layout:smoke` now renders at 1280x900 and 1600x1000 and carries an ordinary-chrome pair beside the hostile one.
 - `1.0.17` — Added the "Containment: a card must never widen the page" section after the Activity detail card gave the whole window a horizontal scrollbar (measured: 2950px of content in a 471px card, 3719px document at a 1241px viewport). The rule that matters is **never a bare `1fr` track** — `minmax(auto, 1fr)` is content-based and grows past its container — plus `min-w-0` on the item, since a bounded track alone does not hold it. Two measured corrections to the folklore: a `<pre class="overflow-auto">` does NOT leak its width (7973px line, 391px pane, contained with no `min-w-0` above it), so `min-w-0` on such a wrapper is hardening rather than the fix; and `truncate` was silently containing content all along via `overflow: hidden`, so replacing it with `break-all` gives up a containment and must be paired with `minmax(0, …)`. `layout-smoke` now carries two fixtures with one verdict node each and passes only when all pass.

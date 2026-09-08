@@ -3,6 +3,21 @@ import type { DownloadReadinessReason } from '../../../../shared/contracts/downl
 /** Empty-state text shown while no anime has been selected. */
 export const SOLO_ANIME_DOWNLOAD_EMPTY_SELECTION = 'Select an anime to start a one-off catch-up download.';
 
+/** Accessible name for the status region announced while readiness is loading. */
+export const SOLO_ANIME_DOWNLOAD_LOADING_LABEL = 'Loading readiness...';
+
+/**
+ * Shared geometry for a rail row, used by both the resolved row and
+ * `SoloAnimeDownloadSkeleton`'s placeholder rows so the two shapes cannot
+ * drift apart. Border color is intentionally excluded: it is state-dependent
+ * (selected/ready) and applied by each caller.
+ */
+export const SOLO_ANIME_DOWNLOAD_ROW_CLASS =
+  'h-auto min-h-11 w-full min-w-0 justify-between gap-4 rounded-xl border-l-2 px-3 py-2 transition-colors';
+
+/** Number of placeholder rows rendered while readiness is loading. */
+export const SOLO_ANIME_DOWNLOAD_SKELETON_ROW_COUNT = 6;
+
 /** Backend response shared with the global manual download trigger. */
 export const SOLO_ANIME_DOWNLOAD_IN_PROGRESS_MESSAGE = 'schedule: a download run is already in progress';
 

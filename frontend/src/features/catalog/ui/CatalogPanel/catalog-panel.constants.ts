@@ -1,17 +1,44 @@
 import { ANIME_ESTADO_FILTER_ENTRIES } from '../../../../shared/constants/anime-estado.constants';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
-import type { AnimeFilterOption } from './catalog-panel.types';
+import type { AnimeFilterOption, AnimeFilterState, CatalogEmptyStateCopy } from './catalog-panel.types';
 
 /**
- * Label shown when the anime catalog is empty or the runtime binding is
- * unavailable.
+ * Heading of the alert shown when the catalog request itself failed. Kept
+ * distinct from every empty state so an unavailable binding is never presented
+ * as "you have no anime".
  */
-export const CATALOG_PANEL_EMPTY_TITLE = 'No animes found';
+export const CATALOG_PANEL_ERROR_TITLE = 'Catalog unavailable';
 
 /**
- * Helper message shown alongside the empty title.
+ * Feedback shown, as the accessible name of the loading status region, while
+ * the catalog request is unresolved.
  */
-export const CATALOG_PANEL_EMPTY_MESSAGE = 'The local anime catalog is empty or still loading.';
+export const CATALOG_PANEL_LOADING_LABEL = 'Loading animes...';
+
+/**
+ * Shape shared by the real `CatalogListRow` and its `CatalogListSkeleton`
+ * placeholder, so the two cannot drift apart silently.
+ */
+export const CATALOG_LIST_ROW_CLASS = 'rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-4 transition-colors hover:bg-white/[0.04]';
+
+/** How many placeholder rows Catalog draws while its request is unresolved. */
+export const CATALOG_SKELETON_ROW_COUNT = 4;
+
+/**
+ * Copy for each Catalog empty state. The criteria wording deliberately never
+ * claims the catalog is empty, because the anime are there — the filters are
+ * hiding them.
+ */
+export const CATALOG_PANEL_EMPTY_STATE_COPY: Readonly<Record<'actual' | 'criteria', CatalogEmptyStateCopy>> = {
+  actual: {
+    title: 'Your catalog is empty',
+    description: 'No anime are stored yet. Create one to start your catalog.',
+  },
+  criteria: {
+    title: 'No anime match your criteria',
+    description: 'The current search and filters hide every anime in your catalog.',
+  },
+};
 
 /**
  * Display label for active animes.
@@ -99,3 +126,19 @@ export const ANIME_GAP_LABEL_MISSING_FOLDER = 'Missing folder';
  * Badge label shown when both the download page and folder are missing.
  */
 export const ANIME_GAP_LABEL_MISSING_BOTH = 'Missing page & folder';
+
+/**
+ * The all-records default every Catalog filter starts from and returns to.
+ * One object rather than a literal repeated at the initial state and at the
+ * reset, because a filter that drifts between those two makes "Clear search and
+ * filters" quietly stop clearing.
+ */
+export const CATALOG_DEFAULT_FILTERS: AnimeFilterState = {
+  query: '',
+  estado: ANIME_FILTER_ALL_VALUE,
+  activo: ANIME_FILTER_ALL_VALUE,
+  tipo: ANIME_FILTER_ALL_VALUE,
+  dia: ANIME_FILTER_ALL_VALUE,
+  generos: [],
+  gap: ANIME_FILTER_ALL_VALUE,
+};

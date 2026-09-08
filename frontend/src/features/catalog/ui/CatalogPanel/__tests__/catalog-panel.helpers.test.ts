@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import {
+  classifyCatalogEmptyState,
   filterAnimes,
   formatAnimeProgress,
   matchesAnimeGap,
@@ -10,6 +11,7 @@ import {
 } from '../catalog-panel.helpers';
 import { ANIME_FILTER_ALL_VALUE, ANIME_GAP_COMPLETE_VALUE, ANIME_GAP_MISSING_VALUE } from '../catalog-panel.constants';
 
+/** Baseline catalog record each case mutates one field of. */
 const baseAnime: Anime = {
   id: 'anime-1',
   name: 'Frieren',
@@ -214,5 +216,69 @@ describe('sortAnimesByName', () => {
     const b: Anime = { ...baseAnime, id: 'b', name: 'BETA' };
 
     expect([b, a].sort(sortAnimesByName).map((item) => item.name)).toEqual(['alpha', 'BETA']);
+  });
+});
+
+describe('classifyCatalogEmptyState', () => {
+  /** All-records defaults: nothing the user could clear is active. */
+  const defaultFilters = { query: '', estado: 'all', activo: 'all', tipo: 'all', dia: 'all', generos: [], gap: 'all' } as const;
+
+  /** Baseline: a resolved catalog holding rows, unnarrowed and unbroken. */
+  const resolved = { isLoading: false, hasError: false, sourceCount: 2, visibleCount: 2, filters: defaultFilters } as const;
+
+  it('classifies nothing while the request is unresolved', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, isLoading: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
+  });
+
+  it('classifies nothing when the request failed, so an error never reads as an empty catalog', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, hasError: true, sourceCount: 0, visibleCount: 0 })).toBe('none');
+  });
+
+  it('classifies a resolved catalog with no anime as actually empty', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, sourceCount: 0, visibleCount: 0 })).toBe('actual');
+  });
+
+  it('classifies visible rows as not empty at all', () => {
+    expect(classifyCatalogEmptyState(resolved)).toBe('none');
+  });
+
+  it('classifies zero visible rows under an active filter as criteria-empty', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0, filters: { ...defaultFilters, tipo: 'Serie' } })).toBe('criteria');
+  });
+
+  it('classifies zero visible rows under a selected genre as criteria-empty', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0, filters: { ...defaultFilters, generos: ['Action'] } })).toBe('criteria');
+  });
+
+  it('refuses to call zero visible rows criteria-empty when no criteria are active', () => {
+    expect(classifyCatalogEmptyState({ ...resolved, visibleCount: 0 })).toBe('none');
+  });
+});
+
+describe('classifyCatalogEmptyState criteria detection', () => {
+  /** All-records defaults: nothing the user could clear is active. */
+  const noCriteria = { query: '', estado: 'all', activo: 'all', tipo: 'all', dia: 'all', generos: [], gap: 'all' } as const;
+
+  /** A resolved catalog holding rows, with every row currently hidden. */
+  const filteredAway = { isLoading: false, hasError: false, sourceCount: 2, visibleCount: 0 } as const;
+
+  it.each([
+    ['a search query', { query: 'alpha' }],
+    ['an estado filter', { estado: '2' }],
+    ['an activo filter', { activo: '1' }],
+    ['a tipo filter', { tipo: 'Serie' }],
+    ['a dia filter', { dia: 'Lunes' }],
+    ['a gap filter', { gap: 'missing' }],
+    ['a selected genre', { generos: ['Action'] }],
+  ])('treats %s on its own as active criteria', (_label, override) => {
+    expect(classifyCatalogEmptyState({ ...filteredAway, filters: { ...noCriteria, ...override } })).toBe('criteria');
+  });
+
+  it('treats a whitespace-only query as no criteria at all', () => {
+    expect(classifyCatalogEmptyState({ ...filteredAway, filters: { ...noCriteria, query: '   ' } })).toBe('none');
+  });
+
+  it('keeps visible rows out of every empty state even while criteria are active', () => {
+    expect(classifyCatalogEmptyState({ ...filteredAway, visibleCount: 1, filters: { ...noCriteria, query: 'alpha' } })).toBe('none');
   });
 });
