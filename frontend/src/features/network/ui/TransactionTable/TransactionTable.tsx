@@ -6,6 +6,7 @@ import {
 } from '../TransactionPanel/transaction-panel.constants';
 import type { TransactionTableProps } from '../TransactionPanel/transaction-panel.types';
 import { TransactionRow } from '../TransactionRow/TransactionRow';
+import { buildTransactionTableSkeletonRows } from './TransactionTableSkeletonRows';
 
 /**
  * Dumb dense data grid rendering the windowed transaction rows on HeroUI Table
@@ -27,6 +28,12 @@ import { TransactionRow } from '../TransactionRow/TransactionRow';
  * Each row is a memoized `TransactionRow` rather than inline JSX: with rows
  * accumulating and never unmounting, re-running every loaded row's markup on
  * every table render is the one cost that grows without bound here.
+ *
+ * While `isLoading`, the header and column widths stay put and the body
+ * swaps in skeleton rows instead of the real ones, so the table never resizes
+ * once the page resolves. A `role="status"` region cannot nest inside table
+ * markup, so the loading announcement sits as a sibling of the table and the
+ * table itself is marked `aria-busy`.
  */
 export function TransactionTable({ rows, selectedId, onSelect, isLoading, onScroll }: Readonly<TransactionTableProps>) {
   return (
@@ -35,7 +42,12 @@ export function TransactionTable({ rows, selectedId, onSelect, isLoading, onScro
       data-transaction-scroll
       onScroll={onScroll}
     >
-      <Table aria-label="Captured transactions" variant="secondary">
+      {isLoading ? (
+        <div aria-labelledby="transaction-table-loading-label" aria-live="polite" className="sr-only" role="status">
+          <span id="transaction-table-loading-label">{TRANSACTION_LOADING_STATE_MESSAGE}</span>
+        </div>
+      ) : null}
+      <Table aria-busy={isLoading} aria-label="Captured transactions" variant="secondary">
         <Table.ScrollContainer>
           <Table.Content
             aria-label="Captured transactions"
@@ -62,13 +74,9 @@ export function TransactionTable({ rows, selectedId, onSelect, isLoading, onScro
               <Table.Column className="w-[104px]">Duration</Table.Column>
             </Table.Header>
             <Table.Body
-              renderEmptyState={() => (
-                <span className="text-sm text-default-400">
-                  {isLoading ? TRANSACTION_LOADING_STATE_MESSAGE : TRANSACTION_EMPTY_STATE_MESSAGE}
-                </span>
-              )}
+              renderEmptyState={() => <span className="text-sm text-default-400">{TRANSACTION_EMPTY_STATE_MESSAGE}</span>}
             >
-              {rows.map((row) => (
+              {isLoading ? buildTransactionTableSkeletonRows() : rows.map((row) => (
                 <TransactionRow key={row.id} row={row} />
               ))}
             </Table.Body>

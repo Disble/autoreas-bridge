@@ -6,6 +6,7 @@ import { CatalogListRow } from '../../src/features/catalog/ui/CatalogPanel/Catal
 import { CatalogListSkeleton } from '../../src/features/catalog/ui/CatalogPanel/CatalogListSkeleton';
 import { EpisodeScheduleCard } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleSkeleton';
+import { NetworkTable } from '../../src/features/network/ui/NetworkTable/NetworkTable';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 
 /**
@@ -204,6 +205,90 @@ function ComparisonFixture({ comparison }: Readonly<{ comparison: SkeletonCompar
   );
 }
 
+/** One runtime-event row, enough to give the real table a measurable body row. */
+const NETWORK_ROW = {
+  id: 'event-1',
+  timeLabel: '12:04:31',
+  domain: 'anime',
+  level: 'info',
+  message: 'Reconcile finished for 42 anime',
+  statusLabel: 'ok',
+  durationLabel: '128 ms',
+} as const;
+
+/**
+ * Measures a skeleton `Table.Row` against a real one.
+ *
+ * Tables get their own comparison because their placeholder promise is
+ * stronger than a list's: the header and the column widths must survive the
+ * swap, which is why the rows are placeholders rather than a replacement of
+ * the whole table. Two tables at the same width, one loading and one loaded.
+ */
+function TableComparisonFixture() {
+  const [checks, setChecks] = useState<readonly Check[] | undefined>();
+
+  useEffect(() => {
+    return measureWhenReady(
+      () => document.querySelector('[data-skeleton-placeholder="network-table"] [data-testid="network-table-skeleton-row"]') !== null,
+      () => setChecks(measureTableComparison()),
+    );
+  }, []);
+
+  return (
+    <>
+      <div className="flex gap-4" style={{ width: `${COMPARISON_WIDTH_PX * 2 + 16}px` }}>
+        <div data-skeleton-real="network-table" style={{ width: `${COMPARISON_WIDTH_PX}px` }}>
+          <NetworkTable emptyMessage="" isLoading={false} onScroll={() => undefined} onSelect={() => undefined} rows={[NETWORK_ROW]} selectedId={null} />
+        </div>
+        <div data-skeleton-placeholder="network-table" style={{ width: `${COMPARISON_WIDTH_PX}px` }}>
+          <NetworkTable emptyMessage="" isLoading onScroll={() => undefined} onSelect={() => undefined} rows={[]} selectedId={null} />
+        </div>
+      </div>
+      <VerdictReport checks={checks} />
+    </>
+  );
+}
+
+/**
+ * Reads back the loaded table's real row and the loading table's first
+ * placeholder row, plus the header both must keep.
+ *
+ * @returns Every check the table placeholder must pass.
+ */
+function measureTableComparison(): readonly Check[] {
+  const realRow = document.querySelector('[data-skeleton-real="network-table"] [role="row"]:not([aria-rowindex="1"])');
+  const placeholderRow = document.querySelector('[data-skeleton-placeholder="network-table"] [data-testid="network-table-skeleton-row"]');
+
+  if (realRow === null || placeholderRow === null) {
+    return [describeMissingPair('network-table', realRow, countPlaceholderRows())];
+  }
+
+  return [
+    checkTheHeights(realRow.getBoundingClientRect(), placeholderRow.getBoundingClientRect(), 'network-table'),
+    checkTheHeader(),
+    checkThePage('network-table'),
+  ];
+}
+
+/** How many placeholder rows the loading table drew, for the missing-pair report. */
+function countPlaceholderRows(): number {
+  return document.querySelectorAll('[data-skeleton-placeholder="network-table"] [data-testid="network-table-skeleton-row"]').length;
+}
+
+/**
+ * The reason a table swaps ROWS rather than replacing itself: losing the header
+ * would let the columns appear and resize the moment data lands.
+ */
+function checkTheHeader(): Check {
+  const loadingHeader = document.querySelector('[data-skeleton-placeholder="network-table"] [role="columnheader"]');
+
+  return {
+    name: 'network-table: the header survives the loading swap',
+    ok: loadingHeader !== null,
+    detail: loadingHeader === null ? 'no column header while loading' : 'column header present while loading',
+  };
+}
+
 /** Every skeleton-versus-row comparison on the shared fixture page. */
 export function LoadingSkeletonsFixture() {
   return (
@@ -211,6 +296,7 @@ export function LoadingSkeletonsFixture() {
       {COMPARISONS.map((comparison) => (
         <ComparisonFixture comparison={comparison} key={comparison.subject} />
       ))}
+      <TableComparisonFixture />
     </HashRouter>
   );
 }

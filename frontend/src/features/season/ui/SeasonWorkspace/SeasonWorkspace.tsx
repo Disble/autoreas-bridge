@@ -1,5 +1,6 @@
 import type { ComponentPropsWithoutRef } from 'react';
-import { Alert, Button, Card, Chip, Input, Label, Skeleton, Tabs, TextField, Typography } from '@heroui/react';
+import { Alert, Button, Card, Chip, Input, Label, Tabs, TextField, Typography } from '@heroui/react';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import {
   SEASON_WORKSPACE_EMPTY_MESSAGE,
   SEASON_WORKSPACE_EMPTY_TITLE,
@@ -36,11 +37,7 @@ export function SeasonWorkspace({ className }: Readonly<SeasonWorkspaceProps>) {
   } = useSeasonWorkspace();
 
   if (isLoading) {
-    return (
-      <section aria-label="Loading season" className={className}>
-        <Skeleton className="h-40 w-full rounded-lg" />
-      </section>
-    );
+    return <LoadingBars barClassName="h-40 w-full rounded-lg" className={className} count={1} label="Loading season" />;
   }
 
   const handleCreate: NonNullable<ComponentPropsWithoutRef<'form'>['onSubmit']> = (event) => {

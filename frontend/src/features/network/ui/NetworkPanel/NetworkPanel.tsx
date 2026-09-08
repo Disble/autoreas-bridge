@@ -28,6 +28,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     domainFilter,
     domainOptions,
     detailTab,
+    isLoading,
     statusMessage,
     emptyMessage,
     entryCount,
@@ -68,6 +69,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
       <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <NetworkTable
           emptyMessage={emptyMessage}
+          isLoading={isLoading}
           onScroll={onScroll}
           onSelect={onSelect}
           rows={rows}

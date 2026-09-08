@@ -7,8 +7,10 @@ vi.mock('../use-jdconfig-panel', () => ({
   useJDConfigPanel: vi.fn(),
 }));
 
+/** Typed handle onto the mocked hook so each case's return value is checked against the real shape. */
 const mockedUseJDConfigPanel = vi.mocked(useJDConfigPanel);
 
+/** Baseline editable JD account form each case starts from. */
 const baseForm = {
   email: 'user@example.com',
   plaintextPassword: '',
@@ -17,6 +19,7 @@ const baseForm = {
   defaultDestDir: 'D:/downloads',
 };
 
+/** Baseline live JDownloader status each case starts from. */
 const baseLiveStatus = {
   email: 'user@example.com',
   hasPassword: true,
@@ -46,7 +49,7 @@ describe('JDConfigPanel', () => {
 
     render(<JDConfigPanel />);
 
-    expect(screen.getByLabelText('Loading JD account configuration')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading JD account configuration' })).toBeInTheDocument();
   });
 
   it('renders an error message when the status is "error"', () => {

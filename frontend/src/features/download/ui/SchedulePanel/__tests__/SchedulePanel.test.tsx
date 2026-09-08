@@ -8,12 +8,15 @@ vi.mock('../use-schedule-panel', () => ({
   useSchedulePanel: vi.fn(),
 }));
 
+/** Typed handle onto the mocked hook so overrides get hook-return type checking. */
 const mockedUseSchedulePanel = vi.mocked(useSchedulePanel);
 
+/** Same view model, but with the optional readiness field made required so the baseline must set it explicitly. */
 type TestSchedulePanelViewModel = SchedulePanelViewModel & {
   readonly readiness: SchedulePanelViewModel['readiness'];
 };
 
+/** Baseline ready schedule view model each case overrides one field of. */
 const baseViewModel: TestSchedulePanelViewModel = {
   enabled: true,
   dailyTimeHHMM: '03:30',
@@ -30,8 +33,10 @@ const baseViewModel: TestSchedulePanelViewModel = {
   readiness: undefined,
 };
 
+/** Shape of the hook's return value, reused to type mock overrides. */
 type HookReturn = ReturnType<typeof useSchedulePanel>;
 
+/** Configures the mocked hook with a ready default state, merging in each case's overrides. */
 function mockHook(overrides: Partial<HookReturn> = {}): void {
   const defaults: HookReturn = {
     status: 'ready',
@@ -69,7 +74,7 @@ describe('SchedulePanel', () => {
 
     render(<SchedulePanel />);
 
-    expect(screen.getByLabelText('Loading schedule configuration')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading schedule configuration' })).toBeInTheDocument();
   });
 
   it('renders an error message when the status is "error"', () => {

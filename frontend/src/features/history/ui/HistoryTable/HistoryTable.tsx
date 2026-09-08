@@ -1,6 +1,7 @@
-import { Chip, Input, Label, Pagination, Skeleton, Table } from '@heroui/react';
+import { Chip, Input, Label, Pagination, Table } from '@heroui/react';
 import { Link, useNavigate } from 'react-router';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import {
   HISTORY_TABLE_EMPTY_MESSAGE,
   HISTORY_TABLE_EMPTY_TITLE,
@@ -94,12 +95,7 @@ export function HistoryTable(props: Readonly<HistoryTableProps>) {
       </section>
 
       {isLoading ? (
-        <div aria-live="polite" className="flex flex-col gap-2">
-          <p className="text-sm text-muted">{HISTORY_TABLE_LOADING_LABEL}</p>
-          {Array.from({ length: HISTORY_TABLE_SKELETON_ROW_COUNT }, (_, index) => (
-            <Skeleton className="h-10 w-full rounded-lg" key={index} />
-          ))}
-        </div>
+        <LoadingBars count={HISTORY_TABLE_SKELETON_ROW_COUNT} label={HISTORY_TABLE_LOADING_LABEL} />
       ) : (
         <Table aria-label={HISTORY_TABLE_LABEL} variant="secondary">
           <Table.ScrollContainer>

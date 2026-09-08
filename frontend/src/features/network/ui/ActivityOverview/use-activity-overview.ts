@@ -11,7 +11,6 @@ import {
   OVERVIEW_REQUESTS_EMPTY_MESSAGE,
 } from './activity-overview.constants';
 import {
-  resolveOverviewEmptyMessage,
   resolveRequestSummaryStatusMessage,
   sumRequestCounts,
   toEventSampleRows,
@@ -82,8 +81,8 @@ export function useActivityOverview(
   const eventSamples = useMemo(() => toEventSampleRows(eventSummary), [eventSummary]);
   const requestStatusMessage = isLoading ? null : resolveRequestSummaryStatusMessage(requestSummary.degraded);
   const eventStatusMessage = isLoading ? null : resolveEventStatusMessage(eventSummary.available, eventSummary.degraded);
-  const requestEmptyMessage = resolveOverviewEmptyMessage(isLoading, OVERVIEW_REQUESTS_EMPTY_MESSAGE);
-  const eventEmptyMessage = resolveOverviewEmptyMessage(isLoading, OVERVIEW_EVENTS_EMPTY_MESSAGE);
+  const requestEmptyMessage = OVERVIEW_REQUESTS_EMPTY_MESSAGE;
+  const eventEmptyMessage = OVERVIEW_EVENTS_EMPTY_MESSAGE;
 
   // 6. Callbacks (useCallback calling pure helpers)
 

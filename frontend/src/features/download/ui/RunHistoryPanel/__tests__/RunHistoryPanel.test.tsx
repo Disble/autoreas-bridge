@@ -85,7 +85,7 @@ describe('RunHistoryPanel', () => {
 
     render(<RunHistoryPanel />, { wrapper: atRoute() });
 
-    expect(screen.getByLabelText('Loading download run history')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading download run history' })).toBeInTheDocument();
   });
 
   it('renders an empty state when there are no runs', () => {
@@ -169,6 +169,12 @@ describe('RunHistoryPanel', () => {
       'href',
       'https://example.com/a',
     );
+    // The chip's colour is the only thing separating a failed run from a
+    // successful one at a glance, and HeroUI publishes it as a BEM class — so
+    // this asserts the component's own contract, not an incidental utility.
+    // Scoped through the run heading because the status label also appears on
+    // the master-list row, which is a different chip.
+    expect(screen.getByText('Run run-2').parentElement?.querySelector('.chip')).toHaveClass('chip--default');
   });
 
   // The exact case from the field: a finished jd_offline run with 0 downloaded
@@ -229,6 +235,10 @@ describe('RunHistoryPanel', () => {
     const label = screen.getByText('Up to date');
     expect(label).toBeInTheDocument();
     expect(label.nextElementSibling).toHaveTextContent('2');
+    // The success half of the status-chip contract; its failed counterpart is
+    // asserted on the jd_offline run above. Both are needed, because either one
+    // alone still passes when the colours are swapped.
+    expect(screen.getByText('Run run-1').parentElement?.querySelector('.chip')).toHaveClass('chip--success');
   });
 
   it('renders an empty detail-pane prompt when no run is selected', () => {

@@ -134,4 +134,27 @@ describe('AnimeEditorListPanel empty states', () => {
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByTestId('anime-editor-skeleton-row')).toBeNull();
   });
+
+  it('renders no rail row while a post-deactivate reload keeps the anime that was just there', async () => {
+    // The first getAnimes() call resolves with Frieren, exactly like every
+    // other case here. A confirmed deactivate reloads the rail (loadItems),
+    // and that second getAnimes() call never resolves: isLoadingList flips
+    // back to true while `items` still holds Frieren from the completed
+    // first load. That is the real refetch state the shipped bug rendered
+    // a skeleton over a real row in.
+    mockSource.getAnimes.mockResolvedValueOnce([SCHEDULED_ANIME]).mockReturnValue(new Promise(() => undefined));
+    mockSource.deactivateAnime.mockResolvedValue({ outcome: 'applied', message: 'Deactivated.' });
+
+    renderWorkspace();
+
+    await screen.findByText('Frieren');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Deactivate anime' })).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate anime' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Deactivate' }));
+
+    await screen.findByRole('status', { name: 'Loading anime list...' });
+    expect(screen.queryByRole('button', { name: /Frieren/ })).toBeNull();
+    expect(screen.queryByTestId('anime-editor-list-scroll')).toBeNull();
+  });
 });

@@ -80,8 +80,14 @@ export function EpisodeSchedulePanel(props: Readonly<EpisodeSchedulePanelProps>)
         />
       ) : null}
 
+      {/*
+        Gated on the request, not just on having rows. `items` keeps the
+        previous day's rows while the next day is in flight, so an ungated map
+        renders the stale cards UNDER the placeholders — both blocks at once,
+        which is the opposite of what a placeholder is for.
+      */}
       <div className="grid gap-3">
-        {rows.map((row) => (
+        {isLoadingSchedule ? null : rows.map((row) => (
           <EpisodeScheduleCard
             key={row.id}
             row={row}

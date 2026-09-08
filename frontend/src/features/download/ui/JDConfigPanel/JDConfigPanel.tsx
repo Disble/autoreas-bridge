@@ -1,4 +1,5 @@
-import { Button, Card, Chip, Input, Label, Skeleton, TextField } from '@heroui/react';
+import { Button, Card, Chip, Input, Label, TextField } from '@heroui/react';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { JDCONFIG_PANEL_FORM_FIELDS } from './jdconfig-panel.constants';
 import { useJDConfigPanel } from './use-jdconfig-panel';
 import type { JDConfigPanelProps } from './jdconfig-panel.types';
@@ -15,13 +16,7 @@ export function JDConfigPanel({ className }: Readonly<JDConfigPanelProps>) {
     useJDConfigPanel();
 
   if (status === 'loading') {
-    return (
-      <section aria-label="Loading JD account configuration" className={className}>
-        <Skeleton className="h-10 w-full rounded-lg" />
-        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
-        <Skeleton className="mt-2 h-10 w-full rounded-lg" />
-      </section>
-    );
+    return <LoadingBars className={className} count={3} label="Loading JD account configuration" />;
   }
 
   if (status === 'error') {

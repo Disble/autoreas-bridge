@@ -11,6 +11,31 @@ export const ANIME_DETAIL_LONG_DATE_FORMATTER = new Intl.DateTimeFormat('en-US',
 /** Message rendered while the detail fetch is in flight. */
 export const ANIME_DETAIL_LOADING_MESSAGE = 'Loading anime detail...';
 
+/**
+ * Shared class for the hero avatar circle (the real cover image and its
+ * empty-cover placeholder both size themselves against this), reused by
+ * `AnimeDetailSkeleton` so the placeholder circle cannot drift out of sync
+ * with the resolved avatar's footprint.
+ */
+export const ANIME_DETAIL_HERO_AVATAR_CLASS = 'size-24 shrink-0 rounded-full';
+
+/**
+ * Shared class for a single stat tile, used by both the resolved tile row
+ * and `AnimeDetailSkeleton`'s placeholder tiles so the two shapes cannot
+ * drift apart.
+ */
+export const ANIME_DETAIL_STAT_TILE_CLASS = 'rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2';
+
+/** Number of placeholder stat tiles rendered while loading, matching the resolved tile row. */
+export const ANIME_DETAIL_SKELETON_TILE_COUNT = 3;
+
+/**
+ * Number of placeholder field-group sections rendered while loading,
+ * matching the resolved Episode info / General data / Repetition history
+ * sections.
+ */
+export const ANIME_DETAIL_SKELETON_FIELD_GROUP_COUNT = 3;
+
 /** Message rendered when the anime id does not resolve to a record. */
 export const ANIME_DETAIL_NOT_FOUND_MESSAGE = 'Anime not found.';
 

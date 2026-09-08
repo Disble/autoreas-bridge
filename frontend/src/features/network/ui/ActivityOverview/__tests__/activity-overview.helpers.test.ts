@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { CaptureSummary } from '../../../../../shared/contracts/capture.types';
 import type { RuntimeEventSummary } from '../../../../../shared/contracts/runtime-event.types';
 import {
-  resolveOverviewEmptyMessage,
   resolveRequestSummaryStatusMessage,
   sumRequestCounts,
   toEventSampleRows,
@@ -193,12 +192,3 @@ describe('resolveRequestSummaryStatusMessage', () => {
   });
 });
 
-describe('resolveOverviewEmptyMessage', () => {
-  it('shows the loading copy while the first read is in flight', () => {
-    expect(resolveOverviewEmptyMessage(true, 'nothing here')).toBe('Loading the activity summary…');
-  });
-
-  it('shows the surface-specific empty copy for a healthy, resolved, empty read', () => {
-    expect(resolveOverviewEmptyMessage(false, 'nothing here')).toBe('nothing here');
-  });
-});

@@ -278,6 +278,30 @@ describe('CatalogPanel list visibility', () => {
     expect(screen.queryByTestId('catalog-list-scroll')).toBeNull();
   });
 
+  it('renders no catalog row while a refetch keeps the previous rows and sets isLoading', () => {
+    // The hook is mocked, so this reproduces the exact prop combination a real
+    // refetch produces: isLoading flips back to true before the request
+    // resolves, but the rows from the previous, already-resolved read are
+    // still sitting in state until it does. A skeleton-over-content bug (three
+    // shipped surfaces gated on `items.length` alone) is invisible on first
+    // mount, where items start empty, and only shows up here.
+    useCatalogPanelMock.mockReturnValue(
+      createHookReturn({
+        isLoading: true,
+        items: [{ id: 'anime-active', nombre: 'Active Anime', estado: 2, progressLabel: '10 / 24', status: 'active', statusLabel: 'Active' }],
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <CatalogPanel />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('catalog-list-scroll')).toBeNull();
+    expect(screen.queryByText('Active Anime')).toBeNull();
+  });
+
   it('renders the catalog list once the request resolved with visible rows', () => {
     useCatalogPanelMock.mockReturnValue(
       createHookReturn({

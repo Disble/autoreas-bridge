@@ -1,4 +1,5 @@
 import type { AnimeDownloadReadiness } from '../../../../shared/contracts/download.types';
+import type { ProgressiveListWindow } from '../../../../shared/hooks/use-progressive-list-window.types';
 
 /** Props for the solo anime download panel. */
 export interface SoloAnimeDownloadPanelProps {
@@ -42,4 +43,41 @@ export interface SoloAnimeDownloadState {
   readonly selectedAnimeID: string | undefined;
   readonly status: SoloAnimeDownloadStatus;
   readonly errorMessage: string | undefined;
+}
+
+/** Props for the `SoloAnimeDownloadFilterBar` dumb-UI component. */
+export interface SoloAnimeDownloadFilterBarProps {
+  readonly query: string;
+  readonly filter: SoloAnimeDownloadFilter;
+  readonly counts: SoloAnimeDownloadCounts;
+  readonly onQueryChange: (query: string) => void;
+  readonly onFilterChange: (filter: string) => void;
+}
+
+/** Props for the `SoloAnimeDownloadStatusBanner` dumb-UI component. */
+export interface SoloAnimeDownloadStatusBannerProps {
+  readonly status: SoloAnimeDownloadStatus;
+  readonly errorMessage: string | undefined;
+  readonly onRetry: () => void;
+}
+
+/** Props for the `SoloAnimeDownloadResultRail` dumb-UI component. */
+export interface SoloAnimeDownloadResultRailProps {
+  readonly status: SoloAnimeDownloadStatus;
+  readonly options: readonly SoloAnimeDownloadOptionViewModel[];
+  /** Id of the currently selected option, or undefined; only used to highlight its row. */
+  readonly selectedId: string | undefined;
+  readonly emptyMessage: string;
+  readonly listWindow: ProgressiveListWindow;
+  readonly onSelectAnime: (animeID: string) => void;
+}
+
+/** Props for the `SoloAnimeDownloadSelectionAlert` dumb-UI component. */
+export interface SoloAnimeDownloadSelectionAlertProps {
+  readonly selected: SoloAnimeDownloadOptionViewModel | undefined;
+}
+
+/** Props for the `SoloAnimeDownloadTriggerFeedback` dumb-UI component. */
+export interface SoloAnimeDownloadTriggerFeedbackProps {
+  readonly status: SoloAnimeDownloadStatus;
 }

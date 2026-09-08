@@ -123,11 +123,13 @@ describe('useActivityOverview', () => {
 
     // The initial state is "no store yet", which is indistinguishable from an
     // absent store. Announcing it before the read resolves would flash a
-    // disclosure the surface has no evidence for.
+    // disclosure the surface has no evidence for. The empty copy no longer
+    // carries the loading state either: the caller renders skeleton rows
+    // instead of reaching this copy while `isLoading` is true.
     expect(result.current.isLoading).toBe(true);
     expect(result.current.eventStatusMessage).toBeNull();
     expect(result.current.requestStatusMessage).toBeNull();
-    expect(result.current.eventEmptyMessage).toBe('Loading the activity summary…');
+    expect(result.current.eventEmptyMessage).toBe('No persisted runtime events have been recorded yet.');
   });
 
   it('shows the healthy empty copy when both aggregations resolve with nothing', async () => {

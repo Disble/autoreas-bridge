@@ -57,3 +57,46 @@ export type ScheduleSaveEdits = Pick<
   ScheduleConfig,
   'enabled' | 'dailyTimeHHMM' | 'enabledWeekdays'
 >;
+
+/** Props for the `ScheduleSaveErrorAlert` dumb-UI component. */
+export interface ScheduleSaveErrorAlertProps {
+  readonly message: string | undefined;
+}
+
+/** Props for the `ScheduleSeasonModeBanner` dumb-UI component. */
+export interface ScheduleSeasonModeBannerProps {
+  readonly isActive: boolean;
+}
+
+/** Props for the `ScheduleMissedScheduleSection` dumb-UI component. */
+export interface ScheduleMissedScheduleSectionProps {
+  readonly notice: ScheduleMissedNoticeViewModel | undefined;
+  readonly isResolvingMissedAction: boolean;
+  readonly actionMessage: string | undefined;
+  readonly onRunNow: (localDate: string) => void;
+  readonly onIgnore: (localDate: string) => void;
+}
+
+/** Props for the `ScheduleReadinessSection` dumb-UI component. */
+export interface ScheduleReadinessSectionProps {
+  readonly readinessErrorMessage: string | undefined;
+  readonly onRetryReadiness: () => void;
+  readonly readiness: ScheduleReadinessViewModel | undefined;
+  readonly isScheduledToday: boolean;
+}
+
+/** Props for the `ScheduleWeekdayPicker` dumb-UI component. */
+export interface ScheduleWeekdayPickerProps {
+  readonly isDisabled: boolean;
+  readonly selectedWeekdayValues: readonly string[];
+  readonly willNeverRun: boolean;
+  readonly onWeekdaysChange: (mask: number) => void;
+}
+
+/** Props for the `ScheduleRunStatusFooter` dumb-UI component. */
+export interface ScheduleRunStatusFooterProps {
+  readonly lastRunLabel: string;
+  readonly lastRunStatus: string;
+  readonly nextRunLabel: string;
+  readonly running: boolean;
+}

@@ -1,6 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TRANSACTION_EMPTY_STATE_MESSAGE, TRANSACTION_LOADING_STATE_MESSAGE } from '../../TransactionPanel/transaction-panel.constants';
+import {
+  TRANSACTION_EMPTY_STATE_MESSAGE,
+  TRANSACTION_LOADING_STATE_MESSAGE,
+  TRANSACTION_TABLE_SKELETON_ROW_COUNT,
+} from '../../TransactionPanel/transaction-panel.constants';
 import type { TransactionRowViewModel } from '../../TransactionPanel/transaction-panel.types';
 import { TransactionTable } from '../TransactionTable';
 
@@ -27,10 +31,33 @@ describe('TransactionTable', () => {
     cleanup();
   });
 
-  it('shows the loading message while isLoading is true', () => {
-    render(<TransactionTable isLoading onScroll={vi.fn()} onSelect={vi.fn()} rows={[]} selectedId={null} />);
+  it('keeps the column headers, marks the table busy, names the load and renders placeholder rows while loading', () => {
+    const { container } = render(<TransactionTable isLoading onScroll={vi.fn()} onSelect={vi.fn()} rows={[]} selectedId={null} />);
 
-    expect(screen.getByText(TRANSACTION_LOADING_STATE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Route' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Outcome' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="table"]')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('status', { name: TRANSACTION_LOADING_STATE_MESSAGE })).toBeInTheDocument();
+    expect(screen.getAllByTestId('transaction-table-skeleton-row')).toHaveLength(TRANSACTION_TABLE_SKELETON_ROW_COUNT);
+  });
+
+  it('drops the busy flag, the status region and the placeholder once resolved', () => {
+    const { container } = render(<TransactionTable isLoading={false} onScroll={vi.fn()} onSelect={vi.fn()} rows={[row()]} selectedId={null} />);
+
+    expect(container.querySelector('[data-slot="table"]')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('transaction-table-skeleton-row')).toHaveLength(0);
+    expect(screen.getByText('/api/animes/anime-1')).toBeInTheDocument();
+  });
+
+  it('renders only placeholder rows while loading, even with rows already accumulated in state', () => {
+    // Rows accumulate and are never unmounted (ADR-012, live branch), so a
+    // real refetch can set isLoading back to true while `rows` still holds
+    // everything captured so far. This reproduces that exact prop shape.
+    render(<TransactionTable isLoading onScroll={vi.fn()} onSelect={vi.fn()} rows={[row()]} selectedId={null} />);
+
+    expect(screen.getAllByTestId('transaction-table-skeleton-row')).toHaveLength(TRANSACTION_TABLE_SKELETON_ROW_COUNT);
+    expect(screen.queryByText('/api/animes/anime-1')).not.toBeInTheDocument();
   });
 
   it('shows the empty-state message when not loading and there are no rows', () => {

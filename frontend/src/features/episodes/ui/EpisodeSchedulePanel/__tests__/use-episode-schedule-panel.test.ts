@@ -231,9 +231,14 @@ describe('useEpisodeSchedulePanel', () => {
 
     it('fetches the cover once per distinct animeID with hasCover, and never for hasCover:false rows', async () => {
       const getAnimeCover = vi.fn().mockResolvedValue({ dataUrl: 'data:image/png;base64,abc', source: 'cover' });
+      let pushAnimeChanged: (() => void) | undefined;
       const source = createSource({
         getAnimeCover,
         getEpisodeSchedule: vi.fn().mockResolvedValue([scheduleItem('anime-1', true), scheduleItem('anime-2', false)]),
+        subscribeAnimeChanges: vi.fn().mockImplementation((listener: () => void) => {
+          pushAnimeChanged = listener;
+          return () => undefined;
+        }),
       });
 
       const { result, rerender } = renderHook(() => useEpisodeSchedulePanel({ initialDay: 'Viernes', source }));
@@ -248,6 +253,19 @@ describe('useEpisodeSchedulePanel', () => {
       await waitFor(() => expect(result.current.rows[0]?.coverDataUrl).toBe('data:image/png;base64,abc'));
       expect(getAnimeCover).toHaveBeenCalledTimes(1);
       expect(result.current.rows[1]?.showCoverPlaceholder).toBe(true);
+
+      // A bare rerender cannot prove the once-per-id guard: the cover effect
+      // depends on `items`, which a rerender does not change, so the guard is
+      // never reached. A pushed anime change re-runs the schedule request and
+      // hands back a NEW array of the same rows, which is the only path that
+      // actually re-enters the effect with ids it has already fetched.
+      act(() => {
+        pushAnimeChanged?.();
+      });
+
+      await waitFor(() => expect(result.current.rows).toHaveLength(2));
+      expect(getAnimeCover).toHaveBeenCalledTimes(1);
+      expect(result.current.rows[0]?.coverDataUrl).toBe('data:image/png;base64,abc');
     });
 
     it('resolves a rejected cover fetch to a placeholder entry instead of leaving it loading forever', async () => {

@@ -1,4 +1,5 @@
-import { Skeleton, Switch } from '@heroui/react';
+import { Switch } from '@heroui/react';
+import { LoadingBars } from '../../../../shared/ui/LoadingBars/LoadingBars';
 import { useEpisodeRenamePanel } from './use-episode-rename-panel';
 import type { EpisodeRenamePanelProps } from './episode-rename-panel.types';
 
@@ -11,11 +12,7 @@ export function EpisodeRenamePanel({ className }: Readonly<EpisodeRenamePanelPro
   const { status, enabled, isSaving, errorMessage, setEnabled } = useEpisodeRenamePanel();
 
   if (status === 'loading') {
-    return (
-      <section aria-label="Loading episode rename setting" className={className}>
-        <Skeleton className="h-10 w-full rounded-lg" />
-      </section>
-    );
+    return <LoadingBars className={className} count={1} label="Loading episode rename setting" />;
   }
 
   return (

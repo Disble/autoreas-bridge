@@ -1,5 +1,20 @@
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
+
+/**
+ * Unmounts every rendered tree between tests.
+ *
+ * Testing Library only registers this for you when Vitest runs with
+ * `globals: true`, and this project runs with `globals: false`, so until now a
+ * suite kept its DOM unless it remembered `afterEach(cleanup)` itself — 19 of
+ * 115 component suites did not. Leaked DOM does not merely fail loudly with
+ * "found multiple elements"; it can also make a test pass on an element the
+ * PREVIOUS test rendered. Registering it once here is the deterministic guard;
+ * a per-file `afterEach(cleanup)` is discipline, and discipline is what these
+ * 19 files already lost. Calling it twice is harmless.
+ */
+afterEach(cleanup);
 
 /** Extends the test-time `Window` with the Wails-injected globals adapters check for. */
 declare global {

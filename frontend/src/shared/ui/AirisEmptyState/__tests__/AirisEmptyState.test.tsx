@@ -53,3 +53,29 @@ describe('AirisEmptyState', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 });
+
+describe('AirisEmptyState artwork failure', () => {
+  it('drops the artwork rather than leaving a broken image, keeping the copy and the action', () => {
+    const onPress = vi.fn();
+
+    render(
+      <AirisEmptyState
+        imageSrc="/missing-airis.webp"
+        title="Nothing scheduled today"
+        description="Create an anime to start your schedule."
+        action={{ label: 'Create an anime', onPress }}
+      />,
+    );
+
+    const image = document.querySelector('img');
+    if (image === null) {
+      throw new Error('Expected the artwork before the failure.');
+    }
+
+    fireEvent.error(image);
+
+    expect(document.querySelector('img')).toBeNull();
+    expect(screen.getByText('Nothing scheduled today')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create an anime' })).toBeInTheDocument();
+  });
+});

@@ -4,6 +4,7 @@ import type { CaptureTransactionSource } from '../../../../../infrastructure/cap
 import type { RuntimeEventSource } from '../../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import type { CaptureSummary } from '../../../../../shared/contracts/capture.types';
 import type { RuntimeEventSummary } from '../../../../../shared/contracts/runtime-event.types';
+import { OVERVIEW_LOADING_MESSAGE, OVERVIEW_SKELETON_ROW_COUNT } from '../activity-overview.constants';
 import { ActivityOverview } from '../ActivityOverview';
 
 /** Builds a request-health aggregation envelope, defaulting to a healthy read. */
@@ -30,6 +31,15 @@ function createFakeEventSource(summary: RuntimeEventSummary = eventSummary()): R
   return {
     searchEvents: vi.fn(),
     summarizeEvents: vi.fn().mockResolvedValue(summary),
+    subscribe: vi.fn().mockReturnValue(() => undefined),
+  };
+}
+
+/** Builds a fake runtime-event source whose aggregation never resolves, to hold a reload in flight. */
+function createStalledEventSource(): RuntimeEventSource {
+  return {
+    searchEvents: vi.fn(),
+    summarizeEvents: vi.fn().mockReturnValue(new Promise(() => undefined)),
     subscribe: vi.fn().mockReturnValue(() => undefined),
   };
 }
@@ -169,5 +179,52 @@ describe('ActivityOverview', () => {
     await waitFor(() => {
       expect(screen.getByText(/no merged correlation timeline/)).toBeInTheDocument();
     });
+  });
+
+  it('keeps every table header, marks every table busy, names the load and renders placeholder rows while both aggregations are unresolved', () => {
+    const { container } = render(<ActivityOverview captureSource={createFakeCaptureSource()} eventSource={createFakeEventSource()} />);
+
+    expect(screen.getByRole('columnheader', { name: 'Route' })).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader', { name: 'Key' })).toHaveLength(3);
+    expect(container.querySelectorAll('[data-slot="table"][aria-busy="true"]')).toHaveLength(4);
+    expect(screen.getAllByRole('status', { name: OVERVIEW_LOADING_MESSAGE })).toHaveLength(2);
+    expect(screen.getAllByTestId('activity-overview-request-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT);
+    expect(screen.getAllByTestId('activity-overview-event-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT * 3);
+    expect(screen.getAllByTestId('activity-overview-sample-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT);
+  });
+
+  it('drops the busy flag, the status regions and the placeholders once both aggregations resolve', async () => {
+    render(<ActivityOverview captureSource={createFakeCaptureSource()} eventSource={createFakeEventSource()} />);
+
+    await screen.findByText('No captured requests match the current filters.');
+
+    expect(screen.queryAllByRole('status')).toHaveLength(0);
+    expect(screen.queryAllByTestId('activity-overview-request-skeleton-row')).toHaveLength(0);
+    expect(screen.queryAllByTestId('activity-overview-event-skeleton-row')).toHaveLength(0);
+    expect(screen.queryAllByTestId('activity-overview-sample-skeleton-row')).toHaveLength(0);
+  });
+
+  it('renders no real event row while a reload keeps the previous grouping and sets isLoading', async () => {
+    const { rerender } = render(
+      <ActivityOverview
+        captureSource={createFakeCaptureSource()}
+        eventSource={createFakeEventSource(eventSummary({ byDomain: [{ key: 'websocket', count: 1693 }] }))}
+      />,
+    );
+
+    await screen.findByText('websocket');
+
+    // The read effect's dependency array is [captureSource, eventSource], so a
+    // fresh source pair re-runs it: isLoading flips back to true before the
+    // second read resolves, but `websocket` from the first, already-resolved
+    // read is still sitting in state until it does (here: forever, since this
+    // source never resolves). That is the real reload state the skeleton must
+    // replace rather than sit on top of.
+    rerender(
+      <ActivityOverview captureSource={createFakeCaptureSource()} eventSource={createStalledEventSource()} />,
+    );
+
+    await screen.findAllByTestId('activity-overview-event-skeleton-row');
+    expect(screen.queryByText('websocket')).not.toBeInTheDocument();
   });
 });

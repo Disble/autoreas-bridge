@@ -150,8 +150,10 @@ export interface NetworkTableProps {
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
-  /** Copy rendered in place of the rows: loading, empty, or the degraded reason. */
+  /** Copy rendered in place of the rows once resolved: empty, or the degraded reason. */
   readonly emptyMessage: string;
+  /** Whether the runtime-event page has not resolved yet; drives the skeleton rows and the busy state. */
+  readonly isLoading: boolean;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */

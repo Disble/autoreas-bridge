@@ -186,7 +186,25 @@ describe('useCatalogPanel empty-state truth', () => {
     act(() => result.current.onQueryChange('alpha'));
     act(() => result.current.onEstadoChange('2'));
     act(() => result.current.onActivoChange('1'));
+    act(() => result.current.onTipoChange('Serie'));
+    act(() => result.current.onDiaChange('Lunes'));
+    act(() => result.current.onGapChange('missing'));
     act(() => result.current.onGenerosChange(['Action']));
+
+    // Asserted BEFORE the reset, and field by field. Only checking the state
+    // after `onClearCriteria` proves the reset works while saying nothing about
+    // which field each setter wrote — a setter that did nothing, or wrote to the
+    // wrong key, produced exactly the same cleared object.
+    expect(result.current.filters).toEqual({
+      query: 'alpha',
+      estado: '2',
+      activo: '1',
+      tipo: 'Serie',
+      dia: 'Lunes',
+      generos: ['Action'],
+      gap: 'missing',
+    });
+
     act(() => result.current.onClearCriteria());
 
     expect(result.current.filters).toEqual({

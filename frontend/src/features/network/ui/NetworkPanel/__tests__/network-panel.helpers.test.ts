@@ -364,19 +364,11 @@ describe('resolveEventStatusMessage', () => {
 
 describe('resolveEventEmptyMessage', () => {
   it('states the disclosed reason instead of an ordinary empty list', () => {
-    expect(resolveEventEmptyMessage(false, 'store unreachable')).toBe('store unreachable');
-  });
-
-  it('says it is still loading while the first page is in flight', () => {
-    expect(resolveEventEmptyMessage(true, null)).toBe('Loading persisted runtime events…');
+    expect(resolveEventEmptyMessage('store unreachable')).toBe('store unreachable');
   });
 
   it('says the measured store is empty once a healthy read returned nothing', () => {
-    expect(resolveEventEmptyMessage(false, null)).toBe('No runtime events captured yet.');
-  });
-
-  it('keeps the disclosed reason ahead of the loading copy while a degraded read retries', () => {
-    expect(resolveEventEmptyMessage(true, 'store unreachable')).toBe('store unreachable');
+    expect(resolveEventEmptyMessage(null)).toBe('No runtime events captured yet.');
   });
 });
 

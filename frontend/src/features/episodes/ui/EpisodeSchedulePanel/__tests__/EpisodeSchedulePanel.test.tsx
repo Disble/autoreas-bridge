@@ -329,3 +329,33 @@ describe('EpisodeSchedulePanel resolved-non-empty precedence', () => {
     expect(screen.queryByTestId('episode-schedule-skeleton-row')).toBeNull();
   });
 });
+
+describe('EpisodeSchedulePanel loading exclusivity', () => {
+  it('never shows placeholder rows beside real ones while a later day is still loading', async () => {
+    const getEpisodeSchedule = vi.fn()
+      .mockResolvedValueOnce([
+        {
+          animeId: 'anime-1',
+          animeName: 'Youjo Senki II',
+          day: 'Lunes',
+          dayOrder: 1,
+          status: 0,
+          hasCover: false,
+          modified_at: 1000,
+          episodesWatched: 8,
+          totalEpisodes: 12,
+        },
+      ])
+      .mockReturnValue(new Promise(() => undefined));
+    const source = createSource({ getEpisodeSchedule });
+
+    renderPanel(<EpisodeSchedulePanel initialDay="Lunes" source={source} />);
+
+    expect(await screen.findByRole('heading', { name: 'Youjo Senki II' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Friday/ }));
+
+    expect(await screen.findByRole('status', { name: 'Loading the schedule...' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Youjo Senki II' })).toBeNull();
+  });
+});
