@@ -203,6 +203,22 @@ info:
         header cannot be dropped silently. No wire surface changed: mobile
         clients still send `Authorization` exactly as before.
 
+    2026-09-08 — mobile-log-ingestion API consumer impact: ADDITIVE, new
+    endpoint plus one new optional request field. `POST
+    /api/sync/diagnostics` is a new bridge-owned endpoint letting a mobile
+    device durably report one sync cycle's diagnostics, so a delivery
+    failure never silently loses it; see the operation below for the full
+    request/response contract, including the 21-field envelope, its closed
+    vocabularies, the `degraded` fidelity signal, and the two distinct `400`
+    rejection shapes. `ReconcileRequest.client_telemetry` is now declared
+    (previously an undeclared, silently-dropped key) as an optional,
+    deprecated, accepted-and-ignored field superseded by the new endpoint;
+    reconcile's decoder still does not reject unknown fields, so behavior
+    for existing mobile clients is unchanged either way. Both surfaces exist
+    together during a dual-write period; retiring the reconcile piggyback is
+    a floor decision, not a census, since mobile's outbox MAY evict an
+    envelope under sustained contention before either surface ever sees it.
+
     Excluded endpoints (always return 405 - intentionally undocumented):
       POST   /api/animes
       DELETE /api/animes/{id}
@@ -517,6 +533,22 @@ components:
                 type: object
               created_at:
                 type: integer
+        client_telemetry:
+          deprecated: true
+          description: |
+            Optional, accepted, stored raw, and never interpreted -- the
+            dual-write piggyback of a device's sync-cycle diagnostics,
+            superseded by `POST /api/sync/diagnostics` above. Its shape is
+            deliberately unconstrained here (any JSON value, object or
+            otherwise) rather than pinned to today's fields: the same
+            envelope also rides the new endpoint and keeps gaining fields
+            during dual-write. Presence, absence, or shape MUST NOT change
+            the reconcile outcome or response. This field is tolerated
+            structurally rather than shape-pinned only because reconcile's
+            decoder does not enable strict/unknown-field rejection; that
+            MUST NOT change until mobile cuts over to the new endpoint, or
+            every mobile reconcile carrying this field would start failing
+            with `400`.
 
     ReconcileResponse:
       type: object
@@ -1073,6 +1105,282 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/sync/diagnostics:
+    post:
+      summary: Durably ingest a mobile device's sync-cycle diagnostics report
+      description: |
+        Bridge-owned endpoint on a path distinct from `/api/devices/`, so a mobile
+        device's sync-cycle telemetry survives even when the delivery attempt that
+        would have carried it (e.g. `client_telemetry` on `POST /api/sync/reconcile`)
+        never lands. The device id is taken only from the authenticated bearer token;
+        the request body declares no `device_id` key, so a client-supplied one is
+        rejected as an undeclared field. Insert is idempotent by `cycle_id`
+        (`ON CONFLICT DO NOTHING`): re-posting an existing `cycle_id` is a no-op that
+        still acks `204`, so mobile can retry blind and stay correct.
+
+        This endpoint is additive during dual-write: mobile also keeps sending
+        `client_telemetry` on reconcile (see that operation and `ReconcileRequest`
+        below) until it cuts over. Retiring the reconcile piggyback is a floor
+        decision, not a census: this endpoint's row count intentionally MUST NOT be
+        read as a complete record of every sync cycle mobile ran, because mobile's
+        outbox is size-bounded and MAY evict an envelope under sustained contention
+        before it is ever delivered here.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cycle_id, degraded, trigger_source, app_state, previous_cycle, counters, recent_events]
+              description: |
+                Property order below mirrors the required wire envelope order:
+                `cycle_id, degraded, trigger_source, app_state, previous_cycle,
+                counters, recent_events`. Every enumerated field is validated
+                against a closed vocabulary and rejected (never coerced) when it
+                is off-list. The request is strict-decoded
+                (`DisallowUnknownFields`); any undeclared key anywhere in the
+                body, including nested inside `previous_cycle`, is rejected.
+              properties:
+                cycle_id:
+                  type: string
+                  description: |
+                    Idempotency key, UNIQUE per stored row. Re-posting an
+                    existing value is a no-op that still acks 204 and never
+                    creates a second row.
+                degraded:
+                  type: string
+                  nullable: true
+                  enum: [events, error_detail, previous_cycle]
+                  description: |
+                    A FIDELITY signal, not a health signal: its value is decided
+                    by the client's size cap at serialization time, not by
+                    anything the cycle observed. A perfectly healthy cycle with a
+                    full event ring MAY still report `degraded: "events"` --
+                    no reader, dashboard, or consumer of this field may treat
+                    `degraded IS NOT NULL` as evidence of a device or cycle
+                    health problem.
+
+                    Each value implies every LIGHTER piece is ABSENT from this
+                    payload -- shed or never present -- it does NOT assert that
+                    a lighter piece was dropped. The shed order is a two-sided
+                    contract this meaning depends on, from lightest to heaviest:
+                    `events` (recent_events is `[]` or truncated; error detail
+                    and previous_cycle are still present) → `error_detail`
+                    (recent_events is `[]` AND the error-detail fields inside
+                    previous_cycle are absent/null; previous_cycle itself, e.g.
+                    outcome, is still present) → `previous_cycle` (recent_events
+                    is `[]` AND previous_cycle is `null` -- the heaviest shed,
+                    implying both lighter sheds too).
+
+                    Required and present on every request; a missing key is
+                    rejected with `400` naming this field, because the client
+                    sheds by assignment, never by omission.
+                trigger_source:
+                  type: string
+                  enum: [foreground_service, background_task]
+                  description: |
+                    Which scheduler sent THIS telemetry. Deliberately narrow --
+                    only the two headless call sites emit telemetry -- so this
+                    is the trustworthy discriminator; `app_state` below is not.
+                    A distinctly-named vocabulary from `previous_cycle.trigger_source`:
+                    posting the previous-cycle-only value `local_mutation` here
+                    is rejected with `400` naming this field, even though it is
+                    accepted at `previous_cycle.trigger_source`.
+                app_state:
+                  type: string
+                  enum: [foreground, background]
+                  description: |
+                    Stored, but NEVER a filter dimension -- the client hardcodes
+                    this to `background` today, so even a `foreground_service`
+                    cycle reports `background` here. Use `trigger_source` to
+                    discriminate, never this field.
+                previous_cycle:
+                  type: object
+                  nullable: true
+                  required: [outcome]
+                  description: |
+                    Always present as a key; MAY be explicitly `null`. A missing
+                    key is rejected with `400` naming this field -- the client
+                    never omits it, so a missing key can only mean a malformed
+                    client, never shed data. When non-null, every field is
+                    independently nullable except `outcome`, including
+                    `cycle_id` -- a previous cycle stored with every optional
+                    field null except `outcome` is a valid, accepted payload.
+                  properties:
+                    cycle_id:
+                      type: string
+                      nullable: true
+                      description: The previous cycle's own idempotency key. No foreign key relates it to this request's cycle_id.
+                    trigger_source:
+                      type: string
+                      nullable: true
+                      enum: [bootstrap, manual, app_active, network_regained, local_mutation, local_mutation_write, ws_sync_required, foreground_service, background_task]
+                      description: |
+                        Which scheduler ran the previous cycle -- a 9-member
+                        vocabulary any sync-recording caller writes, including
+                        foreground paths that never send telemetry. Distinct
+                        from the top-level trigger_source's 2-member vocabulary.
+                    outcome:
+                      type: string
+                      enum: [completed, failed, never_closed]
+                      description: The only previous_cycle field required non-null whenever previous_cycle itself is present.
+                    last_stage:
+                      type: string
+                      nullable: true
+                      enum: [open, config, attempt_started, cycle_activated, backlog_read, claim_ops, http, parse_response, apply_write, prune, closed]
+                    started_at:
+                      type: integer
+                      format: int64
+                      nullable: true
+                      description: Epoch milliseconds.
+                    elapsed_ms:
+                      type: integer
+                      format: int64
+                      nullable: true
+                    error_name:
+                      type: string
+                      nullable: true
+                      enum: [LocalWriteError, BridgeTimeoutError, BridgeUnreachableError, ReconcileHttpError, SchemaValidationError, unknown]
+                      description: '`unknown` is a legitimate member, not a rejected value.'
+                    native_errcode_byte:
+                      type: integer
+                      nullable: true
+                      minimum: 0
+                      maximum: 65535
+                      description: |
+                        A control-byte char code, NOT a SQLite result code:
+                        `5` means the control byte was `0x05`, never
+                        `SQLITE_BUSY`. Out-of-range values (e.g. 70000) are
+                        rejected with `400` naming `previous_cycle.native_errcode_byte`.
+                    error_stage:
+                      type: string
+                      nullable: true
+                      enum: [begin, task, commit, rollback, deadline, unknown]
+                    error_cause:
+                      type: string
+                      nullable: true
+                      enum: [closed_resource, lock_contention, disk_full, io_error, timeout, unreachable, unknown]
+                    error_fingerprint:
+                      type: string
+                      nullable: true
+                      pattern: '^[0-9a-f]{8}$'
+                      description: |
+                        FNV-1a rendered as `(hash >>> 0).toString(16).padStart(8, '0')`:
+                        exactly 8 lowercase hex characters, fixed length -- not an
+                        identifier-shaped pattern, which would reject a
+                        digit-leading value such as `"3f2a91b0"`. Non-null only
+                        for an unrecognized error class, the one this field
+                        exists to group.
+                counters:
+                  type: object
+                  required: [consecutive_unclosed_cycles, pending_ops_count, cursor]
+                  properties:
+                    consecutive_unclosed_cycles:
+                      type: integer
+                    pending_ops_count:
+                      type: integer
+                    cursor:
+                      type: integer
+                recent_events:
+                  type: array
+                  maxItems: 32
+                  description: |
+                    Accepted up to 32 entries; 33+ is rejected with `400` naming
+                    this field. Re-serialized server-side from validated values
+                    before persistence, never copied verbatim from the request.
+                  items:
+                    type: object
+                    required: [source, event, first_at, last_at, count]
+                    properties:
+                      source:
+                        type: string
+                        enum: [sync_cycle, websocket, mutation, foreground_resync, background_task, startup, reconcile_conflict]
+                      event:
+                        type: string
+                        enum: [ws_opened, ws_closed, ws_error, ws_reconnect_scheduled, mutation_failed, mutation_sync_failed, resync_failed, write_failed, headless_task_registered, headless_task_missing, conflict_reason_unrecognized, conflict_token_missing, conflict_operation_stalled]
+                      cause:
+                        type: string
+                      first_at:
+                        type: integer
+                        format: int64
+                      last_at:
+                        type: integer
+                        format: int64
+                      count:
+                        type: integer
+      responses:
+        '204':
+          description: |
+            Stored, or a duplicate `cycle_id` acknowledged as a no-op -- both
+            outcomes are indistinguishable to the client on purpose, so a blind
+            retry stays correct.
+        '400':
+          description: |
+            Two distinct rejection shapes exist; a client must handle both.
+            (1) `Validate` rejects an enumerated or shape-constrained field:
+            the response is `{"error": "<reason>", "field": "<dot.path>"}`,
+            e.g. `{"error": "must match ^[0-9a-f]{8}$", "field":
+            "previous_cycle.error_fingerprint"}`. (2) A strict-decode failure
+            at the handler layer -- malformed JSON, or an undeclared field
+            anywhere in the body, including a client-supplied `device_id` --
+            returns the generic `{"error": "invalid request body"}` shape with
+            NO `field` key. This is the existing codebase convention: `field`
+            present means `Validate` ran and named the offender; `field`
+            absent means the handler rejected the body before `Validate` ever
+            ran.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - type: object
+                    required: [error, field]
+                    properties:
+                      error:
+                        type: string
+                      field:
+                        type: string
+                        example: previous_cycle.error_fingerprint
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body exceeds the sync diagnostics size cap (8 KiB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            Two distinct causes share this status. Ingestion is unavailable
+            (no seam wired, e.g. the bridge database is not ready) has no
+            `Retry-After` header. A write-budget expiry -- the single shared
+            SQLite connection was held past the 2-second write budget -- sheds
+            immediately WITHOUT inserting a row, and DOES carry `Retry-After`.
+            Neither cause ever returns `204`: "not stored" is never
+            indistinguishable from "stored", since the client's sync-ring
+            drain is destructive and gated on a `2xx`.
+          headers:
+            Retry-After:
+              description: Present only on a write-budget expiry. Seconds to wait before retrying; comfortably above the 2-second write budget and well below the client's own retry cadence.
+              schema:
+                type: integer
+                example: 5
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ingestion failed for a reason other than the write budget, or the ingest seam returned an unrecognized outcome
           content:
             application/json:
               schema:

@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/observability/requestcapture"
+	"autoreas-bridge/internal/observability/syncdiag"
 )
 
 // AnimePatch aliases the write contract consumed by handler adapters.
@@ -146,6 +147,15 @@ type RecordSeasonRatingFunc func(ctx context.Context, animeID string, grade int,
 // or (nil, nil) when no season is open (the handler maps nil to HTTP 404). A non-nil
 // error is an infrastructure failure (HTTP 500).
 type ActiveSeasonSnapshotFunc func(ctx context.Context) (*ActiveSeasonSnapshot, error)
+
+// IngestSyncDiagnosticsFunc ingests one validated device sync diagnostics
+// report. DeviceID and ReportedAtMS on record are populated by the caller
+// from the authenticated device and the bridge's receipt clock -- Validate
+// deliberately leaves them zero-valued, since neither comes from the wire
+// body. A non-nil error other than syncdiag.ErrWriteBudget is an
+// infrastructure failure (HTTP 500); syncdiag.ErrWriteBudget maps to a 503
+// with Retry-After.
+type IngestSyncDiagnosticsFunc func(ctx context.Context, record syncdiag.Record) (syncdiag.IngestOutcome, error)
 
 // writeJSONError writes an error message as a JSON response.
 func writeJSONError(w http.ResponseWriter, status int, message string) {

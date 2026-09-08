@@ -1,5 +1,7 @@
 package contracts
 
+import "encoding/json"
+
 // MobileAnimeDay describes an ordered weekday schedule placement.
 type MobileAnimeDay struct {
 	Day   string `json:"day"`
@@ -271,6 +273,19 @@ type ReconcileRequest struct {
 	DeviceID          string             `json:"device_id"`
 	LastChangelogID   int64              `json:"last_changelog_id"`
 	PendingOperations []PendingOperation `json:"pending_operations"`
+	// ClientTelemetry is the deprecated dual-write piggyback of a device's
+	// sync-cycle diagnostics, superseded by POST /api/sync/diagnostics. It
+	// is accepted and stored raw, never interpreted: declared here only so
+	// it stops being an ungreppable ghost silently dropped by the decoder.
+	// Kept as json.RawMessage rather than a typed struct on purpose -- the
+	// same envelope also rides POST /api/sync/diagnostics and keeps gaining
+	// fields during dual-write, so pinning its shape here would break on
+	// the next addition. This is safe only because decodeReconcileRequest
+	// (sync_handler.go) does not call DisallowUnknownFields(); adding it
+	// there would 400 every mobile reconcile carrying this field until
+	// mobile cuts over -- see the Reconcile Compatibility requirement in
+	// specs/device-sync-diagnostics/spec.md.
+	ClientTelemetry json.RawMessage `json:"client_telemetry,omitempty"`
 }
 
 // PendingOperation is one device operation waiting for reconciliation.

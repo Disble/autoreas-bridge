@@ -412,3 +412,89 @@ func TestSyncHandlerIgnoresNonUpdatePendingOperations(t *testing.T) {
 	}
 	assertAppliedEntry(t, entries[0], false, "unsupported_operation", nil)
 }
+
+// TestReconcileStillAcceptsClientTelemetry pins the dual-write compatibility
+// contract: client_telemetry is declared on ReconcileRequest (not merely
+// tolerated because decodeReconcileRequest skips DisallowUnknownFields), so
+// it stops being an ungreppable ghost, and it round-trips verbatim rather
+// than being pinned to today's shape -- the same envelope keeps evolving
+// while both the piggyback and the new endpoint are live. The handler must
+// still accept the request and process it exactly as before.
+func TestReconcileStillAcceptsClientTelemetry(t *testing.T) {
+	t.Parallel()
+
+	stubs := &syncHandlerStubs{}
+	handler := NewSyncHandler(SyncHandlerConfig{
+		Authenticate: stubs.authenticate(true),
+		TriggerReconcile: func(context.Context) error {
+			stubs.triggerCalls++
+			return nil
+		},
+		ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
+			return nil, 0, nil
+		},
+	})
+
+	body := `{"device_id":"device-1","last_changelog_id":0,"pending_operations":[],"client_telemetry":{"schema_version":"v9","degraded":"events","evolving":{"anything":true}}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(body))
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d with an unfamiliar client_telemetry shape, got %d body=%s", http.StatusAccepted, res.Code, res.Body.String())
+	}
+	if stubs.triggerCalls != 1 {
+		t.Fatalf("expected reconcile trigger once, got %d calls", stubs.triggerCalls)
+	}
+
+	var decoded contracts.ReconcileRequest
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("decode reconcile request: %v", err)
+	}
+	if decoded.ClientTelemetry == nil {
+		t.Fatal("expected client_telemetry to be captured on ReconcileRequest, not silently dropped")
+	}
+	var telemetry map[string]any
+	if err := json.Unmarshal(decoded.ClientTelemetry, &telemetry); err != nil {
+		t.Fatalf("client_telemetry is not preserved as valid JSON: %v", err)
+	}
+	if telemetry["schema_version"] != "v9" {
+		t.Fatalf("expected client_telemetry preserved verbatim and uninterpreted, got %#v", telemetry)
+	}
+}
+
+// TestReconcileResponseUnchanged asserts that the presence, absence, or
+// shape of client_telemetry never affects the reconcile outcome: the field
+// is accepted and ignored, never interpreted.
+func TestReconcileResponseUnchanged(t *testing.T) {
+	t.Parallel()
+
+	buildHandler := func() http.Handler {
+		return NewSyncHandler(SyncHandlerConfig{
+			Authenticate: (&syncHandlerStubs{}).authenticate(true),
+			TriggerReconcile: func(context.Context) error {
+				return nil
+			},
+			ListChangesAfterID: func(context.Context, int64) ([]AnimeChange, int64, error) {
+				return []AnimeChange{{ID: 9, RecordID: "anime-1", ChangeType: "update", Timestamp: 123}}, 9, nil
+			},
+		})
+	}
+
+	without := `{"device_id":"device-1","last_changelog_id":0,"pending_operations":[]}`
+	withTelemetry := `{"device_id":"device-1","last_changelog_id":0,"pending_operations":[],"client_telemetry":{"anything":"goes","nested":[1,2,3]}}`
+
+	resWithout := httptest.NewRecorder()
+	buildHandler().ServeHTTP(resWithout, httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(without)))
+
+	resWith := httptest.NewRecorder()
+	buildHandler().ServeHTTP(resWith, httptest.NewRequest(http.MethodPost, "/api/sync/reconcile", strings.NewReader(withTelemetry)))
+
+	if resWithout.Code != resWith.Code {
+		t.Fatalf("expected identical status with/without client_telemetry, got %d vs %d", resWithout.Code, resWith.Code)
+	}
+	if resWithout.Body.String() != resWith.Body.String() {
+		t.Fatalf("expected identical response body with/without client_telemetry, got %q vs %q", resWithout.Body.String(), resWith.Body.String())
+	}
+}
