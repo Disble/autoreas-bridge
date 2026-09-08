@@ -12,6 +12,7 @@ import (
 	"autoreas-bridge/internal/download/dbschema"
 	"autoreas-bridge/internal/notification/centerschema"
 	"autoreas-bridge/internal/observability/eventlog"
+	"autoreas-bridge/internal/observability/syncdiag"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
 	// Registers the "sqlite" driver with database/sql. Nothing in this file
@@ -161,6 +162,7 @@ func initializeBridgeDB(db *sql.DB) error {
 	tables = append(tables, activity.SchemaTables()...)
 	tables = append(tables, season.SchemaTables()...)
 	tables = append(tables, eventlog.SchemaTables()...)
+	tables = append(tables, syncdiag.SchemaTables()...)
 	tables = append(tables, centerschema.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
