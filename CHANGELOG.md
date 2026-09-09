@@ -14,6 +14,13 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-09-08
+
+### Internal
+
+- The `autoreas-request-mcp` diagnostics sidecar no longer fails with a schema validation error when a search matches nothing. `search_requests` encoded an empty result as `items: null` instead of `items: []`, and because the tool validates its own response against a schema that requires an array, a legitimate "no results" came back as a hard error — indistinguishable from the tool being broken. Any filter combination that matched zero captured requests hit it, which is why it surfaced while investigating device-scoped diagnostics traffic.
+- The desktop application was never affected by the above: its own Wails binding already normalized the empty page before it reached the UI, so the defect only ever reached the MCP sidecar, which returns the reader's page shape directly. No user-facing behavior changes in this release.
+
 ## [1.11.0] — 2026-09-08
 
 ### Added
