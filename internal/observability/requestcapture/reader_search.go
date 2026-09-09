@@ -45,7 +45,10 @@ func (r *Reader) Search(ctx context.Context, params SearchParams) (SearchPage, e
 		return SearchPage{}, err
 	}
 	defer func() { _ = rows.Close() }()
-	page := SearchPage{AppliedLimit: limit}
+	// Items starts as a non-nil empty slice: a nil slice marshals to JSON
+	// null, and the MCP tool's declared output schema requires an array, so
+	// a zero-match page must encode as [] rather than failing validation.
+	page := SearchPage{AppliedLimit: limit, Items: []CaptureRecord{}}
 	for rows.Next() {
 		record, scanErr := scanCaptureRow(rows, columns)
 		if scanErr != nil {
