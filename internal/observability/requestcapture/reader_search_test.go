@@ -3,6 +3,8 @@ package requestcapture
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	// Registers the "sqlite" driver with database/sql. Nothing in this file
@@ -99,8 +101,40 @@ func TestSearchUnmatchedFiltersEmptyPage(t *testing.T) {
 	if len(page.Items) != 0 {
 		t.Fatalf("expected empty page, got %#v", page.Items)
 	}
+	// A nil slice marshals to JSON null, which violates the MCP tool's
+	// declared output schema ("want array"). An empty match must serialize
+	// as [], so Items has to be non-nil even when nothing matched. len() is
+	// 0 for a nil slice too, so the length assertion above cannot catch this.
+	if page.Items == nil {
+		t.Fatal("expected non-nil empty Items so an empty page marshals as [] rather than null")
+	}
 	if page.AppliedLimit == 0 {
 		t.Fatalf("expected valid applied limit even for empty page, got %#v", page)
+	}
+}
+
+// TestSearchEmptyPageMarshalsAsEmptyArray asserts the wire shape directly:
+// the zero-match page must encode items as [], never null, because the MCP
+// sidecar validates its response against a schema requiring an array.
+func TestSearchEmptyPageMarshalsAsEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	db := openCaptureTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	seedSearchFixtures(t, store)
+
+	reader := NewReader(db)
+	page, err := reader.Search(context.Background(), SearchParams{Filters: SearchFilters{Route: "/api/animes/does-not-exist"}})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	encoded, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("marshal page: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"items":[]`) {
+		t.Fatalf("expected items to encode as [], got %s", encoded)
 	}
 }
 
