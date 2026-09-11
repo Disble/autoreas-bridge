@@ -38,3 +38,6 @@ export const KEYMAP_SCOPE_NOTE_BY_SCOPE: Readonly<Record<KeyboardScope, string |
  * has not yet recorded a chord this arming (design D7, Slice 62i).
  */
 export const KEYMAP_CAPTURE_PROMPT = 'Press a key...';
+
+/** Toasted once a rebind persists successfully, with or without a shadow warning (design §4.2's sequence diagram, Slice 62j). */
+export const KEYMAP_SAVED_MESSAGE = 'Shortcut saved.';

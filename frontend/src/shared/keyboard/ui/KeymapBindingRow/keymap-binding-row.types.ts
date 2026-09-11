@@ -1,5 +1,6 @@
 import type { Chord, CommandBinding } from '../../keyboard.types';
 import type { ChordHazard } from '../../keymap.types';
+import type { KeymapRebindOutcome } from '../KeymapPanel/keymap-panel.types';
 
 /**
  * Props for one row of the keymap Settings panel: a binding's declared
@@ -27,6 +28,8 @@ export interface KeymapBindingRowProps {
   readonly scopeNote: string | null;
   /** Starts a rebind for this row. Inert in Slice 62f -- wired to chord capture's `arm()` in Slice 62i. */
   readonly onRebind: () => void;
+  /** Attempts to persist a chord captured for this row (design D6/D8/D7, Slice 62j); the panel already binds this row's own command `id`. Its `status` decides whether `useChordCapture` keeps listening (`'refused'`) or disarms. */
+  readonly onCaptureChord: (chord: Chord) => Promise<KeymapRebindOutcome>;
   /** Restores this row's shipped chord. Inert in Slice 62f -- wired to `revertBinding` in Slice 62k. */
   readonly onRevert: () => void;
 }

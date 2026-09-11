@@ -14,13 +14,16 @@ import type { UseChordCaptureResult } from './keymap-panel.types';
  * bound to the exact chord being captured (spec "Chord Capture Records By
  * Listening And Never Triggers A Shortcut").
  *
- * Recording a chord does NOT disarm: only `Escape` and losing focus end an
- * arming, so a user can keep pressing until satisfied. Nothing here
- * persists a chord -- `candidateChord` lives entirely in local state and is
- * discarded the moment `arm()` resets it for a new attempt (Slice 62i;
- * saving a candidate is Slice 62j).
+ * Recording a chord does NOT disarm by itself: only `Escape`, losing focus,
+ * or `onCaptured` reporting the chord was actually persisted end an arming.
+ * @param onCaptured Called with each recorded chord (never a bare modifier),
+ * always resolving to whether to disarm. Slice 62i had none and stayed
+ * multi-shot forever, safe only because nothing persisted a capture yet;
+ * Slice 62j's real write makes that risky (a stray keypress could silently
+ * rebind and persist), so omitting it, or resolving `false` (design D8's
+ * "REFUSE ... stay armed"), is what now keeps the original multi-shot behaviour.
  */
-export function useChordCapture(): UseChordCaptureResult {
+export function useChordCapture(onCaptured?: (chord: Chord) => Promise<boolean>): UseChordCaptureResult {
   // 4. State
   const [isArmed, setIsArmed] = useState(false);
   const [candidateChord, setCandidateChord] = useState<Chord | null>(null);
@@ -65,8 +68,18 @@ export function useChordCapture(): UseChordCaptureResult {
         return;
       }
       setCandidateChord(chord);
+      // The second `?.` is an EQUIVALENT MUTANT: when `onCaptured` is
+      // undefined, JS's optional-chaining short-circuit already skips the
+      // WHOLE rest of the expression, including a non-optional `.then` --
+      // TypeScript still requires the `?.` syntactically, since the static
+      // type of `onCaptured?.(chord)` is `Promise<boolean> | undefined`.
+      void onCaptured?.(chord)?.then((shouldDisarm) => {
+        if (shouldDisarm) {
+          setIsArmed(false);
+        }
+      });
     },
-    [isArmed],
+    [isArmed, onCaptured],
   );
 
   const onBlur = useCallback(() => {

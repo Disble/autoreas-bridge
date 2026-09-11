@@ -19,12 +19,15 @@ import type { KeymapPanelProps } from './keymap-panel.types';
  * by `keymap-panel.helpers.test.ts`'s registry guard), so a resolved-empty
  * state is unreachable and ships no `AirisEmptyState`. Only once loaded with
  * no error does the map render, with its reset button below it still a
- * static, disabled placeholder wired for real in Slice 62k, and every row's
- * `Rebind`/`Revert` still inert until Slices 62i-62k wire chord capture,
- * persistence and recovery (design Note D).
+ * static, disabled placeholder wired for real in Slice 62k. Each row's
+ * `Rebind` actually captures and persists a chord as of Slice 62j (design
+ * D6/D7/D8: the panel's `onRebind` is bound to the row's own command `id`
+ * as `onCaptureChord`, a failed write surfaces here via `errorMessage`, a
+ * refusal or a cross-scope shadow warning surfaces on the row itself);
+ * `Revert` stays inert until Slice 62k wires recovery.
  */
 export function KeymapPanel(props: Readonly<KeymapPanelProps>) {
-  const { errorMessage, keymapLoadState, sections } = useKeymapPanel(props);
+  const { errorMessage, keymapLoadState, onRebind, sections } = useKeymapPanel(props);
 
   if (keymapLoadState === 'pending') {
     return <KeymapPanelSkeleton />;
@@ -55,6 +58,7 @@ export function KeymapPanel(props: Readonly<KeymapPanelProps>) {
                   hazard={row.hazard}
                   isOverridden={row.isOverridden}
                   key={row.binding.id}
+                  onCaptureChord={(chord) => onRebind(row.binding.id, chord)}
                   onRebind={() => {}}
                   onRevert={() => {}}
                   scopeNote={row.scopeNote}

@@ -1,6 +1,9 @@
+import { useCallback, useState } from 'react';
 import { Button, Chip, Typography } from '@heroui/react';
 import { formatChord } from '../../chord.helpers';
+import type { Chord } from '../../keyboard.types';
 import { KEYMAP_CAPTURE_PROMPT, KEYMAP_ROW_CLASS } from '../KeymapPanel/keymap-panel.constants';
+import type { KeymapRebindOutcome } from '../KeymapPanel/keymap-panel.types';
 import { useChordCapture } from '../KeymapPanel/use-chord-capture';
 import type { KeymapBindingRowProps } from './keymap-binding-row.types';
 
@@ -14,9 +17,14 @@ import type { KeymapBindingRowProps } from './keymap-binding-row.types';
  * logic, so it owns `useChordCapture` directly (design D7's own placement,
  * `keymap-panel.types.ts`'s `UseChordCaptureResult` doc comment) rather than
  * receiving it from a parent. Pressing `Rebind` still calls the `onRebind`
- * prop (Slice 62f's pinned contract) AND arms local capture; nothing is
- * persisted here -- a recorded chord lives in local state and is discarded
- * the next time `arm()` resets it (Slice 62i; saving one is Slice 62j).
+ * prop (Slice 62f's pinned contract) AND arms local capture.
+ *
+ * Slice 62j wires the actual write: every captured chord goes to
+ * `onCaptureChord`, the panel's real persist-then-publish path (design
+ * D6/D8) already bound to this row's own command id; `useChordCapture`
+ * disarms unless the result is `'refused'` (design D8's "stay armed" case).
+ * The returned message (a refusal or a shadow warning) renders below the
+ * row until the next `Rebind` press clears it.
  * `onRevert` is inert in this slice; `KeymapPanel` wires it in Slice 62k.
  * Shares `KEYMAP_ROW_CLASS` with the loading skeleton (Slice 62h) so the two
  * heights cannot drift.
@@ -27,11 +35,27 @@ export function KeymapBindingRow({
   hazard,
   isOverridden,
   scopeNote,
+  onCaptureChord,
   onRebind,
   onRevert,
 }: Readonly<KeymapBindingRowProps>) {
+  // 4. State
+  const [outcome, setOutcome] = useState<KeymapRebindOutcome | null>(null);
+
+  // 6. Callbacks
+  const handleCaptured = useCallback(
+    (chord: Chord): Promise<boolean> => {
+      setOutcome(null);
+      return onCaptureChord(chord).then((result) => {
+        setOutcome(result);
+        return result.status !== 'refused';
+      });
+    },
+    [onCaptureChord],
+  );
+
   // 3. Context / 3rd party hooks
-  const { isArmed, candidateChord, arm, onKeyDown, onBlur } = useChordCapture();
+  const { isArmed, candidateChord, arm, onKeyDown, onBlur } = useChordCapture(handleCaptured);
 
   // 5. Derived state
   const isAwaitingFirstKeypress = isArmed && candidateChord === null;
@@ -61,6 +85,7 @@ export function KeymapBindingRow({
             onKeyDown={onKeyDown}
             onPress={() => {
               onRebind();
+              setOutcome(null);
               arm();
             }}
             size="sm"
@@ -73,6 +98,16 @@ export function KeymapBindingRow({
           </Button>
         </div>
       </div>
+      {outcome !== null && outcome.message !== null && (
+        <Typography
+          className={outcome.status === 'refused' ? 'mt-2 block text-danger' : 'mt-2 block text-warning'}
+          data-testid="keymap-binding-row-message"
+          role="alert"
+          type="body-sm"
+        >
+          {outcome.message}
+        </Typography>
+      )}
     </div>
   );
 }

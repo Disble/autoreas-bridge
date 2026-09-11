@@ -1,5 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useChordCapture } from '../use-chord-capture';
 
@@ -155,5 +155,39 @@ describe('useChordCapture', () => {
 
     expect(result.current.candidateChord).toBeNull();
     expect(result.current.isArmed).toBe(true);
+  });
+
+  describe('onCaptured (Slice 62j: capture disarms once a captured chord is actually persisted)', () => {
+    it('disarms only once the returned promise resolves true, never immediately (an async persist attempt)', async () => {
+      const onCaptured = vi.fn().mockResolvedValue(true);
+      const { result } = renderHook(() => useChordCapture(onCaptured));
+
+      act(() => result.current.arm());
+      act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
+
+      expect(result.current.isArmed).toBe(true);
+      await waitFor(() => expect(result.current.isArmed).toBe(false));
+    });
+
+    it('stays armed once an async onCaptured resolves false (a refusal discovered asynchronously)', async () => {
+      const onCaptured = vi.fn().mockResolvedValue(false);
+      const { result } = renderHook(() => useChordCapture(onCaptured));
+
+      act(() => result.current.arm());
+      act(() => result.current.onKeyDown(buildKeyEvent({ ctrlKey: true })));
+
+      await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+      expect(result.current.isArmed).toBe(true);
+    });
+
+    it('never calls onCaptured for a bare modifier press, since no chord was recorded', () => {
+      const onCaptured = vi.fn();
+      const { result } = renderHook(() => useChordCapture(onCaptured));
+
+      act(() => result.current.arm());
+      act(() => result.current.onKeyDown(buildKeyEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true })));
+
+      expect(onCaptured).not.toHaveBeenCalled();
+    });
   });
 });

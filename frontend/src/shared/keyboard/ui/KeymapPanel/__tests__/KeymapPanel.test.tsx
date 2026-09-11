@@ -1,5 +1,5 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { failKeymapLoad, resetKeyboardStore, setKeymapOverrides } from '../../../keyboard-scope.helpers';
 import { KEYMAP_PANEL_ERROR_MESSAGE, KEYMAP_PANEL_LOADING_LABEL, KEYMAP_SKELETON_ROW_COUNT } from '../keymap-panel.constants';
 import { groupBindingsBySection, listAllBindings } from '../keymap-panel.helpers';
@@ -55,6 +55,17 @@ describe('KeymapPanel', () => {
 
       expect(screen.queryByRole('status', { name: KEYMAP_PANEL_LOADING_LABEL })).toBeNull();
       expect(screen.queryByText(KEYMAP_PANEL_ERROR_MESSAGE)).toBeNull();
+    });
+
+    it("wires each row's captured chord to the panel's real onRebind (design D6/D8, Slice 62j) rather than a no-op stub", async () => {
+      const setKeymap = vi.fn().mockResolvedValue('ok');
+      render(<KeymapPanel source={{ setKeymap }} />);
+
+      const [firstRebindButton] = screen.getAllByRole('button', { name: 'Rebind' });
+      fireEvent.click(firstRebindButton);
+      fireEvent.keyDown(firstRebindButton, { key: '9', code: 'Digit9', ctrlKey: true });
+
+      await waitFor(() => expect(setKeymap).toHaveBeenCalledTimes(1));
     });
   });
 

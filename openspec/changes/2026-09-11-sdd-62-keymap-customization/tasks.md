@@ -644,7 +644,7 @@ keymap survives an application reload" scenario of "Persistence...".
 
 ### 10.2 Implementation
 
-- [ ] **10.2.1** [RED] Extend
+- [x] **10.2.1** [RED] Extend
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/use-keymap-panel.test.ts` (create if this is
   its first test): a candidate rebind colliding with another command **in the same scope** is refused,
   the colliding command's label is surfaced to the caller, and the store's `overrides` is **unchanged**
@@ -654,21 +654,21 @@ keymap survives an application reload" scenario of "Persistence...".
   then publish**: on a successful `setKeymap` call, `overrides` updates only in the success branch; on a
   failed write, the store is untouched and the failure's status string is surfaced (mirrors
   `use-auto-start-panel.ts`'s `isAutoStartSaved` success-branch pattern).
-- [ ] **10.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: build
+- [x] **10.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: build
   the candidate (`pruneKeymap({ ...overrides, [id]: chord }, ALL_BINDINGS)`), resolve it, run
   `findDuplicateBindings` (refuse + name labels, do not save) then `findShadowedBindings` (save, then
   return a warning), call `preferencesSource.setKeymap(serializeKeymap(candidate))`, and only on `'ok'`
   call `setKeymapOverrides(candidate)` (design §2 D6, §4.2 sequence diagram).
-- [ ] **10.2.3** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow.tsx`:
+- [x] **10.2.3** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow.tsx`:
   display a refusal message naming the colliding command, or a shadow warning, returned from the
   panel's save callback.
-- [ ] **10.2.4** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: surface a
+- [x] **10.2.4** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: surface a
   save-failure toast/`Alert` when `setKeymap` returns a non-`'ok'` status string.
 
 ### 10.3 Testing & Verification
 
-- [ ] **10.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **10.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-keymap-panel`;
+- [x] **10.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **10.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-keymap-panel`;
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`.
 - [ ] **10.3.3** [GATE] Left to the orchestrator.
 

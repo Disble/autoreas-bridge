@@ -45,6 +45,20 @@ export interface KeymapPanelProps {
 }
 
 /**
+ * Outcome of one persisted rebind attempt (design D6/D8, Slice 62j).
+ * `KeymapBindingRow` reads this to decide whether its capture control stays
+ * armed (`'refused'` -- a same-scope duplicate, nothing written, the ONLY
+ * status that stays armed) and what message to show (a refusal names the
+ * colliding command; a shadow warns of the precedence rule; `'saved'`/
+ * `'failed'` carry `null`, since a write failure is already surfaced via
+ * `UseKeymapPanelResult.saveErrorMessage`/the panel's error `Alert`).
+ */
+export interface KeymapRebindOutcome {
+  readonly status: 'refused' | 'saved' | 'shadowed' | 'failed';
+  readonly message: string | null;
+}
+
+/**
  * Everything `KeymapPanel` needs to render, derived by `use-keymap-panel`
  * across Slices 62g-62k (rows in 62g, the load/error signal in 62h,
  * `onRebind`'s persist-then-publish path in 62j, `onRevert`/
@@ -67,7 +81,7 @@ export interface UseKeymapPanelResult {
   /** The complete binding map, grouped by section, resolved through the current overrides. */
   readonly sections: readonly KeymapPanelSection[];
   /** Attempts to persist `chord` for the command `id` (design D6/D8: refused on a same-scope duplicate, saved with a warning on a cross-scope shadow, saved plainly otherwise). */
-  readonly onRebind: (id: string, chord: Chord) => void;
+  readonly onRebind: (id: string, chord: Chord) => Promise<KeymapRebindOutcome>;
   /** Restores one command's shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command's shipped chord using only pointer input"). */
   readonly onRevert: (id: string) => void;
   /** Restores every shipped chord (spec "Reset-to-defaults restores every shipped chord using only pointer input"). */
