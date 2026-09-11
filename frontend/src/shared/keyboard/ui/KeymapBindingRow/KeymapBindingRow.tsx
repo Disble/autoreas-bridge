@@ -1,6 +1,7 @@
 import { Button, Chip, Typography } from '@heroui/react';
 import { formatChord } from '../../chord.helpers';
-import { KEYMAP_ROW_CLASS } from '../KeymapPanel/keymap-panel.constants';
+import { KEYMAP_CAPTURE_PROMPT, KEYMAP_ROW_CLASS } from '../KeymapPanel/keymap-panel.constants';
+import { useChordCapture } from '../KeymapPanel/use-chord-capture';
 import type { KeymapBindingRowProps } from './keymap-binding-row.types';
 
 /**
@@ -8,10 +9,17 @@ import type { KeymapBindingRowProps } from './keymap-binding-row.types';
  * effective chord, an advisory hazard `Chip` when the chord is a
  * browser-zoom chord, a scope note for a scoped binding, and the `Rebind`/
  * `Revert` affordances (design D9/D10). Dumb component -- HeroUI primitives
- * only, no Wails calls, no business logic (frontend architecture constraint
- * #1). `onRebind`/`onRevert` are inert callbacks in this slice; `KeymapPanel`
- * wires them to real behaviour in Slices 62i/62k. Shares `KEYMAP_ROW_CLASS`
- * with its loading skeleton (Slice 62h) so the two heights cannot drift.
+ * only, no Wails calls (frontend architecture constraint #1) -- but the
+ * `Rebind` control's OWN listening state is local UI state, not business
+ * logic, so it owns `useChordCapture` directly (design D7's own placement,
+ * `keymap-panel.types.ts`'s `UseChordCaptureResult` doc comment) rather than
+ * receiving it from a parent. Pressing `Rebind` still calls the `onRebind`
+ * prop (Slice 62f's pinned contract) AND arms local capture; nothing is
+ * persisted here -- a recorded chord lives in local state and is discarded
+ * the next time `arm()` resets it (Slice 62i; saving one is Slice 62j).
+ * `onRevert` is inert in this slice; `KeymapPanel` wires it in Slice 62k.
+ * Shares `KEYMAP_ROW_CLASS` with the loading skeleton (Slice 62h) so the two
+ * heights cannot drift.
  */
 export function KeymapBindingRow({
   binding,
@@ -22,6 +30,12 @@ export function KeymapBindingRow({
   onRebind,
   onRevert,
 }: Readonly<KeymapBindingRowProps>) {
+  // 3. Context / 3rd party hooks
+  const { isArmed, candidateChord, arm, onKeyDown, onBlur } = useChordCapture();
+
+  // 5. Derived state
+  const isAwaitingFirstKeypress = isArmed && candidateChord === null;
+
   return (
     <div className={KEYMAP_ROW_CLASS}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -39,10 +53,19 @@ export function KeymapBindingRow({
               <Chip.Label>Browser zoom</Chip.Label>
             </Chip>
           )}
-          <Typography color="muted" type="code">
-            {formatChord(effectiveChord)}
+          <Typography color="muted" data-testid="keymap-binding-row-chord" type="code">
+            {isAwaitingFirstKeypress ? KEYMAP_CAPTURE_PROMPT : formatChord(candidateChord ?? effectiveChord)}
           </Typography>
-          <Button onPress={onRebind} size="sm" variant="secondary">
+          <Button
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            onPress={() => {
+              onRebind();
+              arm();
+            }}
+            size="sm"
+            variant="secondary"
+          >
             Rebind
           </Button>
           <Button isDisabled={!isOverridden} onPress={onRevert} size="sm" variant="tertiary">

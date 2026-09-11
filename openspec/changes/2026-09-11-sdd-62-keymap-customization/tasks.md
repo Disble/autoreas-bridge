@@ -594,7 +594,7 @@ there)*
 
 ### 9.2 Implementation
 
-- [ ] **9.2.1** [RED] Write
+- [x] **9.2.1** [RED] Write
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/use-chord-capture.test.ts`: arming then
   pressing `Ctrl+1` records `'ctrl+1'` as the candidate chord (spec scenario "A captured keypress is
   recorded as the candidate chord"); `Escape` cancels and disarms with no chord recorded, checked
@@ -602,26 +602,26 @@ there)*
   armed with nothing recorded; blur while armed disarms; `event.preventDefault()` is called on **every**
   keydown while armed, including for a chord that will not end up recorded; `event.nativeEvent.isComposing
   === true` is ignored (mirrors the dispatcher's own IME guard).
-- [ ] **9.2.2** [GREEN] Implement
+- [x] **9.2.2** [GREEN] Implement
   `frontend/src/shared/keyboard/ui/KeymapPanel/use-chord-capture.ts`: the armed/record/cancel/blur
   state machine (design §2 D7). `preventDefault()` called first and unconditionally in the control's own
   `onKeyDown`, which is the entire suppression mechanism — no dispatcher change, no scope frame.
-- [ ] **9.2.3** [RED] — **mandatory obligation R-4**. Write
+- [x] **9.2.3** [RED] — **mandatory obligation R-4**. Write
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/KeymapBindingRow.capture-suppression.test.tsx`:
   mount `KeymapBindingRow` with its `Rebind` control armed **alongside** `KeyboardDispatcherListener`
   and a real dispatcher-mounted test command bound to `?`; fire a real `?` keydown and a real `alt+1`
   keydown into the armed capture control; assert **no command ran** for either chord and the help
   overlay did not open. Mirrors `KeyboardDispatcherListener.react-aria.test.tsx`'s technique exactly —
   a real event, never a mocked one.
-- [ ] **9.2.4** [GREEN] Modify
+- [x] **9.2.4** [GREEN] Modify
   `frontend/src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow.tsx`: wire the `Rebind` button to
   `use-chord-capture`'s `arm()`; while armed, render the recorded/candidate state instead of the static
   effective chord.
 
 ### 9.3 Testing & Verification
 
-- [ ] **9.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **9.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-chord-capture KeymapBindingRow`;
+- [x] **9.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **9.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-chord-capture KeymapBindingRow`;
   `bun run typecheck`; `bunx eslint`. Confirm 9.2.3's suppression test asserts the **negative**
   explicitly (command did NOT run), not merely that capture succeeded.
 - [ ] **9.3.3** [GATE] Left to the orchestrator.

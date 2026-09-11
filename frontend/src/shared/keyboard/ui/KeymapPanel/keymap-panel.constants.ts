@@ -32,3 +32,9 @@ export const KEYMAP_SCOPE_NOTE_BY_SCOPE: Readonly<Record<KeyboardScope, string |
   global: null,
   'notification-center': 'while the Notification Center is open',
 };
+
+/**
+ * Shown in place of a row's chord while its capture control is armed and
+ * has not yet recorded a chord this arming (design D7, Slice 62i).
+ */
+export const KEYMAP_CAPTURE_PROMPT = 'Press a key...';

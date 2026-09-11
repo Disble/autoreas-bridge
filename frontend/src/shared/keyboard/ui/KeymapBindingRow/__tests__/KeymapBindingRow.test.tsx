@@ -69,6 +69,17 @@ describe('KeymapBindingRow', () => {
     expect(onRebind).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a capture prompt once armed, then the recorded candidate chord once a key is captured', () => {
+    render(<KeymapBindingRow {...buildProps({ effectiveChord: 'alt+1' })} />);
+    const rebindButton = screen.getByRole('button', { name: 'Rebind' });
+
+    fireEvent.click(rebindButton);
+    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Press a key...');
+
+    fireEvent.keyDown(rebindButton, { key: '1', code: 'Digit1', ctrlKey: true });
+    expect(screen.getByTestId('keymap-binding-row-chord')).toHaveTextContent('Ctrl + 1');
+  });
+
   it('disables Revert when the binding is not overridden, and calls onRevert when pressed while overridden', () => {
     const onRevert = vi.fn();
     const { rerender } = render(<KeymapBindingRow {...buildProps({ isOverridden: false, onRevert })} />);
