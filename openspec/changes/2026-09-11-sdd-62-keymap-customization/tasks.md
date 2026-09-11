@@ -187,7 +187,7 @@ Safely"** (parse half) and **"Override Resolution Is Keyed By Command Id"** (ful
   repo-blended score hid survivors in three separate SDD-61 slices; do not trust it alone here.
 - [x] **1.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap`; `bun run typecheck`; `bunx eslint`
   over every touched/created file. Confirm `git status --porcelain` shows only this slice's files.
-- [ ] **1.3.3** [GATE] Left to the orchestrator (CLAUDE.md #3/#4) — `git commit`, full pre-commit gate,
+- [x] **1.3.3** [GATE] Done by the orchestrator as `688e096`, full pre-commit gate green.
   timeout ≥ 300000 ms.
 
 **Rollback:** `git revert`. `keymap.types.ts`/`keymap.helpers.ts` are imported by nothing outside their
@@ -246,7 +246,7 @@ Slice 62j) and lays the groundwork for the keyboard-shortcuts delta's "Mark All 
 - [x] **2.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap registry`; `bun run typecheck`;
   `bunx eslint`. Confirm the four pre-existing `registry.helpers.test.ts` cases from SDD-61 still pass
   unmodified (widening did not require touching them).
-- [ ] **2.3.3** [GATE] Left to the orchestrator.
+- [x] **2.3.3** [GATE] Done as `543af50`, gate green.
 
 **Rollback:** `git revert`. `SCOPED_COMMAND_BINDINGS`/`findShadowedBindings` have no consumer to strand.
 
@@ -309,7 +309,7 @@ the backend is responsible for (returning `""` for a missing/cleared row).
 - [x] **3.3.2** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`; `go vet ./...`;
   `gofmt -l .` empty. `bun run typecheck` (expected to fail until Wails bindings regenerate locally —
   record that as an apply-time step, not a defect). `bunx eslint` on the two frontend files.
-- [ ] **3.3.3** [GATE] Left to the orchestrator.
+- [x] **3.3.3** [GATE] Done as `240b0f2`, gate green including the Go jobs this chain had not exercised before.
 
 **Rollback:** `git revert`. The `app_settings["keyboard.keymap"]` row, if ever written during manual
 testing, is orphaned harmlessly — `Get` treats a missing row as unset and nothing else reads the key.
@@ -389,7 +389,7 @@ scenario, **"Mark All As Read...enumerable without the panel mounted"** scenario
   staged files — the dispatcher is the hot path and the most mutation-sensitive file in the change.
 - [x] **4.3.2** [VERIFY] `bun --cwd="frontend" run test -- keyboard notification`;
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`.
-- [ ] **4.3.3** [GATE] Left to the orchestrator.
+- [x] **4.3.3** [GATE] Done as `895d974`. The orchestrator widened `isKeymapLoaded` to the three-state `keymapLoadState` before committing, because the spec-required error state was unbuildable from a boolean.
 
 **Rollback:** `git revert`. **Coupled** (design §8): revert `use-notification-keyboard-scope.ts` in the
 **same** commit, because `SCOPED_COMMAND_BINDINGS` reverts with the rest of this slice and the hook
@@ -436,7 +436,7 @@ Slices 62f-62k.
 - [x] **5.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap-panel`; `bun run typecheck`;
   `bunx eslint`; confirm `fallow audit` passes with only colocated-test consumers (no dead-export
   rejection — Note B/E precedent from SDD-61 Slice 1).
-- [ ] **5.3.3** [GATE] Left to the orchestrator.
+- [x] **5.3.3** [GATE] Done as `09267c7`, together with the `keyboard-shortcuts` skill correction this slice`s fallow finding exposed.
 
 **Rollback:** `git revert`. No mounted consumer to strand.
 
@@ -475,7 +475,7 @@ Renders The Complete Map First..." once mounted in 62g).
 - [x] **6.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
 - [x] **6.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapBindingRow`; `bun run typecheck`;
   `bunx eslint`.
-- [ ] **6.3.3** [GATE] Left to the orchestrator.
+- [x] **6.3.3** [GATE] Done as `63e4101`, gate green.
 
 **Rollback:** `git revert`. No mounted consumer to strand.
 
@@ -523,7 +523,7 @@ here; the loading/error scenarios are 62h's.
   `bun --cwd="frontend" run render:smoke` (the panel is a **tab inside `/settings`**, an existing route
   — **no** `ROUTE_MARKERS` entry is owed; record its absence as correct, per R-11); `bun run typecheck`;
   `bunx eslint`.
-- [ ] **7.3.3** [GATE] Left to the orchestrator.
+- [x] **7.3.3** [GATE] Done as `3bba619`, gate green.
 
 **Rollback:** `git revert`, or drop the one `PREFERENCES_ROUTE_TABS` entry to make the tab unreachable
 without touching the panel's own files.
@@ -572,7 +572,7 @@ First, With Mandatory Loading And Error States"** (the loading and error scenari
 - [x] **8.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapPanel keymap-panel`;
   `bun --cwd="frontend" run render:smoke`; `bun --cwd="frontend" run layout:fixtures` (or the project's
   equivalent skeleton-height check, per `autoreas-theme`); `bun run typecheck`; `bunx eslint`.
-- [ ] **8.3.3** [GATE] Left to the orchestrator.
+- [x] **8.3.3** [GATE] Done as `301f136`. The orchestrator also extracted `KeymapPanelSkeleton` and added the layout-fixture entry this slice reported as a gap: `layout:smoke` was green only because the panel was absent from it. Measured 66px against a 66px row, drift 0.
 
 **Rollback:** `git revert`. The panel falls back to Slice 62g's interim always-rendered map — no
 user-visible regression beyond losing the accessible states this slice added.
@@ -624,7 +624,7 @@ there)*
 - [x] **9.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-chord-capture KeymapBindingRow`;
   `bun run typecheck`; `bunx eslint`. Confirm 9.2.3's suppression test asserts the **negative**
   explicitly (command did NOT run), not merely that capture succeeded.
-- [ ] **9.3.3** [GATE] Left to the orchestrator.
+- [x] **9.3.3** [GATE] Done as `583fcaa`, gate green on retry after one contention flake.
 
 **Rollback:** `git revert`. `Rebind` reverts to inert; no persisted state to clean up.
 
@@ -670,7 +670,7 @@ keymap survives an application reload" scenario of "Persistence...".
 - [x] **10.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
 - [x] **10.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-keymap-panel`;
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`.
-- [ ] **10.3.3** [GATE] Left to the orchestrator.
+- [x] **10.3.3** [GATE] Done as `85678a5`, gate green.
 
 **Rollback:** `git revert`. Capture (62i) still records a candidate chord; only the save path stops
 working, so a rebind attempt is a no-op rather than a broken write.
@@ -715,7 +715,7 @@ Alone"**.
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`. Confirm 11.2.1's two
   tests use **zero** keyboard events — grep the test file for `fireEvent.keyDown`/`userEvent.keyboard`
   and confirm no hits inside those two cases.
-- [ ] **11.3.3** [GATE] Left to the orchestrator.
+- [x] **11.3.3** [GATE] Done as `6d04900`. The orchestrator also removed the row`s dead `onRebind` prop, which this slice was asked to resolve and did not.
 
 **Rollback:** `git revert`. Rebinding (62j) still works; only the two recovery affordances disappear —
 a user with a bad keymap would need to clear the `app_settings` row manually (D9's storage-level escape
@@ -758,7 +758,7 @@ covering ADR-019/ADR-020/skill/CLAUDE.md/learning-log.
   confirming no Go file parses a chord (spec/design invariant, R-9).
 - [x] **12.2.2** [VERIFY] Re-read ADR-019's amended text against `design.md` §2 D12's four-edit list;
   confirm all four landed verbatim.
-- [ ] **12.2.3** [GATE] Left to the orchestrator.
+- [x] **12.2.3** [GATE] Done as `f26b259`, gate green. Documentation only.
 
 **Rollback:** `git revert`. Zero behavior change.
 
