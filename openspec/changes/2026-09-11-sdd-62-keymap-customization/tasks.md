@@ -407,33 +407,33 @@ Slices 62f-62k.
 
 ### 5.1 Infrastructure
 
-- [ ] **5.1.1** [GREEN] Create `frontend/src/shared/keyboard/ui/KeymapPanel/keymap-panel.types.ts`:
+- [x] **5.1.1** [GREEN] Create `frontend/src/shared/keyboard/ui/KeymapPanel/keymap-panel.types.ts`:
   the panel's props shape, `use-keymap-panel`'s return shape, `use-chord-capture`'s return shape (all
   `readonly`, CLAUDE.md frontend #5; JSDoc every declaration). No RED, type-only.
 
 ### 5.2 Implementation
 
-- [ ] **5.2.1** [GREEN] Create `frontend/src/shared/keyboard/ui/KeymapPanel/keymap-panel.constants.ts`:
+- [x] **5.2.1** [GREEN] Create `frontend/src/shared/keyboard/ui/KeymapPanel/keymap-panel.constants.ts`:
   `KEYMAP_ROW_CLASS` (shared between the real row and its skeleton, so heights cannot drift —
   `autoreas-theme` skill's loading-state contract), `KEYMAP_SKELETON_ROW_COUNT`, panel copy strings. A
   plain `const` goes to `.constants.ts`, never `.helpers.ts` (`dharness/role-file-shape`). No RED, plain
   data with no branching logic.
-- [ ] **5.2.2** [RED] Write
+- [x] **5.2.2** [RED] Write
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/keymap-panel.helpers.test.ts`:
   `listAllBindings()` returns `KEYBOARD_COMMANDS` concatenated with `Object.values(SCOPED_COMMAND_BINDINGS)`
   — asserted by length and by the scoped entry's presence, never re-listed by hand; the section-grouping
   helper groups by `section` preserving insertion order, matching `toShortcutSections`'s existing
   grouping shape but operating over `CommandBinding[]` (not `CommandDefinition[]`, since a panel row
   needs no `run`/`enabled`).
-- [ ] **5.2.3** [GREEN] Implement
+- [x] **5.2.3** [GREEN] Implement
   `frontend/src/shared/keyboard/ui/KeymapPanel/keymap-panel.helpers.ts`: `listAllBindings`, the
   section-grouping helper (design §3 — "the registry-assembling helper lives where its only consumer
   is").
 
 ### 5.3 Testing & Verification
 
-- [ ] **5.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **5.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap-panel`; `bun run typecheck`;
+- [x] **5.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **5.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap-panel`; `bun run typecheck`;
   `bunx eslint`; confirm `fallow audit` passes with only colocated-test consumers (no dead-export
   rejection — Note B/E precedent from SDD-61 Slice 1).
 - [ ] **5.3.3** [GATE] Left to the orchestrator.

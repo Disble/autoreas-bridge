@@ -101,7 +101,17 @@ Modifier order is fixed: `ctrl+alt+shift+meta+<key>`.
 
 **Frames pop by id, not pop-last.** StrictMode double-invokes effects, so tail-popping removes someone else's frame.
 
-**Never plant an export for a later change.** `fallow audit` fails a commit on an exported value nothing imports, and on a file nothing reaches. A colocated test counts as a consumer (fallow infers test roots under `src/`); exported *types* are exempt. This is what killed `use-keyboard-store.ts` and `KEYBOARD_SCOPE` in the first slice.
+**Never plant an export for a later change.** `fallow audit` fails a commit three separate ways, and a colocated test counts as a consumer for all of them (fallow infers test roots under `src/`):
+
+| Finding | Fires when |
+|---|---|
+| Unused files | Nothing reaches the file from any entry point |
+| Unused exports | An exported **value** — `const`, `function` — has no importer |
+| Unused type exports | An exported **type** has no consumer, **including inside a reachable file** |
+
+Values and types both fail; they just fail under different headings. An earlier version of this section claimed types were exempt, which was wrong — it generalised from `keyboard.types.ts`, where every type happened to be referenced by another type in the same file, and **an in-file type-to-type reference counts as a consumer**. Measured 2026-09-11 by adding an unreferenced interface to that already-imported file: `fallow audit` reported "Unused type exports" and exited 1.
+
+So a `.types.ts` written for hooks or components that do not exist yet needs its own colocated shape-pinning test — a fixture builder that constructs a literal satisfying each interface — not just a test for the helpers beside it. This rule is what killed `use-keyboard-store.ts` and `KEYBOARD_SCOPE` in the first slice.
 
 **A plain `const` cannot live in a `.helpers.ts` file.** `dharness/role-file-shape` reserves those for types and functions; Sets, RegExps and object maps go in `.constants.ts`.
 
