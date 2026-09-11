@@ -1,7 +1,10 @@
 import { KEYBOARD_COMMANDS } from '../../command-registry.constants';
+import { effectiveChord, findChordHazard } from '../../keymap.helpers';
 import { SCOPED_COMMAND_BINDINGS } from '../../keymap.constants';
 import type { CommandBinding, CommandSection } from '../../keyboard.types';
-import type { KeymapBindingSection } from './keymap-panel.types';
+import type { KeymapOverrides } from '../../keymap.types';
+import { KEYMAP_SCOPE_NOTE_BY_SCOPE } from './keymap-panel.constants';
+import type { KeymapBindingSection, KeymapPanelRow } from './keymap-panel.types';
 
 /**
  * The complete shipped binding list: every global command plus the one
@@ -37,4 +40,27 @@ export function groupBindingsBySection(bindings: readonly CommandBinding[]): rea
   }
 
   return [...bindingsBySection.entries()].map(([section, sectionBindings]) => ({ section, bindings: sectionBindings }));
+}
+
+/**
+ * Resolves one section's raw bindings into panel-ready rows: the effective
+ * chord via `effectiveChord` (design D2's single resolution rule -- not
+ * `resolveKeymap`'s whole-array rewrite, since a row needs only the
+ * resolved chord alongside its unchanged declared `binding`, never a second
+ * rewritten binding object to index back into), whether an override exists
+ * for the id, the hazard derived from the EFFECTIVE chord (so rebinding
+ * into a hazardous chord surfaces it, not just the shipped default), and
+ * the row's scope note.
+ */
+export function resolveKeymapPanelRows(bindings: readonly CommandBinding[], overrides: KeymapOverrides): readonly KeymapPanelRow[] {
+  return bindings.map((binding) => {
+    const chord = effectiveChord(binding, overrides);
+    return {
+      binding,
+      effectiveChord: chord,
+      isOverridden: overrides[binding.id] !== undefined,
+      hazard: findChordHazard(chord),
+      scopeNote: KEYMAP_SCOPE_NOTE_BY_SCOPE[binding.scope],
+    };
+  });
 }

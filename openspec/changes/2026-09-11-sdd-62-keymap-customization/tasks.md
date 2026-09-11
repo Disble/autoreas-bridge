@@ -492,7 +492,7 @@ here; the loading/error scenarios are 62h's.
 
 ### 7.1 Infrastructure
 
-- [ ] **7.1.1** [GREEN] Create
+- [x] **7.1.1** [GREEN] Create
   `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts` (partial — rows derivation only):
   reads `overrides`/`isKeymapLoaded` from `useKeyboardStore`, computes effective rows via
   `resolveKeymap(listAllBindings(), overrides)` grouped by section. No persistence, no capture, no
@@ -500,26 +500,26 @@ here; the loading/error scenarios are 62h's.
 
 ### 7.2 Implementation
 
-- [ ] **7.2.1** [RED] Write
+- [x] **7.2.1** [RED] Write
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/KeymapPanel.test.tsx`: the complete binding
   map — including the Notification Center's scoped command with its scope note — is the panel's
   **first** visible block, above any reset/legend affordance (spec scenario "The map is the first
   block, and includes the scoped binding"). Assert row order matches section grouping. This test seeds
   the store's `isKeymapLoaded` to `true` directly (`setKeymapOverrides`/store setup), since the
   accessible unresolved-state gate does not exist until 62h.
-- [ ] **7.2.2** [GREEN] Implement `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`
+- [x] **7.2.2** [GREEN] Implement `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`
   (partial): renders the map via `KeymapBindingRow` for each effective row, reset-to-defaults button
   and hazard legend stubbed as static placeholders (wired in 62h/62k). Strict colocation, no barrel
   (ADR-011, ADR-015).
-- [ ] **7.2.3** [GREEN] Modify `frontend/src/shared/preferences/preferences-route.constants.ts`: append
+- [x] **7.2.3** [GREEN] Modify `frontend/src/shared/preferences/preferences-route.constants.ts`: append
   one `PREFERENCES_ROUTE_TABS` entry (`id: 'shortcuts'`) **last**, after Startup — tab order is array
   order (`PreferencesRoute.tsx`), and the confirmed product decision only constrains order *inside* the
   panel (proposal.md §12.1).
 
 ### 7.3 Testing & Verification
 
-- [ ] **7.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **7.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapPanel`;
+- [x] **7.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **7.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapPanel`;
   `bun --cwd="frontend" run render:smoke` (the panel is a **tab inside `/settings`**, an existing route
   — **no** `ROUTE_MARKERS` entry is owed; record its absence as correct, per R-11); `bun run typecheck`;
   `bunx eslint`.

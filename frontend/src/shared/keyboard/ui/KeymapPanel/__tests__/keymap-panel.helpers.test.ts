@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { KEYBOARD_COMMANDS } from '../../../command-registry.constants';
 import type { CommandBinding } from '../../../keyboard.types';
+import type { KeymapOverrides } from '../../../keymap.types';
 import { SCOPED_COMMAND_BINDINGS } from '../../../keymap.constants';
-import { groupBindingsBySection, listAllBindings } from '../keymap-panel.helpers';
+import { groupBindingsBySection, listAllBindings, resolveKeymapPanelRows } from '../keymap-panel.helpers';
 
 /** Builds a minimal command binding, overriding only what a case needs. */
 function buildBinding(overrides: Partial<CommandBinding> = {}): CommandBinding {
@@ -50,5 +51,51 @@ describe('groupBindingsBySection', () => {
     const notificationsSection = sections.find((entry) => entry.section === 'Notifications');
 
     expect(notificationsSection?.bindings.some((binding) => binding.id === 'notification-center.mark-all-read')).toBe(true);
+  });
+});
+
+describe('resolveKeymapPanelRows', () => {
+  it('keeps a binding at its declared chord and marks it not overridden when no override exists', () => {
+    const [row] = resolveKeymapPanelRows([buildBinding({ chord: 'alt+1' })], {});
+
+    expect(row.effectiveChord).toBe('alt+1');
+    expect(row.isOverridden).toBe(false);
+    expect(row.binding.chord).toBe('alt+1');
+  });
+
+  it('resolves a stored override and marks the row overridden, leaving the declared binding chord untouched', () => {
+    const overrides: KeymapOverrides = { 'test.command': 'ctrl+1' };
+    const [row] = resolveKeymapPanelRows([buildBinding({ chord: 'alt+1' })], overrides);
+
+    expect(row.effectiveChord).toBe('ctrl+1');
+    expect(row.isOverridden).toBe(true);
+    expect(row.binding.chord).toBe('alt+1');
+  });
+
+  it('derives the hazard from the EFFECTIVE chord, not the declared one, so rebinding into a hazardous chord surfaces it', () => {
+    const overrides: KeymapOverrides = { 'test.command': 'ctrl+0' };
+    const [row] = resolveKeymapPanelRows([buildBinding({ chord: 'alt+1' })], overrides);
+
+    expect(row.hazard).toBe('browser-zoom');
+  });
+
+  it('carries no hazard for a chord outside the zoom family', () => {
+    const [row] = resolveKeymapPanelRows([buildBinding({ chord: 'alt+1' })], {});
+
+    expect(row.hazard).toBeNull();
+  });
+
+  it('attaches no scope note for a global binding and the Notification Center note for a scoped one', () => {
+    const [globalRow, scopedRow] = resolveKeymapPanelRows(
+      [buildBinding({ scope: 'global' }), buildBinding({ id: 'scoped', scope: 'notification-center' })],
+      {},
+    );
+
+    expect(globalRow.scopeNote).toBeNull();
+    expect(scopedRow.scopeNote).toBe('while the Notification Center is open');
+  });
+
+  it('returns an empty array for an empty binding list', () => {
+    expect(resolveKeymapPanelRows([], {})).toEqual([]);
   });
 });
