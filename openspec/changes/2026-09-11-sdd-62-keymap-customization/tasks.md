@@ -543,7 +543,7 @@ First, With Mandatory Loading And Error States"** (the loading and error scenari
 
 ### 8.2 Implementation
 
-- [ ] **8.2.1** [RED] Extend `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/KeymapPanel.test.tsx`:
+- [x] **8.2.1** [RED] Extend `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/KeymapPanel.test.tsx`:
   while `isKeymapLoaded === false`, the panel exposes an announced region
   (`getByRole('status', { name })`, `aria-live="polite"`, `aria-labelledby` pointing at an `sr-only`
   span per CLAUDE.md frontend #14) and renders **no real binding row** — assert the negative explicitly,
@@ -551,15 +551,15 @@ First, With Mandatory Loading And Error States"** (the loading and error scenari
   real row"). A failed load (`use-keymap-overrides` degrades to `{}` but a distinct load-failure signal
   is surfaced — see 8.2.2) renders the error `Alert`, never a skeleton or an empty state (spec scenario
   "A failed load or save shows the error state").
-- [ ] **8.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: gate
+- [x] **8.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: gate
   the content branch on `isKeymapLoaded` (never on row count — a refetching surface keeps previous
   rows), surface a load-error flag distinct from "loaded with zero overrides."
-- [ ] **8.2.3** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: render
+- [x] **8.2.3** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: render
   `KEYMAP_SKELETON_ROW_COUNT` skeleton rows sharing `KEYMAP_ROW_CLASS` with the real row (measured by
   `frontend/scripts/layout-fixtures/loading-skeletons-fixture.tsx` — add this panel's skeleton to that
   fixture) inside the accessible status region; render the error `Alert` on a failed load or save;
   never render both the loading region and a real row simultaneously.
-- [ ] **8.3** [RED then GREEN — mandatory obligation, Note E.2] Write
+- [x] **8.3** [RED then GREEN — mandatory obligation, Note E.2] Write
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/keymap-panel.helpers.test.ts` (extend): assert
   `listAllBindings()` is **never empty** — this is the deterministic guard for D11's "resolved-empty is
   unreachable by construction, `AirisEmptyState` here would be dead code" claim. No production change
@@ -568,8 +568,8 @@ First, With Mandatory Loading And Error States"** (the loading and error scenari
 
 ### 8.3 Testing & Verification
 
-- [ ] **8.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **8.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapPanel keymap-panel`;
+- [x] **8.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **8.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapPanel keymap-panel`;
   `bun --cwd="frontend" run render:smoke`; `bun --cwd="frontend" run layout:fixtures` (or the project's
   equivalent skeleton-height check, per `autoreas-theme`); `bun run typecheck`; `bunx eslint`.
 - [ ] **8.3.3** [GATE] Left to the orchestrator.

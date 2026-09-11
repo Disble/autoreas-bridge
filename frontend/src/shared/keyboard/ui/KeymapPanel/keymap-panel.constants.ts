@@ -17,6 +17,9 @@ export const KEYMAP_PANEL_LOADING_LABEL = 'Loading keyboard shortcuts...';
 /** Shown by the panel's error `Alert` on a failed load or a failed save (spec "...Mandatory Loading And Error States"). */
 export const KEYMAP_PANEL_ERROR_MESSAGE = 'Could not load or save your keyboard shortcuts.';
 
+/** `Alert.Title` paired with `KEYMAP_PANEL_ERROR_MESSAGE`, mirroring `CATALOG_PANEL_ERROR_TITLE`'s title/description split. */
+export const KEYMAP_PANEL_ERROR_TITLE = 'Shortcuts unavailable';
+
 /**
  * The scope note rendered on a `KeymapBindingRow` for a scoped binding, or
  * `null` for a global command (design D10 -- a row is annotated with its

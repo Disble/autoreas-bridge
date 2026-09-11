@@ -1,5 +1,7 @@
-import { Button, Typography } from '@heroui/react';
+import { Alert, Button, Typography } from '@heroui/react';
 import { KeymapBindingRow } from '../KeymapBindingRow/KeymapBindingRow';
+import { KeymapPanelSkeleton } from './KeymapPanelSkeleton';
+import { KEYMAP_PANEL_ERROR_TITLE } from './keymap-panel.constants';
 import { useKeymapPanel } from './use-keymap-panel';
 import type { KeymapPanelProps } from './keymap-panel.types';
 
@@ -9,15 +11,35 @@ import type { KeymapPanelProps } from './keymap-panel.types';
  * Complete Map First..." -- with a reset-to-defaults affordance and a
  * hazard legend below it, never above the map.
  *
- * This slice (62g) ships the map read-only: the reset button below is a
+ * The three states are EXCLUSIVE (`autoreas-theme` skill, design D11): an
+ * unresolved load (`keymapLoadState === 'pending'`) renders an announced
+ * skeleton and nothing else; a failed load or save (`errorMessage !== null`)
+ * renders the error `Alert` and nothing else, never a skeleton and never an
+ * empty state -- the binding list is a non-empty compile-time array (pinned
+ * by `keymap-panel.helpers.test.ts`'s registry guard), so a resolved-empty
+ * state is unreachable and ships no `AirisEmptyState`. Only once loaded with
+ * no error does the map render, with its reset button below it still a
  * static, disabled placeholder wired for real in Slice 62k, and every row's
- * `Rebind`/`Revert` stay inert until Slices 62i-62k wire chord capture,
- * persistence and recovery (design Note D). The mandatory accessible
- * loading/error states the spec also requires are Slice 62h's -- this
- * interim, always-rendered map is never a shipped end state on its own.
+ * `Rebind`/`Revert` still inert until Slices 62i-62k wire chord capture,
+ * persistence and recovery (design Note D).
  */
 export function KeymapPanel(props: Readonly<KeymapPanelProps>) {
-  const { sections } = useKeymapPanel(props);
+  const { errorMessage, keymapLoadState, sections } = useKeymapPanel(props);
+
+  if (keymapLoadState === 'pending') {
+    return <KeymapPanelSkeleton />;
+  }
+
+  if (errorMessage !== null) {
+    return (
+      <Alert status="danger">
+        <Alert.Content>
+          <Alert.Title>{KEYMAP_PANEL_ERROR_TITLE}</Alert.Title>
+          <Alert.Description>{errorMessage}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

@@ -14,6 +14,7 @@ function buildKeymapPanelResult(overrides: Partial<UseKeymapPanelResult> = {}): 
   return {
     keymapLoadState: 'loaded',
     saveErrorMessage: null,
+    errorMessage: null,
     sections: [],
     onRebind: () => {},
     onRevert: () => {},
@@ -54,7 +55,15 @@ describe('UseKeymapPanelResult', () => {
 
     expect(result.keymapLoadState).toBe('pending');
     expect(result.saveErrorMessage).toBeNull();
+    expect(result.errorMessage).toBeNull();
     expect(result.sections).toEqual([]);
+  });
+
+  it('accepts a non-null errorMessage independent of saveErrorMessage, e.g. a failed load', () => {
+    const result = buildKeymapPanelResult({ keymapLoadState: 'failed', errorMessage: 'Could not load or save your keyboard shortcuts.' });
+
+    expect(result.saveErrorMessage).toBeNull();
+    expect(result.errorMessage).not.toBeNull();
   });
 });
 

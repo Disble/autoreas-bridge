@@ -1,16 +1,21 @@
 import { useCallback, useMemo } from 'react';
 import type { Chord } from '../../keyboard.types';
 import { useKeyboardStore } from '../../use-keyboard-store';
+import { KEYMAP_PANEL_ERROR_MESSAGE } from './keymap-panel.constants';
 import { groupBindingsBySection, listAllBindings, resolveKeymapPanelRows } from './keymap-panel.helpers';
 import type { KeymapPanelProps, KeymapPanelSection, UseKeymapPanelResult } from './keymap-panel.types';
 
 /**
  * Derives the keymap panel's render-ready state from the shared keyboard
- * store (design D10/D11). This slice (62g) computes only the effective
- * rows -- chord capture, persistence and conflict/shadow surfacing are
- * Slices 62i-62k, so `onRebind`/`onRevert`/`onResetToDefaults` are inert
- * no-ops here and `saveErrorMessage` stays `null` until a real save path
- * exists.
+ * store (design D10/D11). Slice 62g computed only the effective rows;
+ * Slice 62h adds `errorMessage`, the single field `KeymapPanel` gates its
+ * accessible loading/error triad on (task 8.2.2) -- `keymapLoadState`
+ * already distinguishes a failed read from "loaded with zero overrides"
+ * (design D11, shipped ahead of this slice in 62d), so no new store field
+ * was needed, only this derivation. Chord capture, persistence and
+ * conflict/shadow surfacing are Slices 62i-62k, so `onRebind`/`onRevert`/
+ * `onResetToDefaults` are inert no-ops here and `saveErrorMessage` stays
+ * `null` until a real save path exists.
  * @param _props Reserved for the injectable `source` Slice 62j wires into a
  * real persist path. Unread in this slice; kept on the signature so
  * `KeymapPanel.tsx`'s call shape never has to change again for it.
@@ -29,6 +34,11 @@ export function useKeymapPanel(_props: Readonly<KeymapPanelProps> = {}): UseKeym
       })),
     [overrides],
   );
+  // `saveErrorMessage` stays a stub `null` until Slice 62j wires a real save
+  // path; declared as a variable (not inline in the return) so `errorMessage`
+  // can read it without the two ever drifting out of sync.
+  const saveErrorMessage: string | null = null;
+  const errorMessage = keymapLoadState === 'failed' ? KEYMAP_PANEL_ERROR_MESSAGE : saveErrorMessage;
 
   // 6. Callbacks -- inert until Slices 62i-62k wire chord capture, persistence
   // and recovery. Each closes over nothing, so its `[]` deps array is an
@@ -48,7 +58,8 @@ export function useKeymapPanel(_props: Readonly<KeymapPanelProps> = {}): UseKeym
 
   return {
     keymapLoadState,
-    saveErrorMessage: null,
+    saveErrorMessage,
+    errorMessage,
     sections,
     onRebind,
     onRevert,

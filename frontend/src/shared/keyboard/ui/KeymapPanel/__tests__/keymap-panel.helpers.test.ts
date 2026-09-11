@@ -24,6 +24,10 @@ describe('listAllBindings', () => {
     expect(bindings).toHaveLength(KEYBOARD_COMMANDS.length + Object.keys(SCOPED_COMMAND_BINDINGS).length);
     expect(bindings.some((binding) => binding.id === 'notification-center.mark-all-read')).toBe(true);
   });
+
+  it('is never empty (mandatory obligation, Note E.2) -- pins D11\'s "resolved-empty is unreachable by construction" claim, the reason KeymapPanel ships no AirisEmptyState', () => {
+    expect(listAllBindings().length).toBeGreaterThan(0);
+  });
 });
 
 describe('groupBindingsBySection', () => {

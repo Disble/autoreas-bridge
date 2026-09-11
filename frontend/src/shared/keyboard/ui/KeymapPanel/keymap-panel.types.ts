@@ -57,6 +57,13 @@ export interface UseKeymapPanelResult {
   readonly keymapLoadState: KeymapLoadState;
   /** Set only by a failed save (design D6); a failed *load* is already covered by `keymapLoadState`. `null` when the last save succeeded or none was attempted. */
   readonly saveErrorMessage: string | null;
+  /**
+   * `KEYMAP_PANEL_ERROR_MESSAGE` while `keymapLoadState === 'failed'`, `saveErrorMessage`
+   * otherwise, `null` when neither has failed (design D11/Slice 62h). `KeymapPanel` gates its
+   * error `Alert` on this single field instead of re-deriving the load/save distinction itself,
+   * keeping the component dumb (frontend architecture constraint #1).
+   */
+  readonly errorMessage: string | null;
   /** The complete binding map, grouped by section, resolved through the current overrides. */
   readonly sections: readonly KeymapPanelSection[];
   /** Attempts to persist `chord` for the command `id` (design D6/D8: refused on a same-scope duplicate, saved with a warning on a cross-scope shadow, saved plainly otherwise). */
