@@ -211,10 +211,6 @@ pre-commit:
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/checkopenapi
 
-          - name: frontend-typecheck
-            glob: "frontend/**"
-            run: bun --cwd="frontend" run typecheck
-
           - name: frontend-lint
             run: bun x eslint {staged_files}
             root: frontend
@@ -249,6 +245,31 @@ pre-commit:
       group:
         piped: true
         jobs:
+          # Moved out of `quick` on 2026-09-11. `tsc` is a 25-second
+          # single-threaded CPU job, not a cheap check, and sitting in `quick`
+          # it ran head-to-head with vitest -- which schedules its HEAVIEST
+          # files FIRST, because Vitest sorts by cached duration. The two
+          # *.windowing.test.tsx rails measure 454ms standalone (the whole
+          # 2525-test suite's slowest test is 1088ms) yet inflated to
+          # 5711-6099ms in that window, blowing Vitest's 5s per-test budget on
+          # three consecutive commit attempts while passing standalone every
+          # time, each attempt taking a different victim from the same burst.
+          #
+          # Raising the budget is not available, and should not be: both the
+          # global and the per-test escape are `no-restricted-syntax` errors in
+          # frontend/eslint.config.js, which names contention as a root cause
+          # to FIX rather than absorb. deps.optimizer and plugin scoping, the
+          # other two fixes that rule prescribes, were already in place.
+          #
+          # Piped first, so the cheapest signal still lands before the 81s
+          # suite. Costs the gate ~20s of critical path and buys a gate that
+          # does not fail on contention -- the same trade the `maxWorkers` cap
+          # in frontend/vite.config.ts already made for the same reason.
+          # pre-merge-commit still has tsc in `quick`; it is rarer and was not
+          # measured here.
+          - name: frontend-typecheck
+            run: bun --cwd="frontend" run typecheck
+
           - name: frontend-test
             run: bun --cwd="frontend" run test
 
