@@ -110,51 +110,62 @@ scenario, per Note C).
 
 ### 1.1 Infrastructure
 
-- [ ] **1.1.1** [GREEN] Create `frontend/src/shared/keyboard/keyboard.types.ts`: `Chord`,
+- [x] **1.1.1** [GREEN] Create `frontend/src/shared/keyboard/keyboard.types.ts`: `Chord`,
   `KeyboardScope`, `CommandSection`, `CommandContext`, `CommandDefinition`, `KeyboardScopeFrame`,
   `KeyboardStoreState`, verbatim from `design.md` §5, every declaration JSDoc'd (CLAUDE.md frontend
   #6). No RED: a type-only file has no runtime behavior to fail first.
-- [ ] **1.1.2** [GREEN] Create `frontend/src/shared/keyboard/keyboard.constants.ts`: `keyboardStore`
+- [x] **1.1.2** [GREEN] Create `frontend/src/shared/keyboard/keyboard.constants.ts`: `keyboardStore`
   via `createStore()` from `zustand/vanilla` (initial `{ frames: [], isHelpOpen: false }`),
   `KEYBOARD_SCOPE`, `CHORD_MODIFIER_ORDER` (`ctrl+alt+shift+meta+<key>` per D8). Mirrors
   `notification-store.constants.ts:11` exactly — store instance lives in `.constants.ts` because
-  `dharness/role-file-shape` reserves `.helpers` for functions (D4).
-- [ ] **1.1.3** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
+  `dharness/role-file-shape` reserves `.helpers` for functions (D4). Also holds
+  `MODIFIER_ONLY_KEYS`/`DIGIT_CODE_PATTERN`/`NUMPAD_CODE_PATTERN` — moved here from
+  `chord.helpers.ts` after `dharness/role-file-shape` rejected plain `const` values in a `.helpers.ts`
+  file (see Deviations in the apply report).
+- [x] **1.1.3** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
   `useKeyboardStore` wrapping `useStore(keyboardStore, selector)`, mirroring `use-notification-store.ts`
   verbatim (D4).
 
 ### 1.2 Implementation
 
-- [ ] **1.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/chord.helpers.test.ts`: a
+- [x] **1.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/chord.helpers.test.ts`: a
   table-driven case for `normalizeChord` — Ctrl+K → one canonical chord string (spec **S3**);
   `Alt+1` on a US layout (`code:'Digit1'`) vs AZERTY (`code:'Digit1', key:'&'`) both → `alt+1`;
   `Shift+/` and `Shift+,` both → `?`; `Alt+Shift+R` → `alt+shift+r`, distinct from `alt+r`; a bare
   `Shift` press alone → `null`; `Numpad1` → NOT `'1'`. Plus a `formatChord` round-trip for the Ctrl+K
-  case (spec **S4**). Design D7, D8.
-- [ ] **1.2.2** [GREEN] Implement `frontend/src/shared/keyboard/chord.helpers.ts`:
+  case (spec **S4**). Design D7, D8. Two extra cases added post-MUTATE (Shift+digit-row, a synthetic
+  multi-char non-alphabetic token) to kill two surviving mutants — see apply report.
+- [x] **1.2.2** [GREEN] Implement `frontend/src/shared/keyboard/chord.helpers.ts`:
   `normalizeChord(event): Chord | null` (digit-row positional escape hatch first, modifier-alone
   returns `null`, then named key, then single printable char, with shift-suppression per D7) and
   `formatChord(chord): string`. Satisfies spec "Chord Normalization And Display Formatting Are Pure
   Functions" (**S3**, **S4**).
-- [ ] **1.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/keyboard-scope.helpers.test.ts`:
+- [x] **1.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/keyboard-scope.helpers.test.ts`:
   pushing a frame then popping it restores the prior top-of-stack (spec **S5**, store-mechanics half —
   see Note C); popping by `id` out of order removes only that frame; a double pop on the same `id` is a
   no-op (D10); `setKeyboardHelpOpen(true)` flips `isHelpOpen`; `resetKeyboardStore()` returns the store
   to its initial shape.
-- [ ] **1.2.4** [GREEN] Implement `frontend/src/shared/keyboard/keyboard-scope.helpers.ts`:
+- [x] **1.2.4** [GREEN] Implement `frontend/src/shared/keyboard/keyboard-scope.helpers.ts`:
   `pushKeyboardScopeFrame`, `popKeyboardScopeFrame` (filters by `id`, D10 — never pop-last),
   `getKeyboardState`, `setKeyboardHelpOpen`, `resetKeyboardStore` (test-only reset every later suite
   touching `keyboardStore` will import).
 
 ### 1.3 Testing & Verification
 
-- [ ] **1.3.1** [MUTATE] `test:mutation:staged` runs automatically via `lefthook.yml` on the staged
-  Slice 1 frontend files at commit time (Stryker, `frontend/stryker.dlinter.json`). Confirm it ran and
-  passed the 0.80 threshold before committing; hand-mutate `normalizeChord`'s shift-suppression branch
-  and the digit-row regex if Stryker's own report shows either uncovered (CLAUDE.md #16).
-- [ ] **1.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard`, 0 failures. Confirm via
-  `git diff --stat` that no file outside `frontend/src/shared/keyboard/` changed.
+- [x] **1.3.1** [MUTATE] Ran manually pre-commit (staged files, `bun --cwd="frontend" run
+  test:mutation:staged`) rather than waiting for the `lefthook.yml` commit-time hook, since apply does
+  not commit. First run: `chord.helpers.ts` 90.91% with 3 survived + 2 no-coverage mutants (the D7
+  digit+shift branch and the `isSingleNonAlphabetic` length guard, exactly the two branches this task
+  names); `use-keyboard-store.ts` 0% (2 no-coverage, matching the untested `use-notification-store.ts`
+  precedent — outside this task's named scope). Hand-added two test cases plus a `formatChord` REFACTOR
+  (the length-based ternary was provably redundant for single-char parts) to kill every named-branch
+  mutant. Second run: `chord.helpers.ts` 100.00%/100.00%, 51 killed, 0 survived, 0 no-coverage. Overall
+  repo-blended score 81.64% ≥ 80% threshold, exit 0. Files left staged for the orchestrator's commit.
+- [x] **1.3.2** [VERIFY] `bun --cwd="frontend" run test -- keyboard`: 2 files, 17 tests, 0 failures.
+  `git status --porcelain` confirms only `frontend/src/shared/keyboard/**` changed (7 new files, all
+  `A`); `bun run typecheck` and `eslint` over the 7 files are both clean.
 - [ ] **1.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+  **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert` the slice commit. Every new file is unreferenced by the rest of the app.
 
