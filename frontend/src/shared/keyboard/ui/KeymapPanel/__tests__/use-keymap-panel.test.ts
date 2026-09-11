@@ -190,3 +190,124 @@ describe('onRebind (task 10.2.1, design D6/D8)', () => {
     expect(firstSource.setKeymap).not.toHaveBeenCalled();
   });
 });
+
+describe('onRevert (task 11.2.1/11.2.2, design D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
+  it('restores one command\'s shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command\'s shipped chord")', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
+    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('alt+1');
+    expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('ctrl+2');
+    const document = JSON.parse(source.setKeymap.mock.calls[0][0] as string) as { bindings: Record<string, string> };
+    expect(document.bindings).toEqual({ 'nav.downloads': 'ctrl+2' });
+  });
+
+  it('leaves the override in place and surfaces the failure when the persisted write does not resolve "ok" (design D6: no optimistic publish)', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const source = { setKeymap: vi.fn().mockResolvedValue('disk is full') };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
+    expect(result.current.saveErrorMessage).toBe('disk is full');
+  });
+
+  it('surfaces a generic failure and leaves the override in place when setKeymap rejects outright', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const source = { setKeymap: vi.fn().mockRejectedValue(new Error('network down')) };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
+    expect(result.current.saveErrorMessage).toBe(KEYMAP_PANEL_ERROR_MESSAGE);
+  });
+
+  it('reads fresh overrides on a second revert in the same session, rather than a frozen first snapshot', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
+    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+    await act(async () => {
+      await result.current.onRevert('nav.downloads');
+    });
+
+    expect(source.setKeymap).toHaveBeenLastCalledWith('');
+  });
+
+  it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
+      initialProps: { source: firstSource },
+    });
+
+    rerender({ source: secondSource });
+    await act(async () => {
+      await result.current.onRevert('nav.today');
+    });
+
+    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
+    expect(firstSource.setKeymap).not.toHaveBeenCalled();
+  });
+});
+
+describe('onResetToDefaults (task 11.2.1/11.2.2, design D5/D6, spec "Recovery Is Always Reachable By Pointer Alone")', () => {
+  it('restores every shipped chord via SetKeymap("") rather than a document enumerating the defaults (design D5)', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
+    const source = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onResetToDefaults();
+    });
+
+    expect(source.setKeymap).toHaveBeenCalledWith('');
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('alt+1');
+    expect(findRow(result.current.sections, 'nav.downloads')?.effectiveChord).toBe('alt+2');
+  });
+
+  it('leaves every override in place and surfaces the failure when the persisted write does not resolve "ok" (design D6: no optimistic publish)', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const source = { setKeymap: vi.fn().mockResolvedValue('disk is full') };
+    const { result } = renderHook(() => useKeymapPanel({ source }));
+
+    await act(async () => {
+      await result.current.onResetToDefaults();
+    });
+
+    expect(findRow(result.current.sections, 'nav.today')?.effectiveChord).toBe('ctrl+1');
+    expect(result.current.saveErrorMessage).toBe('disk is full');
+  });
+
+  it('re-derives the injected source when the prop changes across a render, instead of freezing the first one', async () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const firstSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const secondSource = { setKeymap: vi.fn().mockResolvedValue('ok') };
+    const { result, rerender } = renderHook(({ source }) => useKeymapPanel({ source }), {
+      initialProps: { source: firstSource },
+    });
+
+    rerender({ source: secondSource });
+    await act(async () => {
+      await result.current.onResetToDefaults();
+    });
+
+    expect(secondSource.setKeymap).toHaveBeenCalledTimes(1);
+    expect(firstSource.setKeymap).not.toHaveBeenCalled();
+  });
+});

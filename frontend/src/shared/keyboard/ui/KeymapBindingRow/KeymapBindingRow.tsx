@@ -16,8 +16,14 @@ import type { KeymapBindingRowProps } from './keymap-binding-row.types';
  * `Rebind` control's OWN listening state is local UI state, not business
  * logic, so it owns `useChordCapture` directly (design D7's own placement,
  * `keymap-panel.types.ts`'s `UseChordCaptureResult` doc comment) rather than
- * receiving it from a parent. Pressing `Rebind` still calls the `onRebind`
- * prop (Slice 62f's pinned contract) AND arms local capture.
+ * receiving it from a parent. Pressing `Rebind` arms that local capture and
+ * nothing else.
+ *
+ * 62f gave this row an `onRebind` prop that notified a parent when arming
+ * happened. It is gone: once 62j made `onCaptureChord` the path a captured
+ * chord actually travels, the only caller passed `onRebind` a no-op, and an
+ * API whose sole consumer ignores it outlives everyone who remembers why it
+ * was added.
  *
  * Slice 62j wires the actual write: every captured chord goes to
  * `onCaptureChord`, the panel's real persist-then-publish path (design
@@ -25,7 +31,9 @@ import type { KeymapBindingRowProps } from './keymap-binding-row.types';
  * disarms unless the result is `'refused'` (design D8's "stay armed" case).
  * The returned message (a refusal or a shadow warning) renders below the
  * row until the next `Rebind` press clears it.
- * `onRevert` is inert in this slice; `KeymapPanel` wires it in Slice 62k.
+ * `onRevert` is bound to `revertBinding` via `KeymapPanel` as of Slice 62k;
+ * the row still just presses the button through, since recovery has no
+ * "stay armed" state to react to the way `onCaptureChord`'s outcome does.
  * Shares `KEYMAP_ROW_CLASS` with the loading skeleton (Slice 62h) so the two
  * heights cannot drift.
  */
@@ -36,7 +44,6 @@ export function KeymapBindingRow({
   isOverridden,
   scopeNote,
   onCaptureChord,
-  onRebind,
   onRevert,
 }: Readonly<KeymapBindingRowProps>) {
   // 4. State
@@ -84,7 +91,6 @@ export function KeymapBindingRow({
             onBlur={onBlur}
             onKeyDown={onKeyDown}
             onPress={() => {
-              onRebind();
               setOutcome(null);
               arm();
             }}

@@ -25,7 +25,6 @@ function buildProps(overrides: Partial<KeymapBindingRowProps> = {}): KeymapBindi
     isOverridden: false,
     scopeNote: null,
     onCaptureChord: vi.fn().mockResolvedValue({ status: 'saved', message: null }),
-    onRebind: vi.fn(),
     onRevert: vi.fn(),
     ...overrides,
   };
@@ -59,15 +58,6 @@ describe('KeymapBindingRow', () => {
     expect(screen.getByTestId('keymap-binding-row-scope-note')).toHaveTextContent(
       'while the Notification Center is open',
     );
-  });
-
-  it('calls onRebind when the Rebind button is pressed', () => {
-    const onRebind = vi.fn();
-    render(<KeymapBindingRow {...buildProps({ onRebind })} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Rebind' }));
-
-    expect(onRebind).toHaveBeenCalledTimes(1);
   });
 
   it('shows a capture prompt once armed, then the recorded candidate chord once a key is captured', () => {

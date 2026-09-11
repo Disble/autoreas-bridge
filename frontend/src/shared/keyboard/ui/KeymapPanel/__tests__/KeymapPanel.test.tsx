@@ -67,6 +67,31 @@ describe('KeymapPanel', () => {
 
       await waitFor(() => expect(setKeymap).toHaveBeenCalledTimes(1));
     });
+
+    it('wires a row\'s Revert button to the panel\'s real onRevert, not a no-op stub (task 11.2.3, spec "Recovery Is Always Reachable By Pointer Alone")', async () => {
+      setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
+      const setKeymap = vi.fn().mockResolvedValue('ok');
+      render(<KeymapPanel source={{ setKeymap }} />);
+
+      const revertButtons = screen.getAllByRole('button', { name: 'Revert' });
+      const [enabledRevert] = revertButtons.filter((button) => !button.hasAttribute('disabled'));
+      fireEvent.click(enabledRevert);
+
+      await waitFor(() => expect(setKeymap).toHaveBeenCalledTimes(1));
+      const document = JSON.parse(setKeymap.mock.calls[0][0] as string) as { bindings: Record<string, string> };
+      expect(document.bindings).toEqual({ 'nav.downloads': 'ctrl+2' });
+    });
+
+    it('wires the reset-to-defaults button to onResetToDefaults using only a pointer click, restoring every shipped chord (task 11.2.4, spec "Reset-to-defaults restores every shipped chord using only pointer input")', async () => {
+      setKeymapOverrides({ 'nav.today': 'ctrl+1', 'nav.downloads': 'ctrl+2' });
+      const setKeymap = vi.fn().mockResolvedValue('ok');
+      render(<KeymapPanel source={{ setKeymap }} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+
+      await waitFor(() => expect(setKeymap).toHaveBeenCalledWith(''));
+      await waitFor(() => expect(screen.getAllByTestId('keymap-binding-row-chord')[0]).toHaveTextContent('Alt + 1'));
+    });
   });
 
   describe('loading (keymapLoadState === "pending")', () => {

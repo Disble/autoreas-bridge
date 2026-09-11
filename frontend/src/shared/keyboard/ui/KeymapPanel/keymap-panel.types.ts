@@ -82,10 +82,10 @@ export interface UseKeymapPanelResult {
   readonly sections: readonly KeymapPanelSection[];
   /** Attempts to persist `chord` for the command `id` (design D6/D8: refused on a same-scope duplicate, saved with a warning on a cross-scope shadow, saved plainly otherwise). */
   readonly onRebind: (id: string, chord: Chord) => Promise<KeymapRebindOutcome>;
-  /** Restores one command's shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command's shipped chord using only pointer input"). */
-  readonly onRevert: (id: string) => void;
-  /** Restores every shipped chord (spec "Reset-to-defaults restores every shipped chord using only pointer input"). */
-  readonly onResetToDefaults: () => void;
+  /** Restores one command's shipped chord, leaving every other override unchanged (spec "Per-binding revert restores one command's shipped chord using only pointer input"); resolves once the persist-then-publish write settles (design D6). */
+  readonly onRevert: (id: string) => Promise<void>;
+  /** Restores every shipped chord (spec "Reset-to-defaults restores every shipped chord using only pointer input"), via `SetKeymap("")` (design D5). */
+  readonly onResetToDefaults: () => Promise<void>;
 }
 
 /**

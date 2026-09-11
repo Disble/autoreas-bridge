@@ -45,7 +45,6 @@ describe('KeymapBindingRow capture suppression alongside the real dispatcher (R-
           hazard={null}
           isOverridden={false}
           onCaptureChord={() => Promise.resolve({ status: 'saved', message: null })}
-          onRebind={() => {}}
           onRevert={() => {}}
           scopeNote={null}
         />

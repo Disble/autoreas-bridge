@@ -27,7 +27,6 @@ export interface KeymapBindingRowProps {
   /** Rendered only for a scoped binding, e.g. "while the Notification Center is open"; `null` for a global command. */
   readonly scopeNote: string | null;
   /** Starts a rebind for this row. Inert in Slice 62f -- wired to chord capture's `arm()` in Slice 62i. */
-  readonly onRebind: () => void;
   /** Attempts to persist a chord captured for this row (design D6/D8/D7, Slice 62j); the panel already binds this row's own command `id`. Its `status` decides whether `useChordCapture` keeps listening (`'refused'`) or disarms. */
   readonly onCaptureChord: (chord: Chord) => Promise<KeymapRebindOutcome>;
   /** Restores this row's shipped chord. Inert in Slice 62f -- wired to `revertBinding` in Slice 62k. */

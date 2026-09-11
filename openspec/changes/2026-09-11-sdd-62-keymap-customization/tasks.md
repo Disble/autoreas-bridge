@@ -690,7 +690,7 @@ Alone"**.
 
 ### 11.2 Implementation
 
-- [ ] **11.2.1** [RED] Extend
+- [x] **11.2.1** [RED] Extend
   `frontend/src/shared/keyboard/ui/KeymapPanel/__tests__/use-keymap-panel.test.ts`: activating
   reset-to-defaults with **only** `userEvent.click` (no keyboard chord anywhere in the test) restores
   every shipped chord, calling `setKeymap('')` and `setKeymapOverrides({})` (spec scenario
@@ -698,20 +698,20 @@ Alone"**.
   revert with only `userEvent.click` restores that command's shipped chord while leaving every other
   override unchanged (spec scenario "Per-binding revert restores one command's shipped chord using only
   pointer input").
-- [ ] **11.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: add
+- [x] **11.2.2** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/use-keymap-panel.ts`: add
   `resetToDefaults()` (`setKeymap('')` + `setKeymapOverrides({})`) and `revertBinding(id)` (delete `id`
   from the current overrides, then the same persist-then-publish path as 62j).
-- [ ] **11.2.3** [GREEN] Modify
+- [x] **11.2.3** [GREEN] Modify
   `frontend/src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow.tsx`: wire the already-present
   `Revert` button (enabled only when `isOverridden`, per 6.2.1) to `revertBinding(id)`.
-- [ ] **11.2.4** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: wire the
+- [x] **11.2.4** [GREEN] Modify `frontend/src/shared/keyboard/ui/KeymapPanel/KeymapPanel.tsx`: wire the
   reset-to-defaults button (previously a static placeholder from 7.2.2) and render the hazard legend
   ("`alt+` delivery is unverified in the packaged build" — design §2 D9) below the map, never above it.
 
 ### 11.3 Testing & Verification
 
-- [ ] **11.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **11.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-keymap-panel KeymapPanel`;
+- [x] **11.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **11.3.2** [VERIFY] `bun --cwd="frontend" run test -- use-keymap-panel KeymapPanel`;
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`. Confirm 11.2.1's two
   tests use **zero** keyboard events — grep the test file for `fireEvent.keyDown`/`userEvent.keyboard`
   and confirm no hits inside those two cases.

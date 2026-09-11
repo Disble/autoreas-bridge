@@ -17,8 +17,8 @@ function buildKeymapPanelResult(overrides: Partial<UseKeymapPanelResult> = {}): 
     errorMessage: null,
     sections: [],
     onRebind: () => Promise.resolve({ status: 'saved', message: null }),
-    onRevert: () => {},
-    onResetToDefaults: () => {},
+    onRevert: () => Promise.resolve(),
+    onResetToDefaults: () => Promise.resolve(),
     ...overrides,
   };
 }

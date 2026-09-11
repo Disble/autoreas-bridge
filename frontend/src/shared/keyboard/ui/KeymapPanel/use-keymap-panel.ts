@@ -4,7 +4,7 @@ import { preferencesSource } from '../../../../infrastructure/preferences-source
 import type { Chord, CommandBinding } from '../../keyboard.types';
 import { setKeymapOverrides } from '../../keyboard-scope.helpers';
 import { pruneKeymap, resolveKeymap, serializeKeymap } from '../../keymap.helpers';
-import type { ShadowedBinding } from '../../keymap.types';
+import type { KeymapOverrides, ShadowedBinding } from '../../keymap.types';
 import { findShadowedBindings } from '../../registry.helpers';
 import { useKeyboardStore } from '../../use-keyboard-store';
 import { KEYMAP_PANEL_ERROR_MESSAGE, KEYMAP_SAVED_MESSAGE } from './keymap-panel.constants';
@@ -57,13 +57,14 @@ function buildShadowWarningMessage(shadow: ShadowedBinding, resolved: readonly C
 /**
  * Derives the keymap panel's render-ready state from the shared keyboard
  * store (design D10/D11) and owns the persist-then-publish write path
- * (design D6/D8, Slice 62j). Slice 62g computed only the effective rows;
- * Slice 62h added `errorMessage`, the single field `KeymapPanel` gates its
- * accessible loading/error triad on (task 8.2.2) -- `keymapLoadState`
- * already distinguishes a failed read from "loaded with zero overrides"
- * (design D11, shipped ahead of this slice in 62d), so no new store field
- * was needed for the load half, only this derivation. `onRevert`/
- * `onResetToDefaults` stay inert no-ops until Slice 62k.
+ * (design D6/D8, Slice 62j) plus its two recovery affordances (design D5/D6,
+ * Slice 62k -- spec "Recovery Is Always Reachable By Pointer Alone"). Slice
+ * 62g computed only the effective rows; Slice 62h added `errorMessage`, the
+ * single field `KeymapPanel` gates its accessible loading/error triad on
+ * (task 8.2.2) -- `keymapLoadState` already distinguishes a failed read from
+ * "loaded with zero overrides" (design D11, shipped ahead of this slice in
+ * 62d), so no new store field was needed for the load half, only this
+ * derivation.
  * @param props Its `source`, narrowed to `setKeymap`, defaults to the real
  * `preferencesSource` singleton (mirrors `AutoStartPanelProps.source`).
  */
@@ -135,12 +136,46 @@ export function useKeymapPanel(props: Readonly<KeymapPanelProps> = {}): UseKeyma
     },
     [overrides, source],
   );
-  // `onRevert`/`onResetToDefaults` stay inert until Slice 62k; their `[]`
-  // deps are the same identity-only EQUIVALENT MUTANT class documented in
-  // `use-chord-capture.ts`'s `arm`/`onBlur`. `onRebind` above is different:
-  // its `[overrides, source]` deps are REAL, not equivalent.
-  const onRevert = useCallback((_id: string) => {}, []);
-  const onResetToDefaults = useCallback(() => {}, []);
+  /**
+   * Persists `candidate` and publishes it to the store only once the write
+   * succeeds (design D6) -- the exact success/failure handling `onRebind`
+   * established in 62j, factored out here so `onRevert`/`onResetToDefaults`
+   * share it instead of re-deriving it. Neither caller needs a refusal or
+   * shadow check: removing an override can only ever narrow the candidate
+   * back toward the shipped registry, which `onRebind`'s own checks already
+   * guarantee is conflict-free before any override existed.
+   */
+  const persistOverrides = useCallback(
+    (candidate: KeymapOverrides): Promise<void> => {
+      setSaveErrorMessage(null);
+      return source
+        .setKeymap(serializeKeymap(candidate))
+        .then((status) => {
+          if (!isKeymapSaved(status)) {
+            setSaveErrorMessage(status);
+            toast.danger(KEYMAP_PANEL_ERROR_MESSAGE);
+            return;
+          }
+          setKeymapOverrides(candidate);
+          toast.success(KEYMAP_SAVED_MESSAGE);
+        })
+        .catch(() => {
+          setSaveErrorMessage(KEYMAP_PANEL_ERROR_MESSAGE);
+          toast.danger(KEYMAP_PANEL_ERROR_MESSAGE);
+        });
+    },
+    [source],
+  );
+  /** Restores one command's shipped chord, leaving every other override unchanged (spec "Per-binding revert..."). */
+  const onRevert = useCallback(
+    (id: string): Promise<void> => {
+      const { [id]: _dropped, ...candidate } = overrides;
+      return persistOverrides(candidate);
+    },
+    [overrides, persistOverrides],
+  );
+  /** Restores every shipped chord via Go's own `SetKeymap("")` escape hatch (design D5) -- `serializeKeymap({})` already returns `''`, so persisting an empty override set never enumerates the defaults, which would go stale the moment one changes. */
+  const onResetToDefaults = useCallback((): Promise<void> => persistOverrides({}), [persistOverrides]);
 
   return {
     keymapLoadState,
