@@ -168,7 +168,7 @@ scenario, per Note C).
 - [x] **1.3.2** [VERIFY] `bun --cwd="frontend" run test -- keyboard`: 2 files, 17 tests, 0 failures.
   `git status --porcelain` confirms only `frontend/src/shared/keyboard/**` changed (7 new files, all
   `A`); `bun run typecheck` and `eslint` over the 7 files are both clean.
-- [ ] **1.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+- [x] **1.3.3** [GATE] `git commit` — done by the orchestrator as `19da42e`, full pre-commit gate green. First attempt was REJECTED by `fallow audit` (unused file `use-keyboard-store.ts`, unused export `KEYBOARD_SCOPE`); both were removed rather than suppressed, and task 1.1.3 was re-opened as deferred.
   **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert` the slice commit. Every new file is unreferenced by the rest of the app.
@@ -268,7 +268,7 @@ fully unit-tested, but nothing calls `dispatchKeyboardEvent` from a real `keydow
   failures (17 from Slice 1 + 32 new). `bun run typecheck` clean. `bunx eslint` over all 7
   created/modified files clean (role-file-shape, require-jsdoc, no findings). Confirmed the boundary:
   `grep -rn "from '.*features" src/shared/keyboard/` — zero hits, exit 1.
-- [ ] **2.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+- [x] **2.3.3** [GATE] `git commit` — done by the orchestrator as `6d3cba6`, full pre-commit gate green on the first attempt. `NAV_COMMAND_CHORDS` was made module-private before committing, pre-empting the slice-1 dead-code rejection.
   **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`. `KEYBOARD_COMMANDS` and `dispatchKeyboardEvent` remain unreferenced by any
@@ -389,7 +389,7 @@ Requirements covered: **4** (completed — R-4 real-render proof), **6** (fully)
   every route with `KeyboardDispatcherListener` mounted). `render:smoke` clean. `tsc --noEmit` and
   `eslint` over the full touched surface both clean. Boundary confirmed:
   `grep -rn "from '.*features" frontend/src/shared/keyboard/` — zero hits, exit 1.
-- [ ] **3.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+- [x] **3.3.3** [GATE] `git commit` — done by the orchestrator as `af08b4e`, full pre-commit gate green on the first attempt.
   **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`, OR delete the one `<KeyboardDispatcherListener />` line from
@@ -474,15 +474,22 @@ and, here, the ADR itself). Inside the ledger's 800-line cap with clear margin. 
   green, confirming zero backend files touched across the whole four-slice chain (design §7, zero
   Go/REST/WS/SQLite surface). Boundary confirmed: `grep -rn "from '.*features" frontend/src/shared/keyboard/`
   — zero hits, exit 1.
-- [ ] **4.3.3** [VERIFY] [[MANDATORY WEBVIEW2 MANUAL CHECK — sdd-verify obligation, design §9, open
+- [x] **4.3.3** [VERIFY] [[MANDATORY WEBVIEW2 MANUAL CHECK — sdd-verify obligation, design §9, open
   question]] `wails build`, launch the packaged app, and manually confirm `Alt+1` through `Alt+0` reach
   the page rather than being swallowed as a Windows system chord. jsdom cannot prove this — do not
   infer a result from the green suite. If any chord is swallowed, the fix is a one-line
   `NAV_COMMAND_CHORDS` data change (e.g. `alt+shift+<digit>`), not a code change (chords are data by
   design). Record the pass/fail result, and the chosen chord if changed, explicitly in the
-  `sdd-verify` report. **Left unchecked** — needs a human at a Windows machine running the packaged
-  app; neither the apply nor the orchestrating agent can perform it.
-- [ ] **4.3.4** [GATE] Lesson half done: appended one lesson via `node scripts/log-lesson.mjs` — a
+  `sdd-verify` report. **RESULT: PASS, 2026-09-11.** Validated by the repository owner in the packaged app and
+  attested in conversation; the orchestrator did not observe the keypresses and records the
+  owner as the evidence source. No chord was changed, so `NAV_COMMAND_CHORDS` ships as
+  authored. A screenshot independently corroborates the scope machinery: the help overlay
+  listed `Mark all as read` under NOTIFICATIONS, which only renders while the Notification
+  Center has pushed its frame. Scope widened during verification: the obligation was written
+  as `Alt+1`..`Alt+0`, but **11 of the 12 shipped chords are `alt+`** (ten navigation plus
+  `alt+r`) and Windows treats Alt as the menu-mnemonic modifier, so the real question was the
+  whole `alt+` family rather than the digit row. `?` was already proven earlier the same day.
+- [x] **4.3.4** [GATE] Lesson half done: appended one lesson via `node scripts/log-lesson.mjs` — a
   mount-time effect closing an overlay on `[pathname]` fires on first mount too (no prior value to
   compare), which silently closed the help dialog the instant it mounted even when a caller had just
   set `isHelpOpen` to `true`; fixed with a ref holding the previous pathname, only acting on a genuine
@@ -490,7 +497,14 @@ and, here, the ADR itself). Inside the ledger's 800-line cap with clear margin. 
   because it is the one that actually cost cycles in this slice: a real production bug strict TDD
   caught before it shipped, not a fact already recorded in a prior slice's Learned section or in
   design.md itself. `git commit` half (full pre-commit gate, ≥300 000 ms timeout, never `--no-verify`)
-  **left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
+  **done as `2d4af42`** by the orchestrator, plus `e8ecdce` for the lesson. The first three
+  attempts were rejected by a pre-existing contention defect outside this change: `tsc` sat in
+  lefthook`s cheap-checks group and starved the vitest suite it ran beside, so two
+  `*.windowing.test.tsx` rails that measure 454ms standalone inflated past Vitest`s 5s budget.
+  Both timeout escapes are `no-restricted-syntax` errors in `frontend/eslint.config.js`, which
+  names contention as a root cause to fix rather than absorb; the linter refused the first fix
+  attempt and was right to. Resolved in its own commit `0350712` by moving typecheck into the
+  frontend lane. apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`. `?` still sets `isHelpOpen` inertly, matching the pre-Slice-4 state — no
 user-visible regression from reverting this slice alone.
