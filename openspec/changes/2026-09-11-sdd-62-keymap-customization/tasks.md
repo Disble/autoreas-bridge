@@ -451,20 +451,20 @@ Renders The Complete Map First..." once mounted in 62g).
 
 ### 6.1 Infrastructure
 
-- [ ] **6.1.1** [GREEN] Create
+- [x] **6.1.1** [GREEN] Create
   `frontend/src/shared/keyboard/ui/KeymapBindingRow/keymap-binding-row.types.ts`: `readonly` props
   (`binding`, `effectiveChord`, `hazard`, `isOverridden`, `scopeNote`, `onRebind`, `onRevert`). No RED.
 
 ### 6.2 Implementation
 
-- [ ] **6.2.1** [RED] Write
+- [x] **6.2.1** [RED] Write
   `frontend/src/shared/keyboard/ui/KeymapBindingRow/__tests__/KeymapBindingRow.test.tsx`: renders the
   label and the effective chord (formatted via `formatChord`); renders a hazard `Chip` only when
   `hazard === 'browser-zoom'`, never for `'unverified-delivery'` (that is the one-legend case, handled
   by the panel, not the row); renders the scope note only for a scoped binding ("while the Notification
   Center is open"); `Rebind` and `Revert` buttons are present and call their respective `onRebind`/
   `onRevert` callbacks — `Revert` disabled when `isOverridden` is `false`.
-- [ ] **6.2.2** [GREEN] Implement
+- [x] **6.2.2** [GREEN] Implement
   `frontend/src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow.tsx`: dumb component, HeroUI
   primitives only, `KEYMAP_ROW_CLASS` from `keymap-panel.constants.ts` on its root element so the
   skeleton row (Slice 62h) shares its height. No Wails calls, no business logic (frontend architecture
@@ -472,8 +472,8 @@ Renders The Complete Map First..." once mounted in 62g).
 
 ### 6.3 Testing & Verification
 
-- [ ] **6.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
-- [ ] **6.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapBindingRow`; `bun run typecheck`;
+- [x] **6.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice.
+- [x] **6.3.2** [VERIFY] `bun --cwd="frontend" run test -- KeymapBindingRow`; `bun run typecheck`;
   `bunx eslint`.
 - [ ] **6.3.3** [GATE] Left to the orchestrator.
 
