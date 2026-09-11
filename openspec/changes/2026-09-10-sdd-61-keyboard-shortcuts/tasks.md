@@ -181,29 +181,35 @@ fully unit-tested, but nothing calls `dispatchKeyboardEvent` from a real `keydow
 
 ### 2.1 Infrastructure
 
-- [ ] **2.1.1** [RED] Write `frontend/src/shared/keyboard/__tests__/registry.helpers.test.ts`:
+- [x] **2.1.1** [RED] Write `frontend/src/shared/keyboard/__tests__/registry.helpers.test.ts`:
   `findDuplicateBindings` returns an empty array over two non-conflicting entries, and returns BOTH
   conflicting command ids over a seeded duplicate `{scope, chord}` pair (non-vacuous — design §6).
-  `findDuplicateCommandIds` mirrors the same empty/seeded-duplicate shape for `id`.
-- [ ] **2.1.2** [GREEN] Implement `frontend/src/shared/keyboard/registry.helpers.ts`:
+  `findDuplicateCommandIds` mirrors the same empty/seeded-duplicate shape for `id`. Also added two
+  cases for `buildNavigationCommands` (assigned-chord case + omitted-unassigned-route case) beyond the
+  task's literal list, since strict TDD's "no production code before a failing test" rule otherwise
+  had no RED for that function ahead of 2.1.2 — see Deviations in the apply report.
+- [x] **2.1.2** [GREEN] Implement `frontend/src/shared/keyboard/registry.helpers.ts`:
   `buildNavigationCommands(navGroups, chordsByPath)`, `findDuplicateBindings(commands)`,
   `findDuplicateCommandIds(commands)`.
 
 ### 2.2 Implementation
 
-- [ ] **2.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/command-registry.constants.test.ts`:
+- [x] **2.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/command-registry.constants.test.ts`:
   derive expected commands from `APP_LAYOUT_NAV_GROUPS` via `flattenNavItems` rather than hand-listing
   them — every one of the 10 routes has exactly one bound global command in `KEYBOARD_COMMANDS`, and
   `command.run({ navigate: spy })` calls `spy` with that route's `to` (spec **S11**; an 11th nav item
   added later must fail this suite, per spec's own wording). Also assert, over the REAL shipped array,
   `findDuplicateBindings(KEYBOARD_COMMANDS)` is empty (spec **S1**) and every entry declares a
-  non-empty `section` (spec **S2**).
-- [ ] **2.2.2** [GREEN] Implement `frontend/src/shared/keyboard/command-registry.constants.ts`:
+  non-empty `section` (spec **S2**). Added a fourth case proving the `?` help command actually flips
+  `isHelpOpen` when run, not just that it exists.
+- [x] **2.2.2** [GREEN] Implement `frontend/src/shared/keyboard/command-registry.constants.ts`:
   `NAV_COMMAND_CHORDS` (`Readonly<Record<string, Chord>>`, `alt+1`…`alt+9`, `alt+0` mapped to the 10
   routes in `flattenNavItems(APP_LAYOUT_NAV_GROUPS)` order, per design's shipped keymap table) and
   `KEYBOARD_COMMANDS` (`buildNavigationCommands(...)` spread plus the `?` → open-help command, which
-  calls `setKeyboardHelpOpen(true)` from `keyboard-scope.helpers.ts`).
-- [ ] **2.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/dispatch.helpers.test.ts` —
+  calls `setKeyboardHelpOpen(true)` from `keyboard-scope.helpers.ts`). `NAV_COMMAND_CHORDS` is
+  hand-listed data, not derived from list position — deliberate, so an 11th nav item with no entry
+  here yields no chord rather than a bogus computed `alt+11` (design §9).
+- [x] **2.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/dispatch.helpers.test.ts` —
   **one named test per guard**, each asserting the matched command's `run` was NOT called:
   `event.defaultPrevented === true`; `event.isComposing === true` (spec **S10**); focus target is
   `input`/`textarea`/`[contenteditable]` (spec **S9**); an unbound chord with no matching command
@@ -211,23 +217,55 @@ fully unit-tested, but nothing calls `dispatchKeyboardEvent` from a real `keydow
   command shadows a global one sharing the same chord and does NOT fall through to global when its
   `enabled()` is `false` (spec **S7**, D9); popping the scoped frame and re-dispatching the same chord
   resolves the global command instead (spec **S5**, full proof completing Note C). `event.repeat` is
-  asserted to NOT bail dispatch (D12 — explicitly not a fifth guard).
-- [ ] **2.2.4** [GREEN] Implement `frontend/src/shared/keyboard/dispatch.helpers.ts`:
+  asserted to NOT bail dispatch (D12 — explicitly not a fifth guard). Also added: direct `isTypingTarget`
+  and `resolveCommand` unit tests (same strict-TDD reasoning as 2.1.1 — design calls both
+  "unit-testable without rendering" and exporting them with no direct test would be a dead export
+  under `fallow audit`), a positive dispatch case (bound chord actually navigates + calls
+  `preventDefault`), and a null-chord bail case (a bare modifier press) added post-MUTATE.
+- [x] **2.2.4** [GREEN] Implement `frontend/src/shared/keyboard/dispatch.helpers.ts`:
   `isTypingTarget(target)`, `resolveCommand(chord, frames, commands)` (top-down frame walk, first
   frame declaring the chord wins, D9), `dispatchKeyboardEvent(event, context)` (the 9-step algorithm
-  from design §3, reading `keyboardStore.getState().frames`).
+  from design §3, reading `keyboardStore.getState().frames`). `isTypingTarget`'s target parameter is a
+  structurally-narrowed `TypingTargetLike` (mirrors `ChordSourceEvent`'s pattern), not `EventTarget`,
+  because this test file runs in Vitest's `node` project (`*.helpers.test.ts` under `shared/**`) with
+  no jsdom — see Deviations.
 
 ### 2.3 Testing & Verification
 
-- [ ] **2.3.1** [MUTATE] `test:mutation:staged` (automatic via `lefthook.yml`) over the Slice 2 staged
-  diff. Confirm the guard-ordering mutant (moving `isTypingTarget` ahead of `event.defaultPrevented`)
-  and the D9 "disabled command falls through to global" mutant are both KILLED; hand-mutate either if
-  Stryker reports it uncovered (CLAUDE.md #16).
-- [ ] **2.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard`. Confirm the boundary:
-  `shared/keyboard/**` imports nothing from `features/` (`.dharness/fallow.jsonc:67`,
-  `{"from": "shared", "allow": ["infrastructure"]}`) — grep the new files for
-  `from '.*features` and confirm zero hits.
+- [x] **2.3.1** [MUTATE] Ran manually (staged files, `bun --cwd="frontend" run test:mutation:staged`)
+  since apply does not commit and `lefthook.yml` only fires on commit. First run over the whole staged
+  diff: repo-blended 82.37% (pass), but isolating the four Slice 2 production files (targeted
+  `stryker run --mutate <ranges> --reporters clear-text,json`) surfaced 6 survived + 1 no-coverage
+  mutant Stryker's summary table hid inside the repo-blended average: (1) `dispatch.helpers.ts` —
+  `chord === null` guard both survived and had a no-coverage block (no test dispatched an event that
+  normalizes to no chord); `tagName !== undefined && ...` survived (the guard is redundant at runtime
+  since `Set.has(undefined)` is already `false` — TS requires it only for `Set<string>.has()`'s
+  parameter type); the `getAttribute?.()` optional-chaining survived (no test exercised a target with
+  no `getAttribute` at all). (2) `registry.helpers.ts` — three survivors on the `id` template literal
+  (empty string, widened regex, replacement-string swap), because no test asserted the exact `id`
+  value `buildNavigationCommands` produces. Fixed: widened `TYPING_TAG_NAMES` to
+  `ReadonlySet<string | undefined>` so the redundant `tagName !== undefined` check could be deleted
+  outright (mutation-tdd's "simplify first"); replaced `.replace(/^\//, '')` with `.slice(1)` in
+  `registry.helpers.ts` (every real `to` starts with `/`, so the regex added nothing but mutation
+  surface); added a null-chord dispatch test, a missing-`getAttribute` `isTypingTarget` test, and an
+  exact-`id` assertion. The one true equivalent mutant left (`chord === null`'s guard is
+  runtime-redundant with the `command === null` guard right after it, since no `CommandDefinition`
+  ever has a `null` chord, but TS still requires the narrowing to call `resolveCommand`) is disposed
+  with a narrow `// Stryker disable next-line ConditionalExpression,BlockStatement: <reason>` comment
+  at that exact line, following the existing repo convention in `history-table.helpers.ts:107`.
+  Second run: all four production files 100.00%/100.00%, 93 killed, 0 survived, 0 no-coverage.
+  Repo-blended re-run: 82.69% ≥ 80% threshold, exit 0. The named guard-ordering and D9 fall-through
+  mutants are both covered by name: D9's is the explicit S7 test above; the guard-ordering concern
+  (`isTypingTarget` ahead of `defaultPrevented`) has no observable difference to test against, since
+  both are pure early-returns with no side effects between them — Stryker's mutators (which mutate
+  expressions, not statement order) surfaced nothing here, consistent with that being a true
+  order-independent equivalence rather than an untested branch.
+- [x] **2.3.2** [VERIFY] Ran `bun --cwd="frontend" run test -- keyboard`: 5 files, 49 tests, 0
+  failures (17 from Slice 1 + 32 new). `bun run typecheck` clean. `bunx eslint` over all 7
+  created/modified files clean (role-file-shape, require-jsdoc, no findings). Confirmed the boundary:
+  `grep -rn "from '.*features" src/shared/keyboard/` — zero hits, exit 1.
 - [ ] **2.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+  **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`. `KEYBOARD_COMMANDS` and `dispatchKeyboardEvent` remain unreferenced by any
 mounted component.

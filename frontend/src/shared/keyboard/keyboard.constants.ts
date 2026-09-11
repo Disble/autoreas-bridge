@@ -37,3 +37,17 @@ export const keyboardStore = createStore<KeyboardStoreState>()(() => ({
   frames: [],
   isHelpOpen: false,
 }));
+
+/**
+ * HTML tag names `isTypingTarget` (`dispatch.helpers.ts`) treats as
+ * always-typing surfaces (design §3 guard G3, spec Requirement 4). Lives
+ * here, not in `dispatch.helpers.ts`, for the same `dharness/role-file-shape`
+ * reason `MODIFIER_ONLY_KEYS` does above (D4 precedent, Slice 1): a plain
+ * `Set` is a value, not a type or a function.
+ *
+ * Typed to also accept `undefined` so `isTypingTarget` can call `.has()`
+ * directly on a possibly-missing `tagName` with no redundant guard: `.has()`
+ * simply returns `false` for a value that is never a member, and `undefined`
+ * is never one of `'INPUT'`/`'TEXTAREA'`.
+ */
+export const TYPING_TAG_NAMES: ReadonlySet<string | undefined> = new Set(['INPUT', 'TEXTAREA']);
