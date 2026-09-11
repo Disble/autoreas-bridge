@@ -14,6 +14,18 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Added
+
+- Keyboard shortcuts. `Alt+1` through `Alt+0` jump straight to the ten sections in the order the rail shows them — Today, Downloads, Editor, Catalog, History, Season, Devices, Activity, Notifications, Settings — and `Alt+R` marks the loaded notifications as read while the Notification Center is open.
+- Press `?` for the list of shortcuts. It is built from the shortcuts themselves rather than written by hand, so it cannot drift out of date, and it shows the ones belonging to the screen you are on alongside the global ones.
+- Shortcuts stay out of your way while you type. Nothing fires from inside a text field, and any control that already uses a key keeps it: arrow keys still move through a table, and Escape still closes an open dropdown instead of triggering a shortcut behind it.
+
+### Internal
+
+- Shortcuts are declared as data in one registry that the dispatcher, the conflict check and the help list all read, so adding one is a single entry rather than a key handler wired into a component. Two shortcuts claiming the same key is a test failure, not a silent loss. Recorded in `docs/adr/019-keyboard-command-registry.md`.
+- Known limitation, deliberately not fixed: a keyboard layout with no Latin letters gets the digit and `?` shortcuts but no letter ones. The one-line change that would address it is written down in the ADR and was left unshipped because no affected user is known.
+- The pre-commit gate ran TypeScript's type check inside its group of cheap checks, where it starved the frontend test suite it ran beside — tests that take 454ms alone were taking almost six seconds and failing their budget. Type-checking now runs in the frontend lane instead. The gate takes the same wall-clock time as before and the type check itself got three times faster, having been starved too.
+
 ## [1.11.1] — 2026-09-08
 
 ### Internal

@@ -212,6 +212,7 @@
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
 | `fallow-repo-setup` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
+| `keyboard-shortcuts` | Adding or scoping a keyboard shortcut, a chord that does nothing or fires twice, the shortcuts help dialog |
 
 ## References
 
