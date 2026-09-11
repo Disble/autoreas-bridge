@@ -263,50 +263,50 @@ the backend is responsible for (returning `""` for a missing/cleared row).
 
 ### 3.1 Infrastructure
 
-- [ ] **3.1.1** [GREEN] Modify `internal/desktop/app.go`: add `Keymap(ctx) (string, error)` and
+- [x] **3.1.1** [GREEN] Modify `internal/desktop/app.go`: add `Keymap(ctx) (string, error)` and
   `SetKeymap(ctx, document string) error` to the `appSettingsStore` interface (lines ~150-159), beside
   the existing four pairs. No RED — an interface addition alone has no runtime behavior.
 
 ### 3.2 Implementation
 
-- [ ] **3.2.1** [RED] Write `internal/settings/keymap_test.go`: `Keymap`/`SetKeymap` round-trip a
+- [x] **3.2.1** [RED] Write `internal/settings/keymap_test.go`: `Keymap`/`SetKeymap` round-trip a
   document over `t.TempDir()` + real SQLite (per `go-testing`); a missing row returns `""`;
   `SetKeymap("")` clears an existing row back to `""`. **Mandatory obligation — the opaque-bytes guard
   (Note E.1)**: persist a string that is deliberately neither valid JSON nor a valid chord (e.g.
   `` `{not json: alt++` ``) and assert `Keymap` returns it **byte-identical**. This is the deterministic
   guard that stops a future Go-side chord validator (design §2 D5.3).
-- [ ] **3.2.2** [GREEN] Modify `internal/settings/store.go`: add `const keyKeymap = "keyboard.keymap"`
+- [x] **3.2.2** [GREEN] Modify `internal/settings/store.go`: add `const keyKeymap = "keyboard.keymap"`
   and `Keymap`/`SetKeymap` methods delegating to the existing `Get`/`Set`, **no `TrimSpace`** (unlike
   `SetAPIAddr` — trimming is a content transformation on a document Go must not interpret, design §2
   D5). Doc comment on `SetKeymap` names `normalizeChord` (TypeScript) as the sole authority on chord
   grammar and states the prohibition explicitly, per design §2 D5.2.
-- [ ] **3.2.3** [RED] Write `internal/desktop/app_keymap_test.go`: `App.GetKeymap` with a nil
+- [x] **3.2.3** [RED] Write `internal/desktop/app_keymap_test.go`: `App.GetKeymap` with a nil
   `settingsStore` returns `""`; `App.SetKeymap` with a nil store returns `"settings store unavailable"`;
   a store error surfaces its `.Error()` string; success returns `"ok"`; a value round-trips through both
   bound methods unchanged (injected fake port, per `app_preferences_test.go`'s existing pattern).
-- [ ] **3.2.4** [GREEN] Modify `internal/desktop/app_preferences.go`: add `GetKeymap`/`SetKeymap`
+- [x] **3.2.4** [GREEN] Modify `internal/desktop/app_preferences.go`: add `GetKeymap`/`SetKeymap`
   bound methods, nil-tolerant like every neighbor (`GetDownloadsRoot`/`SetDownloadsRoot` shape, not
   `SetAPIAddress`'s — no validation, no `TrimSpace`, Keymap is opaque).
-- [ ] **3.2.5** [RED] Extend
+- [x] **3.2.5** [RED] Extend
   `frontend/src/infrastructure/preferences-source/__tests__/preferences-source.helpers.test.ts` (create
   if absent): `getKeymap`/`setKeymap` guarded by `waitForBindings(() => hasGoBinding('GetKeymap' |
   'SetKeymap'))`, degrading to `''` on read and `'runtime unavailable'` on write when the binding is
   absent — identical shape to every existing method in the file.
-- [ ] **3.2.6** [GREEN] Modify `frontend/src/infrastructure/preferences-source/preferences-source.types.ts`
+- [x] **3.2.6** [GREEN] Modify `frontend/src/infrastructure/preferences-source/preferences-source.types.ts`
   (add `getKeymap`/`setKeymap` to `PreferencesSource`) and `preferences-source.helpers.ts` (implement
   both, importing `GetKeymap`/`SetKeymap` from `../../../wailsjs/go/desktop/App` — **apply-time gotcha**:
   `tsc` fails on this import until `wails dev`/`wails build` regenerates the gitignored bindings).
 
 ### 3.3 Testing & Verification
 
-- [ ] **3.3** [VERIFY — mandatory obligation, Note E.1] Confirm `internal/settings/keymap_test.go`'s
+- [x] **3.3** [VERIFY — mandatory obligation, Note E.1] Confirm `internal/settings/keymap_test.go`'s
   opaque-bytes case is present and green; re-run it once more standalone
   (`go test ./internal/settings/... -run TestKeymap -v`) and paste the pass line into the apply report.
-- [ ] **3.3.1** [MUTATE] Go: `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+- [x] **3.3.1** [MUTATE] Go: `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
   "go test -count=1 -json ./internal/settings/"`, then again with `./internal/desktop/` — **the owning
   package named, never `./...`** (CLAUDE.md #16). Frontend:
   `bun --cwd="frontend" run test:mutation:staged`, isolated to `preferences-source.*`.
-- [ ] **3.3.2** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`; `go vet ./...`;
+- [x] **3.3.2** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`; `go vet ./...`;
   `gofmt -l .` empty. `bun run typecheck` (expected to fail until Wails bindings regenerate locally —
   record that as an apply-time step, not a defect). `bunx eslint` on the two frontend files.
 - [ ] **3.3.3** [GATE] Left to the orchestrator.

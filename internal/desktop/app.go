@@ -156,6 +156,8 @@ type appSettingsStore interface {
 	SetEpisodeRenameEnabled(ctx context.Context, enabled bool) error
 	APIAddr(ctx context.Context) (string, error)
 	SetAPIAddr(ctx context.Context, addr string) error
+	Keymap(ctx context.Context) (string, error)
+	SetKeymap(ctx context.Context, document string) error
 }
 
 // autoStartReconciler synchronizes the Bridge-owned Windows Run value.

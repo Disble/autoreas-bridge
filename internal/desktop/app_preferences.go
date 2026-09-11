@@ -127,6 +127,35 @@ func (a *App) autoStartEnabled(ctx context.Context) (enabled bool, err error) {
 	return a.settingsStore.AutoStartEnabled(ctx)
 }
 
+// GetKeymap returns the persisted keymap document, or "" when the settings
+// store is unavailable or nothing has been rebound yet. The document is
+// opaque here -- normalizeChord (TypeScript) is the sole authority on chord
+// grammar, not this binding (design.md D5).
+func (a *App) GetKeymap() string {
+	if a.settingsStore == nil {
+		return ""
+	}
+	document, err := a.settingsStore.Keymap(a.seasonCtx())
+	if err != nil {
+		return ""
+	}
+	return document
+}
+
+// SetKeymap persists the keymap document verbatim. Returns "ok" or an error
+// string. No validation happens here -- normalizeChord (TypeScript) is the
+// sole authority on chord grammar (design.md D5); an empty document clears
+// back to the shipped defaults.
+func (a *App) SetKeymap(document string) string {
+	if a.settingsStore == nil {
+		return "settings store unavailable"
+	}
+	if err := a.settingsStore.SetKeymap(a.seasonCtx(), document); err != nil {
+		return err.Error()
+	}
+	return "ok"
+}
+
 // PickFolder opens the native directory picker and returns the chosen absolute
 // path, or "" when the user cancels (or no runtime is available). Shared by the
 // Options downloads-root setting and the per-anime folder override in intake.

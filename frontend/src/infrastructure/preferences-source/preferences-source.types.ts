@@ -8,4 +8,6 @@ export interface PreferencesSource {
   readonly pickFolder: (title: string) => Promise<string>;
   readonly getAutoStartEnabled: () => Promise<boolean>;
   readonly setAutoStartEnabled: (enabled: boolean) => Promise<string>;
+  readonly getKeymap: () => Promise<string>;
+  readonly setKeymap: (document: string) => Promise<string>;
 }

@@ -1,10 +1,12 @@
 import {
   GetAutoStartEnabled,
   GetDownloadsRoot,
+  GetKeymap,
   GetSeasonMode,
   PickFolder,
   SetAutoStartEnabled,
   SetDownloadsRoot,
+  SetKeymap,
 } from '../../../wailsjs/go/desktop/App';
 import { PREFERENCES_SOURCE_STATE } from './preferences-source.constants';
 import type { PreferencesSource } from './preferences-source.types';
@@ -47,6 +49,16 @@ export function createPreferencesSource(): PreferencesSource {
     setAutoStartEnabled(enabled: boolean) {
       return waitForBindings(() => hasGoBinding('SetAutoStartEnabled')).then((isReady) => {
         return isReady ? SetAutoStartEnabled(enabled) : Promise.resolve('runtime unavailable');
+      });
+    },
+    getKeymap() {
+      return waitForBindings(() => hasGoBinding('GetKeymap')).then((isReady) => {
+        return isReady ? GetKeymap() : Promise.resolve('');
+      });
+    },
+    setKeymap(document: string) {
+      return waitForBindings(() => hasGoBinding('SetKeymap')).then((isReady) => {
+        return isReady ? SetKeymap(document) : Promise.resolve('runtime unavailable');
       });
     },
   };
