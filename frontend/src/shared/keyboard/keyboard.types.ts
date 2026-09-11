@@ -18,14 +18,24 @@ export interface CommandContext {
   readonly navigate: NavigateFunction;
 }
 
-/** One binding: what it is called, what claims it, and what it does. */
-export interface CommandDefinition {
+/**
+ * One binding's identity and metadata -- everything the keymap, the map UI
+ * and the conflict checker need, with no behavior attached (design D3).
+ */
+export interface CommandBinding {
   readonly id: string;
   readonly scope: KeyboardScope;
   readonly chord: Chord;
   /** Rendered verbatim by the help dialog. Nav labels are reused from `APP_LAYOUT_NAV_GROUPS`. */
   readonly label: string;
   readonly section: CommandSection;
+}
+
+/**
+ * A binding plus what it does. `enabled`/`run` close over feature state, so
+ * they never leave the feature that declares them (design D3).
+ */
+export interface CommandDefinition extends CommandBinding {
   /** Absent means always enabled. False means the chord is claimed and swallowed (D9). */
   readonly enabled?: () => boolean;
   readonly run: (context: CommandContext) => void;

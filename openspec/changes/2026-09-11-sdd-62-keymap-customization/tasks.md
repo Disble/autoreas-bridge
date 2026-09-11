@@ -153,39 +153,39 @@ Safely"** (parse half) and **"Override Resolution Is Keyed By Command Id"** (ful
 
 ### 1.1 Infrastructure
 
-- [ ] **1.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.types.ts`: extract
+- [x] **1.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.types.ts`: extract
   `CommandBinding` (`id`, `scope`, `chord`, `label`, `section`), make `CommandDefinition extends
   CommandBinding` adding `enabled?`/`run` (design §2 D3). No RED — a type-only edit changes no runtime
   behavior; the four existing suites importing `CommandDefinition` must still compile unchanged.
-- [ ] **1.1.2** [GREEN] Create `frontend/src/shared/keyboard/keymap.types.ts`: `KeymapOverrides`,
+- [x] **1.1.2** [GREEN] Create `frontend/src/shared/keyboard/keymap.types.ts`: `KeymapOverrides`,
   `KeymapDocument` (`{ version: 1; bindings: KeymapOverrides }`). JSDoc on every declaration (CLAUDE.md
   frontend #6). No RED, same reasoning as 1.1.1.
 
 ### 1.2 Implementation
 
-- [ ] **1.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap.helpers.test.ts` —
+- [x] **1.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap.helpers.test.ts` —
   `effectiveChord`/`resolveKeymap`: an id with a stored override resolves to it; an id with no override
   keeps its declared chord (spec "Override Resolution..." scenarios 1-2); an orphaned override (id not
   in the command array) never resurrects a match and the orphan itself is untouched by resolution
   (scenario 3); a no-op override (chord equals the declared default) still resolves correctly.
-- [ ] **1.2.2** [RED] Extend the same file — `parseKeymap` degrade matrix, one case each: `''`, garbage
+- [x] **1.2.2** [RED] Extend the same file — `parseKeymap` degrade matrix, one case each: `''`, garbage
   JSON, `null`, an array, a mismatched `version`, `bindings` missing, `bindings` not an object, a
   non-string chord value. Every case asserts `{}` returned and **no throw** (spec "The Keymap Document
   Is Versioned..." scenario "A malformed document degrades to no overrides").
-- [ ] **1.2.3** [RED] Extend the same file — `pruneKeymap` drops an orphaned id and a no-op override,
+- [x] **1.2.3** [RED] Extend the same file — `pruneKeymap` drops an orphaned id and a no-op override,
   keeps a real override; `serializeKeymap({})` returns `''` (so an empty document clears the stored
   row, per D3/`SetKeymap("")`).
-- [ ] **1.2.4** [GREEN] Implement `frontend/src/shared/keyboard/keymap.helpers.ts`: `effectiveChord`,
+- [x] **1.2.4** [GREEN] Implement `frontend/src/shared/keyboard/keymap.helpers.ts`: `effectiveChord`,
   `resolveKeymap`, `parseKeymap`, `serializeKeymap`, `pruneKeymap`, verbatim signatures from
   `design.md` §3. No registry import, no DOM — lands in the `node` Vitest project automatically
   (`vite.config.ts`'s `nodeTestInclude`).
 
 ### 1.3 Testing & Verification
 
-- [ ] **1.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, **isolated to this slice's own
+- [x] **1.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, **isolated to this slice's own
   files** (`keyboard.types.ts`, `keymap.types.ts`, `keymap.helpers.ts` and their tests) — the
   repo-blended score hid survivors in three separate SDD-61 slices; do not trust it alone here.
-- [ ] **1.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap`; `bun run typecheck`; `bunx eslint`
+- [x] **1.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap`; `bun run typecheck`; `bunx eslint`
   over every touched/created file. Confirm `git status --porcelain` shows only this slice's files.
 - [ ] **1.3.3** [GATE] Left to the orchestrator (CLAUDE.md #3/#4) — `git commit`, full pre-commit gate,
   timeout ≥ 300000 ms.
