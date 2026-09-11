@@ -122,9 +122,12 @@ scenario, per Note C).
   `MODIFIER_ONLY_KEYS`/`DIGIT_CODE_PATTERN`/`NUMPAD_CODE_PATTERN` — moved here from
   `chord.helpers.ts` after `dharness/role-file-shape` rejected plain `const` values in a `.helpers.ts`
   file (see Deviations in the apply report).
-- [x] **1.1.3** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
+- [ ] **1.1.3** [GREEN] [[DEFERRED TO SLICE 4 -- see below]] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
   `useKeyboardStore` wrapping `useStore(keyboardStore, selector)`, mirroring `use-notification-store.ts`
-  verbatim (D4).
+  verbatim (D4). **Written in Slice 1 and removed before its commit**: `fallow audit` rejected it as an
+  unreachable file with no consumer, and suppressing that would have gamed the gate. `ShortcutsHelpDialog`
+  (Slice 4) is its first real consumer -- it must subscribe reactively to `isHelpOpen` -- so the hook lands
+  there, not retroactively here. Same story for `KEYBOARD_SCOPE`.
 
 ### 1.2 Implementation
 
@@ -277,44 +280,64 @@ mounted component.
 **Leaves the app working because:** shortcuts go LIVE — `Alt+1`…`Alt+0` navigate, `Alt+R` marks all
 as read while the Notification Center is mounted — with no help dialog yet (`?` sets `isHelpOpen`, but
 nothing renders it until Slice 4).
-**Forecast:** 390–420 lines. Requirements covered: **4** (completed — R-4 real-render proof), **6**
-(fully).
+**Forecast:** 390–420 lines. **Actual: 514 authored lines** (`git diff --cached --stat` over the 10
+touched/created files), inside the ledger's 800-line cap with margin — see the apply report's
+Deviations for the extra strict-TDD tests (`use-keyboard-scope.test.ts`, plus shape/re-render
+assertions added to `use-notification-keyboard-scope.test.ts`) the forecast did not itemize.
+Requirements covered: **4** (completed — R-4 real-render proof), **6** (fully).
 
 ### 3.1 Infrastructure
 
-- [ ] **3.1.1** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-dispatcher.ts`: one
+- [x] **3.1.1** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-dispatcher.ts`: one
   `window.addEventListener('keydown', handler)` bound in a `useEffect` with an empty dependency array,
   removed on cleanup with the SAME function reference (spec "Exactly One Global Dispatcher" MUST
-  clause).
-- [ ] **3.1.2** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-scope.ts`: `commandsRef`
+  clause). `navigate` is read through a `navigateRef` refreshed every render (mirrors
+  `use-notification-navigation.ts`'s own `navigateRef`, including its documented BOUNDARY: no test
+  pins the refresh, since every command's `run` calls `navigate(to)` with a compile-time absolute
+  route today).
+- [x] **3.1.2** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-scope.ts`: `commandsRef`
   refreshed every render (`useLayoutEffect`), `pushKeyboardScopeFrame({ id, scope, getCommands: () =>
-  commandsRef.current })` pushed exactly once (`useEffect`, deps `[scope]`), `popKeyboardScopeFrame(id)`
-  on cleanup (D10, design §3 "Scope stack lifecycle").
+  commandsRef.current })` pushed exactly once (`useEffect`, deps `[frameId, scope]` — `frameId` added
+  to satisfy exhaustive-deps since it's read inside the effect; stable for the mount's lifetime so
+  behaviorally identical to the task's literal `[scope]`), `popKeyboardScopeFrame(id)` on cleanup (D10,
+  design §3 "Scope stack lifecycle"). Frame ids come from a module-scoped monotonic counter
+  (`useState(createKeyboardScopeFrameId)`, called once per mount).
 
 ### 3.2 Implementation
 
-- [ ] **3.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/use-keyboard-dispatcher.test.ts`:
+- [x] **3.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/use-keyboard-dispatcher.test.ts`:
   exactly one `keydown` listener bound (`vi.spyOn(window, 'addEventListener')`); unmount calls
   `removeEventListener` with the identical function reference `addEventListener` received; survives
-  React 19 `<React.StrictMode>` double-invocation without leaking a second listener (R-5).
-- [ ] **3.2.2** [RED] Write
+  React 19 `<React.StrictMode>` double-invocation without leaking a second listener (R-5). Built with
+  `createElement` rather than JSX since the file is `.ts`, not `.tsx`, per the task's own filename.
+- [x] **3.2.2** [RED] Write
   `frontend/src/shared/keyboard/ui/KeyboardDispatcherListener/__tests__/KeyboardDispatcherListener.react-aria.test.tsx`
   [[MANDATORY R-4 PROOF OBLIGATION — NEVER REDUCE TO A MOCKED EVENT]]: mount
   `KeyboardDispatcherListener` alongside a REAL HeroUI `Table` and an open `Select`; fire a real
   `keydown` a widget owns (its own arrow-key/typeahead handling) with focus inside it; assert the
   widget's own behavior fires exactly once (no double-trigger) and no `KEYBOARD_COMMANDS` entry runs
-  for that chord (spec **S8**; D5's stated proof obligation, asserted here, never assumed).
-- [ ] **3.2.3** [GREEN] Create
+  for that chord (spec **S8**; D5's stated proof obligation, asserted here, never assumed). Both cases
+  push a GLOBAL test-only command bound to the exact chord the widget is about to claim (`arrowdown` /
+  `escape`) rather than relying on a shipped `KEYBOARD_COMMANDS` entry sharing that chord by
+  coincidence — this is what makes the assertion prove the `defaultPrevented` guard's mechanism rather
+  than an accident of the registry's current contents. Table: real `ArrowDown` row navigation, verified
+  via `document.activeElement` AND the native `dispatchEvent` return value (`false` = cancelled). Select:
+  real `Escape` closing an open popover, same double assertion. A third case (added post-MUTATE, see
+  Deviations) proves the dispatcher is not merely inert: a real unclaimed `Alt+1` press reaches a real
+  navigation, so the two guard proofs above are not vacuous.
+- [x] **3.2.3** [GREEN] Create
   `frontend/src/shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener.tsx`: renders
   `null`, calls `useKeyboardDispatcher()` inside router context (D11 — concrete-path import, no `app/`
   re-export seam).
-- [ ] **3.2.4** [RED] Write
+- [x] **3.2.4** [RED] Write
   `frontend/src/features/notifications/ui/NotificationCenterPanel/__tests__/use-notification-keyboard-scope.test.ts`:
   mounting the hook with `canMarkAllRead: true` mounted, dispatching `alt+r` invokes `onMarkAllRead`
   (spec **S12**); unmounting the hook then dispatching the same chord invokes nothing at the global
   scope (spec **S13**); `canMarkAllRead: false` swallows the chord without invoking `onMarkAllRead`
-  (D9).
-- [ ] **3.2.5** [GREEN] Create
+  (D9). Two cases added post-MUTATE (see Deviations): the pushed command's exact shape (id/scope/chord/
+  label/section) and that `canMarkAllRead`/`onMarkAllRead` updates across a re-render actually reach the
+  running command instead of closing over the first render forever.
+- [x] **3.2.5** [GREEN] Create
   `frontend/src/features/notifications/ui/NotificationCenterPanel/use-notification-keyboard-scope.ts`:
   calls `useKeyboardScope({ scope: 'notification-center', commands: [...] })` with one command
   (`id: 'notification-center.mark-all-read'`, `chord: 'alt+r'`, `section: 'Notifications'`,
@@ -324,20 +347,49 @@ nothing renders it until Slice 4).
   one import + one call to the new hook, passing the already-destructured `canMarkAllRead`/
   `onMarkAllRead` from `useNotificationMarkAllRead` (line 102). `use-notification-mark-all-read.ts`
   itself stays untouched (design §4).
-- [ ] **3.2.6** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
+- [x] **3.2.6** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
   `<KeyboardDispatcherListener />` beside the existing `<NotificationNavigationListener />` at line 24,
   imported by concrete path from `shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener`
   (D11). First of this change's two `AppLayout.tsx` touches — see Task-Planning Note A.
 
 ### 3.3 Testing & Verification
 
-- [ ] **3.3.1** [MUTATE] `test:mutation:staged` over the Slice 3 staged diff (dispatcher hook, scope
+- [x] **3.3.1** [MUTATE] `test:mutation:staged` over the Slice 3 staged diff (dispatcher hook, scope
   hook, notification scope). Confirm the "pop by id vs pop-last" mutant stays KILLED under this slice's
-  real mount/unmount cycle; hand-mutate if Stryker reports it uncovered here.
-- [ ] **3.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard notification` and
+  real mount/unmount cycle; hand-mutate if Stryker reports it uncovered here. First isolated run
+  (`stryker run --mutate <4-file-ranges> --reporters clear-text,json`, same technique Slice 2 used since
+  the repo-blended `test:mutation:staged` summary hides per-file survivor detail) surfaced 15 survived
+  mutants the repo-blended pass (82.13%, already above threshold) hid: `use-notification-keyboard-scope.ts`
+  6 (exact `id`/`scope`/`label`/`section` string literals never asserted, `useMemo` deps array), 
+  `use-keyboard-scope.ts` 4 (frame-id counter body/increment, `useLayoutEffect` refresh body, push
+  effect's `[frameId, scope]` deps), `use-keyboard-dispatcher.ts` 4 (`navigateRef` refresh effect body,
+  `handleKeyDown` body, its context object literal, the mount effect's `[]` deps), `KeyboardDispatcherListener.tsx`
+  1 (whole component body — the two R-4 tests alone don't prove the dispatcher fires when NOTHING
+  blocks it, only that it doesn't misfire when something does). Fixed with new tests: a dedicated
+  `use-keyboard-scope.test.ts` (deviation, see below) proving frame push/pop, two concurrently-mounted
+  consumers get distinct sequential ids, `commandsRef`/scope-change re-render behavior; two new cases in
+  `use-notification-keyboard-scope.test.ts` (exact command shape, re-render reactivity); one new case in
+  `KeyboardDispatcherListener.react-aria.test.tsx` (real unclaimed `Alt+1` → real navigation). Two
+  survivors accepted as documented, not force-tested: `use-keyboard-dispatcher.ts`'s `navigateRef`
+  refresh effect (BOUNDARY comment, identical reasoning to `use-notification-navigation.ts`'s own
+  precedent — every command's route is a compile-time absolute constant today) and its mount effect's
+  `[]` deps array (a genuine equivalent mutant — ANY constant array produces identical
+  once-per-mount scheduling; unlike the `chord === null` and `months > 1` precedents, a
+  `// Stryker disable next-line` comment does NOT suppress it here because the target is a trailing call
+  argument, not a leading statement, so Stryker's comment scanner does not associate with it — documented
+  in a plain, non-directive comment instead of one falsely claiming to suppress it). Second isolated run:
+  93.94% (31 killed / 2 accepted survivors of 33 covered), all four files at 100% except
+  `use-keyboard-dispatcher.ts` at 77.78% (7/9, the two accepted survivors). Files left staged for the
+  orchestrator's commit.
+- [x] **3.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard notification` and
   `bun --cwd="frontend" run render:smoke` (confirm no existing route regresses; the help overlay owes
-  no `ROUTE_MARKERS` entry — design §6, it is an overlay, not a route).
+  no `ROUTE_MARKERS` entry — design §6, it is an overlay, not a route). 78 test files / 554 tests green
+  (keyboard, notification, AppLayout, and full `App.test.tsx` route suite — the latter now exercises
+  every route with `KeyboardDispatcherListener` mounted). `render:smoke` clean. `tsc --noEmit` and
+  `eslint` over the full touched surface both clean. Boundary confirmed:
+  `grep -rn "from '.*features" frontend/src/shared/keyboard/` — zero hits, exit 1.
 - [ ] **3.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+  **Left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`, OR delete the one `<KeyboardDispatcherListener />` line from
 `AppLayout.tsx` without reverting — both are valid per `proposal.md` §9's one-line kill switch.

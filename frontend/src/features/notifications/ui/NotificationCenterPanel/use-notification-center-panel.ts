@@ -16,6 +16,7 @@ import {
 } from './notification-center-panel.helpers';
 import type { NotificationCenterPanelResult, NotificationCenterView } from './notification-center-panel.types';
 import { useNotificationCenterSync } from './use-notification-center-sync';
+import { useNotificationKeyboardScope } from './use-notification-keyboard-scope';
 import { useNotificationMarkAllRead } from './use-notification-mark-all-read';
 import { useNotificationOpenRecord } from './use-notification-open-record';
 import { useNotificationSelection } from './use-notification-selection';
@@ -100,6 +101,7 @@ export function useNotificationCenterPanel(
     onMutated: refetch,
   });
   const { canMarkAllRead, onMarkAllRead } = useNotificationMarkAllRead({ source, rows: visibleRows, onMutated: refetch });
+  useNotificationKeyboardScope({ canMarkAllRead, onMarkAllRead });
   const { openRecord, onOpenRecord } = useNotificationOpenRecord({ source, onReadStateChanged: applyReadState });
 
   // 6. Callbacks
