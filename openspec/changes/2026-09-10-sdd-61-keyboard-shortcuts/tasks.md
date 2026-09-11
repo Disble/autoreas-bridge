@@ -1,0 +1,380 @@
+# Tasks: Keyboard Shortcuts Infrastructure (SDD-61)
+
+Change: `2026-09-10-sdd-61-keyboard-shortcuts`
+Inputs: `proposal.md` (Engram #9277), `design.md` (Engram #9281), `specs/keyboard-shortcuts/spec.md`
+(Engram #9279) — **7 requirements, 14 scenarios**, every one cited against the task that proves it.
+
+> **Drift note (CLAUDE.md #2 — code/artifact wins, drift recorded rather than silently absorbed).**
+> The orchestrator's launch brief for this phase states "8 requirements, 14 scenarios." The shipped
+> `specs/keyboard-shortcuts/spec.md` has exactly **7** `### Requirement:` headings totalling **14**
+> scenarios (2+2+3+3+1+2+1). The scenario count matches; the requirement count in the brief does not.
+> This document plans against the spec file as the authority, not the brief's paraphrase.
+
+> **Slice-count override (the deliverable this phase was asked to measure).** `proposal.md` forecast
+> ~960 authored lines and proposed a 2-slice split (61a ≈ 600, 61b ≈ 360) — already rejected by the
+> orchestrator as leaving 61a ~1.5x over the 400-line session budget. This phase's own file-by-file
+> forecast below (§ Review Workload Forecast) lands at **~1,550–1,650** total authored lines once
+> mandatory JSDoc, strict-TDD test volume, and the two named proof obligations (R-4 React-Aria
+> coexistence, WebView2 manual check) are counted per file — the proposal's ~960 figure was
+> production-leaning and under-counted tests, consistent with this repo's own measured ratio ("tests
+> are roughly half or more of a shared module's authored lines," per the orchestrator's brief, citing
+> `shared/store/notification-store/` and `shared/ordering/`). Enforcing the "no slice over ~500 lines"
+> ceiling against that total requires **4** slices, not 3: `1,600 / 500 ≈ 3.2`, rounded up. The 4-slice
+> split below follows the architecture's own natural seams (pure primitives → registry + dispatcher
+> algorithm → React wiring → help dialog UI) and lands every slice at 390–460 lines — comfortably under
+> the 500 ceiling with margin, rather than 3 slices forced to hug it. No scope was cut to hit a number
+> (`chained-pr` skill's hard rule).
+
+---
+
+## Task-Planning Notes (read before Slice 1)
+
+**A. `AppLayout.tsx` is touched twice, deliberately, across two different slices.** Slice 3 (task 3.2.7)
+adds `<KeyboardDispatcherListener />` beside the existing `<NotificationNavigationListener />` at line
+24. Slice 4 (task 4.2.3) adds `<ShortcutsHelpDialog />` beside it. This mirrors `design.md` §8's
+rollback note ("the kill switch is now **two** lines... rather than one") and is stated once here so
+it is not mistaken for a merge conflict or a missed diff when reviewing Slice 4.
+
+**B. Pre-verified facts are cited, not re-verified.** `design.md` already establishes, with file/line
+evidence, that: React 18 attaches at `#root` so a bubble-phase `window` listener observes
+`defaultPrevented` already set (D5); `<React.StrictMode>` wraps the app so pop-by-id (not pop-last) is
+required (D10); `.dharness/fallow.jsonc:66-67` allows `features -> shared` but not `shared -> features`;
+and HeroUI's `ModalRoot` maps `state` to `{isOpen, onOpenChange}` with no trigger button required
+(`@heroui/react/dist/components/modal/modal.js:19-40`). Tasks below cite these decisions by their `D#`
+label rather than re-deriving them.
+
+**C. Scope resolution (spec Requirement 3) is proven across two slices, honestly split.** The scenario
+"Popping a scope restores the previous scope" has a store-mechanics half (does the frame stack pop the
+right frame?) and a command-resolution half (does the NEXT keystroke actually resolve to the global
+command afterward?). Slice 1 proves the first half with `keyboard-scope.helpers.test.ts` (no
+`resolveCommand` exists yet); Slice 2 proves the full scenario once `resolveCommand` exists. Both tasks
+say so explicitly rather than one silently claiming full coverage early.
+
+**D. Threat Matrix: N/A.** `design.md` §7 records zero routing/shell/subprocess/VCS/process-integration
+surface for this change (`navigate(to)` only ever receives a compile-time constant). No threat-matrix
+RED tasks are owed.
+
+---
+
+## Review Workload Forecast
+
+| Field | Value |
+|---|---|
+| Estimated changed lines | ~1,550–1,650 across the whole chain (four slices, see per-slice table) |
+| 400-line budget risk | High (against the session's `review_budget_lines=400`) |
+| Chained PRs recommended | Yes |
+| Suggested split | Four chained PRs (Slice 1 → 2 → 3 → 4), each independently shippable |
+| Delivery strategy | `auto-chain` |
+| Chain strategy | `stacked-to-main` — resolved to this repo's trunk-for-work, `dev` (CLAUDE.md #19b: `main` is deploy-only, never receives development commits directly). Each slice's PR merges into `dev` in order; no tracker branch |
+
+```text
+Decision needed before apply: No
+Chained PRs recommended: Yes
+Chain strategy: stacked-to-main
+400-line budget risk: High
+```
+
+`auto-chain` resolves `Decision needed before apply` to `No`: the chain strategy (`stacked-to-main`) was
+already cached at session start, so `sdd-apply` proceeds directly with Slice 1, no additional user
+decision required before starting.
+
+### Per-Slice Line Forecast
+
+| Slice | Forecast (lines) | Over 500? | Runtime harness | Rollback boundary |
+|---|---|---|---|---|
+| 1. Chord + scope-store primitives | 390–420 | No | `bun --cwd="frontend" run test -- keyboard` | `git revert`; every new file unreferenced |
+| 2. Command registry + dispatcher algorithm | 430–460 | No | `bun --cwd="frontend" run test -- keyboard` | `git revert`; `KEYBOARD_COMMANDS`/`dispatchKeyboardEvent` still unreferenced by any mounted component |
+| 3. React wiring (dispatcher, scope hook, Notification Center scope) | 390–420 | No | `bun --cwd="frontend" run test -- keyboard notification` + `bun --cwd="frontend" run render:smoke` | `git revert`, OR delete `<KeyboardDispatcherListener />` from `AppLayout.tsx` alone (one-line kill switch, `proposal.md` §9) |
+| 4. Shortcuts help dialog + ADR + WebView2 verification | 330–360 | No | `bun --cwd="frontend" run test -- keyboard` + manual `wails build` check | `git revert`; `?` still sets `isHelpOpen` inertly, matching pre-Slice-4 state |
+
+**No slice is forecast over 500.** All four sit in the 330–460 range, most within the 200–400 sweet
+spot the phase brief asked for.
+
+### Suggested Work Units
+
+| Unit | Goal | Likely PR | Focused test command | Runtime harness | Rollback boundary |
+|---|---|---|---|---|---|
+| 1 | Chord normalization + vanilla scope-stack store, invisible to the app | PR 1 | `bun --cwd="frontend" run test -- chord.helpers` | `bun --cwd="frontend" run test -- keyboard` | `git revert`; inert new files |
+| 2 | Command registry (10 nav + help) + the dispatcher algorithm, unit-tested, not yet mounted | PR 2 | `bun --cwd="frontend" run test -- dispatch.helpers` | `bun --cwd="frontend" run test -- keyboard` | `git revert`; no mounted consumer |
+| 3 | Dispatcher goes live: nav shortcuts fire, mark-all-read is route-scoped | PR 3 | `bun --cwd="frontend" run test -- use-keyboard-dispatcher` | `bun --cwd="frontend" run render:smoke` | `git revert` or delete the one `AppLayout.tsx` line |
+| 4 | Help dialog renders from the registry; ADR; manual WebView2 check | PR 4 | `bun --cwd="frontend" run test -- ShortcutsHelpDialog` | Manual `wails build` + `Alt+<digit>` check | `git revert`; overlay unreachable, chords still inert to nothing user-visible breaking |
+
+---
+
+## Slice 1 — Chord Normalization + Scope Store Primitives
+
+**Leaves the app working because:** every file is new and unreferenced; nothing outside
+`frontend/src/shared/keyboard/` imports any of it yet.
+**Forecast:** 390–420 lines. Requirements covered: **2** (fully), **3** (store-mechanics half of one
+scenario, per Note C).
+
+### 1.1 Infrastructure
+
+- [ ] **1.1.1** [GREEN] Create `frontend/src/shared/keyboard/keyboard.types.ts`: `Chord`,
+  `KeyboardScope`, `CommandSection`, `CommandContext`, `CommandDefinition`, `KeyboardScopeFrame`,
+  `KeyboardStoreState`, verbatim from `design.md` §5, every declaration JSDoc'd (CLAUDE.md frontend
+  #6). No RED: a type-only file has no runtime behavior to fail first.
+- [ ] **1.1.2** [GREEN] Create `frontend/src/shared/keyboard/keyboard.constants.ts`: `keyboardStore`
+  via `createStore()` from `zustand/vanilla` (initial `{ frames: [], isHelpOpen: false }`),
+  `KEYBOARD_SCOPE`, `CHORD_MODIFIER_ORDER` (`ctrl+alt+shift+meta+<key>` per D8). Mirrors
+  `notification-store.constants.ts:11` exactly — store instance lives in `.constants.ts` because
+  `dharness/role-file-shape` reserves `.helpers` for functions (D4).
+- [ ] **1.1.3** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
+  `useKeyboardStore` wrapping `useStore(keyboardStore, selector)`, mirroring `use-notification-store.ts`
+  verbatim (D4).
+
+### 1.2 Implementation
+
+- [ ] **1.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/chord.helpers.test.ts`: a
+  table-driven case for `normalizeChord` — Ctrl+K → one canonical chord string (spec **S3**);
+  `Alt+1` on a US layout (`code:'Digit1'`) vs AZERTY (`code:'Digit1', key:'&'`) both → `alt+1`;
+  `Shift+/` and `Shift+,` both → `?`; `Alt+Shift+R` → `alt+shift+r`, distinct from `alt+r`; a bare
+  `Shift` press alone → `null`; `Numpad1` → NOT `'1'`. Plus a `formatChord` round-trip for the Ctrl+K
+  case (spec **S4**). Design D7, D8.
+- [ ] **1.2.2** [GREEN] Implement `frontend/src/shared/keyboard/chord.helpers.ts`:
+  `normalizeChord(event): Chord | null` (digit-row positional escape hatch first, modifier-alone
+  returns `null`, then named key, then single printable char, with shift-suppression per D7) and
+  `formatChord(chord): string`. Satisfies spec "Chord Normalization And Display Formatting Are Pure
+  Functions" (**S3**, **S4**).
+- [ ] **1.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/keyboard-scope.helpers.test.ts`:
+  pushing a frame then popping it restores the prior top-of-stack (spec **S5**, store-mechanics half —
+  see Note C); popping by `id` out of order removes only that frame; a double pop on the same `id` is a
+  no-op (D10); `setKeyboardHelpOpen(true)` flips `isHelpOpen`; `resetKeyboardStore()` returns the store
+  to its initial shape.
+- [ ] **1.2.4** [GREEN] Implement `frontend/src/shared/keyboard/keyboard-scope.helpers.ts`:
+  `pushKeyboardScopeFrame`, `popKeyboardScopeFrame` (filters by `id`, D10 — never pop-last),
+  `getKeyboardState`, `setKeyboardHelpOpen`, `resetKeyboardStore` (test-only reset every later suite
+  touching `keyboardStore` will import).
+
+### 1.3 Testing & Verification
+
+- [ ] **1.3.1** [MUTATE] `test:mutation:staged` runs automatically via `lefthook.yml` on the staged
+  Slice 1 frontend files at commit time (Stryker, `frontend/stryker.dlinter.json`). Confirm it ran and
+  passed the 0.80 threshold before committing; hand-mutate `normalizeChord`'s shift-suppression branch
+  and the digit-row regex if Stryker's own report shows either uncovered (CLAUDE.md #16).
+- [ ] **1.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard`, 0 failures. Confirm via
+  `git diff --stat` that no file outside `frontend/src/shared/keyboard/` changed.
+- [ ] **1.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+
+**Rollback:** `git revert` the slice commit. Every new file is unreferenced by the rest of the app.
+
+---
+
+## Slice 2 — Command Registry + Dispatcher Algorithm
+
+**Leaves the app working because:** `KEYBOARD_COMMANDS` and `dispatchKeyboardEvent` exist and are
+fully unit-tested, but nothing calls `dispatchKeyboardEvent` from a real `keydown` listener yet
+(Slice 3 wires that).
+**Forecast:** 430–460 lines. Requirements covered: **1** (fully), **3** (fully, completing Note C),
+**4** (guard logic, minus the R-4 real-render proof, which is Slice 3's), **5** (fully).
+
+### 2.1 Infrastructure
+
+- [ ] **2.1.1** [RED] Write `frontend/src/shared/keyboard/__tests__/registry.helpers.test.ts`:
+  `findDuplicateBindings` returns an empty array over two non-conflicting entries, and returns BOTH
+  conflicting command ids over a seeded duplicate `{scope, chord}` pair (non-vacuous — design §6).
+  `findDuplicateCommandIds` mirrors the same empty/seeded-duplicate shape for `id`.
+- [ ] **2.1.2** [GREEN] Implement `frontend/src/shared/keyboard/registry.helpers.ts`:
+  `buildNavigationCommands(navGroups, chordsByPath)`, `findDuplicateBindings(commands)`,
+  `findDuplicateCommandIds(commands)`.
+
+### 2.2 Implementation
+
+- [ ] **2.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/command-registry.constants.test.ts`:
+  derive expected commands from `APP_LAYOUT_NAV_GROUPS` via `flattenNavItems` rather than hand-listing
+  them — every one of the 10 routes has exactly one bound global command in `KEYBOARD_COMMANDS`, and
+  `command.run({ navigate: spy })` calls `spy` with that route's `to` (spec **S11**; an 11th nav item
+  added later must fail this suite, per spec's own wording). Also assert, over the REAL shipped array,
+  `findDuplicateBindings(KEYBOARD_COMMANDS)` is empty (spec **S1**) and every entry declares a
+  non-empty `section` (spec **S2**).
+- [ ] **2.2.2** [GREEN] Implement `frontend/src/shared/keyboard/command-registry.constants.ts`:
+  `NAV_COMMAND_CHORDS` (`Readonly<Record<string, Chord>>`, `alt+1`…`alt+9`, `alt+0` mapped to the 10
+  routes in `flattenNavItems(APP_LAYOUT_NAV_GROUPS)` order, per design's shipped keymap table) and
+  `KEYBOARD_COMMANDS` (`buildNavigationCommands(...)` spread plus the `?` → open-help command, which
+  calls `setKeyboardHelpOpen(true)` from `keyboard-scope.helpers.ts`).
+- [ ] **2.2.3** [RED] Write `frontend/src/shared/keyboard/__tests__/dispatch.helpers.test.ts` —
+  **one named test per guard**, each asserting the matched command's `run` was NOT called:
+  `event.defaultPrevented === true`; `event.isComposing === true` (spec **S10**); focus target is
+  `input`/`textarea`/`[contenteditable]` (spec **S9**); an unbound chord with no matching command
+  (spec **S6**, unclaimed chord falls back to global then is still absent there). Plus: a scoped
+  command shadows a global one sharing the same chord and does NOT fall through to global when its
+  `enabled()` is `false` (spec **S7**, D9); popping the scoped frame and re-dispatching the same chord
+  resolves the global command instead (spec **S5**, full proof completing Note C). `event.repeat` is
+  asserted to NOT bail dispatch (D12 — explicitly not a fifth guard).
+- [ ] **2.2.4** [GREEN] Implement `frontend/src/shared/keyboard/dispatch.helpers.ts`:
+  `isTypingTarget(target)`, `resolveCommand(chord, frames, commands)` (top-down frame walk, first
+  frame declaring the chord wins, D9), `dispatchKeyboardEvent(event, context)` (the 9-step algorithm
+  from design §3, reading `keyboardStore.getState().frames`).
+
+### 2.3 Testing & Verification
+
+- [ ] **2.3.1** [MUTATE] `test:mutation:staged` (automatic via `lefthook.yml`) over the Slice 2 staged
+  diff. Confirm the guard-ordering mutant (moving `isTypingTarget` ahead of `event.defaultPrevented`)
+  and the D9 "disabled command falls through to global" mutant are both KILLED; hand-mutate either if
+  Stryker reports it uncovered (CLAUDE.md #16).
+- [ ] **2.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard`. Confirm the boundary:
+  `shared/keyboard/**` imports nothing from `features/` (`.dharness/fallow.jsonc:67`,
+  `{"from": "shared", "allow": ["infrastructure"]}`) — grep the new files for
+  `from '.*features` and confirm zero hits.
+- [ ] **2.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+
+**Rollback:** `git revert`. `KEYBOARD_COMMANDS` and `dispatchKeyboardEvent` remain unreferenced by any
+mounted component.
+
+---
+
+## Slice 3 — React Wiring: Dispatcher, Scope Hook, Notification Center Scope
+
+**Leaves the app working because:** shortcuts go LIVE — `Alt+1`…`Alt+0` navigate, `Alt+R` marks all
+as read while the Notification Center is mounted — with no help dialog yet (`?` sets `isHelpOpen`, but
+nothing renders it until Slice 4).
+**Forecast:** 390–420 lines. Requirements covered: **4** (completed — R-4 real-render proof), **6**
+(fully).
+
+### 3.1 Infrastructure
+
+- [ ] **3.1.1** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-dispatcher.ts`: one
+  `window.addEventListener('keydown', handler)` bound in a `useEffect` with an empty dependency array,
+  removed on cleanup with the SAME function reference (spec "Exactly One Global Dispatcher" MUST
+  clause).
+- [ ] **3.1.2** [GREEN] Create `frontend/src/shared/keyboard/use-keyboard-scope.ts`: `commandsRef`
+  refreshed every render (`useLayoutEffect`), `pushKeyboardScopeFrame({ id, scope, getCommands: () =>
+  commandsRef.current })` pushed exactly once (`useEffect`, deps `[scope]`), `popKeyboardScopeFrame(id)`
+  on cleanup (D10, design §3 "Scope stack lifecycle").
+
+### 3.2 Implementation
+
+- [ ] **3.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/use-keyboard-dispatcher.test.ts`:
+  exactly one `keydown` listener bound (`vi.spyOn(window, 'addEventListener')`); unmount calls
+  `removeEventListener` with the identical function reference `addEventListener` received; survives
+  React 19 `<React.StrictMode>` double-invocation without leaking a second listener (R-5).
+- [ ] **3.2.2** [RED] Write
+  `frontend/src/shared/keyboard/ui/KeyboardDispatcherListener/__tests__/KeyboardDispatcherListener.react-aria.test.tsx`
+  [[MANDATORY R-4 PROOF OBLIGATION — NEVER REDUCE TO A MOCKED EVENT]]: mount
+  `KeyboardDispatcherListener` alongside a REAL HeroUI `Table` and an open `Select`; fire a real
+  `keydown` a widget owns (its own arrow-key/typeahead handling) with focus inside it; assert the
+  widget's own behavior fires exactly once (no double-trigger) and no `KEYBOARD_COMMANDS` entry runs
+  for that chord (spec **S8**; D5's stated proof obligation, asserted here, never assumed).
+- [ ] **3.2.3** [GREEN] Create
+  `frontend/src/shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener.tsx`: renders
+  `null`, calls `useKeyboardDispatcher()` inside router context (D11 — concrete-path import, no `app/`
+  re-export seam).
+- [ ] **3.2.4** [RED] Write
+  `frontend/src/features/notifications/ui/NotificationCenterPanel/__tests__/use-notification-keyboard-scope.test.ts`:
+  mounting the hook with `canMarkAllRead: true` mounted, dispatching `alt+r` invokes `onMarkAllRead`
+  (spec **S12**); unmounting the hook then dispatching the same chord invokes nothing at the global
+  scope (spec **S13**); `canMarkAllRead: false` swallows the chord without invoking `onMarkAllRead`
+  (D9).
+- [ ] **3.2.5** [GREEN] Create
+  `frontend/src/features/notifications/ui/NotificationCenterPanel/use-notification-keyboard-scope.ts`:
+  calls `useKeyboardScope({ scope: 'notification-center', commands: [...] })` with one command
+  (`id: 'notification-center.mark-all-read'`, `chord: 'alt+r'`, `section: 'Notifications'`,
+  `enabled: () => canMarkAllRead`, `run: () => onMarkAllRead()`), taking `canMarkAllRead`/
+  `onMarkAllRead` as parameters. Modify
+  `frontend/src/features/notifications/ui/NotificationCenterPanel/use-notification-center-panel.ts`:
+  one import + one call to the new hook, passing the already-destructured `canMarkAllRead`/
+  `onMarkAllRead` from `useNotificationMarkAllRead` (line 102). `use-notification-mark-all-read.ts`
+  itself stays untouched (design §4).
+- [ ] **3.2.6** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
+  `<KeyboardDispatcherListener />` beside the existing `<NotificationNavigationListener />` at line 24,
+  imported by concrete path from `shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener`
+  (D11). First of this change's two `AppLayout.tsx` touches — see Task-Planning Note A.
+
+### 3.3 Testing & Verification
+
+- [ ] **3.3.1** [MUTATE] `test:mutation:staged` over the Slice 3 staged diff (dispatcher hook, scope
+  hook, notification scope). Confirm the "pop by id vs pop-last" mutant stays KILLED under this slice's
+  real mount/unmount cycle; hand-mutate if Stryker reports it uncovered here.
+- [ ] **3.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard notification` and
+  `bun --cwd="frontend" run render:smoke` (confirm no existing route regresses; the help overlay owes
+  no `ROUTE_MARKERS` entry — design §6, it is an overlay, not a route).
+- [ ] **3.3.3** [GATE] `git commit` (full pre-commit gate, ≥300 000 ms timeout). Never `--no-verify`.
+
+**Rollback:** `git revert`, OR delete the one `<KeyboardDispatcherListener />` line from
+`AppLayout.tsx` without reverting — both are valid per `proposal.md` §9's one-line kill switch.
+
+---
+
+## Slice 4 — Shortcuts Help Dialog + ADR + Final Verification
+
+**Leaves the app working because:** this is the last slice; `?` has set `isHelpOpen` since Slice 2,
+and this slice is the first to render it.
+**Forecast:** 330–360 lines (+ one manual verification task, zero code). Requirements covered: **7**
+(fully).
+
+### 4.1 Infrastructure
+
+- [ ] **4.1.1** [GREEN] Create
+  `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/shortcuts-help-dialog.types.ts`: the hook's
+  return shape and the dialog's props, every property `readonly` (CLAUDE.md frontend #5).
+
+### 4.2 Implementation
+
+- [ ] **4.2.1** [RED] Write
+  `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/__tests__/ShortcutsHelpDialog.test.tsx`: every
+  `KEYBOARD_COMMANDS` label appears under its `section`; an injected command supplied through the
+  dialog's `commands` prop (defaulting to `KEYBOARD_COMMANDS`) appears with NO change to the dialog's
+  own code (spec **S14**); mounting `use-notification-keyboard-scope` makes its command appear, and
+  unmounting it makes the command disappear; the overlay closes when `useLocation().pathname` changes.
+- [ ] **4.2.2** [GREEN] Implement
+  `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/shortcuts-help-dialog.helpers.ts`
+  (`toShortcutSections`, grouping by `section` with `display: formatChord(chord)`),
+  `use-shortcuts-help-dialog.ts` (`{ isOpen, onOpenChange, sections }`, closes on route change), and
+  `ShortcutsHelpDialog.tsx` (`Modal`/`Modal.Backdrop`/`Modal.Container`/`Modal.Dialog`/`Modal.Header`/
+  `Modal.Heading`/`Modal.Body`, no trigger button — the keystroke IS the trigger, per the verified
+  `ModalRoot` prop mapping design §5 cites against the installed package).
+- [ ] **4.2.3** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
+  `<ShortcutsHelpDialog />` beside `<KeyboardDispatcherListener />`. Second of this change's two
+  `AppLayout.tsx` touches — see Task-Planning Note A.
+- [ ] **4.2.4** [GREEN] Create `docs/adr/019-keyboard-command-registry.md`: condenses D1
+  (registry-as-data over Chain-of-Responsibility/direct-binding), D4 (vanilla zustand over React
+  Context), D5 (bubble-phase `window` listener, the React Aria coexistence contract), D7
+  (`event.key`-first chord normalization with the digit-row escape hatch), per design §2.
+
+### 4.3 Testing & Verification
+
+- [ ] **4.3.1** [MUTATE] `test:mutation:staged` over the Slice 4 staged diff (help-dialog derivation
+  helper).
+- [ ] **4.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard` (full `shared/keyboard/` +
+  notification-center-panel suite green) and `go test ./...` (confirm zero backend files touched
+  across the whole four-slice chain — design §7, zero Go/REST/WS/SQLite surface).
+- [ ] **4.3.3** [VERIFY] [[MANDATORY WEBVIEW2 MANUAL CHECK — sdd-verify obligation, design §9, open
+  question]] `wails build`, launch the packaged app, and manually confirm `Alt+1` through `Alt+0` reach
+  the page rather than being swallowed as a Windows system chord. jsdom cannot prove this — do not
+  infer a result from the green suite. If any chord is swallowed, the fix is a one-line
+  `NAV_COMMAND_CHORDS` data change (e.g. `alt+shift+<digit>`), not a code change (chords are data by
+  design). Record the pass/fail result, and the chosen chord if changed, explicitly in the
+  `sdd-verify` report.
+- [ ] **4.3.4** [GATE] Append the one lesson worth keeping (D5's React-Aria-coexistence contract, or
+  D7's digit-row escape hatch — whichever cost the most cycles in practice) via
+  `node scripts/log-lesson.mjs "<the lesson>"` (CLAUDE.md #17). Then `git commit` (full pre-commit
+  gate, ≥300 000 ms timeout). Never `--no-verify`.
+
+**Rollback:** `git revert`. `?` still sets `isHelpOpen` inertly, matching the pre-Slice-4 state — no
+user-visible regression from reverting this slice alone.
+
+---
+
+## Requirement → Task Coverage Matrix
+
+| Spec Requirement | Scenarios | Closed by |
+|---|---|---|
+| 1. Command Registry Is Typed, Duplicate-Free | S1, S2 | 2.2.1 |
+| 2. Chord Normalization And Display Formatting Are Pure | S3, S4 | 1.2.1–1.2.2 |
+| 3. Scope Stack Resolves Innermost-First, Gated By `enabled()` | S5, S6, S7 | 1.2.3–1.2.4 (partial S5), 2.2.3–2.2.4 (full S5, S6, S7) |
+| 4. Exactly One Global Dispatcher Bails On Four Guards | S8, S9, S10 | 2.2.3–2.2.4 (S9, S10), 3.2.2 (S8) |
+| 5. Ten Global Navigation Commands Derived From Nav Constant | S11 | 2.2.1–2.2.2 |
+| 6. "Mark All As Read" Route-Scoped To Notification Center | S12, S13 | 3.2.4–3.2.5 |
+| 7. Shortcuts Help Dialog Renders From The Registry | S14 | 4.2.1–4.2.2 |
+
+## Conventions Applied Throughout (not repeated per task)
+
+- Mandatory JSDoc on every declaration, including private ones (CLAUDE.md frontend #6).
+- Every `*Props` interface property `readonly` (CLAUDE.md frontend #5).
+- No `index.ts` barrels; concrete-path imports only (ADR-011, D11).
+- Strict colocation: `__tests__/` sits beside the files it tests (`shared/keyboard/__tests__/` for the
+  flat helper/hook layer, `ui/**/__tests__/**` per component).
+- Every implementation task follows RED → GREEN → MUTATE → REFACTOR (CLAUDE.md #16); MUTATE on the
+  frontend is automatic via `lefthook.yml`'s `test:mutation:staged`, not a separate invocation.
+- No file in this change approaches 400 effective lines; the largest is `dispatch.helpers.ts` at
+  ~120 (design §4).
