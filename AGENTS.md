@@ -170,6 +170,24 @@
 - Verification is a special case: the orchestrating agent MUST perform the final verification itself and MUST NOT delegate the verify phase to a sub-agent. Other phases may still use sub-agents when appropriate.
 - After verify passes, the orchestrating agent MUST create the commit before reporting verify as fully complete. The commit's own hooks/validations are part of the real verification boundary and save the user an extra round-trip.
 
+## Sizing a Change
+
+- **Never size a change by eye, and never trust a phase forecast.** Measure comparables in this tree with `wc -l` first. SDD-61's four slices were forecast at 390-420, 430-460, 390-420 and 330-360 lines; slice 2 landed at **597**, and slices 3 and 4 re-estimated bottom-up to **499-702** and **502-708**. The forecasts ran 30% to 70% low, every time in the same direction, which is what makes it a method problem rather than bad luck.
+- **The miss is always the tests, and strict TDD makes them non-negotiable.** Slice 2 spent 361 of its 597 lines on tests (60%). A "400-line" slice here is roughly 200 production plus 200 test. Estimate against these measured bands, all taken from this repo:
+
+  | Shape | Measured |
+  |---|---|
+  | ADR | 123-217 lines; the decision-dense ADR-016 is 217 |
+  | Test rendering real HeroUI widgets | 50-149 (`TransactionRow.test.tsx` = 149) |
+  | `renderHook` test | 44-235; 44-107 for three straightforward scenarios |
+  | Subscription hook, production, full JSDoc | 73-84 |
+  | Component that renders `null` and calls one hook | 20-25 |
+  | `shared/<domain>/` module: constants + types + helpers + hook | ~160 production, roughly doubling once its tests exist |
+
+- **Mandatory JSDoc on every declaration is a multiplier, not a rounding error.** Budget it per declaration, not per file.
+- **Prose counts against the budget.** `sdd-attempt` measured slice 2 at 673 lines where `git diff --stat` said 597; the difference was the `tasks.md` edit. Budget 40-80 lines for the artifact prose a slice rewrites.
+- **A rule you impose on one dimension inflates the budget of another.** After fallow rejected an unexercised export, the orchestrator required "no export without a consumer in the same commit". Under strict TDD that mandates a RED test per exported function before the function exists, which added three test suites nobody had forecast. Price a new constraint when you introduce it, in the budget it actually spends.
+
 ## Learning Log (Vitácora)
 
 - `docs/learning-log.md` is a human-readable "why" log of decisions taken and non-obvious problems solved.
