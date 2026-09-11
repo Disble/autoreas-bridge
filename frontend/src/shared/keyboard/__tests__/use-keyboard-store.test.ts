@@ -10,7 +10,7 @@ describe('useKeyboardStore', () => {
   it('returns the full store state when no selector is given', () => {
     const { result } = renderHook(() => useKeyboardStore());
 
-    expect(result.current).toEqual({ frames: [], isHelpOpen: false });
+    expect(result.current).toEqual({ frames: [], isHelpOpen: false, overrides: {}, keymapLoadState: 'pending' });
   });
 
   it('projects the state through a selector', () => {

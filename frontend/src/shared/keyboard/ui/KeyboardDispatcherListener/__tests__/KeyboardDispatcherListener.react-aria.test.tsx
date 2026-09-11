@@ -30,10 +30,21 @@ function pushProbeCommand(id: number, chord: string, run: () => void): KeyboardS
   return frame;
 }
 
-beforeEach(resetKeyboardStore);
+beforeEach(() => {
+  resetKeyboardStore();
+  // KeyboardDispatcherListener now also mounts useKeymapOverrides (Slice 4,
+  // D11), which calls preferencesSource.getKeymap() on mount. With no Go
+  // binding attached, that would poll via a real setInterval for up to
+  // WAILS_BINDINGS_TIMEOUT_MS (wails-bindings.helpers.ts) before degrading --
+  // a leaked real timer this file never awaits. Stubbing GetKeymap makes
+  // hasGoBinding true immediately, so the load resolves synchronously with no
+  // interval ever created; this suite is about the dispatcher, not the loader.
+  window.go = { desktop: { App: { GetKeymap: () => Promise.resolve('') } } } as never;
+});
 afterEach(() => {
   cleanup();
   resetKeyboardStore();
+  Reflect.deleteProperty(window, 'go');
 });
 
 describe('KeyboardDispatcherListener alongside real HeroUI widgets (R-4, D5)', () => {

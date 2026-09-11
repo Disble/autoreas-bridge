@@ -1,4 +1,5 @@
 import type { NavigateFunction } from 'react-router';
+import type { KeymapOverrides } from './keymap.types';
 
 /** Canonical chord string: `ctrl+alt+shift+meta+<key>`, e.g. `alt+1`, `alt+shift+r`, `?`. */
 export type Chord = string;
@@ -57,4 +58,31 @@ export type KeyboardStoreState = {
   readonly frames: readonly KeyboardScopeFrame[];
   /** Whether the shortcuts overlay is showing. It lives here because the `?` command runs outside React. */
   readonly isHelpOpen: boolean;
+  /** User-owned chord overrides, keyed by command id (design D1). `{}` until the persisted keymap loads, and whenever a command has no override. */
+  readonly overrides: KeymapOverrides;
+  /**
+   * How the persisted keymap's one load attempt ended (design D11).
+   *
+   * Three states, not a boolean, because the panel owes three different
+   * renderings and a boolean can only express two. The spec requires that a
+   * failed load render the panel's ERROR state, "never a loading placeholder
+   * or an empty state" -- and a failed load and a user who has simply
+   * rebound nothing both leave `overrides` at `{}`, so the outcome has to be
+   * recorded separately or the two become indistinguishable.
+   *
+   * A malformed stored document is `'loaded'`, not `'failed'`: it arrived
+   * fine and `parseKeymap` degraded its contents to `{}`. Only a rejected
+   * read -- an unattached binding, a throw -- is `'failed'`.
+   *
+   * `'pending'` strands nothing: with `overrides` still `{}` every command
+   * already answers to its declared chord, so shortcuts work during the load.
+   */
+  readonly keymapLoadState: KeymapLoadState;
 };
+
+/**
+ * The outcome of the keymap's single load attempt. See
+ * `KeyboardStoreState.keymapLoadState` for why a failed read is distinct from
+ * a document that parsed to no overrides.
+ */
+export type KeymapLoadState = 'pending' | 'loaded' | 'failed';

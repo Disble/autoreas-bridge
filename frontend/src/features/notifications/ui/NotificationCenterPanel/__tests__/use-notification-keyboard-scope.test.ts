@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import type { KeyboardDispatchEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import { getKeyboardState, resetKeyboardStore } from '../../../../../shared/keyboard/keyboard-scope.helpers';
+import { SCOPED_COMMAND_BINDINGS } from '../../../../../shared/keyboard/keymap.constants';
 import { useNotificationKeyboardScope } from '../use-notification-keyboard-scope';
 
 /** Builds a minimal literal satisfying `KeyboardDispatchEvent` for `alt+r`, mirroring `dispatch.helpers.test.ts`'s `baseEvent`. */
@@ -65,6 +66,22 @@ describe('useNotificationKeyboardScope', () => {
       chord: 'alt+r',
       label: 'Mark all as read',
       section: 'Notifications',
+    });
+  });
+
+  it('registers a binding whose metadata is read from SCOPED_COMMAND_BINDINGS, not a hardcoded literal (R-6): a future edit to the shared constant must be reflected here', () => {
+    renderHook(() => useNotificationKeyboardScope({ canMarkAllRead: true, onMarkAllRead: vi.fn() }));
+
+    const [frame] = getKeyboardState().frames;
+    const [command] = frame?.getCommands() ?? [];
+    const sharedBinding = SCOPED_COMMAND_BINDINGS['notification-center.mark-all-read'];
+
+    expect(command).toMatchObject({
+      id: sharedBinding.id,
+      scope: sharedBinding.scope,
+      chord: sharedBinding.chord,
+      label: sharedBinding.label,
+      section: sharedBinding.section,
     });
   });
 

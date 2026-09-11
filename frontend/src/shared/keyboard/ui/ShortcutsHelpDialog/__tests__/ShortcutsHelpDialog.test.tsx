@@ -2,9 +2,18 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { useEffect } from 'react';
 import type { NavigateFunction } from 'react-router';
 import { MemoryRouter, useNavigate } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KEYBOARD_COMMANDS } from '../../../command-registry.constants';
-import { getKeyboardState, popKeyboardScopeFrame, pushKeyboardScopeFrame, resetKeyboardStore, setKeyboardHelpOpen } from '../../../keyboard-scope.helpers';
+import { dispatchKeyboardEvent } from '../../../dispatch.helpers';
+import type { KeyboardDispatchEvent } from '../../../dispatch.helpers';
+import {
+  getKeyboardState,
+  popKeyboardScopeFrame,
+  pushKeyboardScopeFrame,
+  resetKeyboardStore,
+  setKeyboardHelpOpen,
+  setKeymapOverrides,
+} from '../../../keyboard-scope.helpers';
 import type { CommandDefinition, KeyboardScopeFrame } from '../../../keyboard.types';
 import { ShortcutsHelpDialog } from '../ShortcutsHelpDialog';
 
@@ -141,5 +150,53 @@ describe('ShortcutsHelpDialog', () => {
 
     expect(getKeyboardState().isHelpOpen).toBe(false);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it("displays an overridden command's new chord, not its declared one (spec: an overridden chord displays identically to what the dispatcher now answers to)", () => {
+    setKeyboardHelpOpen(true);
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+
+    render(
+      <MemoryRouter>
+        <ShortcutsHelpDialog />
+      </MemoryRouter>,
+    );
+
+    const section = screen.getByRole('region', { name: 'Navigation' });
+    expect(within(section).getByText('Ctrl + 1')).toBeInTheDocument();
+    expect(within(section).queryByText('Alt + 1')).not.toBeInTheDocument();
+  });
+
+  it('R-8: resolves and displays a rebind identically across the dispatcher and the overlay, in one test', () => {
+    setKeyboardHelpOpen(true);
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+    const navigate = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ShortcutsHelpDialog />
+      </MemoryRouter>,
+    );
+
+    const overriddenEvent: KeyboardDispatchEvent = {
+      key: '1',
+      code: 'Digit1',
+      ctrlKey: true,
+      altKey: false,
+      shiftKey: false,
+      metaKey: false,
+      defaultPrevented: false,
+      isComposing: false,
+      target: null,
+      preventDefault: () => undefined,
+    };
+
+    act(() => {
+      dispatchKeyboardEvent(overriddenEvent, { navigate });
+    });
+
+    expect(navigate).toHaveBeenCalledWith('/today');
+    const section = screen.getByRole('region', { name: 'Navigation' });
+    expect(within(section).getByText('Ctrl + 1')).toBeInTheDocument();
   });
 });

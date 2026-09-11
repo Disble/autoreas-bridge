@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { AppLayout } from '../AppLayout';
 
@@ -7,6 +7,17 @@ import { AppLayout } from '../AppLayout';
 // then sees two rails and two badges. This file is not configured for
 // auto-cleanup; every other suite in the repo calls it explicitly.
 afterEach(cleanup);
+
+// AppLayout mounts KeyboardDispatcherListener, which now also loads the
+// persisted keymap on mount (Slice 4, D11). With no Go binding attached that
+// load would poll via a real, unawaited setInterval (wails-bindings.helpers.ts)
+// before degrading; stubbing GetKeymap makes it resolve immediately instead.
+beforeEach(() => {
+  window.go = { desktop: { App: { GetKeymap: () => Promise.resolve('') } } } as never;
+});
+afterEach(() => {
+  Reflect.deleteProperty(window, 'go');
+});
 
 vi.mock('../../NotificationToasts', () => ({
   NotificationToasts: () => <div data-testid="notification-toasts" />,

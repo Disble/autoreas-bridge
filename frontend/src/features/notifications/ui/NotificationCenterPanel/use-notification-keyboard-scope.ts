@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { CommandDefinition } from '../../../../shared/keyboard/keyboard.types';
+import { SCOPED_COMMAND_BINDINGS } from '../../../../shared/keyboard/keymap.constants';
 import { useKeyboardScope } from '../../../../shared/keyboard/use-keyboard-scope';
 
 /** Options accepted by `useNotificationKeyboardScope`. */
@@ -17,17 +18,18 @@ export interface UseNotificationKeyboardScopeOptions {
  * mounted. `enabled` mirrors `canMarkAllRead` so pressing `Alt+R` with
  * nothing unread swallows the chord instead of silently doing something
  * else (D9) -- there is deliberately no global fallback for this command.
+ * The binding's identity/metadata come from `SCOPED_COMMAND_BINDINGS`
+ * (design D3), not an inline literal, so the Settings panel can enumerate
+ * this command even while the panel is unmounted -- only `enabled`/`run`
+ * stay here, since they close over feature state the shared constant has
+ * no access to.
  */
 export function useNotificationKeyboardScope({ canMarkAllRead, onMarkAllRead }: Readonly<UseNotificationKeyboardScopeOptions>): void {
   // 5. Derived State
   const commands = useMemo<readonly CommandDefinition[]>(
     () => [
       {
-        id: 'notification-center.mark-all-read',
-        scope: 'notification-center',
-        chord: 'alt+r',
-        label: 'Mark all as read',
-        section: 'Notifications',
+        ...SCOPED_COMMAND_BINDINGS['notification-center.mark-all-read'],
         enabled: () => canMarkAllRead,
         run: () => onMarkAllRead(),
       },

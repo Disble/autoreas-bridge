@@ -4,6 +4,8 @@ import { KEYBOARD_COMMANDS } from './command-registry.constants';
 import { TYPING_TAG_NAMES } from './keyboard.constants';
 import { getKeyboardState } from './keyboard-scope.helpers';
 import type { Chord, CommandContext, CommandDefinition, KeyboardScopeFrame } from './keyboard.types';
+import { effectiveChord } from './keymap.helpers';
+import type { KeymapOverrides } from './keymap.types';
 
 /**
  * The subset of an event target `isTypingTarget` reads. All fields optional
@@ -55,20 +57,26 @@ export function isTypingTarget(target: TypingTargetLike | null): boolean {
  * top-down -- innermost frame (the array's last entry) first -- and falling
  * back to the global registry. The first frame that DECLARES the chord wins
  * outright, even if its `enabled()` will later say no, so a scoped command
- * never silently falls through to a same-chord global one (D9).
+ * never silently falls through to a same-chord global one (D9). Matches by
+ * each command's EFFECTIVE chord -- its stored override if one exists, else
+ * its declared chord (design D2) -- so a rebound command answers only to its
+ * new chord. `overrides` is required, not optional-with-a-default: an
+ * optional parameter would let a future call site silently skip it, which is
+ * the exact regression this change exists to prevent.
  */
 export function resolveCommand(
   chord: Chord,
   frames: readonly KeyboardScopeFrame[],
   commands: readonly CommandDefinition[],
+  overrides: KeymapOverrides,
 ): CommandDefinition | null {
   for (let index = frames.length - 1; index >= 0; index -= 1) {
-    const match = frames[index].getCommands().find((command) => command.chord === chord);
+    const match = frames[index].getCommands().find((command) => effectiveChord(command, overrides) === chord);
     if (match !== undefined) {
       return match;
     }
   }
-  return commands.find((command) => command.chord === chord) ?? null;
+  return commands.find((command) => effectiveChord(command, overrides) === chord) ?? null;
 }
 
 /**
@@ -96,8 +104,8 @@ export function dispatchKeyboardEvent(event: KeyboardDispatchEvent, context: Com
   if (chord === null) {
     return;
   }
-  const { frames } = getKeyboardState();
-  const command = resolveCommand(chord, frames, KEYBOARD_COMMANDS);
+  const { frames, overrides } = getKeyboardState();
+  const command = resolveCommand(chord, frames, KEYBOARD_COMMANDS, overrides);
   if (command === null) {
     return;
   }

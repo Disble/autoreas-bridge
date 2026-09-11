@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { KEYBOARD_COMMANDS } from '../../command-registry.constants';
 import { setKeyboardHelpOpen } from '../../keyboard-scope.helpers';
 import type { CommandDefinition } from '../../keyboard.types';
+import { resolveKeymap } from '../../keymap.helpers';
 import { useKeyboardStore } from '../../use-keyboard-store';
 import { toShortcutSections } from './shortcuts-help-dialog.helpers';
 import type { UseShortcutsHelpDialogResult } from './shortcuts-help-dialog.types';
@@ -15,7 +16,11 @@ import type { UseShortcutsHelpDialogResult } from './shortcuts-help-dialog.types
  * on a genuine route CHANGE, so navigating from inside it never leaves it
  * floating over the new page -- deliberately not on mount, since the overlay
  * is mounted once at the app shell and a mount-time close would fight
- * whatever `isHelpOpen` already was the instant it renders.
+ * whatever `isHelpOpen` already was the instant it renders. Every displayed
+ * chord is resolved through `resolveKeymap` before grouping, the same rule
+ * the dispatcher applies at keystroke time, so a rebound command shows
+ * exactly what it now answers to (design D2, spec "An overridden chord
+ * displays identically to what the dispatcher now answers to").
  * @param commands The base command set to render. Defaults to `KEYBOARD_COMMANDS`; injectable so a test can prove derivation without editing the dialog (spec S14).
  */
 export function useShortcutsHelpDialog(commands: readonly CommandDefinition[] = KEYBOARD_COMMANDS): UseShortcutsHelpDialogResult {
@@ -23,6 +28,7 @@ export function useShortcutsHelpDialog(commands: readonly CommandDefinition[] = 
   const { pathname } = useLocation();
   const isOpen = useKeyboardStore((state) => state.isHelpOpen);
   const frames = useKeyboardStore((state) => state.frames);
+  const overrides = useKeyboardStore((state) => state.overrides);
 
   // 1. Refs (declared after the hook whose value seeds it, mirroring
   // use-keyboard-dispatcher.ts's navigateRef: there is no null initial state
@@ -31,8 +37,8 @@ export function useShortcutsHelpDialog(commands: readonly CommandDefinition[] = 
 
   // 5. Derived state
   const sections = useMemo(
-    () => toShortcutSections([...commands, ...frames.flatMap((frame) => frame.getCommands())]),
-    [commands, frames],
+    () => toShortcutSections(resolveKeymap([...commands, ...frames.flatMap((frame) => frame.getCommands())], overrides)),
+    [commands, frames, overrides],
   );
 
   // 6. Callbacks

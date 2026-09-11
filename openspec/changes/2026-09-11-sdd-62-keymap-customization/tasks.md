@@ -328,66 +328,66 @@ scenario, **"Mark All As Read...enumerable without the panel mounted"** scenario
 
 ### 4.1 Infrastructure
 
-- [ ] **4.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.types.ts`:
+- [x] **4.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.types.ts`:
   `KeyboardStoreState` gains `readonly overrides: KeymapOverrides` and `readonly isKeymapLoaded:
   boolean`. No RED, type-only (Note C — second, unrelated edit to this file after 62a).
-- [ ] **4.1.2** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.constants.ts`: `keyboardStore`'s
+- [x] **4.1.2** [GREEN] Modify `frontend/src/shared/keyboard/keyboard.constants.ts`: `keyboardStore`'s
   initial state gains `overrides: {}` and `isKeymapLoaded: false`.
 
 ### 4.2 Implementation
 
-- [ ] **4.2.1** [RED] Extend `frontend/src/shared/keyboard/__tests__/keyboard-scope.helpers.test.ts`:
+- [x] **4.2.1** [RED] Extend `frontend/src/shared/keyboard/__tests__/keyboard-scope.helpers.test.ts`:
   `setKeymapOverrides` publishes into the store; `resetKeyboardStore` clears both `overrides` and
   `isKeymapLoaded` back to their initial values.
-- [ ] **4.2.2** [GREEN] Modify `frontend/src/shared/keyboard/keyboard-scope.helpers.ts`: add
+- [x] **4.2.2** [GREEN] Modify `frontend/src/shared/keyboard/keyboard-scope.helpers.ts`: add
   `setKeymapOverrides(overrides)`; extend `resetKeyboardStore` to clear the two new fields.
-- [ ] **4.2.3** [RED] Extend `frontend/src/shared/keyboard/__tests__/dispatch.helpers.test.ts`: an
+- [x] **4.2.3** [RED] Extend `frontend/src/shared/keyboard/__tests__/dispatch.helpers.test.ts`: an
   override on a global command makes the dispatcher fire on the new chord and **not** the old one, with
   no `preventDefault()` call on the now-unbound chord (spec keyboard-shortcuts scenario "A rebound
   command fires on its new chord and not its old one"); an override on a **scoped** command applies
   inside its frame too.
-- [ ] **4.2.4** [GREEN] Modify `frontend/src/shared/keyboard/dispatch.helpers.ts`: `resolveCommand`
+- [x] **4.2.4** [GREEN] Modify `frontend/src/shared/keyboard/dispatch.helpers.ts`: `resolveCommand`
   gains a **required** fourth `overrides: KeymapOverrides` parameter (design §2 D2 — required, not
   optional-with-default, so every call site is a compile error until updated); compares via
   `effectiveChord` in both the frame loop and the global fallback. `dispatchKeyboardEvent` destructures
   `overrides` from the same `getKeyboardState()` call it already makes at line ~99.
-- [ ] **4.2.5** [RED] Extend
+- [x] **4.2.5** [RED] Extend
   `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/__tests__/ShortcutsHelpDialog.test.tsx`: an
   overridden command displays its overridden chord (spec keyboard-shortcuts scenario "An overridden
   chord displays identically to what the dispatcher now answers to"). **R-8 cross-surface test**: set
   one override via `setKeymapOverrides`, assert `dispatchKeyboardEvent` resolves it **and** the dialog
   displays it, in one test with two assertions.
-- [ ] **4.2.6** [GREEN] Modify `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/use-shortcuts-help-dialog.ts`:
+- [x] **4.2.6** [GREEN] Modify `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/use-shortcuts-help-dialog.ts`:
   read `overrides` from `useKeyboardStore`; resolve `commands` (and frame commands) through
   `resolveKeymap` before grouping into sections.
-- [ ] **4.2.7** [RED] Write `frontend/src/shared/keyboard/__tests__/use-keymap-overrides.test.ts`:
+- [x] **4.2.7** [RED] Write `frontend/src/shared/keyboard/__tests__/use-keymap-overrides.test.ts`:
   `''` from the source resolves to `{}`; a valid serialized document resolves to its overrides; garbage
   resolves to `{}`; a rejected promise resolves to `{}` — **`isKeymapLoaded` becomes `true` in all four
   cases** (D11: a rejection must never strand the panel on a permanent skeleton). Use `renderHook` with
   an injected fake `PreferencesSource`.
-- [ ] **4.2.8** [GREEN] Create `frontend/src/shared/keyboard/use-keymap-overrides.ts`: loads the
+- [x] **4.2.8** [GREEN] Create `frontend/src/shared/keyboard/use-keymap-overrides.ts`: loads the
   persisted document once via `preferencesSource.getKeymap()`, parses it with `parseKeymap`, publishes
   via `setKeymapOverrides`, and always sets `isKeymapLoaded: true` in a `finally`-equivalent path
   regardless of outcome.
-- [ ] **4.2.9** [GREEN] Modify
+- [x] **4.2.9** [GREEN] Modify
   `frontend/src/shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener.tsx`: call
   `useKeymapOverrides()` beside the existing `useKeyboardDispatcher()`; update its JSDoc to say it now
   holds two keyboard-runtime concerns (design §2 D11).
-- [ ] **4.2.10** [RED] Extend
+- [x] **4.2.10** [RED] Extend
   `frontend/src/features/notifications/ui/NotificationCenterPanel/__tests__/use-notification-keyboard-scope.test.ts`
   — **R-6 guard**: assert the registered command's `chord` equals
   `SCOPED_COMMAND_BINDINGS['notification-center.mark-all-read'].chord`, not a hardcoded literal, so a
   future edit to the shared constant that the hook silently stops reading turns this test red.
-- [ ] **4.2.11** [GREEN] Modify
+- [x] **4.2.11** [GREEN] Modify
   `frontend/src/features/notifications/ui/NotificationCenterPanel/use-notification-keyboard-scope.ts`:
   spread `SCOPED_COMMAND_BINDINGS['notification-center.mark-all-read']` and add the two closures
   (`enabled`, `run`) instead of the inline `chord: 'alt+r'` literal (design §2 D3).
 
 ### 4.3 Testing & Verification
 
-- [ ] **4.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
+- [x] **4.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
   staged files — the dispatcher is the hot path and the most mutation-sensitive file in the change.
-- [ ] **4.3.2** [VERIFY] `bun --cwd="frontend" run test -- keyboard notification`;
+- [x] **4.3.2** [VERIFY] `bun --cwd="frontend" run test -- keyboard notification`;
   `bun --cwd="frontend" run render:smoke`; `bun run typecheck`; `bunx eslint`.
 - [ ] **4.3.3** [GATE] Left to the orchestrator.
 

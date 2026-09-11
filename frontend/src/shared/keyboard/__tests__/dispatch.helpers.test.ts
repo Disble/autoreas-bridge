@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { popKeyboardScopeFrame, pushKeyboardScopeFrame, resetKeyboardStore } from '../keyboard-scope.helpers';
+import { popKeyboardScopeFrame, pushKeyboardScopeFrame, resetKeyboardStore, setKeymapOverrides } from '../keyboard-scope.helpers';
 import { dispatchKeyboardEvent, isTypingTarget, resolveCommand } from '../dispatch.helpers';
 import type { KeyboardDispatchEvent } from '../dispatch.helpers';
 import type { CommandDefinition, KeyboardScopeFrame } from '../keyboard.types';
@@ -78,13 +78,13 @@ describe('resolveCommand', () => {
   it('resolves from the global registry when no frame is on the stack', () => {
     const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+1' });
 
-    expect(resolveCommand('alt+1', [], [globalCommand])).toBe(globalCommand);
+    expect(resolveCommand('alt+1', [], [globalCommand], {})).toBe(globalCommand);
   });
 
   it('returns null for a chord no frame or the global registry declares', () => {
     const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+1' });
 
-    expect(resolveCommand('ctrl+z', [], [globalCommand])).toBeNull();
+    expect(resolveCommand('ctrl+z', [], [globalCommand], {})).toBeNull();
   });
 
   it('resolves the innermost frame first when two frames both declare the chord', () => {
@@ -93,14 +93,31 @@ describe('resolveCommand', () => {
     const outerFrame = buildFrame(1, [outerCommand]);
     const innerFrame = buildFrame(2, [innerCommand]);
 
-    expect(resolveCommand('alt+r', [outerFrame, innerFrame], [])).toBe(innerCommand);
+    expect(resolveCommand('alt+r', [outerFrame, innerFrame], [], {})).toBe(innerCommand);
   });
 
   it('falls back to the global registry when the active frame does not declare the chord', () => {
     const globalCommand = buildCommand({ id: 'global.one', chord: 'alt+9' });
     const frame = buildFrame(1, [buildCommand({ id: 'frame.one', chord: 'alt+r' })]);
 
-    expect(resolveCommand('alt+9', [frame], [globalCommand])).toBe(globalCommand);
+    expect(resolveCommand('alt+9', [frame], [globalCommand], {})).toBe(globalCommand);
+  });
+
+  it('resolves by a command effective chord, honoring a stored override over its declared chord (D2)', () => {
+    const globalCommand = buildCommand({ id: 'nav.today', chord: 'alt+1' });
+    const overrides = { 'nav.today': 'ctrl+1' };
+
+    expect(resolveCommand('ctrl+1', [], [globalCommand], overrides)).toBe(globalCommand);
+    expect(resolveCommand('alt+1', [], [globalCommand], overrides)).toBeNull();
+  });
+
+  it('applies an override to a command inside a scope frame, not only to globals', () => {
+    const scopedCommand = buildCommand({ id: 'scoped.one', chord: 'alt+r' });
+    const frame = buildFrame(1, [scopedCommand]);
+    const overrides = { 'scoped.one': 'ctrl+shift+r' };
+
+    expect(resolveCommand('ctrl+shift+r', [frame], [], overrides)).toBe(scopedCommand);
+    expect(resolveCommand('alt+r', [frame], [], overrides)).toBeNull();
   });
 });
 
@@ -210,5 +227,36 @@ describe('dispatchKeyboardEvent', () => {
     dispatchKeyboardEvent(event, { navigate });
 
     expect(navigate).toHaveBeenCalledWith('/today');
+  });
+
+  it('fires a rebound global command on its overridden chord and not its original declared chord (D2, spec: a rebound command fires on its new chord and not its old one)', () => {
+    const navigate = vi.fn();
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+
+    const overriddenPreventDefault = vi.fn();
+    dispatchKeyboardEvent(
+      { ...baseEvent, key: '1', code: 'Digit1', ctrlKey: true, preventDefault: overriddenPreventDefault },
+      { navigate },
+    );
+    expect(navigate).toHaveBeenCalledWith('/today');
+    expect(overriddenPreventDefault).toHaveBeenCalledTimes(1);
+
+    const originalPreventDefault = vi.fn();
+    dispatchKeyboardEvent(
+      { ...baseEvent, key: '1', code: 'Digit1', altKey: true, preventDefault: originalPreventDefault },
+      { navigate },
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(originalPreventDefault).not.toHaveBeenCalled();
+  });
+
+  it('applies an override to a scoped command inside its frame (D2)', () => {
+    const run = vi.fn();
+    pushKeyboardScopeFrame(buildFrame(1, [buildCommand({ id: 'scoped.one', chord: 'alt+r', run })]));
+    setKeymapOverrides({ 'scoped.one': 'ctrl+shift+r' });
+
+    dispatchKeyboardEvent({ ...baseEvent, key: 'r', code: 'KeyR', ctrlKey: true, shiftKey: true }, { navigate: vi.fn() });
+
+    expect(run).toHaveBeenCalledTimes(1);
   });
 });

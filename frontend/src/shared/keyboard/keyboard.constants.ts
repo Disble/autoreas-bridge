@@ -36,6 +36,8 @@ export const NUMPAD_CODE_PATTERN = /^Numpad/;
 export const keyboardStore = createStore<KeyboardStoreState>()(() => ({
   frames: [],
   isHelpOpen: false,
+  overrides: {},
+  keymapLoadState: 'pending',
 }));
 
 /**

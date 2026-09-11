@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  failKeymapLoad,
   getKeyboardState,
   popKeyboardScopeFrame,
   pushKeyboardScopeFrame,
   resetKeyboardStore,
   setKeyboardHelpOpen,
+  setKeymapOverrides,
 } from '../keyboard-scope.helpers';
 import type { KeyboardScopeFrame } from '../keyboard.types';
 
@@ -65,13 +67,53 @@ describe('setKeyboardHelpOpen', () => {
   });
 });
 
+describe('setKeymapOverrides', () => {
+  it('publishes the given overrides into the store and records the load as loaded (D1, D11)', () => {
+    expect(getKeyboardState().keymapLoadState).toBe('pending');
+
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+
+    expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
+    expect(getKeyboardState().keymapLoadState).toBe('loaded');
+  });
+
+  it('records an empty document as loaded, not failed, so a user who rebound nothing is not reported as a broken runtime', () => {
+    setKeymapOverrides({});
+
+    expect(getKeyboardState().keymapLoadState).toBe('loaded');
+    expect(getKeyboardState().overrides).toEqual({});
+  });
+});
+
+describe('failKeymapLoad', () => {
+  it('records the failure while still publishing no overrides, so the dispatcher keeps working on declared chords', () => {
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
+
+    failKeymapLoad();
+
+    expect(getKeyboardState().keymapLoadState).toBe('failed');
+    expect(getKeyboardState().overrides).toEqual({});
+  });
+
+  it('is distinguishable from a loaded empty keymap, which is the whole reason the state is not a boolean', () => {
+    setKeymapOverrides({});
+    const loadedEmpty = getKeyboardState().keymapLoadState;
+
+    failKeymapLoad();
+
+    expect(loadedEmpty).toBe('loaded');
+    expect(getKeyboardState().keymapLoadState).toBe('failed');
+  });
+});
+
 describe('resetKeyboardStore', () => {
-  it('returns the store to its initial shape after frames and isHelpOpen change', () => {
+  it('returns the store to its initial shape after frames, isHelpOpen and the keymap fields change', () => {
     pushKeyboardScopeFrame(buildFrame(1));
     setKeyboardHelpOpen(true);
+    setKeymapOverrides({ 'nav.today': 'ctrl+1' });
 
     resetKeyboardStore();
 
-    expect(getKeyboardState()).toEqual({ frames: [], isHelpOpen: false });
+    expect(getKeyboardState()).toEqual({ frames: [], isHelpOpen: false, overrides: {}, keymapLoadState: 'pending' });
   });
 });
