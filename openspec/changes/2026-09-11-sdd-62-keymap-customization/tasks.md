@@ -732,31 +732,31 @@ covering ADR-019/ADR-020/skill/CLAUDE.md/learning-log.
 
 ### 12.1 Implementation
 
-- [ ] **12.1.1** Modify `docs/adr/019-keyboard-command-registry.md`: header gains `- **Amended**:
+- [x] **12.1.1** Modify `docs/adr/019-keyboard-command-registry.md`: header gains `- **Amended**:
   2026-09-11 by ADR-020 (keymap override seam)`; §1's remapping table row gains the scoped-command
   exception naming `SCOPED_COMMAND_BINDINGS`; "Alternatives considered" gains one sentence (019 made
   remapping *possible*, SDD-62 shipped it); Consequences gains the three call sites that must resolve
   through overrides (design §2 D12, exact four edits).
-- [ ] **12.1.2** Create `docs/adr/020-keymap-override-seam.md`: the store-read seam (D1), `effectiveChord`
+- [x] **12.1.2** Create `docs/adr/020-keymap-override-seam.md`: the store-read seam (D1), `effectiveChord`
   vs. per-keystroke resolution (D2), Go-as-opaque-pipe (D5), capture-by-listening (D7),
   duplicates-block/shadows-warn (D8), advisory-not-blocking hazards (D9), each with its rejected
   alternatives, condensed from `design.md` §2 (~260 lines, matching ADR-019's own 161-line precedent
   scaled to six decisions instead of four).
-- [ ] **12.1.3** Modify `.claude/skills/keyboard-shortcuts/SKILL.md`: the "Known limits" row for
+- [x] **12.1.3** Modify `.claude/skills/keyboard-shortcuts/SKILL.md`: the "Known limits" row for
   remapping becomes "shipped"; add a section on overrides and `SCOPED_COMMAND_BINDINGS`; bump the
   skill's version.
-- [ ] **12.1.4** Modify `CLAUDE.md` (and the corresponding `AGENTS.md` note 23): amend with the override
+- [x] **12.1.4** Modify `CLAUDE.md` (and the corresponding `AGENTS.md` note 23): amend with the override
   seam — the shortcuts panel exists, the dispatcher/overlay resolve through overrides, Go persists an
   opaque document.
-- [ ] **12.1.5** Append one line via `node scripts/log-lesson.mjs "<the lesson>"` (never by hand,
+- [x] **12.1.5** Append one line via `node scripts/log-lesson.mjs "<the lesson>"` (never by hand,
   CLAUDE.md #17) — the specific lesson is chosen at apply time from whatever actually cost cycles
   during this chain (mirrors SDD-61's own task 4.3.4 precedent), not pre-selected here.
 
 ### 12.2 Verification
 
-- [ ] **12.2.1** [VERIFY] `grep -rn "normalizeChord\|parseChord\|ChordGrammar" internal/` — zero hits,
+- [x] **12.2.1** [VERIFY] `grep -rn "normalizeChord\|parseChord\|ChordGrammar" internal/` — zero hits,
   confirming no Go file parses a chord (spec/design invariant, R-9).
-- [ ] **12.2.2** [VERIFY] Re-read ADR-019's amended text against `design.md` §2 D12's four-edit list;
+- [x] **12.2.2** [VERIFY] Re-read ADR-019's amended text against `design.md` §2 D12's four-edit list;
   confirm all four landed verbatim.
 - [ ] **12.2.3** [GATE] Left to the orchestrator.
 

@@ -1,6 +1,7 @@
 # ADR-019: Keyboard shortcuts run through one command registry, not per-component key handlers
 
 - **Status**: Accepted, implemented
+- **Amended**: 2026-09-11 by ADR-020 (keymap override seam)
 - **Date**: 2026-09-11
 - **Supersedes**: nothing
 - **Related**: `openspec/changes/2026-09-10-sdd-61-keyboard-shortcuts/design.md` (D1, D4, D5, D7 —
@@ -33,6 +34,7 @@ single choice is what makes the three requirements above mechanical rather than 
 | No two entries share `{scope, chord}` | `findDuplicateBindings(KEYBOARD_COMMANDS)` is a pure call over a plain array — no render, no mount, no effect timing to race |
 | The help dialog renders from the registry | The dialog reads the exact same array the dispatcher resolves against; there is nothing else it *could* read, so the two cannot drift |
 | A scoped command shadows a same-chord global one | `resolveCommand` walks scope-stack frames top-down and returns the first frame that *declares* the chord, even when that command's `enabled()` will say no — it never falls through to a same-chord global entry |
+| A command's chord is centrally declared, separable metadata — not hardcoded where the command runs | **Corrected 2026-09-11 (was aspirational).** True for the ten navigation commands from the start: their chords live in `NAV_COMMAND_CHORDS`, a data table joined into `CommandDefinition` at registry-build time, never inline in a feature. It was **not** true for the one scoped command: the Notification Center's "mark all as read" declared `chord: 'alt+r'` inline in `use-notification-keyboard-scope.ts`, not in any table this ADR's registry could read independently. SDD-62 (ADR-020) centralized it into `SCOPED_COMMAND_BINDINGS`, which is what makes the claim in this row true for every shipped command, not only the navigation ones |
 
 **Alternatives rejected**: a Chain of Responsibility over per-widget handlers, where an earlier handler
 silently wins a duplicate binding with no way to assert it at test time; and direct `key -> callback`
@@ -142,6 +144,12 @@ everywhere (breaks every letter and punctuation chord across non-US layouts, the
 - `KeyboardScopeFrame.exclusive` does not exist. A future modal or command palette that needs to *block*
   fall-through to global commands (rather than merely shadow a matching chord) will need one new optional
   field and one new branch in `resolveCommand` — deliberately not added ahead of a second real consumer.
+- Since ADR-020, `KEYBOARD_COMMANDS` (and `SCOPED_COMMAND_BINDINGS`) are the **default** keymap, not
+  the effective one. Three call sites resolve a binding's *effective* chord through a user's stored
+  override rather than reading `chord` directly: the dispatcher (`dispatch.helpers.ts`'s
+  `resolveCommand`), the `?` help dialog (`use-shortcuts-help-dialog.ts`), and the Settings shortcuts
+  panel (`use-keymap-panel.ts`). A fourth call site that reads `chord` directly instead of resolving
+  through `effectiveChord`/`resolveKeymap` would silently ignore a user's rebind.
 
 ## Alternatives considered
 
@@ -151,7 +159,9 @@ makes the same case a one-line pure-function check.
 
 **Direct `key -> callback` binding wired ad hoc per feature.** Rejected: forfeits remapping, the help
 dialog, and conflict detection simultaneously, and scatters the one thing this change needed centralized
-— the full set of bindings — across every feature that wants a shortcut.
+— the full set of bindings — across every feature that wants a shortcut. This ADR made remapping
+*possible* by keeping every chord as data rather than a closure; SDD-62 (ADR-020) is what actually
+shipped it, as a resolution rule applied at read time over that same data.
 
 **React Context for the scope stack.** Rejected: the dispatcher must read the current stack from a plain
 `window` listener outside any component's render, where `useContext` cannot reach.
