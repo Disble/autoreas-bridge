@@ -8,6 +8,7 @@ import { SyncStatusChip } from '../../features/navigation/SyncStatusChip/SyncSta
 import { APP_LAYOUT_NAV_GROUPS } from '../../shared/navigation/app-layout.constants';
 import { flattenNavItems } from '../../shared/navigation/app-layout.helpers';
 import { KeyboardDispatcherListener } from '../../shared/keyboard/ui/KeyboardDispatcherListener/KeyboardDispatcherListener';
+import { ShortcutsHelpDialog } from '../../shared/keyboard/ui/ShortcutsHelpDialog/ShortcutsHelpDialog';
 import { BrandMark } from '../../shared/ui/BrandMark';
 import { railItemClass, tabItemClass } from './AppLayout.helpers';
 
@@ -24,10 +25,12 @@ export function AppLayout() {
           below already sits in. It renders nothing. */}
       <NotificationNavigationListener />
       {/* Same reasoning as NotificationNavigationListener above: it needs
-          router context for useNavigate and renders nothing. First of this
-          change's two AppLayout.tsx touches -- Slice 4 adds
-          <ShortcutsHelpDialog /> beside it. */}
+          router context for useNavigate and renders nothing. */}
       <KeyboardDispatcherListener />
+      {/* Renders the `?` shortcuts overlay, driven entirely by the shared
+          keyboard store -- no trigger element, the keystroke is the trigger
+          (design §5). Second of this change's two AppLayout.tsx touches. */}
+      <ShortcutsHelpDialog />
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-divider/60 bg-background/85 px-4 backdrop-blur md:hidden">
         <div className="grid size-8 place-items-center rounded-lg bg-primary/15 text-foreground">
           <BrandMark className="size-4" />

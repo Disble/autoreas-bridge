@@ -122,12 +122,13 @@ scenario, per Note C).
   `MODIFIER_ONLY_KEYS`/`DIGIT_CODE_PATTERN`/`NUMPAD_CODE_PATTERN` — moved here from
   `chord.helpers.ts` after `dharness/role-file-shape` rejected plain `const` values in a `.helpers.ts`
   file (see Deviations in the apply report).
-- [ ] **1.1.3** [GREEN] [[DEFERRED TO SLICE 4 -- see below]] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
+- [x] **1.1.3** [GREEN] [[BUILT IN SLICE 4 -- see below]] Create `frontend/src/shared/keyboard/use-keyboard-store.ts`:
   `useKeyboardStore` wrapping `useStore(keyboardStore, selector)`, mirroring `use-notification-store.ts`
   verbatim (D4). **Written in Slice 1 and removed before its commit**: `fallow audit` rejected it as an
-  unreachable file with no consumer, and suppressing that would have gamed the gate. `ShortcutsHelpDialog`
-  (Slice 4) is its first real consumer -- it must subscribe reactively to `isHelpOpen` -- so the hook lands
-  there, not retroactively here. Same story for `KEYBOARD_SCOPE`.
+  unreachable file with no consumer, and suppressing that would have gamed the gate. Landed for real in
+  Slice 4 with `ShortcutsHelpDialog` as its first real consumer (subscribes reactively to `isHelpOpen`)
+  plus a colocated `__tests__/use-keyboard-store.test.ts`. `KEYBOARD_SCOPE` stayed out: nothing in this
+  change imports it, so it was left unshipped rather than planted for a future consumer.
 
 ### 1.2 Implementation
 
@@ -400,56 +401,96 @@ Requirements covered: **4** (completed — R-4 real-render proof), **6** (fully)
 
 **Leaves the app working because:** this is the last slice; `?` has set `isHelpOpen` since Slice 2,
 and this slice is the first to render it.
-**Forecast:** 330–360 lines (+ one manual verification task, zero code). Requirements covered: **7**
-(fully).
+**Forecast:** 330–360 lines. **Actual: ~543 authored lines** (`git diff --cached --stat` over the 10
+touched/created production+test+ADR files, excluding the `tasks.md`/`learning-log.md` process lines) —
+consistent with the orchestrator's bottom-up re-estimate (502–708) and with the same under-forecast
+pattern Slices 2–3 already measured (the original per-slice table under-counted strict-TDD test volume
+and, here, the ADR itself). Inside the ledger's 800-line cap with clear margin. Requirements covered:
+**7** (fully).
 
 ### 4.1 Infrastructure
 
-- [ ] **4.1.1** [GREEN] Create
+- [x] **4.1.1** [GREEN] Create
   `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/shortcuts-help-dialog.types.ts`: the hook's
-  return shape and the dialog's props, every property `readonly` (CLAUDE.md frontend #5).
+  return shape and the dialog's props, every property `readonly` (CLAUDE.md frontend #5). No RED: a
+  type-only file has no runtime behavior to fail first (same reasoning as 1.1.1).
 
 ### 4.2 Implementation
 
-- [ ] **4.2.1** [RED] Write
+- [x] **4.2.1** [RED] Write
   `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/__tests__/ShortcutsHelpDialog.test.tsx`: every
   `KEYBOARD_COMMANDS` label appears under its `section`; an injected command supplied through the
   dialog's `commands` prop (defaulting to `KEYBOARD_COMMANDS`) appears with NO change to the dialog's
-  own code (spec **S14**); mounting `use-notification-keyboard-scope` makes its command appear, and
-  unmounting it makes the command disappear; the overlay closes when `useLocation().pathname` changes.
-- [ ] **4.2.2** [GREEN] Implement
+  own code (spec **S14**); a mounted scope frame's command appears and disappears once the frame is
+  popped (Notification Center's own hook already proves push/pop in Slice 3 — this test drives the
+  frame primitive directly rather than mounting `use-notification-keyboard-scope`, so the dialog's own
+  derivation is proven independent of that feature); the overlay closes when `useLocation().pathname`
+  changes. One case added post-implementation (see Deviations): dismissing the dialog (Escape) flips
+  `isHelpOpen` back to `false` in the store — the RED file initially left `onOpenChange`'s body
+  uncovered, and MUTATE caught it.
+- [x] **4.2.2** [GREEN] Implement
   `frontend/src/shared/keyboard/ui/ShortcutsHelpDialog/shortcuts-help-dialog.helpers.ts`
   (`toShortcutSections`, grouping by `section` with `display: formatChord(chord)`),
-  `use-shortcuts-help-dialog.ts` (`{ isOpen, onOpenChange, sections }`, closes on route change), and
-  `ShortcutsHelpDialog.tsx` (`Modal`/`Modal.Backdrop`/`Modal.Container`/`Modal.Dialog`/`Modal.Header`/
-  `Modal.Heading`/`Modal.Body`, no trigger button — the keystroke IS the trigger, per the verified
-  `ModalRoot` prop mapping design §5 cites against the installed package).
-- [ ] **4.2.3** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
+  `use-shortcuts-help-dialog.ts` (`{ isOpen, onOpenChange, sections }`, closes on a genuine route
+  change), and `ShortcutsHelpDialog.tsx` (`Modal`/`Modal.Backdrop`/`Modal.Container`/`Modal.Dialog`/
+  `Modal.Header`/`Modal.Heading`/`Modal.Body`, no trigger button — the keystroke IS the trigger, per
+  the verified `ModalRoot` prop mapping design §5 cites against the installed package, the same
+  controlled-`isOpen` shape `AnimeDetailMutationControls.tsx` already ships). Also created
+  `frontend/src/shared/keyboard/use-keyboard-store.ts` (task 1.1.3, deferred from Slice 1) with a
+  colocated `__tests__/use-keyboard-store.test.ts` — its first real consumer.
+- [x] **4.2.3** [GREEN] Modify `frontend/src/app/AppLayout/AppLayout.tsx`: add
   `<ShortcutsHelpDialog />` beside `<KeyboardDispatcherListener />`. Second of this change's two
   `AppLayout.tsx` touches — see Task-Planning Note A.
-- [ ] **4.2.4** [GREEN] Create `docs/adr/019-keyboard-command-registry.md`: condenses D1
+- [x] **4.2.4** [GREEN] Create `docs/adr/019-keyboard-command-registry.md` (161 lines): condenses D1
   (registry-as-data over Chain-of-Responsibility/direct-binding), D4 (vanilla zustand over React
   Context), D5 (bubble-phase `window` listener, the React Aria coexistence contract), D7
   (`event.key`-first chord normalization with the digit-row escape hatch), per design §2.
 
 ### 4.3 Testing & Verification
 
-- [ ] **4.3.1** [MUTATE] `test:mutation:staged` over the Slice 4 staged diff (help-dialog derivation
-  helper).
-- [ ] **4.3.2** [VERIFY] Run `bun --cwd="frontend" run test -- keyboard` (full `shared/keyboard/` +
-  notification-center-panel suite green) and `go test ./...` (confirm zero backend files touched
-  across the whole four-slice chain — design §7, zero Go/REST/WS/SQLite surface).
+- [x] **4.3.1** [MUTATE] Ran manually (staged files, `bun --cwd="frontend" run test:mutation:staged`,
+  repo-blended 83.01% ≥ 80% threshold, exit 0) since apply does not commit and `lefthook.yml` only
+  fires on commit. Isolating the four Slice 4 production files (targeted `stryker run --mutate
+  <4-file-ranges> --reporters clear-text,json`, same technique Slices 2–3 used) surfaced 3 mutants the
+  repo-blended average hid: (1) `shortcuts-help-dialog.helpers.ts` — a `?? []` fallback on a `Map.get`
+  lookup was no-coverage because every key read back was one just written in the same loop, so the
+  fallback was unreachable by construction. Fixed by REFACTOR: dropped the parallel order-array +
+  fallback lookup entirely and iterate the `Map`'s own insertion order instead (mutation-tdd's
+  "simplify first" — same move Slice 2 made replacing a regex with `.slice()`). (2)
+  `use-shortcuts-help-dialog.ts` — the `onOpenChange` callback's body was no-coverage (nothing in the
+  RED file closed the dialog from the inside); fixed with the Escape-dismissal test added to 4.2.1
+  above. (3) `use-shortcuts-help-dialog.ts` — the same callback's `useCallback` deps array (`[]`)
+  survived; accepted as a true equivalent mutant and documented in place, identical reasoning to
+  `use-keyboard-dispatcher.ts`'s mount-effect deps array in Slice 3 (a constant array, mutated or not,
+  produces the same memoized-forever callback, and nothing here observes callback identity — only what
+  calling it does; a `// Stryker disable` comment does not reach it for the same reason as that
+  precedent, since the target is a trailing call argument, not a leading statement). Second isolated
+  run: 96.97% (32 killed / 1 accepted survivor of 33 covered), all four files at 100% except
+  `use-shortcuts-help-dialog.ts` at 94.12% (16/17, the one accepted survivor). Files left staged for
+  the orchestrator's commit.
+- [x] **4.3.2** [VERIFY] Ran `bun --cwd="frontend" run test -- keyboard notification`: 69 test files /
+  509 tests green. `bun --cwd="frontend" run typecheck` and `bunx eslint` over every touched file both
+  clean. `bun --cwd="frontend" run render:smoke` clean. `go test ./...` (repo root): every package
+  green, confirming zero backend files touched across the whole four-slice chain (design §7, zero
+  Go/REST/WS/SQLite surface). Boundary confirmed: `grep -rn "from '.*features" frontend/src/shared/keyboard/`
+  — zero hits, exit 1.
 - [ ] **4.3.3** [VERIFY] [[MANDATORY WEBVIEW2 MANUAL CHECK — sdd-verify obligation, design §9, open
   question]] `wails build`, launch the packaged app, and manually confirm `Alt+1` through `Alt+0` reach
   the page rather than being swallowed as a Windows system chord. jsdom cannot prove this — do not
   infer a result from the green suite. If any chord is swallowed, the fix is a one-line
   `NAV_COMMAND_CHORDS` data change (e.g. `alt+shift+<digit>`), not a code change (chords are data by
   design). Record the pass/fail result, and the chosen chord if changed, explicitly in the
-  `sdd-verify` report.
-- [ ] **4.3.4** [GATE] Append the one lesson worth keeping (D5's React-Aria-coexistence contract, or
-  D7's digit-row escape hatch — whichever cost the most cycles in practice) via
-  `node scripts/log-lesson.mjs "<the lesson>"` (CLAUDE.md #17). Then `git commit` (full pre-commit
-  gate, ≥300 000 ms timeout). Never `--no-verify`.
+  `sdd-verify` report. **Left unchecked** — needs a human at a Windows machine running the packaged
+  app; neither the apply nor the orchestrating agent can perform it.
+- [ ] **4.3.4** [GATE] Lesson half done: appended one lesson via `node scripts/log-lesson.mjs` — a
+  mount-time effect closing an overlay on `[pathname]` fires on first mount too (no prior value to
+  compare), which silently closed the help dialog the instant it mounted even when a caller had just
+  set `isHelpOpen` to `true`; fixed with a ref holding the previous pathname, only acting on a genuine
+  change. Chosen over the three suggested candidates (D5, D7, the Stryker-comment-scoping finding)
+  because it is the one that actually cost cycles in this slice: a real production bug strict TDD
+  caught before it shipped, not a fact already recorded in a prior slice's Learned section or in
+  design.md itself. `git commit` half (full pre-commit gate, ≥300 000 ms timeout, never `--no-verify`)
+  **left to the orchestrator** — apply does not run `git commit` (CLAUDE.md #3/#4).
 
 **Rollback:** `git revert`. `?` still sets `isHelpOpen` inertly, matching the pre-Slice-4 state — no
 user-visible regression from reverting this slice alone.
