@@ -207,26 +207,26 @@ Slice 62j) and lays the groundwork for the keyboard-shortcuts delta's "Mark All 
 
 ### 2.1 Infrastructure
 
-- [ ] **2.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keymap.types.ts`: add `ChordHazard` (union
+- [x] **2.1.1** [GREEN] Modify `frontend/src/shared/keyboard/keymap.types.ts`: add `ChordHazard` (union
   of `'browser-zoom' | 'unverified-delivery'`) and `ShadowedBinding` (`chord`, `scopedIds`,
   `globalIds`). No RED, type-only.
 
 ### 2.2 Implementation
 
-- [ ] **2.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap.constants.test.ts`:
+- [x] **2.2.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap.constants.test.ts`:
   `SCOPED_COMMAND_BINDINGS['notification-center.mark-all-read']` matches `{ id, scope:
   'notification-center', chord: 'alt+r', label, section: 'Notifications' }` exactly (this is what
   R-6/62d's regression test will pin against). `KEYMAP_DOCUMENT_VERSION === 1`.
-- [ ] **2.2.2** [GREEN] Implement `frontend/src/shared/keyboard/keymap.constants.ts`:
+- [x] **2.2.2** [GREEN] Implement `frontend/src/shared/keyboard/keymap.constants.ts`:
   `SCOPED_COMMAND_BINDINGS` (`as const satisfies Readonly<Record<string, CommandBinding>>`, design §2
   D3), `KEYMAP_DOCUMENT_VERSION`, `BROWSER_ZOOM_CHORDS`, `UNVERIFIED_DELIVERY_PATTERN`.
-- [ ] **2.2.3** [RED] Extend `frontend/src/shared/keyboard/__tests__/keymap.helpers.test.ts`:
+- [x] **2.2.3** [RED] Extend `frontend/src/shared/keyboard/__tests__/keymap.helpers.test.ts`:
   `findChordHazard` — every `BROWSER_ZOOM_CHORDS` entry returns `'browser-zoom'`; any `alt+*` chord
   returns `'unverified-delivery'`; `?` returns `null`; a chord matching both families (none exist
   today, but assert the precedence rule stated in `design.md` §2 D9's table) resolves to the documented
   family.
-- [ ] **2.2.4** [GREEN] Extend `frontend/src/shared/keyboard/keymap.helpers.ts`: `findChordHazard`.
-- [ ] **2.2.5** [RED] Write/extend `frontend/src/shared/keyboard/__tests__/registry.helpers.test.ts`:
+- [x] **2.2.4** [GREEN] Extend `frontend/src/shared/keyboard/keymap.helpers.ts`: `findChordHazard`.
+- [x] **2.2.5** [RED] Write/extend `frontend/src/shared/keyboard/__tests__/registry.helpers.test.ts`:
   `findShadowedBindings` reports a chord claimed by both a global and a scoped command as one shadow
   entry naming both id lists; it **never** reports a same-scope collision (that stays
   `findDuplicateBindings`'s job — spec scenario "A cross-scope shadow is saved with a warning" implies
@@ -234,16 +234,16 @@ Slice 62j) and lays the groundwork for the keyboard-shortcuts delta's "Mark All 
   `findDuplicateBindings`/`findDuplicateCommandIds` still return the same result as before over the
   real `KEYBOARD_COMMANDS` array now that their parameter is `readonly CommandBinding[]` (source-compat
   regression, design §2 D3).
-- [ ] **2.2.6** [GREEN] Modify `frontend/src/shared/keyboard/registry.helpers.ts`: widen
+- [x] **2.2.6** [GREEN] Modify `frontend/src/shared/keyboard/registry.helpers.ts`: widen
   `findDuplicateBindings`/`findDuplicateCommandIds`/`collectDuplicateIds`'s parameter type to `readonly
   CommandBinding[]`; add `findShadowedBindings`, grouping by chord alone and reporting only groups
   spanning more than one scope (design §2 D8).
 
 ### 2.3 Testing & Verification
 
-- [ ] **2.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
+- [x] **2.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
   staged files.
-- [ ] **2.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap registry`; `bun run typecheck`;
+- [x] **2.3.2** [VERIFY] `bun --cwd="frontend" run test -- keymap registry`; `bun run typecheck`;
   `bunx eslint`. Confirm the four pre-existing `registry.helpers.test.ts` cases from SDD-61 still pass
   unmodified (widening did not require touching them).
 - [ ] **2.3.3** [GATE] Left to the orchestrator.

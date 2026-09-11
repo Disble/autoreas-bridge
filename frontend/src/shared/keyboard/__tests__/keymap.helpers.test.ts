@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveChord, parseKeymap, pruneKeymap, resolveKeymap, serializeKeymap } from '../keymap.helpers';
+import { effectiveChord, findChordHazard, parseKeymap, pruneKeymap, resolveKeymap, serializeKeymap } from '../keymap.helpers';
 import type { CommandBinding } from '../keyboard.types';
 import type { KeymapOverrides } from '../keymap.types';
 
@@ -141,5 +141,30 @@ describe('pruneKeymap', () => {
     };
 
     expect(pruneKeymap(overrides, bindings)).toEqual({ 'nav.today': 'ctrl+1' });
+  });
+});
+
+describe('findChordHazard', () => {
+  // Written as literals, not as `[...BROWSER_ZOOM_CHORDS]`: deriving the
+  // cases from the set under test means removing a member silently removes
+  // its coverage, which is the shape of guard-deleted test this repo has
+  // already been burned by three times.
+  it.each(['ctrl+0', 'ctrl+numpad0', 'ctrl++', 'ctrl+=', 'ctrl+-', 'ctrl+numpadadd', 'ctrl+numpadsubtract'])(
+    'flags %s as a browser-zoom hazard',
+    (chord) => {
+      expect(findChordHazard(chord)).toBe('browser-zoom');
+    },
+  );
+
+  // Every one of these was validated in the packaged app on 2026-09-11, so
+  // none of them is a hazard. This is the case that would have failed under
+  // the dropped `unverified-delivery` family, and it is here to keep that
+  // family from coming back without evidence.
+  it.each(['alt+1', 'alt+0', 'alt+r', 'alt+shift+1', '?'])('does not flag the proven chord %s', (chord) => {
+    expect(findChordHazard(chord)).toBeNull();
+  });
+
+  it('returns null for a ctrl chord that is not a zoom chord, so the family is a set membership and not a ctrl prefix', () => {
+    expect(findChordHazard('ctrl+9')).toBeNull();
   });
 });

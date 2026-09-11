@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IconifyIcon } from '@iconify/react';
 import type { NavGroup } from '../../navigation/app-layout.types';
-import { buildNavigationCommands, findDuplicateBindings, findDuplicateCommandIds } from '../registry.helpers';
+import { KEYBOARD_COMMANDS } from '../command-registry.constants';
+import { buildNavigationCommands, findDuplicateBindings, findDuplicateCommandIds, findShadowedBindings } from '../registry.helpers';
 import type { CommandDefinition } from '../keyboard.types';
 
 /** Minimal valid `IconifyIcon` for synthetic nav items -- only `body` is required. */
@@ -96,5 +97,54 @@ describe('findDuplicateCommandIds', () => {
     ];
 
     expect(findDuplicateCommandIds(commands)).toEqual(['dup', 'dup']);
+  });
+});
+
+describe('findShadowedBindings', () => {
+  it('reports a chord claimed by both a global and a scoped command as one shadow entry naming both id lists', () => {
+    const commands = [
+      buildCommand({ id: 'nav.today', scope: 'global', chord: 'alt+r' }),
+      buildCommand({ id: 'notification-center.mark-all-read', scope: 'notification-center', chord: 'alt+r' }),
+    ];
+
+    expect(findShadowedBindings(commands)).toEqual([
+      { chord: 'alt+r', scopedIds: ['notification-center.mark-all-read'], globalIds: ['nav.today'] },
+    ]);
+  });
+
+  it('never reports a same-scope collision, which findDuplicateBindings already owns', () => {
+    const commands = [
+      buildCommand({ id: 'a', scope: 'global', chord: 'alt+1' }),
+      buildCommand({ id: 'b', scope: 'global', chord: 'alt+1' }),
+    ];
+
+    expect(findShadowedBindings(commands)).toEqual([]);
+  });
+
+  it('returns an empty array when every chord is claimed by exactly one command', () => {
+    const commands = [buildCommand({ id: 'a', chord: 'alt+1' }), buildCommand({ id: 'b', chord: 'alt+2' })];
+
+    expect(findShadowedBindings(commands)).toEqual([]);
+  });
+
+  it('reports each spanning chord as its own group when more than one chord is shadowed', () => {
+    const commands = [
+      buildCommand({ id: 'global.a', scope: 'global', chord: 'alt+1' }),
+      buildCommand({ id: 'scoped.a', scope: 'notification-center', chord: 'alt+1' }),
+      buildCommand({ id: 'global.b', scope: 'global', chord: 'alt+2' }),
+      buildCommand({ id: 'scoped.b', scope: 'notification-center', chord: 'alt+2' }),
+    ];
+
+    expect(findShadowedBindings(commands)).toEqual([
+      { chord: 'alt+1', scopedIds: ['scoped.a'], globalIds: ['global.a'] },
+      { chord: 'alt+2', scopedIds: ['scoped.b'], globalIds: ['global.b'] },
+    ]);
+  });
+});
+
+describe('source compatibility with the widened CommandBinding parameter (design D3)', () => {
+  it('findDuplicateBindings and findDuplicateCommandIds still return the same result over the real KEYBOARD_COMMANDS array', () => {
+    expect(findDuplicateBindings(KEYBOARD_COMMANDS)).toEqual([]);
+    expect(findDuplicateCommandIds(KEYBOARD_COMMANDS)).toEqual([]);
   });
 });

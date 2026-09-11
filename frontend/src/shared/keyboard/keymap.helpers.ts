@@ -1,5 +1,6 @@
+import { BROWSER_ZOOM_CHORDS, KEYMAP_DOCUMENT_VERSION } from './keymap.constants';
 import type { Chord, CommandBinding } from './keyboard.types';
-import type { KeymapDocument, KeymapOverrides } from './keymap.types';
+import type { ChordHazard, KeymapDocument, KeymapOverrides } from './keymap.types';
 
 /**
  * The chord a binding actually answers to: the user's override if any, else
@@ -59,10 +60,7 @@ export function parseKeymap(raw: string): KeymapOverrides {
     // that could drift.
   }
 
-  // `1` is a literal, not a named constant: `dharness/role-file-shape` reserves
-  // `.helpers.ts` for types and functions, so a shared version constant lands in
-  // `keymap.constants.ts` (Slice 62b), which will replace both literals in this file.
-  if (!isPlainObject(parsed) || parsed.version !== 1) {
+  if (!isPlainObject(parsed) || parsed.version !== KEYMAP_DOCUMENT_VERSION) {
     return {};
   }
 
@@ -90,7 +88,7 @@ export function serializeKeymap(overrides: KeymapOverrides): string {
     return '';
   }
 
-  const document: KeymapDocument = { version: 1, bindings: overrides };
+  const document: KeymapDocument = { version: KEYMAP_DOCUMENT_VERSION, bindings: overrides };
   return JSON.stringify(document);
 }
 
@@ -109,4 +107,22 @@ export function pruneKeymap(overrides: KeymapOverrides, bindings: readonly Comma
     return binding !== undefined && binding.chord !== chord;
   });
   return Object.fromEntries(pruned);
+}
+
+/**
+ * A chord's non-blocking delivery risk, derived at display time and never
+ * stored (design D9). One family remains: the chords Chromium binds to page
+ * zoom, which is the only one with evidence behind it. Everything else
+ * resolves to `null`.
+ *
+ * Design D9 also declared `'unverified-delivery'` over every `alt+` chord.
+ * That family is gone, and `ChordHazard` records why: its evidence was that
+ * no `alt+` chord had been confirmed in the packaged build, and the owner
+ * confirmed eleven of them on 2026-09-11. With one family left there is no
+ * precedence left to pin either, which removes the one test that had to
+ * mutate `BROWSER_ZOOM_CHORDS` at runtime to force an overlap real data
+ * could never produce.
+ */
+export function findChordHazard(chord: Chord): ChordHazard | null {
+  return BROWSER_ZOOM_CHORDS.has(chord) ? 'browser-zoom' : null;
 }
