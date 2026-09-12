@@ -149,7 +149,10 @@ Verbatim" (fully).
 - [x] **1.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
   `bun --cwd="frontend" run test -- backup`; both golangci profiles; `go run ./tools/checkgofilesize`;
   `git status --porcelain` shows only the five files this slice names.
-- [ ] **1.4.4** [GATE] `git commit` — left to the orchestrator (CLAUDE.md #3/#4).
+- [x] **1.4.4** [GATE] `git commit` — `269073f`. Rejected once by `dharness/require-jsdoc` over
+  `buildResult`, a pre-existing helper in a test file the slice only touched; the orchestrator wrote
+  its JSDoc and corrected the export scenario's "line equals the document byte for byte" wording,
+  which contradicted design D1's envelope.
 
 **Rollback:** `git revert`. The new group is additive and unreferenced by import until Slice 2.
 
@@ -252,7 +255,9 @@ Without A Restart" (the end-to-end obligation).
 - [x] **2.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
   `bun --cwd="frontend" run test -- keyboard backup`; `bun --cwd="frontend" run render:smoke`; both
   golangci profiles; `checkgofilesize`; `git status --porcelain` scoped to this slice's files.
-- [ ] **2.4.4** [GATE] `git commit` — left to the orchestrator.
+- [x] **2.4.4** [GATE] `git commit` — `10ad152`, then `83ecde9` for the over-engineering refactor
+  the 884/600 overrun required. The orchestrator verified the 2.3.8 proof itself by breaking the
+  reload guard and watching the store stay on command A, then restoring it byte-identical.
 
 **Rollback:** `git revert`. Slice 1's export-only state returns; an older-format import build already
 degrades the group as unknown-and-ignored.
@@ -304,7 +309,11 @@ Its Declared Footprint."
 - [x] **3.3.2** [VERIFY] `go test ./...` (full repo suite — confirms no cross-package regression across
   all three slices); `bun --cwd="frontend" run test`; both golangci profiles; `checkgofilesize` with an
   empty baseline; `git diff --stat -- docs/openapi.yaml` is empty.
-- [ ] **3.3.3** [GATE] `git commit` — left to the orchestrator.
+- [x] **3.3.3** [GATE] `git commit` — `96fd930`. The orchestrator verified the guard itself, by
+  breaking `ImportKeymap` to write `document+"-BROKEN"` (guard fails naming the exact footprint
+  field) and by deleting the real `keyboard_keymap` entry from the declared map (both the guard and
+  its inversion fail). It also corrected two documents this change made false: ADR-020's claim that
+  a keymap "does not travel with a backup bundle", and ADR-010's stale scope-guard test name.
 
 **Rollback:** `git revert`. The guard is test-only and the ADRs are documentation — reverting removes no
 runtime behavior.
