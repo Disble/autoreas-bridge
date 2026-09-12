@@ -13,11 +13,13 @@ import {
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
   hasPreviousHistoryEntry,
+  normalizeAnimeDetailPortadaUrl,
   sortAnimeRepeticionesMostRecentFirst,
   toAnimeDetailViewModel,
   toAnimeRepeticionViewModel,
 } from '../anime-detail.helpers';
 
+/** Minimal detail fixture (no optional fields) reused and overridden per case. */
 const baseDetail: AnimeDetail = {
   id: 'anime-1',
   name: 'Frieren',
@@ -244,7 +246,7 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel).toEqual({
       id: 'anime-1',
       nombre: 'Frieren',
-      portadaUrl: undefined,
+      hasStoredCover: false,
       estadoLabel: 'No me gusto',
       tipoLabel: 'Unknown',
       subtitleLabel: 'No me gusto • Unknown',
@@ -298,7 +300,7 @@ describe('toAnimeDetailViewModel', () => {
 
     const viewModel = toAnimeDetailViewModel(detail);
 
-    expect(viewModel.portadaUrl).toBe('C:/legacy/portadas/frieren.jpg');
+    expect(viewModel.hasStoredCover).toBe(true);
     expect(viewModel.estadoLabel).toBe('Viendo');
     expect(viewModel.tipoLabel).toBe('Película');
     expect(viewModel.subtitleLabel).toBe('Viendo • Película');
@@ -322,24 +324,25 @@ describe('toAnimeDetailViewModel', () => {
   });
 
   // Real fixture: 793/795 records carry portada.path === '' and one carries
-  // the literal string 'null'. An <img src=""> never fires onError, so a
-  // blank path must map to undefined (placeholder path), not an img render.
+  // the literal string 'null'. Neither is a renderable cover, so the view
+  // model must never expose a raw path at all -- only whether a cover is
+  // stored, gating whether the cover binding is called (design D1/D2).
   it.each([[''], ['   '], ['null']])(
-    'maps the blank/sentinel portada path %j to an undefined portadaUrl',
+    'maps the blank/sentinel portada path %j to hasStoredCover: false',
     (portada) => {
       const viewModel = toAnimeDetailViewModel({ ...baseDetail, cover: portada });
 
-      expect(viewModel.portadaUrl).toBeUndefined();
+      expect(viewModel.hasStoredCover).toBe(false);
     },
   );
 
-  it('trims a surrounding-whitespace portada path before exposing it to the view', () => {
+  it('reports hasStoredCover: true for a surrounding-whitespace portada path', () => {
     const viewModel = toAnimeDetailViewModel({
       ...baseDetail,
       cover: '  C:/legacy/portadas/frieren.jpg  ',
     });
 
-    expect(viewModel.portadaUrl).toBe('C:/legacy/portadas/frieren.jpg');
+    expect(viewModel.hasStoredCover).toBe(true);
   });
 
   it('uses studios and origin when present', () => {
@@ -388,4 +391,19 @@ describe('toAnimeDetailViewModel', () => {
 
     expect(viewModel.repetitions.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
   });
+});
+
+describe('normalizeAnimeDetailPortadaUrl', () => {
+  it('trims surrounding whitespace from a valid stored path', () => {
+    expect(normalizeAnimeDetailPortadaUrl('  C:/legacy/portadas/frieren.jpg  ')).toBe(
+      'C:/legacy/portadas/frieren.jpg',
+    );
+  });
+
+  it.each([[undefined], [''], ['   '], ['null']])(
+    'rejects %j as an undefined (no-cover) stored path',
+    (portada) => {
+      expect(normalizeAnimeDetailPortadaUrl(portada)).toBeUndefined();
+    },
+  );
 });

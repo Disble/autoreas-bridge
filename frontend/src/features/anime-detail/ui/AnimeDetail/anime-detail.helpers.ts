@@ -253,13 +253,17 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
 }
 
 /**
- * Normalizes a legacy portada path into a usable image URL. The real fixture
- * carries `portada.path === ''` on 793/795 records (plus one literal
- * `'null'` string) — and an `<img src="">` never fires `onError`, so blank
- * or sentinel paths MUST resolve to `undefined` (placeholder path) instead
- * of reaching the `<img>`.
+ * Normalizes a legacy portada path into the value that gates whether the
+ * cover-resolution binding is called. The real fixture carries
+ * `portada.path === ''` on 793/795 records (plus one literal `'null'`
+ * string), and neither is a renderable cover, so blank or sentinel paths
+ * MUST resolve to `undefined` (no stored cover) rather than a path a caller
+ * could reach into an `<img src>` (anime-cover-rendering spec, "An empty or
+ * sentinel stored path skips the binding"). Exported so
+ * `useAnimeDetailCover`'s gate and this module's own view-model mapping stay
+ * provably in sync with a single source of truth.
  */
-function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
+export function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
   const trimmed = portada?.trim();
 
   return trimmed === undefined || trimmed === '' || trimmed === 'null' ? undefined : trimmed;
@@ -407,7 +411,7 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     modifiedAt: detail.modified_at,
     canRepeat: detail.status > 0,
     canRestore: detail.active === 0,
-    portadaUrl: normalizeAnimeDetailPortadaUrl(detail.cover),
+    hasStoredCover: normalizeAnimeDetailPortadaUrl(detail.cover) !== undefined,
     estadoLabel,
     tipoLabel,
     subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),

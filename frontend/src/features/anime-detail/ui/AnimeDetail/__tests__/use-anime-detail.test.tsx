@@ -5,10 +5,13 @@ import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-r
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { useAnimeDetail } from '../use-anime-detail';
 
-// Spy instead of vi.mock: with deps.optimizer enabled, importOriginal-based
-// partial mocks cannot re-import the original module.
+/**
+ * Spy instead of `vi.mock`: with `deps.optimizer` enabled, `importOriginal`-based
+ * partial mocks cannot re-import the original module.
+ */
 const navigateMock = vi.fn();
 
+/** Baseline loaded detail with a repetition entry, reused and overridden per case. */
 const populatedDetail: AnimeDetail = {
   id: 'anime-1',
   name: 'Frieren',
@@ -23,6 +26,7 @@ const populatedDetail: AnimeDetail = {
   repetitions: [{ numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) }],
 };
 
+/** Builds a minimal `BridgeRuntimeSource` fixture, letting each case override individual members. */
 function createSource(
   resolvedValue: AnimeDetail | null,
   overrides: Partial<BridgeRuntimeSource> = {},
@@ -56,6 +60,15 @@ describe('useAnimeDetail', () => {
 
     expect(result.current.loadState).toBe('loading');
     expect(result.current.detail).toBeUndefined();
+  });
+
+  it('never calls getAnimeCover while the anime detail itself is still loading', () => {
+    const getAnimeCover = vi.fn();
+    const source = createSource(populatedDetail, { getAnimeCover });
+    const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
+
+    expect(result.current.loadState).toBe('loading');
+    expect(getAnimeCover).not.toHaveBeenCalled();
   });
 
   it('returns loaded with a populated repetition timeline', async () => {
@@ -102,77 +115,94 @@ describe('useAnimeDetail', () => {
     await waitFor(() => expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-2'));
   });
 
-  it('shows the portada placeholder when the detail has no portada', async () => {
+  it('resolves the cover as a placeholder when the detail has no stored cover', async () => {
     const source = createSource(populatedDetail);
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
-    expect(result.current.showPortadaPlaceholder).toBe(true);
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
   });
 
-  it('hides the portada placeholder when the detail has a portada, until onPortadaError fires', async () => {
-    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
+  it('resolves the cover via getAnimeCover, then folds a later onPortadaError into a placeholder', async () => {
+    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
+    const source = createSource(
+      { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
+      { getAnimeCover },
+    );
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-
-    expect(result.current.showPortadaPlaceholder).toBe(false);
+    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
+    expect(getAnimeCover).toHaveBeenCalledWith('anime-1');
 
     act(() => {
       result.current.onPortadaError();
     });
 
-    expect(result.current.showPortadaPlaceholder).toBe(true);
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
   });
 
-  it('resets the portada-error flag when the animeId prop changes', async () => {
-    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
+  it('resets the portada-error fold when the animeId prop changes', async () => {
+    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
+    const source = createSource(
+      { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
+      { getAnimeCover },
+    );
     const { rerender, result } = renderHook(
       ({ animeId }: { animeId: string }) => useAnimeDetail({ animeId }, source),
       { initialProps: { animeId: 'anime-1' } },
     );
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
 
     act(() => {
       result.current.onPortadaError();
     });
-    expect(result.current.showPortadaPlaceholder).toBe(true);
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
 
     rerender({ animeId: 'anime-2' });
 
     await waitFor(() => expect(source.getAnimeDetail).toHaveBeenLastCalledWith('anime-2'));
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-
-    expect(result.current.showPortadaPlaceholder).toBe(false);
+    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
   });
 
-  it('shows the portada placeholder when onPortadaLoad fires with a zero natural width', async () => {
-    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
+  it('folds a zero natural-width onPortadaLoad into a placeholder', async () => {
+    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
+    const source = createSource(
+      { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
+      { getAnimeCover },
+    );
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
-    expect(result.current.showPortadaPlaceholder).toBe(false);
+    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
 
     act(() => {
       result.current.onPortadaLoad({ currentTarget: { naturalWidth: 0 } } as never);
     });
 
-    expect(result.current.showPortadaPlaceholder).toBe(true);
+    expect(result.current.cover).toEqual({ status: 'placeholder' });
   });
 
-  it('keeps the cover image when onPortadaLoad fires with a nonzero natural width', async () => {
-    const source = createSource({ ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' });
+  it('keeps the resolved cover when onPortadaLoad fires with a nonzero natural width', async () => {
+    const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
+    const source = createSource(
+      { ...populatedDetail, cover: 'C:/legacy/portadas/frieren.jpg' },
+      { getAnimeCover },
+    );
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
+    await waitFor(() => expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' }));
 
     act(() => {
       result.current.onPortadaLoad({ currentTarget: { naturalWidth: 96 } } as never);
     });
 
-    expect(result.current.showPortadaPlaceholder).toBe(false);
+    expect(result.current.cover).toEqual({ status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' });
   });
 
   it('calls navigate("/history") when there is no previous history entry', async () => {

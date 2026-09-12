@@ -13,6 +13,7 @@ import type {
   AnimeDetailProps,
   AnimeDetailState,
 } from './anime-detail.types';
+import { useAnimeDetailCover } from './use-anime-detail-cover';
 import { useAnimeDetailMutation } from './use-anime-detail-mutation';
 
 /**
@@ -58,7 +59,11 @@ export function useAnimeDetail(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
   );
-  const showPortadaPlaceholder = failedPortadaAnimeId === props.animeId || viewModel?.portadaUrl === undefined;
+  // useAnimeDetailCover is itself request-sequenced by animeId/hasStoredCover
+  // (design D1); a locally failed load (onPortadaError/onPortadaLoad) folds
+  // in on top of it here, exactly as the prior showPortadaPlaceholder boolean did.
+  const resolvedCover = useAnimeDetailCover(props.animeId, viewModel?.hasStoredCover ?? false, source);
+  const cover = failedPortadaAnimeId === props.animeId ? { status: 'placeholder' as const } : resolvedCover;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const onPortadaError = useCallback(() => {
@@ -108,7 +113,7 @@ export function useAnimeDetail(
   return {
     loadState,
     detail: viewModel,
-    showPortadaPlaceholder,
+    cover,
     confirmation: mutation.confirmation,
     feedback: mutation.feedback,
     isMutating: mutation.isMutating,
