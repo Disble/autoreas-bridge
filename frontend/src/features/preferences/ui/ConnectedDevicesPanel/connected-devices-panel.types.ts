@@ -1,11 +1,20 @@
+import type { DeviceAcknowledgedNotice } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+
 /** Props for the ConnectedDevicesPanel; source is injectable for tests. */
 export interface ConnectedDevicesPanelProps {
   readonly source?: ConnectedDevicesSource;
 }
 
-/** Runtime source used by the panel to read devices and revoke pairing. */
+/**
+ * Runtime source used by the panel to read devices, revoke pairing, and
+ * subscribe to sync-state changes. `onDeviceAcknowledged` is required here
+ * (unlike its optional counterpart on `BridgeRuntimeSource`): the panel
+ * cannot refresh in place without it, so an injected fixture that forgets it
+ * fails at compile time instead of shipping a silently stale panel.
+ */
 export interface ConnectedDevicesSource {
   readonly getConnectedDevices: () => Promise<readonly ConnectedDevice[]>;
+  readonly onDeviceAcknowledged: (listener: (notice: DeviceAcknowledgedNotice) => void) => () => void;
   readonly unpairDevice: (deviceID: string) => Promise<string>;
 }
 

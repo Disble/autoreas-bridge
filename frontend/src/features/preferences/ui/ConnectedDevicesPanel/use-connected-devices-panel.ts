@@ -23,6 +23,7 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
     () =>
       props.source ?? {
         getConnectedDevices: bridgeRuntimeSource.getConnectedDevices ?? (() => Promise.resolve([])),
+        onDeviceAcknowledged: bridgeRuntimeSource.onDeviceAcknowledged ?? (() => () => {}),
         unpairDevice: bridgeRuntimeSource.unpairDevice ?? (() => Promise.resolve('runtime unavailable')),
     },
     [props.source],
@@ -30,8 +31,17 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
   const rows = useMemo(() => toConnectedDeviceRows(devices), [devices]);
 
   // 6. Callbacks (useCallback calling pure helpers)
-  const refresh = useCallback(() => {
-    setIsLoading(true);
+  /**
+   * Reloads the device list. `withLoading` defaults to `true` for the mount
+   * load; a push-driven refetch from `onDeviceAcknowledged` passes `false` so
+   * it never raises `isLoading`, keeping the previous rows rendered in place
+   * instead of flashing the loading branch on every sync (rule #14's
+   * exclusivity holds because a refetch that already has rows never toggles it).
+   */
+  const refresh = useCallback((withLoading = true) => {
+    if (withLoading) {
+      setIsLoading(true);
+    }
     setErrorMessage('');
     void source
       .getConnectedDevices()
@@ -70,6 +80,16 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
     // eslint-disable-next-line react-doctor/no-derived-state -- A pending request has no derivable source; loading must persist until it settles.
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const unsubscribe = source.onDeviceAcknowledged(() => {
+      refresh(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [refresh, source]);
 
   return {
     errorMessage,

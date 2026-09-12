@@ -18,6 +18,7 @@ describe('ConnectedDevicesPanel', () => {
           sync_status: 'active',
         },
       ]),
+      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 
