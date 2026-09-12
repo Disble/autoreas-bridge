@@ -56,6 +56,11 @@ consumer that satisfies that rule, wiring into the route is.
 `frontend/wailsjs/` and `frontend/dist` are gitignored and the root `//go:embed` needs `dist` to exist.
 This worktree (`autoreas-bridge-worktrees/sdd-69-real-history`) already has them.
 
+**H. Every remaining slice loads `lean-tests` at RED and at MUTATE.** A surviving mutant is killed with
+a new row in that behavior's table, and REFACTOR runs before handoff. Slice 1 landed at 1,456 changed
+lines partly because two survivors were killed with new test functions despite task 1.5.2 saying "new
+table row".
+
 ---
 
 ## Review Workload Forecast

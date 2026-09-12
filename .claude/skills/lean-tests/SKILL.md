@@ -25,7 +25,9 @@ counts TDD and mutation tests, so test volume never explains an overrun — bloa
 4. Keep **one** helper per package per shared job — open the test DB, seed a row, build the input.
    When a struct literal repeats with only a few fields changing, give it a short constructor; that
    constructor is what makes a table shrink.
-5. Add a builder or helper at its third call site.
+5. Add a reuse builder or helper at its third call site. One exception has a single call site: when
+   a table's `t.Run` body nests loops, move it into `assertX(t, tc)` taking the whole row, because
+   `gocognit` in `.golangci.dlinter.yml` fails any function above 15.
 6. Cut by **mutants killed**: delete a test, re-run scoped `ditto`, keep the deletion only if the
    score holds. Keep every case that kills a mutant nothing else kills, whatever the line count.
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,117 +55,96 @@ func recordedEpisodes(t *testing.T, db *sql.DB, animeID string, cycle int64) []i
 	return episodes
 }
 
-// int64SlicesEqual reports whether two int64 slices hold the same values in
-// the same order.
-func int64SlicesEqual(a, b []int64) bool {
-	if len(a) != len(b) {
-		return false
+// step builds a Change for anime-1 on the desktop source, so a table row
+// varies only what its behavior cares about: the before/after episode
+// bounds, the occurred-at timestamp, and the cycle.
+func step(before, after float64, at, cycle int64) Change {
+	return Change{
+		AnimeID:        "anime-1",
+		AnimeName:      "Anime One",
+		Source:         "desktop",
+		OccurredAtMS:   at,
+		BeforeEpisodes: before,
+		AfterEpisodes:  after,
+		Cycle:          cycle,
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
-// TestApplySingleStepOutcomes exercises Apply for a single call against a
-// fresh store, collapsing two single-step scenarios into one table (both
-// share the same "one call, assert the resulting episode set" shape): a
-// forward step inserts the newly reached episode, and a retraction below
-// the log's floor -- nothing recorded yet above the new value -- is a no-op
-// that neither errors nor writes anything.
-func TestApplySingleStepOutcomes(t *testing.T) {
+// stepSequenceCase is one row of TestApplyStepSequences: changes applied in
+// order, and the episodes expected per cycle afterward.
+type stepSequenceCase struct {
+	name  string
+	steps []Change
+	want  map[int64][]int64
+}
+
+// assertStepSequence applies tc's steps to a fresh store and checks every
+// cycle's episodes plus a zero conflict count. It takes the whole row so the
+// table's loop stays under gocognit's limit of 15.
+func assertStepSequence(t *testing.T, tc stepSequenceCase) {
+	t.Helper()
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+	for i, change := range tc.steps {
+		if err := store.Apply(context.Background(), change); err != nil {
+			t.Fatalf("apply step %d: %v", i, err)
+		}
+	}
+	for cycle, want := range tc.want {
+		if got := recordedEpisodes(t, db, "anime-1", cycle); !slices.Equal(got, want) {
+			t.Fatalf("cycle %d: expected %v, got %v", cycle, want, got)
+		}
+	}
+	if got := store.Conflicts(); got != 0 {
+		t.Fatalf("expected 0 conflicts, got %d", got)
+	}
+}
+
+// TestApplyStepSequences covers a forward step, a retraction below the log's
+// floor, a retraction above it, and cross-cycle isolation. Every row asserts
+// zero conflicts, which kills an unconditional conflict-counter mutant.
+func TestApplyStepSequences(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name   string
-		change Change
-		want   []int64
-	}{
+	cases := []stepSequenceCase{
 		{
-			name:   "a forward step inserts the newly reached episode",
-			change: Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 10, AfterEpisodes: 11, Cycle: 1},
-			want:   []int64{11},
+			name:  "a forward step inserts the newly reached episode",
+			steps: []Change{step(10, 11, 1000, 1)},
+			want:  map[int64][]int64{1: {11}},
 		},
 		{
-			name:   "a retraction below the log's floor is a no-op",
-			change: Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 5, AfterEpisodes: 3, Cycle: 1},
-			want:   nil,
+			name:  "a retraction below the log's floor is a no-op",
+			steps: []Change{step(5, 3, 1000, 1)},
+			want:  map[int64][]int64{1: nil},
+		},
+		{
+			name: "a retraction above the floor deletes every row above the new value",
+			steps: []Change{
+				step(8, 9, 1000, 1),
+				step(9, 10, 1001, 1),
+				step(10, 11, 1002, 1),
+				step(11, 9, 2000, 1),
+			},
+			want: map[int64][]int64{1: {9}},
+		},
+		{
+			name: "a rollback in cycle 2 never touches cycle 1's rows",
+			steps: []Change{
+				step(0, 5, 1000, 1),
+				step(0, 3, 2000, 2),
+				step(3, 1, 3000, 2),
+			},
+			want: map[int64][]int64{
+				1: {1, 2, 3, 4, 5},
+				2: {1},
+			},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			db := openStoreTestDB(t)
-			store := NewStore(db)
-			if err := store.Apply(context.Background(), tc.change); err != nil {
-				t.Fatalf("apply: %v", err)
-			}
-			got := recordedEpisodes(t, db, "anime-1", 1)
-			if !int64SlicesEqual(got, tc.want) {
-				t.Fatalf("expected %v, got %v", tc.want, got)
-			}
+			assertStepSequence(t, tc)
 		})
-	}
-}
-
-// TestApplyRetractsRowsAboveTheNewFloor asserts a backward step deletes
-// every row above the new value and leaves the rest untouched.
-func TestApplyRetractsRowsAboveTheNewFloor(t *testing.T) {
-	t.Parallel()
-
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-
-	for episode := int64(9); episode <= 11; episode++ {
-		change := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: episode, BeforeEpisodes: float64(episode - 1), AfterEpisodes: float64(episode), Cycle: 1}
-		if err := store.Apply(ctx, change); err != nil {
-			t.Fatalf("apply forward step %d: %v", episode, err)
-		}
-	}
-
-	rollback := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 2000, BeforeEpisodes: 11, AfterEpisodes: 9, Cycle: 1}
-	if err := store.Apply(ctx, rollback); err != nil {
-		t.Fatalf("apply rollback: %v", err)
-	}
-
-	got := recordedEpisodes(t, db, "anime-1", 1)
-	if !int64SlicesEqual(got, []int64{9}) {
-		t.Fatalf("expected only episode 9 to remain, got %v", got)
-	}
-}
-
-// TestApplyRetractionIsScopedToOneCycle asserts a rollback in cycle 2 never
-// touches cycle 1's rows.
-func TestApplyRetractionIsScopedToOneCycle(t *testing.T) {
-	t.Parallel()
-
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-
-	cycle1 := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 0, AfterEpisodes: 5, Cycle: 1}
-	if err := store.Apply(ctx, cycle1); err != nil {
-		t.Fatalf("apply cycle 1: %v", err)
-	}
-	cycle2Forward := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 2000, BeforeEpisodes: 0, AfterEpisodes: 3, Cycle: 2}
-	if err := store.Apply(ctx, cycle2Forward); err != nil {
-		t.Fatalf("apply cycle 2 forward: %v", err)
-	}
-	cycle2Rollback := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 3000, BeforeEpisodes: 3, AfterEpisodes: 1, Cycle: 2}
-	if err := store.Apply(ctx, cycle2Rollback); err != nil {
-		t.Fatalf("apply cycle 2 rollback: %v", err)
-	}
-
-	cycle1Rows := recordedEpisodes(t, db, "anime-1", 1)
-	if !int64SlicesEqual(cycle1Rows, []int64{1, 2, 3, 4, 5}) {
-		t.Fatalf("expected cycle 1 untouched at [1 2 3 4 5], got %v", cycle1Rows)
-	}
-	cycle2Rows := recordedEpisodes(t, db, "anime-1", 2)
-	if !int64SlicesEqual(cycle2Rows, []int64{1}) {
-		t.Fatalf("expected cycle 2 to retain only episode 1, got %v", cycle2Rows)
 	}
 }
 
@@ -178,7 +158,7 @@ func TestApplyOscillationLeavesSameSetWithNewRowIdentity(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	first := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 10, AfterEpisodes: 11, Cycle: 1}
+	first := step(10, 11, 1000, 1)
 	if err := store.Apply(ctx, first); err != nil {
 		t.Fatalf("apply first reach: %v", err)
 	}
@@ -187,17 +167,16 @@ func TestApplyOscillationLeavesSameSetWithNewRowIdentity(t *testing.T) {
 		t.Fatalf("read first row id: %v", err)
 	}
 
-	retract := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 2000, BeforeEpisodes: 11, AfterEpisodes: 10.5, Cycle: 1}
+	retract := step(11, 10.5, 2000, 1)
 	if err := store.Apply(ctx, retract); err != nil {
 		t.Fatalf("apply half-step retraction: %v", err)
 	}
-	reReach := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 3000, BeforeEpisodes: 10.5, AfterEpisodes: 11, Cycle: 1}
+	reReach := step(10.5, 11, 3000, 1)
 	if err := store.Apply(ctx, reReach); err != nil {
 		t.Fatalf("apply re-reach: %v", err)
 	}
 
-	got := recordedEpisodes(t, db, "anime-1", 1)
-	if !int64SlicesEqual(got, []int64{11}) {
+	if got := recordedEpisodes(t, db, "anime-1", 1); !slices.Equal(got, []int64{11}) {
 		t.Fatalf("expected the final set to still be [11], got %v", got)
 	}
 
@@ -237,13 +216,12 @@ func TestApplyConflictingInsertIsANoOpCountedAndWarnLogged(t *testing.T) {
 	log.SetOutput(&logBuf)
 	t.Cleanup(func() { log.SetOutput(originalOutput) })
 
-	change := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 2000, BeforeEpisodes: 7, AfterEpisodes: 8, Cycle: 2}
+	change := step(7, 8, 2000, 2)
 	if err := store.Apply(ctx, change); err != nil {
 		t.Fatalf("expected a conflicting insert to be a no-op, got error: %v", err)
 	}
 
-	got := recordedEpisodes(t, db, "anime-1", 2)
-	if !int64SlicesEqual(got, []int64{8}) {
+	if got := recordedEpisodes(t, db, "anime-1", 2); !slices.Equal(got, []int64{8}) {
 		t.Fatalf("expected exactly one row for (anime-1, cycle 2, episode 8), got %v", got)
 	}
 	logged := logBuf.String()
@@ -252,26 +230,6 @@ func TestApplyConflictingInsertIsANoOpCountedAndWarnLogged(t *testing.T) {
 	}
 	if got := store.Conflicts(); got != 1 {
 		t.Fatalf("expected exactly 1 conflict after the conflicting apply, got %d", got)
-	}
-}
-
-// TestApplyOrdinaryInsertDoesNotIncrementConflicts asserts an ordinary,
-// non-conflicting insert never advances the conflict counter -- without
-// this, a mutant that increments unconditionally survives.
-func TestApplyOrdinaryInsertDoesNotIncrementConflicts(t *testing.T) {
-	t.Parallel()
-
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-
-	change := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 10, AfterEpisodes: 11, Cycle: 1}
-	if err := store.Apply(ctx, change); err != nil {
-		t.Fatalf("apply: %v", err)
-	}
-
-	if got := store.Conflicts(); got != 0 {
-		t.Fatalf("expected 0 conflicts after an ordinary insert, got %d", got)
 	}
 }
 
@@ -288,7 +246,7 @@ func TestApplyTxAppliesWithinCallersTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin tx: %v", err)
 	}
-	change := Change{AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 0, AfterEpisodes: 1, Cycle: 1}
+	change := step(0, 1, 1000, 1)
 	if err := store.ApplyTx(ctx, tx, change); err != nil {
 		t.Fatalf("apply tx: %v", err)
 	}
@@ -296,8 +254,7 @@ func TestApplyTxAppliesWithinCallersTransaction(t *testing.T) {
 		t.Fatalf("rollback tx: %v", err)
 	}
 
-	got := recordedEpisodes(t, db, "anime-1", 1)
-	if len(got) != 0 {
+	if got := recordedEpisodes(t, db, "anime-1", 1); len(got) != 0 {
 		t.Fatalf("expected the rolled-back transaction to leave no rows, got %v", got)
 	}
 }

@@ -15,6 +15,8 @@ The single source of truth for what over-engineered tests look like in this tree
 | A white-box test of an unexported helper whose effect the public function exposes | A row on the public function, which kills the same mutant |
 | A mocked test asserting a collaborator was called, beside an end-to-end test asserting the real observable of the same wiring | Keep the end-to-end one. Mocked *negative* cases (not-called-when-absent, not-called-on-failure) stay, since an e2e cannot assert them cheaply |
 | A flag field whose job is "ignore the next field" | The rows are not one shape; split the table |
+| A helper taking many positional arguments where the row struct belongs | Name the row type and pass it whole, as `assertX(t, tc)` |
+| A table whose `t.Run` body nests loops fails `gocognit` (limit 15, second lint profile only) | Move the body into `assertX(t, tc)`. SDD-69's R1 table scored 18 and blocked its commit; a bare `golangci-lint run` reports clean because it skips that profile |
 | A doc comment re-narrating what the row names already say | Delete it |
 
 ## Verifying a test refactor
