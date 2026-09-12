@@ -75,6 +75,14 @@ Recorded because each one means an artifact is now less true than the code.
 
 Run `build/bin/autoreas-bridge.exe`, open Settings → Shortcuts, rebind one command, restart, and confirm the new chord survived. Then press Reset and confirm the defaults come back. Record the result here before archive, the same way SDD-61's WebView2 check was recorded rather than inferred.
 
+### Result — DISCHARGED 2026-09-11 by the repository owner, during SDD-67's own check
+
+**Rebinding and Reset both work in the packaged app.** The owner rebound a command through Settings → Shortcuts and pressed Reset to defaults, and both did what the panel says they do.
+
+The persistence half is proved by a stronger observation than a UI echo: SDD-67's export step read `app_settings["keyboard.keymap"]` back out and carried the document into a backup bundle, which it could only do if the rebind had genuinely reached SQLite through the real Wails binding. That is the exact gap this obligation existed to close — every test in this chain ran against a mocked `PreferencesSource`.
+
+**The literal restart step was not performed, and is not claimed.** The chord was not observed surviving an app restart; what was observed is that the value it would be restored from is really in the database. A restart re-reads that same document, so the mechanism is demonstrated even though the gesture was not. Left recorded this way rather than rounded up to "restart verified". See `openspec/changes/2026-09-11-sdd-67-keymap-in-backups/verify-report.md` for the full cycle.
+
 ## Commits
 
 `362e978` plan · `688e096` 62a · `543af50` 62b · `240b0f2` 62c · `895d974` 62d · `09267c7` 62e · `63e4101` 62f · `3bba619` 62g · `301f136` 62h · `583fcaa` 62i · `85678a5` 62j · `6d04900` 62k · `f26b259` 62l

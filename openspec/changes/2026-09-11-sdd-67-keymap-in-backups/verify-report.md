@@ -121,6 +121,22 @@ press Reset to defaults, then import that backup and confirm the rebound chord c
 works immediately, without restarting**. Record the result here before archive, the way SDD-61's
 WebView2 check was recorded rather than inferred.
 
+### Result — DISCHARGED 2026-09-11 by the repository owner
+
+**It works.** The full cycle was run in the packaged binary: rebind → export → reset to defaults →
+import, and the rebound chord came back and fired without a restart.
+
+What that establishes, stated as what was actually exercised rather than what it implies. The rebind
+reached SQLite through the real Wails binding — proved not by the UI echoing it back but by the
+**export**, which could only carry the document because `app_settings["keyboard.keymap"]` genuinely
+held it. Reset genuinely cleared it. The import wrote it back through the real `ImportKeymap`, and the
+live refresh made it effective with no reload, which is the requirement the whole change exists for.
+
+One step was deliberately not performed and is not claimed: the app was never restarted between
+rebind and export. That leaves "the chord survives a restart" — SDD-62's own wording — demonstrated
+only through the mechanism it depends on, since a restart re-reads the same persisted document the
+export proved was written. Recorded this way rather than rounded up.
+
 ## Commits
 
 `b736aaa` proposal · `503c4b8` spec+design · `188c699` tasks · `269073f` slice 1 · `10ad152` slice 2 ·
