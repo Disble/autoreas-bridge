@@ -3,7 +3,7 @@ import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.hel
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
-import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
+import { ANIME_EDITOR_COVER_TYPE_OPTIONS, ANIME_EDITOR_KIND_OPTIONS, ANIME_EDITOR_RESTORE_LABEL, ANIME_EDITOR_STATUS_OPTIONS } from './anime-editor-workspace.constants';
 import { getAnimeEditorEstadoColor, premieredDateInputToMs, premieredMsToDateInput } from './anime-editor-workspace.helpers';
 import type { AnimeEditorFormPanelProps } from './anime-editor-workspace.types';
 
@@ -140,9 +140,9 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
 
       <footer className="border-t border-divider bg-content1 px-5 py-3 shadow-[0_-8px_20px_-12px_rgba(0,0,0,0.6)]"><div className="flex flex-wrap items-center gap-3">
         {record?.frequent.active === false ? (
-          <Button className="text-success hover:text-success" isDisabled={viewModel.isSaving} variant="tertiary" onPress={() => void viewModel.onActivate()}>Activate anime</Button>
+          <Button className="text-success hover:text-success" isDisabled={viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('restore')}>{ANIME_EDITOR_RESTORE_LABEL}</Button>
         ) : (
-          <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={viewModel.onRequestDeactivate}>Deactivate anime</Button>
+          <Button className="text-danger hover:text-danger" isDisabled={record === undefined || viewModel.isSaving} variant="tertiary" onPress={() => viewModel.onRequestLifecycleAction('deactivate')}>Deactivate anime</Button>
         )}
         <Button className="ml-auto" isDisabled={!viewModel.isDirty || viewModel.isSaving} variant="tertiary" onPress={viewModel.onDiscardChanges}>Discard changes</Button>
         <Button isDisabled={!viewModel.canSave || viewModel.isSaving} isPending={viewModel.isSaving} variant="primary" onPress={() => void viewModel.onSave()}>Save</Button>

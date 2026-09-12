@@ -2,7 +2,7 @@ import type { Anime, AnimeEditorRecord, AnimeEditorSaveResult, SaveAnimeEditorCo
 import { isScheduledAnime, isValidAnimeEstado } from '../../../../shared/helpers/anime-estado.helpers';
 import { isValidDownloadPageUrl } from '../../../../shared/helpers/url.helpers';
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
-import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
+import type { AnimeEditorChipColor, AnimeEditorDraft, AnimeEditorEmptyState, AnimeEditorEmptyStateInput, AnimeEditorFilter, AnimeEditorGuardEvent, AnimeEditorGuardState, AnimeEditorLifecycleAction, AnimeEditorLifecycleConfirmation, AnimeEditorListItemViewModel } from './anime-editor-workspace.types';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
 
 /**
@@ -237,6 +237,34 @@ export function isIntentionalEditorOutcome(result: AnimeEditorSaveResult) {
 /** Converts thrown runtime values into stable user feedback. */
 export function toEditorErrorMessage(error: unknown) {
   return error instanceof Error && error.message.length > 0 ? error.message : 'The editor operation failed.';
+}
+
+/**
+ * Builds the confirmation copy for a lifecycle action (Deactivate or
+ * Restore), generalizing the one confirm modal the form drives before any
+ * lifecycle write. Mirrors `toAnimeDetailConfirmation`'s shape
+ * (`anime-detail.helpers.ts`), but copy is duplicated rather than imported
+ * across the feature boundary: two features with different wording is not a
+ * shared widget. Deactivate's copy is preserved byte-identical to the
+ * previous hardcoded modal.
+ */
+export function toAnimeEditorLifecycleConfirmation(action: AnimeEditorLifecycleAction): AnimeEditorLifecycleConfirmation {
+  if (action === 'deactivate') {
+    return {
+      action,
+      heading: 'Deactivate anime',
+      description: 'This hides the anime from your active library. You can restore it later from History.',
+      confirmLabel: 'Deactivate',
+      isDestructive: true,
+    };
+  }
+  return {
+    action,
+    heading: 'Restore anime',
+    description: 'This makes the anime active again in your library.',
+    confirmLabel: 'Restore',
+    isDestructive: false,
+  };
 }
 
 /** Reduces all guarded transitions through one explicit pending-action state machine. */

@@ -1,9 +1,14 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnimeEditorRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { isIntentionalEditorOutcome } from '../anime-editor-workspace.helpers';
 import { useAnimeEditorRecord } from '../use-anime-editor-record';
 
+/**
+ * Builds a stubbed editor runtime source for one hook test case.
+ * @param overrides Bindings to replace on the default stub.
+ * @returns The stubbed source.
+ */
 function createSource(overrides: Partial<AnimeEditorRuntimeSource>): AnimeEditorRuntimeSource {
   return {
     getAnimes: vi.fn().mockResolvedValue([]),
@@ -46,6 +51,49 @@ describe('editor record folder picker', () => {
     await act(async () => { await result.current.onPickFolder(); });
 
     expect(result.current.draft.folder).toBe('');
+  });
+});
+
+describe('editor record restore handler', () => {
+  /** Authority fixture shared by both restore cases below. */
+  const selectedRecord = {
+    animeId: 'anime-1',
+    modifiedAt: 42,
+    frequent: { name: 'Frieren', status: 1, progress: 3, totalEpisodes: 28, active: false, kind: 1, page: '', folder: '', placements: [] },
+    details: { genres: [], studios: { kind: 'values' as const, values: [] } },
+  };
+
+  it('calls restoreAnime, reloads the record on success, and reports Restore feedback', async () => {
+    const source = createSource({
+      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
+      restoreAnime: vi.fn().mockResolvedValue({ status: 'ok' }),
+    });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+
+    await act(async () => { await result.current.onRestore(); });
+
+    expect(source.restoreAnime).toHaveBeenCalledWith('anime-1', 42);
+    // Mandatory guard (design D11 corollary): success reloads the record.
+    expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(2);
+    expect(result.current.feedback).toBe('Anime restored.');
+  });
+
+  it('does not reload the record and reports the Restore-not-applied fallback when the backend sends no message', async () => {
+    const source = createSource({
+      getAnimeEditorRecord: vi.fn().mockResolvedValue({ outcome: 'applied', record: selectedRecord }),
+      restoreAnime: vi.fn().mockResolvedValue({ status: 'error' }),
+    });
+    const { result } = renderHook(() => useAnimeEditorRecord({ selectedAnimeId: 'anime-1', source }));
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+
+    await act(async () => { await result.current.onRestore(); });
+
+    expect(source.restoreAnime).toHaveBeenCalledWith('anime-1', 42);
+    expect(source.getAnimeEditorRecord).toHaveBeenCalledTimes(1);
+    // Pins the renamed fallback literal (`use-anime-editor-record.ts`): easy to
+    // miss because it is copy, not a button label.
+    expect(result.current.feedback).toBe('Restore anime was not applied.');
   });
 });
 

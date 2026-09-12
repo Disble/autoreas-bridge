@@ -64,6 +64,13 @@ export const ANIME_EDITOR_STATUS_OPTIONS: readonly AnimeEditorStatusOption[] = A
 export const ANIME_EDITOR_LIST_LOADING_LABEL = 'Loading anime list...';
 
 /**
+ * Label for the lifecycle action that reactivates an inactive anime.
+ * Deliberately `Restore`, not `Restore anime` — asymmetric with `Deactivate
+ * anime` on purpose, matching `ANIME_DETAIL_RESTORE_LABEL`.
+ */
+export const ANIME_EDITOR_RESTORE_LABEL = 'Restore';
+
+/**
  * Shape shared by the real `AnimeEditorListRow` and its `AnimeEditorListSkeleton`
  * placeholder, so the two cannot drift apart silently.
  */

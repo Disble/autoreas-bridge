@@ -112,7 +112,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     }
   }, [source, state.selectedRecord]);
 
-  const onActivate = useCallback(async () => {
+  const onRestore = useCallback(async () => {
     if (state.selectedRecord === undefined) return undefined;
     const animeId = state.selectedRecord.animeId;
     setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
@@ -120,11 +120,11 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
       const result = await source.restoreAnime(animeId, state.selectedRecord.modifiedAt);
       if (result.status === 'ok') {
         // Authority changed (active flips true); reload the record so the form
-        // and the Deactivate/Activate button reflect the restored lifecycle.
+        // and the Deactivate/Restore button reflect the restored lifecycle.
         await loadRecord(animeId);
-        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Anime activated.') }));
+        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Anime restored.') }));
       } else {
-        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Activate anime was not applied.') }));
+        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Restore anime was not applied.') }));
       }
       return result;
     } catch (error) {
@@ -145,5 +145,5 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     void loadRecord(options.selectedAnimeId);
   }, [loadRecord, options.selectedAnimeId]);
 
-  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, onActivate, loadRecord };
+  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, onRestore, loadRecord };
 }
