@@ -19,7 +19,8 @@ Provide a dedicated desktop Anime Editor workspace and one reusable ID-driven ed
 |                               | More details (collapsed secondary metadata)    |
 |                               |                                                |
 | independent list scroll       +------------------------------------------------+
-|                               | [Deactivate anime] [Discard changes] [Save]    |
+|                               | [Repeat] [Deactivate anime | Restore]          |
+|                               | [Discard changes] [Save]                       |
 +-------------------------------+------------------------------------------------+
                                   sticky action area; independent form scroll
 ```

@@ -230,6 +230,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ensureRuntimeDependencies()
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
+	a.registerDeviceSyncRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	if !a.configureTray(ctx) {

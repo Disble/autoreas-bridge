@@ -9,6 +9,8 @@ const (
 	EventNameAnimeWriteFailed = "anime.write.failed"
 	// EventNameSyncRequested identifies sync-request events.
 	EventNameSyncRequested = "sync.requested"
+	// EventNameSyncDeviceAcknowledged identifies device changelog-acknowledgment events.
+	EventNameSyncDeviceAcknowledged = "sync.device_acknowledged"
 
 	// AnimeChangeTypeCreate marks a newly created anime snapshot.
 	AnimeChangeTypeCreate = "create"
@@ -103,6 +105,21 @@ type SyncRequestedEvent struct {
 // Name returns the bus event name for SyncRequestedEvent.
 func (e SyncRequestedEvent) Name() string {
 	return EventNameSyncRequested
+}
+
+// DeviceAcknowledgedEvent reports that a device's changelog acknowledgment
+// was persisted (ChangelogStore.AcknowledgeDevice), carrying the fields the
+// Connected Devices panel needs to refresh in place.
+type DeviceAcknowledgedEvent struct {
+	DeviceID           string
+	LastAckChangelogID int64
+	LastSeenAtMs       int64
+	CorrelationID      string
+}
+
+// Name returns the bus event name for DeviceAcknowledgedEvent.
+func (e DeviceAcknowledgedEvent) Name() string {
+	return EventNameSyncDeviceAcknowledged
 }
 
 // DownloadRunStartedEvent is published when Service.RunOnce opens a new download_runs row
