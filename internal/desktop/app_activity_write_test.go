@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 type stubActivityOutcomeWriter struct {
@@ -21,6 +22,18 @@ func (s stubActivityOutcomeWriter) PatchAnime(context.Context, string, contracts
 	return s.result, s.err
 }
 
+// stubWatchRecorder is the anime.WatchRecorder test double shared by the
+// desktop package's watch-history wiring tests.
+type stubWatchRecorder struct {
+	calls []watchhistory.Change
+	err   error
+}
+
+func (s *stubWatchRecorder) RecordWatch(_ context.Context, change watchhistory.Change) error {
+	s.calls = append(s.calls, change)
+	return s.err
+}
+
 func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	ctx := context.Background()
 	db := openRuntimeBridgeDB(t)
@@ -29,12 +42,14 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 
 	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
+	watchRecorder := &stubWatchRecorder{}
 	service := activityAnimeWriteService{
-		query:    anime.NewQueryService(store),
-		writer:   writer,
-		recorder: recorder,
-		source:   anime.ActivitySourceMobile,
-		now:      func() int64 { return 1710000000123 },
+		query:         anime.NewQueryService(store),
+		writer:        writer,
+		recorder:      recorder,
+		watchRecorder: watchRecorder,
+		source:        anime.ActivitySourceMobile,
+		now:           func() int64 { return 1710000000123 },
 	}
 
 	progress := 2.0
@@ -52,6 +67,15 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	}
 	if records[0].Source != activity.SourceMobile || records[0].ActionType != activity.ActionEpisodeAdjusted {
 		t.Fatalf("unexpected mobile activity row: %#v", records[0])
+	}
+
+	if len(watchRecorder.calls) != 1 {
+		t.Fatalf("expected 1 watch history record, got %d", len(watchRecorder.calls))
+	}
+	change := watchRecorder.calls[0]
+	if change.AnimeID != "anime-1" || change.AnimeName != "Frieren" || change.Source != anime.ActivitySourceMobile ||
+		change.BeforeEpisodes != 1 || change.AfterEpisodes != 2 || change.Cycle != 1 || change.OccurredAtMS != 1710000000123 || change.CycleReset {
+		t.Fatalf("unexpected watch history change: %#v", change)
 	}
 }
 
@@ -103,12 +127,14 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 
 	writer := anime.NewWriteService(store, &stubAppUpdateWriter{})
 	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))}
+	watchRecorder := &stubWatchRecorder{}
 	service := activityAnimeWriteService{
-		query:    anime.NewQueryService(store),
-		writer:   writer,
-		recorder: recorder,
-		source:   anime.ActivitySourceMobile,
-		now:      func() int64 { return 1710000000123 },
+		query:         anime.NewQueryService(store),
+		writer:        writer,
+		recorder:      recorder,
+		watchRecorder: watchRecorder,
+		source:        anime.ActivitySourceMobile,
+		now:           func() int64 { return 1710000000123 },
 	}
 
 	repeatAt := int64(1710000000123)
@@ -145,6 +171,10 @@ func TestActivityAnimeWriteServiceRecordsMobileRepeat(t *testing.T) {
 	if after.NroCapVisto != 0 || after.Estado != 0 || after.Activo != 1 {
 		t.Fatalf("expected repeat after snapshot to reset cycle, got %#v", after)
 	}
+
+	if len(watchRecorder.calls) != 1 || !watchRecorder.calls[0].CycleReset {
+		t.Fatalf("expected 1 watch history record with CycleReset true, got %#v", watchRecorder.calls)
+	}
 }
 
 func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
@@ -166,10 +196,12 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 			db := openRuntimeBridgeDB(t)
 			store := bridgeSync.NewAnimeSnapshotStore(db)
 			seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":1,"status":0,"active":true}`, 1000)
+			watchRecorder := &stubWatchRecorder{}
 			service := activityAnimeWriteService{
 				query: anime.NewQueryService(store), writer: stubActivityOutcomeWriter{result: test.result, err: test.err},
-				recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))},
-				source:   anime.ActivitySourceMobile, now: func() int64 { return 1710000000123 },
+				recorder:      activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(db))},
+				watchRecorder: watchRecorder,
+				source:        anime.ActivitySourceMobile, now: func() int64 { return 1710000000123 },
 			}
 			progress := 2.0
 
@@ -183,7 +215,23 @@ func TestActivityAnimeWriteServiceRecordsOnlyAppliedOutcomes(t *testing.T) {
 			if len(records) != 0 {
 				t.Fatalf("outcome %q recorded activity: %#v", test.result.Outcome, records)
 			}
+			if len(watchRecorder.calls) != 0 {
+				t.Fatalf("outcome %q recorded watch history: %#v", test.result.Outcome, watchRecorder.calls)
+			}
 		})
+	}
+}
+
+// TestActivityAnimeWriteServiceOccurredAtMsDefaultsToZeroWithNoClockWired
+// asserts occurredAtMs's nil-clock fallback directly: kept as a white-box
+// call on the unexported method (same package) rather than a full PatchAnime
+// integration test, since the D4 record-or-degrade guard itself is now
+// proven once in internal/anime's table, and occurredAtMs's return value
+// flows straight through with no later guard that could mask this mutant.
+func TestActivityAnimeWriteServiceOccurredAtMsDefaultsToZeroWithNoClockWired(t *testing.T) {
+	service := activityAnimeWriteService{}
+	if got := service.occurredAtMs(); got != 0 {
+		t.Fatalf("expected occurredAtMs to default to zero with no clock wired, got %d", got)
 	}
 }
 

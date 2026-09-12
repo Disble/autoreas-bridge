@@ -24,6 +24,7 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 		name         string
 		result       contracts.AnimePatchResult
 		wantActivity int
+		wantWatch    int
 	}{
 		{
 			name: "applied",
@@ -31,6 +32,7 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 				AnimeID: "writer-anime", Outcome: contracts.AnimePatchOutcomeApplied, ModifiedAt: 2000,
 			},
 			wantActivity: 1,
+			wantWatch:    1,
 		},
 		{
 			name: "no op",
@@ -51,9 +53,11 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 			store := openAnimeServiceTestStore(t)
 			seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":1,"active":true}`, 1000)
 			activity := &stubEpisodeActivityRecorder{}
+			watchRecorder := &stubWatchRecorder{}
 			service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 				Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{result: test.result}, Activity: activity,
-				Now: func() time.Time { return time.UnixMilli(1710000001111).UTC() },
+				Watch: watchRecorder,
+				Now:   func() time.Time { return time.UnixMilli(1710000001111).UTC() },
 			})
 
 			got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: new(int64(1000))})
@@ -66,6 +70,9 @@ func TestEpisodeServiceRepeatAnimePropagatesOutcomeAndRecordsOnlyApplied(t *test
 			if len(activity.records) != test.wantActivity {
 				t.Fatalf("activity records = %d, want %d for outcome %q", len(activity.records), test.wantActivity, test.result.Outcome)
 			}
+			if len(watchRecorder.calls) != test.wantWatch {
+				t.Fatalf("watch records = %d, want %d for outcome %q", len(watchRecorder.calls), test.wantWatch, test.result.Outcome)
+			}
 		})
 	}
 }
@@ -75,8 +82,10 @@ func TestEpisodeServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *tes
 	seedAnimeSnapshotWithModifiedAt(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":10,"status":1,"active":true}`, 1000)
 	writeErr := errors.New("gateway unavailable")
 	activity := &stubEpisodeActivityRecorder{}
+	watchRecorder := &stubWatchRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query: anime.NewQueryService(store), Writer: stubEpisodeOutcomeWriter{err: writeErr}, Activity: activity,
+		Watch: watchRecorder,
 	})
 
 	got, err := service.RepeatAnime(context.Background(), anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: new(int64(1000))})
@@ -88,5 +97,8 @@ func TestEpisodeServiceRepeatAnimeFailureReturnsNoAppliedResultOrActivity(t *tes
 	}
 	if len(activity.records) != 0 {
 		t.Fatalf("failure recorded %d activities, want zero", len(activity.records))
+	}
+	if len(watchRecorder.calls) != 0 {
+		t.Fatalf("failure recorded %d watch history entries, want zero", len(watchRecorder.calls))
 	}
 }

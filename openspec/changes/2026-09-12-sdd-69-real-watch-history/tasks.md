@@ -246,47 +246,56 @@ sees equality because guard 3 intercepts it first.
 
 ### 2.1 `anime.WatchRecorder` port + `EpisodeService` wiring
 
-- [ ] **2.1.1** [RED] `internal/anime/episode_service_test.go`: `AdjustWatchedEpisodes` calls
+- [x] **2.1.1** [RED] `internal/anime/episode_service_test.go`: `AdjustWatchedEpisodes` calls
   `WatchRecorder.RecordWatch` with `Change{Before, After, Cycle: len(current.Repetitions)+1, Source,
   OccurredAtMS}` after `RecordActivity`; a `RecordWatch` error is warn-logged under
   `domain="watch-history"` and the command still reports success (D4); `SetAnimeDays` never calls
   `RecordWatch`.
-- [ ] **2.1.2** [GREEN] `internal/anime/episode_service.go`: `WatchRecorder` interface —
+- [x] **2.1.2** [GREEN] `internal/anime/episode_service.go`: `WatchRecorder` interface —
   `RecordWatch(ctx, watchhistory.Change) error`; add it to `EpisodeServiceDeps`; call it immediately
   after the existing `RecordActivity` call in `recordEpisodeAdjustment`; never call it from
   `episode_service_schedule_state.go`.
-- [ ] **2.1.3** [RED] `episode_service_repeat_restore_test.go`: `RepeatAnime` calls `RecordWatch` with
+- [x] **2.1.3** [RED] `episode_service_repeat_restore_test.go`: `RepeatAnime` calls `RecordWatch` with
   `CycleReset: true`, asserting (through the store) zero inserts and zero deletions.
-- [ ] **2.1.4** [GREEN] `internal/anime/episode_service_repeat_restore.go`: wire the `RepeatAt`-derived
+- [x] **2.1.4** [GREEN] `internal/anime/episode_service_repeat_restore.go`: wire the `RepeatAt`-derived
   `Change` into the same `RecordWatch` call.
 
 ### 2.2 Desktop wiring — `watchRecorderAdapter` + mobile path
 
-- [ ] **2.2.1** [RED] `internal/desktop/app_watch_history_test.go` (new): `watchRecorderAdapter.RecordWatch`
+- [x] **2.2.1** [RED] `internal/desktop/app_watch_history_test.go` (new): `watchRecorderAdapter.RecordWatch`
   delegates to `watchhistory.Store.Apply`; `App` wires it into both `episodeService` and
   `activityAnimeWriteService`.
-- [ ] **2.2.2** [GREEN] `internal/desktop/app.go`: `watchRecorderAdapter` struct + wiring at construction.
-- [ ] **2.2.3** [RED] `internal/desktop/app_activity_write_test.go`: `activityAnimeWriteService.PatchAnime`
+- [x] **2.2.2** [GREEN] `internal/desktop/app.go`: `watchRecorderAdapter` struct + wiring at construction.
+- [x] **2.2.3** [RED] `internal/desktop/app_activity_write_test.go`: `activityAnimeWriteService.PatchAnime`
   computes `Cycle` from the loaded `before` anime's `Repetitions`, and calls `RecordWatch` after
   `recordPatchActivity`, using the before/after diff — never `activityPatchOutcome`'s derived
   `actionType`; a `RepeatAt` patch calls `RecordWatch` with `CycleReset: true`.
-- [ ] **2.2.4** [GREEN] `internal/desktop/app_activity_write.go`: add a `watchRecorder anime.WatchRecorder`
+- [x] **2.2.4** [GREEN] `internal/desktop/app_activity_write.go`: add a `watchRecorder anime.WatchRecorder`
   field to `activityAnimeWriteService`; call `RecordWatch` in `PatchAnime` after `recordPatchActivity`,
   deriving `Cycle` the same way as the desktop path.
 
+**Addition beyond the plan:** `internal/sync/sqlite_bootstrap.go` registers `watchhistory.SchemaTables()`
+(moved up from 3.3.3, since this slice is the first to write at runtime). Its proof,
+`internal/watchhistory/bootstrap_registration_test.go`, goes through the real `OpenBridgeDB`, and cannot
+live in `internal/sync/` because the `watch_history` architecture rule has no bootstrap exception.
+
 ### 2.3 MUTATE
 
-- [ ] **2.3.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
-  --threshold 0.80 --test-command "go test -count=1 -json ./internal/anime/"`.
-- [ ] **2.3.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/anime/
-  --threshold 0.80 --test-command "go test -count=1 -json ./internal/desktop/"`.
-- [ ] **2.3.3** [REFACTOR] Address survivors.
+- [x] **2.3.1** [MUTATE] `ditto staged … ./internal/anime/` — **1.00** (25/25).
+- [x] **2.3.2** [MUTATE] `ditto staged … ./internal/desktop/` — **1.00** (13/13). `./internal/sync/`
+  yields no mutants: the registration line has no branch.
+- [x] **2.3.3** [REFACTOR] Two passes before commit. The second removed duplicated proof: the D4 guard
+  moved into one exported `anime.RecordWatch` (desktop's copy and its 3-row truth table deleted), the
+  repeat's watch-history assertions left the snapshot test for a focused test of their own, and a
+  redundant adapter test was deleted after skipping it left desktop mutation at 1.00.
 
 ### 2.4 Verification & commit
 
-- [ ] **2.4.1** [VERIFY] `go test ./internal/anime/... ./internal/desktop/...`; both golangci profiles;
-  `checkgofilesize`; `git status --porcelain` scoped.
-- [ ] **2.4.2** Orchestrator verifies and commits this slice.
+- [x] **2.4.1** [VERIFY] Tests, vet, both lint profiles, `checkarchitecture` and `checkgofilesize` clean.
+  **639 changed lines of code** against a 560 forecast and the 600 budget, down from 743 — a planning
+  miss per CLAUDE.md #22. The unforecast part is the real-store proof of the repeat and the bootstrap
+  registration test, neither of which the forecast itemized.
+- [x] **2.4.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. `watch_history` stays empty; no reader exists until Slice 5/7.
 
@@ -330,10 +339,11 @@ Backfill Is Marker-Guarded And Idempotent", "The Backfill Creates A Restore Poin
   `StreamOldestFirst` → per-row `Derive` via the `watchhistory` port → `ApplyTx` →
   `DeleteByActionTypes`(4 nav types) → set marker → `COMMIT`; any error → `ROLLBACK` + log error, no
   marker set.
-- [ ] **3.3.3** [GREEN] `internal/sync/sqlite_bootstrap.go`: register `watchhistory.SchemaTables()` in
-  `initializeBridgeDB`'s `tables` slice (if not already added by Slice 1's registration point), and call
-  `ensureWatchHistoryBackfill` from `initializeBridgeDB`, after every table is ensured and after
-  `ensureVocabularyMigration`.
+- [ ] **3.3.3** [GREEN] **Schema registration moved to Slice 2** (see that slice's note beside 2.2.4 and
+  its apply report): `watchhistory.SchemaTables()` is already appended to `initializeBridgeDB`'s `tables`
+  slice, proven by `internal/watchhistory/bootstrap_registration_test.go`. This task now only calls
+  `ensureWatchHistoryBackfill` from `internal/sync/sqlite_bootstrap.go`'s `initializeBridgeDB`, after
+  every table is ensured and after `ensureVocabularyMigration`.
 - [ ] **3.3.4** [RED] Fixtures built from the real `activity_log` row shape (untagged snapshot keys)
   replayed against the corrected rules (`CycleReset` guard + backwards cycle anchoring); **re-measure and
   record the resulting row count** (the explore.md §4.1 / design.md "> 201" open item) in the test name

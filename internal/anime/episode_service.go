@@ -8,6 +8,8 @@ import (
 
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/logger"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 const (
@@ -63,11 +65,37 @@ type ActivityRecorder interface {
 	RecordActivity(ctx context.Context, record ActivityRecord) error
 }
 
+// WatchRecorder persists the real per-episode watch-history projection,
+// diff-derived from the applied patch (design.md D2/D4). A failure degrades
+// to a warn log rather than failing the user's action: the underlying
+// projection is derived from the audit log, which already committed by the
+// time this runs.
+type WatchRecorder interface {
+	RecordWatch(ctx context.Context, change watchhistory.Change) error
+}
+
+// RecordWatch runs recorder's RecordWatch and degrades a failure to a warn
+// log under domain="watch-history" rather than propagating it (design.md
+// D4). Both live write paths -- EpisodeService here and desktop's mobile
+// write service -- share this exact guard, so its truth table is proven
+// once rather than once per caller. A nil recorder is a no-op, matching
+// every other lazily wired write-path collaborator.
+func RecordWatch(ctx context.Context, recorder WatchRecorder, log logger.Logger, animeID string, change watchhistory.Change) {
+	if recorder == nil {
+		return
+	}
+	if err := recorder.RecordWatch(ctx, change); err != nil && log != nil {
+		log.Warnf("watch-history", "record watch history for anime %s: %v", animeID, err)
+	}
+}
+
 // EpisodeServiceDeps wires the ports required by EpisodeService.
 type EpisodeServiceDeps struct {
 	Query    EpisodeQuery
 	Writer   EpisodeWriter
 	Activity ActivityRecorder
+	Watch    WatchRecorder
+	Logger   logger.Logger
 	Now      func() time.Time
 }
 
@@ -98,6 +126,8 @@ type EpisodeService struct {
 	query    EpisodeQuery
 	writer   EpisodeWriter
 	activity ActivityRecorder
+	watch    WatchRecorder
+	logger   logger.Logger
 	now      func() time.Time
 }
 
@@ -190,6 +220,8 @@ func NewEpisodeService(deps EpisodeServiceDeps) *EpisodeService {
 		query:    deps.Query,
 		writer:   deps.Writer,
 		activity: deps.Activity,
+		watch:    deps.Watch,
+		logger:   deps.Logger,
 		now:      now,
 	}
 }
@@ -259,29 +291,53 @@ func activityCorrelationID(animeID string, occurredAtMs int64) string {
 	return fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, animeID, occurredAtMs)
 }
 
-// recordEpisodeAdjustment records an applied episode progress adjustment as activity.
+// recordEpisodeAdjustment records an applied episode progress adjustment as
+// activity, then records the real watch-history projection from the same
+// before/after diff (design.md D4). Watch recording runs independent of
+// whether an ActivityRecorder is wired: it is a separate collaborator, not a
+// side effect of the activity write.
 func (s *EpisodeService) recordEpisodeAdjustment(ctx context.Context, a episodeAdjustment) error {
-	if s.activity == nil || a.outcome != contracts.AnimePatchOutcomeApplied {
+	if a.outcome != contracts.AnimePatchOutcomeApplied {
 		return nil
 	}
-	return s.activity.RecordActivity(ctx, ActivityRecord{
-		Source:        a.source,
-		ActionType:    activity.ActionEpisodeAdjusted,
-		AnimeID:       a.animeID,
-		AnimeName:     a.current.Name,
-		OccurredAtMs:  a.occurredAtMs,
-		CorrelationID: a.correlationID,
-		Before: ActivityAnimeSnapshot{
-			Estado:      a.current.Status,
-			NroCapVisto: a.current.EpisodesWatched,
-			Activo:      a.current.Active,
-		},
-		After: ActivityAnimeSnapshot{
-			Estado:      a.current.Status,
-			NroCapVisto: a.nextProgress,
-			Activo:      a.current.Active,
-		},
+	if s.activity != nil {
+		if err := s.activity.RecordActivity(ctx, ActivityRecord{
+			Source:        a.source,
+			ActionType:    activity.ActionEpisodeAdjusted,
+			AnimeID:       a.animeID,
+			AnimeName:     a.current.Name,
+			OccurredAtMs:  a.occurredAtMs,
+			CorrelationID: a.correlationID,
+			Before: ActivityAnimeSnapshot{
+				Estado:      a.current.Status,
+				NroCapVisto: a.current.EpisodesWatched,
+				Activo:      a.current.Active,
+			},
+			After: ActivityAnimeSnapshot{
+				Estado:      a.current.Status,
+				NroCapVisto: a.nextProgress,
+				Activo:      a.current.Active,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	s.recordWatch(ctx, a.animeID, watchhistory.Change{
+		AnimeID:        a.animeID,
+		AnimeName:      a.current.Name,
+		Source:         a.source,
+		OccurredAtMS:   a.occurredAtMs,
+		BeforeEpisodes: a.current.EpisodesWatched,
+		AfterEpisodes:  a.nextProgress,
+		Cycle:          int64(len(a.current.Repetitions)) + 1,
 	})
+	return nil
+}
+
+// recordWatch persists change on the real watch-history projection through
+// the shared RecordWatch guard above.
+func (s *EpisodeService) recordWatch(ctx context.Context, animeID string, change watchhistory.Change) {
+	RecordWatch(ctx, s.watch, s.logger, animeID, change)
 }
 
 // episodeCommandResult builds the command result for an episode patch.

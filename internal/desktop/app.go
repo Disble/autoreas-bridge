@@ -29,6 +29,7 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // App struct
@@ -296,6 +297,8 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 		deps.Activity = activityRecorderAdapter{
 			store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB)),
 		}
+		deps.Watch = watchRecorderAdapter{store: watchhistory.NewStore(a.bridgeDB)}
+		deps.Logger = a.sharedLogger
 	}
 	a.episodeService = anime.NewEpisodeService(deps)
 }
@@ -341,6 +344,16 @@ func (a activityRecorderAdapter) RecordActivity(ctx context.Context, record anim
 		BeforeJSON:    beforeJSON,
 		AfterJSON:     afterJSON,
 	})
+}
+
+// watchRecorderAdapter adapts watchhistory.Store to anime.WatchRecorder,
+// mirroring activityRecorderAdapter above.
+type watchRecorderAdapter struct {
+	store *watchhistory.Store
+}
+
+func (a watchRecorderAdapter) RecordWatch(ctx context.Context, change watchhistory.Change) error {
+	return a.store.Apply(ctx, change)
 }
 
 // shutdown stops runtime services and closes bridge resources.

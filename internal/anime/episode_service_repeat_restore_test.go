@@ -8,6 +8,8 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
+	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 func TestEpisodeServiceRestoreAnimeWritesActiveAndClearsDeletionDate(t *testing.T) {
@@ -131,6 +133,78 @@ func TestEpisodeServiceRepeatAnimeSnapshotsCurrentCycleAndResetsState(t *testing
 	if record.After.NroCapVisto != 0 || record.After.Estado != 0 || record.After.Activo != 1 {
 		t.Fatalf("expected after snapshot reset, got %#v", record.After)
 	}
+}
+
+// TestEpisodeServiceRepeatAnimeRecordsCycleResetAndLeavesWatchHistoryUnchanged
+// asserts design.md D3: a repeat's CycleReset records nothing and retracts
+// nothing. A real watchhistory.Store (not a stub) proves the "leaves it
+// unchanged" half, since Derive's guard 1 is exactly what makes it a no-op
+// regardless of the Change's other fields; watchStoreRecorder additionally
+// captures the raw Change so the literal cycle/before/after values passed to
+// RecordWatch are pinned too, not just the store's net effect.
+func TestEpisodeServiceRepeatAnimeRecordsCycleResetAndLeavesWatchHistoryUnchanged(t *testing.T) {
+	ctx := context.Background()
+	db := openAnimeServiceTestDB(t)
+	store := bridgeSync.NewAnimeSnapshotStore(db)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"id":"anime-1","name":"Frieren","episodesWatched":10.5,"status":1,"active":false,"repetitions":[{"numRepetitions":0,"episodesWatched":8,"status":1,"repeatedAt":1500000000000}]}`,
+		1000,
+	)
+
+	// anime-1 already carries one repetition, so the closing cycle (the one
+	// this repeat resets) is cycle 2 -- len(Repetitions)+1. Seed a row on
+	// that exact cycle so a broken CycleReset guard would be observable.
+	watchStore := watchhistory.NewStore(db)
+	if err := watchStore.Apply(ctx, watchhistory.Change{
+		AnimeID: "anime-1", AnimeName: "Frieren", Source: anime.ActivitySourceDesktop,
+		OccurredAtMS: 1650000000000, BeforeEpisodes: 9, AfterEpisodes: 10, Cycle: 2,
+	}); err != nil {
+		t.Fatalf("seed watch history row: %v", err)
+	}
+
+	watchRecorder := &watchStoreRecorder{store: watchStore}
+	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
+		Query:  anime.NewQueryService(store),
+		Writer: anime.NewWriteService(store, &stubAnimeWriter{}),
+		Watch:  watchRecorder,
+		Now:    func() time.Time { return time.UnixMilli(1710000001111).UTC() },
+	})
+
+	if _, err := service.RepeatAnime(ctx, anime.RepeatAnimeCommand{AnimeID: "anime-1", Base: new(int64(1000))}); err != nil {
+		t.Fatalf("repeat anime: %v", err)
+	}
+
+	page, err := watchStore.Page(ctx, watchhistory.PageQuery{})
+	if err != nil {
+		t.Fatalf("page watch history: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Episode != 10 || page.Items[0].Cycle != 2 {
+		t.Fatalf("expected a repeat to record zero inserts and zero deletions, got %#v", page.Items)
+	}
+	if len(watchRecorder.calls) != 1 {
+		t.Fatalf("expected 1 watch history call, got %d", len(watchRecorder.calls))
+	}
+	change := watchRecorder.calls[0]
+	if !change.CycleReset || change.Cycle != 2 || change.BeforeEpisodes != 10.5 || change.AfterEpisodes != 0 {
+		t.Fatalf("unexpected watch history change: %#v", change)
+	}
+}
+
+// watchStoreRecorder adapts a real watchhistory.Store to anime.WatchRecorder
+// while also recording every call, so a test can assert both the raw Change
+// fields RecordWatch received AND the real Derive/Apply outcome a stub alone
+// cannot prove.
+type watchStoreRecorder struct {
+	store *watchhistory.Store
+	calls []watchhistory.Change
+}
+
+func (r *watchStoreRecorder) RecordWatch(ctx context.Context, change watchhistory.Change) error {
+	r.calls = append(r.calls, change)
+	return r.store.Apply(ctx, change)
 }
 
 // decodeRawJSONMap decodes a payload for repeat assertions.

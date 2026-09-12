@@ -15,6 +15,7 @@ import (
 	"autoreas-bridge/internal/observability/syncdiag"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/watchhistory"
 	// Registers the "sqlite" driver with database/sql. Nothing in this file
 	// references the package, so the import exists purely for that init side effect
 	// and removing it turns every sql.Open("sqlite", ...) here into a runtime error.
@@ -164,6 +165,12 @@ func initializeBridgeDB(db *sql.DB) error {
 	tables = append(tables, eventlog.SchemaTables()...)
 	tables = append(tables, syncdiag.SchemaTables()...)
 	tables = append(tables, centerschema.SchemaTables()...)
+	// SDD-69 slice 2: registered here (not in the backfill's own slice)
+	// because this is the first slice that writes to the real watch-history
+	// projection at runtime -- without its table, every live RecordWatch
+	// would hit "no such table" and D4 would silently warn-log it away.
+	// tasks.md 3.3.3 notes the move.
+	tables = append(tables, watchhistory.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
 			return err

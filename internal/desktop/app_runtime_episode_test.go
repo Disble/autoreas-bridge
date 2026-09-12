@@ -8,6 +8,7 @@ import (
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 func TestGetEpisodeScheduleDelegatesToEpisodeService(t *testing.T) {
@@ -129,5 +130,13 @@ func TestStartupWiresActivityRecorderIntoEpisodeService(t *testing.T) {
 	}
 	if records[0].AnimeID != "anime-1" || records[0].ActionType != activity.ActionEpisodeAdjusted {
 		t.Fatalf("unexpected persisted activity row: %#v", records[0])
+	}
+
+	page, err := watchhistory.NewStore(db).Page(ctx, watchhistory.PageQuery{})
+	if err != nil {
+		t.Fatalf("page watch history: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].AnimeID != "anime-1" || page.Items[0].Episode != 2 {
+		t.Fatalf("expected startup to wire watchRecorderAdapter into episodeService, got %#v", page.Items)
 	}
 }
