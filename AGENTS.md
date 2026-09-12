@@ -188,14 +188,7 @@
 - **Prose counts against the budget.** `sdd-attempt` measured slice 2 at 673 lines where `git diff --stat` said 597; the difference was the `tasks.md` edit. Budget 40-80 lines for the artifact prose a slice rewrites.
 - **A rule you impose on one dimension inflates the budget of another.** After fallow rejected an unexercised export, the orchestrator required "no export without a consumer in the same commit". Under strict TDD that mandates a RED test per exported function before the function exists, which added three test suites nobody had forecast. Price a new constraint when you introduce it, in the budget it actually spends.
 - **Overshooting the cap is an over-engineering finding, not a forecast finding — refactor it down, never block on it.** Everything above is how you size; this is what happens when you miss anyway. Because the band already counts the strict-TDD and mutation tests, an overrun can no longer be explained by "the tests were the miss" — that explanation is already priced in. So the overrun is read as over-engineering in the work itself, it is refactored until it fits, and the SDD **continues**. It is never a reason to block a work unit, and never a reason to reset the ledger objective: a reset spends a maintainer decision on what is an ordinary engineering defect. SDD-67's slice 2 was the case that established this — 884 lines against a 600 cap, where the orchestrator had classified the overrun as legitimate test volume and stopped for a maintainer decision. It was neither legitimate nor a decision: the diff held four hand-copied instances of one test shape that belonged in a table, `Partial`-override builders written for a single call site, and a mocked positive case re-proving wiring an end-to-end test already proved through the real observable.
-- **What over-engineering looks like in this tree's tests**, so the finding is actionable rather than a scolding:
-
-  | Smell | The refactor |
-  |---|---|
-  | The same setup→act→assert shape written N times with different literals | One table-driven test, N rows. Each distinct behavior survives as row data |
-  | A builder taking `Partial<T>` overrides with one or two call sites | Inline the literal at the call site. A parameterized builder earns its keep at three |
-  | A mocked test asserting a collaborator was called, beside an end-to-end test asserting the real observable of the same wiring | Keep the end-to-end one. The mocked positive case is the redundant half; mocked *negative* cases (not-called-when-absent, not-called-on-failure) are not, since an e2e cannot assert them cheaply |
-  | A hand-rolled `for … { if x == want { found = true } }` | `slices.Contains` |
+- **What over-engineering looks like in this tree's tests lives in the `lean-tests` skill** — load it at the RED step, at the MUTATE step, and whenever a slice passes its budget. Its smell table (`.claude/skills/lean-tests/references/smells.md`) is the single source of truth; it moved there because a table in this always-loaded file did not stop SDD-69's slice 1 from killing mutants with new test functions instead of table rows.
 
   Refactoring is bounded by coverage, not by the number: never delete an assertion, a scenario, or a case that kills a known mutant to make a budget. If the genuine fat is gone and it still does not fit, report the measured remainder and what it is — that outcome is honest and the slice plan was too big, which is a planning fix, not a trimming one.
 - **Measured correction: a refactor cannot bring the changed-line number down after the fact, so judge it by `wc -l`, not by the ledger.** The cap is measured on insertions **plus deletions**, so removing 51 lines from files that already exist registers as 51 new deletions. SDD-67's slice-2 cleanup took 864 lines of test code down to 813 — a real 51 removed, every mutant still dying — while the changed-line count moved 884 → 881. The code got smaller and the metric did not budge. Two consequences, and the second is the one that bites:
@@ -227,6 +220,7 @@
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
 | `fallow-repo-setup` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
 | `keyboard-shortcuts` | Adding or scoping a keyboard shortcut, a chord that does nothing or fires twice, the shortcuts help dialog |
+| `lean-tests` | Writing tests, killing a surviving mutant, a slice over its line budget |
 
 ## References
 
