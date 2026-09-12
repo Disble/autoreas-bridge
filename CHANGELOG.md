@@ -14,6 +14,8 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-09-11
+
 ### Added
 
 - Keyboard shortcuts. `Alt+1` through `Alt+0` jump straight to the ten sections in the order the rail shows them — Today, Downloads, Editor, Catalog, History, Season, Devices, Activity, Notifications, Settings — and `Alt+R` marks the loaded notifications as read while the Notification Center is open.
