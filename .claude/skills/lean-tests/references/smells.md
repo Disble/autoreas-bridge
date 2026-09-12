@@ -12,7 +12,7 @@ The single source of truth for what over-engineered tests look like in this tree
 | Several ways to seed the same row in one package | One seeding helper |
 | A hand-rolled slice equality, `contains`, or sorted-keys helper | `slices.Equal`, `slices.Contains`, `slices.Sorted(maps.Keys(m))` — this repo targets Go 1.27 |
 | A builder taking `Partial<T>` overrides with one or two call sites | Inline the literal. A parameterized builder earns its keep at three |
-| A white-box test of an unexported helper whose effect the public function exposes | A row on the public function, which kills the same mutant |
+| A white-box test of an unexported helper whose effect the public function exposes | A row on the public function — but only after measuring. A guard later in the public function can mask the helper's mutant, and then only the white-box test kills it. SDD-69's R2 moved `isFiniteNonNegativeChange`'s "+Inf After" case onto `Derive`, where `int64(math.Floor(+Inf))` overflows and the 5000 ceiling returns `EffectNone` regardless; two mutants survived and the score fell from 0.91 to 0.88 |
 | A mocked test asserting a collaborator was called, beside an end-to-end test asserting the real observable of the same wiring | Keep the end-to-end one. Mocked *negative* cases (not-called-when-absent, not-called-on-failure) stay, since an e2e cannot assert them cheaply |
 | A flag field whose job is "ignore the next field" | The rows are not one shape; split the table |
 | A row field that picks which function the row calls (e.g. an anime filter routing to `AnimePage` instead of `Page`) | Those rows are not one shape; give that case its own test. The branch it adds is also what pushes a table body over `gocognit` |

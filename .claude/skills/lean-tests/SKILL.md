@@ -40,7 +40,7 @@ already counts TDD and mutation tests, so an overrun means bloat, never "the tes
 | Add a field choosing which function a row calls | Give that case its own test |
 | Write a slice, map or sort helper | Use the stdlib |
 | Seed data a new way | Reuse the package's helper |
-| White-box test a helper the public function exposes | Add a row on the public function |
+| White-box test a helper the public function exposes | Move it to a public-function row, then measure: a later guard can mask the helper |
 
 ## Execution Steps
 

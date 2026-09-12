@@ -127,6 +127,19 @@ func TestDeriveGuardOrder(t *testing.T) {
 	}
 }
 
+// TestIsFiniteNonNegativeChangeRejectsPositiveInfiniteAfter pins the explicit
+// +Inf After check, which Derive cannot expose: int64(math.Floor(+Inf))
+// overflows on amd64 and the 5000 ceiling guard returns EffectNone anyway,
+// so a Derive row passes with this check removed. Only a direct call kills
+// that mutant.
+func TestIsFiniteNonNegativeChangeRejectsPositiveInfiniteAfter(t *testing.T) {
+	t.Parallel()
+
+	if isFiniteNonNegativeChange(Change{BeforeEpisodes: 5, AfterEpisodes: math.Inf(1)}) {
+		t.Fatal("expected a positive infinite After value to be rejected")
+	}
+}
+
 // TestDeriveRecordsExactlyAtTheSafetyCeiling asserts a step of exactly 5000
 // newly reached episodes still records (the ceiling guard is strictly
 // greater-than). 5000 is a literal, not the maxEpisodesPerChange constant.
