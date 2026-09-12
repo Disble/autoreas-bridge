@@ -15,17 +15,27 @@ The single source of truth for what over-engineered tests look like in this tree
 | A white-box test of an unexported helper whose effect the public function exposes | A row on the public function, which kills the same mutant |
 | A mocked test asserting a collaborator was called, beside an end-to-end test asserting the real observable of the same wiring | Keep the end-to-end one. Mocked *negative* cases (not-called-when-absent, not-called-on-failure) stay, since an e2e cannot assert them cheaply |
 | A flag field whose job is "ignore the next field" | The rows are not one shape; split the table |
+| A row field that picks which function the row calls (e.g. an anime filter routing to `AnimePage` instead of `Page`) | Those rows are not one shape; give that case its own test. The branch it adds is also what pushes a table body over `gocognit` |
+| Three or four short cases converted to a table that then needs its own row type and `assertX` helper | Keep the short tests with one shared extractor. SDD-69's R2 turned three paging tests (74 lines) into a table costing 89 — the file grew from 199 to 211 |
 | A helper taking many positional arguments where the row struct belongs | Name the row type and pass it whole, as `assertX(t, tc)` |
 | A table whose `t.Run` body nests loops fails `gocognit` (limit 15, second lint profile only) | Move the body into `assertX(t, tc)`. SDD-69's R1 table scored 18 and blocked its commit; a bare `golangci-lint run` reports clean because it skips that profile |
 | A doc comment re-narrating what the row names already say | Delete it |
 
 ## Verifying a test refactor
 
-Verify by breaking production, not by reading the diff. Re-run scoped `ditto` after the refactor and
-compare its score with the score before. When a slice touches two packages, run `ditto` once per
-package with a test command naming that package and `--exclude-prefix` for the other: a staged scope
-spanning both packages under one package's test command marks every mutant in the other package as
-surviving, and reported 0.63 on a slice whose real scores were 0.90 and 1.00.
+Verify by breaking production, never by reading the diff, and compare the score before and after.
+
+- **A test-only diff cannot use `ditto staged`.** It mutates staged *production* lines only, so a diff
+  touching only tests reports "nothing staged is worth mutating" and measures nothing. Commit, then run
+  `ditto changed --since <commit before the production landed>` on the clean checkout. That mutates the
+  same production against the refactored tests, so the mutant count matches the earlier run exactly.
+- **Measure one test's unique contribution without editing a file** by skipping it in the test command:
+  `--test-command "go test -count=1 -json -skip TestName ./<pkg>/"`. If the score drops, that test kills
+  something nothing else does and it stays. SDD-69's property test looked redundant on reading; skipping
+  it dropped the score from 0.91 to 0.88, because it was the only test reaching `After == 0`.
+- **One package per run.** A staged scope spanning two packages under one package's test command marks
+  every mutant in the other as surviving: it reported 0.63 on a slice whose real scores were 0.90 and 1.00.
+  Name the package in the test command and `--exclude-prefix` the others.
 
 ## The measured slices that set these rules
 

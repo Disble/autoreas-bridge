@@ -2,6 +2,7 @@ package watchhistory
 
 import (
 	"context"
+	"slices"
 	"testing"
 )
 
@@ -32,13 +33,7 @@ func TestDecodePageCursorRejectsGarbage(t *testing.T) {
 	}
 }
 
-// TestClampPageLimitAppliesDefaultAndCeiling asserts limit clamping matches
-// eventlog's clampEventSearchLimit shape: non-positive falls back to the
-// default, oversized clamps to the ceiling, and an in-range value passes
-// through unchanged. Expected values are literals, never the
-// defaultPageLimit/maxPageLimit constants being pinned (CLAUDE.md #16):
-// asserting against the same symbol under test would pass unchanged even if
-// its value were mutated.
+// TestClampPageLimitAppliesDefaultAndCeiling asserts default/ceiling clamping (literals, not the pinned constants -- CLAUDE.md #16).
 func TestClampPageLimitAppliesDefaultAndCeiling(t *testing.T) {
 	t.Parallel()
 
@@ -77,54 +72,23 @@ func insertWatchHistoryRow(t *testing.T, ctx context.Context, store *Store, e En
 	}
 }
 
-// TestPagePagesNewestFirstWithoutGapOrDuplicate asserts Page resumes
-// exactly after the cursor, newest first, across the whole global table.
-func TestPagePagesNewestFirstWithoutGapOrDuplicate(t *testing.T) {
-	t.Parallel()
-
-	db := openStoreTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-
-	for i := int64(1); i <= 5; i++ {
-		insertWatchHistoryRow(t, ctx, store, Entry{ID: i, AnimeID: "anime-1", AnimeName: "Anime One", Episode: i, Cycle: 1, WatchedAtMS: i * 1000, Source: "desktop"})
-	}
-
-	first, err := store.Page(ctx, PageQuery{Limit: 2})
-	if err != nil {
-		t.Fatalf("page 1: %v", err)
-	}
-	if len(first.Items) != 2 || first.Items[0].Episode != 5 || first.Items[1].Episode != 4 {
-		t.Fatalf("expected newest-first [5 4], got %#v", first.Items)
-	}
-	if first.NextCursor == "" {
-		t.Fatal("expected a next cursor when more rows remain")
-	}
-
-	second, err := store.Page(ctx, PageQuery{Limit: 2, Cursor: first.NextCursor})
-	if err != nil {
-		t.Fatalf("page 2: %v", err)
-	}
-	if len(second.Items) != 2 || second.Items[0].Episode != 3 || second.Items[1].Episode != 2 {
-		t.Fatalf("expected [3 2] resuming after the cursor, got %#v", second.Items)
-	}
-
-	third, err := store.Page(ctx, PageQuery{Limit: 2, Cursor: second.NextCursor})
-	if err != nil {
-		t.Fatalf("page 3: %v", err)
-	}
-	if len(third.Items) != 1 || third.Items[0].Episode != 1 {
-		t.Fatalf("expected the last row [1] with no further cursor, got %#v (cursor=%q)", third.Items, third.NextCursor)
-	}
-	if third.NextCursor != "" {
-		t.Fatalf("expected no next cursor on the last page, got %q", third.NextCursor)
-	}
+// historyRow builds a desktop-source watch_history row, varying only id,
+// episode, and watched-at timestamp. AnimeName is never asserted.
+func historyRow(animeID string, id, episode, watchedAtMS int64) Entry {
+	return Entry{ID: id, AnimeID: animeID, AnimeName: "Anime Name", Episode: episode, Cycle: 1, WatchedAtMS: watchedAtMS, Source: "desktop"}
 }
 
-// TestPageEqualTimestampTiebreaksById asserts rows sharing one
-// watched_at_ms still page deterministically via the id DESC tiebreaker
-// (design.md D5: seven events inside three seconds is ordinary, not
-// hypothetical).
+// itemIDs extracts a page's item IDs in order, for slices.Equal comparisons.
+func itemIDs(page Page) []int64 {
+	ids := make([]int64, len(page.Items))
+	for i, item := range page.Items {
+		ids[i] = item.ID
+	}
+	return ids
+}
+
+// TestPageEqualTimestampTiebreaksById asserts rows sharing one watched_at_ms
+// still page deterministically via the id DESC tiebreaker (design.md D5).
 func TestPageEqualTimestampTiebreaksById(t *testing.T) {
 	t.Parallel()
 
@@ -133,22 +97,21 @@ func TestPageEqualTimestampTiebreaksById(t *testing.T) {
 	ctx := context.Background()
 
 	for i := int64(1); i <= 3; i++ {
-		insertWatchHistoryRow(t, ctx, store, Entry{ID: i, AnimeID: "anime-1", AnimeName: "Anime One", Episode: i, Cycle: 1, WatchedAtMS: 5000, Source: "desktop"})
+		insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", i, i, 5000))
 	}
 
 	page, err := store.Page(ctx, PageQuery{Limit: 10})
 	if err != nil {
 		t.Fatalf("page: %v", err)
 	}
-	if len(page.Items) != 3 || page.Items[0].ID != 3 || page.Items[1].ID != 2 || page.Items[2].ID != 1 {
-		t.Fatalf("expected id-descending tiebreak [3 2 1], got %#v", page.Items)
+	if got, want := itemIDs(page), []int64{3, 2, 1}; !slices.Equal(got, want) {
+		t.Fatalf("item IDs = %v, want %v", got, want)
 	}
 }
 
-// TestPageSetsNoCursorWhenExactlyOnePageOfRowsExists asserts that when the
-// total row count exactly equals the requested limit (no probe row beyond
-// it), NextCursor stays empty rather than pointing at a page that would
-// come back empty.
+// TestPageSetsNoCursorWhenExactlyOnePageOfRowsExists asserts NextCursor
+// stays empty when the row count exactly equals the requested limit,
+// rather than pointing at a page that would come back empty.
 func TestPageSetsNoCursorWhenExactlyOnePageOfRowsExists(t *testing.T) {
 	t.Parallel()
 
@@ -156,8 +119,8 @@ func TestPageSetsNoCursorWhenExactlyOnePageOfRowsExists(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	insertWatchHistoryRow(t, ctx, store, Entry{ID: 1, AnimeID: "anime-1", AnimeName: "Anime One", Episode: 1, Cycle: 1, WatchedAtMS: 1000, Source: "desktop"})
-	insertWatchHistoryRow(t, ctx, store, Entry{ID: 2, AnimeID: "anime-1", AnimeName: "Anime One", Episode: 2, Cycle: 1, WatchedAtMS: 2000, Source: "desktop"})
+	insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 1, 1, 1000))
+	insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 2, 2, 2000))
 
 	page, err := store.Page(ctx, PageQuery{Limit: 2})
 	if err != nil {
@@ -180,20 +143,49 @@ func TestAnimePageSeeksTheAnimeIndexOnly(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	insertWatchHistoryRow(t, ctx, store, Entry{ID: 1, AnimeID: "anime-1", AnimeName: "Anime One", Episode: 1, Cycle: 1, WatchedAtMS: 1000, Source: "desktop"})
-	insertWatchHistoryRow(t, ctx, store, Entry{ID: 2, AnimeID: "anime-2", AnimeName: "Anime Two", Episode: 1, Cycle: 1, WatchedAtMS: 2000, Source: "desktop"})
-	insertWatchHistoryRow(t, ctx, store, Entry{ID: 3, AnimeID: "anime-1", AnimeName: "Anime One", Episode: 2, Cycle: 1, WatchedAtMS: 3000, Source: "desktop"})
+	insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 1, 1, 1000))
+	insertWatchHistoryRow(t, ctx, store, historyRow("anime-2", 2, 1, 2000))
+	insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 3, 2, 3000))
 
 	page, err := store.AnimePage(ctx, "anime-1", PageQuery{Limit: 10})
 	if err != nil {
 		t.Fatalf("anime page: %v", err)
 	}
-	if len(page.Items) != 2 {
-		t.Fatalf("expected exactly 2 rows for anime-1, got %#v", page.Items)
+	if got, want := itemIDs(page), []int64{3, 1}; !slices.Equal(got, want) {
+		t.Fatalf("item IDs = %v, want %v", got, want)
 	}
-	for _, item := range page.Items {
-		if item.AnimeID != "anime-1" {
-			t.Fatalf("expected only anime-1 rows, got %#v", item)
+}
+
+// TestPagePagesNewestFirstWithoutGapOrDuplicate asserts Page resumes
+// exactly after the cursor, newest first, across the whole global table.
+func TestPagePagesNewestFirstWithoutGapOrDuplicate(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+
+	for i := int64(1); i <= 5; i++ {
+		insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", i, i, i*1000))
+	}
+
+	wantPages := [][]int64{{5, 4}, {3, 2}, {1}}
+	cursor := ""
+	for _, want := range wantPages {
+		page, err := store.Page(ctx, PageQuery{Limit: 2, Cursor: cursor})
+		if err != nil {
+			t.Fatalf("page after cursor %q: %v", cursor, err)
 		}
+		gotEpisodes := make([]int64, len(page.Items))
+		for i, item := range page.Items {
+			gotEpisodes[i] = item.Episode
+		}
+		if !slices.Equal(gotEpisodes, want) {
+			t.Fatalf("episodes = %v, want %v", gotEpisodes, want)
+		}
+		cursor = page.NextCursor
+	}
+	if cursor != "" {
+		t.Fatalf("expected no next cursor after the last page, got %q", cursor)
 	}
 }

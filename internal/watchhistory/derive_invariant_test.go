@@ -1,23 +1,19 @@
 package watchhistory
 
 import (
+	"maps"
 	"math/rand"
-	"sort"
+	"slices"
 	"testing"
 )
 
-// TestDeriveMaintainsD2aInvariantAcrossRandomWalks exercises Derive over
-// many pseudo-random forward/backward sequences (never a cycle reset, which
-// is scoped by a dedicated guard test) and asserts, after every step, that
-// the simulated recorded set for one (anime, cycle) equals exactly the
-// integers in (0, progress] -- the D2a invariant that keeps the
-// watch_history projection from ever drifting from its authority. Every
-// cycle's firstObservedFloor is 0 (a cycle always starts at zero progress,
-// design.md D3), so progress never legitimately regresses below it; the
-// walk is clamped at 0 for the same reason. This is expected to pass with
-// no production code beyond Derive's existing guard order (design.md's
-// Open Questions / task 1.2.4): a failure here means the defect is in
-// Derive, not in this test.
+// TestDeriveMaintainsD2aInvariantAcrossRandomWalks runs Derive over
+// pseudo-random forward/backward walks and asserts the simulated recorded
+// set always equals exactly (0, progress] -- the D2a invariant (design.md
+// D3) that keeps watch_history from drifting off Derive's guard order. Do
+// not change the seed, deltas, trial count, or step count: they are what
+// make the walk reach After == 0, the only case that kills two mutants on
+// derive.go:91's "AfterEpisodes >= 0" boundary.
 func TestDeriveMaintainsD2aInvariantAcrossRandomWalks(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +36,7 @@ func TestDeriveMaintainsD2aInvariantAcrossRandomWalks(t *testing.T) {
 
 			if !recordedSetMatchesD2aInvariant(recorded, firstFloor, current) {
 				t.Fatalf("trial %d step %d: recorded set %v violates the D2a invariant for firstFloor=%d progress=%v",
-					trial, step, sortedInt64Keys(recorded), firstFloor, current)
+					trial, step, slices.Sorted(maps.Keys(recorded)), firstFloor, current)
 			}
 		}
 	}
@@ -74,15 +70,4 @@ func recordedSetMatchesD2aInvariant(recorded map[int64]bool, firstFloor int64, p
 		}
 	}
 	return len(recorded) == wantCount
-}
-
-// sortedInt64Keys returns a set's keys in ascending order, for readable
-// failure output.
-func sortedInt64Keys(set map[int64]bool) []int64 {
-	keys := make([]int64, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	return keys
 }

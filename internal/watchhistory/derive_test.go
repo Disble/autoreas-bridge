@@ -8,9 +8,8 @@ import (
 
 // TestDeriveGuardOrder exercises every guard of the D2 semantics table, in
 // evaluation order, plus the multi-episode jump cases design.md's worked
-// examples pin exactly. The safety-ceiling case asserts against 5001 (one
-// past the ceiling) as a literal, never against the production
-// maxEpisodesPerChange constant.
+// examples pin exactly. Guard 2 (isFiniteNonNegativeChange) rejects NaN and
+// infinite values on either side of the change.
 func TestDeriveGuardOrder(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +26,19 @@ func TestDeriveGuardOrder(t *testing.T) {
 		{
 			name:   "a NaN before value is a no-op",
 			change: Change{BeforeEpisodes: math.NaN(), AfterEpisodes: 5},
+			want:   Effect{Kind: EffectNone},
+		},
+		{
+			// Before has no protective fallback further down the guard
+			// chain (unlike After, whose own ">= 0" comparison already
+			// rejects NaN/-Inf), so guard 2 must catch it explicitly.
+			name:   "a positive infinite before value is a no-op",
+			change: Change{BeforeEpisodes: math.Inf(1), AfterEpisodes: 5},
+			want:   Effect{Kind: EffectNone},
+		},
+		{
+			name:   "a negative infinite before value is a no-op",
+			change: Change{BeforeEpisodes: math.Inf(-1), AfterEpisodes: 5},
 			want:   Effect{Kind: EffectNone},
 		},
 		{
@@ -55,9 +67,9 @@ func TestDeriveGuardOrder(t *testing.T) {
 			want:   Effect{Kind: EffectRetract, Floor: 10.5},
 		},
 		{
-			// 5001 is one past the safety ceiling. Written as a literal on
-			// purpose -- never assert against the production constant being
-			// pinned (CLAUDE.md #16, design.md's MUTATE table).
+			// 5001 is one past the safety ceiling, written as a literal
+			// (CLAUDE.md #16) so mutating maxEpisodesPerChange doesn't pass
+			// unnoticed.
 			name:   "a step past the safety ceiling is a no-op",
 			change: Change{BeforeEpisodes: 0, AfterEpisodes: 5001},
 			want:   Effect{Kind: EffectNone},
@@ -116,10 +128,11 @@ func TestDeriveGuardOrder(t *testing.T) {
 }
 
 // TestDeriveRecordsExactlyAtTheSafetyCeiling asserts a step of exactly 5000
-// newly reached episodes still records (the ceiling guard is "greater
-// than", not "greater than or equal to"). 5000 is written as a literal:
-// never assert against the production maxEpisodesPerChange constant being
-// pinned.
+// newly reached episodes still records (the ceiling guard is strictly
+// greater-than). 5000 is a literal, not the maxEpisodesPerChange constant.
+// Left standalone rather than folded into TestDeriveGuardOrder: expressing
+// a 5000-episode expectation as a row would need its own one-call
+// generator, which is the cost this refactor exists to avoid.
 func TestDeriveRecordsExactlyAtTheSafetyCeiling(t *testing.T) {
 	t.Parallel()
 
@@ -132,32 +145,5 @@ func TestDeriveRecordsExactlyAtTheSafetyCeiling(t *testing.T) {
 	}
 	if got.Episodes[0] != 1 || got.Episodes[len(got.Episodes)-1] != 5000 {
 		t.Fatalf("expected episodes 1..5000, got first=%d last=%d", got.Episodes[0], got.Episodes[len(got.Episodes)-1])
-	}
-}
-
-// TestIsFiniteNonNegativeChangeRejectsInfiniteOnEitherSide directly
-// exercises the unexported guard-2 helper (white-box, same package) rather
-// than through Derive: an infinite Before value has no protective fallback
-// downstream (unlike After, whose final ">= 0" comparison already rejects
-// NaN and -Inf on its own), so it must be caught here explicitly, in both
-// signs.
-func TestIsFiniteNonNegativeChangeRejectsInfiniteOnEitherSide(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		change Change
-	}{
-		{name: "positive infinite before", change: Change{BeforeEpisodes: math.Inf(1), AfterEpisodes: 5}},
-		{name: "negative infinite before", change: Change{BeforeEpisodes: math.Inf(-1), AfterEpisodes: 5}},
-		{name: "positive infinite after", change: Change{BeforeEpisodes: 5, AfterEpisodes: math.Inf(1)}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if isFiniteNonNegativeChange(tc.change) {
-				t.Fatalf("expected isFiniteNonNegativeChange(%+v) to be false", tc.change)
-			}
-		})
 	}
 }

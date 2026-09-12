@@ -6,91 +6,108 @@ import (
 	"testing"
 )
 
-func TestRunRejectsActivityLogReferencesOutsideActivityContext(t *testing.T) {
+// TestRun covers every owned-table boundary rule as one table over run():
+// activity_log and watch_history each rejected outside their owning
+// context and allowed inside it, a comment-only reference still caught by
+// the raw substring scan, the retired legacy boundary, and the
+// generated-file exemption.
+func TestRun(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	writeFile(t, root, "internal/anime/service.go", `package anime
+	cases := []struct {
+		name    string
+		path    string
+		content string
+		wantErr bool
+	}{
+		{
+			name: "activity_log reference outside activity context is rejected",
+			path: "internal/anime/service.go",
+			content: `package anime
 const query = "INSERT INTO activity_log DEFAULT VALUES"
-`)
-
-	err := run(root)
-	if err == nil {
-		t.Fatal("expected architecture violation")
-	}
-}
-
-func TestRunAllowsActivityLogReferencesInsideActivityContext(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/activity/sqlite_store.go", `package activity
+`,
+			wantErr: true,
+		},
+		{
+			name: "activity_log reference inside activity context is allowed",
+			path: "internal/activity/sqlite_store.go",
+			content: `package activity
 const query = "INSERT INTO activity_log DEFAULT VALUES"
-`)
-
-	if err := run(root); err != nil {
-		t.Fatalf("expected activity context reference to pass, got %v", err)
-	}
-}
-
-func TestRunAllowsActivityLogSchemaReferencesInSQLiteBootstrap(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/sync/sqlite_bootstrap.go", `package sync
+`,
+		},
+		{
+			name: "activity_log schema reference in sqlite bootstrap is allowed",
+			path: "internal/sync/sqlite_bootstrap.go",
+			content: `package sync
 const ddl = "CREATE TABLE activity_log (id INTEGER PRIMARY KEY)"
-`)
-
-	if err := run(root); err != nil {
-		t.Fatalf("expected bootstrap schema reference to pass, got %v", err)
-	}
-}
-
-// TestRunRejectsWatchHistoryReferencesOutsideWatchHistoryContext mirrors
-// the activity_log rule for the second owned table (design.md D1).
-func TestRunRejectsWatchHistoryReferencesOutsideWatchHistoryContext(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/anime/service.go", `package anime
+`,
+		},
+		{
+			// Mirrors the activity_log rule for the second owned table
+			// (design.md D1).
+			name: "watch_history reference outside watchhistory context is rejected",
+			path: "internal/anime/service.go",
+			content: `package anime
 const query = "INSERT INTO watch_history DEFAULT VALUES"
-`)
-
-	err := run(root)
-	if err == nil {
-		t.Fatal("expected architecture violation")
-	}
-}
-
-// TestRunRejectsWatchHistoryReferencesInComments asserts the raw substring
-// scan catches the literal even in a comment -- this is exactly why the
-// real backfill driver (internal/sync/watch_history_backfill.go) uses
-// camelCase identifiers like ensureWatchHistoryBackfill instead (Note C).
-func TestRunRejectsWatchHistoryReferencesInComments(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/sync/watch_history_backfill.go", `package sync
+`,
+			wantErr: true,
+		},
+		{
+			// The raw substring scan catches the literal even in a comment --
+			// exactly why the real backfill driver
+			// (internal/sync/watch_history_backfill.go) uses camelCase
+			// identifiers like ensureWatchHistoryBackfill instead (Note C).
+			name: "watch_history reference in a comment outside its owner is rejected",
+			path: "internal/sync/watch_history_backfill.go",
+			content: `package sync
 // replays the audit log into watch_history
 func ensureWatchHistoryBackfill() {}
-`)
-
-	err := run(root)
-	if err == nil {
-		t.Fatal("expected architecture violation for a comment referencing watch_history outside its owner")
-	}
-}
-
-func TestRunAllowsWatchHistoryReferencesInsideWatchHistoryContext(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/watchhistory/store.go", `package watchhistory
+`,
+			wantErr: true,
+		},
+		{
+			name: "watch_history reference inside watchhistory context is allowed",
+			path: "internal/watchhistory/store.go",
+			content: `package watchhistory
 const query = "INSERT INTO watch_history DEFAULT VALUES"
-`)
+`,
+		},
+		{
+			// Proves the legacy-boundary check is fully retired: no source
+			// file in this package declares checkLegacyBoundary, and a file
+			// that would have violated the old legacy-DTO/JSON-key/
+			// animes.dat rules passes cleanly through run() (SDD-55 Slice D).
+			name: "a legacy DTO reference no longer violates the retired legacy boundary",
+			path: "internal/season/legacy_projection.go",
+			content: `package season
+import wire "autoreas-bridge/internal/anime/store"
+func project(raw wire.LegacyAnimeRaw) string { return raw.SourceURL }
+`,
+		},
+		{
+			name: "a generated file is allowed",
+			path: "frontend/wailsjs/go/generated.go",
+			content: `// Code generated by test. DO NOT EDIT.
+package generated
+import "os"
+func readSettings() { _, _ = os.ReadFile("settings.json") }
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeFile(t, root, tc.path, tc.content)
 
-	if err := run(root); err != nil {
-		t.Fatalf("expected watchhistory context reference to pass, got %v", err)
+			err := run(root)
+			if tc.wantErr && err == nil {
+				t.Fatal("expected an architecture violation")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected no architecture violation, got %v", err)
+			}
+		})
 	}
 }
 
@@ -120,39 +137,6 @@ func TestIsWatchHistoryBoundaryFile(t *testing.T) {
 				t.Fatalf("isWatchHistoryBoundaryFile(%q) = %v, want %v", tc.path, got, tc.want)
 			}
 		})
-	}
-}
-
-// TestRunHasNoLegacyBoundaryCheck proves the legacy-boundary check is fully
-// retired: no source file in this package declares checkLegacyBoundary, and a
-// file that would have violated the old legacy-DTO/JSON-key/animes.dat rules
-// passes cleanly through run() (SDD-55 Slice D).
-func TestRunHasNoLegacyBoundaryCheck(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "internal/season/legacy_projection.go", `package season
-import wire "autoreas-bridge/internal/anime/store"
-func project(raw wire.LegacyAnimeRaw) string { return raw.SourceURL }
-`)
-
-	if err := run(root); err != nil {
-		t.Fatalf("expected legacy_boundary to be retired (no violation), got %v", err)
-	}
-}
-
-func TestRunAllowsGeneratedFiles(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "frontend/wailsjs/go/generated.go", `// Code generated by test. DO NOT EDIT.
-package generated
-import "os"
-func readSettings() { _, _ = os.ReadFile("settings.json") }
-`)
-
-	if err := run(root); err != nil {
-		t.Fatalf("expected generated file to pass, got %v", err)
 	}
 }
 
