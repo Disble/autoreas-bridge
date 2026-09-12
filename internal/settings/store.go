@@ -21,6 +21,7 @@ const (
 	keyAutoStart     = "system.auto_start"
 	keyEpisodeRename = "downloads.rename_episodes"
 	keyAPIAddr       = "api.addr"
+	keyKeymap        = "keyboard.keymap"
 )
 
 // ErrDatabaseUnavailable reports that the settings accessor has no database.
@@ -121,6 +122,24 @@ func (s *SQLiteStore) APIAddr(ctx context.Context) (string, error) {
 // is the only way back to the shipped default once one has been chosen.
 func (s *SQLiteStore) SetAPIAddr(ctx context.Context, addr string) error {
 	return s.Set(ctx, keyAPIAddr, strings.TrimSpace(addr))
+}
+
+// Keymap returns the persisted keymap document, or "" when nothing has been
+// rebound yet. The value is an opaque string: this package never parses,
+// validates, or normalizes its contents (design.md D5).
+func (s *SQLiteStore) Keymap(ctx context.Context) (string, error) {
+	return s.Get(ctx, keyKeymap)
+}
+
+// SetKeymap persists the keymap document verbatim -- no TrimSpace, no parsing,
+// no validation. normalizeChord (TypeScript,
+// frontend/src/shared/keyboard/keymap.helpers.ts) is the sole authority on
+// chord grammar; adding any Go-side interpretation of this document here is
+// prohibited (design.md D5.2). An empty document clears the setting back to
+// the shipped defaults. internal/settings/keymap_test.go's opaque-bytes case
+// is the deterministic guard against this prohibition drifting.
+func (s *SQLiteStore) SetKeymap(ctx context.Context, document string) error {
+	return s.Set(ctx, keyKeymap, document)
 }
 
 // formatBool renders a preference as the canonical "true"/"false" text stored in

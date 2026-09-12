@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { backupSource } from '../../../../infrastructure/backup-source/backup-source.helpers';
+import { loadKeymapOverrides } from '../../../../shared/keyboard/keymap-load.helpers';
+import { KEYMAP_BACKUP_GROUP_NAME } from './backup-import-section.constants';
 import { classifyImportPhase, describeImportOutcome } from './backup-import-section.helpers';
 import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../infrastructure/backup-source/backup-source.types';
 import type { BackupImportSource } from './backup-import-section.types';
@@ -8,7 +10,10 @@ import type { BackupImportSource } from './backup-import-section.types';
  * Owns the backup import run: it is the only file in this feature that calls
  * into the backup runtime source for import. Guards against firing a second
  * preview or a second confirm while one is already in flight, and against
- * confirming before a preview exists.
+ * confirming before a preview exists. A confirm whose imported groups name
+ * `keyboard_keymap` also reloads the live keyboard store (design D2), so a
+ * restored keymap resolves through the running dispatcher, the `?` overlay,
+ * and the Settings → Shortcuts panel with no restart.
  */
 export function useBackupImport(source: BackupImportSource = backupSource) {
   // 1. Refs
@@ -65,6 +70,9 @@ export function useBackupImport(source: BackupImportSource = backupSource) {
       .then((dto) => {
         setResult(dto);
         setErrorMessage(dto.errorMessage === '' ? null : dto.errorMessage);
+        if (dto.importedGroups.some((group) => group.name === KEYMAP_BACKUP_GROUP_NAME)) {
+          void loadKeymapOverrides();
+        }
       })
       .catch((error: unknown) => {
         setErrorMessage(describeImportOutcome(null, error));

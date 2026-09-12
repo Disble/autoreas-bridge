@@ -3,6 +3,7 @@ import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../
 import { classifyImportPhase, describeImportOutcome, summarizeImportPreview } from '../backup-import-section.helpers';
 import type { ImportPhaseInput } from '../backup-import-section.types';
 
+/** Baseline phase input with nothing in flight and no outcome yet, overridden per case. */
 const basePhaseInput: ImportPhaseInput = {
   isPreviewing: false,
   isApplying: false,
@@ -11,6 +12,7 @@ const basePhaseInput: ImportPhaseInput = {
   errorMessage: null,
 };
 
+/** Baseline preview DTO naming one known group, overridden per case. */
 const basePreview: BackupImportPreviewDTO = {
   cancelled: false,
   bundlePath: 'C:/backups/autoreas-backup-20260731-120000.zip',
@@ -24,6 +26,7 @@ const basePreview: BackupImportPreviewDTO = {
   versionNotes: [],
 };
 
+/** Baseline successful apply-result DTO, overridden per case. */
 const baseResult: BackupImportResultDTO = {
   importedGroups: [{ name: 'anime_snapshots', recordCount: 512 }],
   failedGroup: '',
@@ -70,6 +73,11 @@ describe('summarizeImportPreview', () => {
   it('lists per-group record counts using their human-readable labels', () => {
     const summary = summarizeImportPreview(basePreview);
     expect(summary.groupLines).toEqual(['512 animes']);
+  });
+
+  it('resolves the keyboard_keymap group name to its label through the same lookup the other groups use', () => {
+    const summary = summarizeImportPreview({ ...basePreview, groups: [{ name: 'keyboard_keymap', recordCount: 1 }] });
+    expect(summary.groupLines).toEqual(['1 keymap']);
   });
 
   it('reports the zero-groups case distinctly', () => {

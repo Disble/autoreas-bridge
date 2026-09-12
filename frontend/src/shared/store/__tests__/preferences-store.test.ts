@@ -12,6 +12,7 @@ it('keeps the state interface in the colocated types module', async () => {
   expect(sourceText).not.toMatch(/interface\s+PreferencesStoreState\b/);
 });
 
+/** Builds a fully stubbed preferences port, overridable per case. */
 function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSource {
   return {
     getSeasonMode: vi.fn().mockResolvedValue(false),
@@ -20,6 +21,8 @@ function createSource(overrides: Partial<PreferencesSource> = {}): PreferencesSo
     pickFolder: vi.fn().mockResolvedValue(''),
     getAutoStartEnabled: vi.fn().mockResolvedValue(true),
     setAutoStartEnabled: vi.fn().mockResolvedValue('ok'),
+    getKeymap: vi.fn().mockResolvedValue(''),
+    setKeymap: vi.fn().mockResolvedValue('ok'),
     ...overrides,
   };
 }

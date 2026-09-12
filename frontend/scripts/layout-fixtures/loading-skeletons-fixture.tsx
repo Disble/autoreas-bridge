@@ -7,6 +7,8 @@ import { CatalogListSkeleton } from '../../src/features/catalog/ui/CatalogPanel/
 import { EpisodeScheduleCard } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleCard';
 import { EpisodeScheduleSkeleton } from '../../src/features/episodes/ui/EpisodeSchedulePanel/EpisodeScheduleSkeleton';
 import { NetworkTable } from '../../src/features/network/ui/NetworkTable/NetworkTable';
+import { KeymapBindingRow } from '../../src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow';
+import { KeymapPanelSkeleton } from '../../src/shared/keyboard/ui/KeymapPanel/KeymapPanelSkeleton';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 
 /**
@@ -85,7 +87,33 @@ async function noop(): Promise<void> {
 }
 
 /** Every surface whose placeholder must match the row it replaces. */
+/** A keymap row carrying a hazard chip and an override, its tallest ordinary shape. */
+const KEYMAP_BINDING = {
+  id: 'nav.today',
+  scope: 'global',
+  chord: 'alt+1',
+  label: 'Today',
+  section: 'Navigation',
+} as const;
+
+/** Every surface measured on this page: its real row beside the placeholder that stands in for it. */
 const COMPARISONS: readonly SkeletonComparison[] = [
+  {
+    subject: 'keymap-panel',
+    rowTestId: 'keymap-panel-skeleton-row',
+    real: (
+      <KeymapBindingRow
+        binding={KEYMAP_BINDING}
+        effectiveChord="ctrl+1"
+        hazard={null}
+        isOverridden
+        onRebind={() => undefined}
+        onRevert={() => undefined}
+        scopeNote={null}
+      />
+    ),
+    skeleton: <KeymapPanelSkeleton />,
+  },
   {
     subject: 'catalog',
     rowTestId: 'catalog-skeleton-row',

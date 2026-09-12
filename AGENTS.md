@@ -170,6 +170,38 @@
 - Verification is a special case: the orchestrating agent MUST perform the final verification itself and MUST NOT delegate the verify phase to a sub-agent. Other phases may still use sub-agents when appropriate.
 - After verify passes, the orchestrating agent MUST create the commit before reporting verify as fully complete. The commit's own hooks/validations are part of the real verification boundary and save the user an extra round-trip.
 
+## Sizing a Change
+
+- **Never size a change by eye, and never trust a phase forecast.** Measure comparables in this tree with `wc -l` first. SDD-61's four slices were forecast at 390-420, 430-460, 390-420 and 330-360 lines; slice 2 landed at **597**, and slices 3 and 4 re-estimated bottom-up to **499-702** and **502-708**. The forecasts ran 30% to 70% low, every time in the same direction, which is what makes it a method problem rather than bad luck.
+- **The miss is always the tests, and strict TDD makes them non-negotiable.** Slice 2 spent 361 of its 597 lines on tests (60%). A "400-line" slice here is roughly 200 production plus 200 test. Estimate against these measured bands, all taken from this repo:
+
+  | Shape | Measured |
+  |---|---|
+  | ADR | 123-217 lines; the decision-dense ADR-016 is 217 |
+  | Test rendering real HeroUI widgets | 50-149 (`TransactionRow.test.tsx` = 149) |
+  | `renderHook` test | 44-235; 44-107 for three straightforward scenarios |
+  | Subscription hook, production, full JSDoc | 73-84 |
+  | Component that renders `null` and calls one hook | 20-25 |
+  | `shared/<domain>/` module: constants + types + helpers + hook | ~160 production, roughly doubling once its tests exist |
+
+- **Mandatory JSDoc on every declaration is a multiplier, not a rounding error.** Budget it per declaration, not per file.
+- **Prose counts against the budget.** `sdd-attempt` measured slice 2 at 673 lines where `git diff --stat` said 597; the difference was the `tasks.md` edit. Budget 40-80 lines for the artifact prose a slice rewrites.
+- **A rule you impose on one dimension inflates the budget of another.** After fallow rejected an unexercised export, the orchestrator required "no export without a consumer in the same commit". Under strict TDD that mandates a RED test per exported function before the function exists, which added three test suites nobody had forecast. Price a new constraint when you introduce it, in the budget it actually spends.
+- **Overshooting the cap is an over-engineering finding, not a forecast finding — refactor it down, never block on it.** Everything above is how you size; this is what happens when you miss anyway. Because the band already counts the strict-TDD and mutation tests, an overrun can no longer be explained by "the tests were the miss" — that explanation is already priced in. So the overrun is read as over-engineering in the work itself, it is refactored until it fits, and the SDD **continues**. It is never a reason to block a work unit, and never a reason to reset the ledger objective: a reset spends a maintainer decision on what is an ordinary engineering defect. SDD-67's slice 2 was the case that established this — 884 lines against a 600 cap, where the orchestrator had classified the overrun as legitimate test volume and stopped for a maintainer decision. It was neither legitimate nor a decision: the diff held four hand-copied instances of one test shape that belonged in a table, `Partial`-override builders written for a single call site, and a mocked positive case re-proving wiring an end-to-end test already proved through the real observable.
+- **What over-engineering looks like in this tree's tests**, so the finding is actionable rather than a scolding:
+
+  | Smell | The refactor |
+  |---|---|
+  | The same setup→act→assert shape written N times with different literals | One table-driven test, N rows. Each distinct behavior survives as row data |
+  | A builder taking `Partial<T>` overrides with one or two call sites | Inline the literal at the call site. A parameterized builder earns its keep at three |
+  | A mocked test asserting a collaborator was called, beside an end-to-end test asserting the real observable of the same wiring | Keep the end-to-end one. The mocked positive case is the redundant half; mocked *negative* cases (not-called-when-absent, not-called-on-failure) are not, since an e2e cannot assert them cheaply |
+  | A hand-rolled `for … { if x == want { found = true } }` | `slices.Contains` |
+
+  Refactoring is bounded by coverage, not by the number: never delete an assertion, a scenario, or a case that kills a known mutant to make a budget. If the genuine fat is gone and it still does not fit, report the measured remainder and what it is — that outcome is honest and the slice plan was too big, which is a planning fix, not a trimming one.
+- **Measured correction: a refactor cannot bring the changed-line number down after the fact, so judge it by `wc -l`, not by the ledger.** The cap is measured on insertions **plus deletions**, so removing 51 lines from files that already exist registers as 51 new deletions. SDD-67's slice-2 cleanup took 864 lines of test code down to 813 — a real 51 removed, every mutant still dying — while the changed-line count moved 884 → 881. The code got smaller and the metric did not budge. Two consequences, and the second is the one that bites:
+  1. Judge an over-engineering refactor by the before/after file sizes, never by expecting the ledger's number to fall. Expecting it to fall is a category error about what the metric measures.
+  2. **The cap is therefore a pre-commit discipline: the lines have to not be written, not be removed later.** Once a slice has landed, its number is final. So the refactor and the bookkeeping are separate acts — the refactor discharges the engineering debt, and a maintainer reset is what lets the next work unit open. Conflating them is what made the orchestrator stop the chain for a decision it should have just reported.
+
 ## Learning Log (Vitácora)
 
 - `docs/learning-log.md` is a human-readable "why" log of decisions taken and non-obvious problems solved.
@@ -194,6 +226,7 @@
 | `bridge-debugging` | Regressions, runtime/test mismatches, boundary bugs |
 | `dnd-kit` | Drag-and-drop: sortable/kanban boards with `@dnd-kit/react` + `@dnd-kit/helpers` (React 19/WebView2) |
 | `fallow-repo-setup` | Frontend dead-code, duplication, dependency hygiene, complexity, audit and triage work |
+| `keyboard-shortcuts` | Adding or scoping a keyboard shortcut, a chord that does nothing or fires twice, the shortcuts help dialog |
 
 ## References
 

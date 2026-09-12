@@ -7,6 +7,7 @@ import (
 
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -35,10 +36,12 @@ var errExportBackupUnavailable = errors.New("backup export unavailable: bridge d
 // is not an error.
 //
 // Scope is enforced by exactly which groups are in this slice: only
-// anime_snapshots, seasons, and season_animes are exported. Every other
-// table -- secrets (download_jd_config), machine-local settings
-// (app_settings), and observability/bookkeeping tables -- is excluded by
-// never appearing here, not by a flag or a comment.
+// anime_snapshots, seasons, season_animes, and the keyboard_keymap group --
+// the single app_settings["keyboard.keymap"] value, promoted out of the
+// machine-local exclusion below -- are exported. Every other table --
+// secrets (download_jd_config), every other app_settings key, and
+// observability/bookkeeping tables -- is excluded by never appearing here,
+// not by a flag or a comment.
 func (a *App) ExportBackup() (BackupExportResult, error) {
 	if a.bridgeDB == nil {
 		return BackupExportResult{}, errExportBackupUnavailable
@@ -56,6 +59,7 @@ func (a *App) ExportBackup() (BackupExportResult, error) {
 		{Name: "anime_snapshots", Export: bridgeSync.ExportAnimeSnapshots(a.bridgeDB)},
 		{Name: "seasons", Export: season.ExportSeasons(a.bridgeDB)},
 		{Name: "season_animes", Export: season.ExportSeasonAnimes(a.bridgeDB)},
+		{Name: "keyboard_keymap", Export: settings.ExportKeymap(a.bridgeDB)},
 	}
 
 	if err := backup.Export(a.appContext(), dest, bridgeVersion, groups); err != nil {

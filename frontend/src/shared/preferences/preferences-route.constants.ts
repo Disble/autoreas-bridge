@@ -1,6 +1,7 @@
 import { BackupPanel } from '../../features/backup/ui/BackupPanel/BackupPanel';
 import { AutoStartPanel } from '../../features/preferences/ui/AutoStartPanel/AutoStartPanel';
 import { DownloadsRootPanel } from '../../features/preferences/ui/DownloadsRootPanel/DownloadsRootPanel';
+import { KeymapPanel } from '../keyboard/ui/KeymapPanel/KeymapPanel';
 
 /** Options category registry rendered by the Preferences route tab workspace. */
 export const PREFERENCES_ROUTE_TABS = [
@@ -21,5 +22,11 @@ export const PREFERENCES_ROUTE_TABS = [
     label: 'Startup',
     description: 'Control whether Bridge launches when you sign in to Windows.',
     Panel: AutoStartPanel,
+  },
+  {
+    id: 'shortcuts',
+    label: 'Shortcuts',
+    description: 'View and customize keyboard shortcuts.',
+    Panel: KeymapPanel,
   },
 ] as const;

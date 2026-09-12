@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { BackupExportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { classifyExportOutcome, describeExportError, summarizeExportResult } from '../backup-panel.helpers';
 
+/**
+ * Builds a complete, valid export-result DTO whose fields any single test can
+ * override. The default `groups` array carries the three original bundle
+ * groups rather than every shipped group on purpose: a fixture that tracks
+ * the real registry would make each group's own summary assertion depend on
+ * the others, so a test that cares about one group passes it explicitly.
+ */
 function buildResult(overrides: Partial<BackupExportResultDTO> = {}): BackupExportResultDTO {
   return {
     cancelled: false,
@@ -29,6 +36,12 @@ describe('summarizeExportResult', () => {
     const summary = summarizeExportResult(buildResult({ groups: [{ name: 'unknown_group', recordCount: 3 }] }));
 
     expect(summary).toBe('Exported 3 unknown_group to C:/backups/autoreas-backup-20260731-120000.zip');
+  });
+
+  it('renders the keyboard_keymap group under its human-readable label', () => {
+    const summary = summarizeExportResult(buildResult({ groups: [{ name: 'keyboard_keymap', recordCount: 1 }] }));
+
+    expect(summary).toBe('Exported 1 keymap to C:/backups/autoreas-backup-20260731-120000.zip');
   });
 
   it('summarizes zero groups without a dangling separator', () => {
