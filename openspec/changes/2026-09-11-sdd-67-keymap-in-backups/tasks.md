@@ -268,40 +268,40 @@ Its Declared Footprint."
 
 ### 3.1 The guard (D3)
 
-- [ ] **3.1.1** [RED] Write `internal/desktop/app_backup_import_footprint_test.go`:
+- [x] **3.1.1** [RED] Write `internal/desktop/app_backup_import_footprint_test.go`:
   `TestImportGroupFootprintsAreDeclaredAndRespected` — table-driven over the real `app.importGroups()`
   slice. For each entry: seed state **A** (every table, every `app_settings` key) → export a full
   bundle → mutate the DB to state **B** → import a bundle carrying exactly that one group → assert its
   declared footprint now equals A and everything else still equals B, byte for byte. Keymap's declared
   footprint: `app_settings WHERE key='keyboard.keymap'`.
-- [ ] **3.1.2** [RED] Same file: `TestUndeclaredImportGroupFailsTheFootprintGuard` — a synthetic group
+- [x] **3.1.2** [RED] Same file: `TestUndeclaredImportGroupFailsTheFootprintGuard` — a synthetic group
   appended to a local copy of `importGroups()` with no entry in the test's footprint map MUST fail the
   suite (the deliberate inversion, mirroring the `APP_LAYOUT_NAV_GROUPS` nav test).
-- [ ] **3.1.3** [VERIFY] No production code is expected from 3.1.1/3.1.2 — the guard passes against the
+- [x] **3.1.3** [VERIFY] No production code is expected from 3.1.1/3.1.2 — the guard passes against the
   four shipped groups as-is (`settings.Set` is a single-key upsert; `SetKeymap` cannot reach another
   key). If either test fails, the fix belongs to the failing importer, never to `internal/backup`.
 
 ### 3.2 Documentation
 
-- [ ] **3.2.1** Amend `docs/adr/010-backup-import-safety-model.md` § A in place: correct "the table
+- [x] **3.2.1** Amend `docs/adr/010-backup-import-safety-model.md` § A in place: correct "the table
   ends up holding exactly the bundle's records" — false once a group is not a table — and add a
   pointer to ADR-021 for the keymap's own single-key semantics.
-- [ ] **3.2.2** Create `docs/adr/021-portable-keymap-and-importer-footprints.md`: record D1 (record
+- [x] **3.2.2** Create `docs/adr/021-portable-keymap-and-importer-footprints.md`: record D1 (record
   shape: `{"document":...}`, 0-or-1 records, rejected alternatives), D2 (refresh mechanism: one
   explicit branch on the group name, rejected event-bus/revision-counter alternatives), D3 (the
   footprint guard and its stated limit — proves declared-and-respected footprints for the shipped
   slice, not arbitrary-future-importer safety).
-- [ ] **3.2.3** Modify `.claude/skills/keyboard-shortcuts/SKILL.md`'s Persistence row: note the keymap
+- [x] **3.2.3** Modify `.claude/skills/keyboard-shortcuts/SKILL.md`'s Persistence row: note the keymap
   now also travels in backup bundles (`keyboard_keymap` group), subject to the footprint guard.
-- [ ] **3.2.4** Record explicitly (no edit needed): `docs/openapi.yaml` has no diff — this is a
+- [x] **3.2.4** Record explicitly (no edit needed): `docs/openapi.yaml` has no diff — this is a
   desktop-only Wails binding, no REST/WS surface added or changed.
 
 ### 3.3 Testing & Verification
 
-- [ ] **3.3.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go
+- [x] **3.3.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go
   test -count=1 -json ./internal/desktop/"` over the new footprint test file. Test-only diff against
   already-shipped importers: expect no survivor that requires a production change.
-- [ ] **3.3.2** [VERIFY] `go test ./...` (full repo suite — confirms no cross-package regression across
+- [x] **3.3.2** [VERIFY] `go test ./...` (full repo suite — confirms no cross-package regression across
   all three slices); `bun --cwd="frontend" run test`; both golangci profiles; `checkgofilesize` with an
   empty baseline; `git diff --stat -- docs/openapi.yaml` is empty.
 - [ ] **3.3.3** [GATE] `git commit` — left to the orchestrator.

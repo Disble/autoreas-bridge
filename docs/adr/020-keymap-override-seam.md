@@ -166,8 +166,16 @@ archived change is not misled by their still-current copies.
 - `KEYBOARD_COMMANDS` (and `SCOPED_COMMAND_BINDINGS`) remain the **default** keymap, exactly as
   ADR-019's amendment states; the effective keymap is `resolveKeymap`/`effectiveChord` applied over
   them, never a mutated copy of either constant.
-- A keymap tuned to one keyboard does not travel with a backup bundle: `app_settings` is
-  machine-local by `internal/desktop/app_backup.go`'s existing exclusion, unchanged by this ADR.
+- ~~A keymap tuned to one keyboard does not travel with a backup bundle: `app_settings` is
+  machine-local by `internal/desktop/app_backup.go`'s existing exclusion, unchanged by this ADR.~~
+  **Reversed 2026-09-12 by SDD-67 (ADR-021).** The keymap now travels, as its own
+  `keyboard_keymap` bundle group carrying the single `app_settings["keyboard.keymap"]` value. The
+  rest of `app_settings` stays excluded, so the machine-local claim still holds for every other key
+  — but it no longer holds for this one, which is why the consequence is struck rather than
+  narrowed. Note what the original sentence got wrong beyond being superseded: it justified the
+  outcome by where the value is *stored* ("`app_settings` is machine-local"), when the question is
+  whether the value is machine-local, and a chord preference is not. Storage location was never the
+  argument; the exclusion list simply happened to be drawn at the table.
 - No verified list exists of chords Windows itself reserves outside the known Chromium zoom family.
   That absence is why `'unverified-delivery'` was dropped rather than narrowed to a smaller,
   equally-unverified list — narrowing it would assert exactly what the evidence-backed zoom family

@@ -16,11 +16,20 @@ database back if an import goes wrong.**
 ## Decision
 
 ### A — Full refresh, and its precise limit
-For every table group a bundle **carries**, import deletes that table's
-existing rows and inserts the bundle's rows: the table ends up holding
-exactly the bundle's records, with no merge and no per-row conflict
-resolution. For every table group a bundle does **not** carry, import leaves
-it **completely untouched** — not emptied, not truncated.
+For every import group a bundle **carries**, import replaces exactly that
+group's declared footprint with the bundle's own records — nothing outside
+it. For the three groups whose footprint is a whole table
+(`anime_snapshots`, `seasons`, `season_animes`), that means deleting the
+table's existing rows and inserting the bundle's, with no merge and no
+per-row conflict resolution. **A group's footprint is not always a table**:
+SDD-67 added `keyboard_keymap`, whose declared footprint is the single
+`app_settings["keyboard.keymap"]` key, replaced by upsert rather than by
+delete-then-insert (ADR-021). An earlier version of this decision stated the
+guarantee as "the table ends up holding exactly the bundle's records" — that
+was never true of a key-scoped group, and is corrected here to the
+footprint-scoped statement above. For every import group a bundle does
+**not** carry, import leaves it **completely untouched** — not emptied, not
+truncated.
 
 The distinction matters concretely: a bundle exported before `seasons`
 existed in this build carries zero season rows in its manifest, not an empty
@@ -28,7 +37,13 @@ existed in this build carries zero season rows in its manifest, not an empty
 every season a user has on restore of an old catalog backup. **Omission is
 not deletion** — the manifest's absence of a group is not the same claim as
 the manifest naming a group with zero records, and only the latter empties a
-table.
+table. This half of the guarantee has carried its own dedicated tests since
+it was first written; the other half of this decision — that an import
+actually stops at its declared footprint and never reaches anything outside
+it — went undemonstrated until SDD-67's footprint guard proved it for every
+shipped group (design.md D3, ADR-021). That asymmetry is worth naming: a
+decision can be exactly half-tested for a long time without anyone noticing
+which half.
 
 ### B — Fail closed on a newer `formatVersion`, no escape hatch
 A bundle whose `formatVersion` exceeds this build's `SupportedFormatVersion`
@@ -107,7 +122,11 @@ enforces it.
 Adding a fourth import group is one function pair in the owning package plus
 one line in the `[]backup.ImportGroup` literal in `app_backup_import.go` —
 the same shape as export's `[]backup.Group`. The scope guard is
-`TestImportedBundleAppliesExactlyTheThreeKnownGroups`. Restore points
+`TestImportedBundleAppliesExactlyTheFourKnownGroups` (renamed from
+`...ThreeKnownGroups` by SDD-67, which added that fourth group and found the
+prediction above held exactly: `internal/settings/backup_import.go`'s
+`ValidateKeymap`/`ImportKeymap` pair plus one line in the literal, with no
+change to `internal/backup`). Restore points
 accumulate on disk, one file the size of `bridge.db` per import; pruning
 (keeping only the last N) is deliberately out of scope for this change — an
 import is a rare, deliberate operation, and a user who runs several in a row
