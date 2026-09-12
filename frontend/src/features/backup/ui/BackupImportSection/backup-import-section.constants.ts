@@ -3,7 +3,11 @@ export const BACKUP_IMPORT_GROUP_LABELS: Readonly<Record<string, string>> = {
   anime_snapshots: 'animes',
   seasons: 'seasons',
   season_animes: 'season animes',
+  keyboard_keymap: 'keymap',
 };
+
+/** Wire name of the keyboard keymap backup group, shared between the label lookup and the post-import reload check (design D2). */
+export const KEYMAP_BACKUP_GROUP_NAME = 'keyboard_keymap';
 
 /** Fallback error message when an import fails without a usable error message. */
 export const BACKUP_IMPORT_UNKNOWN_ERROR_MESSAGE = 'Backup import failed unexpectedly.';
@@ -22,6 +26,11 @@ export const BACKUP_IMPORT_APPLYING_LABEL = 'Importing…';
 /** Label on the action that discards a produced preview without applying it. */
 export const BACKUP_IMPORT_CANCEL_LABEL = 'Cancel';
 
-/** Destructive-action warning shown alongside a produced preview, before confirmation. */
+/**
+ * Destructive-action warning shown alongside a produced preview, before
+ * confirmation. Says "carried" rather than "table", since the keymap group
+ * (design D1) is not a table -- it carries a single setting's value, not
+ * rows.
+ */
 export const BACKUP_IMPORT_DESTRUCTIVE_WARNING =
-  'Importing replaces every table this bundle carries with the bundle’s own rows. A restore point is created first, but this cannot be undone from the app.';
+  'Importing replaces everything this bundle carries with the bundle’s own data. A restore point is created first, but this cannot be undone from the app.';

@@ -168,67 +168,67 @@ Without A Restart" (the end-to-end obligation).
 
 ### 2.1 `internal/settings` — import functions
 
-- [ ] **2.1.1** [RED] Write `internal/settings/backup_import_test.go`: `ValidateKeymap()` accepts 0 or 1
+- [x] **2.1.1** [RED] Write `internal/settings/backup_import_test.go`: `ValidateKeymap()` accepts 0 or 1
   record and rejects a stream carrying a 2nd record; `ImportKeymap(db)` upserts the sole record's
   `document` via `SetKeymap`; with 0 records it calls `SetKeymap("")` (reset to defaults); opaque bytes
   (`{not json: alt++`) survive import byte-for-byte — mirrors `internal/settings/keymap_test.go`'s
   existing `TestKeymapRoundTripsOpaqueBytesUnchanged` guard.
-- [ ] **2.1.2** [GREEN] Create `internal/settings/backup_import.go`:
+- [x] **2.1.2** [GREEN] Create `internal/settings/backup_import.go`:
   `func ValidateKeymap() func(context.Context, io.Reader) (int, error)` (decodes the envelope only,
   refuses a 2nd record, never inspects `Document` — ADR-020/keymap_test.go's Go-side-grammar
   prohibition) and `func ImportKeymap(db *sql.DB) func(context.Context, io.Reader) (int, error)`.
 
 ### 2.2 `internal/desktop` — wire the import group, prove the domain scenarios
 
-- [ ] **2.2.1** [RED] Update `internal/desktop/app_backup_import_test.go`: rename
+- [x] **2.2.1** [RED] Update `internal/desktop/app_backup_import_test.go`: rename
   `TestImportedBundleAppliesExactlyTheThreeKnownGroups` → `...FourKnownGroups`, asserting
   `["anime_snapshots","seasons","season_animes","keyboard_keymap"]`.
-- [ ] **2.2.2** [RED] Same file: add `TestImportingKeymapOnlyBundleLeavesOtherAppSettingsKeysUntouched`
+- [x] **2.2.2** [RED] Same file: add `TestImportingKeymapOnlyBundleLeavesOtherAppSettingsKeysUntouched`
   — seed a distinct value under every `app_settings` key the build writes, import a bundle carrying
   only `keyboard_keymap`, compare every non-`keyboard.keymap` row byte-for-byte before/after **without
   enumerating the keys** (spec's own wording, Note A).
-- [ ] **2.2.3** [RED] Same file: add `TestImportedKeymapGroupWithZeroRecordsResetsToDefaults` (a
+- [x] **2.2.3** [RED] Same file: add `TestImportedKeymapGroupWithZeroRecordsResetsToDefaults` (a
   rebound keymap + a carried-but-empty group ⇒ keymap becomes `""`) and
   `TestAbsentKeymapGroupLeavesTheStoredKeymapUnchanged` (no `keyboard_keymap` entry in the manifest ⇒
   keymap retains its exact pre-import value, no warning).
-- [ ] **2.2.4** [RED] Same file: add
+- [x] **2.2.4** [RED] Same file: add
   `TestPreviewOfKeymapCarryingBundleOnAnOlderImportGroupsSliceReportsItAsUnknown` — call
   `backup.Preview` directly with `app.importGroups()[:3]` (simulating a pre-SDD-67 build) against a
   bundle that carries `keyboard_keymap`; assert it lands in `UnknownGroups` and `FormatVersion` is
   unchanged. Exercises the already-generic `unknownBundleGroups` mechanism with this concrete name.
-- [ ] **2.2.5** [GREEN] Modify `internal/desktop/app_backup_import.go`: add
+- [x] **2.2.5** [GREEN] Modify `internal/desktop/app_backup_import.go`: add
   `{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(a.bridgeDB)}`
   to `importGroups()`.
 
 ### 2.3 Frontend — the extracted loader and the end-to-end refresh proof
 
-- [ ] **2.3.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap-load.helpers.test.ts`:
+- [x] **2.3.1** [RED] Write `frontend/src/shared/keyboard/__tests__/keymap-load.helpers.test.ts`:
   `loadKeymapOverrides(fakeSource)` calls `setKeymapOverrides(parseKeymap(doc))` on a resolved read,
   `failKeymapLoad()` on a rejected one — the same two-outcome contract `use-keymap-overrides.ts`
   already tests, now against the extracted helper.
-- [ ] **2.3.2** [GREEN] Create `frontend/src/shared/keyboard/keymap-load.helpers.ts`:
+- [x] **2.3.2** [GREEN] Create `frontend/src/shared/keyboard/keymap-load.helpers.ts`:
   `loadKeymapOverrides(source = preferencesSource)`, body extracted verbatim from
   `use-keymap-overrides.ts`'s effect (design D2).
-- [ ] **2.3.3** [GREEN] Modify `frontend/src/shared/keyboard/use-keymap-overrides.ts`: delegate to
+- [x] **2.3.3** [GREEN] Modify `frontend/src/shared/keyboard/use-keymap-overrides.ts`: delegate to
   `loadKeymapOverrides(source)` inside the existing `useEffect`, so initial load and post-import reload
   are one code path.
-- [ ] **2.3.4** [RED] Update
+- [x] **2.3.4** [RED] Update
   `frontend/src/features/backup/ui/BackupImportSection/__tests__/use-backup-import.test.ts`: a
   successful confirm whose `importedGroups` names `keyboard_keymap` calls an injected
   `loadKeymapOverrides`; a successful confirm without that name does not call it; a failed confirm does
   not call it either.
-- [ ] **2.3.5** [GREEN] Modify `frontend/src/features/backup/ui/BackupImportSection/use-backup-import.ts`:
+- [x] **2.3.5** [GREEN] Modify `frontend/src/features/backup/ui/BackupImportSection/use-backup-import.ts`:
   in `onConfirm`'s `.then((dto) => …)`, call `loadKeymapOverrides()` when `dto.importedGroups.some((g)
   => g.name === KEYMAP_BACKUP_GROUP_NAME)`.
-- [ ] **2.3.6** [GREEN] Modify
+- [x] **2.3.6** [GREEN] Modify
   `frontend/src/features/backup/ui/BackupImportSection/backup-import-section.constants.ts`: add
   `KEYMAP_BACKUP_GROUP_NAME = 'keyboard_keymap'`; add `keyboard_keymap: 'keymap'` to
   `BACKUP_IMPORT_GROUP_LABELS`; rewrite `BACKUP_IMPORT_DESTRUCTIVE_WARNING` to drop "table" (Note C).
-- [ ] **2.3.7** [RED] Update
+- [x] **2.3.7** [RED] Update
   `frontend/src/features/backup/ui/BackupImportSection/__tests__/backup-import-section.helpers.test.ts`:
   the `keyboard_keymap` group name resolves to its label through the same lookup helper the other three
   groups already use.
-- [ ] **2.3.8** [RED] **MANDATORY end-to-end proof** — extend
+- [x] **2.3.8** [RED] **MANDATORY end-to-end proof** — extend
   `use-backup-import.test.ts` (or add a colocated integration test beside it): seed the real
   `keyboardStore` with a chord bound to command A; run `onConfirm` against a fake source whose
   `confirmBackupImport` resolves with `importedGroups: [{name: 'keyboard_keymap', recordCount: 1}]` and
@@ -236,20 +236,20 @@ Without A Restart" (the end-to-end obligation).
   settles, dispatch the chord through the real `dispatchKeyboardEvent`/`resolveCommand` path and assert
   command B runs, not A. **Do not assert only that a loader function was called** — the requirement is
   the observable chord resolution.
-- [ ] **2.3.9** [GREEN] Wire whatever 2.3.8's RED exposes as missing. Expected: nothing beyond 2.3.5,
+- [x] **2.3.9** [GREEN] Wire whatever 2.3.8's RED exposes as missing. Expected: nothing beyond 2.3.5,
   since `loadKeymapOverrides` already publishes into the same `keyboardStore` the dispatcher reads
   (design D2's diagram). If GREEN needs new plumbing, that plumbing is this task's actual deliverable.
 
 ### 2.4 Testing & Verification
 
-- [ ] **2.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
+- [x] **2.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
   --threshold 0.80 --test-command "go test -count=1 -json ./internal/settings/"`; then
   `--exclude-prefix frontend/ --exclude-prefix internal/settings/ --test-command "go test -count=1
   -json ./internal/desktop/"`.
-- [ ] **2.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the Slice 2 files;
+- [x] **2.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the Slice 2 files;
   read the per-file table (CLAUDE.md #16 — five slices in this repo's history found real survivors only
   this way).
-- [ ] **2.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
+- [x] **2.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
   `bun --cwd="frontend" run test -- keyboard backup`; `bun --cwd="frontend" run render:smoke`; both
   golangci profiles; `checkgofilesize`; `git status --porcelain` scoped to this slice's files.
 - [ ] **2.4.4** [GATE] `git commit` — left to the orchestrator.

@@ -6,6 +6,7 @@ import (
 
 	"autoreas-bridge/internal/backup"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -35,6 +36,7 @@ func (a *App) importGroups() []backup.ImportGroup {
 		{Name: "anime_snapshots", Validate: bridgeSync.ValidateAnimeSnapshots(), Import: bridgeSync.ImportAnimeSnapshots(a.bridgeDB)},
 		{Name: "seasons", Validate: season.ValidateSeasons(), Import: season.ImportSeasons(a.bridgeDB)},
 		{Name: "season_animes", Validate: season.ValidateSeasonAnimes(), Import: season.ImportSeasonAnimes(a.bridgeDB)},
+		{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(a.bridgeDB)},
 	}
 }
 

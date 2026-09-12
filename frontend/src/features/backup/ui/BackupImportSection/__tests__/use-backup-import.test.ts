@@ -1,8 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
+import { loadKeymapOverrides } from '../../../../../shared/keyboard/keymap-load.helpers';
 import { useBackupImport } from '../use-backup-import';
 
+vi.mock('../../../../../shared/keyboard/keymap-load.helpers', () => ({
+  loadKeymapOverrides: vi.fn(),
+}));
+
+/** Builds a valid preview DTO, overriding only what a case needs. */
 function buildPreview(overrides: Partial<BackupImportPreviewDTO> = {}): BackupImportPreviewDTO {
   return {
     cancelled: false,
@@ -19,6 +25,7 @@ function buildPreview(overrides: Partial<BackupImportPreviewDTO> = {}): BackupIm
   };
 }
 
+/** Builds a valid apply-result DTO, overriding only what a case needs. */
 function buildResult(overrides: Partial<BackupImportResultDTO> = {}): BackupImportResultDTO {
   return {
     importedGroups: [{ name: 'anime_snapshots', recordCount: 512 }],
@@ -164,5 +171,94 @@ describe('useBackupImport', () => {
 
     await waitFor(() => expect(result.current.phase).toBe('failed'));
     expect(result.current.result?.restorePointPath).toBe('C:/data/bridge-restore-point-20260731-120000.db');
+  });
+});
+
+describe('post-import keymap refresh', () => {
+  beforeEach(() => {
+    vi.mocked(loadKeymapOverrides).mockClear();
+  });
+
+  it('reloads the keymap store when a successful confirm carries keyboard_keymap', async () => {
+    const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
+    const confirmBackupImport = vi.fn().mockResolvedValue(
+      buildResult({ importedGroups: [{ name: 'keyboard_keymap', recordCount: 1 }] }),
+    );
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewed'));
+
+    act(() => {
+      result.current.onConfirm();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('applied'));
+
+    expect(vi.mocked(loadKeymapOverrides)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads the keymap store when keyboard_keymap lands alongside other imported groups, not only when it is the sole one', async () => {
+    // Kills the `.some()` -> `.every()` mutant: a single-element array carrying
+    // only keyboard_keymap cannot distinguish the two, since both agree there.
+    const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
+    const confirmBackupImport = vi.fn().mockResolvedValue(
+      buildResult({
+        importedGroups: [
+          { name: 'anime_snapshots', recordCount: 5 },
+          { name: 'keyboard_keymap', recordCount: 1 },
+        ],
+      }),
+    );
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewed'));
+
+    act(() => {
+      result.current.onConfirm();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('applied'));
+
+    expect(vi.mocked(loadKeymapOverrides)).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reload the keymap store when a successful confirm does not carry keyboard_keymap', async () => {
+    const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
+    const confirmBackupImport = vi.fn().mockResolvedValue(buildResult());
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewed'));
+
+    act(() => {
+      result.current.onConfirm();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('applied'));
+
+    expect(vi.mocked(loadKeymapOverrides)).not.toHaveBeenCalled();
+  });
+
+  it('does not reload the keymap store when confirm fails', async () => {
+    const previewBackupImport = vi.fn().mockResolvedValue(buildPreview());
+    const confirmBackupImport = vi.fn().mockRejectedValue(new Error('apply failed'));
+    const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
+
+    act(() => {
+      result.current.onPreview();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('previewed'));
+
+    act(() => {
+      result.current.onConfirm();
+    });
+    await waitFor(() => expect(result.current.phase).toBe('failed'));
+
+    expect(vi.mocked(loadKeymapOverrides)).not.toHaveBeenCalled();
   });
 });
