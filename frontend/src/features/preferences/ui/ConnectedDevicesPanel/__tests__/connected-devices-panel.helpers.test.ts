@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLastSync, toConnectedDeviceRows } from '../connected-devices-panel.helpers';
+import { formatLastSync, getConnectionStatusColor, toConnectedDeviceRows } from '../connected-devices-panel.helpers';
 
 describe('toConnectedDeviceRows', () => {
   it('maps connected device DTOs to UI rows', () => {
@@ -34,5 +34,19 @@ describe('toConnectedDeviceRows', () => {
 describe('formatLastSync', () => {
   it('shows never synced when there is no last seen timestamp', () => {
     expect(formatLastSync(0)).toBe('Never synced');
+  });
+});
+
+describe('getConnectionStatusColor', () => {
+  it('colors a live websocket connection as success regardless of sync health', () => {
+    expect(getConnectionStatusColor('connected', 'stale')).toBe('success');
+  });
+
+  it('colors a disconnected device with stale sync as warning', () => {
+    expect(getConnectionStatusColor('disconnected', 'stale')).toBe('warning');
+  });
+
+  it('colors a disconnected device with healthy sync as the muted default', () => {
+    expect(getConnectionStatusColor('disconnected', 'active')).toBe('default');
   });
 });

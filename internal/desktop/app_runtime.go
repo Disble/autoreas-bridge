@@ -105,6 +105,9 @@ func (a *App) GetConnectedDevices() []contracts.DeviceInfo {
 	if a.bridgeDB != nil {
 		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
 	}
+	if a.realtimeHub != nil {
+		service.SetPresenceStore(a.realtimeHub)
+	}
 	devices, err := service.ListDevices(a.appContext())
 	if err != nil {
 		return []contracts.DeviceInfo{}

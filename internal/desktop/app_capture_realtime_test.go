@@ -93,7 +93,7 @@ func TestAppWiresRealtimeHubCaptureSinkToCaptureQueue(t *testing.T) {
 	if !ok {
 		t.Fatal("expected startup to wire a real memory hub")
 	}
-	if err := hub.Register(context.Background(), stubRealtimeCaptureClient{id: "device-9-1"}); err != nil {
+	if err := hub.Register(context.Background(), stubRealtimeCaptureClient{id: "device-9-1", deviceID: "device-9"}); err != nil {
 		t.Fatalf("register client: %v", err)
 	}
 
@@ -126,9 +126,14 @@ func closeAppCaptureTestResources(t *testing.T, app *App) {
 
 // stubRealtimeCaptureClient is a minimal realtime.Client used only to
 // exercise MemoryHub.Register in TestAppWiresRealtimeHubCaptureSinkToCaptureQueue.
-type stubRealtimeCaptureClient struct{ id string }
+type stubRealtimeCaptureClient struct {
+	id       string
+	deviceID string
+}
 
 func (c stubRealtimeCaptureClient) ID() string { return c.id }
+
+func (c stubRealtimeCaptureClient) DeviceID() string { return c.deviceID }
 
 func (c stubRealtimeCaptureClient) Send(context.Context, []byte) error { return nil }
 

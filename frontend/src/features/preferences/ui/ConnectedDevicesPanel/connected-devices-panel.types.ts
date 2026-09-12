@@ -41,6 +41,9 @@ export interface ConnectedDevice {
   readonly blocks_changelog_pruning: boolean;
 }
 
+/** Semantic HeroUI chip colors used by the connection-status presentation. */
+export type ConnectedDeviceChipColor = 'default' | 'success' | 'warning';
+
 /** UI-ready connected device row with display labels already resolved. */
 export interface ConnectedDeviceViewModel {
   readonly id: string;
