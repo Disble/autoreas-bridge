@@ -14,6 +14,7 @@ import (
 
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api"
+	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -123,14 +124,14 @@ func TestExportBackupReadsManifestBackBeforeReportingSuccess(t *testing.T) {
 	}
 }
 
-func TestExportedBundleHasExactlyThreeGroups(t *testing.T) {
+func TestExportedBundleHasExactlyFourGroups(t *testing.T) {
 	app := appBackupTestDB(t)
 
 	result, err := app.ExportBackup()
 	if err != nil {
 		t.Fatalf("export backup: %v", err)
 	}
-	wantNames := []string{"anime_snapshots", "seasons", "season_animes"}
+	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "keyboard_keymap"}
 	if len(result.Groups) != len(wantNames) {
 		t.Fatalf("expected exactly %d groups, got %d: %+v", len(wantNames), len(result.Groups), result.Groups)
 	}
@@ -143,15 +144,27 @@ func TestExportedBundleHasExactlyThreeGroups(t *testing.T) {
 
 // TestExportedBundleContainsNoExcludedTableData seeds every table that must
 // never appear in a backup bundle -- secrets (download_jd_config),
-// machine-local settings (app_settings), pairing state (pairing_tokens,
-// devices, device_sync_state), pure-DB reorderable data
+// every app_settings key other than keyboard.keymap, pairing state
+// (pairing_tokens, devices, device_sync_state), pure-DB reorderable data
 // (download_hoster_priority), and observability/bookkeeping tables
 // (runtime_events, request_captures) -- with a distinctive marker, then
-// asserts the marker never reaches any exported data entry. This is guard 5:
-// scope is enforced by which groups are in the inline slice, not a comment.
+// asserts the marker never reaches any exported data entry, including
+// data/keyboard_keymap.jsonl. The app_settings marker is seeded under a
+// non-canonical key ('marker', not one of the six real keys -- Note A) so
+// this test never enumerates them; the scan itself is generic over every
+// "data/" entry the bundle carries, so a new group is covered by
+// construction, not by naming its file here. This is guard 5: scope is
+// enforced by which groups are in the inline slice, not a comment.
 func TestExportedBundleContainsNoExcludedTableData(t *testing.T) {
 	app := appBackupTestDB(t)
 	marker := "EXCLUDED-TABLE-MARKER-DO-NOT-EXPORT"
+
+	// A real (non-marker) keymap document is persisted so
+	// data/keyboard_keymap.jsonl is non-empty -- proving the scan actually
+	// inspects carried content, not a trivially-empty file.
+	if err := settings.NewSQLiteStore(app.bridgeDB).SetKeymap(context.Background(), `{"version":1,"overrides":{}}`); err != nil {
+		t.Fatalf("seed keymap document: %v", err)
+	}
 
 	execs := []struct {
 		stmt string
@@ -181,6 +194,21 @@ func TestExportedBundleContainsNoExcludedTableData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read exported bundle: %v", err)
 	}
+
+	if !assertNoDataEntryContainsMarker(t, raw, marker) {
+		t.Fatal("expected the scan to have inspected data/keyboard_keymap.jsonl, but no such entry was found in the bundle")
+	}
+}
+
+// assertNoDataEntryContainsMarker scans every "data/"-prefixed zip entry in
+// raw for marker, failing the test on the first occurrence, and reports
+// whether a data/keyboard_keymap.jsonl entry was among the ones inspected.
+// Kept as a top-level function rather than the caller's own loop body, so its
+// branches sit at nesting level 0 -- real decomposition, not relocation, per
+// this repo's own gocognit calibration note (.golangci.dlinter.yml).
+func assertNoDataEntryContainsMarker(t *testing.T, raw []byte, marker string) (sawKeymapEntry bool) {
+	t.Helper()
+
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
 		t.Fatalf("open bundle as zip: %v", err)
@@ -189,6 +217,9 @@ func TestExportedBundleContainsNoExcludedTableData(t *testing.T) {
 	for _, f := range zr.File {
 		if !bytes.HasPrefix([]byte(f.Name), []byte("data/")) {
 			continue
+		}
+		if f.Name == "data/keyboard_keymap.jsonl" {
+			sawKeymapEntry = true
 		}
 		rc, err := f.Open()
 		if err != nil {
@@ -203,6 +234,7 @@ func TestExportedBundleContainsNoExcludedTableData(t *testing.T) {
 			t.Fatalf("excluded-table marker leaked into bundle entry %q", f.Name)
 		}
 	}
+	return sawKeymapEntry
 }
 
 // findGroup returns the named group from a result set, reporting whether it

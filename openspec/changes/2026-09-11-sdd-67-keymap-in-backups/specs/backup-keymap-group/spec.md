@@ -24,8 +24,16 @@ value is empty — never rebound, or already reset to defaults — the system MU
 - WHEN an export runs
 - THEN `manifest.json`'s `contexts[]` MUST contain an entry named `keyboard_keymap` with
   `recordCount` equal to `1`
-- AND the single line in `data/keyboard_keymap.jsonl` MUST equal the persisted document, byte for
-  byte
+- AND the single line in `data/keyboard_keymap.jsonl` MUST be a `{"document": "<value>"}` record
+  whose `document` field decodes to the persisted document byte for byte, with no normalization,
+  re-encoding, or reformatting of the document itself
+
+An earlier draft of this scenario said the line "MUST equal the persisted document, byte for byte".
+That contradicted design D1, which wraps the document in a one-field record, and it was not a
+harmless simplification: a raw line cannot carry an arbitrary opaque document at all — the round-trip
+already pinned by `internal/settings/keymap_test.go` persists `{not json: alt++`, which is not a
+valid JSONL line. The envelope is what makes "verbatim" achievable; the requirement is that the
+*document* survive unchanged, not that the *line* be the document.
 
 #### Scenario: An unset keymap exports as a present, empty group
 

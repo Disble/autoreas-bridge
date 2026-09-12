@@ -102,51 +102,51 @@ Verbatim" (fully).
 
 ### 1.1 `internal/settings` — export function
 
-- [ ] **1.1.1** [RED] Write `internal/settings/backup_export_test.go`: a persisted non-empty
+- [x] **1.1.1** [RED] Write `internal/settings/backup_export_test.go`: a persisted non-empty
   `app_settings["keyboard.keymap"]` exports exactly one JSONL line equal to `{"document":"<doc>"}`
   byte-for-byte; an unset keymap exports zero lines. Table-driven, `t.TempDir()`, mirrors
   `internal/season/backup_export_test.go`'s shape.
-- [ ] **1.1.2** [GREEN] Create `internal/settings/backup_export.go`: `keymapRecord{Document string
+- [x] **1.1.2** [GREEN] Create `internal/settings/backup_export.go`: `keymapRecord{Document string
   \`json:"document"\`}` and `func ExportKeymap(db *sql.DB) func(context.Context, io.Writer) (int, error)`
   — reads `NewSQLiteStore(db).Keymap(ctx)`, writes 0 or 1 `encoding/json`-encoded line (design §Interfaces).
 
 ### 1.2 `internal/desktop` — wire the group, correct the comment, prove exclusion still holds
 
-- [ ] **1.2.1** [RED] Update `internal/desktop/app_backup_test.go`: rename
+- [x] **1.2.1** [RED] Update `internal/desktop/app_backup_test.go`: rename
   `TestExportedBundleHasExactlyThreeGroups` → `TestExportedBundleHasExactlyFourGroups`; assert
   `["anime_snapshots","seasons","season_animes","keyboard_keymap"]` in that order (closes the delta's
   RENAMED requirement and its "Exactly the four in-scope groups are present" scenario).
-- [ ] **1.2.2** [GREEN] Modify `internal/desktop/app_backup.go`: add
+- [x] **1.2.2** [GREEN] Modify `internal/desktop/app_backup.go`: add
   `{Name: "keyboard_keymap", Export: settings.ExportKeymap(a.bridgeDB)}` to `ExportBackup`'s `groups`
   slice; rewrite the `:37-41` scope comment to state four groups and name `keyboard.keymap` as the one
   promoted `app_settings` key, the other keys still excluded.
-- [ ] **1.2.3** [RED] Update `internal/desktop/app_backup_test.go`'s existing
+- [x] **1.2.3** [RED] Update `internal/desktop/app_backup_test.go`'s existing
   `TestExportedBundleContainsNoExcludedTableData`: after this slice the marker row is inserted under a
   non-keymap `app_settings` key (kept as `key='marker'`, per Note A — do not name the six real keys);
   extend the existing "every `data/*.jsonl` entry" scan to include `data/keyboard_keymap.jsonl`,
   proving the marker never leaks there either (closes "Every app_settings key other than keyboard.keymap
   contributes zero bytes").
-- [ ] **1.2.4** [VERIFY] 1.2.3 requires no production change — `ExportKeymap` is scoped to `keyKeymap`
+- [x] **1.2.4** [VERIFY] 1.2.3 requires no production change — `ExportKeymap` is scoped to `keyKeymap`
   by construction (explore §"the fact that makes this cheap"). Confirm PASS on first run; if it fails,
   the defect is in `ExportKeymap`'s key, not in the test.
 
 ### 1.3 Frontend — export-side label
 
-- [ ] **1.3.1** [RED] Update `frontend/src/features/backup/ui/BackupPanel/__tests__/backup-panel.helpers.test.ts`:
+- [x] **1.3.1** [RED] Update `frontend/src/features/backup/ui/BackupPanel/__tests__/backup-panel.helpers.test.ts`:
   `summarizeExportResult` renders a `keyboard_keymap` group under its label when present in
   `result.groups`.
-- [ ] **1.3.2** [GREEN] Modify `frontend/src/features/backup/ui/BackupPanel/backup-panel.constants.ts`:
+- [x] **1.3.2** [GREEN] Modify `frontend/src/features/backup/ui/BackupPanel/backup-panel.constants.ts`:
   add `keyboard_keymap: 'keymap'` to `BACKUP_GROUP_LABELS`.
 
 ### 1.4 Testing & Verification
 
-- [ ] **1.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
+- [x] **1.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
   --threshold 0.80 --test-command "go test -count=1 -json ./internal/settings/"` (scores
   `backup_export.go`); then `--exclude-prefix frontend/ --exclude-prefix internal/settings/
   --test-command "go test -count=1 -json ./internal/desktop/"` (scores `app_backup.go`'s staged lines).
-- [ ] **1.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the two touched
+- [x] **1.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the two touched
   frontend files; read the per-file table, not the blended score (CLAUDE.md #16).
-- [ ] **1.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
+- [x] **1.4.3** [VERIFY] `go test ./internal/settings/... ./internal/desktop/...`;
   `bun --cwd="frontend" run test -- backup`; both golangci profiles; `go run ./tools/checkgofilesize`;
   `git status --porcelain` shows only the five files this slice names.
 - [ ] **1.4.4** [GATE] `git commit` — left to the orchestrator (CLAUDE.md #3/#4).
