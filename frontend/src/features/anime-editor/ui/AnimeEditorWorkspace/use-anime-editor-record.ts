@@ -136,6 +136,31 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     }
   }, [source, state.selectedRecord, loadRecord]);
 
+  const onRepeat = useCallback(async () => {
+    if (state.selectedRecord === undefined) return undefined;
+    const animeId = state.selectedRecord.animeId;
+    setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
+    try {
+      const result = await source.repeatAnime(animeId, state.selectedRecord.modifiedAt);
+      if (result.status === 'ok') {
+        // Authority changed (progress resets to 0, status/active flip, a new
+        // cycle starts); reload the record so the form and the Repeat/Restore
+        // buttons reflect the reset lifecycle instead of stale watched state.
+        await loadRecord(animeId);
+        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Anime repeated.') }));
+      } else {
+        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Repeat anime was not applied.') }));
+      }
+      return result;
+    } catch (error) {
+      const message = toEditorErrorMessage(error);
+      setState((current) => ({ ...current, feedback: message }));
+      return { status: 'error' as const, message };
+    } finally {
+      setState((current) => ({ ...current, isSaving: false }));
+    }
+  }, [source, state.selectedRecord, loadRecord]);
+
   // 7. Effects
   useEffect(() => {
     if (options.selectedAnimeId === undefined) {
@@ -145,5 +170,5 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     void loadRecord(options.selectedAnimeId);
   }, [loadRecord, options.selectedAnimeId]);
 
-  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, onRestore, loadRecord };
+  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, onRestore, onRepeat, loadRecord };
 }

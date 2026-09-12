@@ -30,6 +30,7 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     saveRecord: record.onSave,
     deactivateRecord: record.onDeactivate,
     restoreRecord: record.onRestore,
+    repeatRecord: record.onRepeat,
     discardRecord: record.onDiscardChanges,
     applySchedule: schedule.onApplySchedule,
     openSchedule: schedule.openSchedule,
@@ -51,6 +52,8 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
       await transitions.onDeactivate();
     } else if (lifecycleAction === 'restore') {
       await transitions.onRestore();
+    } else if (lifecycleAction === 'repeat') {
+      await transitions.onRepeat();
     }
   }, [lifecycleAction, transitions]);
 
@@ -65,7 +68,7 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     feedback: record.feedback, validationMessage: record.validationMessage, scheduleFeedback: schedule.scheduleFeedback,
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, lifecycleConfirmation,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
-    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate, onRestore: transitions.onRestore,
+    onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate, onRestore: transitions.onRestore, onRepeat: transitions.onRepeat,
     onRequestLifecycleAction, onCancelLifecycleAction, onConfirmLifecycleAction,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,
     onStayWithCurrentEditor: transitions.onStayWithCurrentEditor, onDiscardAndContinue: transitions.onDiscardAndContinue,

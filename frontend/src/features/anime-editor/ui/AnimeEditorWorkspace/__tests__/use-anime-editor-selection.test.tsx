@@ -40,6 +40,7 @@ function createSource(): AnimeEditorRuntimeSource {
     saveAnimeEditor: vi.fn(),
     deactivateAnime: vi.fn(),
     restoreAnime: vi.fn(),
+    repeatAnime: vi.fn(),
     getAnimeEditorScheduleBoard: vi.fn(),
     applyAnimeEditorSchedule: vi.fn(),
     pickFolder: vi.fn().mockResolvedValue(''),
@@ -112,5 +113,29 @@ describe('restore confirmation flow', () => {
     expect(source.restoreAnime).toHaveBeenCalledTimes(1);
     expect(source.deactivateAnime).not.toHaveBeenCalled();
     expect(result.current.lifecycleConfirmation).toBeUndefined();
+  });
+});
+
+describe('repeat confirmation flow', () => {
+  it('opens confirmation, runs repeat (not restore) only on confirm, then reloads the rail', async () => {
+    const source = createSource();
+    (source.repeatAnime as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
+    const { result } = renderHook(() => useAnimeEditorWorkspace({}, source), { wrapper });
+    await waitFor(() => expect(result.current.selectedRecord?.animeId).toBe('anime-1'));
+
+    expect(result.current.lifecycleConfirmation).toBeUndefined();
+    act(() => result.current.onRequestLifecycleAction('repeat'));
+    expect(result.current.lifecycleConfirmation?.action).toBe('repeat');
+    expect(source.repeatAnime).not.toHaveBeenCalled();
+
+    const getAnimesCallsBeforeConfirm = (source.getAnimes as ReturnType<typeof vi.fn>).mock.calls.length;
+    await act(async () => { await result.current.onConfirmLifecycleAction(); });
+
+    expect(source.repeatAnime).toHaveBeenCalledTimes(1);
+    expect(source.restoreAnime).not.toHaveBeenCalled();
+    expect(result.current.lifecycleConfirmation).toBeUndefined();
+    // Design D11 corollary at the transitions layer: a successful repeat
+    // reloads the rail (loadItems -> getAnimes), mirroring onRestore's wrapper.
+    expect((source.getAnimes as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(getAnimesCallsBeforeConfirm);
   });
 });

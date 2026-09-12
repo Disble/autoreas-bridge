@@ -21,7 +21,7 @@ export interface AnimeEditorStatusOption {
 }
 
 /** Lifecycle action gated behind a confirmation before any gateway write. */
-export type AnimeEditorLifecycleAction = 'deactivate' | 'restore';
+export type AnimeEditorLifecycleAction = 'deactivate' | 'restore' | 'repeat';
 
 /**
  * Display-ready confirmation copy for the selected lifecycle action, driving
@@ -151,6 +151,7 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly saveRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly deactivateRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly restoreRecord: () => Promise<{ readonly status: string } | undefined>;
+  readonly repeatRecord: () => Promise<{ readonly status: string } | undefined>;
   readonly discardRecord: () => void;
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;

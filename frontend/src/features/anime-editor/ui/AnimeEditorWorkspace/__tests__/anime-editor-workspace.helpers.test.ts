@@ -185,6 +185,15 @@ describe('toAnimeEditorLifecycleConfirmation', () => {
     expect(confirmation.heading.length).toBeGreaterThan(0);
     expect(confirmation.description.length).toBeGreaterThan(0);
   });
+
+  it('returns non-destructive Repeat copy', () => {
+    const confirmation = toAnimeEditorLifecycleConfirmation('repeat');
+    expect(confirmation.action).toBe('repeat');
+    expect(confirmation.isDestructive).toBe(false);
+    expect(confirmation.confirmLabel).toBe('Repeat');
+    expect(confirmation.heading.length).toBeGreaterThan(0);
+    expect(confirmation.description.length).toBeGreaterThan(0);
+  });
 });
 
 describe('classifyAnimeEditorEmptyState', () => {

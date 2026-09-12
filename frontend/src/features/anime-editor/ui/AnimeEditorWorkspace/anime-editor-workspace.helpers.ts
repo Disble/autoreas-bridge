@@ -240,8 +240,8 @@ export function toEditorErrorMessage(error: unknown) {
 }
 
 /**
- * Builds the confirmation copy for a lifecycle action (Deactivate or
- * Restore), generalizing the one confirm modal the form drives before any
+ * Builds the confirmation copy for a lifecycle action (Deactivate, Restore,
+ * or Repeat), generalizing the one confirm modal the form drives before any
  * lifecycle write. Mirrors `toAnimeDetailConfirmation`'s shape
  * (`anime-detail.helpers.ts`), but copy is duplicated rather than imported
  * across the feature boundary: two features with different wording is not a
@@ -258,11 +258,20 @@ export function toAnimeEditorLifecycleConfirmation(action: AnimeEditorLifecycleA
       isDestructive: true,
     };
   }
+  if (action === 'restore') {
+    return {
+      action,
+      heading: 'Restore anime',
+      description: 'This makes the anime active again in your library.',
+      confirmLabel: 'Restore',
+      isDestructive: false,
+    };
+  }
   return {
     action,
-    heading: 'Restore anime',
-    description: 'This makes the anime active again in your library.',
-    confirmLabel: 'Restore',
+    heading: 'Repeat anime',
+    description: 'This resets watched episodes to zero and starts a new watch cycle.',
+    confirmLabel: 'Repeat',
     isDestructive: false,
   };
 }

@@ -37,6 +37,12 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
     // anime is active again, so refresh the rail to re-home it under "Watching now".
     if (result?.status === 'ok') await options.loadItems();
   }, [options]);
+  const onRepeat = useCallback(async () => {
+    const result = await options.repeatRecord();
+    // Repeat is a lifecycle command (EpisodeCommandResult); "ok" means a new
+    // watch cycle started, so refresh the rail to reflect the reset watch count.
+    if (result?.status === 'ok') await options.loadItems();
+  }, [options]);
   const onApplySchedule = useCallback(async (entries: readonly ApplyAnimeScheduleDraftEntry[]) => {
     const result = await options.applySchedule(entries);
     if (result !== undefined && (result.outcome === 'applied' || result.outcome === 'no_op')) {
@@ -81,5 +87,5 @@ export function useAnimeEditorTransitions(options: Readonly<UseAnimeEditorTransi
     if (guard.requestAction(action)) void executePendingAction(action);
   }, [executePendingAction, guard, options.selectedAnimeId, params.id]);
 
-  return { ...guard, onSave, onDeactivate, onRestore, onApplySchedule, onSelectAnime, onOpenSchedule, onDiscardAndContinue, onSaveAndContinue };
+  return { ...guard, onSave, onDeactivate, onRestore, onRepeat, onApplySchedule, onSelectAnime, onOpenSchedule, onDiscardAndContinue, onSaveAndContinue };
 }
