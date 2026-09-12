@@ -9,7 +9,9 @@ vi.mock('../../../../../infrastructure/bridge-runtime-source/bridge-runtime-sour
 }));
 
 describe('useConnectedDevicesPanel default source', () => {
-  it('degrades to mount-only refresh when the runtime exposes no device-acknowledged event source', async () => {
+  // The mocked runtime exposes NEITHER subscription, which is what a browser or a
+  // test environment without Wails bound actually looks like. Both must degrade.
+  it('degrades to mount-only refresh when the runtime exposes no event sources at all', async () => {
     const { useConnectedDevicesPanel } = await import('../use-connected-devices-panel');
     const { bridgeRuntimeSource } = await import(
       '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers'

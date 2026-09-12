@@ -19,6 +19,7 @@ describe('ConnectedDevicesPanel', () => {
         },
       ]),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 

@@ -20,6 +20,7 @@ describe('useConnectedDevicesPanel', () => {
         },
       ]),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 
@@ -39,6 +40,7 @@ describe('useConnectedDevicesPanel', () => {
           }),
       ),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 
@@ -57,6 +59,7 @@ describe('useConnectedDevicesPanel', () => {
     const source = {
       getConnectedDevices: vi.fn().mockRejectedValue(new Error('offline')),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 
@@ -70,6 +73,7 @@ describe('useConnectedDevicesPanel', () => {
     const source = {
       getConnectedDevices: vi.fn().mockResolvedValue([]),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn().mockResolvedValue('ok'),
     };
 
@@ -88,6 +92,7 @@ describe('useConnectedDevicesPanel', () => {
     const source = {
       getConnectedDevices: vi.fn().mockResolvedValue([]),
       onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       unpairDevice: vi.fn(),
     };
 
@@ -123,6 +128,7 @@ describe('useConnectedDevicesPanel', () => {
     let acknowledgedListener: (() => void) | undefined;
     const source = {
       getConnectedDevices,
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       onDeviceAcknowledged: vi.fn().mockImplementation((listener: () => void) => {
         acknowledgedListener = listener;
         return () => undefined;
@@ -157,6 +163,7 @@ describe('useConnectedDevicesPanel', () => {
     let acknowledgedListener: (() => void) | undefined;
     const source = {
       getConnectedDevices: vi.fn().mockResolvedValue([]),
+      onDevicePaired: vi.fn().mockReturnValue(() => undefined),
       onDeviceAcknowledged: vi.fn().mockImplementation((listener: () => void) => {
         acknowledgedListener = listener;
         // Mirrors the real shared-subscription contract: `unsubscribe` stops
@@ -179,5 +186,68 @@ describe('useConnectedDevicesPanel', () => {
 
     acknowledgedListener?.();
     expect(source.getConnectedDevices).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a newly paired device without a remount', async () => {
+    const pairedDevice: ConnectedDevice = {
+      auth_state: 'active',
+      blocks_changelog_pruning: true,
+      connection_status: 'disconnected',
+      device_id: 'device-0ccf6849dbddb7d1',
+      device_name: 'AutoreasMobile',
+      last_ack_changelog_id: 0,
+      last_seen_at_ms: 1_757_707_861_000,
+      paired_at_ms: 1_757_707_861_000,
+      sync_status: 'active',
+    };
+    // The panel starts empty, which is what "No connected devices yet" renders from.
+    const getConnectedDevices = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([pairedDevice]);
+    let pairedListener: (() => void) | undefined;
+    const source = {
+      getConnectedDevices,
+      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockImplementation((listener: () => void) => {
+        pairedListener = listener;
+        return () => undefined;
+      }),
+      unpairDevice: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useConnectedDevicesPanel({ source }));
+    await waitFor(() => expect(getConnectedDevices).toHaveBeenCalledTimes(1));
+    expect(result.current.rows).toHaveLength(0);
+
+    // Pairing never reaches AcknowledgeDevice, so the acknowledgment subscription
+    // cannot carry this: only the pairing event tells the panel a device now exists.
+    act(() => {
+      pairedListener?.();
+    });
+
+    // The pair refetch must not raise isLoading either: the panel has no skeleton,
+    // so isLoading only gates the "No connected devices yet" message, and raising it
+    // would blank that message for the duration of the request instead of replacing
+    // it with the row.
+    expect(result.current.isLoading).toBe(false);
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    expect(result.current.rows[0]?.name).toBe('AutoreasMobile');
+    expect(source.onDeviceAcknowledged).toHaveBeenCalledTimes(1);
+  });
+
+  it('unsubscribes from onDevicePaired on unmount', async () => {
+    const unsubscribe = vi.fn();
+    const source = {
+      getConnectedDevices: vi.fn().mockResolvedValue([]),
+      onDeviceAcknowledged: vi.fn().mockReturnValue(() => undefined),
+      onDevicePaired: vi.fn().mockReturnValue(unsubscribe),
+      unpairDevice: vi.fn(),
+    };
+
+    const { unmount } = renderHook(() => useConnectedDevicesPanel({ source }));
+    await waitFor(() => expect(source.onDevicePaired).toHaveBeenCalledTimes(1));
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

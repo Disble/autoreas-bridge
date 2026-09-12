@@ -24,6 +24,10 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
       props.source ?? {
         getConnectedDevices: bridgeRuntimeSource.getConnectedDevices ?? (() => Promise.resolve([])),
         onDeviceAcknowledged: bridgeRuntimeSource.onDeviceAcknowledged ?? (() => () => {}),
+        // Falls back even though the type declares it required: a runtime without
+        // Wails bound (tests, a browser) exposes neither subscription, and the
+        // panel must degrade to mount-only refresh rather than throw on mount.
+        onDevicePaired: bridgeRuntimeSource.onPairingTokenConsumed ?? (() => () => {}),
         unpairDevice: bridgeRuntimeSource.unpairDevice ?? (() => Promise.resolve('runtime unavailable')),
     },
     [props.source],
@@ -83,6 +87,22 @@ export function useConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelPr
 
   useEffect(() => {
     const unsubscribe = source.onDeviceAcknowledged(() => {
+      refresh(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [refresh, source]);
+
+  // Pairing is a separate moment from acknowledgment and needs its own
+  // subscription: `POST /api/devices/pair` never reaches `AcknowledgeDevice`, so
+  // the acknowledgment event above cannot fire for a device that has only just
+  // paired. Without this the table keeps reading "No connected devices yet"
+  // until the route remounts, which is the exact staleness this panel refreshes
+  // to avoid.
+  useEffect(() => {
+    const unsubscribe = source.onDevicePaired(() => {
       refresh(false);
     });
 
