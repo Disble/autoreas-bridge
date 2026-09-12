@@ -12,16 +12,20 @@ function buildSource(getKeymap: () => Promise<string>): Pick<PreferencesSource, 
 beforeEach(resetKeyboardStore);
 afterEach(resetKeyboardStore);
 
+/**
+ * This suite owns the hook's WIRING only: that it fires the load on mount,
+ * and that it fires again when the injected source changes. Every
+ * document-outcome case -- empty, valid, garbage, rejected -- belongs to
+ * `keymap-load.helpers.test.ts` and is asserted there, because since the
+ * extraction this hook is a one-line delegation with no per-outcome branch
+ * of its own. Repeating the outcomes here killed no additional mutant: the
+ * hook's only two possible internal defects are "never calls the loader",
+ * which any single outcome case catches, and "wrong effect deps", which
+ * only the re-render case catches. Do not re-add the outcome cases here.
+ */
 describe('useKeymapOverrides', () => {
   it('starts pending with no overrides, so every command answers to its declared chord while the load is in flight', () => {
     expect(getKeyboardState().keymapLoadState).toBe('pending');
-    expect(getKeyboardState().overrides).toEqual({});
-  });
-
-  it("resolves an empty document ('') to no overrides, loaded", async () => {
-    renderHook(() => useKeymapOverrides(buildSource(() => Promise.resolve(''))));
-
-    await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
     expect(getKeyboardState().overrides).toEqual({});
   });
 
@@ -32,23 +36,6 @@ describe('useKeymapOverrides', () => {
 
     await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
     expect(getKeyboardState().overrides).toEqual({ 'nav.today': 'ctrl+1' });
-  });
-
-  it("reports a garbage document as LOADED, not failed: it arrived fine and parseKeymap degraded its contents", async () => {
-    renderHook(() => useKeymapOverrides(buildSource(() => Promise.resolve('{not json: alt++'))));
-
-    await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('loaded'));
-    expect(getKeyboardState().overrides).toEqual({});
-  });
-
-  it('reports a REJECTED read as failed, which is what earns the panel its error state rather than an empty one', async () => {
-    renderHook(() => useKeymapOverrides(buildSource(() => Promise.reject(new Error('runtime unavailable')))));
-
-    await waitFor(() => expect(getKeyboardState().keymapLoadState).toBe('failed'));
-    // Still published as no overrides rather than left pending: a failed read
-    // must never strand the dispatcher, so the shortcuts keep working on
-    // their declared chords while the panel reports the failure.
-    expect(getKeyboardState().overrides).toEqual({});
   });
 
   it('re-runs the load when the injected source changes across a re-render, rather than closing over the first render forever', async () => {

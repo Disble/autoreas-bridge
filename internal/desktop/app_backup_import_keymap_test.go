@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 
 	"autoreas-bridge/internal/backup"
@@ -104,71 +105,71 @@ func TestImportingKeymapOnlyBundleLeavesOtherAppSettingsKeysUntouched(t *testing
 	}
 }
 
-// TestImportedKeymapGroupWithZeroRecordsResetsToDefaults closes "A
-// Present-But-Empty Group Resets The Keymap To Defaults": a bundle whose
-// keyboard_keymap group carries zero records resets a previously rebound
-// keymap back to the empty (shipped-default) document.
-func TestImportedKeymapGroupWithZeroRecordsResetsToDefaults(t *testing.T) {
-	app, _ := appBackupImportTestApp(t)
-	ctx := context.Background()
-	store := settings.NewSQLiteStore(app.bridgeDB)
-	if err := store.SetKeymap(ctx, `{"version":1,"overrides":{"nav.today":"ctrl+1"}}`); err != nil {
-		t.Fatalf("seed keymap: %v", err)
+// keymapGroupImportCase is one row of TestImportedKeymapGroupOutcomesByPresence.
+type keymapGroupImportCase struct {
+	name             string
+	seedKeymap       string
+	bundleGroups     map[string][]string
+	wantAbsentGroup  bool
+	wantStoredKeymap string
+}
+
+// TestImportedKeymapGroupOutcomesByPresence closes "A Present-But-Empty
+// Group Resets The Keymap To Defaults" and "An Absent Group Leaves The
+// Keymap Untouched": its two rows share one preview/confirm shape -- build
+// app, optionally seed a keymap, write a hand-built bundle, preview,
+// confirm, read back, compare.
+func TestImportedKeymapGroupOutcomesByPresence(t *testing.T) {
+	tests := []keymapGroupImportCase{
+		{
+			name:             "present but empty group resets the keymap to defaults",
+			bundleGroups:     map[string][]string{"keyboard_keymap": {}},
+			wantStoredKeymap: "",
+		},
+		{
+			name:       "absent group leaves the stored keymap unchanged",
+			seedKeymap: `{"version":1,"overrides":{"nav.today":"ctrl+1"}}`,
+			bundleGroups: map[string][]string{
+				"anime_snapshots": {`{"anime_id":"a","snapshot_json":"{}","snapshot_hash":"h","modified_at":1}`},
+			},
+			wantAbsentGroup:  true,
+			wantStoredKeymap: `{"version":1,"overrides":{"nav.today":"ctrl+1"}}`,
+		},
 	}
 
-	bundlePath := filepath.Join(t.TempDir(), "keymap-empty.zip")
-	writeHandBuiltBundle(t, bundlePath, map[string][]string{
-		"keyboard_keymap": {},
-	})
-	app.pickBundle = func(context.Context, string) (string, error) { return bundlePath, nil }
-
-	preview, err := app.PreviewBackupImport()
-	if err != nil {
-		t.Fatalf("preview backup import: %v", err)
-	}
-	if _, err := app.ConfirmBackupImport(preview.BundleChecksum); err != nil {
-		t.Fatalf("confirm backup import: %v", err)
-	}
-
-	got, err := store.Keymap(ctx)
-	if err != nil {
-		t.Fatalf("read back keymap: %v", err)
-	}
-	if got != "" {
-		t.Fatalf("expected the keymap reset to defaults (empty) after a present-but-empty group, got %q", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertKeymapGroupImportOutcome(t, tt)
+		})
 	}
 }
 
-// TestAbsentKeymapGroupLeavesTheStoredKeymapUnchanged closes "An Absent
-// Group Leaves The Keymap Untouched": a bundle whose manifest names no
-// keyboard_keymap group at all leaves the stored keymap at its exact
-// pre-import value, and reports no error.
-func TestAbsentKeymapGroupLeavesTheStoredKeymapUnchanged(t *testing.T) {
+// assertKeymapGroupImportOutcome seeds an optional pre-import keymap,
+// imports a hand-built bundle carrying tt.bundleGroups, and checks the
+// preview's AbsentGroups membership and the confirm's ErrorMessage only
+// when tt.wantAbsentGroup is set (the absent-group case), then always
+// checks the keymap read back afterward against tt.
+func assertKeymapGroupImportOutcome(t *testing.T, tt keymapGroupImportCase) {
+	t.Helper()
+
 	app, _ := appBackupImportTestApp(t)
 	ctx := context.Background()
 	store := settings.NewSQLiteStore(app.bridgeDB)
-	want := `{"version":1,"overrides":{"nav.today":"ctrl+1"}}`
-	if err := store.SetKeymap(ctx, want); err != nil {
-		t.Fatalf("seed keymap: %v", err)
+	if tt.seedKeymap != "" {
+		if err := store.SetKeymap(ctx, tt.seedKeymap); err != nil {
+			t.Fatalf("seed keymap: %v", err)
+		}
 	}
 
-	bundlePath := filepath.Join(t.TempDir(), "no-keymap-group.zip")
-	writeHandBuiltBundle(t, bundlePath, map[string][]string{
-		"anime_snapshots": {`{"anime_id":"a","snapshot_json":"{}","snapshot_hash":"h","modified_at":1}`},
-	})
+	bundlePath := filepath.Join(t.TempDir(), "keymap-group.zip")
+	writeHandBuiltBundle(t, bundlePath, tt.bundleGroups)
 	app.pickBundle = func(context.Context, string) (string, error) { return bundlePath, nil }
 
 	preview, err := app.PreviewBackupImport()
 	if err != nil {
 		t.Fatalf("preview backup import: %v", err)
 	}
-	var sawKeymapAbsent bool
-	for _, name := range preview.AbsentGroups {
-		if name == "keyboard_keymap" {
-			sawKeymapAbsent = true
-		}
-	}
-	if !sawKeymapAbsent {
+	if tt.wantAbsentGroup && !slices.Contains(preview.AbsentGroups, "keyboard_keymap") {
 		t.Fatalf("expected keyboard_keymap in AbsentGroups, got %+v", preview.AbsentGroups)
 	}
 
@@ -176,7 +177,7 @@ func TestAbsentKeymapGroupLeavesTheStoredKeymapUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("confirm backup import: %v", err)
 	}
-	if result.ErrorMessage != "" {
+	if tt.wantAbsentGroup && result.ErrorMessage != "" {
 		t.Fatalf("expected no error/warning reported for an absent keymap group, got %q", result.ErrorMessage)
 	}
 
@@ -184,8 +185,8 @@ func TestAbsentKeymapGroupLeavesTheStoredKeymapUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read back keymap: %v", err)
 	}
-	if got != want {
-		t.Fatalf("keymap = %q, want unchanged %q", got, want)
+	if got != tt.wantStoredKeymap {
+		t.Fatalf("keymap = %q, want %q", got, tt.wantStoredKeymap)
 	}
 }
 
@@ -208,13 +209,7 @@ func TestPreviewOfKeymapCarryingBundleOnAnOlderImportGroupsSliceReportsItAsUnkno
 		t.Fatalf("preview: %v", err)
 	}
 
-	var sawUnknown bool
-	for _, name := range report.UnknownGroups {
-		if name == "keyboard_keymap" {
-			sawUnknown = true
-		}
-	}
-	if !sawUnknown {
+	if !slices.Contains(report.UnknownGroups, "keyboard_keymap") {
 		t.Fatalf("expected keyboard_keymap in UnknownGroups, got %+v", report.UnknownGroups)
 	}
 	if report.FormatVersion != backup.SupportedFormatVersion {

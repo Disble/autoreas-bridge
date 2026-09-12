@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BackupImportPreviewDTO, BackupImportResultDTO } from '../../../../../infrastructure/backup-source/backup-source.types';
 import { preferencesSource } from '../../../../../infrastructure/preferences-source/preferences-source.helpers';
 import { dispatchKeyboardEvent } from '../../../../../shared/keyboard/dispatch.helpers';
 import type { KeyboardDispatchEvent } from '../../../../../shared/keyboard/dispatch.helpers';
@@ -25,46 +24,6 @@ vi.mock('../../../../../infrastructure/preferences-source/preferences-source.hel
  * must run so the observable is genuine chord resolution, not a mocked call.
  * Only the preferences runtime source is faked, at its `getKeymap` seam.
  */
-
-/** Builds a valid preview DTO carrying only the keyboard_keymap group, the shape a confirm needs to run. */
-function buildKeymapPreview(): BackupImportPreviewDTO {
-  return {
-    cancelled: false,
-    bundlePath: 'C:/backups/keymap-only.zip',
-    formatVersion: 1,
-    bridgeVersion: 'dev',
-    createdAt: '2026-09-11T00:00:00Z',
-    bundleChecksum: 'deadbeef',
-    groups: [{ name: 'keyboard_keymap', recordCount: 1 }],
-    unknownGroups: [],
-    absentGroups: [],
-    versionNotes: [],
-  };
-}
-
-/** Builds a valid apply-result DTO reporting a successful keyboard_keymap-only import. */
-function buildKeymapResult(): BackupImportResultDTO {
-  return {
-    importedGroups: [{ name: 'keyboard_keymap', recordCount: 1 }],
-    failedGroup: '',
-    unattemptedGroups: [],
-    restorePointPath: 'C:/data/bridge-restore-point.db',
-    errorMessage: '',
-  };
-}
-
-/** Builds a minimal global-scope command for the dispatcher proof, overriding only what a case needs. */
-function buildTestCommand(overrides: Partial<CommandDefinition> = {}): CommandDefinition {
-  return {
-    id: 'test.command',
-    scope: 'global',
-    chord: 'ctrl+shift+q',
-    label: 'Test',
-    section: 'Navigation',
-    run: () => {},
-    ...overrides,
-  };
-}
 
 /** Builds the dispatchable keydown-shaped event for the shared test chord, `ctrl+shift+t`. */
 function buildSharedChordEvent(): KeyboardDispatchEvent {
@@ -91,8 +50,22 @@ describe('a restored keymap reaches the running dispatcher without a restart', (
   it('rebinds the same chord from command A to command B right after a carrying import, with no restart', async () => {
     const runA = vi.fn();
     const runB = vi.fn();
-    const commandA = buildTestCommand({ id: 'test.command-a', chord: 'ctrl+shift+q', run: runA });
-    const commandB = buildTestCommand({ id: 'test.command-b', chord: 'ctrl+shift+w', run: runB });
+    const commandA: CommandDefinition = {
+      id: 'test.command-a',
+      scope: 'global',
+      chord: 'ctrl+shift+q',
+      label: 'Test',
+      section: 'Navigation',
+      run: runA,
+    };
+    const commandB: CommandDefinition = {
+      id: 'test.command-b',
+      scope: 'global',
+      chord: 'ctrl+shift+w',
+      label: 'Test',
+      section: 'Navigation',
+      run: runB,
+    };
     const frameId = 999901;
     pushKeyboardScopeFrame({ id: frameId, scope: 'global', getCommands: () => [commandA, commandB] });
 
@@ -109,8 +82,25 @@ describe('a restored keymap reaches the running dispatcher without a restart', (
     const restoredDocument = JSON.stringify({ version: 1, bindings: { [commandB.id]: sharedChord } });
     vi.mocked(preferencesSource.getKeymap).mockResolvedValue(restoredDocument);
 
-    const previewBackupImport = vi.fn().mockResolvedValue(buildKeymapPreview());
-    const confirmBackupImport = vi.fn().mockResolvedValue(buildKeymapResult());
+    const previewBackupImport = vi.fn().mockResolvedValue({
+      cancelled: false,
+      bundlePath: 'C:/backups/keymap-only.zip',
+      formatVersion: 1,
+      bridgeVersion: 'dev',
+      createdAt: '2026-09-11T00:00:00Z',
+      bundleChecksum: 'deadbeef',
+      groups: [{ name: 'keyboard_keymap', recordCount: 1 }],
+      unknownGroups: [],
+      absentGroups: [],
+      versionNotes: [],
+    });
+    const confirmBackupImport = vi.fn().mockResolvedValue({
+      importedGroups: [{ name: 'keyboard_keymap', recordCount: 1 }],
+      failedGroup: '',
+      unattemptedGroups: [],
+      restorePointPath: 'C:/data/bridge-restore-point.db',
+      errorMessage: '',
+    });
     const { result } = renderHook(() => useBackupImport({ previewBackupImport, confirmBackupImport }));
 
     act(() => {
