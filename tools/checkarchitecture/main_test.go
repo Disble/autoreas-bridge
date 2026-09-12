@@ -46,6 +46,83 @@ const ddl = "CREATE TABLE activity_log (id INTEGER PRIMARY KEY)"
 	}
 }
 
+// TestRunRejectsWatchHistoryReferencesOutsideWatchHistoryContext mirrors
+// the activity_log rule for the second owned table (design.md D1).
+func TestRunRejectsWatchHistoryReferencesOutsideWatchHistoryContext(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, root, "internal/anime/service.go", `package anime
+const query = "INSERT INTO watch_history DEFAULT VALUES"
+`)
+
+	err := run(root)
+	if err == nil {
+		t.Fatal("expected architecture violation")
+	}
+}
+
+// TestRunRejectsWatchHistoryReferencesInComments asserts the raw substring
+// scan catches the literal even in a comment -- this is exactly why the
+// real backfill driver (internal/sync/watch_history_backfill.go) uses
+// camelCase identifiers like ensureWatchHistoryBackfill instead (Note C).
+func TestRunRejectsWatchHistoryReferencesInComments(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, root, "internal/sync/watch_history_backfill.go", `package sync
+// replays the audit log into watch_history
+func ensureWatchHistoryBackfill() {}
+`)
+
+	err := run(root)
+	if err == nil {
+		t.Fatal("expected architecture violation for a comment referencing watch_history outside its owner")
+	}
+}
+
+func TestRunAllowsWatchHistoryReferencesInsideWatchHistoryContext(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeFile(t, root, "internal/watchhistory/store.go", `package watchhistory
+const query = "INSERT INTO watch_history DEFAULT VALUES"
+`)
+
+	if err := run(root); err != nil {
+		t.Fatalf("expected watchhistory context reference to pass, got %v", err)
+	}
+}
+
+// TestIsWatchHistoryBoundaryFile exercises each of the four OR terms in
+// isolation (each case makes exactly one term true and the other three
+// false), including the tools/checkarchitecture self-exemption the checker
+// needs because its own source carries the literal "watch_history" as a
+// string constant (design.md D1's self-reference note).
+func TestIsWatchHistoryBoundaryFile(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "nested watchhistory path matches Contains", path: "vendor/internal/watchhistory/store.go", want: true},
+		{name: "top-level watchhistory path matches HasPrefix", path: "internal/watchhistory/store.go", want: true},
+		{name: "nested checkarchitecture path matches Contains", path: "vendor/tools/checkarchitecture/main.go", want: true},
+		{name: "top-level checkarchitecture path matches HasPrefix", path: "tools/checkarchitecture/main.go", want: true},
+		{name: "an unrelated path matches none of the terms", path: "internal/anime/service.go", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isWatchHistoryBoundaryFile(tc.path); got != tc.want {
+				t.Fatalf("isWatchHistoryBoundaryFile(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestRunHasNoLegacyBoundaryCheck proves the legacy-boundary check is fully
 // retired: no source file in this package declares checkLegacyBoundary, and a
 // file that would have violated the old legacy-DTO/JSON-key/animes.dat rules

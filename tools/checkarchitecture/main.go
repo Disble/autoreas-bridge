@@ -15,6 +15,25 @@ var scannedExtensions = map[string]bool{
 	".tsx": true,
 }
 
+// ownedTableRule declares one table-ownership boundary: literal is the raw
+// table-name substring that must not appear outside its owning package's
+// source text (comments included -- this is a raw strings.Contains scan,
+// not a parser), and isBoundaryFile reports whether a repository-relative
+// path is inside that boundary.
+type ownedTableRule struct {
+	literal        string
+	isBoundaryFile func(path string) bool
+}
+
+// ownedTableRules is the registry of owned-table boundaries
+// tools/checkarchitecture enforces. Adding a new bounded context's table
+// means adding one entry here (design.md D1's second owned-table rule for
+// watch_history / internal/watchhistory).
+var ownedTableRules = []ownedTableRule{
+	{literal: "activity_log", isBoundaryFile: isActivityBoundaryFile},
+	{literal: "watch_history", isBoundaryFile: isWatchHistoryBoundaryFile},
+}
+
 func main() {
 	if err := run("."); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -35,10 +54,7 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 		if err != nil {
 			return err
 		}
-		text := string(content)
-		if strings.Contains(text, "activity_log") && !isActivityBoundaryFile(normalized) {
-			violations = append(violations, fmt.Sprintf("%s references activity_log outside internal/activity", normalized))
-		}
+		violations = append(violations, ownedTableViolations(normalized, string(content))...)
 		return nil
 	})
 	if err != nil {
@@ -49,6 +65,19 @@ func runWithArchitectureFS(root string, source architectureFS) error {
 		return fmt.Errorf("architecture violations:\n- %s", strings.Join(violations, "\n- "))
 	}
 	return nil
+}
+
+// ownedTableViolations reports every owned-table rule a file's source text
+// violates: the rule's literal table name appears in text while path is
+// outside the boundary that rule declares.
+func ownedTableViolations(path, text string) []string {
+	var violations []string
+	for _, rule := range ownedTableRules {
+		if strings.Contains(text, rule.literal) && !rule.isBoundaryFile(path) {
+			violations = append(violations, fmt.Sprintf("%s references %s outside its owning package", path, rule.literal))
+		}
+	}
+	return violations
 }
 
 // relativePath converts a filesystem path to a normalized repository-relative path.
@@ -66,6 +95,18 @@ func isActivityBoundaryFile(path string) bool {
 		strings.HasPrefix(path, "internal/activity/") ||
 		strings.HasSuffix(path, "/internal/sync/sqlite_bootstrap.go") ||
 		path == "internal/sync/sqlite_bootstrap.go" ||
+		strings.Contains(path, "/tools/checkarchitecture/") ||
+		strings.HasPrefix(path, "tools/checkarchitecture/")
+}
+
+// isWatchHistoryBoundaryFile reports whether watch_history access is
+// allowed by policy. Unlike activity_log, no sync-bootstrap exception
+// exists: the backfill driver registers the table through
+// watchhistory.SchemaTables() and never writes the literal itself, using
+// camelCase identifiers instead (design.md D1, Note C).
+func isWatchHistoryBoundaryFile(path string) bool {
+	return strings.Contains(path, "/internal/watchhistory/") ||
+		strings.HasPrefix(path, "internal/watchhistory/") ||
 		strings.Contains(path, "/tools/checkarchitecture/") ||
 		strings.HasPrefix(path, "tools/checkarchitecture/")
 }

@@ -128,69 +128,104 @@ Twice Within A Cycle", "A Cycle Reset Records Nothing And Retracts Nothing" (gua
 Slice 2/3), "Retraction Is Scoped To One Cycle", "The Anime Name Is Denormalized At Record Time", "Read
 Models Are Keyset-Paged", "Retention Is Permanent" (no prune call is ever added — verified by absence).
 
+**Measured at commit: 1,435 changed lines** (`git diff --cached --shortstat` against HEAD: 1,414
+insertions + 21 deletions, of which 1,385 are code across 11 files and the rest is this file) — **against
+a 590 forecast and a 600 budget. A planning miss per CLAUDE.md #22, not a block, and not a declared
+size:exception.**
+
+Root cause, measured: a fourth production file (`store_page.go`, 156 lines) that the design's own
+`Page`/`AnimePage` contract required but the forecast never itemized; more RED scenarios than a 330-line
+test estimate covers across twelve requirements; and mutation-forced additions once the first pass
+scored below 0.80. Production landed at 409 lines against a forecast of 200, tests at 850 against 330,
+so both sides missed — the overage is not "the tests ate the budget".
+
+A genuine cleanup pass ran and moved the number by almost nothing, as CLAUDE.md #22's measured correction
+predicts: one schema test removed as subsumed (`schema.go` generates zero mutants, and two other tests
+already fail if the table is missing), and two single-step `Store` tests collapsed into a table. No
+mutant-killing case was cut.
+
+**Orchestrator verification found one claimed-but-unimplemented requirement.** Task 1.3.2 was checked and
+the apply report said "conflict counting", but no counter existed: `insertEpisodes` only logged, and
+`TestApplyConflictingInsertIsANoOpCountedAndWarnLogged` asserted "Counted" in its name without ever
+counting. Mutation testing cannot catch this — it measures whether tests kill mutants of code that
+exists, and absent code produces no mutants. Fixed before commit: `Store.conflicts atomic.Int64` plus
+`Conflicts()`, tested in both directions (a conflict moves it 0 → 1; an ordinary insert leaves it at 0).
+
+Final mutation, run by the orchestrator with no concurrent run on these files:
+`internal/watchhistory` **0.91** (75 total, 68 killed, 7 survived; 3 of 78 generated never compiled and
+are excluded) and `tools/checkarchitecture` **1.00** (9/9). The 7 survivors are traced equivalents —
+e.g. `limit+1 → limit+2` only reads one extra row that `scanPage` discards, and `< → <=` on guard 4 never
+sees equality because guard 3 intercepts it first.
+
 ### 1.1 Schema
 
-- [ ] **1.1.1** [RED] `internal/watchhistory/schema_test.go`: `SchemaTables()` returns the
+- [x] **1.1.1** [RED] `internal/watchhistory/schema_test.go`: `SchemaTables()` returns the
   `watch_history` `persistence.TableSchema` with the DDL and three indexes from `design.md`'s
   Interfaces/Contracts block; `persistence.EnsureTableSchema` creates the table and indexes on a fresh
   in-memory DB — mirrors `internal/activity/schema_test.go`'s shape.
-- [ ] **1.1.2** [GREEN] `internal/watchhistory/schema.go`: the DDL (`id`, `anime_id`, `anime_name`,
+- [x] **1.1.2** [GREEN] `internal/watchhistory/schema.go`: the DDL (`id`, `anime_id`, `anime_name`,
   `episode INTEGER`, `cycle INTEGER`, `watched_at_ms`, `source`, `source_activity_id` nullable),
   `idx_watch_history_watched_at`, `idx_watch_history_anime`, the unique
   `idx_watch_history_episode (anime_id, cycle, episode)`, and `SchemaTables()`.
 
 ### 1.2 `Derive` — the pure function
 
-- [ ] **1.2.1** [RED] `internal/watchhistory/derive_test.go`: table-driven, one row per D2 guard —
+- [x] **1.2.1** [RED] `internal/watchhistory/derive_test.go`: table-driven, one row per D2 guard —
   `CycleReset` → `EffectNone`; NaN/Inf/negative `After` → `EffectNone`; equal before/after →
   `EffectNone`; `After < Before` → `EffectRetract{Floor: After}`; over `maxEpisodesPerChange` →
   `EffectNone`; otherwise → `EffectRecord` with the integers in `(floor(Before), After]`. Jump cases:
   `2 → 5` ⇒ `[3,4,5]`; `10.5 → 13` ⇒ `[11,12,13]`; `11 → 11.5` ⇒ `[]`; `10.5 → 11` ⇒ `[11]`. Assert the
   over-bound literal against `5000` written as a literal, never against the production constant.
-- [ ] **1.2.2** [GREEN] `internal/watchhistory/derive.go`: `Change`, `EffectKind`, `Effect`, `Derive`,
+- [x] **1.2.2** [GREEN] `internal/watchhistory/derive.go`: `Change`, `EffectKind`, `Effect`, `Derive`,
   guard order exactly as D2's table.
-- [ ] **1.2.3** [RED] Property test: after any sequence of `Derive`-driven changes, the recorded set for
+- [x] **1.2.3** [RED] Property test: after any sequence of `Derive`-driven changes, the recorded set for
   `(anime_id, cycle)` equals the integers in `(firstObservedFloor, progress]` (the D2a invariant).
-- [ ] **1.2.4** [VERIFY] Expected to pass with no new production code — `Derive`'s guard order already
+- [x] **1.2.4** [VERIFY] Expected to pass with no new production code — `Derive`'s guard order already
   satisfies the invariant; a failure here means the defect is in `Derive`, not in this test.
 
 ### 1.3 Store — `ApplyTx`/`Apply`, keyset `Page`, `AnimePage`
 
-- [ ] **1.3.1** [RED] `internal/watchhistory/store_test.go` against real SQLite (`persistence.EnsureTableSchema`
+- [x] **1.3.1** [RED] `internal/watchhistory/store_test.go` against real SQLite (`persistence.EnsureTableSchema`
   + in-memory, mirroring `eventlog/store_test.go`): insert; retract; cross-cycle isolation (a cycle-2
   rollback leaves cycle 1 untouched); unmatched retraction is a no-op; oscillation round-trip
   (`11 → 10.5 → 11` leaves the same set, a new `id`/`watched_at_ms`); an `ON CONFLICT` collision is
   counted and warn-logged, never silently swallowed.
-- [ ] **1.3.2** [GREEN] `internal/watchhistory/store.go`: `ApplyTx(ctx, tx, change)`, `Apply(ctx, change)`
+- [x] **1.3.2** [GREEN] `internal/watchhistory/store.go`: `ApplyTx(ctx, tx, change)`, `Apply(ctx, change)`
   (owns its own transaction), the conflict counter + warn log.
-- [ ] **1.3.3** [RED] Cursor encode/decode, limit clamping, equal-timestamp tiebreak — opaque
+- [x] **1.3.3** [RED] Cursor encode/decode, limit clamping, equal-timestamp tiebreak — opaque
   `"<watched_at_ms>:<id>"`, matching `eventlog.EventSearchPage`'s `NextCursor` convention.
-- [ ] **1.3.4** [GREEN] `Page(ctx, PageQuery)` and `AnimePage(ctx, animeID, PageQuery)`, riding
+- [x] **1.3.4** [GREEN] `Page(ctx, PageQuery)` and `AnimePage(ctx, animeID, PageQuery)`, riding
   `idx_watch_history_watched_at` / `idx_watch_history_anime` respectively.
 
 ### 1.4 `tools/checkarchitecture` — second owned table
 
-- [ ] **1.4.1** [RED] Extend the checker's existing test suite: a file outside `internal/watchhistory/`
+- [x] **1.4.1** [RED] Extend the checker's existing test suite: a file outside `internal/watchhistory/`
   containing the literal `watch_history` (including in a comment) fails the scan, mirroring the existing
   `activity_log` rule.
-- [ ] **1.4.2** [GREEN] `tools/checkarchitecture/main.go`: register the second owned-table rule.
+- [x] **1.4.2** [GREEN] `tools/checkarchitecture/main.go`: register the second owned-table rule.
 
 ### 1.5 MUTATE — `Derive` is guard-dense (CLAUDE.md #16; mandatory per design.md's own table)
 
-- [ ] **1.5.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+- [x] **1.5.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
   "go test -count=1 -json ./internal/watchhistory/"`. Confirm every mutant in `design.md`'s "MUTATE — the
   guards whose mutants must die" table dies: the `>`/`>=`/`<`/`<=` flips, the loop start/condition
   off-by-ones, the retraction boundary, the dropped cycle predicate, the negated `CycleReset` guard, the
-  zero-affected-rows-becomes-error mutant, the removed non-finite guard, the negated `Outcome != Applied`
-  guard.
-- [ ] **1.5.2** [REFACTOR] Kill any survivor with a new table row (never a hand-tweak that only kills
+  zero-affected-rows-becomes-error mutant, the removed non-finite guard. **Correction applied at apply
+  time:** the negated `Outcome != Applied` guard does not exist in Slice 1 — `Derive` is pure and carries
+  no `Outcome` field; that mutant belongs to Slice 2's write-path wiring (`recordEpisodeAdjustment` /
+  `PatchAnime`'s outcome check), not to this table. Ran scoped to `./internal/watchhistory/` only
+  (`--exclude-prefix tools/` added): `tools/checkarchitecture/main.go`'s staged hunk was also present in
+  the diff but is untested by that command, which inflated survivors to false positives; it got its own
+  separate `ditto` pass scoped to `./tools/checkarchitecture/` (score 1.00). Final scores: `watchhistory`
+  0.90 (66/73, 7 accepted-equivalent survivors documented in apply-progress), `checkarchitecture` 1.00.
+- [x] **1.5.2** [REFACTOR] Kill any survivor with a new table row (never a hand-tweak that only kills
   that one mutant).
 
 ### 1.6 Verification & commit
 
-- [ ] **1.6.1** [VERIFY] `go test ./internal/watchhistory/... ./tools/checkarchitecture/...`; both
+- [x] **1.6.1** [VERIFY] `go test ./internal/watchhistory/... ./tools/checkarchitecture/...`; both
   golangci profiles; `go run ./tools/checkgofilesize`; `git status --porcelain` scoped to this slice.
-- [ ] **1.6.2** Orchestrator verifies and commits this slice.
+- [x] **1.6.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. A new, unwired package; a registry-created table left behind is inert.
 
