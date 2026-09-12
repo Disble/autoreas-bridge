@@ -198,6 +198,9 @@
   | A hand-rolled `for … { if x == want { found = true } }` | `slices.Contains` |
 
   Refactoring is bounded by coverage, not by the number: never delete an assertion, a scenario, or a case that kills a known mutant to make a budget. If the genuine fat is gone and it still does not fit, report the measured remainder and what it is — that outcome is honest and the slice plan was too big, which is a planning fix, not a trimming one.
+- **Measured correction: a refactor cannot bring the changed-line number down after the fact, so judge it by `wc -l`, not by the ledger.** The cap is measured on insertions **plus deletions**, so removing 51 lines from files that already exist registers as 51 new deletions. SDD-67's slice-2 cleanup took 864 lines of test code down to 813 — a real 51 removed, every mutant still dying — while the changed-line count moved 884 → 881. The code got smaller and the metric did not budge. Two consequences, and the second is the one that bites:
+  1. Judge an over-engineering refactor by the before/after file sizes, never by expecting the ledger's number to fall. Expecting it to fall is a category error about what the metric measures.
+  2. **The cap is therefore a pre-commit discipline: the lines have to not be written, not be removed later.** Once a slice has landed, its number is final. So the refactor and the bookkeeping are separate acts — the refactor discharges the engineering debt, and a maintainer reset is what lets the next work unit open. Conflating them is what made the orchestrator stop the chain for a decision it should have just reported.
 
 ## Learning Log (Vitácora)
 
