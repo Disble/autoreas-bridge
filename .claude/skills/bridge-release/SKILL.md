@@ -126,7 +126,13 @@ too; a diff there after a local build is expected noise, not a change to ship.
 
 - `autoreas-bridge-X.Y.Z-windows-amd64-installer.exe`
 - `autoreas-bridge-X.Y.Z-linux-amd64.tar.gz`
+- `autoreas-bridge-X.Y.Z-linux-amd64.deb`
 - `SHA256SUMS-windows-amd64.txt`, `SHA256SUMS-linux-amd64.txt`
+
+The `.deb` was missing from this list until v1.12.0, where the published assets were read back
+rather than assumed. `SHA256SUMS-linux-amd64.txt` covers both Linux artifacts, which is why it is
+roughly twice the length of the Windows one — a useful readback check that the tarball and the
+`.deb` were both hashed.
 
 **The portable Windows `.exe` is deliberately not published.** Bridge is an
 installed application — it registers auto-start, lives in the system tray, and
