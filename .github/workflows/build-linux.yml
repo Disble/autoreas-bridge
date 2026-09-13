@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Wails v2 links GTK3 and WebKit2GTK through cgo/pkg-config. Ubuntu 24.04
       # only ships webkit2gtk-4.1, and wails' gtk.go pkg-configs webkit2gtk-4.0
@@ -46,7 +46,7 @@ jobs:
             libwebkit2gtk-4.1-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -252,7 +252,7 @@ jobs:
           ls -l dist
 
       - name: Upload the Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: autoreas-bridge-linux-amd64
           path: dist/*

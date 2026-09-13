@@ -4,6 +4,7 @@ import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, resolveAnimeEditorFeedbackMessage, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
 import type { AnimeEditorDraft, AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
 import { useAnimeEditorDraftPickers } from './use-anime-editor-draft-pickers';
+import { useAnimeEditorLifecycleActions } from './use-anime-editor-lifecycle-actions';
 import { useAnimeEditorMetadataPatch } from './use-anime-editor-metadata-patch';
 
 /** Owns one selected record's authority, attempted draft, validation, and mutations. */
@@ -99,52 +100,7 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
       setState((current) => ({ ...current, isSaving: false }));
     }
   }, [source, state.draft, state.selectedRecord]);
-  const onDeactivate = useCallback(async () => {
-    if (state.selectedRecord === undefined) return undefined;
-    setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
-    try {
-      const result = await source.deactivateAnime(state.selectedRecord.animeId, state.selectedRecord.modifiedAt);
-      const intentional = isIntentionalEditorOutcome(result);
-      setState((current) => ({
-        ...current,
-        selectedRecord: result.record ?? current.selectedRecord,
-        draft: intentional ? createAnimeEditorDraft(result.record) : current.draft,
-        retainsAttemptedDraft: !intentional,
-        feedback: resolveAnimeEditorFeedbackMessage(result, 'Deactivate anime was not applied.'),
-      }));
-      return result;
-    } catch (error) {
-      const message = toEditorErrorMessage(error);
-      setState((current) => ({ ...current, retainsAttemptedDraft: true, feedback: message }));
-      return { outcome: 'error' as const, message };
-    } finally {
-      setState((current) => ({ ...current, isSaving: false }));
-    }
-  }, [source, state.selectedRecord]);
-
-  const onActivate = useCallback(async () => {
-    if (state.selectedRecord === undefined) return undefined;
-    const animeId = state.selectedRecord.animeId;
-    setState((current) => ({ ...current, isSaving: true, feedback: undefined }));
-    try {
-      const result = await source.restoreAnime(animeId, state.selectedRecord.modifiedAt);
-      if (result.status === 'ok') {
-        // Authority changed (active flips true); reload the record so the form
-        // and the Deactivate/Activate button reflect the restored lifecycle.
-        await loadRecord(animeId);
-        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Anime activated.') }));
-      } else {
-        setState((current) => ({ ...current, feedback: resolveAnimeEditorFeedbackMessage(result, 'Activate anime was not applied.') }));
-      }
-      return result;
-    } catch (error) {
-      const message = toEditorErrorMessage(error);
-      setState((current) => ({ ...current, feedback: message }));
-      return { status: 'error' as const, message };
-    } finally {
-      setState((current) => ({ ...current, isSaving: false }));
-    }
-  }, [source, state.selectedRecord, loadRecord]);
+  const lifecycle = useAnimeEditorLifecycleActions(source, state.selectedRecord, setState, loadRecord);
 
   // 7. Effects
   useEffect(() => {
@@ -163,6 +119,10 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     onMetadataUndo: metadataPatch.onMetadataUndo,
     onPickFolder: draftPickers.onPickFolder,
     onPickCoverFile: draftPickers.onPickCoverFile,
-    onSave, onDeactivate, onActivate, loadRecord,
+    onSave,
+    onDeactivate: lifecycle.onDeactivate,
+    onRestore: lifecycle.onRestore,
+    onRepeat: lifecycle.onRepeat,
+    loadRecord,
   };
 }

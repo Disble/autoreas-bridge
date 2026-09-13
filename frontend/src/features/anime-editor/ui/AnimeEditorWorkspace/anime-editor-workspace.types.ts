@@ -21,6 +21,23 @@ export interface AnimeEditorStatusOption {
   readonly label: string;
 }
 
+/** Lifecycle action gated behind a confirmation before any gateway write. */
+export type AnimeEditorLifecycleAction = 'deactivate' | 'restore' | 'repeat';
+
+/**
+ * Display-ready confirmation copy for the selected lifecycle action, driving
+ * one generalized confirm modal instead of one hardcoded modal per action.
+ * Mirrors `AnimeDetailConfirmationViewModel`'s shape (`anime-detail.types.ts`)
+ * plus `isDestructive`, which Anime Detail's confirmations do not need.
+ */
+export interface AnimeEditorLifecycleConfirmation {
+  readonly action: AnimeEditorLifecycleAction;
+  readonly heading: string;
+  readonly description: string;
+  readonly confirmLabel: string;
+  readonly isDestructive: boolean;
+}
+
 /** Deferred dirty-guard actions the workspace can resume after Save or Discard. */
 export type AnimeEditorPendingAction =
   | { readonly type: 'select'; readonly animeId: string }
@@ -151,7 +168,8 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly loadRecord: (animeId: string) => Promise<void>;
   readonly saveRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly deactivateRecord: () => Promise<AnimeEditorSaveResult | undefined>;
-  readonly activateRecord: () => Promise<{ readonly status: string } | undefined>;
+  readonly restoreRecord: () => Promise<{ readonly status: string } | undefined>;
+  readonly repeatRecord: () => Promise<{ readonly status: string } | undefined>;
   readonly discardRecord: () => void;
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;

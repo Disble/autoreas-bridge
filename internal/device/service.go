@@ -60,6 +60,14 @@ type SyncStateStore interface {
 	MarkDeviceRevoked(ctx context.Context, deviceID string, atMs int64) error
 }
 
+// PresenceStore reports which paired devices currently hold a live realtime
+// connection. It is optional, mirroring the SetSyncStateStore seam: this
+// package never imports internal/realtime directly, so the composition root
+// satisfies this interface with whatever hub it wires (see internal/desktop).
+type PresenceStore interface {
+	ConnectedDeviceIDs() []string
+}
+
 // Store persists pairing tokens and paired-device records.
 type Store interface {
 	SavePairingToken(ctx context.Context, token string, createdAtMs int64) error
@@ -88,6 +96,7 @@ type AdminService interface {
 type Service struct {
 	store          Store
 	syncStateStore SyncStateStore
+	presenceStore  PresenceStore
 	now            func() time.Time
 	newToken       func() (string, error)
 	newID          func() string
@@ -117,6 +126,14 @@ func (s *Service) SetSyncStateStore(store SyncStateStore) {
 		return
 	}
 	s.syncStateStore = store
+}
+
+// SetPresenceStore configures the optional realtime-presence backing store.
+func (s *Service) SetPresenceStore(store PresenceStore) {
+	if s == nil {
+		return
+	}
+	s.presenceStore = store
 }
 
 // PairDevice consumes a valid pairing token and provisions one authenticated device.
@@ -235,6 +252,12 @@ func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, erro
 			statesByDevice[state.DeviceID] = state
 		}
 	}
+	connectedDeviceIDs := map[string]struct{}{}
+	if s.presenceStore != nil {
+		for _, id := range s.presenceStore.ConnectedDeviceIDs() {
+			connectedDeviceIDs[id] = struct{}{}
+		}
+	}
 	result := make([]contracts.DeviceInfo, 0, len(devices))
 	for _, item := range devices {
 		state := statesByDevice[item.DeviceID]
@@ -242,9 +265,14 @@ func (s *Service) ListDevices(ctx context.Context) ([]contracts.DeviceInfo, erro
 		if syncStatus == "" {
 			syncStatus = "active"
 		}
-		connectionStatus := syncStatus
-		if connectionStatus == "active" {
-			connectionStatus = "disconnected"
+		// connection_status reflects live websocket presence, not sync health:
+		// sync_status can be "active" while the device is offline (see above)
+		// and, symmetrically, a device can be connected via websocket while its
+		// last reconcile is "stale". Absent a presence store the runtime
+		// degrades to "disconnected" rather than fabricating a connection.
+		connectionStatus := "disconnected"
+		if _, connected := connectedDeviceIDs[item.DeviceID]; connected {
+			connectionStatus = "connected"
 		}
 		result = append(result, contracts.DeviceInfo{
 			DeviceID:               item.DeviceID,

@@ -69,4 +69,26 @@ describe('bridge-runtime-source cover and events', () => {
     unsubscribe();
     unsubscribeSecond();
   });
+
+  it('shares one device-acknowledged subscription, delivers payloads, and stops after unsubscribe', async () => {
+    let handler: ((notice: { deviceId: string; lastSeenAtMs: number }) => void) | undefined;
+    const eventsOnMultiple = vi.fn().mockImplementation(
+      (_name: string, callback: (notice: { deviceId: string; lastSeenAtMs: number }) => void) => {
+        handler = callback;
+        return () => undefined;
+      },
+    );
+    window.runtime = { EventsOnMultiple: eventsOnMultiple } as never;
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const source = createBridgeRuntimeSource();
+    const listener = vi.fn();
+    const unsubscribe = source.onDeviceAcknowledged?.(listener);
+    await vi.advanceTimersByTimeAsync(5000);
+    handler?.({ deviceId: 'device-1', lastSeenAtMs: 42 });
+    expect(eventsOnMultiple).toHaveBeenCalledWith('sync.device_acknowledged', expect.any(Function), -1);
+    expect(listener).toHaveBeenCalledWith({ deviceId: 'device-1', lastSeenAtMs: 42 });
+    unsubscribe?.();
+    handler?.({ deviceId: 'device-2', lastSeenAtMs: 99 });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
 });

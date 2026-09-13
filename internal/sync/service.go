@@ -110,12 +110,26 @@ func (s *TriggerService) listChanges(ctx context.Context, list func(context.Cont
 }
 
 // AcknowledgeDevice records that a device has processed changelog rows through lastChangelogID.
+//
+// The device-acknowledged event publishes after the store write succeeds and
+// before PruneAcknowledgedChangelog runs (design.md D4): a prune error
+// returns to the caller but does not undo the acknowledgment, so publishing
+// after the prune would let last_seen_at_ms commit in SQLite while the
+// Connected Devices panel never hears about it.
 func (s *TriggerService) AcknowledgeDevice(ctx context.Context, deviceID string, lastChangelogID int64) error {
 	if s.store == nil {
 		return nil
 	}
-	if err := s.store.AcknowledgeDevice(ctx, deviceID, lastChangelogID, time.Now().UnixMilli()); err != nil {
+	nowMs := time.Now().UnixMilli()
+	if err := s.store.AcknowledgeDevice(ctx, deviceID, lastChangelogID, nowMs); err != nil {
 		return err
+	}
+	if s.bus != nil {
+		s.bus.Publish(events.DeviceAcknowledgedEvent{
+			DeviceID:           deviceID,
+			LastAckChangelogID: lastChangelogID,
+			LastSeenAtMs:       nowMs,
+		})
 	}
 	_, err := s.store.PruneAcknowledgedChangelog(ctx)
 	return err

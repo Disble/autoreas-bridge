@@ -181,6 +181,66 @@ func TestServiceListDevicesIncludesSyncState(t *testing.T) {
 	}
 }
 
+// TestServiceListDevicesConnectionStatusReflectsPresence pins the fix for the
+// defect where connection_status was derived from sync_status (sync health)
+// instead of live realtime presence: a device with no presence entry reads
+// "disconnected" even while its sync_status is the unrelated "active" value,
+// and a device present in the injected store reads "connected" regardless of
+// its sync_status.
+func TestServiceListDevicesConnectionStatusReflectsPresence(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(&stubStore{
+		listed: []StoredDevice{
+			{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token-1", PairedAtMs: 100},
+			{DeviceID: "device-2", Name: "Pixel", AuthToken: "auth-token-2", PairedAtMs: 100},
+		},
+	})
+	service.SetPresenceStore(stubPresenceStore{connectedDeviceIDs: []string{"device-1"}})
+
+	got, err := service.ListDevices(context.Background())
+	if err != nil {
+		t.Fatalf("list devices: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 devices, got %#v", got)
+	}
+
+	statusByID := map[string]string{}
+	for _, device := range got {
+		statusByID[device.DeviceID] = device.ConnectionStatus
+	}
+	if statusByID["device-1"] != "connected" {
+		t.Fatalf("expected device-1 connected, got %#v", got)
+	}
+	if statusByID["device-2"] != "disconnected" {
+		t.Fatalf("expected device-2 disconnected, got %#v", got)
+	}
+}
+
+// TestServiceListDevicesConnectionStatusDefaultsDisconnectedWithoutPresenceStore
+// pins the degraded default: a runtime with no presence port injected must
+// keep reporting "disconnected" rather than fabricating a connection, even
+// when sync_status is "active".
+func TestServiceListDevicesConnectionStatusDefaultsDisconnectedWithoutPresenceStore(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(&stubStore{
+		listed: []StoredDevice{{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token", PairedAtMs: 100}},
+	})
+	service.SetSyncStateStore(&stubSyncStateStore{
+		states: []SyncState{{DeviceID: "device-1", SyncStatus: "active"}},
+	})
+
+	got, err := service.ListDevices(context.Background())
+	if err != nil {
+		t.Fatalf("list devices: %v", err)
+	}
+	if len(got) != 1 || got[0].ConnectionStatus != "disconnected" {
+		t.Fatalf("expected degraded disconnected default without a presence store, got %#v", got)
+	}
+}
+
 func TestServiceRevokeDeviceMarksSyncStateRevoked(t *testing.T) {
 	t.Parallel()
 
@@ -223,6 +283,15 @@ func (s *stubSyncStateStore) MarkDeviceRevoked(_ context.Context, deviceID strin
 	s.revokedDeviceID = deviceID
 	s.revokedAtMs = atMs
 	return nil
+}
+
+// stubPresenceStore is a fixed-set PresenceStore test double.
+type stubPresenceStore struct {
+	connectedDeviceIDs []string
+}
+
+func (s stubPresenceStore) ConnectedDeviceIDs() []string {
+	return s.connectedDeviceIDs
 }
 
 type stubStore struct {

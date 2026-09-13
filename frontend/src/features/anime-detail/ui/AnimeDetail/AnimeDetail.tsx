@@ -1,4 +1,4 @@
-import { Button, Card, Chip, ProgressBar } from '@heroui/react';
+import { Button, Card, Chip, ProgressBar, Skeleton } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
@@ -12,6 +12,7 @@ import {
   ANIME_DETAIL_NO_PAGINA_MESSAGE,
   ANIME_DETAIL_NO_REPETITIONS_MESSAGE,
   ANIME_DETAIL_PORTADA_ALT,
+  ANIME_DETAIL_PORTADA_LOADING_MESSAGE,
   ANIME_DETAIL_PROGRESS_LABEL,
   ANIME_DETAIL_STAT_TILE_CLASS,
 } from './anime-detail.constants';
@@ -23,7 +24,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
   const {
     loadState,
     detail,
-    showPortadaPlaceholder,
+    cover,
     confirmation,
     feedback,
     isMutating,
@@ -61,21 +62,32 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
         </Button>
 
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          {showPortadaPlaceholder ? (
+          {cover.status === 'loading' ? (
+            <div
+              aria-labelledby="anime-detail-portada-loading-label"
+              aria-live="polite"
+              role="status"
+            >
+              <span className="sr-only" id="anime-detail-portada-loading-label">
+                {ANIME_DETAIL_PORTADA_LOADING_MESSAGE}
+              </span>
+              <Skeleton className={ANIME_DETAIL_HERO_AVATAR_CLASS} />
+            </div>
+          ) : cover.status === 'cover' ? (
+            <img
+              alt={ANIME_DETAIL_PORTADA_ALT}
+              className={`object-cover ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
+              onError={onPortadaError}
+              onLoad={onPortadaLoad}
+              src={cover.dataUrl}
+            />
+          ) : (
             <div
               className={`flex items-center justify-center bg-white/[0.04] text-muted ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
               data-testid="anime-detail-portada-placeholder"
             >
               <AnimeCoverPlaceholder className="size-16" />
             </div>
-          ) : (
-            <img
-              alt={ANIME_DETAIL_PORTADA_ALT}
-              className={`object-cover ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
-              onError={onPortadaError}
-              onLoad={onPortadaLoad}
-              src={detail.portadaUrl}
-            />
           )}
 
           <div className="space-y-1">
