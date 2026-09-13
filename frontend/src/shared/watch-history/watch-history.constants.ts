@@ -11,3 +11,11 @@ export const ROW_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
 });
+
+/**
+ * Local-midnight start of the watch-history log (2026-07-05). A past watch
+ * ending strictly before this instant predates recording and renders its
+ * repetition summary instead of an episode list; a watch ending exactly here
+ * is already covered by the log.
+ */
+export const WATCH_HISTORY_LOG_START_MS = new Date(2026, 6, 5).getTime();

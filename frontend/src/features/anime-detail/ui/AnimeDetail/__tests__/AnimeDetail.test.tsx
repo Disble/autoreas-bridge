@@ -47,8 +47,8 @@ function createDetailViewModel(overrides = {}) {
     studios: 'Madhouse',
     origin: 'Manga',
     isFirstWatch: true,
-    repetitions: [],
-    hasRepetitionHistory: false,
+    watches: [],
+    hasWatches: false,
     ...overrides,
   };
 }
@@ -374,8 +374,8 @@ describe('AnimeDetail', () => {
   it('renders the repetition timeline when populated', () => {
     mockAnimeDetailState({
       detail: createDetailViewModel({
-        hasRepetitionHistory: true,
-        repetitions: [
+        hasWatches: true,
+        watches: [
           {
             key: '1-0',
             numRepeticion: 1,

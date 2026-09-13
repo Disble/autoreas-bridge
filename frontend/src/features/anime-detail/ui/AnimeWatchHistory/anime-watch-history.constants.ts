@@ -26,6 +26,9 @@ export const ANIME_WATCH_HISTORY_ROW_CLASS = 'flex w-full items-center justify-b
 /** How many placeholder rows the section draws while its page is unresolved. */
 export const ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT = 3;
 
+/** Separator joining the start and end halves of a watch span label. */
+export const ANIME_WATCH_HISTORY_SPAN_SEPARATOR = ' – ';
+
 /**
  * Muted notice shown under the row list when the page's `nextCursor` proves
  * older rows exist beyond this single page (the backend page defaults to its

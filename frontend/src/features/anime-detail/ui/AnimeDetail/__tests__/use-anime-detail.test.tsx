@@ -76,8 +76,8 @@ describe('useAnimeDetail', () => {
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
-    expect(result.current.detail?.hasRepetitionHistory).toBe(true);
-    expect(result.current.detail?.repetitions).toHaveLength(1);
+    expect(result.current.detail?.hasWatches).toBe(true);
+    expect(result.current.detail?.watches).toHaveLength(1);
     expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1');
   });
 

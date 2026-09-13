@@ -381,7 +381,7 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
  * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetitions ?? []).map((entry, index) =>
+  const watches = sortAnimeRepeticionesMostRecentFirst(detail.repetitions ?? []).map((entry, index) =>
     toAnimeRepeticionViewModel(entry, index),
   );
   const totalLabel = formatAnimeDetailTotalLabel(detail.totalEpisodes);
@@ -413,7 +413,7 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     studios: detail.studios ?? ANIME_DETAIL_UNKNOWN_LABEL,
     origin: detail.origin ?? ANIME_DETAIL_UNKNOWN_LABEL,
     isFirstWatch: detail.firstCycle === 1,
-    repetitions,
-    hasRepetitionHistory: repetitions.length > 0,
+    watches,
+    hasWatches: watches.length > 0,
   };
 }

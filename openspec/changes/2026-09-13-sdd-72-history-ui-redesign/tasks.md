@@ -233,12 +233,12 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** pure helpers plus a rename on the existing view model; no visible change without U13's Accordion.
 **Forecast:** 400–480 (D10).
 
-- [ ] **12.1** [RED] `AnimeWatchHistory/__tests__/anime-watch-history.helpers.test.ts` (new): `toAnimeWatchViewModels(detail, logStartMs)` table — a shuffled wire order still sorts stable by `numRepetitions` ascending; the current watch is `R + 1`; `spanLabel` (`createdAt` → `deletedAt ?? lastWatchedAt ?? repeatedAt`, current watch ends at `lastWatchedAt`); `episodesLabel` ("X of Y episodes" / "X episodes" without a total) + `progressRatio`; `isPreLog` boundary exactly at `WATCH_HISTORY_LOG_START_MS` (D9).
-- [ ] **12.2** [GREEN] `anime-watch-history.helpers.ts`, `anime-watch-history.types.ts` (`AnimeWatchViewModel`, `readonly`).
-- [ ] **12.3** [GREEN] `anime-detail.helpers.ts`/`anime-detail.types.ts`: rename `repetitions`/`hasRepetitionHistory` to `watches`. Leave `toAnimeRepeticionViewModel`, `sortAnimeRepeticionesMostRecentFirst`, `formatAnimeDetailRepetitionDate` and their constants in place until U14 (D10: no unit removes information before its replacement renders).
+- [x] **12.1** [RED] `AnimeWatchHistory/__tests__/anime-watch-history.helpers.test.ts` (new): `toAnimeWatchViewModels(detail, logStartMs)` table — a shuffled wire order still sorts stable by `numRepetitions` ascending; the current watch is `R + 1`; `spanLabel` (`createdAt` → `deletedAt ?? lastWatchedAt ?? repeatedAt`, current watch ends at `lastWatchedAt`); `episodesLabel` ("X of Y episodes" / "X episodes" without a total) + `progressRatio`; `isPreLog` boundary exactly at `WATCH_HISTORY_LOG_START_MS` (D9).
+- [x] **12.2** [GREEN] `anime-watch-history.helpers.ts`, `anime-watch-history.types.ts` (`AnimeWatchViewModel`, `readonly`).
+- [x] **12.3** [GREEN] `anime-detail.helpers.ts`/`anime-detail.types.ts`: rename `repetitions`/`hasRepetitionHistory` to `watches`. Leave `toAnimeRepeticionViewModel`, `sortAnimeRepeticionesMostRecentFirst`, `formatAnimeDetailRepetitionDate` and their constants in place until U14 (D10: no unit removes information before its replacement renders).
 - [ ] **12.4** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines; confirm the pre-log `<`/`<=` boundary mutant (design table) dies via the exact-log-start row.
-- [ ] **12.5** [REFACTOR] lean-tests: `it.each` tables; literal expected values (never assert against `WATCH_HISTORY_LOG_START_MS` itself).
-- [ ] **12.6** [VERIFY] `bun --cwd="frontend" run test -- anime-watch-history anime-detail`; `bun run typecheck`; eslint on touched files.
+- [x] **12.5** [REFACTOR] lean-tests: `it.each` tables; literal expected values (never assert against `WATCH_HISTORY_LOG_START_MS` itself).
+- [x] **12.6** [VERIFY] `bun --cwd="frontend" run test -- anime-watch-history anime-detail`; `bun run typecheck`; eslint on touched files.
 
 ---
 

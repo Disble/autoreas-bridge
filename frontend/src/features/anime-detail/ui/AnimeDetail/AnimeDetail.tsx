@@ -190,8 +190,8 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
 
         <section aria-label="Repetition history" className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-foreground">Repetition history</h3>
-          {detail.hasRepetitionHistory ? (
-            <AnimeRepetitionTimeline repetitions={detail.repetitions} />
+          {detail.hasWatches ? (
+            <AnimeRepetitionTimeline repetitions={detail.watches} />
           ) : (
             <p className="text-sm text-muted">{ANIME_DETAIL_NO_REPETITIONS_MESSAGE}</p>
           )}

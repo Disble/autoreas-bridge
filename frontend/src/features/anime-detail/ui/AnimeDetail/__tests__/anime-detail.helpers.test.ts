@@ -270,8 +270,8 @@ describe('toAnimeDetailViewModel', () => {
       studios: 'Unknown',
       origin: 'Unknown',
       isFirstWatch: true,
-      repetitions: [],
-      hasRepetitionHistory: false,
+      watches: [],
+      hasWatches: false,
     });
   });
 
@@ -319,7 +319,7 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel.creacionLabel).toBe('January 1, 2023');
     expect(viewModel.ultCapVistoLabel).toBe('March 22, 2024');
     expect(viewModel.hasGenres).toBe(false);
-    expect(viewModel.hasRepetitionHistory).toBe(true);
+    expect(viewModel.hasWatches).toBe(true);
   });
 
   // Real fixture: 793/795 records carry portada.path === '' and one carries
@@ -388,6 +388,6 @@ describe('toAnimeDetailViewModel', () => {
       ],
     });
 
-    expect(viewModel.repetitions.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
+    expect(viewModel.watches.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
   });
 });

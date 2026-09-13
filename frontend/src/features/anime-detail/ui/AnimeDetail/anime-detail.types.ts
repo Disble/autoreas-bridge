@@ -78,8 +78,8 @@ export interface AnimeDetailViewModel {
   readonly studios: string;
   readonly origin: string;
   readonly isFirstWatch: boolean;
-  readonly repetitions: readonly AnimeRepeticionViewModel[];
-  readonly hasRepetitionHistory: boolean;
+  readonly watches: readonly AnimeRepeticionViewModel[];
+  readonly hasWatches: boolean;
 }
 
 /** Discriminates the three states the shared detail can render. */
