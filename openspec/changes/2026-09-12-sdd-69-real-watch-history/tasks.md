@@ -96,7 +96,7 @@ session start, so `sdd-apply` proceeds directly with Slice 1.
 | 1. `watch_history` schema + store | 200 | 330 | 60 | 590 | Yes, tight |
 | 2. Diff-derived recorder on both write paths | 150 | 350 | 60 | 560 | Yes |
 | 3. One-shot backfill + telemetry-row purge | 150 | 300 | 60 | 510 | Yes |
-| 4. Telemetry → `runtime_events`; `activity_log` cap; ADR-022 | 110 | 230 | 240 | 580 | Yes, tight |
+| 4. Telemetry → `runtime_events`; `activity_log` cap; ADR-023 | 110 | 230 | 240 | 580 | Yes, tight |
 | 5. Wails bindings (additive) + frontend adapter + contracts | 120 | 180 | 50 | 350 | Yes |
 | 6. `/history` timeline: grouping helpers + rows (unwired) | 220 | 320 | 60 | 600 | At the cap |
 | 7. Three states + windowing guard + route switch + `HistoryTable` deletion | 200 + (−899) | 250 + (−959) | 90 | ≈2,398 | **No — declared `size:exception`** |
@@ -383,7 +383,7 @@ replays from `activity_log` (proposal's Rollback Plan).
 
 **Leaves the app working because:** the four desktop actions still work identically from the user's
 point of view; only where their telemetry lands changes.
-**Forecast:** 580 (tight), re-planned after Slices 1–3 each landed ~1.7× their forecast: ADR-022 moves
+**Forecast:** 580 (tight), re-planned after Slices 1–3 each landed ~1.7× their forecast: ADR-023 moves
 to Slice 9, and the slice runs as two work units, 4a (4.1) and 4b (4.2–4.3), each committed on its own. Requirement: `observability`'s MODIFIED "Activity Log Remains Untouched By
 Runtime-Event Persistence" (both scenarios).
 
@@ -435,22 +435,22 @@ cadence-skip-then-enforce), mirroring eventlog/syncdiag's shape rather than one 
 **Apply note (4.3):** no existing filter/search test distinguished a null-`event_type` residue row from
 a populated one; added one to `reader_search_test.go` seeding the measured residue shape.
 
-### 4.4 ADR-022 — moved to Slice 9 (9.3.1)
+### 4.4 ADR-023 — moved to Slice 9 (9.3.1)
 
 ### 4.5 MUTATE
 
-- [ ] **4.5.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/activity/
+- [x] **4.5.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/activity/
   --threshold 0.80 --test-command "go test -count=1 -json ./internal/desktop/"`.
-- [ ] **4.5.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
+- [x] **4.5.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/desktop/
   --threshold 0.80 --test-command "go test -count=1 -json ./internal/activity/"`.
-- [ ] **4.5.3** [REFACTOR] Address survivors.
+- [x] **4.5.3** [REFACTOR] Address survivors.
 
 ### 4.6 Verification & commit
 
-- [ ] **4.6.1** [VERIFY] `go test ./internal/desktop/... ./internal/activity/...`; both golangci
+- [x] **4.6.1** [VERIFY] `go test ./internal/desktop/... ./internal/activity/...`; both golangci
   profiles; `checkgofilesize`; `git diff --stat -- docs/openapi.yaml` is empty (no REST/WS surface
   touched).
-- [ ] **4.6.2** Orchestrator verifies and commits this slice.
+- [x] **4.6.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. An older build's `activity_log` keeps navigation rows again (harmless); the
 cap is additive.
@@ -497,20 +497,20 @@ caught it); `fallow audit --quiet` clean, no unused-export finding.
 
 ### 5.4 MUTATE
 
-- [ ] **5.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+- [x] **5.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
   "go test -count=1 -json ./internal/desktop/"`, then repeated scoped to `./internal/api/...` if the
   contracts package carries any branching logic worth scoring (thin DTOs are expected to yield few or no
   mutants — do not skip the run on that assumption).
-- [ ] **5.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the touched
+- [x] **5.4.2** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to the touched
   adapter/types files.
-- [ ] **5.4.3** [REFACTOR] Address survivors.
+- [x] **5.4.3** [REFACTOR] Address survivors.
 
 ### 5.5 Verification & commit
 
-- [ ] **5.5.1** [VERIFY] `go test ./internal/desktop/... ./internal/api/...`; `bun --cwd="frontend" run
+- [x] **5.5.1** [VERIFY] `go test ./internal/desktop/... ./internal/api/...`; `bun --cwd="frontend" run
   test -- bridge-runtime-source`; both golangci profiles; `checkgofilesize`; `git diff --stat --
   docs/openapi.yaml` empty.
-- [ ] **5.5.2** Orchestrator verifies and commits this slice.
+- [x] **5.5.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. Purely additive; no consumer exists yet.
 
@@ -560,18 +560,18 @@ rows/headings authored here).
 
 ### 6.3 MUTATE
 
-- [ ] **6.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
+- [x] **6.3.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's
   files; read the per-file table, not the blended score.
-- [ ] **6.3.2** [REFACTOR] Address survivors.
+- [x] **6.3.2** [REFACTOR] Address survivors.
 
 ### 6.4 Verification & commit
 
-- [ ] **6.4.1** [VERIFY] `bun --cwd="frontend" run test -- watch-history history-timeline`; ESLint
+- [x] **6.4.1** [VERIFY] `bun --cwd="frontend" run test -- watch-history history-timeline`; ESLint
   `max-lines`; JSDoc lint (`dharness/require-jsdoc`).
-- [ ] **6.4.2** [VERIFY] If the "no export without a consumer" fallow gate rejects `HistoryTimeline`/
+- [x] **6.4.2** [VERIFY] If the "no export without a consumer" fallow gate rejects `HistoryTimeline`/
   `use-history-timeline` as unconsumed at commit time, apply Note F (merge into Slice 7) instead of
   reworking this slice's test scope.
-- [ ] **6.4.3** Orchestrator verifies and commits this slice.
+- [x] **6.4.3** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. Unwired component; no route references it.
 
@@ -633,22 +633,22 @@ frontend) and fixed one pre-existing Slice 6b `checkarchitecture` violation (`ac
 
 ### 7.4 MUTATE
 
-- [ ] **7.4.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to `HistoryTimeline`/
+- [x] **7.4.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to `HistoryTimeline`/
   `use-history-timeline`/`HistoryRoute`'s touched lines (the deletion contributes no mutable lines).
-- [ ] **7.4.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+- [x] **7.4.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
   "go test -count=1 -json ./internal/anime/"`, then repeated for `./internal/desktop/...` and
   `./internal/api/...`, scoped to the 7.3.4 removal's staged lines (expect little to no mutable surface —
   deletions only).
-- [ ] **7.4.3** [REFACTOR] Address survivors.
+- [x] **7.4.3** [REFACTOR] Address survivors.
 
 ### 7.5 Verification & commit
 
-- [ ] **7.5.1** [VERIFY] `bun --cwd="frontend" run test -- history`; `bun --cwd="frontend" run
+- [x] **7.5.1** [VERIFY] `bun --cwd="frontend" run test -- history`; `bun --cwd="frontend" run
   render:smoke` (confirms `/history` renders non-blank, CLAUDE.md #18b); `go test ./internal/anime/...
   ./internal/desktop/... ./internal/api/...`; both golangci profiles; `checkgofilesize`; ESLint
   `max-lines`; a dead-code/unused-export audit shows zero remaining importers of the deleted module and
   zero orphaned exports; `git status --porcelain` scoped to this slice.
-- [ ] **7.5.2** Orchestrator verifies and commits this slice.
+- [x] **7.5.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert` restores `HistoryTable` and the old bindings together in one step — keep the
 branch linear (`git revert`, never `git reset`) so this remains true.
@@ -697,14 +697,14 @@ previous history entry exists` in `use-anime-detail.test.tsx` pin both branches.
 
 ### 8.4 MUTATE
 
-- [ ] **8.4.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's files.
-- [ ] **8.4.2** [REFACTOR] Address survivors.
+- [x] **8.4.1** [MUTATE] `bun --cwd="frontend" run test:mutation:staged`, isolated to this slice's files.
+- [x] **8.4.2** [REFACTOR] Address survivors.
 
 ### 8.5 Verification & commit
 
 - [x] **8.5.1** [VERIFY] `bun --cwd="frontend" run test -- anime-detail anime-watch-history`; `bun
   --cwd="frontend" run render:smoke`; ESLint `max-lines`; JSDoc lint.
-- [ ] **8.5.2** Orchestrator verifies and commits this slice.
+- [x] **8.5.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. Additive section; no route or contract removed.
 
@@ -717,34 +717,43 @@ previous history entry exists` in `use-anime-detail.test.tsx` pin both branches.
 
 ### 9.1 CHANGELOG
 
-- [ ] **9.1.1** Add an entry to `CHANGELOG.md`'s `[Unreleased]` section (Keep a Changelog headings,
+- [x] **9.1.1** Add an entry to `CHANGELOG.md`'s `[Unreleased]` section (Keep a Changelog headings,
   English, user-facing wording, not pasted commit subjects): real per-episode watch history, the new
   `/history` timeline, and the per-anime history section on Anime Detail.
 
 ### 9.2 Learning log
 
-- [ ] **9.2.1** `node scripts/log-lesson.mjs "<one sentence, <=300 chars>"` — record the non-obvious
+- [x] **9.2.1** `node scripts/log-lesson.mjs "<one sentence, <=300 chars>"` — record the non-obvious
   decision worth keeping. Candidates: the D3 cycle-anchoring correction over the explore's naive forward
   count (it would have mis-assigned 59 of 61 repeated animes), or the sequencing fix that kept
   `GetAnimeHistory`/`ListAnimeHistory` alive through Slice 6 to avoid breaking the still-live
   `HistoryTable` before its deletion.
 
-### 9.3 ADR-022 (moved from Slice 4 so every code slice stays under the cap)
+### 9.3 ADR-023 (moved from Slice 4 so every code slice stays under the cap)
 
-- [ ] **9.3.1** Write `docs/adr/022-watch-history-model.md`: the selected model (browser-history analogy,
+- [x] **9.3.1** Write `docs/adr/023-watch-history-model.md`: the selected model (browser-history analogy,
   one row per episode with its own timestamp, retraction deletes the row), the two rejected alternatives
   (one-entry-per-log-row, day digest) with their measured noise ratios, the multi-episode
   jump/enumeration decision (D2a), the anime-domain-residue finding, and the three-lifetimes rule
-  (permanent / capped / rotating) — content drawn from `design.md`'s "ADR-022 rationale" section, in the
+  (permanent / capped / rotating) — content drawn from `design.md`'s "ADR-023 rationale" section, in the
   repo's ADR format (measured band: 123-217 lines).
 
 ### 9.4 Verification & commit
 
-- [ ] **9.4.1** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md`, `docs/learning-log.md` and
-  `docs/adr/022-watch-history-model.md`.
-- [ ] **9.4.2** Orchestrator verifies and commits this slice.
+- [x] **9.4.1** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md`, `docs/learning-log.md` and
+  `docs/adr/023-watch-history-model.md`.
+- [x] **9.4.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. Documentation only.
+
+**Mutation, run after each commit in a clean worktree (`ditto changed` with `go test -timeout 60s`; Stryker by hand,
+because the commit gate's staged guard measured nothing on these commits):** watchhistory 0.91, anime and
+desktop 1.00 (S1–S2); sync 0.95, activity 1.00 (S3); desktop 1.00 (S4a); activity 0.76 → 0.84 after `c68979c`, the
+4 survivors ±1 on the retention defaults (S4b); desktop 1.00 (S5); Stryker 84% then 89% on the timeline hook and
+component after 6b killed the 6a survivors (S6a–6b); S7 deletes only; Stryker 90% (S8). `18ddff3` closed the three
+verification gaps (restore point, anime index, recorded name), each proven by breaking production. 6.4.2 never
+triggered: wiring the route first kept every export consumed. The ADR is numbered 023 because `dev` already
+holds ADR-022 (SDD-70, MyAnimeList); every artifact reference was renumbered to match.
 
 ---
 

@@ -30,7 +30,7 @@ currently collapsed into one table: permanent watch facts, capped audit diffs, r
 - `/history` becomes a browser-style list: day headings with a count, one row per episode, newest
   first. `ListAnimeHistory` and its read model are removed.
 - Anime Detail gains a per-anime history section beside `AnimeRepetitionTimeline`.
-- ADR-022 recording the selected model and the two rejected alternatives.
+- ADR-023 recording the selected model and the two rejected alternatives.
 
 ### Out of Scope
 
@@ -187,7 +187,7 @@ Forecast per slice against the **600-line** budget (prod + test + artifact prose
 | 1 | `watch_history` schema + store | 200 | 330 | 60 | 590 | Yes, tight |
 | 2 | Diff-derived recorder on both write paths | 150 | 350 | 60 | 560 | Yes |
 | 3 | One-shot backfill + telemetry-row purge | 150 | 300 | 60 | 510 | Yes |
-| 4 | Telemetry → `runtime_events`; `activity_log` cap; ADR-022 | 110 | 230 | 240 | 580 | Yes, tight |
+| 4 | Telemetry → `runtime_events`; `activity_log` cap; ADR-023 | 110 | 230 | 240 | 580 | Yes, tight |
 | 5 | Wails bindings + frontend adapter + contracts | 120 | 180 | 50 | 350 | Yes |
 | 6a | `/history` timeline: grouping helpers + rows | 220 | 320 | 60 | 600 | At the cap |
 | 6b | `/history`: three states + progressive window guard | 200 | 250 | 50 | 500 | Yes |

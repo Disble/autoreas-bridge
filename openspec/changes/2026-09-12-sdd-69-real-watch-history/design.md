@@ -175,7 +175,7 @@ rather than a user pressing "+1" three times, and it may be a conflict resolutio
 The design records that ambiguity rather than resolving it: the timestamp is the sync's, the episodes
 are the log's, and the surface groups them into one day like any other burst.
 
-The counter-argument deserves stating, because it nearly wins: ADR-022 rejects the day digest for
+The counter-argument deserves stating, because it nearly wins: ADR-023 rejects the day digest for
 holding one timestamp across several episodes, and enumeration shares a timestamp across several rows.
 The difference is what survives. The digest **erases** the individual episodes, so the question "what
 did I watch" becomes unanswerable; enumeration keeps every episode addressable, retractable and
@@ -672,7 +672,7 @@ func (a *App) GetAnimeWatchHistoryPage(animeID string, cursor string) contracts.
 | `frontend/src/features/history/ui/HistoryTable/**` | Delete | 1,858 measured lines (899 prod / 959 test) |
 | `frontend/src/features/anime-detail/ui/AnimeWatchHistory/**` | Create | Per-anime section beside `AnimeRepetitionTimeline` |
 | `frontend/src/infrastructure/bridge-runtime-source/**`, `shared/contracts/anime.types.ts` | Modify | Adapter + types |
-| `docs/adr/022-watch-history-model.md` | Create | ADR-022 |
+| `docs/adr/023-watch-history-model.md` | Create | ADR-023 |
 
 ---
 
@@ -740,7 +740,7 @@ reversible unit, and its undo is the restore point plus a full drop-and-replay.
 
 ---
 
-## ADR-022 rationale (source for the ADR)
+## ADR-023 rationale (source for the ADR)
 
 **Selected — one row per episode watched, with its own timestamp; a rollback DELETES the row.** The
 browser-history analogy settles it: a browser logs *you visited this page, at this time*, not *the URL

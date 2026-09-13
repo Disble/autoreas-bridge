@@ -14,6 +14,26 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Added
+
+- History is now a real watch history. Every episode you watch gets its own row with the time you watched it, listed newest first under a heading for each day that shows how many episodes you watched that day — the way a browser lists the pages you visited. Select any row to open that anime.
+- Rolling an episode back removes its row, so the history always agrees with your progress. Rewatching an anime from the start keeps the history of the earlier watch instead of wiping it.
+- Anime Detail shows that anime's own watch history: its 50 most recent episodes, with a pointer to History when there are more.
+- A jump of several episodes from the mobile app records each episode in between, all at the moment the change arrived, so nothing you skipped past goes missing.
+- The first launch of this version builds your history once from the progress the bridge already recorded, which goes back to 2026-07-05, and takes a restore point of the database right before it does. History cannot reach further back than that date, and the empty History screen says so.
+
+### Changed
+
+- The History screen loads as you scroll instead of all at once, and shows a loading placeholder, an empty state or an error message rather than a blank table.
+- Opening or copying an anime's page or folder is no longer written to the activity log. It goes to the diagnostic event log, which rotates on its own.
+- The activity log keeps its most recent 5,000 entries — about two and a half years at the current rate — instead of growing forever.
+
+### Internal
+
+- No REST or WebSocket contract changed: the new history reaches the desktop UI through two new Wails bindings, and the old snapshot-based history binding is gone.
+- The history lives in its own permanent table, one row per episode per rewatch, separate from the capped audit log and the rotating diagnostic log. Recording is derived from the before/after progress of each change rather than from what kind of action caused it, so the desktop and mobile write paths cannot disagree. Recorded in `docs/adr/023-watch-history-model.md`.
+- Mutation testing now runs after each commit in a separate worktree with a per-test timeout. A mutant that deadlocks the single SQLite connection used to hang a run for go test's default ten minutes.
+
 ## [1.12.0] — 2026-09-11
 
 ### Added
