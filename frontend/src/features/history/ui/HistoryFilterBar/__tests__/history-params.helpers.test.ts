@@ -18,6 +18,9 @@ describe('parseHistoryParams', () => {
     ['only one bound present is absent', 'from=2026-09-01', {}],
     ['an anime id and its row id', 'anime=anime-1&row=42', { animeId: 'anime-1', rowId: 42 }],
     ['a non-integer row id is absent, not an error', 'anime=anime-1&row=abc', { animeId: 'anime-1' }],
+    ['a negative row id is absent', 'anime=anime-1&row=-1', { animeId: 'anime-1' }],
+    ['row id zero is a real row', 'anime=anime-1&row=0', { animeId: 'anime-1', rowId: 0 }],
+    ['an empty anime id is absent', 'anime=&row=4', { rowId: 4 }],
   ])('parses %s', (_label, query, overrides) => {
     const expected: HistoryParams = { search: '', order: 'newest', ...overrides };
 

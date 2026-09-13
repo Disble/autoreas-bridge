@@ -36,14 +36,37 @@ export interface HistoryParams {
 }
 
 /**
+ * Which animes a Status/Type filter narrows the history read to (design D2).
+ * `'all'` sends no `animeIds` filter; `'ids'` narrows to that exact set;
+ * `'none'` means the filter matched nothing in the catalog, so the caller
+ * must render the filtered-empty state and skip the read entirely.
+ */
+export type HistoryAnimeScope =
+  | { readonly kind: 'all' }
+  | { readonly kind: 'ids'; readonly ids: readonly string[] }
+  | { readonly kind: 'none' };
+
+/**
  * Props for `HistoryFilterBar` (design D5, D6): a dumb component -- no Wails
- * calls, no `useEffect` (CLAUDE.md FE #1). This unit renders the Sort
- * control only; Search/Status/Type land in a later unit, the Watched range
- * after that.
+ * calls, no `useEffect` (CLAUDE.md FE #1). Search, Status, and Type land in
+ * this unit; the Watched range control lands in a later one. The caller owns
+ * the search draft's debounce and every write to the URL.
  */
 export interface HistoryFilterBarProps {
   /** The active sort order, rendered as the Sort control's selected value. */
   readonly order: WatchHistoryOrder;
   /** Called with the newly selected sort order. */
   readonly onSortChange: (order: WatchHistoryOrder) => void;
+  /** The Search control's current draft text, rendered as-is on every keystroke. */
+  readonly search: string;
+  /** Called immediately with the newly typed Search text; the caller decides when to commit it. */
+  readonly onSearchChange: (search: string) => void;
+  /** The active Status filter, or `undefined` for "All". */
+  readonly status: number | undefined;
+  /** Called with the newly selected Status filter, or `undefined` for "All". */
+  readonly onStatusChange: (status: number | undefined) => void;
+  /** The active Type filter, or `undefined` for "All". */
+  readonly type: number | undefined;
+  /** Called with the newly selected Type filter, or `undefined` for "All". */
+  readonly onTypeChange: (type: number | undefined) => void;
 }

@@ -130,15 +130,15 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** additive filters on the same unwired-to-final-list surface as U4.
 **Forecast:** 420–520 (D10).
 
-- [ ] **5.1** [RED] `history-timeline.helpers.test.ts` (new file): `resolveHistoryAnimeScope(catalog, status, type)` table — `all` / `ids` / `none` (D2).
-- [ ] **5.2** [GREEN] `resolveHistoryAnimeScope` in `history-timeline.helpers.ts`.
-- [ ] **5.3** [RED] `use-history-timeline.test.ts` (extend): loads `getAnimes()` once per visit, indexed by ID; `none` makes **zero** binding calls and renders the filtered-empty state; `ids` passes the ID set; `all` passes none.
-- [ ] **5.4** [GREEN] `use-history-timeline.ts`: catalog load + scope resolution wired before the request.
-- [ ] **5.5** [RED] `HistoryFilterBar.test.tsx` (extend): a debounced (300ms) `SearchField` writes `q` via replace; Status/Type `Select`s (four values incl. All) write via push.
-- [ ] **5.6** [GREEN] `HistoryFilterBar.tsx`: add Search/Status/Type; `useDebounce(300)` local draft; a render-phase reset against the previously seen `q` on an external change — never an effect (D5 stale-param lesson, autoreas-theme 1.0.11).
+- [x] **5.1** [RED] `history-timeline.helpers.test.ts` (new file): `resolveHistoryAnimeScope(catalog, status, type)` table — `all` / `ids` / `none` (D2).
+- [x] **5.2** [GREEN] `resolveHistoryAnimeScope` in `history-timeline.helpers.ts`.
+- [x] **5.3** [RED] `use-history-timeline.test.ts` (extend): loads `getAnimes()` once per visit, indexed by ID; `none` makes **zero** binding calls and renders the filtered-empty state; `ids` passes the ID set; `all` passes none.
+- [x] **5.4** [GREEN] `use-history-timeline.ts`: catalog load + scope resolution wired before the request.
+- [x] **5.5** [RED] `HistoryFilterBar.test.tsx` (extend): a debounced (300ms) `SearchField` writes `q` via replace; Status/Type `Select`s (four values incl. All) write via push. Orchestrator-adjusted: the debounce/replace behavior is pinned by a new colocated `use-history-filter-bar.test.ts` instead (CLAUDE.md FE #1 — `HistoryFilterBar.tsx` stays dumb); this file pins the dumb Search/Status/Type rendering and immediate onChange forwarding.
+- [x] **5.6** [GREEN] `HistoryFilterBar.tsx`: add Search/Status/Type; `useDebounce(300)` local draft; a render-phase reset against the previously seen `q` on an external change — never an effect (D5 stale-param lesson, autoreas-theme 1.0.11). Orchestrator-adjusted: the draft/debounce/render-phase-reset logic lives in a new colocated `use-history-filter-bar.ts` (`useHistoryFilterBarSearch`), not inside the `.tsx`.
 - [ ] **5.7** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines; confirm the `none`-short-circuit mutant (design table) dies via the zero-binding-calls test.
-- [ ] **5.8** [REFACTOR] lean-tests.
-- [ ] **5.9** [VERIFY] `bun --cwd="frontend" run test -- history-timeline HistoryFilterBar`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`.
+- [x] **5.8** [REFACTOR] lean-tests.
+- [x] **5.9** [VERIFY] `bun --cwd="frontend" run test -- history-timeline HistoryFilterBar`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`.
 
 ---
 

@@ -31,6 +31,9 @@ const { mockSource } = vi.hoisted(() => {
   let pagesServed = 0;
   return {
     mockSource: {
+      // Unfiltered (design D2): the scope-resolution catalog load resolves
+      // empty, which never narrows the request this fixture exercises.
+      getAnimes: vi.fn(() => Promise.resolve([])),
       getWatchHistoryPage: vi.fn(() => {
         const result = buildPage(pagesServed * HISTORY_PAGE_SIZE);
         pagesServed += 1;

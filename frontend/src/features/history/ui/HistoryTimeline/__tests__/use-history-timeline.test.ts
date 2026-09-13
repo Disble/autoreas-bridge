@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type {
+  Anime,
   WatchHistoryEntry,
   WatchHistoryOrder,
   WatchHistoryPage,
@@ -33,14 +34,39 @@ function page(overrides: Partial<WatchHistoryPage>): WatchHistoryPage {
   return { items: [], status: 'ok', ...overrides };
 }
 
-/** Minimal BridgeRuntimeSource stub exposing only the watch-history page binding under test; omit it to test the missing-binding path. */
-function createSource(getWatchHistoryPage?: BridgeRuntimeSource['getWatchHistoryPage']): BridgeRuntimeSource {
+/** Builds a minimal catalog `Anime` fixture, overriding only what a case needs. */
+function anime(overrides: Partial<Anime> = {}): Anime {
+  return {
+    id: 'anime-1',
+    name: 'Frieren',
+    status: 0,
+    episodesWatched: 1,
+    active: 1,
+    days: [],
+    genres: [],
+    hasDownloadPage: false,
+    hasFolder: false,
+    ...overrides,
+  };
+}
+
+/**
+ * Minimal BridgeRuntimeSource stub exposing the watch-history page and
+ * catalog bindings under test; omit `getWatchHistoryPage` to test the
+ * missing-binding path. `getAnimes` defaults to an empty, already-resolved
+ * catalog so every pre-existing (unfiltered) test needs no changes of its
+ * own to keep resolving past the new catalog-load step (design D2).
+ */
+function createSource(
+  getWatchHistoryPage?: BridgeRuntimeSource['getWatchHistoryPage'],
+  getAnimes: BridgeRuntimeSource['getAnimes'] = vi.fn().mockResolvedValue([]),
+): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
     getEffectiveAddress: vi.fn(),
     getPairingToken: vi.fn(),
     getSyncingAnimeItems: vi.fn(),
-    getAnimes: vi.fn(),
+    getAnimes,
     getAnimeDetail: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
@@ -52,7 +78,7 @@ describe('useHistoryTimeline', () => {
   it('starts loading with no groups, then fetches the first page with an empty cursor and groups the result by day', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.groups).toEqual([]);
@@ -70,7 +96,7 @@ describe('useHistoryTimeline', () => {
     ['no nextCursor is present', undefined, false],
   ])('reports hasMore correctly when %s', async (_label, nextCursor, expected) => {
     const source = createSource(vi.fn().mockResolvedValue(page({ items: [entry({})], nextCursor })));
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -85,7 +111,7 @@ describe('useHistoryTimeline', () => {
       )
       .mockResolvedValueOnce(page({ items: [entry({ id: 1, watchedAtMs: new Date(2026, 8, 12, 8, 0, 0).getTime() })] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -101,7 +127,7 @@ describe('useHistoryTimeline', () => {
   it('does not fetch a next page when there is none', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -114,7 +140,7 @@ describe('useHistoryTimeline', () => {
 
   it('surfaces an error, rather than degrading to an empty result, when the first page fails', async () => {
     const source = createSource(vi.fn().mockResolvedValue(page({ status: 'error', message: 'boom' })));
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -125,7 +151,7 @@ describe('useHistoryTimeline', () => {
 
   it('surfaces an error, rather than throwing, when the source has no getWatchHistoryPage binding', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -140,7 +166,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({})], nextCursor: '100:2' }))
       .mockResolvedValueOnce(page({ status: 'error', message: 'boom' }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -164,7 +190,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 1 })] }))
       .mockResolvedValueOnce(page({ items: [entry({ id: 2 })] }));
     const source = createSource(getWatchHistoryPage);
-    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, source), {
+    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, undefined, undefined, source), {
       initialProps: { order: 'newest' as WatchHistoryOrder },
     });
 
@@ -194,9 +220,11 @@ describe('useHistoryTimeline', () => {
       .mockReturnValueOnce(firstPage)
       .mockResolvedValueOnce(page({ items: [entry({ id: 2 })] }));
     const source = createSource(getWatchHistoryPage);
-    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, source), {
+    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, undefined, undefined, source), {
       initialProps: { order: 'newest' as WatchHistoryOrder },
     });
+
+    await waitFor(() => expect(getWatchHistoryPage).toHaveBeenCalledTimes(1));
 
     rerender({ order: 'oldest' });
     await waitFor(() => expect(result.current.groups[0]?.entries[0]?.id).toBe(2));
@@ -220,7 +248,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 1 })], nextCursor: '100:2' }))
       .mockReturnValueOnce(nextPage);
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline('newest', source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
     const nearBottom = { currentTarget: { scrollTop: 1700, clientHeight: 400, scrollHeight: 2000 } } as never;
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -255,5 +283,47 @@ describe('useHistoryTimeline', () => {
 
     expect(getWatchHistoryPage).toHaveBeenCalledTimes(2);
     expect(result.current.groups[0]?.entries).toHaveLength(2);
+  });
+
+  describe('catalog load and Status/Type scope (design D2)', () => {
+    it('loads the catalog once via getAnimes before the first watch-history page fetch', async () => {
+      const getAnimes = vi.fn().mockResolvedValue([anime({})]);
+      const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [] }));
+      const source = createSource(getWatchHistoryPage, getAnimes);
+      const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(getAnimes).toHaveBeenCalledTimes(1);
+      expect(getWatchHistoryPage).toHaveBeenCalledTimes(1);
+    });
+
+    it.each<[string, number | undefined, number | undefined, readonly string[]]>([
+      ['neither filter is set (all scope)', undefined, undefined, []],
+      ['a Status filter narrows to the matching catalog subset (ids scope)', 0, undefined, ['a']],
+    ])('sends the request built from the resolved scope when %s', async (_label, status, type, expectedAnimeIds) => {
+      const getAnimes = vi.fn().mockResolvedValue([anime({ id: 'a', status: 0 }), anime({ id: 'b', status: 1 })]);
+      const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [] }));
+      const source = createSource(getWatchHistoryPage, getAnimes);
+      const { result } = renderHook(() => useHistoryTimeline('newest', status, type, source));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(getWatchHistoryPage).toHaveBeenCalledWith({ ...request(''), animeIds: [...expectedAnimeIds] });
+    });
+
+    it('makes zero watch-history binding calls and resolves to the empty, non-loading state when a filter matches nothing (none scope)', async () => {
+      const getAnimes = vi.fn().mockResolvedValue([anime({ id: 'a', status: 0 })]);
+      const getWatchHistoryPage = vi.fn();
+      const source = createSource(getWatchHistoryPage, getAnimes);
+      const { result } = renderHook(() => useHistoryTimeline('newest', 3, undefined, source));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(getWatchHistoryPage).not.toHaveBeenCalled();
+      expect(result.current.groups).toEqual([]);
+      expect(result.current.hasMore).toBe(false);
+      expect(result.current.error).toBeUndefined();
+    });
   });
 });
