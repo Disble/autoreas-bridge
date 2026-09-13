@@ -71,3 +71,16 @@ linters:
           deny:
             - pkg: "github.com/wailsapp/wails/v2"
               desc: "the Wails runtime stays in the composition root (main.go + internal/desktop); inject runtime access into other internal packages instead of importing Wails there"
+
+        # Module boundary isolation: internal/myanimelist speaks MyAnimeList's
+        # own vocabulary only (design D5). It must not import the bridge
+        # domain it has no knowledge of, nor the DTO package whose conversion
+        # belongs one layer up, in internal/desktop.
+        myanimelist-speaks-only-mal:
+          files:
+            - "**/internal/myanimelist/**"
+          deny:
+            - pkg: "autoreas-bridge/internal/anime"
+              desc: "internal/myanimelist speaks MyAnimeList's vocabulary only; the MAL→bridge mapping lives outside it"
+            - pkg: "autoreas-bridge/internal/api/contracts"
+              desc: "the MAL module returns MAL-shaped values; the DTO conversion belongs in internal/desktop"

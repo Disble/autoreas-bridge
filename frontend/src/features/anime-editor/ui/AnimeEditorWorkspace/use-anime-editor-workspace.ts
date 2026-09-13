@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
 import type { AnimeEditorWorkspaceProps } from './anime-editor-workspace.types';
 import { useAnimeEditorList } from './use-anime-editor-list';
 import { useAnimeEditorListWindow } from './use-anime-editor-list-window';
@@ -53,6 +54,10 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
   return {
     query: list.query, filter: list.filter, items: list.items, listEmptyState: list.emptyState, selectedAnimeId: list.selectedAnimeId,
     selectedRecord: record.selectedRecord, draft: record.draft,
+    /** The draft's pending Undo (design D9) -- absent once undone, discarded, or never applied. */
+    appliedMetadata: record.appliedMetadata,
+    /** The MyAnimeList lookup's two Wails-bound calls, injected into the form's lookup modal. */
+    metadataLookupSource,
     isLoadingList: list.isLoadingList, isLoadingRecord: record.isLoadingRecord, isSaving: record.isSaving,
     isApplyingSchedule: schedule.isApplyingSchedule, isDirty: record.isDirty,
     isScheduleModalOpen: schedule.isScheduleModalOpen, scheduleBoard: schedule.scheduleBoard,
@@ -60,6 +65,10 @@ export function useAnimeEditorWorkspace(props: Readonly<AnimeEditorWorkspaceProp
     isDetailsOpen, isGuardOpen: transitions.isGuardOpen, canSave: record.canSave, listWindow, isDeactivateConfirmOpen,
     onQueryChange: list.setQuery, onFilterChange: list.onFilterChange, onClearCriteria: list.onClearCriteria, onSelectAnime: transitions.onSelectAnime, onDraftChange: record.onDraftChange,
     onToggleDetails, onDiscardChanges: record.onDiscardChanges, onPickFolder: record.onPickFolder, onPickCoverFile: record.onPickCoverFile, onSave: transitions.onSave, onDeactivate: transitions.onDeactivate, onActivate: transitions.onActivate,
+    /** Applies a confirmed MyAnimeList selection to the draft (design D9/D10). */
+    onMetadataApplied: record.onMetadataApplied,
+    /** Reverts the draft's last applied metadata patch (design D9). */
+    onMetadataUndo: record.onMetadataUndo,
     onRequestDeactivate, onCancelDeactivate, onConfirmDeactivate,
     onOpenSchedule: transitions.onOpenSchedule, onCloseSchedule: schedule.onCloseSchedule, onApplySchedule: transitions.onApplySchedule,
     onStayWithCurrentEditor: transitions.onStayWithCurrentEditor, onDiscardAndContinue: transitions.onDiscardAndContinue,

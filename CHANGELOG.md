@@ -14,6 +14,18 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Added
+
+- Fill in an anime's details straight from MyAnimeList. Both the Create form and the Editor now have
+  a "Fetch metadata" action beside the name: type a name, pick the right match from the search
+  results, and confirm to fill in type, episode count, duration, source, genres and studio — you
+  always pick, nothing is applied automatically. A misspelled or approximate name still finds the
+  right anime; MyAnimeList's own search tolerates typos far better than the alternatives tried.
+  Fields the lookup cannot answer — like your download page, folder, or watched episodes on Create,
+  and your watching status and premiere date on the Editor — are never touched, and a field
+  MyAnimeList genuinely does not report is called out rather than silently left blank. One button
+  press undoes the fill if you change your mind.
+
 ## [1.12.0] — 2026-09-11
 
 ### Added

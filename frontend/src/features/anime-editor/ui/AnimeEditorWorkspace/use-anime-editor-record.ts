@@ -3,6 +3,8 @@ import type { AnimeEditorSaveResult } from '../../../../shared/contracts/anime.t
 import { ANIME_EDITOR_DEFAULT_DRAFT } from './anime-editor-workspace.constants';
 import { createAnimeEditorDraft, createAnimeEditorSaveCommand, hasAnimeEditorChanges, isIntentionalEditorOutcome, resolveAnimeEditorFeedbackMessage, toEditorErrorMessage, validateAnimeEditorDraft } from './anime-editor-workspace.helpers';
 import type { AnimeEditorDraft, AnimeEditorRecordState, UseAnimeEditorRecordOptions } from './anime-editor-workspace.types';
+import { useAnimeEditorDraftPickers } from './use-anime-editor-draft-pickers';
+import { useAnimeEditorMetadataPatch } from './use-anime-editor-metadata-patch';
 
 /** Owns one selected record's authority, attempted draft, validation, and mutations. */
 export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptions>) {
@@ -19,6 +21,18 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
   });
 
   // 3. Context/3rd Party Hooks
+  /**
+   * Merges a patch into the draft. The one place `draft` state actually
+   * mutates -- hand-typing (`onDraftChange`) and a confirmed metadata
+   * autofill (`onMetadataApplied`/`onMetadataUndo`, wired through the
+   * composed {@link useAnimeEditorMetadataPatch}) both route through it, so
+   * an autofill marks the draft dirty exactly as typing would (design D9).
+   */
+  const patchDraft = useCallback((patch: Partial<AnimeEditorDraft>) => {
+    setState((current) => ({ ...current, draft: { ...current.draft, ...patch } }));
+  }, []);
+  const metadataPatch = useAnimeEditorMetadataPatch(state.draft, patchDraft);
+  const draftPickers = useAnimeEditorDraftPickers(source, patchDraft);
 
   // 4. Queries/Mutations
 
@@ -42,28 +56,24 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
         retainsAttemptedDraft: false,
         feedback: result.outcome === 'error' ? resolveAnimeEditorFeedbackMessage(result, 'The editor record could not be loaded.') : undefined,
       }));
+      // A pending Undo's pre-image belongs to the record it was captured
+      // against -- swapping records without clearing it would let Undo
+      // replay a stale pre-image onto an unrelated draft (design D9, "not
+      // persisted").
+      metadataPatch.resetAppliedMetadata();
     } catch (error) {
       if (loadSequence.current === request) setState((current) => ({ ...current, feedback: toEditorErrorMessage(error) }));
     } finally {
       if (loadSequence.current === request) setState((current) => ({ ...current, isLoadingRecord: false }));
     }
-  }, [source]);
+  }, [source, metadataPatch.resetAppliedMetadata]);
   const onDraftChange = useCallback((field: keyof AnimeEditorDraft, value: string) => {
-    setState((current) => ({ ...current, draft: { ...current.draft, [field]: field === 'status' ? Number(value) : value } }));
-  }, []);
+    patchDraft({ [field]: field === 'status' ? Number(value) : value } as Partial<AnimeEditorDraft>);
+  }, [patchDraft]);
   const onDiscardChanges = useCallback(() => {
     setState((current) => ({ ...current, draft: createAnimeEditorDraft(current.selectedRecord), retainsAttemptedDraft: false, feedback: undefined }));
-  }, []);
-  const onPickFolder = useCallback(async () => {
-    const path = await source.pickFolder('Select anime folder');
-    if (path.length === 0) return;
-    setState((current) => ({ ...current, draft: { ...current.draft, folder: path } }));
-  }, [source]);
-  const onPickCoverFile = useCallback(async () => {
-    const path = await source.pickFile('Select cover image');
-    if (path.length === 0) return;
-    setState((current) => ({ ...current, draft: { ...current.draft, coverType: 'image', coverPath: path } }));
-  }, [source]);
+    metadataPatch.resetAppliedMetadata();
+  }, [metadataPatch.resetAppliedMetadata]);
   const onSave = useCallback(async (): Promise<AnimeEditorSaveResult | undefined> => {
     if (state.selectedRecord === undefined) return undefined;
     const validation = validateAnimeEditorDraft(state.draft);
@@ -145,5 +155,14 @@ export function useAnimeEditorRecord(options: Readonly<UseAnimeEditorRecordOptio
     void loadRecord(options.selectedAnimeId);
   }, [loadRecord, options.selectedAnimeId]);
 
-  return { ...state, validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges, onPickFolder, onPickCoverFile, onSave, onDeactivate, onActivate, loadRecord };
+  return {
+    ...state,
+    appliedMetadata: metadataPatch.appliedMetadata,
+    validationMessage, isDirty, canSave, onDraftChange, onDiscardChanges,
+    onMetadataApplied: metadataPatch.onMetadataApplied,
+    onMetadataUndo: metadataPatch.onMetadataUndo,
+    onPickFolder: draftPickers.onPickFolder,
+    onPickCoverFile: draftPickers.onPickCoverFile,
+    onSave, onDeactivate, onActivate, loadRecord,
+  };
 }
