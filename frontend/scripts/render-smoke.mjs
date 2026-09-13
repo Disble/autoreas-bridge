@@ -61,6 +61,7 @@ const ROUTE_MARKERS = {
   // heading: if the identifier route ever wins again, the Library workspace
   // renders here instead and this marker disappears.
   '/#/editor/create': ['Create anime'],
+  '/#/history': ['Every episode you have watched, grouped by day'],
 };
 
 /** Extension-to-MIME map for the throwaway static server. */
@@ -228,7 +229,7 @@ try {
   // Requesting "/downloads" would silently serve index.html with an empty hash
   // and render the default route instead -- a check that looks like it covers
   // Downloads while never leaving Today.
-  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events', '/#/editor/create']) {
+  for (const route of ['/', '/#/downloads', '/#/notifications', '/#/activity', '/#/activity/runtime-events', '/#/editor/create', '/#/history']) {
     const dom = await renderRoute(edge, profileDir, `http://127.0.0.1:${port}${route}`);
     failures.push(...checkDom(dom, route));
   }

@@ -51,9 +51,9 @@ import { HistoryTimeline } from '../HistoryTimeline';
 
 afterEach(cleanup);
 
-/** Counts rendered watch-history rows, each a drill-down `Button`. */
+/** Counts rendered watch-history rows, each a selectable ListBox option. */
 function countRows() {
-  return screen.getAllByRole('button').length;
+  return screen.getAllByRole('option').length;
 }
 
 describe('HistoryTimeline progressive keyset paging (D5a)', () => {

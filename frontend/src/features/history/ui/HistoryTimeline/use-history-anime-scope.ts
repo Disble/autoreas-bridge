@@ -2,24 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { Anime } from '../../../../shared/contracts/anime.types';
-import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
 import { resolveHistoryAnimeScope } from './history-timeline.helpers';
+import type { HistoryAnimeScopeLoadState } from './history-timeline.types';
 
 /**
  * Loads the anime catalog via `getAnimes()` once per History visit and
  * resolves the active Status/Type filter against it (design D2), so
  * `useHistoryTimeline` itself only has to read the result. Returns
- * `undefined` until the catalog has resolved -- callers gate their first
- * page fetch on that, since `isLoading` covers the catalog load too
- * (CLAUDE.md FE #14).
+ * `undefined` until the catalog has resolved. A rejection remains an explicit
+ * error, so the History surface never renders a failed read as empty.
  */
 export function useHistoryAnimeScope(
   status: number | undefined,
   type: number | undefined,
   source: BridgeRuntimeSource = bridgeRuntimeSource,
-): HistoryAnimeScope | undefined {
+): HistoryAnimeScopeLoadState {
   // 2. State
   const [catalog, setCatalog] = useState<readonly Anime[] | undefined>(undefined);
+  const [error, setError] = useState<Error | undefined>(undefined);
 
   // 5. Derived State (useMemo)
   const scope = useMemo(
@@ -36,11 +36,12 @@ export function useHistoryAnimeScope(
       .then((items) => {
         if (isActive) {
           setCatalog(items);
+          setError(undefined);
         }
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (isActive) {
-          setCatalog([]);
+          setError(reason instanceof Error ? reason : new Error('Anime catalog request failed'));
         }
       });
 
@@ -53,5 +54,5 @@ export function useHistoryAnimeScope(
     // eslint-disable-next-line react-doctor/exhaustive-deps
   }, []);
 
-  return scope;
+  return { catalog, scope, error };
 }

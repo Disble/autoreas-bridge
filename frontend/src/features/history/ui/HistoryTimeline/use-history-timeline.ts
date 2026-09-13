@@ -6,6 +6,7 @@ import { isNearListBottom } from '../../../../shared/helpers/progressive-list.he
 import type { WatchHistoryEntry, WatchHistoryOrder, WatchHistoryPageRequest } from '../../../../shared/contracts/anime.types';
 import { groupEntriesByDay } from '../../../../shared/watch-history/watch-history.helpers';
 import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
+import { toHistoryTimelineGroups } from './history-timeline.helpers';
 import { useHistoryAnimeScope } from './use-history-anime-scope';
 import type { HistoryTimelineState } from './history-timeline.types';
 
@@ -85,8 +86,8 @@ export function useHistoryTimeline(
   const [error, setError] = useState<Error | undefined>(undefined);
 
   // 3. Context/3rd Party Hooks
-  /** `undefined` until `useHistoryAnimeScope`'s catalog load resolves (design D2). */
-  const scope = useHistoryAnimeScope(status, type, source);
+  /** Catalog resolution gates the first page and supplies row status chips (design D2). */
+  const { catalog, error: catalogError, scope } = useHistoryAnimeScope(status, type, source);
 
   // 4. Queries/Mutations
   const fetchPage = useCallback(
@@ -125,7 +126,10 @@ export function useHistoryTimeline(
   );
 
   // 5. Derived State (useMemo)
-  const groups = useMemo(() => groupEntriesByDay(entries), [entries]);
+  const groups = useMemo(
+    () => (catalog === undefined ? [] : toHistoryTimelineGroups(groupEntriesByDay(entries), catalog)),
+    [catalog, entries],
+  );
   /** `undefined` until `scope` resolves, so the reset effect below stays inert until then. */
   const requestKey = useMemo(
     () => (scope === undefined ? undefined : buildRequestKey(order, status, type)),
@@ -156,6 +160,16 @@ export function useHistoryTimeline(
 
   // 7. Effects
   useEffect(() => {
+    if (catalogError !== undefined) {
+      generationRef.current += 1;
+      nextCursorRef.current = undefined;
+      setEntries([]);
+      setHasMore(false);
+      setError(catalogError);
+      setIsLoading(false);
+      return;
+    }
+
     if (requestKey === undefined || scope === undefined) {
       // The catalog has not resolved yet; stay in the initial loading state.
       return;
@@ -186,7 +200,7 @@ export function useHistoryTimeline(
     // `status`/`type` in the same render as `requestKey`, so it is never
     // stale when this effect's own render committed.
     // eslint-disable-next-line react-doctor/exhaustive-deps
-  }, [requestKey]);
+  }, [catalogError, requestKey]);
 
   return { groups, isLoading, hasMore, error, fetchNextPage, onScroll };
 }

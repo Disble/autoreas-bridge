@@ -1,5 +1,4 @@
-import { Alert, Button, Skeleton } from '@heroui/react';
-import { useNavigate } from 'react-router';
+import { Alert, Chip, Header, ListBox, Skeleton } from '@heroui/react';
 import historyAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { formatRowTime } from '../../../../shared/watch-history/watch-history.helpers';
@@ -30,7 +29,6 @@ import { useHistoryTimeline } from './use-history-timeline';
  * returns to the skeleton.
  */
 export function HistoryTimeline() {
-  const navigate = useNavigate();
   const { groups, isLoading, error, onScroll } = useHistoryTimeline();
   const isEmpty = !isLoading && error === undefined && groups.length === 0;
 
@@ -73,34 +71,28 @@ export function HistoryTimeline() {
         />
       ) : null}
 
-      {isLoading || error !== undefined || isEmpty
-        ? null
-        : groups.map((group) => (
-          <section key={group.dayKey}>
-            <h2 className="mb-2 text-sm font-semibold text-foreground">
-              {group.heading} ({group.count})
-            </h2>
-            <ul className="flex flex-col gap-1">
+      {isLoading || error !== undefined || isEmpty ? null : (
+        <ListBox aria-label={HISTORY_TIMELINE_LABEL} disallowEmptySelection selectionMode="single">
+          {groups.map((group) => (
+            <ListBox.Section key={group.dayKey}>
+              <Header>{group.heading} ({group.count})</Header>
               {group.entries.map((entry) => (
-                <li key={entry.id}>
-                  <Button
-                    className={HISTORY_TIMELINE_ROW_CLASS}
-                    variant="outline"
-                    onPress={() => {
-                      void navigate(`/catalog/detail/${entry.animeId}`);
-                    }}
-                  >
-                    <span className="flex flex-col">
-                      <span className="font-medium text-foreground">{entry.animeName}</span>
-                      <span className="text-xs text-muted">Episode {entry.episode}</span>
-                    </span>
-                    <span className="text-xs text-muted">{formatRowTime(entry.watchedAtMs)}</span>
-                  </Button>
-                </li>
+                <ListBox.Item className={HISTORY_TIMELINE_ROW_CLASS} id={entry.id} key={entry.id} textValue={entry.animeName}>
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">{entry.animeName}</span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {entry.statusLabel === undefined || entry.statusColor === undefined ? null : (
+                      <Chip color={entry.statusColor} size="sm" variant="soft">{entry.statusLabel}</Chip>
+                    )}
+                    {entry.cycle > 1 ? <Chip color="warning" size="sm" variant="soft">Rewatch</Chip> : null}
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">Episode {entry.episode}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">{formatRowTime(entry.watchedAtMs)}</span>
+                </ListBox.Item>
               ))}
-            </ul>
-          </section>
-        ))}
+            </ListBox.Section>
+          ))}
+        </ListBox>
+      )}
     </div>
   );
 }

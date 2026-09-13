@@ -163,14 +163,15 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** the list's own rendering changes; still unwired to selection/URL.
 **Forecast:** 320–420 (D10).
 
-- [ ] **7.1** [RED] `HistoryTimeline.test.tsx` (rewrite): one `ListBox.Section` per `groupEntriesByDay` group, `Header` = `formatDayHeading` + count (partial for the trailing group); each `Item`: name truncates before its chips, status chip first, a Rewatch chip only when `cycle > 1`, "Episode N" + `formatRowTime`.
-- [ ] **7.2** [GREEN] `HistoryTimeline.tsx`: sectioned `ListBox` (`selectionMode="single"`, `disallowEmptySelection`); `getHistoryStatusColor` in `history-timeline.helpers.ts` (feature-local, distinct from `anime-estado.constants.ts` — 2 occurrences, under fallow's 3-occurrence duplicate floor).
-- [ ] **7.3** [RED] `HistoryTimeline.windowing.test.tsx` (rewrite): `role="option"` count = 50 after the first load, 100 after one near-bottom scroll.
-- [ ] **7.4** [GREEN] Confirm `onScroll` + `isNearListBottom` stay wired on the wrapping `overflow-y-auto` div (ADR-012 live branch, unchanged from SDD-69).
-- [ ] **7.5** [DECISION] Add `/history` to render-smoke's `ROUTE_MARKERS` (CLAUDE.md #18b) — this redesign gives the route real content worth a smoke assertion.
+- [x] **7.1** [RED] `HistoryTimeline.test.tsx` (rewrite): one `ListBox.Section` per `groupEntriesByDay` group, `Header` = `formatDayHeading` + count (partial for the trailing group); each `Item`: name truncates before its chips, status chip first, a Rewatch chip only when `cycle > 1`, "Episode N" + `formatRowTime`.
+- [x] **7.2** [GREEN] `HistoryTimeline.tsx`: sectioned `ListBox` (`selectionMode="single"`, `disallowEmptySelection`); `getHistoryStatusColor` in `history-timeline.helpers.ts` (feature-local, distinct from `anime-estado.constants.ts` — 2 occurrences, under fallow's 3-occurrence duplicate floor).
+- [x] **7.3** [RED] `HistoryTimeline.windowing.test.tsx` (rewrite): `role="option"` count = 50 after the first load, 100 after one near-bottom scroll.
+- [x] **7.4** [GREEN] Confirm `onScroll` + `isNearListBottom` stay wired on the wrapping `overflow-y-auto` div (ADR-012 live branch, unchanged from SDD-69).
+- [x] **7.5** [DECISION] Add `/history` to render-smoke's `ROUTE_MARKERS` (CLAUDE.md #18b) — this redesign gives the route real content worth a smoke assertion.
 - [ ] **7.6** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **7.7** [REFACTOR] lean-tests; every loading test asserts the negative.
-- [ ] **7.8** [VERIFY] `bun --cwd="frontend" run test -- HistoryTimeline`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`; `go run ./tools/checkarchitecture`.
+- [x] **7.7** [REFACTOR] lean-tests; every loading test asserts the negative.
+- [x] **7.8** [VERIFY] `bun --cwd="frontend" run test -- HistoryTimeline`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`; `go run ./tools/checkarchitecture`.
+- [x] **7.9** [RED/GREEN] `use-history-timeline.test.ts`: a rejected catalog load surfaces an error and makes zero watch-history binding calls; it never degrades to a legitimate empty history.
 
 ---
 
@@ -179,7 +180,7 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** completes the History surface's own contract before the inspector consumes the selection.
 **Forecast:** 260–340 (D10).
 
-- [ ] **8.1** [DELETE] `frontend/src/app/routes/__tests__/history-route-query-state.test.tsx` — pins the REMOVED "no persisted query state" requirement (proposal REMOVED table).
+- [x] **8.1** [DELETE] (landed with U7: the ListBox rows broke it) `frontend/src/app/routes/__tests__/history-route-query-state.test.tsx` — pins the REMOVED "no persisted query state" requirement (proposal REMOVED table).
 - [ ] **8.2** [RED] `history-timeline.helpers.test.ts` (extend): selected-key resolution table — the `row` param when loaded and belonging to `anime`; else the first loaded row of `anime`; else nothing highlighted (D5).
 - [ ] **8.3** [GREEN] The selected-key helper in `history-timeline.helpers.ts`.
 - [ ] **8.4** [RED] `HistoryTimeline.test.tsx` (extend): `selectionBehavior="replace"`; a single click selects without navigating; Enter and double-click each call `navigate('/catalog/detail/' + animeId)`; arrow keys move focus and selection together (D7).

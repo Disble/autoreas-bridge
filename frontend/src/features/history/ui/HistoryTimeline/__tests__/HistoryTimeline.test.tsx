@@ -1,20 +1,12 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import * as ReactRouter from 'react-router';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WatchHistoryEntry } from '../../../../../shared/contracts/anime.types';
-import type { HistoryDayGroup } from '../../../../../shared/watch-history/watch-history.types';
-import type { HistoryTimelineState } from '../history-timeline.types';
+import type { HistoryTimelineEntry, HistoryTimelineGroup, HistoryTimelineState } from '../history-timeline.types';
 import { HistoryTimeline } from '../HistoryTimeline';
 import * as useHistoryTimelineModule from '../use-history-timeline';
 
-// Spy instead of vi.mock: react-router is excluded from the deps optimizer so
-// its namespace stays spyable (see vite.config.ts).
-/** Captures navigation calls from the spied react-router hook. */
-const navigateMock = vi.fn();
-
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
-function entry(overrides: Partial<WatchHistoryEntry>): WatchHistoryEntry {
+function entry(overrides: Partial<HistoryTimelineEntry>): HistoryTimelineEntry {
   return {
     id: 1,
     animeId: 'anime-1',
@@ -28,7 +20,7 @@ function entry(overrides: Partial<WatchHistoryEntry>): WatchHistoryEntry {
 }
 
 /** Builds a single day group fixture, overriding only what a case needs. */
-function group(overrides: Partial<HistoryDayGroup>): HistoryDayGroup {
+function group(overrides: Partial<HistoryTimelineGroup>): HistoryTimelineGroup {
   return {
     dayKey: '2026-09-12',
     heading: 'September 12, 2026',
@@ -41,7 +33,6 @@ function group(overrides: Partial<HistoryDayGroup>): HistoryDayGroup {
 
 /** Renders HistoryTimeline behind a router with the hook stubbed to the given state. */
 function renderTimeline(overrides: Partial<HistoryTimelineState>) {
-  vi.spyOn(ReactRouter, 'useNavigate').mockReturnValue(navigateMock);
   vi.spyOn(useHistoryTimelineModule, 'useHistoryTimeline').mockReturnValue({
     groups: [],
     isLoading: false,
@@ -63,7 +54,6 @@ describe('HistoryTimeline', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
-    navigateMock.mockClear();
   });
 
   it('renders a heading per loaded day, each showing that day\'s episode count', () => {
@@ -89,7 +79,7 @@ describe('HistoryTimeline', () => {
     expect(screen.getByText('September 11, 2026 (1)')).toBeInTheDocument();
   });
 
-  it('renders one row per episode, newest first within the day', () => {
+  it('renders one ListBox option per episode, newest first within the day', () => {
     renderTimeline({
       groups: [
         group({
@@ -102,7 +92,7 @@ describe('HistoryTimeline', () => {
       ],
     });
 
-    const rows = screen.getAllByRole('button');
+    const rows = screen.getAllByRole('option');
 
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('Frieren');
@@ -111,14 +101,22 @@ describe('HistoryTimeline', () => {
     expect(rows[1]).toHaveTextContent('Episode 5');
   });
 
-  it('navigates to the anime detail when a row is activated anywhere in the row', () => {
+  it('renders the current status before Rewatch only for repeated episodes', () => {
     renderTimeline({
-      groups: [group({ entries: [entry({})] })],
+      groups: [group({ entries: [
+        entry({ id: 2, cycle: 2, statusColor: 'accent', statusLabel: 'Viendo' }),
+        entry({ id: 1, statusColor: 'success', statusLabel: 'Finalizado' }),
+        entry({ id: 3, animeId: 'deleted', animeName: 'Deleted anime' }),
+      ] })],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Frieren/ }));
+    const repeatedRow = screen.getByRole('option', { name: /Viendo.*Rewatch/ });
+    const firstWatchRow = screen.getByRole('option', { name: /Finalizado/ });
+    const deletedRow = screen.getByRole('option', { name: /Deleted anime/ });
 
-    expect(navigateMock).toHaveBeenCalledWith('/catalog/detail/anime-1');
+    expect(repeatedRow.textContent?.indexOf('Viendo')).toBeLessThan(repeatedRow.textContent?.indexOf('Rewatch') ?? 0);
+    expect(firstWatchRow).not.toHaveTextContent('Rewatch');
+    expect(deletedRow).not.toHaveTextContent('Viendo');
   });
 
   it('shows only the loading skeleton while the first page is unresolved, never real rows', () => {
@@ -128,7 +126,7 @@ describe('HistoryTimeline', () => {
     });
 
     expect(screen.getByRole('status', { name: 'Loading watch history...' })).toBeInTheDocument();
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('option')).toBeNull();
   });
 
   it('shows the empty state, not a blank screen, when the first page resolves with zero rows', () => {
@@ -137,7 +135,7 @@ describe('HistoryTimeline', () => {
     expect(screen.getByText('No watch history yet')).toBeInTheDocument();
     expect(screen.getByText(/Watch history starts 2026-07-05/)).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('option')).toBeNull();
   });
 
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {

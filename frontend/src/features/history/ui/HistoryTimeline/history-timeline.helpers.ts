@@ -1,5 +1,42 @@
 import type { Anime } from '../../../../shared/contracts/anime.types';
+import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
+import type { HistoryDayGroup } from '../../../../shared/watch-history/watch-history.types';
 import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
+import type { HistoryStatusChipColor, HistoryTimelineGroup } from './history-timeline.types';
+
+/** Maps a current anime status to History's local semantic Chip color. */
+export function getHistoryStatusColor(status: number): HistoryStatusChipColor {
+  switch (status) {
+    case 0:
+      return 'accent';
+    case 1:
+      return 'success';
+    case 2:
+      return 'danger';
+    case 3:
+      return 'warning';
+    default:
+      return 'default';
+  }
+}
+
+/** Enriches history rows with catalog status presentation, leaving deleted animes chipless. */
+export function toHistoryTimelineGroups(groups: readonly HistoryDayGroup[], catalog: readonly Anime[]): readonly HistoryTimelineGroup[] {
+  const animeById = new Map(catalog.map((anime) => [anime.id, anime]));
+
+  return groups.map((group) => ({
+    ...group,
+    entries: group.entries.map((entry) => {
+      const anime = animeById.get(entry.animeId);
+
+      return anime === undefined ? entry : {
+        ...entry,
+        statusLabel: getAnimeEstadoLabel(anime.status),
+        statusColor: getHistoryStatusColor(anime.status),
+      };
+    }),
+  }));
+}
 
 /**
  * Resolves which animes an active Status/Type filter narrows the history

@@ -285,7 +285,7 @@ describe('useHistoryTimeline', () => {
     expect(result.current.groups[0]?.entries).toHaveLength(2);
   });
 
-  describe('catalog load and Status/Type scope (design D2)', () => {
+  describe('use-history-anime-scope catalog load and Status/Type scope (design D2)', () => {
     it('loads the catalog once via getAnimes before the first watch-history page fetch', async () => {
       const getAnimes = vi.fn().mockResolvedValue([anime({})]);
       const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [] }));
@@ -296,6 +296,19 @@ describe('useHistoryTimeline', () => {
 
       expect(getAnimes).toHaveBeenCalledTimes(1);
       expect(getWatchHistoryPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces a catalog-load rejection as an error and never treats it as an empty history', async () => {
+      const getAnimes = vi.fn().mockRejectedValue(new Error('catalog unavailable'));
+      const getWatchHistoryPage = vi.fn();
+      const source = createSource(getWatchHistoryPage, getAnimes);
+      const { result } = renderHook(() => useHistoryTimeline('newest', undefined, undefined, source));
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.error).toEqual(new Error('catalog unavailable'));
+      expect(result.current.groups).toEqual([]);
+      expect(getWatchHistoryPage).not.toHaveBeenCalled();
     });
 
     it.each<[string, number | undefined, number | undefined, readonly string[]]>([
