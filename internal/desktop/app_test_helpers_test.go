@@ -198,22 +198,24 @@ var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
 // stubWatchHistoryQuery is a minimal watchHistoryReader double for
 // app_runtime_test.go's GetWatchHistoryPage/GetAnimeWatchHistoryPage cases.
 // Page and AnimePage share one canned result/error pair since no test here
-// needs them to differ; each records the args it last saw.
+// needs them to differ; each records the args it last saw, including the
+// full mapped PageQuery so a test can assert on any of its fields (SDD-72
+// D3's request-struct mapping) without a dedicated recorder per field.
 type stubWatchHistoryQuery struct {
 	page        watchhistory.Page
 	err         error
 	lastAnimeID string
-	lastCursor  string
+	lastQuery   watchhistory.PageQuery
 }
 
 func (s *stubWatchHistoryQuery) Page(_ context.Context, q watchhistory.PageQuery) (watchhistory.Page, error) {
-	s.lastCursor = q.Cursor
+	s.lastQuery = q
 	return s.page, s.err
 }
 
 func (s *stubWatchHistoryQuery) AnimePage(_ context.Context, animeID string, q watchhistory.PageQuery) (watchhistory.Page, error) {
 	s.lastAnimeID = animeID
-	s.lastCursor = q.Cursor
+	s.lastQuery = q
 	return s.page, s.err
 }
 

@@ -1,8 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
+import type { WatchHistoryEntry, WatchHistoryPage, WatchHistoryPageRequest } from '../../../../../shared/contracts/anime.types';
 import { useHistoryTimeline } from '../use-history-timeline';
+
+/** Builds the still-unfiltered global page request `useHistoryTimeline` sends this unit, overriding only the cursor. */
+function request(cursor: string): WatchHistoryPageRequest {
+  return { search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor, limit: 0 };
+}
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
 function entry(overrides: Partial<WatchHistoryEntry>): WatchHistoryEntry {
@@ -50,7 +55,7 @@ describe('useHistoryTimeline', () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(getWatchHistoryPage).toHaveBeenCalledWith('');
+    expect(getWatchHistoryPage).toHaveBeenCalledWith(request(''));
     expect(result.current.groups).toHaveLength(1);
     expect(result.current.groups[0]?.entries).toHaveLength(1);
   });
@@ -84,7 +89,7 @@ describe('useHistoryTimeline', () => {
     });
 
     await waitFor(() => expect(getWatchHistoryPage).toHaveBeenCalledTimes(2));
-    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, '100:2');
+    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, request('100:2'));
     await waitFor(() => expect(result.current.groups[0]?.entries).toHaveLength(2));
   });
 
@@ -189,7 +194,7 @@ describe('useHistoryTimeline', () => {
     });
 
     await waitFor(() => expect(getWatchHistoryPage).toHaveBeenCalledTimes(2));
-    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, '100:2');
+    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, request('100:2'));
 
     // A scroll burst while the second page is still unresolved must not trigger a duplicate fetch.
     act(() => {

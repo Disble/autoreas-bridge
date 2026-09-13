@@ -189,16 +189,22 @@ func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
 	return item
 }
 
-// GetWatchHistoryPage returns a keyset page over the entire real-watch-history
-// log, newest first (Real Watch History spec, "Read Models Are Keyset-
-// Paged"). A nil service or a query error surfaces as Status "error" rather
-// than a silently empty result (design.md D9), because an empty state that
-// hides a failure lies to the frontend.
-func (a *App) GetWatchHistoryPage(cursor string) contracts.WatchHistoryPage {
+// GetWatchHistoryPage returns a keyset page over the global real-watch-
+// history log, narrowed by the request's optional search/watched-range/
+// anime-ID filters and ordered newest- or oldest-first (History UI Redesign
+// spec, "Read Models Are Keyset-Paged"). A nil service, an unrecognized
+// Order, or a query error each surface as Status "error" rather than a
+// silently empty result (design.md D9), because an empty state that hides a
+// failure lies to the frontend.
+func (a *App) GetWatchHistoryPage(request contracts.WatchHistoryPageRequest) contracts.WatchHistoryPage {
 	if a.watchHistoryQuery == nil {
 		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
 	}
-	page, err := a.watchHistoryQuery.Page(a.appContext(), watchhistory.PageQuery{Cursor: cursor})
+	query, err := toWatchHistoryPageQuery(request)
+	if err != nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
+	}
+	page, err := a.watchHistoryQuery.Page(a.appContext(), query)
 	if err != nil {
 		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
 	}
@@ -206,12 +212,13 @@ func (a *App) GetWatchHistoryPage(cursor string) contracts.WatchHistoryPage {
 }
 
 // GetAnimeWatchHistoryPage returns a keyset page scoped to one anime,
-// mirroring GetWatchHistoryPage's nil-guard and error-surfacing contract.
-func (a *App) GetAnimeWatchHistoryPage(animeID string, cursor string) contracts.WatchHistoryPage {
+// optionally narrowed to a single watch cycle, mirroring GetWatchHistoryPage's
+// nil-guard and error-surfacing contract.
+func (a *App) GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest) contracts.WatchHistoryPage {
 	if a.watchHistoryQuery == nil {
 		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
 	}
-	page, err := a.watchHistoryQuery.AnimePage(a.appContext(), animeID, watchhistory.PageQuery{Cursor: cursor})
+	page, err := a.watchHistoryQuery.AnimePage(a.appContext(), request.AnimeID, toAnimeWatchHistoryPageQuery(request))
 	if err != nil {
 		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
 	}

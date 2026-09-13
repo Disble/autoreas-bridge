@@ -105,7 +105,7 @@ describe('bridge-runtime-source read bindings', () => {
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
   });
 
-  it('calls GetWatchHistoryPage once Go bindings become ready and resolves the mapped page', async () => {
+  it('calls GetWatchHistoryPage with a copied request literal once Go bindings become ready and resolves the mapped page', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
@@ -115,18 +115,21 @@ describe('bridge-runtime-source read bindings', () => {
       status: 'ok',
     };
     const getWatchHistoryPageMock = vi.fn().mockResolvedValue(page);
+    const animeIds = ['anime-1', 'anime-2'];
+    const request = { search: 'frieren', animeIds, watchedFromMs: 1700000000000, watchedToMs: 1700003600000, order: 'oldest' as const, cursor: '', limit: 50 };
 
-    const pagePromise = source.getWatchHistoryPage?.('');
+    const pagePromise = source.getWatchHistoryPage?.(request);
 
     window.go = { desktop: { App: { GetWatchHistoryPage: getWatchHistoryPageMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(pagePromise).resolves.toEqual(page);
-    expect(getWatchHistoryPageMock).toHaveBeenCalledWith('');
+    expect(getWatchHistoryPageMock).toHaveBeenCalledWith(request);
+    expect(getWatchHistoryPageMock.mock.calls[0]?.[0].animeIds).not.toBe(animeIds);
   });
 
-  it('calls GetAnimeWatchHistoryPage with the anime id and cursor once Go bindings become ready', async () => {
+  it('calls GetAnimeWatchHistoryPage with a request literal once Go bindings become ready', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
     const source = createBridgeRuntimeSource();
@@ -135,14 +138,15 @@ describe('bridge-runtime-source read bindings', () => {
       status: 'ok',
     };
     const getAnimeWatchHistoryPageMock = vi.fn().mockResolvedValue(page);
+    const request = { animeId: 'anime-1', cycle: 0, cursor: '1700000000000:1', limit: 3 };
 
-    const pagePromise = source.getAnimeWatchHistoryPage?.('anime-1', '1700000000000:1');
+    const pagePromise = source.getAnimeWatchHistoryPage?.(request);
 
     window.go = { desktop: { App: { GetAnimeWatchHistoryPage: getAnimeWatchHistoryPageMock } } } as never;
 
     await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
 
     await expect(pagePromise).resolves.toEqual(page);
-    expect(getAnimeWatchHistoryPageMock).toHaveBeenCalledWith('anime-1', '1700000000000:1');
+    expect(getAnimeWatchHistoryPageMock).toHaveBeenCalledWith(request);
   });
 });

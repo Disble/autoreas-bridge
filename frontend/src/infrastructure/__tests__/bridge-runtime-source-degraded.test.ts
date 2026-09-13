@@ -58,7 +58,7 @@ describe('bridge-runtime-source degraded paths', () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
-    const pagePromise = source.getWatchHistoryPage?.('');
+    const pagePromise = source.getWatchHistoryPage?.({ search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor: '', limit: 50 });
 
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -69,7 +69,7 @@ describe('bridge-runtime-source degraded paths', () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();
 
-    const pagePromise = source.getAnimeWatchHistoryPage?.('anime-1', '');
+    const pagePromise = source.getAnimeWatchHistoryPage?.({ animeId: 'anime-1', cycle: 0, cursor: '', limit: 50 });
 
     await vi.advanceTimersByTimeAsync(5000);
 

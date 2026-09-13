@@ -101,6 +101,36 @@ export interface WatchHistoryPage {
   readonly message?: string;
 }
 
+/** Sort direction accepted by `WatchHistoryPageRequest.order` (History UI Redesign design.md D3). */
+export type WatchHistoryOrder = 'newest' | 'oldest';
+
+/**
+ * Request for `GetWatchHistoryPage`: the global read model's optional
+ * narrowing filters plus keyset paging (design.md D3). Every filter field's
+ * empty/zero value means "not applied".
+ */
+export interface WatchHistoryPageRequest {
+  readonly search: string;
+  readonly animeIds: readonly string[];
+  readonly watchedFromMs: number;
+  readonly watchedToMs: number;
+  readonly order: WatchHistoryOrder;
+  readonly cursor: string;
+  readonly limit: number;
+}
+
+/**
+ * Request for `GetAnimeWatchHistoryPage`: one anime's keyset page, optionally
+ * scoped to a single watch cycle (design.md D3). `cycle: 0` means every
+ * cycle.
+ */
+export interface AnimeWatchHistoryPageRequest {
+  readonly animeId: string;
+  readonly cycle: number;
+  readonly cursor: string;
+  readonly limit: number;
+}
+
 /** Fidelity marker for legacy `estudios` ownership on the editor wire contract. */
 export type AnimeEditorStudiosKind = 'missing' | 'null' | 'empty' | 'values';
 

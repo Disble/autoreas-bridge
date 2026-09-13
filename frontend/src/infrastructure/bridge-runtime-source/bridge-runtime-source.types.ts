@@ -8,9 +8,11 @@ import type {
   AnimeEditorSaveResult,
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoardResult,
+  AnimeWatchHistoryPageRequest,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
   WatchHistoryPage,
+  WatchHistoryPageRequest,
 } from '../../shared/contracts/anime.types';
 import type { SyncingAnime } from '../../shared/contracts/syncing-anime.types';
 
@@ -36,8 +38,8 @@ export interface BridgeRuntimeSource {
   readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
   readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
-  readonly getWatchHistoryPage?: (cursor: string) => Promise<WatchHistoryPage>;
-  readonly getAnimeWatchHistoryPage?: (animeID: string, cursor: string) => Promise<WatchHistoryPage>;
+  readonly getWatchHistoryPage?: (request: WatchHistoryPageRequest) => Promise<WatchHistoryPage>;
+  readonly getAnimeWatchHistoryPage?: (request: AnimeWatchHistoryPageRequest) => Promise<WatchHistoryPage>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   readonly getEpisodeDayCounts?: () => Promise<readonly contracts.EpisodeDayCount[]>;

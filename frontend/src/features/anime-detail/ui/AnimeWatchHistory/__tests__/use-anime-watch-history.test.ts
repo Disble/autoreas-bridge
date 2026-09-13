@@ -1,8 +1,13 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
+import type { AnimeWatchHistoryPageRequest, WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
 import { useAnimeWatchHistory } from '../use-anime-watch-history';
+
+/** Builds the still-unscoped per-anime page request `useAnimeWatchHistory` sends this unit, overriding only the anime id. */
+function request(animeId: string): AnimeWatchHistoryPageRequest {
+  return { animeId, cycle: 0, cursor: '', limit: 0 };
+}
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
 function entry(overrides: Partial<WatchHistoryEntry> = {}): WatchHistoryEntry {
@@ -49,7 +54,7 @@ describe('useAnimeWatchHistory', () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(getAnimeWatchHistoryPage).toHaveBeenCalledWith('anime-1', '');
+    expect(getAnimeWatchHistoryPage).toHaveBeenCalledWith(request('anime-1'));
     expect(result.current.entries).toHaveLength(1);
     expect(result.current.error).toBeUndefined();
   });
@@ -127,7 +132,7 @@ describe('useAnimeWatchHistory', () => {
 
     rerender({ animeId: 'anime-2' });
 
-    await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenLastCalledWith('anime-2', ''));
+    await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenLastCalledWith(request('anime-2')));
     await waitFor(() => expect(result.current.entries).toEqual([entry({ id: 2, animeId: 'anime-2' })]));
   });
 });

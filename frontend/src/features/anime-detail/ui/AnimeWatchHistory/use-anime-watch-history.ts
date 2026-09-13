@@ -42,7 +42,7 @@ export function useAnimeWatchHistory(
     setIsLoading(true);
 
     async function fetchPage() {
-      const result = await source.getAnimeWatchHistoryPage?.(animeId, '');
+      const result = await source.getAnimeWatchHistoryPage?.({ animeId, cycle: 0, cursor: '', limit: 0 });
 
       if (!active) {
         return;

@@ -377,11 +377,15 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     createAnime(command) {
       return invokeGoBinding('CreateAnime', () => CreateAnime(toAnimeCreateDTO(command)), () => RUNTIME_UNAVAILABLE_CREATE_RESULT as unknown as wailsContracts.AnimeCreateResult).then(toAnimeCreateResult);
     },
-    getWatchHistoryPage(cursor) {
-      return invokeGoBinding('GetWatchHistoryPage', () => GetWatchHistoryPage(cursor), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
+    getWatchHistoryPage(request) {
+      return invokeGoBinding(
+        'GetWatchHistoryPage',
+        () => GetWatchHistoryPage({ ...request, animeIds: [...request.animeIds] }),
+        () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
+      );
     },
-    getAnimeWatchHistoryPage(animeID, cursor) {
-      return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage(animeID, cursor), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
+    getAnimeWatchHistoryPage(request) {
+      return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage({ ...request }), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
     },
     getEpisodeSchedule(day) {
       return invokeGoBinding('GetEpisodeSchedule', () => GetEpisodeSchedule(day), () => []);

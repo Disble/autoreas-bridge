@@ -38,7 +38,7 @@ export function useHistoryTimeline(source: BridgeRuntimeSource = bridgeRuntimeSo
   const fetchPage = useCallback(
     async (cursor: string) => {
       isFetchingRef.current = true;
-      const result = await source.getWatchHistoryPage?.(cursor);
+      const result = await source.getWatchHistoryPage?.({ search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor, limit: 0 });
       const isFirstPage = cursor === '';
 
       if (result === undefined || result.status !== 'ok') {

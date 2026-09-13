@@ -232,6 +232,51 @@ func TestWatchHistoryPageEnglishJSONTags(t *testing.T) {
 	}
 }
 
+// TestWatchHistoryPageRequestEnglishJSONTags guards the global page request's
+// JSON tags (SDD-72 D3): every field carries an English wire name.
+func TestWatchHistoryPageRequestEnglishJSONTags(t *testing.T) {
+	request := WatchHistoryPageRequest{
+		Search: "frieren", AnimeIDs: []string{"anime-1"}, WatchedFromMS: 1700000000000,
+		WatchedToMS: 1700003600000, Order: "oldest", Cursor: "1700000000000:1", Limit: 50,
+	}
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"search", "animeIds", "watchedFromMs", "watchedToMs", "order", "cursor", "limit"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+}
+
+// TestAnimeWatchHistoryPageRequestEnglishJSONTags guards the per-anime page
+// request's JSON tags (SDD-72 D3): every field carries an English wire name.
+func TestAnimeWatchHistoryPageRequestEnglishJSONTags(t *testing.T) {
+	request := AnimeWatchHistoryPageRequest{AnimeID: "anime-1", Cycle: 2, Cursor: "1700000000000:1", Limit: 3}
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"animeId", "cycle", "cursor", "limit"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+}
+
 // TestAnimeDetailEnglishJSONTags guards the detailed anime read model DTO,
 // including its nested Content struct.
 func TestAnimeDetailEnglishJSONTags(t *testing.T) {

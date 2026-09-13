@@ -80,16 +80,16 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** contracts, bindings, wailsjs, the adapter and both call sites land together — no commit calls a signature the backend lacks (D3).
 **Forecast:** 340–420 (D10).
 
-- [ ] **2.1** [RED] Extend `internal/api/contracts/contracts_english_test.go`: `WatchHistoryPageRequest` and `AnimeWatchHistoryPageRequest` carry English JSON tags (`search`, `animeIds`, `watchedFromMs`, `watchedToMs`, `order`, `cursor`, `limit` / `animeId`, `cycle`, `cursor`, `limit`).
-- [ ] **2.2** [GREEN] `internal/api/contracts/contracts.go`: add both request structs (D3).
-- [ ] **2.3** [RED] `internal/desktop/app_runtime_watch_history_test.go` (new): table for `toWatchHistoryPageQuery`/`toAnimeWatchHistoryPageQuery` — `"" → newest`, `"oldest" → oldest`, unknown → `Status: "error"`; every field copied; the nil-service guard and store-error surfacing stay unchanged (SDD-69's nil-guard contract).
-- [ ] **2.4** [GREEN] `internal/desktop/app_runtime.go`: `GetWatchHistoryPage(request contracts.WatchHistoryPageRequest)` / `GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest)`, kept in `app_runtime.go` with the pure mapping functions.
-- [ ] **2.5** [GREEN] `wails generate module` — regenerate `frontend/wailsjs/go/desktop/App.{d.ts,js}` and `frontend/wailsjs/go/models.ts`.
-- [ ] **2.6** [RED] `frontend/src/infrastructure/__tests__/bridge-runtime-source-queries.test.ts` and `-degraded.test.ts`: the adapter passes an object literal for both calls, copying arrays (as `notification-center-source.helpers.ts:43` does); the degraded test covers a missing binding.
-- [ ] **2.7** [GREEN] `frontend/src/shared/contracts/anime.types.ts` (both request types, `readonly`); `bridge-runtime-source.{types,helpers}.ts`: request-shaped signatures; update the two existing call sites (`getWatchHistoryPage?.(cursor)`, `getAnimeWatchHistoryPage?.(animeId, '')`) to the request shape in this same commit.
+- [x] **2.1** [RED] Extend `internal/api/contracts/contracts_english_test.go`: `WatchHistoryPageRequest` and `AnimeWatchHistoryPageRequest` carry English JSON tags (`search`, `animeIds`, `watchedFromMs`, `watchedToMs`, `order`, `cursor`, `limit` / `animeId`, `cycle`, `cursor`, `limit`).
+- [x] **2.2** [GREEN] `internal/api/contracts/contracts.go`: add both request structs (D3).
+- [x] **2.3** [RED] `internal/desktop/app_runtime_watch_history_test.go` (new): table for `toWatchHistoryPageQuery`/`toAnimeWatchHistoryPageQuery` — `"" → newest`, `"oldest" → oldest`, unknown → `Status: "error"`; every field copied; the nil-service guard and store-error surfacing stay unchanged (SDD-69's nil-guard contract).
+- [x] **2.4** [GREEN] `internal/desktop/app_runtime.go`: `GetWatchHistoryPage(request contracts.WatchHistoryPageRequest)` / `GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest)`. Orchestrator-adjusted: the pure mapping functions moved to new `app_watch_history_page.go` — `app_runtime.go` alone crossed revive's 400-line file-length-limit.
+- [x] **2.5** [GREEN] `wails generate module` — regenerate `frontend/wailsjs/go/desktop/App.{d.ts,js}` and `frontend/wailsjs/go/models.ts`.
+- [x] **2.6** [RED] `frontend/src/infrastructure/__tests__/bridge-runtime-source-queries.test.ts` and `-degraded.test.ts`: the adapter passes an object literal for both calls, copying arrays (as `notification-center-source.helpers.ts:43` does); the degraded test covers a missing binding.
+- [x] **2.7** [GREEN] `frontend/src/shared/contracts/anime.types.ts` (both request types, `readonly`); `bridge-runtime-source.{types,helpers}.ts`: request-shaped signatures; update the two existing call sites (`getWatchHistoryPage?.(cursor)`, `getAnimeWatchHistoryPage?.(animeId, '')`) to the request shape in this same commit.
 - [ ] **2.8** [MUTATE] orchestrator, post-commit: `ditto changed` (Go, `-timeout 60s`) on `internal/desktop/`'s production lines / Stryker by hand (frontend) on the adapter's changed lines.
 - [ ] **2.9** [REFACTOR] lean-tests: table rows, one helper per package.
-- [ ] **2.10** [VERIFY] Go: `go build ./...`; `go vet`; `GOFLAGS=-p=4 GOMAXPROCS=4 go test -timeout 180s ./internal/desktop/... ./internal/api/...`; `scripts/lint.ps1 -Profile all`; `go run ./tools/checkarchitecture`; `go run ./tools/checkgofilesize`. Frontend: `bun --cwd="frontend" run test -- bridge-runtime-source`; `bun run typecheck`; eslint on touched files; `git diff --stat -- docs/openapi.yaml` empty.
+- [x] **2.10** [VERIFY] Go: `go build ./...`; `go vet`; `GOFLAGS=-p=4 GOMAXPROCS=4 go test -timeout 180s ./internal/desktop/... ./internal/api/...`; `scripts/lint.ps1 -Profile all`; `go run ./tools/checkarchitecture`; `go run ./tools/checkgofilesize`. Frontend: `bun --cwd="frontend" run test -- bridge-runtime-source`; `bun run typecheck`; eslint on touched files; `git diff --stat -- docs/openapi.yaml` empty.
 
 ---
 

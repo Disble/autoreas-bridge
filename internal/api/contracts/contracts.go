@@ -132,6 +132,30 @@ type WatchHistoryPage struct {
 	Message    string              `json:"message,omitempty"`
 }
 
+// WatchHistoryPageRequest is the wire request for GetWatchHistoryPage: the
+// global read model's optional narrowing filters plus keyset paging (History
+// UI Redesign spec, "Read Models Are Keyset-Paged"). Every filter field's
+// zero value means "not applied" (design.md D3).
+type WatchHistoryPageRequest struct {
+	Search        string   `json:"search"`        // trimmed substring of anime_name; "" = not applied
+	AnimeIDs      []string `json:"animeIds"`      // empty = not applied
+	WatchedFromMS int64    `json:"watchedFromMs"` // inclusive; 0 = unbounded
+	WatchedToMS   int64    `json:"watchedToMs"`   // exclusive; 0 = unbounded
+	Order         string   `json:"order"`         // "newest" | "oldest"; "" = newest
+	Cursor        string   `json:"cursor"`
+	Limit         int      `json:"limit"` // 0 = default 50, clamped to 200
+}
+
+// AnimeWatchHistoryPageRequest is the wire request for
+// GetAnimeWatchHistoryPage: one anime's keyset page, optionally scoped to a
+// single watch (design.md D3).
+type AnimeWatchHistoryPageRequest struct {
+	AnimeID string `json:"animeId"`
+	Cycle   int64  `json:"cycle"` // 0 = every cycle
+	Cursor  string `json:"cursor"`
+	Limit   int    `json:"limit"`
+}
+
 // AnimeDetailProgress contains watched, total, and remaining episode counts.
 type AnimeDetailProgress struct {
 	Watched   float64  `json:"watched"`

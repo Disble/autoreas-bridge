@@ -336,23 +336,33 @@ func TestGetWatchHistoryPageDegradesAndPassesThroughStorePage(t *testing.T) {
 	}
 
 	tests := []struct {
-		name  string
-		query watchHistoryReader
-		want  contracts.WatchHistoryPage
+		name    string
+		request contracts.WatchHistoryPageRequest
+		query   watchHistoryReader
+		want    contracts.WatchHistoryPage
 	}{
 		{
-			name:  "nil watch history query degrades to an error status",
-			query: nil,
-			want:  contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"},
+			name:    "nil watch history query degrades to an error status",
+			request: contracts.WatchHistoryPageRequest{Cursor: "some-cursor"},
+			query:   nil,
+			want:    contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"},
 		},
 		{
-			name:  "a store error surfaces as an error status rather than an empty result",
-			query: &stubWatchHistoryQuery{err: errors.New("store unavailable")},
-			want:  contracts.WatchHistoryPage{Status: "error", Message: "store unavailable"},
+			name:    "an unrecognized order surfaces as an error status without reaching the store",
+			request: contracts.WatchHistoryPageRequest{Cursor: "some-cursor", Order: "sideways"},
+			query:   &stubWatchHistoryQuery{page: successPage},
+			want:    contracts.WatchHistoryPage{Status: "error", Message: `unrecognized watch history order "sideways"`},
 		},
 		{
-			name:  "a successful page passes its items and cursor through",
-			query: &stubWatchHistoryQuery{page: successPage},
+			name:    "a store error surfaces as an error status rather than an empty result",
+			request: contracts.WatchHistoryPageRequest{Cursor: "some-cursor"},
+			query:   &stubWatchHistoryQuery{err: errors.New("store unavailable")},
+			want:    contracts.WatchHistoryPage{Status: "error", Message: "store unavailable"},
+		},
+		{
+			name:    "a successful page passes its items and cursor through",
+			request: contracts.WatchHistoryPageRequest{Cursor: "some-cursor"},
+			query:   &stubWatchHistoryQuery{page: successPage},
 			want: contracts.WatchHistoryPage{
 				Items: []contracts.WatchHistoryEntry{
 					{ID: 1, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 12, Cycle: 1, WatchedAtMS: 1700000000000, Source: "desktop"},
@@ -368,26 +378,45 @@ func TestGetWatchHistoryPageDegradesAndPassesThroughStorePage(t *testing.T) {
 			t.Parallel()
 
 			app := &App{ctx: context.Background(), watchHistoryQuery: tc.query}
-			if got := app.GetWatchHistoryPage("some-cursor"); !reflect.DeepEqual(got, tc.want) {
+			if got := app.GetWatchHistoryPage(tc.request); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("expected %#v, got %#v", tc.want, got)
 			}
 		})
 	}
 }
 
-// TestGetWatchHistoryPageForwardsCursorToStore asserts the cursor argument
-// reaches Store.Page unchanged, which the table above cannot assert because
-// its rows share one call site.
-func TestGetWatchHistoryPageForwardsCursorToStore(t *testing.T) {
+// TestGetWatchHistoryPageForwardsRequestToStore asserts the request maps and
+// reaches Store.Page as the PageQuery it expects -- the cursor unchanged and
+// the wire Order resolved to its watchhistory.Order constant -- which the
+// table above cannot assert because its rows share one call site.
+func TestGetWatchHistoryPageForwardsRequestToStore(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubWatchHistoryQuery{}
-	app := &App{ctx: context.Background(), watchHistoryQuery: stub}
+	tests := []struct {
+		name      string
+		order     string
+		wantOrder watchhistory.Order
+	}{
+		{name: "an empty order forwards as newest-first", order: "", wantOrder: watchhistory.OrderNewestFirst},
+		{name: "oldest forwards as oldest-first", order: "oldest", wantOrder: watchhistory.OrderOldestFirst},
+	}
 
-	app.GetWatchHistoryPage("1700000000000:5")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if stub.lastCursor != "1700000000000:5" {
-		t.Fatalf("expected cursor %q forwarded to Store.Page, got %q", "1700000000000:5", stub.lastCursor)
+			stub := &stubWatchHistoryQuery{}
+			app := &App{ctx: context.Background(), watchHistoryQuery: stub}
+
+			app.GetWatchHistoryPage(contracts.WatchHistoryPageRequest{Cursor: "1700000000000:5", Order: tc.order})
+
+			if stub.lastQuery.Cursor != "1700000000000:5" {
+				t.Fatalf("expected cursor %q forwarded to Store.Page, got %q", "1700000000000:5", stub.lastQuery.Cursor)
+			}
+			if stub.lastQuery.Order != tc.wantOrder {
+				t.Fatalf("expected order %v forwarded to Store.Page, got %v", tc.wantOrder, stub.lastQuery.Order)
+			}
+		})
 	}
 }
 
@@ -435,26 +464,34 @@ func TestGetAnimeWatchHistoryPageDegradesAndPassesThroughAnimePage(t *testing.T)
 			t.Parallel()
 
 			app := &App{ctx: context.Background(), watchHistoryQuery: tc.query}
-			if got := app.GetAnimeWatchHistoryPage("anime-1", "some-cursor"); !reflect.DeepEqual(got, tc.want) {
+			request := contracts.AnimeWatchHistoryPageRequest{AnimeID: "anime-1", Cursor: "some-cursor"}
+			if got := app.GetAnimeWatchHistoryPage(request); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("expected %#v, got %#v", tc.want, got)
 			}
 		})
 	}
 }
 
-// TestGetAnimeWatchHistoryPageForwardsAnimeIDAndCursorToStore asserts both
-// arguments reach Store.AnimePage unchanged.
-func TestGetAnimeWatchHistoryPageForwardsAnimeIDAndCursorToStore(t *testing.T) {
+// TestGetAnimeWatchHistoryPageForwardsRequestToStore asserts every request
+// field -- the anime ID, the cursor, and the cycle scope -- reaches
+// Store.AnimePage mapped into the PageQuery it expects.
+func TestGetAnimeWatchHistoryPageForwardsRequestToStore(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubWatchHistoryQuery{}
 	app := &App{ctx: context.Background(), watchHistoryQuery: stub}
 
-	app.GetAnimeWatchHistoryPage("anime-7", "1700000000000:5")
+	app.GetAnimeWatchHistoryPage(contracts.AnimeWatchHistoryPageRequest{
+		AnimeID: "anime-7", Cycle: 2, Cursor: "1700000000000:5", Limit: 3,
+	})
 
-	if stub.lastAnimeID != "anime-7" || stub.lastCursor != "1700000000000:5" {
+	if stub.lastAnimeID != "anime-7" || stub.lastQuery.Cursor != "1700000000000:5" {
 		t.Fatalf("expected animeID %q and cursor %q forwarded to Store.AnimePage, got animeID %q cursor %q",
-			"anime-7", "1700000000000:5", stub.lastAnimeID, stub.lastCursor)
+			"anime-7", "1700000000000:5", stub.lastAnimeID, stub.lastQuery.Cursor)
+	}
+	if stub.lastQuery.Cycle != 2 || stub.lastQuery.Limit != 3 {
+		t.Fatalf("expected cycle 2 and limit 3 forwarded to Store.AnimePage, got cycle %d limit %d",
+			stub.lastQuery.Cycle, stub.lastQuery.Limit)
 	}
 }
 
