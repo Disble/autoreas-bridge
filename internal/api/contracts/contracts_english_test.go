@@ -182,42 +182,6 @@ func TestAnimeListItemEnglishJSONTags(t *testing.T) {
 	}
 }
 
-// TestAnimeHistoryItemEnglishJSONTags guards the History read model DTO
-// (the closest real DTO to the proposal's since-renamed "AnimeChangeSummary").
-func TestAnimeHistoryItemEnglishJSONTags(t *testing.T) {
-	kind := 1
-	createdAt := int64(2)
-	item := AnimeHistoryItem{
-		ID:              "anime-1",
-		Name:            "Frieren",
-		EpisodesWatched: 5,
-		LastWatchedAt:   1,
-		Status:          0,
-		Kind:            &kind,
-		CreatedAt:       &createdAt,
-	}
-
-	encoded, err := json.Marshal(item)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(encoded, &raw); err != nil {
-		t.Fatalf("unmarshal raw map: %v", err)
-	}
-	for _, key := range []string{"name", "episodesWatched", "lastWatchedAt", "status", "kind", "createdAt"} {
-		if _, ok := raw[key]; !ok {
-			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
-		}
-	}
-	for _, key := range []string{"nombre", "nrocapvisto", "fechaUltCapVisto", "estado", "tipo", "fechaCreacion"} {
-		if _, ok := raw[key]; ok {
-			t.Fatalf("did not expect stale Spanish JSON key %q, got %s", key, encoded)
-		}
-	}
-}
-
 // TestWatchHistoryEntryEnglishJSONTags guards the additive real-watch-history
 // read model row (sdd-69 Slice 5): every field carries an English JSON tag.
 func TestWatchHistoryEntryEnglishJSONTags(t *testing.T) {

@@ -54,10 +54,6 @@ func (s stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.Anim
 	return nil, nil
 }
 
-func (s stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.AnimeHistoryItem, error) {
-	return nil, nil
-}
-
 func (s stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {
 	return nil, nil
 }

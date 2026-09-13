@@ -9,8 +9,7 @@ import { HistoryTimeline } from '../HistoryTimeline';
 import * as useHistoryTimelineModule from '../use-history-timeline';
 
 // Spy instead of vi.mock: react-router is excluded from the deps optimizer so
-// its namespace stays spyable (see vite.config.ts), mirroring HistoryTable's
-// own test.
+// its namespace stays spyable (see vite.config.ts).
 /** Captures navigation calls from the spied react-router hook. */
 const navigateMock = vi.fn();
 

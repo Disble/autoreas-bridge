@@ -32,7 +32,6 @@ function createSource(getWatchHistoryPage?: BridgeRuntimeSource['getWatchHistory
     getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn(),
-    getAnimeHistory: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     getWatchHistoryPage,

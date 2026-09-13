@@ -54,30 +54,6 @@ describe('bridge-runtime-source degraded paths', () => {
     await expect(animePromise).resolves.toEqual([]);
   });
 
-  it('degrades getAnimeHistory to an empty array when the Go runtime is absent', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const source = createBridgeRuntimeSource();
-
-    const historyPromise = source.getAnimeHistory();
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(historyPromise).resolves.toEqual([]);
-  });
-
-  it('degrades getAnimeHistory to an empty array when the App exists but GetAnimeHistory is missing', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const source = createBridgeRuntimeSource();
-
-    const historyPromise = source.getAnimeHistory();
-
-    window.go = { desktop: { App: { GetSQLiteStatus: vi.fn() } } } as never;
-
-    await vi.advanceTimersByTimeAsync(5000);
-
-    await expect(historyPromise).resolves.toEqual([]);
-  });
-
   it('degrades getWatchHistoryPage to an error-status page when the Go runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();

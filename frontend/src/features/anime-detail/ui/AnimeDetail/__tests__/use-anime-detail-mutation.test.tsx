@@ -5,6 +5,7 @@ import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-r
 import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import { useAnimeDetailMutation } from '../use-anime-detail-mutation';
 
+/** A minimal populated anime detail fixture shared across this file's cases. */
 const detail: AnimeDetail = {
   id: 'anime-1',
   name: 'Frieren',
@@ -17,6 +18,7 @@ const detail: AnimeDetail = {
   modified_at: 0,
 };
 
+/** Builds a runtime source stubbing every binding `useAnimeDetailMutation` calls. */
 function createSource(): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn(),
@@ -25,7 +27,6 @@ function createSource(): BridgeRuntimeSource {
     getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn(),
     getAnimeDetail: vi.fn().mockResolvedValue({ ...detail, modified_at: 11 }),
-    getAnimeHistory: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     repeatAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 11 }),

@@ -17,7 +17,7 @@ export const HISTORY_TIMELINE_EMPTY_TITLE = 'No watch history yet';
 /**
  * Empty-state description stating the log's start date, so a short history
  * never reads as data loss (proposal.md: "History cannot precede 2026-07-05,
- * where `activity_log` begins").
+ * where the audit log begins").
  */
 export const HISTORY_TIMELINE_EMPTY_DESCRIPTION = 'Watch history starts 2026-07-05. Episodes you watch from now on will appear here.';
 

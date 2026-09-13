@@ -8,7 +8,6 @@ import type {
   AnimeEditorSaveResult,
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoardResult,
-  AnimeHistoryEntry,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
   WatchHistoryPage,
@@ -31,7 +30,6 @@ export interface BridgeRuntimeSource {
   readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
   readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
-  readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
   readonly getWatchHistoryPage?: (cursor: string) => Promise<WatchHistoryPage>;
   readonly getAnimeWatchHistoryPage?: (animeID: string, cursor: string) => Promise<WatchHistoryPage>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;

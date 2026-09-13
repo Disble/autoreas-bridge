@@ -614,7 +614,7 @@ double-fetching the same cursor); pinned inside the existing onScroll test, no n
 
 - [x] **7.3.1** [GREEN] `frontend/src/app/routes/HistoryRoute.tsx`: replace `<HistoryTable />` with
   `<HistoryTimeline />`.
-- [ ] **7.3.2** [DELETE] Remove `frontend/src/features/history/ui/HistoryTable/**` in full
+- [x] **7.3.2** [DELETE] Remove `frontend/src/features/history/ui/HistoryTable/**` in full
   (`HistoryTable.tsx`, `history-table.constants.ts`, `history-table.helpers.ts`, `history-table.types.ts`,
   `use-history-params-writers.ts`, `use-history-rows.ts`, `use-history-table.ts`, `__tests__/`) — in the
   same commit as 7.3.1, per Note E.
@@ -622,11 +622,14 @@ double-fetching the same cursor); pinned inside the existing onScroll test, no n
   route test asserting `/history` never grows query parameters across navigation, scrolling, or
   drill-down (extend `frontend/src/app/routes/__tests__/overview-surface-routing.test.ts` or add one).
   New file: `frontend/src/app/routes/__tests__/history-route-query-state.test.tsx`.
-- [ ] **7.3.4** [GREEN] Remove the surface whose last caller was `HistoryTable` (Note A): `internal/anime/
+- [x] **7.3.4** [GREEN] Remove the surface whose last caller was `HistoryTable` (Note A): `internal/anime/
   service.go`'s `ListAnimeHistory` (+ its `AnimeQueryService` interface entry and
   `history_query_service_fixture_test.go`), `internal/api/contracts/contracts.go`'s `AnimeHistoryItem`,
   `internal/desktop/app_runtime.go`'s `GetAnimeHistory`, and the frontend adapter's `getAnimeHistory()`
   call plus any residual `AnimeHistoryItem` type reference.
+
+**Apply note (7.3.2/7.3.4):** also removed every stub/test still wired to the retired surface (Go and
+frontend) and fixed one pre-existing Slice 6b `checkarchitecture` violation (`activity_log` in a doc comment) blocking this slice's gate.
 
 ### 7.4 MUTATE
 

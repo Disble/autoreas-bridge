@@ -186,27 +186,11 @@ func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
 	return item
 }
 
-// GetAnimeHistory returns the slim watch-activity read model (Anime History
-// spec, "History Read Model"), server-sorted DESC by fechaUltCapVisto.
-// Degrades to an empty (non-nil) slice on a nil service or any query error,
-// mirroring GetAnimes's nil-guard contract.
-func (a *App) GetAnimeHistory() []contracts.AnimeHistoryItem {
-	if a.animeQuery == nil {
-		return []contracts.AnimeHistoryItem{}
-	}
-	items, err := a.animeQuery.ListAnimeHistory(a.appContext())
-	if err != nil {
-		return []contracts.AnimeHistoryItem{}
-	}
-	return items
-}
-
 // GetWatchHistoryPage returns a keyset page over the entire real-watch-history
 // log, newest first (Real Watch History spec, "Read Models Are Keyset-
-// Paged"). Unlike GetAnimeHistory's swallow-to-empty-slice contract, a nil
-// service or a query error surfaces as Status "error" rather than a silently
-// empty result (design.md D9), because an empty state that hides a failure
-// lies to the frontend. Additive: GetAnimeHistory above is untouched.
+// Paged"). A nil service or a query error surfaces as Status "error" rather
+// than a silently empty result (design.md D9), because an empty state that
+// hides a failure lies to the frontend.
 func (a *App) GetWatchHistoryPage(cursor string) contracts.WatchHistoryPage {
 	if a.watchHistoryQuery == nil {
 		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}

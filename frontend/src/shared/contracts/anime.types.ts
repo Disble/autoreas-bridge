@@ -70,25 +70,13 @@ export interface AnimeDetail extends Omit<
 }
 
 /**
- * AnimeHistoryEntry is a single row of the History read model returned by
- * `GetAnimeHistory` (Anime History spec, "History Read Model"): a
- * watch-activity log entry, server-sorted DESC by `lastWatchedAt` and
- * membership-filtered (only animes with a present `lastWatchedAt`) --
- * never re-derived or re-sorted on the frontend.
- */
-export type AnimeHistoryEntry = Pick<
-  Anime,
-  'id' | 'name' | 'episodesWatched' | 'status' | 'kind'
-> & {
-  readonly lastWatchedAt: number;
-  readonly createdAt?: number;
-};
-
-/**
  * WatchHistoryEntry is one recorded real-watch-history row returned by
  * `GetWatchHistoryPage`/`GetAnimeWatchHistoryPage` (Real Watch History spec,
  * "Read Models Are Keyset-Paged"): a single episode watched at a point in
- * time. Additive alongside `AnimeHistoryEntry` above.
+ * time. It is the sole watch-history read model exposed to the frontend --
+ * the earlier slim History read-model type and its adapter method were
+ * retired once their last consuming component was removed (sdd-69 Slice 7,
+ * Note A).
  */
 export interface WatchHistoryEntry {
   readonly id: number;
@@ -101,9 +89,8 @@ export interface WatchHistoryEntry {
 }
 
 /**
- * WatchHistoryPage is a keyset-paged batch of `WatchHistoryEntry` rows.
- * Unlike `AnimeHistoryEntry`'s swallow-to-empty-array contract, a fetch
- * failure is surfaced through `status`/`message` rather than an empty
+ * WatchHistoryPage is a keyset-paged batch of `WatchHistoryEntry` rows. A
+ * fetch failure is surfaced through `status`/`message` rather than an empty
  * `items` array, so the loading/error states never mistake a failure for an
  * empty history.
  */

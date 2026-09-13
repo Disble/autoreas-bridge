@@ -9,7 +9,6 @@ import {
   GetAnimeDetail,
   GetAnimeEditorRecord,
   GetAnimeEditorScheduleBoard,
-  GetAnimeHistory,
   GetAnimes,
   GetAnimeWatchHistoryPage,
   GetConnectedDevices,
@@ -372,9 +371,6 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     createAnime(command) {
       return invokeGoBinding('CreateAnime', () => CreateAnime(toAnimeCreateDTO(command)), () => RUNTIME_UNAVAILABLE_CREATE_RESULT as unknown as wailsContracts.AnimeCreateResult).then(toAnimeCreateResult);
-    },
-    getAnimeHistory() {
-      return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);
     },
     getWatchHistoryPage(cursor) {
       return invokeGoBinding('GetWatchHistoryPage', () => GetWatchHistoryPage(cursor), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);

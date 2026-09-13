@@ -105,31 +105,12 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
-// AnimeHistoryItem is the slim History read-model row (Anime History spec,
-// "History Read Model"): a watch-activity log entry equivalent to Legacy
-// "Historial", distinct from the download-gap-focused AnimeListItem.
-// Membership (a present LastWatchedAt) and DESC ordering by it are
-// enforced server-side by AnimeQueryService.ListAnimeHistory, never in the
-// frontend.
-type AnimeHistoryItem struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	EpisodesWatched float64 `json:"episodesWatched"`
-	// LastWatchedAt is epoch millis, always present by membership (rows
-	// without it are excluded, never zero-valued here).
-	LastWatchedAt int64 `json:"lastWatchedAt"`
-	Status        int   `json:"status"`
-	// Kind and CreatedAt (epoch millis) are additive projections from the
-	// same MobileAnime normalization ListAnimeHistory already uses (sdd-37
-	// D1): nil when absent from the source, never zero-valued.
-	Kind      *int   `json:"kind,omitempty"`
-	CreatedAt *int64 `json:"createdAt,omitempty"`
-}
-
 // WatchHistoryEntry is one recorded real-watch-history row (Real Watch
 // History spec, "Read Models Are Keyset-Paged"): a single episode watched at a
-// point in time. Additive alongside AnimeHistoryItem above -- sdd-69 Note A:
-// AnimeHistoryItem is retired only once its last frontend caller is removed.
+// point in time. It is the sole watch-history read model exposed to the
+// frontend -- the earlier slim History read-model row and its query/binding
+// surface were retired once their last frontend caller was removed (sdd-69
+// Slice 7, Note A).
 type WatchHistoryEntry struct {
 	ID          int64  `json:"id"`
 	AnimeID     string `json:"animeId"`
@@ -141,8 +122,7 @@ type WatchHistoryEntry struct {
 }
 
 // WatchHistoryPage is a keyset-paged batch of WatchHistoryEntry rows,
-// returned by GetWatchHistoryPage/GetAnimeWatchHistoryPage. Unlike
-// AnimeHistoryItem's swallow-to-empty-slice contract, a fetch failure is
+// returned by GetWatchHistoryPage/GetAnimeWatchHistoryPage. A fetch failure is
 // surfaced through Status/Message rather than an empty Items slice, so the
 // frontend's empty state never lies about a failure (design.md D9).
 type WatchHistoryPage struct {

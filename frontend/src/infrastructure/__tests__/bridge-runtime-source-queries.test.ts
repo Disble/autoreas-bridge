@@ -105,23 +105,6 @@ describe('bridge-runtime-source read bindings', () => {
     expect(getAnimeDetailMock).toHaveBeenCalledWith('anime-1');
   });
 
-  it('calls GetAnimeHistory once Go bindings become ready and resolves the mapped entries', async () => {
-    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
-    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
-    const source = createBridgeRuntimeSource();
-    const entries = [{ id: 'anime-1', name: 'Frieren', episodesWatched: 12, lastWatchedAt: 1700000000000, status: 1 }];
-    const getAnimeHistoryMock = vi.fn().mockResolvedValue(entries);
-
-    const historyPromise = source.getAnimeHistory();
-
-    window.go = { desktop: { App: { GetAnimeHistory: getAnimeHistoryMock } } } as never;
-
-    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
-
-    await expect(historyPromise).resolves.toEqual(entries);
-    expect(getAnimeHistoryMock).toHaveBeenCalledTimes(1);
-  });
-
   it('calls GetWatchHistoryPage once Go bindings become ready and resolves the mapped page', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');

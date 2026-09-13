@@ -7,8 +7,10 @@ import { useAnimeDetail } from '../use-anime-detail';
 
 // Spy instead of vi.mock: with deps.optimizer enabled, importOriginal-based
 // partial mocks cannot re-import the original module.
+/** Captures navigation calls from the spied react-router hook. */
 const navigateMock = vi.fn();
 
+/** A fully populated anime detail fixture shared across this file's cases. */
 const populatedDetail: AnimeDetail = {
   id: 'anime-1',
   name: 'Frieren',
@@ -23,6 +25,7 @@ const populatedDetail: AnimeDetail = {
   repetitions: [{ numRepetitions: 1, episodesWatched: 24, status: 1, repeatedAt: Date.UTC(2022, 0, 1) }],
 };
 
+/** Builds a runtime source stubbing every binding `useAnimeDetail` calls. */
 function createSource(
   resolvedValue: AnimeDetail | null,
   overrides: Partial<BridgeRuntimeSource> = {},
@@ -34,7 +37,6 @@ function createSource(
     getSyncingAnimeItems: vi.fn(),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(resolvedValue),
-    getAnimeHistory: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     restoreAnime: vi.fn().mockResolvedValue({ status: 'ok', outcome: 'applied', modifiedAt: 1 }),

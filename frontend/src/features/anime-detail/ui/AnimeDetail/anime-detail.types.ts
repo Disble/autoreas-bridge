@@ -17,9 +17,8 @@ export interface AnimeDetailSkeletonProps {
 }
 
 /**
- * HeroUI chip color tokens supported by the project's design system (mirrors
- * `HistoryTable`'s `HeroChipColor`, duplicated per this repo's
- * feature-local-constants convention).
+ * HeroUI chip color tokens supported by the project's design system,
+ * duplicated per this repo's feature-local-constants convention.
  */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 

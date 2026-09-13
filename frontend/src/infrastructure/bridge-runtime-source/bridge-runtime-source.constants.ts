@@ -28,8 +28,8 @@ export const RUNTIME_UNAVAILABLE_CREATE_RESULT: AnimeCreateResult = {
 
 /**
  * Fail-closed page for `getWatchHistoryPage`/`getAnimeWatchHistoryPage` when
- * the runtime is unavailable. Unlike `getAnimeHistory`'s empty-array
- * fallback, `status: 'error'` keeps the failure visible to the caller.
+ * the runtime is unavailable. `status: 'error'` keeps the failure visible to
+ * the caller rather than degrading to an empty array.
  */
 export const RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE: WatchHistoryPage = {
   items: [],

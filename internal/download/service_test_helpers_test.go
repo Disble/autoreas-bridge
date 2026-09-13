@@ -42,10 +42,6 @@ func (f *svcFakeAnimeQuery) ListAnimeItems(ctx context.Context) ([]contracts.Ani
 	return nil, nil
 }
 
-func (f *svcFakeAnimeQuery) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeHistoryItem, error) {
-	return nil, nil
-}
-
 func (f *svcFakeAnimeQuery) GetAnimeDetail(ctx context.Context, id string) (*contracts.AnimeDetail, error) {
 	return nil, nil
 }

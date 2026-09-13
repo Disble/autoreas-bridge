@@ -171,8 +171,6 @@ type stubAnimeQueryService struct {
 	mobileAnime  *contracts.MobileAnime
 	mobileAnimes []contracts.MobileAnime
 	err          error
-	history      []contracts.AnimeHistoryItem
-	historyErr   error
 }
 
 func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -189,10 +187,6 @@ func (s *stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contra
 
 func (s *stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.AnimeListItem, error) {
 	return nil, nil
-}
-
-func (s *stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.AnimeHistoryItem, error) {
-	return s.history, s.historyErr
 }
 
 func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {

@@ -280,50 +280,10 @@ func TestGetAnimeDetailReturnsNilWhenAnimeQueryServiceNil(t *testing.T) {
 	}
 }
 
-func TestGetAnimeHistoryReturnsPopulatedResultForServiceWithData(t *testing.T) {
-	t.Parallel()
-
-	want := []contracts.AnimeHistoryItem{{ID: "anime-1", Name: "Frieren", EpisodesWatched: 12, LastWatchedAt: 1700000000000, Status: 1}}
-	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{history: want}}
-
-	got := app.GetAnimeHistory()
-	if len(got) != 1 || got[0].ID != "anime-1" || got[0].LastWatchedAt != 1700000000000 {
-		t.Fatalf("expected populated history result, got %#v", got)
-	}
-}
-
-func TestGetAnimeHistoryReturnsEmptySliceWhenAnimeQueryServiceNil(t *testing.T) {
-	t.Parallel()
-
-	app := &App{}
-
-	got := app.GetAnimeHistory()
-	if got == nil {
-		t.Fatal("expected non-nil empty slice when animeQuery is nil, got nil")
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected empty slice when animeQuery is nil, got %#v", got)
-	}
-}
-
-func TestGetAnimeHistoryReturnsEmptySliceOnServiceError(t *testing.T) {
-	t.Parallel()
-
-	app := &App{ctx: context.Background(), animeQuery: &stubAnimeQueryService{historyErr: errors.New("store unavailable")}}
-
-	got := app.GetAnimeHistory()
-	if got == nil {
-		t.Fatal("expected non-nil empty slice on service error, got nil")
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected empty slice on service error, got %#v", got)
-	}
-}
-
 // TestGetWatchHistoryPageDegradesAndPassesThroughStorePage covers
 // GetWatchHistoryPage's nil-guard (mirroring GetAnimes's contract),
-// error-surfacing (unlike GetAnimeHistory's swallow-to-empty behaviour), and
-// the successful passthrough of Store.Page's items and cursor.
+// error-surfacing, and the successful passthrough of Store.Page's items and
+// cursor.
 func TestGetWatchHistoryPageDegradesAndPassesThroughStorePage(t *testing.T) {
 	t.Parallel()
 
