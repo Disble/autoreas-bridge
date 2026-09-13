@@ -28,16 +28,8 @@ const (
 	// ActivityActionAnimeRestored marks an anime restore mutation.
 	ActivityActionAnimeRestored = "anime_restored"
 	// ActivityActionAnimeRepeated marks an anime repeat mutation.
-	ActivityActionAnimeRepeated = "anime_repeated"
-	// ActivityActionAnimePageOpened marks a page-open desktop action.
-	ActivityActionAnimePageOpened = "anime_page_opened"
-	// ActivityActionAnimePageCopied marks a page-copy desktop action.
-	ActivityActionAnimePageCopied = "anime_page_copied"
-	// ActivityActionAnimeFolderOpened marks a folder-open desktop action.
-	ActivityActionAnimeFolderOpened = "anime_folder_opened"
-	// ActivityActionAnimeFolderCopied marks a folder-copy desktop action.
-	ActivityActionAnimeFolderCopied = "anime_folder_copied"
-	defaultActivityCorrelationType  = "anime.episode"
+	ActivityActionAnimeRepeated    = "anime_repeated"
+	defaultActivityCorrelationType = "anime.episode"
 )
 
 var (

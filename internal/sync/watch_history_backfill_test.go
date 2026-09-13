@@ -189,7 +189,7 @@ func TestEnsureWatchHistoryBackfillReplaysRealisticFixtureAndPurgesNavigationRow
 		beforeEp, afterEp float64
 	}{
 		{activity.ActionEpisodeAdjusted, 1000, 9, 10},
-		{activity.ActionAnimePageOpened, 1500, 10, 10},
+		{"anime_page_opened", 1500, 10, 10},
 		{activity.ActionEpisodeAdjusted, 2000, 10, 11},
 		{activity.ActionEpisodeAdjusted, 3000, 11, 10},
 	}

@@ -27,14 +27,6 @@ const (
 	ActionAnimeRestored = "anime_restored"
 	// ActionAnimeRepeated records a repetition reset.
 	ActionAnimeRepeated = "anime_repeated"
-	// ActionAnimePageOpened records an open-page action.
-	ActionAnimePageOpened = "anime_page_opened"
-	// ActionAnimePageCopied records a copy-page action.
-	ActionAnimePageCopied = "anime_page_copied"
-	// ActionAnimeFolderOpened records an open-folder action.
-	ActionAnimeFolderOpened = "anime_folder_opened"
-	// ActionAnimeFolderCopied records a copy-folder action.
-	ActionAnimeFolderCopied = "anime_folder_copied"
 )
 
 // IsEpisodeAdjusted reports whether an action string denotes an episode-progress

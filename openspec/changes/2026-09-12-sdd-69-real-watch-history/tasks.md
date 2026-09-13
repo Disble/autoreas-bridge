@@ -389,7 +389,7 @@ Runtime-Event Persistence" (both scenarios).
 
 ### 4.1 Telemetry relocation (D7)
 
-- [ ] **4.1.1** [RED] `internal/desktop/app_desktop_actions_test.go`: the four actions (`OpenAnimePage`,
+- [x] **4.1.1** [RED] `internal/desktop/app_desktop_actions_test.go`: the four actions (`OpenAnimePage`,
   `CopyAnimePage`, `OpenAnimeFolder`, `CopyAnimeFolder`) emit through the shared logger instead of
   `activity.Store`; the emitted event carries `domain="anime"`, `event_type` = `"anime.folder_opened"` /
   `"anime.page_opened"` / `"anime.folder_copied"` / `"anime.page_copied"`, `entity_id` = the anime id,
@@ -397,15 +397,19 @@ Runtime-Event Persistence" (both scenarios).
   `{"animeName": …, "source": "desktop"}` bounded via `boundMetadataJSON`; `runAnimeDesktopAction`'s
   "recording failed → error result" branch is gone (`Logf` returns nothing — D7); a nil `a.sharedLogger`
   degrades silently, mirroring every other lazily-wired `App` collaborator.
-- [ ] **4.1.2** [GREEN] `internal/desktop/app_desktop_actions.go`: replace `recordDesktopAnimeAction`'s
+- [x] **4.1.2** [GREEN] `internal/desktop/app_desktop_actions.go`: replace `recordDesktopAnimeAction`'s
   `activity.Store.RecordActivity` call with the shared-logger path for these four actions only (leave
   `EpisodeService`'s own `RecordActivity` calls for progress/state changes untouched).
-- [ ] **4.1.3** [RED] A compile-level check (or targeted test) that no reference remains to
+- [x] **4.1.3** [RED] A compile-level check (or targeted test) that no reference remains to
   `ActionAnimePageOpened`, `ActionAnimePageCopied`, `ActionAnimeFolderOpened`, `ActionAnimeFolderCopied`
   outside historical/fixture data.
-- [ ] **4.1.4** [GREEN] `internal/activity/store.go`: drop the four navigation action constants and their
+- [x] **4.1.4** [GREEN] `internal/activity/store.go`: drop the four navigation action constants and their
   `internal/anime` mirrors (`ActivityActionAnimePageOpened` and siblings), updating
   `app_desktop_actions.go`'s call sites to use the `eventlog` event-type strings directly.
+
+**Apply note (4.1):** 4.1.3 needed no separate test — deleting the constants (4.1.4) plus their two
+remaining fixture references (now literal `"anime_page_opened"`) is the compile-level check; `go
+build`/`go vet` pass clean. Measured: 76 insertions + 79 deletions across 6 files.
 
 ### 4.2 `activity_log` retention cap (D8)
 

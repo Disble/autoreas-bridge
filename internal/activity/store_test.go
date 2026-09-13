@@ -108,7 +108,7 @@ func TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions(t *testing.T
 	db := openActivityTestDB(t)
 	store := activity.NewStore(activity.NewSQLiteProvider(db))
 	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{}, activity.Snapshot{})
-	seedReplayRow(t, store, activity.ActionAnimePageOpened, "anime-1", "One", 2000, activity.Snapshot{}, activity.Snapshot{})
+	seedReplayRow(t, store, "anime_page_opened", "anime-1", "One", 2000, activity.Snapshot{}, activity.Snapshot{})
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
