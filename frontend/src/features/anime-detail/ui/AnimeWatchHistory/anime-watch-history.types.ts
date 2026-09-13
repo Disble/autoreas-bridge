@@ -1,10 +1,12 @@
 import type { UIEvent } from 'react';
-import type { WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeDetail, WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
 import type { HeroChipColor } from '../AnimeDetail/anime-detail.types';
 
 /** Props for the per-anime AnimeWatchHistory section, keyed by the owning anime's id. */
 export interface AnimeWatchHistoryProps {
   readonly animeId: string;
+  /** Raw detail DTO feeding the per-watch view models; the parent mounts this section only once loaded. */
+  readonly detail: AnimeDetail;
 }
 
 /** State returned by useAnimeWatchEpisodes: the anime's accumulated watch-history pages plus load and paging status. */

@@ -1,93 +1,105 @@
-import { Alert, Skeleton } from '@heroui/react';
-import historyAirisArtwork from '../../../../assets/airis-empty-states/today.webp';
-import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
-import { formatDayHeading, formatRowTime } from '../../../../shared/watch-history/watch-history.helpers';
+import { useMemo, useState } from 'react';
+import { Accordion, Chip, ProgressBar, Tabs } from '@heroui/react';
+import { AnimeWatchEpisodeList } from './AnimeWatchEpisodeList';
+import { toAnimeWatchViewModels } from './anime-watch-history.helpers';
 import {
-  ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION,
-  ANIME_WATCH_HISTORY_EMPTY_TITLE,
-  ANIME_WATCH_HISTORY_ERROR_TITLE,
+  ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_ID,
+  ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_LABEL,
+  ANIME_WATCH_HISTORY_BY_WATCH_TAB_ID,
+  ANIME_WATCH_HISTORY_BY_WATCH_TAB_LABEL,
+  ANIME_WATCH_HISTORY_CURRENT_CHIP_LABEL,
   ANIME_WATCH_HISTORY_LABEL,
-  ANIME_WATCH_HISTORY_LOADING_LABEL,
-  ANIME_WATCH_HISTORY_ROW_CLASS,
-  ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT,
-  ANIME_WATCH_HISTORY_TRUNCATED_NOTICE,
+  ANIME_WATCH_HISTORY_TABS_LABEL,
 } from './anime-watch-history.constants';
 import type { AnimeWatchHistoryProps } from './anime-watch-history.types';
-import { useAnimeWatchEpisodes } from './use-anime-watch-episodes';
 
 /**
- * Per-anime episode-history section rendered beside AnimeRepetitionTimeline
- * (watch-history spec, "Per-Anime History Surfaces On Anime Detail"): lists
- * this anime's own recorded episode-watch rows, most recent page only -- no
- * scroll-triggered paging is wired here (unlike the global HistoryTimeline).
- * The backend still caps page size, so a longer log renders
- * `ANIME_WATCH_HISTORY_TRUNCATED_NOTICE` under the list rather than silently
- * dropping older rows. Renders exactly one of three exclusive states
- * (CLAUDE.md FE #14): a row-shaped skeleton while unresolved, the surface
- * error Alert on failure, or AirisEmptyState when resolved with zero rows.
- * Owns its data via useAnimeWatchEpisodes.
+ * Per-anime Watch history section beside AnimeRepetitionTimeline (Real Watch
+ * History spec, "History Surfaces Redesign"): two tabs sharing one section
+ * heading. "By watch" (default) renders one Accordion item per watch,
+ * newest-first with the live watch carrying a Current chip; each heading shows
+ * the watch status, its date span, the episode count, and a progress bar, and
+ * expanding an item loads that cycle's own episode list through a
+ * per-watch-gated `AnimeWatchEpisodeList` (collapsed items keep their rows,
+ * so re-expanding spends no new binding call). "All episodes" renders the
+ * flat newest-first list across every cycle. Switching tabs unmounts the
+ * inactive panel (RAC Tabs behavior), collapsing it back to idle. The
+ * per-watch view models derive from the raw detail DTO the parent drills in,
+ * so mutation updates flow through the same freshness as the rest of the
+ * screen. Pre-log summaries render from U14; this unit only wires headings,
+ * tabs, and episode lists.
  */
 export function AnimeWatchHistory(props: Readonly<AnimeWatchHistoryProps>) {
-  const { entries, isLoading, hasMore, error } = useAnimeWatchEpisodes(props.animeId);
-  const isEmpty = !isLoading && error === undefined && entries.length === 0;
+  const views = useMemo(() => toAnimeWatchViewModels(props.detail), [props.detail]);
+  const displayViews = useMemo(() => [...views].reverse(), [views]);
+  const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
 
   return (
     <section aria-label={ANIME_WATCH_HISTORY_LABEL} className="flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-foreground">{ANIME_WATCH_HISTORY_LABEL}</h3>
 
-      {isLoading ? (
-        <div
-          aria-labelledby="anime-watch-history-loading-label"
-          aria-live="polite"
-          className="flex flex-col gap-2"
-          role="status"
-        >
-          <span className="sr-only" id="anime-watch-history-loading-label">
-            {ANIME_WATCH_HISTORY_LOADING_LABEL}
-          </span>
-          {Array.from({ length: ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT }, (_unused, index) => (
-            <div className={ANIME_WATCH_HISTORY_ROW_CLASS} data-testid="anime-watch-history-skeleton-row" key={index}>
-              <Skeleton className="h-4 w-24 rounded" />
-              <Skeleton className="h-3 w-20 rounded" />
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {error === undefined ? null : (
-        <Alert status="danger">
-          <Alert.Content>
-            <Alert.Title>{ANIME_WATCH_HISTORY_ERROR_TITLE}</Alert.Title>
-            <Alert.Description>{error.message}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      {isEmpty ? (
-        <AirisEmptyState
-          description={ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION}
-          imageSrc={historyAirisArtwork}
-          title={ANIME_WATCH_HISTORY_EMPTY_TITLE}
-        />
-      ) : null}
-
-      {isLoading || error !== undefined || isEmpty
-        ? null
-        : (
-          <>
-            <ul className="flex flex-col gap-1">
-              {entries.map((entry) => (
-                <li className={ANIME_WATCH_HISTORY_ROW_CLASS} key={entry.id}>
-                  <span className="text-foreground">Episode {entry.episode}</span>
-                  <span className="text-xs text-muted">
-                    {formatDayHeading(entry.watchedAtMs)}, {formatRowTime(entry.watchedAtMs)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {hasMore ? <p className="text-xs text-muted">{ANIME_WATCH_HISTORY_TRUNCATED_NOTICE}</p> : null}
-          </>
-        )}
+      <Tabs defaultSelectedKey={ANIME_WATCH_HISTORY_BY_WATCH_TAB_ID}>
+        <Tabs.ListContainer>
+          <Tabs.List aria-label={ANIME_WATCH_HISTORY_TABS_LABEL}>
+            <Tabs.Tab id={ANIME_WATCH_HISTORY_BY_WATCH_TAB_ID}>
+              {ANIME_WATCH_HISTORY_BY_WATCH_TAB_LABEL}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id={ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_ID}>
+              {ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_LABEL}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs.ListContainer>
+        <Tabs.Panel id={ANIME_WATCH_HISTORY_BY_WATCH_TAB_ID}>
+          <Accordion.Root
+            allowsMultipleExpanded
+            expandedKeys={expandedKeys}
+            onExpandedChange={(keys) => {
+              setExpandedKeys(new Set([...keys].map((key) => String(key))));
+            }}
+          >
+            {displayViews.map((view) => (
+              <Accordion.Item id={view.key} key={view.key}>
+                <Accordion.Heading>
+                  <Accordion.Trigger>
+                    <span className="text-foreground">Watch {view.number}</span>
+                    {view.isCurrent ? (
+                      <Chip color="default" size="sm" variant="soft">
+                        <Chip.Label>{ANIME_WATCH_HISTORY_CURRENT_CHIP_LABEL}</Chip.Label>
+                      </Chip>
+                    ) : null}
+                    <Chip color={view.statusColor} size="sm" variant="soft">
+                      <Chip.Label>{view.statusLabel}</Chip.Label>
+                    </Chip>
+                    <span className="text-xs text-muted">{view.spanLabel}</span>
+                    <span className="text-xs text-muted">{view.episodesLabel}</span>
+                    {view.progressRatio === undefined ? null : (
+                      <ProgressBar aria-label={`Watch ${view.number} progress`} value={view.progressRatio}>
+                        <ProgressBar.Track>
+                          <ProgressBar.Fill />
+                        </ProgressBar.Track>
+                      </ProgressBar>
+                    )}
+                  </Accordion.Trigger>
+                </Accordion.Heading>
+                <Accordion.Panel>
+                  <Accordion.Body>
+                    <AnimeWatchEpisodeList
+                      animeId={props.animeId}
+                      cycle={view.number}
+                      enabled={expandedKeys.has(view.key)}
+                    />
+                  </Accordion.Body>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+          </Accordion.Root>
+        </Tabs.Panel>
+        <Tabs.Panel id={ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_ID}>
+          <AnimeWatchEpisodeList animeId={props.animeId} />
+        </Tabs.Panel>
+      </Tabs>
     </section>
   );
 }

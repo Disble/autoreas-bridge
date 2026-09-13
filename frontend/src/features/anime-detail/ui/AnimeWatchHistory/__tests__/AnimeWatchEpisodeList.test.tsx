@@ -51,17 +51,19 @@ describe('AnimeWatchEpisodeList', () => {
     expect(screen.getAllByText('Watch 2')).toHaveLength(2);
   });
 
-  it('omits the Watch chip in the All-episodes case, when no cycle is passed', () => {
-    renderList(undefined, { entries: [entry({})] });
+  it('names each row’s own stored cycle in the All-episodes case, when no cycle is passed', () => {
+    renderList(undefined, { entries: [entry({ cycle: 1 }), entry({ id: 2, episode: 11, cycle: 2 })] });
 
     expect(screen.getByText('Episode 12')).toBeInTheDocument();
-    expect(screen.queryByText('Watch 2')).toBeNull();
+    expect(screen.getByText('Episode 11')).toBeInTheDocument();
+    expect(screen.getByText('Watch 1')).toBeInTheDocument();
+    expect(screen.getByText('Watch 2')).toBeInTheDocument();
   });
 
   it('forwards the cycle scope to the episodes hook', () => {
     const spy = renderList(2, { entries: [] });
 
-    expect(spy).toHaveBeenCalledWith('anime-1', 2);
+    expect(spy).toHaveBeenCalledWith('anime-1', 2, true);
   });
 
   it('never renders the truncated-page notice, since the list pages progressively instead', () => {

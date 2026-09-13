@@ -162,6 +162,8 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
   readonly detail: AnimeDetailViewModel | undefined;
+  /** Raw detail DTO backing `detail`, exposed so Watch history derives per-watch view models at the same freshness. `null` when the anime was not found; the section mounts only when this is non-null. */
+  readonly detailSource: AnimeDetailDto | null | undefined;
   readonly cover: AnimeCoverEntry;
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;

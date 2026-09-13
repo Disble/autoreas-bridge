@@ -25,6 +25,7 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
   const {
     loadState,
     detail,
+    detailSource,
     cover,
     confirmation,
     feedback,
@@ -197,7 +198,9 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           )}
         </section>
 
-        <AnimeWatchHistory animeId={props.animeId} />
+        {detailSource === undefined || detailSource === null ? null : (
+          <AnimeWatchHistory animeId={props.animeId} detail={detailSource} />
+        )}
 
       </Card.Content>
     </Card>

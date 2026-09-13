@@ -16,9 +16,11 @@ function buildEpisodesRequest(animeId: string, cycle: number, cursor: string): A
  * watch-history log by cursor, optionally scoped to a single watch cycle
  * (`cycle: 0` fetches every cycle, the All-episodes case). The `enabled` flag
  * gates the fetch so a collapsed Accordion item (U13) pays no binding call
- * until it expands; while disabled the hook stays idle -- no loading, no
- * rows, no error. A change to the anime id or cycle clears the accumulated
- * rows and mints a fresh generation, so a response from a now-superseded
+ * until it expands; collapsing after loading keeps the accumulated rows, so
+ * re-expanding is instant and spends no new call, while a new anime id or
+ * cycle resets rows even while disabled so a collapsed item never shows
+ * another scope's rows. A change to the anime id or cycle clears the
+ * accumulated rows and mints a fresh generation, so a response from a now-superseded
  * request is dropped rather than appended to the new one. A first-page
  * failure surfaces as `error` (design D9); a later-page failure only stops
  * further paging, so it never erases rows already on screen. `fetchNextPage`
@@ -42,6 +44,10 @@ export function useAnimeWatchEpisodes(
   const isFetchingRef = useRef(false);
   /** Bumped whenever the anime id or cycle changes; a page response is applied only while its own generation is still current. */
   const generationRef = useRef(0);
+  /** True once the gated fetch ran at least once; collapsing back to disabled keeps rows instead of clearing them. */
+  const wasEnabledRef = useRef(false);
+  /** Last fetch scope seen (undefined until the first effect run); a new scope resets rows even while disabled so a collapsed item never shows another scope's rows. */
+  const lastFetchPageRef = useRef<((cursor: string, generation: number) => Promise<void>) | undefined>(undefined);
   const resolvedCycle = typeof cycleOrSource === 'number' ? cycleOrSource : 0;
   const resolvedSource = typeof cycleOrSource === 'object' ? cycleOrSource : source;
 
@@ -115,6 +121,15 @@ export function useAnimeWatchEpisodes(
 
   // 7. Effects
   useEffect(() => {
+    const scopeChanged = fetchPage !== lastFetchPageRef.current;
+    lastFetchPageRef.current = fetchPage;
+
+    if (!enabled && !scopeChanged && wasEnabledRef.current) {
+      // Collapsed after loading within the same anime and cycle: keep the
+      // accumulated rows so re-expanding is instant and spends no binding call.
+      return;
+    }
+
     generationRef.current += 1;
     const generation = generationRef.current;
 
@@ -124,11 +139,13 @@ export function useAnimeWatchEpisodes(
     setError(undefined);
 
     if (!enabled) {
-      // Gated off (a collapsed Accordion item): stay idle without spending a binding call.
+      // Gated off before ever loading, or on a new scope while collapsed:
+      // stay idle without spending a binding call.
       setIsLoading(false);
       return;
     }
 
+    wasEnabledRef.current = true;
     setIsLoading(true);
     void fetchPage('', generation);
   }, [enabled, fetchPage]);

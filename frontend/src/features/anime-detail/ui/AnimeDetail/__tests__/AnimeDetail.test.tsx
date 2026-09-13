@@ -53,11 +53,29 @@ function createDetailViewModel(overrides = {}) {
   };
 }
 
+/** Baseline raw detail DTO feeding Watch history; repetitions stay empty so the section renders its live watch only. */
+function createDetailSource(overrides = {}) {
+  return {
+    id: 'anime-1',
+    name: 'Frieren',
+    status: 0,
+    episodesWatched: 12,
+    totalEpisodes: 28,
+    active: 1,
+    days: [],
+    genres: ['Fantasy'],
+    firstCycle: 1,
+    modified_at: 1000,
+    ...overrides,
+  };
+}
+
 /** Configures the mocked hook to report a fully loaded, ready-to-render state. */
 function mockAnimeDetailState(overrides = {}) {
   useAnimeDetailMock.mockReturnValue({
     loadState: 'loaded',
     detail: createDetailViewModel(),
+    detailSource: createDetailSource(),
     cover: { status: 'placeholder' },
     onPortadaError: vi.fn(),
     onPortadaLoad: vi.fn(),
@@ -297,6 +315,8 @@ describe('AnimeDetail', () => {
         ],
         progressRatio: undefined,
       }),
+      // Unmounts Watch history so the assertion only sees the Episode-info progress bar (or its absence).
+      detailSource: undefined,
     });
 
     render(<AnimeDetail animeId="anime-1" />);
@@ -308,7 +328,11 @@ describe('AnimeDetail', () => {
   });
 
   it('renders the progress bar only when the progress ratio is known', () => {
-    mockAnimeDetailState({ detail: createDetailViewModel({ progressRatio: 43 }) });
+    mockAnimeDetailState({
+      detail: createDetailViewModel({ progressRatio: 43 }),
+      // Unmounts Watch history so the assertion only sees the Episode-info progress bar.
+      detailSource: undefined,
+    });
 
     render(<AnimeDetail animeId="anime-1" />);
 
@@ -414,6 +438,6 @@ describe('AnimeDetail', () => {
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByRole('heading', { name: 'Episode history' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Watch history' })).toBeInTheDocument();
   });
 });

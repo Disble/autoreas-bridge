@@ -92,6 +92,29 @@ describe('useAnimeWatchEpisodes', () => {
     expect(result.current.error).toBeUndefined();
   });
 
+  it('keeps loaded rows while collapsed and refetches on re-expand', async () => {
+    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useAnimeWatchEpisodes('anime-1', 2, enabled, source),
+      { initialProps: { enabled: true } },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.entries).toHaveLength(1);
+    expect(getAnimeWatchHistoryPage).toHaveBeenCalledTimes(1);
+
+    rerender({ enabled: false });
+    await act(async () => {});
+
+    expect(getAnimeWatchHistoryPage).toHaveBeenCalledTimes(1);
+    expect(result.current.entries).toHaveLength(1);
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.entries).toHaveLength(1));
+  });
+
   it('surfaces an error, rather than degrading to an empty result, when the first page fails', async () => {
     const source = createSource(vi.fn().mockResolvedValue(page({ status: 'error', message: 'boom' })));
     const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));

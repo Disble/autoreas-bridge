@@ -113,6 +113,7 @@ export function useAnimeDetail(
   return {
     loadState,
     detail: viewModel,
+    detailSource: detail,
     cover,
     confirmation: mutation.confirmation,
     feedback: mutation.feedback,

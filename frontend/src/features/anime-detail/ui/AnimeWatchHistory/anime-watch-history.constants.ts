@@ -1,5 +1,5 @@
-/** Accessible label and visible heading for the per-anime episode-history section. */
-export const ANIME_WATCH_HISTORY_LABEL = 'Episode history';
+/** Accessible label and visible heading for the per-anime watch-history section (the spec bans separate "Episode history" sections). */
+export const ANIME_WATCH_HISTORY_LABEL = 'Watch history';
 
 /** Accessible name of the loading status region while the page is unresolved. */
 export const ANIME_WATCH_HISTORY_LOADING_LABEL = 'Loading episode history...';
@@ -29,10 +29,20 @@ export const ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT = 3;
 /** Separator joining the start and end halves of a watch span label. */
 export const ANIME_WATCH_HISTORY_SPAN_SEPARATOR = ' – ';
 
-/**
- * Muted notice shown under the row list when the page's `nextCursor` proves
- * older rows exist beyond this single page (the backend page defaults to its
- * 50-row cap). Points the user to the full global timeline rather than
- * silently truncating a long series or a heavily rewatched one.
- */
-export const ANIME_WATCH_HISTORY_TRUNCATED_NOTICE = 'Showing the 50 most recent episodes. The full list is in History.';
+/** Tab id selecting the per-watch Accordion; the default tab. */
+export const ANIME_WATCH_HISTORY_BY_WATCH_TAB_ID = 'by-watch';
+
+/** Visible label of the per-watch tab. */
+export const ANIME_WATCH_HISTORY_BY_WATCH_TAB_LABEL = 'By watch';
+
+/** Tab id selecting the flat newest-first episode list across every cycle. */
+export const ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_ID = 'all-episodes';
+
+/** Visible label of the flat-list tab. */
+export const ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_LABEL = 'All episodes';
+
+/** Accessible label of the watch-history view tab list. */
+export const ANIME_WATCH_HISTORY_TABS_LABEL = 'Watch history views';
+
+/** Text of the chip marking the live (still current) watch in the By-watch Accordion. */
+export const ANIME_WATCH_HISTORY_CURRENT_CHIP_LABEL = 'Current';

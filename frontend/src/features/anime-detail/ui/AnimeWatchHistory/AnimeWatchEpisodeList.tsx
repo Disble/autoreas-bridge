@@ -16,8 +16,10 @@ import { useAnimeWatchEpisodes } from './use-anime-watch-episodes';
 
 /**
  * Flat per-anime episode list: every recorded episode newest-first, each row
- * showing "Episode N", its date and time together, and -- when scoped to one
- * watch cycle -- a "Watch K" chip naming that cycle. Pages progressively
+ * showing "Episode N", a "Watch K" chip, and its date and time together. The
+ * chip names the scoping cycle inside a By-watch Accordion item, or the row's
+ * own stored cycle in the unscoped All-episodes list (spec, "All Episodes
+ * Lists Every Recorded Episode With Its Watch"). Pages progressively
  * inside its own bounded scroll container (spec, "Long Lists Page
  * Progressively"): a near-bottom scroll appends the next keyset page, so no
  * truncated-page notice ever renders. Renders exactly one of three exclusive
@@ -28,7 +30,11 @@ import { useAnimeWatchEpisodes } from './use-anime-watch-episodes';
  * AnimeRepetitionTimeline.
  */
 export function AnimeWatchEpisodeList(props: Readonly<AnimeWatchEpisodeListProps>) {
-  const { entries, isLoading, error, onScroll } = useAnimeWatchEpisodes(props.animeId, props.cycle ?? 0);
+  const { entries, isLoading, error, onScroll } = useAnimeWatchEpisodes(
+    props.animeId,
+    props.cycle ?? 0,
+    props.enabled ?? true,
+  );
   const isEmpty = !isLoading && error === undefined && entries.length === 0;
 
   return (
@@ -80,9 +86,9 @@ export function AnimeWatchEpisodeList(props: Readonly<AnimeWatchEpisodeListProps
             {entries.map((entry) => (
               <li className={ANIME_WATCH_HISTORY_ROW_CLASS} data-testid={ANIME_WATCH_EPISODE_ROW_TESTID} key={entry.id}>
                 <span className="text-foreground">Episode {entry.episode}</span>
-                {props.cycle === undefined ? null : (
-                  <Chip color="default" size="sm" variant="soft">Watch {props.cycle}</Chip>
-                )}
+                <Chip color="default" size="sm" variant="soft">
+                  <Chip.Label>Watch {props.cycle ?? entry.cycle}</Chip.Label>
+                </Chip>
                 <span className="text-xs text-muted">{formatRowDateTime(entry.watchedAtMs)}</span>
               </li>
             ))}

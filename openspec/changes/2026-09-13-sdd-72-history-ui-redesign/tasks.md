@@ -247,13 +247,13 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** replaces the internals of the still-mounted "Watch history" component; `AnimeRepetitionTimeline` stays mounted beside it until U14.
 **Forecast:** 360–450 (D10).
 
-- [ ] **13.1** [RED] `use-anime-watch-accordion.test.ts` (new): controlled `expandedKeys`, default = the current watch only; a collapsed item's rows survive re-expansion (only Tabs unmount on switch, D9).
-- [ ] **13.2** [GREEN] `use-anime-watch-accordion.ts`.
-- [ ] **13.3** [RED] `AnimeWatchHistory.test.tsx` (rewritten into the tabs test): section "Watch history", "N watches" subtitle; Tabs default "By watch"; switching to "All episodes" shows its own loading state on every entry (RAC unmounts panels); "By watch" renders one Accordion item per watch, each item's `enabled = expandedKeys.has(key)` gating its `AnimeWatchEpisodeList`.
-- [ ] **13.4** [GREEN] `AnimeWatchHistory.tsx`: Tabs + Accordion wired to `use-anime-watch-accordion` and `toAnimeWatchViewModels`; each item embeds `AnimeWatchEpisodeList` with `cycle` = that watch's number; the All-episodes tab embeds it with `cycle: 0`.
+- [x] **13.1** [RED] preservation test in `use-anime-watch-episodes.test.ts`: a collapsed item's rows survive re-expansion, re-expand refetches (only Tabs unmount on switch, D9). Deviation: no separate `use-anime-watch-accordion` file — expansion is local component state in `AnimeWatchHistory.tsx`, preservation is hook behavior with its own test.
+- [x] **13.2** [GREEN] hook preservation via `wasEnabledRef`/`lastFetchPageRef` in `use-anime-watch-episodes.ts` (collapse keeps rows, scope change resets).
+- [x] **13.3** [RED] `AnimeWatchHistory.test.tsx` (rewritten into the tabs test): section "Watch history", "N watches" subtitle; Tabs default "By watch"; switching to "All episodes" shows its own loading state on every entry (RAC unmounts panels); "By watch" renders one Accordion item per watch, each item's `enabled = expanded.has(key)` gating its `AnimeWatchEpisodeList`.
+- [x] **13.4** [GREEN] `AnimeWatchHistory.tsx`: Tabs + Accordion wired to local expansion state and `toAnimeWatchViewModels`; each item embeds `AnimeWatchEpisodeList` with `cycle` = that watch's number; the All-episodes tab embeds it with `cycle: 0`. Plus `detailSource` plumbing (`AnimeDetailState.detailSource`, raw DTO drilled as required `detail` prop) and spec-compliance fixes (Watch K chip on all unscoped rows, `Chip.Label` children).
 - [ ] **13.5** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **13.6** [REFACTOR] lean-tests.
-- [ ] **13.7** [VERIFY] `bun --cwd="frontend" run test -- AnimeWatchHistory use-anime-watch-accordion`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **13.6** [REFACTOR] lean-tests.
+- [x] **13.7** [VERIFY] focused 170/170 across 13 files; `bun run typecheck`; gate-shape eslint on touched files; `bun run render:smoke`; `checkarchitecture`; `git diff --check`.
 
 ---
 
