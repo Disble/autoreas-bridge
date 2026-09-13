@@ -1,7 +1,10 @@
 import { Button, cn, Typography } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../ui/AnimeCoverPlaceholder';
 import type { AnimeMetadataCandidate } from '../../metadata-lookup.types';
-import { METADATA_LOOKUP_CANDIDATE_ROW_CLASS } from './anime-metadata-lookup.constants';
+import {
+  METADATA_LOOKUP_CANDIDATE_COVER_SLOT_CLASS,
+  METADATA_LOOKUP_CANDIDATE_ROW_CLASS,
+} from './anime-metadata-lookup.constants';
 
 /** Presentation-only inputs for one candidate row in the lookup modal's list. */
 export interface AnimeMetadataLookupCandidateProps {
@@ -50,23 +53,31 @@ export function AnimeMetadataLookupCandidate({
       variant="tertiary"
       onPress={() => onSelect(candidate.malId)}
     >
-      {candidate.image === undefined ? (
-        <AnimeCoverPlaceholder className="size-10 shrink-0 text-muted" />
-      ) : (
-        // `width`/`height` attributes (not just the `size-10` class) reserve this
-        // box's layout space before the remote image resolves, and keep it
-        // reserved if it never does -- measured against
-        // `loading-skeletons-fixture.tsx` in headless Edge, where an <img> with
-        // no network access otherwise collapsed the row well below its
-        // skeleton placeholder's height.
-        <img
-          alt=""
-          className="size-10 shrink-0 rounded object-cover"
-          height={40}
-          src={candidate.image}
-          width={40}
-        />
-      )}
+      {/*
+        The slot is what holds the box, never the artwork. MyAnimeList returns
+        covers at whatever aspect ratio each title has, so sizing the <img>
+        itself let a wide cover render wider than a tall one and pushed every
+        row's title to a different left edge. A fixed, `overflow-hidden` slot
+        with `size-full object-cover` inside makes the source ratio unable to
+        affect the row at all. The `width`/`height` attributes stay because
+        they reserve the layout box before the remote image resolves, and keep
+        it reserved if it never does -- measured in headless Edge via
+        `loading-skeletons-fixture.tsx`, where a network-less <img> otherwise
+        collapsed the row below its skeleton placeholder.
+      */}
+      <div className={METADATA_LOOKUP_CANDIDATE_COVER_SLOT_CLASS}>
+        {candidate.image === undefined ? (
+          <AnimeCoverPlaceholder className="size-full text-muted" />
+        ) : (
+          <img
+            alt=""
+            className="size-full object-cover"
+            height={40}
+            src={candidate.image}
+            width={40}
+          />
+        )}
+      </div>
       <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">
         <Typography className="whitespace-normal break-words" type="body-sm" weight="semibold">
           {candidate.name}

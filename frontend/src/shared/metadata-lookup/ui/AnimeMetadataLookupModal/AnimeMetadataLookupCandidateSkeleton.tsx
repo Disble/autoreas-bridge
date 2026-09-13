@@ -1,6 +1,9 @@
 import { Skeleton } from '@heroui/react';
 import { METADATA_LOOKUP_SKELETON_ROW_COUNT } from '../../metadata-lookup.constants';
-import { METADATA_LOOKUP_CANDIDATE_ROW_CLASS } from './anime-metadata-lookup.constants';
+import {
+  METADATA_LOOKUP_CANDIDATE_COVER_SLOT_CLASS,
+  METADATA_LOOKUP_CANDIDATE_ROW_CLASS,
+} from './anime-metadata-lookup.constants';
 
 /**
  * Placeholder rows shown while a MyAnimeList search request is unresolved.
@@ -15,7 +18,7 @@ export function AnimeMetadataLookupCandidateSkeleton() {
     <>
       {Array.from({ length: METADATA_LOOKUP_SKELETON_ROW_COUNT }, (_unused, index) => (
         <div className={METADATA_LOOKUP_CANDIDATE_ROW_CLASS} data-testid="metadata-lookup-skeleton-row" key={index}>
-          <Skeleton className="size-10 shrink-0 rounded" />
+          <Skeleton className={METADATA_LOOKUP_CANDIDATE_COVER_SLOT_CLASS} />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <Skeleton className="h-3.5 w-3/5 rounded" />
             <Skeleton className="h-3 w-2/5 rounded" />
