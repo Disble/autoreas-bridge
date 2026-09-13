@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HistoryFilterBar } from '../HistoryFilterBar';
-import type { HistoryFilterBarProps } from '../history-filter-bar.types';
+import type { HistoryDateRange, HistoryFilterBarProps } from '../history-filter-bar.types';
 
 afterEach(cleanup);
 
@@ -20,6 +21,8 @@ function props(overrides: Partial<HistoryFilterBarProps> = {}): HistoryFilterBar
     onStatusChange: vi.fn(),
     type: undefined,
     onTypeChange: vi.fn(),
+    range: undefined,
+    onRangeChange: vi.fn(),
     ...overrides,
   };
 }
@@ -79,5 +82,59 @@ describe('HistoryFilterBar', () => {
     fireEvent.click(screen.getByRole('option', { name: option }));
 
     expect(onChange).toHaveBeenCalledWith(expected);
+  });
+
+  describe('watched range', () => {
+    /**
+     * Mirrors how a real caller wires `HistoryFilterBar` to a URL-backed
+     * range: `onRangeChange` feeds straight back into the controlled `range`
+     * prop, so a second edit sees the FIRST edit's committed result rather
+     * than the test's static initial value.
+     * @param initialRange The range the bar starts controlled with.
+     * @param onRangeChange A spy the harness also reports every write to.
+     */
+    function ControlledRangeHarness({
+      initialRange,
+      onRangeChange,
+    }: Readonly<{
+      initialRange: HistoryDateRange;
+      onRangeChange: (range: HistoryDateRange | undefined) => void;
+    }>) {
+      const [range, setRange] = useState<HistoryDateRange | undefined>(initialRange);
+
+      return (
+        <HistoryFilterBar
+          {...props({
+            range,
+            onRangeChange: (next) => {
+              setRange(next);
+              onRangeChange(next);
+            },
+          })}
+        />
+      );
+    }
+
+    it('reports an edit as one complete {from, to} write', () => {
+      const onRangeChange = vi.fn();
+      render(<ControlledRangeHarness initialRange={{ from: '2026-09-01', to: '2026-09-02' }} onRangeChange={onRangeChange} />);
+
+      const [, endDay] = screen.getAllByRole('spinbutton', { name: /day/i });
+      fireEvent.keyDown(endDay, { key: 'ArrowUp' });
+
+      expect(onRangeChange).toHaveBeenCalledExactlyOnceWith({ from: '2026-09-01', to: '2026-09-03' });
+    });
+
+    it('ignores an edit that would invert the range (from > to), never writing it', () => {
+      const onRangeChange = vi.fn();
+      render(<ControlledRangeHarness initialRange={{ from: '2026-09-01', to: '2026-09-02' }} onRangeChange={onRangeChange} />);
+
+      const [startDay] = screen.getAllByRole('spinbutton', { name: /day/i });
+      fireEvent.keyDown(startDay, { key: 'ArrowUp' }); // start -> 2026-09-02, equal to `to`: still a valid range
+      fireEvent.keyDown(startDay, { key: 'ArrowUp' }); // start -> 2026-09-03, now after `to`: ignored
+
+      expect(onRangeChange).toHaveBeenCalledTimes(1);
+      expect(onRangeChange).toHaveBeenLastCalledWith({ from: '2026-09-02', to: '2026-09-02' });
+    });
   });
 });

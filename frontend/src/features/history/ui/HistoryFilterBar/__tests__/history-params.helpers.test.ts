@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseHistoryParams, serializeHistoryParams } from '../history-params.helpers';
+import { parseHistoryParams, serializeHistoryParams, toLocalDayRangeMs } from '../history-params.helpers';
 import type { HistoryParams } from '../history-filter-bar.types';
 
 describe('parseHistoryParams', () => {
@@ -51,5 +51,28 @@ describe('serializeHistoryParams', () => {
     };
 
     expect(parseHistoryParams(serializeHistoryParams(full))).toEqual(full);
+  });
+});
+
+describe('toLocalDayRangeMs', () => {
+  it('converts a local-day range to half-open epoch millis (design D4)', () => {
+    expect(toLocalDayRangeMs('2026-09-01', '2026-09-13')).toEqual([
+      new Date(2026, 8, 1).getTime(),
+      new Date(2026, 8, 14).getTime(),
+    ]);
+  });
+
+  it('is exclusive on the end bound even for a single-day range', () => {
+    expect(toLocalDayRangeMs('2026-09-01', '2026-09-01')).toEqual([
+      new Date(2026, 8, 1).getTime(),
+      new Date(2026, 8, 2).getTime(),
+    ]);
+  });
+
+  it('rolls the exclusive end over a month boundary', () => {
+    expect(toLocalDayRangeMs('2026-09-28', '2026-09-30')).toEqual([
+      new Date(2026, 8, 28).getTime(),
+      new Date(2026, 9, 1).getTime(),
+    ]);
   });
 });

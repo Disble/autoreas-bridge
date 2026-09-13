@@ -147,14 +147,14 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** an additive filter control and one new direct dependency.
 **Forecast:** 170–240 (D10).
 
-- [ ] **6.1** [RED] `history-params.helpers.test.ts` (extend): `toLocalDayRangeMs('2026-09-01', '2026-09-13')` returns `[new Date(2026, 8, 1).getTime(), new Date(2026, 8, 14).getTime())` — half-open, built with `new Date(y, m, d)` (D4).
-- [ ] **6.2** [GREEN] `toLocalDayRangeMs` in `history-params.helpers.ts`.
-- [ ] **6.3** [GREEN] `bun add @internationalized/date@^3.12.2` — never edit `package.json` by hand; verify with `bun pm ls` that only one copy resolves.
-- [ ] **6.4** [RED] `HistoryFilterBar.test.tsx` (extend): the `DateRangePicker` writes `from`/`to` as one push; an invalid or `from > to` range is ignored (absent from the URL).
-- [ ] **6.5** [GREEN] Wire `DateRangePicker` (Root/Trigger/Popover + `DateField`/`RangeCalendar`); `parseDate(from)` in, `CalendarDate.toString()` out.
+- [x] **6.1** [RED] `history-params.helpers.test.ts` (extend): `toLocalDayRangeMs('2026-09-01', '2026-09-13')` returns `[new Date(2026, 8, 1).getTime(), new Date(2026, 8, 14).getTime())` — half-open, built with `new Date(y, m, d)` (D4).
+- [x] **6.2** [GREEN] `toLocalDayRangeMs` in `history-params.helpers.ts`.
+- [x] **6.3** [GREEN] `bun add @internationalized/date@^3.12.2` — never edit `package.json` by hand; verify with `bun pm ls` that only one copy resolves.
+- [x] **6.4** [RED] `HistoryFilterBar.test.tsx` (extend): the `DateRangePicker` writes `from`/`to` as one push; an invalid or `from > to` range is ignored (absent from the URL). Orchestrator-adjusted: exercised through a small `ControlledRangeHarness` (feeds `onRangeChange` back into the controlled `range` prop, mirroring a real caller) instead of a static prop, since a fully-controlled `DateRangePicker` re-derives each segment edit from the last committed `value` — a static prop can't observe a second, divergent edit.
+- [x] **6.5** [GREEN] Wire `DateRangePicker` (Root/Trigger/Popover + `DateField`/`RangeCalendar`); `parseDate(from)` in, `CalendarDate.toString()` out.
 - [ ] **6.6** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines; confirm the `>= from` / `< to` boundary mutants (design table) die via exact-boundary row tests.
-- [ ] **6.7** [REFACTOR] lean-tests.
-- [ ] **6.8** [VERIFY] `bun --cwd="frontend" run test -- history-params HistoryFilterBar`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **6.7** [REFACTOR] lean-tests.
+- [x] **6.8** [VERIFY] `bun --cwd="frontend" run test -- history-params HistoryFilterBar`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
 
 ---
 

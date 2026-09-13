@@ -66,6 +66,26 @@ function parseRangeParam(from: string | null, to: string | null): HistoryDateRan
 }
 
 /**
+ * Converts a local calendar-day watched range into half-open epoch millis
+ * (design D4): the start is inclusive and the end is exclusive, so `to` is
+ * built one day past its last inclusive day. Both bounds are constructed
+ * with `new Date(y, m, d)` -- the machine's own local timezone (and DST
+ * where it applies) -- never a UTC or hardcoded-offset parse.
+ * @param from The inclusive local start day, `YYYY-MM-DD`.
+ * @param to The inclusive local end day, `YYYY-MM-DD`.
+ * @returns `[fromMs, toMs)`, a half-open millisecond range.
+ */
+export function toLocalDayRangeMs(from: string, to: string): readonly [number, number] {
+  const [fromYear, fromMonth, fromDay] = from.split('-').map(Number);
+  const [toYear, toMonth, toDay] = to.split('-').map(Number);
+
+  const fromMs = new Date(fromYear, fromMonth - 1, fromDay).getTime();
+  const toMs = new Date(toYear, toMonth - 1, toDay + 1).getTime();
+
+  return [fromMs, toMs];
+}
+
+/**
  * Decodes the `/history` URL search params into `HistoryParams` (design D5).
  * Every field falls back to its default when its param is absent or holds a
  * value outside its known domain, so a tampered or stale URL never breaks

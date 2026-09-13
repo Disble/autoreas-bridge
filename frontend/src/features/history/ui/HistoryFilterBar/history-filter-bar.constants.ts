@@ -17,6 +17,9 @@ export const HISTORY_FILTER_BAR_TYPE_ARIA_LABEL = 'Filter by type';
 /** Accessible name of the Sort control's trigger. */
 export const HISTORY_FILTER_BAR_SORT_ARIA_LABEL = 'Sort watch history';
 
+/** Accessible name of the watched-range `DateRangePicker`. */
+export const HISTORY_FILTER_BAR_RANGE_ARIA_LABEL = 'Filter by watched date range';
+
 /** Sentinel `LabeledSelect` value meaning "no Status/Type filter applied". */
 export const HISTORY_FILTER_BAR_ALL_VALUE = 'all';
 

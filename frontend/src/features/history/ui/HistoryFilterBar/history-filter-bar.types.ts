@@ -69,4 +69,12 @@ export interface HistoryFilterBarProps {
   readonly type: number | undefined;
   /** Called with the newly selected Type filter, or `undefined` for "All". */
   readonly onTypeChange: (type: number | undefined) => void;
+  /** The active watched-date range, or `undefined` for unbounded. */
+  readonly range: HistoryDateRange | undefined;
+  /**
+   * Called with the newly picked range as one complete `{from, to}` write
+   * (design D5), or `undefined` when cleared. An edit that leaves the range
+   * incomplete or inverted (`from > to`) is never reported (design D4).
+   */
+  readonly onRangeChange: (range: HistoryDateRange | undefined) => void;
 }
