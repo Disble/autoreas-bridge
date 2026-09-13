@@ -92,6 +92,7 @@ type App struct {
 	animeEditorScheduleWrite   *anime.ScheduleService
 	coverResolver              coverResolver
 	watchHistoryQuery          watchHistoryReader
+	myanimelistClient          myanimelistClientPort
 	notifier                   notification.Notifier
 	notificationCenterStore    *center.Store
 	notificationCenterExecutor *center.Executor
@@ -241,6 +242,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ensureRuntimeDependencies()
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
+	a.registerDeviceSyncRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	if !a.configureTray(ctx) {

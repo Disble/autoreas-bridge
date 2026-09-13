@@ -440,7 +440,7 @@ components:
 
     DeviceInfo:
       type: object
-      required: [device_id, device_name, paired_at_ms]
+      required: [device_id, device_name, paired_at_ms, last_seen_at_ms, last_ack_changelog_id, sync_status, connection_status, auth_state, blocks_changelog_pruning]
       properties:
         device_id:
           type: string
@@ -448,6 +448,33 @@ components:
           type: string
         paired_at_ms:
           type: integer
+        last_seen_at_ms:
+          type: integer
+          description: Epoch ms of the device's last acknowledged reconcile, or 0 when never synced.
+        last_ack_changelog_id:
+          type: integer
+          description: Highest changelog ID this device has acknowledged.
+        sync_status:
+          type: string
+          enum: [active, stale, revoked]
+          description: |
+            Sync HEALTH, derived from reconcile recency and revocation — never
+            live connection presence. A device can be sync_status "active"
+            while offline, and sync_status "stale" while its websocket is open.
+        connection_status:
+          type: string
+          enum: [connected, disconnected]
+          description: |
+            Live realtime (websocket) presence, independent of sync_status:
+            "connected" while at least one websocket client for the device is
+            registered with the bridge's realtime hub, "disconnected"
+            otherwise (including when no realtime hub is available).
+        auth_state:
+          type: string
+          description: Reserved for future auth lifecycle states; always "active" today.
+        blocks_changelog_pruning:
+          type: boolean
+          description: True while this device's unacknowledged backlog blocks changelog pruning.
 
     ConflictInfo:
       type: object

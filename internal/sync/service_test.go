@@ -93,7 +93,14 @@ func TestTriggerServiceAcknowledgeDeviceUpdatesCheckpointAndPrunes(t *testing.T)
 	t.Parallel()
 
 	store := &recordingAckStore{}
-	service := NewTriggerService(events.NewBus(), store)
+	bus := events.NewBus()
+	published := make(chan events.DeviceAcknowledgedEvent, 1)
+	bus.Subscribe(events.EventNameSyncDeviceAcknowledged, func(event events.Event) {
+		if ack, ok := event.(events.DeviceAcknowledgedEvent); ok {
+			published <- ack
+		}
+	})
+	service := NewTriggerService(bus, store)
 
 	if err := service.AcknowledgeDevice(context.Background(), "device-1", 42); err != nil {
 		t.Fatalf("acknowledge device: %v", err)
@@ -107,6 +114,49 @@ func TestTriggerServiceAcknowledgeDeviceUpdatesCheckpointAndPrunes(t *testing.T)
 	}
 	if store.lastSeenAtMs <= 0 {
 		t.Fatalf("expected last seen timestamp to be stamped, got %d", store.lastSeenAtMs)
+	}
+
+	select {
+	case ack := <-published:
+		if ack.DeviceID != "device-1" || ack.LastAckChangelogID != 42 || ack.LastSeenAtMs != store.lastSeenAtMs {
+			t.Fatalf("expected a published ack for device-1 at 42/%d, got %#v", store.lastSeenAtMs, ack)
+		}
+	default:
+		t.Fatal("expected AcknowledgeDevice to publish a DeviceAcknowledgedEvent")
+	}
+}
+
+// TestTriggerServiceAcknowledgeDevicePublishesEvenWhenPruneFails pins design.md
+// D4's exact publish position: the event asserts a committed fact once the
+// store write succeeds, and it must still reach subscribers even when the
+// unrelated changelog prune that runs afterward fails. Publishing after the
+// prune would let last_seen_at_ms commit in SQLite while the panel never
+// hears about it -- the silent-drift class this slice exists to close.
+func TestTriggerServiceAcknowledgeDevicePublishesEvenWhenPruneFails(t *testing.T) {
+	t.Parallel()
+
+	store := &pruneFailingAckStore{}
+	bus := events.NewBus()
+	published := make(chan events.DeviceAcknowledgedEvent, 1)
+	bus.Subscribe(events.EventNameSyncDeviceAcknowledged, func(event events.Event) {
+		if ack, ok := event.(events.DeviceAcknowledgedEvent); ok {
+			published <- ack
+		}
+	})
+	service := NewTriggerService(bus, store)
+
+	err := service.AcknowledgeDevice(context.Background(), "device-2", 7)
+	if err == nil {
+		t.Fatal("expected the prune failure to propagate")
+	}
+
+	select {
+	case ack := <-published:
+		if ack.DeviceID != "device-2" || ack.LastAckChangelogID != 7 {
+			t.Fatalf("expected a published ack for device-2 at 7, got %#v", ack)
+		}
+	default:
+		t.Fatal("expected DeviceAcknowledgedEvent to be published even though the prune failed")
 	}
 }
 
@@ -128,6 +178,20 @@ func (s *recordingAckStore) AcknowledgeDevice(_ context.Context, deviceID string
 func (s *recordingAckStore) PruneAcknowledgedChangelog(context.Context) (int64, error) {
 	s.pruned = true
 	return 0, nil
+}
+
+// pruneFailingAckStore records a successful acknowledgment but fails the
+// subsequent prune, exercising design.md D4's ordering guarantee.
+type pruneFailingAckStore struct {
+	stubPendingLookup
+}
+
+func (s *pruneFailingAckStore) AcknowledgeDevice(context.Context, string, int64, int64) error {
+	return nil
+}
+
+func (s *pruneFailingAckStore) PruneAcknowledgedChangelog(context.Context) (int64, error) {
+	return 0, errors.New("prune failed")
 }
 
 func TestTriggerServiceListsPendingAnimeSyncsCollapsedByAnime(t *testing.T) {

@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction, SyntheticEvent } from 'react';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
+import type { AnimeDetailCoverEntry } from './use-anime-detail-cover';
 
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
@@ -59,7 +60,7 @@ export interface AnimeDetailViewModel {
   readonly modifiedAt: number;
   readonly canRepeat: boolean;
   readonly canRestore: boolean;
-  readonly portadaUrl?: string;
+  readonly hasStoredCover: boolean;
   readonly estadoLabel: string;
   readonly tipoLabel: string;
   readonly subtitleLabel: string;
@@ -161,7 +162,7 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
   readonly detail: AnimeDetailViewModel | undefined;
-  readonly showPortadaPlaceholder: boolean;
+  readonly cover: AnimeDetailCoverEntry;
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;

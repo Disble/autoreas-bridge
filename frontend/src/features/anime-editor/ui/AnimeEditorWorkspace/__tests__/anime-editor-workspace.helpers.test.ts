@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../../shared/constants/anime-estado.constants';
-import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
+import { classifyAnimeEditorEmptyState, createAnimeEditorDraft, createAnimeEditorListItems, createAnimeEditorSaveCommand, getAnimeEditorEstadoColor, hasAnimeEditorChanges, isNearListBottom, nextAnimeEditorRenderLimit, premieredDateInputToMs, premieredMsToDateInput, resolveAnimeEditorFeedbackMessage, toAnimeEditorLifecycleConfirmation, validateAnimeEditorDraft } from '../anime-editor-workspace.helpers';
 
 /** Authority fixture every save-command case edits a draft against. */
 const record = {
@@ -161,6 +161,38 @@ describe('anime-editor-workspace.helpers', () => {
   it('normalizes runtime feedback messages to a safe string', () => {
     expect(resolveAnimeEditorFeedbackMessage({ message: 'runtime unavailable' }, 'fallback')).toBe('runtime unavailable');
     expect(resolveAnimeEditorFeedbackMessage({ message: 42 }, 'fallback')).toBe('fallback');
+  });
+});
+
+describe('toAnimeEditorLifecycleConfirmation', () => {
+  it('returns the current Deactivate copy byte-identical to the existing modal', () => {
+    // toEqual, not toMatchObject: the generalized confirm modal renders this
+    // copy verbatim, so an extra or missing field would silently reach the UI.
+    expect(toAnimeEditorLifecycleConfirmation('deactivate')).toEqual({
+      action: 'deactivate',
+      heading: 'Deactivate anime',
+      description: 'This hides the anime from your active library. You can restore it later from History.',
+      confirmLabel: 'Deactivate',
+      isDestructive: true,
+    });
+  });
+
+  it('returns non-destructive Restore copy', () => {
+    const confirmation = toAnimeEditorLifecycleConfirmation('restore');
+    expect(confirmation.action).toBe('restore');
+    expect(confirmation.isDestructive).toBe(false);
+    expect(confirmation.confirmLabel).toBe('Restore');
+    expect(confirmation.heading.length).toBeGreaterThan(0);
+    expect(confirmation.description.length).toBeGreaterThan(0);
+  });
+
+  it('returns non-destructive Repeat copy', () => {
+    const confirmation = toAnimeEditorLifecycleConfirmation('repeat');
+    expect(confirmation.action).toBe('repeat');
+    expect(confirmation.isDestructive).toBe(false);
+    expect(confirmation.confirmLabel).toBe('Repeat');
+    expect(confirmation.heading.length).toBeGreaterThan(0);
+    expect(confirmation.description.length).toBeGreaterThan(0);
   });
 });
 

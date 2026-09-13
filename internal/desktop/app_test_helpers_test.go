@@ -368,6 +368,11 @@ func (s *stubAppRealtimeHub) BroadcastSeasonChanged(_ context.Context, _, status
 }
 func (*stubAppRealtimeHub) Close() error { return nil }
 
+// ConnectedDeviceIDs is unused by every test that wires stubAppRealtimeHub
+// today (they exercise broadcast/lifecycle, not device presence), so it
+// degrades to "nobody connected" rather than fabricating presence.
+func (*stubAppRealtimeHub) ConnectedDeviceIDs() []string { return nil }
+
 type stubAppChangelogRecorder struct {
 	started bool
 	stopped bool

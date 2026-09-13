@@ -1,5 +1,6 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** Route input for the ID-driven Anime Editor workspace. */
@@ -18,6 +19,23 @@ export type AnimeEditorChipColor = 'accent' | 'default' | 'success' | 'warning' 
 export interface AnimeEditorStatusOption {
   readonly value: number;
   readonly label: string;
+}
+
+/** Lifecycle action gated behind a confirmation before any gateway write. */
+export type AnimeEditorLifecycleAction = 'deactivate' | 'restore' | 'repeat';
+
+/**
+ * Display-ready confirmation copy for the selected lifecycle action, driving
+ * one generalized confirm modal instead of one hardcoded modal per action.
+ * Mirrors `AnimeDetailConfirmationViewModel`'s shape (`anime-detail.types.ts`)
+ * plus `isDestructive`, which Anime Detail's confirmations do not need.
+ */
+export interface AnimeEditorLifecycleConfirmation {
+  readonly action: AnimeEditorLifecycleAction;
+  readonly heading: string;
+  readonly description: string;
+  readonly confirmLabel: string;
+  readonly isDestructive: boolean;
 }
 
 /** Deferred dirty-guard actions the workspace can resume after Save or Discard. */
@@ -43,6 +61,23 @@ export type AnimeEditorGuardEvent =
 export interface UseAnimeEditorRecordOptions {
   readonly selectedAnimeId?: string;
   readonly source: AnimeEditorRuntimeSource;
+}
+
+/**
+ * Everything the focused metadata applied/undo hook hands back to the record
+ * hook that composes it (design D9). Split out of `UseAnimeEditorRecordOptions`'s
+ * owning hook so the applied/undo state, its confirm/undo handlers, and its
+ * reset live in one cohesive place (fallow complexity guard).
+ */
+export interface UseAnimeEditorMetadataPatchResult {
+  /** The draft's pending Undo -- absent once undone, discarded, or never applied. */
+  readonly appliedMetadata: AppliedMetadata<Partial<AnimeEditorDraft>> | undefined;
+  /** Applies a confirmed MyAnimeList selection to the draft. */
+  readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
+  /** Reverts the draft's last applied metadata patch. A no-op when nothing is applied. */
+  readonly onMetadataUndo: () => void;
+  /** Clears the pending Undo without replaying it -- called on record swap and on discard. */
+  readonly resetAppliedMetadata: () => void;
 }
 
 /** Inputs for the single guarded-transition orchestrator. */
@@ -133,7 +168,8 @@ export interface UseAnimeEditorTransitionsOptions {
   readonly loadRecord: (animeId: string) => Promise<void>;
   readonly saveRecord: () => Promise<AnimeEditorSaveResult | undefined>;
   readonly deactivateRecord: () => Promise<AnimeEditorSaveResult | undefined>;
-  readonly activateRecord: () => Promise<{ readonly status: string } | undefined>;
+  readonly restoreRecord: () => Promise<{ readonly status: string } | undefined>;
+  readonly repeatRecord: () => Promise<{ readonly status: string } | undefined>;
   readonly discardRecord: () => void;
   readonly applySchedule: (entries: readonly ApplyAnimeScheduleDraftEntry[]) => Promise<AnimeEditorScheduleApplyResult | undefined>;
   readonly openSchedule: () => Promise<void>;

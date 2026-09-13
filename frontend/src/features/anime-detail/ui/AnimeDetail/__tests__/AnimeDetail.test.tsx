@@ -25,7 +25,7 @@ function createDetailViewModel(overrides = {}) {
     modifiedAt: 1000,
     canRepeat: true,
     canRestore: false,
-    portadaUrl: undefined,
+    hasStoredCover: false,
     estadoLabel: 'No me gusto',
     tipoLabel: 'Serie',
     subtitleLabel: 'No me gusto • Serie',
@@ -58,7 +58,7 @@ function mockAnimeDetailState(overrides = {}) {
   useAnimeDetailMock.mockReturnValue({
     loadState: 'loaded',
     detail: createDetailViewModel(),
-    showPortadaPlaceholder: true,
+    cover: { status: 'placeholder' },
     onPortadaError: vi.fn(),
     onPortadaLoad: vi.fn(),
     onBack: vi.fn(),
@@ -84,7 +84,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -97,7 +96,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -120,7 +118,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'not-found',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -139,23 +136,33 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
-  it('renders the cute-anime SVG placeholder instead of raw alt text when portada is missing', () => {
-    mockAnimeDetailState({ showPortadaPlaceholder: true });
+  it('renders the cute-anime SVG placeholder instead of raw alt text when the cover resolved to placeholder', () => {
+    mockAnimeDetailState({ cover: { status: 'placeholder' } });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cover art')).not.toBeInTheDocument();
-    expect(screen.getByTestId('anime-detail-portada-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('anime-detail-portada-placeholder')).toHaveClass('size-24');
     expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
   });
 
-  it('renders the cover image and wires onError/onLoad to the hook callbacks when portada is present', () => {
+  it('renders a named loading region for the hero avatar while the cover resolves, without the image or the placeholder', () => {
+    mockAnimeDetailState({ cover: { status: 'loading' } });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByRole('status', { name: 'Loading cover art...' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+  });
+
+  it('renders the cover image and wires onError/onLoad to the hook callbacks when the cover resolved', () => {
     const onPortadaError = vi.fn();
     const onPortadaLoad = vi.fn();
     mockAnimeDetailState({
-      detail: createDetailViewModel({ portadaUrl: 'C:/legacy/portadas/frieren.jpg' }),
-      showPortadaPlaceholder: false,
+      cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' },
       onPortadaError,
       onPortadaLoad,
     });
@@ -163,7 +170,9 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     const image = screen.getByRole('img', { name: 'Cover art' });
-    expect(image).toHaveAttribute('src', 'C:/legacy/portadas/frieren.jpg');
+    expect(image).toHaveAttribute('src', 'data:image/jpeg;base64,ZmFrZQ==');
+    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
 
     fireEvent.error(image);
     expect(onPortadaError).toHaveBeenCalledTimes(1);

@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
+	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/watchhistory"
 )
@@ -177,6 +178,46 @@ func TestGetConnectedDevicesIncludesSyncState(t *testing.T) {
 	}
 	if got[0].LastAckChangelogID != 42 || got[0].LastSeenAtMs != 200 {
 		t.Fatalf("expected sync state in connected device, got %#v", got[0])
+	}
+}
+
+// TestGetConnectedDevicesConnectionStatusReflectsRealtimeHubPresence pins the
+// fix for the defect where connection_status was a relabelled sync_status
+// (which can never read "connected"): with a real realtime hub wired in and
+// one live client registered for device-1, device-1 reads "connected" and
+// the still-paired device-2 (no live client) reads "disconnected".
+func TestGetConnectedDevicesConnectionStatusReflectsRealtimeHubPresence(t *testing.T) {
+	t.Parallel()
+
+	db := openRuntimeBridgeDB(t)
+	store := device.NewSQLiteStore(db)
+	ctx := context.Background()
+	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-1", Name: "Galaxy Tab", AuthToken: "auth-token-1", PairedAtMs: 100}); err != nil {
+		t.Fatalf("insert paired device: %v", err)
+	}
+	if err := store.InsertPairedDevice(ctx, device.StoredDevice{DeviceID: "device-2", Name: "Pixel", AuthToken: "auth-token-2", PairedAtMs: 100}); err != nil {
+		t.Fatalf("insert paired device: %v", err)
+	}
+
+	hub := realtime.NewMemoryHub(ctx, realtime.MemoryHubConfig{})
+	t.Cleanup(func() { _ = hub.Close() })
+	if err := hub.Register(ctx, stubRealtimeCaptureClient{id: "device-1-1", deviceID: "device-1"}); err != nil {
+		t.Fatalf("register client: %v", err)
+	}
+
+	app := &App{ctx: ctx, bridgeDB: db, deviceStore: store, realtimeHub: hub}
+
+	got := app.GetConnectedDevices()
+
+	statusByID := map[string]string{}
+	for _, d := range got {
+		statusByID[d.DeviceID] = d.ConnectionStatus
+	}
+	if statusByID["device-1"] != "connected" {
+		t.Fatalf("expected device-1 connected, got %#v", got)
+	}
+	if statusByID["device-2"] != "disconnected" {
+		t.Fatalf("expected device-2 disconnected, got %#v", got)
 	}
 }
 

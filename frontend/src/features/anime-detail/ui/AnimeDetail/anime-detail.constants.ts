@@ -72,6 +72,9 @@ export const ANIME_DETAIL_DURATION_TILE_LABEL = 'Duration';
 /** Alt text for the hero cover image. */
 export const ANIME_DETAIL_PORTADA_ALT = 'Cover art';
 
+/** Message announced by the hero avatar's loading region while the cover binding is in flight (design D3). */
+export const ANIME_DETAIL_PORTADA_LOADING_MESSAGE = 'Loading cover art...';
+
 /** Accessible label for the per-episode watched/total progress bar. */
 export const ANIME_DETAIL_PROGRESS_LABEL = 'Episodes watched progress';
 

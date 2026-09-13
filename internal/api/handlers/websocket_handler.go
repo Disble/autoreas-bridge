@@ -242,22 +242,31 @@ func isIncomingReconcileMessage(message incomingWebSocketMessage) bool {
 }
 
 type webSocketClient struct {
-	id   string
-	conn *websocket.Conn
-	mu   sync.Mutex
+	id       string
+	deviceID string
+	conn     *websocket.Conn
+	mu       sync.Mutex
 }
 
-// newWebSocketClient creates a uniquely identified websocket hub client.
+// newWebSocketClient creates a uniquely identified websocket hub client. The
+// connection ID is unique per connection (a reconnect gets a distinct
+// sequence) while deviceID stays the stable paired-device identity the
+// realtime hub uses for presence.
 func newWebSocketClient(deviceID string, conn *websocket.Conn) *webSocketClient {
 	sequence := websocketClientSequence.Add(1)
 	return &webSocketClient{
-		id:   fmt.Sprintf("%s-%d", deviceID, sequence),
-		conn: conn,
+		id:       fmt.Sprintf("%s-%d", deviceID, sequence),
+		deviceID: deviceID,
+		conn:     conn,
 	}
 }
 
 func (c *webSocketClient) ID() string {
 	return c.id
+}
+
+func (c *webSocketClient) DeviceID() string {
+	return c.deviceID
 }
 
 func (c *webSocketClient) Send(ctx context.Context, payload []byte) error {

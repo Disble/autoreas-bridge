@@ -16,6 +16,15 @@ called out explicitly under its release.
 
 ### Added
 
+- Fill in an anime's details straight from MyAnimeList. Both the Create form and the Editor now have
+  a "Fetch metadata" action beside the name: type a name, pick the right match from the search
+  results, and confirm to fill in type, episode count, duration, source, genres and studio — you
+  always pick, nothing is applied automatically. A misspelled or approximate name still finds the
+  right anime; MyAnimeList's own search tolerates typos far better than the alternatives tried.
+  Fields the lookup cannot answer — like your download page, folder, or watched episodes on Create,
+  and your watching status and premiere date on the Editor — are never touched, and a field
+  MyAnimeList genuinely does not report is called out rather than silently left blank. One button
+  press undoes the fill if you change your mind.
 - History is now a real watch history. Every episode you watch gets its own row with the time you watched it, listed newest first under a heading for each day that shows how many episodes you watched that day — the way a browser lists the pages you visited. Select any row to open that anime.
 - Rolling an episode back removes its row, so the history always agrees with your progress. Rewatching an anime from the start keeps the history of the earlier watch instead of wiping it.
 - Anime Detail shows that anime's own watch history: its 50 most recent episodes, with a pointer to History when there are more.
