@@ -283,7 +283,7 @@ counting the since-untracked `wailsjs/` bindings. The
 worktree defect this section documents is the same class fixed four times on
 the hand-rolled script; scoping moved upstream instead of being patched a
 fifth time. See
-`openspec/changes/sdd-71-dharness-mutate-staged/specs/frontend-staged-mutation-gate/spec.md`
+`openspec/specs/frontend-staged-mutation-gate/spec.md`
 for the current contract. What follows is kept as the historical record of
 why the retired script needed each fix.
 
