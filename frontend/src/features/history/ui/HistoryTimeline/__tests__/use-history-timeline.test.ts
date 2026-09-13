@@ -1,12 +1,17 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import type { WatchHistoryEntry, WatchHistoryPage, WatchHistoryPageRequest } from '../../../../../shared/contracts/anime.types';
+import type {
+  WatchHistoryEntry,
+  WatchHistoryOrder,
+  WatchHistoryPage,
+  WatchHistoryPageRequest,
+} from '../../../../../shared/contracts/anime.types';
 import { useHistoryTimeline } from '../use-history-timeline';
 
-/** Builds the still-unfiltered global page request `useHistoryTimeline` sends this unit, overriding only the cursor. */
-function request(cursor: string): WatchHistoryPageRequest {
-  return { search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order: 'newest', cursor, limit: 0 };
+/** Builds the still-unfiltered global page request `useHistoryTimeline` sends this unit, overriding only the cursor and order. */
+function request(cursor: string, order: WatchHistoryOrder = 'newest'): WatchHistoryPageRequest {
+  return { search: '', animeIds: [], watchedFromMs: 0, watchedToMs: 0, order, cursor, limit: 0 };
 }
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
@@ -47,7 +52,7 @@ describe('useHistoryTimeline', () => {
   it('starts loading with no groups, then fetches the first page with an empty cursor and groups the result by day', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.groups).toEqual([]);
@@ -65,7 +70,7 @@ describe('useHistoryTimeline', () => {
     ['no nextCursor is present', undefined, false],
   ])('reports hasMore correctly when %s', async (_label, nextCursor, expected) => {
     const source = createSource(vi.fn().mockResolvedValue(page({ items: [entry({})], nextCursor })));
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -80,7 +85,7 @@ describe('useHistoryTimeline', () => {
       )
       .mockResolvedValueOnce(page({ items: [entry({ id: 1, watchedAtMs: new Date(2026, 8, 12, 8, 0, 0).getTime() })] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -96,7 +101,7 @@ describe('useHistoryTimeline', () => {
   it('does not fetch a next page when there is none', async () => {
     const getWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -109,7 +114,7 @@ describe('useHistoryTimeline', () => {
 
   it('surfaces an error, rather than degrading to an empty result, when the first page fails', async () => {
     const source = createSource(vi.fn().mockResolvedValue(page({ status: 'error', message: 'boom' })));
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -120,7 +125,7 @@ describe('useHistoryTimeline', () => {
 
   it('surfaces an error, rather than throwing, when the source has no getWatchHistoryPage binding', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -135,7 +140,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({})], nextCursor: '100:2' }))
       .mockResolvedValueOnce(page({ status: 'error', message: 'boom' }));
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -153,19 +158,56 @@ describe('useHistoryTimeline', () => {
     expect(getWatchHistoryPage).toHaveBeenCalledTimes(2);
   });
 
-  it('reloads the first page when the source changes, replacing rather than appending to the prior page', async () => {
-    const sourceA = createSource(vi.fn().mockResolvedValue(page({ items: [entry({ id: 1 })] })));
-    const sourceB = createSource(vi.fn().mockResolvedValue(page({ items: [entry({ id: 2 })] })));
-    const { result, rerender } = renderHook(({ source }) => useHistoryTimeline(source), {
-      initialProps: { source: sourceA },
+  it('resets accumulated rows and refetches from the first page when order changes (design D6 request key)', async () => {
+    const getWatchHistoryPage = vi
+      .fn()
+      .mockResolvedValueOnce(page({ items: [entry({ id: 1 })] }))
+      .mockResolvedValueOnce(page({ items: [entry({ id: 2 })] }));
+    const source = createSource(getWatchHistoryPage);
+    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, source), {
+      initialProps: { order: 'newest' as WatchHistoryOrder },
     });
 
     await waitFor(() => expect(result.current.groups[0]?.entries).toHaveLength(1));
+    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(1, request('', 'newest'));
 
-    rerender({ source: sourceB });
+    rerender({ order: 'oldest' });
 
+    // The reset (cleared rows, isLoading) is synchronous with the requestKey
+    // change, before the new page has resolved.
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.groups).toEqual([]);
+
+    await waitFor(() => expect(getWatchHistoryPage).toHaveBeenCalledTimes(2));
+    expect(getWatchHistoryPage).toHaveBeenNthCalledWith(2, request('', 'oldest'));
     await waitFor(() => expect(result.current.groups[0]?.entries[0]?.id).toBe(2));
     expect(result.current.groups[0]?.entries).toHaveLength(1);
+  });
+
+  it('drops a stale-generation response instead of appending it to a request that has since changed', async () => {
+    let resolveFirstPage!: (value: WatchHistoryPage) => void;
+    const firstPage = new Promise<WatchHistoryPage>((resolve) => {
+      resolveFirstPage = resolve;
+    });
+    const getWatchHistoryPage = vi
+      .fn()
+      .mockReturnValueOnce(firstPage)
+      .mockResolvedValueOnce(page({ items: [entry({ id: 2 })] }));
+    const source = createSource(getWatchHistoryPage);
+    const { result, rerender } = renderHook(({ order }) => useHistoryTimeline(order, source), {
+      initialProps: { order: 'newest' as WatchHistoryOrder },
+    });
+
+    rerender({ order: 'oldest' });
+    await waitFor(() => expect(result.current.groups[0]?.entries[0]?.id).toBe(2));
+
+    await act(async () => {
+      resolveFirstPage(page({ items: [entry({ id: 1 })] }));
+      await firstPage;
+    });
+
+    expect(result.current.groups[0]?.entries).toHaveLength(1);
+    expect(result.current.groups[0]?.entries[0]?.id).toBe(2);
   });
 
   it('fetches the next page on a near-bottom onScroll, does nothing when not near the bottom, and never double-fetches a scroll burst while the page is in flight', async () => {
@@ -178,7 +220,7 @@ describe('useHistoryTimeline', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 1 })], nextCursor: '100:2' }))
       .mockReturnValueOnce(nextPage);
     const source = createSource(getWatchHistoryPage);
-    const { result } = renderHook(() => useHistoryTimeline(source));
+    const { result } = renderHook(() => useHistoryTimeline('newest', source));
     const nearBottom = { currentTarget: { scrollTop: 1700, clientHeight: 400, scrollHeight: 2000 } } as never;
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));

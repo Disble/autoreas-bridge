@@ -111,17 +111,17 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** a new, feature-local params module and a Sort-only filter bar not yet wired into the still-rendering `HistoryTimeline`.
 **Forecast:** 450–540 (D10).
 
-- [ ] **4.1** [RED] `history-params.helpers.test.ts`: `parseHistoryParams`/`serializeHistoryParams` round-trip; defaults omitted (`status`, `type`, `sort=newest`, no range, no `anime`/`row`); an unparseable value is absent, never an error; `sort=oldest` present only when set (D5).
-- [ ] **4.2** [GREEN] `history-params.helpers.ts`, `history-filter-bar.types.ts` (readonly), `history-filter-bar.constants.ts`.
-- [ ] **4.3** [RED] `use-history-params.test.ts` (`renderHook` + `MemoryRouter`): push vs. replace per param (`status`/`type`/`range`/`sort` push; `q` debounced replace; `anime`/`row` replace); the functional `setSearchParams(prev => …)` writer never lets a pending debounced search clobber a pushed filter.
-- [ ] **4.4** [GREEN] `useHistoryParams`, a thin adapter over `useSearchParams`.
-- [ ] **4.5** [RED] `HistoryFilterBar.test.tsx`: dumb-component render — a Sort `Select` (Newest/Oldest) calling `onSortChange`; no Wails call, no `useEffect`.
-- [ ] **4.6** [GREEN] `HistoryFilterBar.tsx` (Sort only this unit — Search/Status/Type land in U5, the range in U6).
-- [ ] **4.7** [RED] `use-history-timeline.test.ts`: `requestKey` is the JSON of the request without its cursor; a changed key increments a generation ref, clears rows, sets `isLoading`; a response from a stale generation is dropped.
-- [ ] **4.8** [GREEN] `use-history-timeline.ts`: request key + generation guard, wired to Sort/order only.
+- [x] **4.1** [RED] `history-params.helpers.test.ts`: `parseHistoryParams`/`serializeHistoryParams` round-trip; defaults omitted (`status`, `type`, `sort=newest`, no range, no `anime`/`row`); an unparseable value is absent, never an error; `sort=oldest` present only when set (D5).
+- [x] **4.2** [GREEN] `history-params.helpers.ts`, `history-filter-bar.types.ts` (readonly), `history-filter-bar.constants.ts`.
+- [x] **4.3** [RED] `use-history-params.test.tsx` (`renderHook` + `MemoryRouter`): push vs. replace per param (`status`/`type`/`range`/`sort` push; `q` debounced replace; `anime`/`row` replace); the functional `setSearchParams(prev => …)` writer never lets a pending debounced search clobber a pushed filter.
+- [x] **4.4** [GREEN] `useHistoryParams`, a thin adapter over `useSearchParams`.
+- [x] **4.5** [RED] `HistoryFilterBar.test.tsx`: dumb-component render — a Sort `Select` (Newest/Oldest) calling `onSortChange`; no Wails call, no `useEffect`.
+- [x] **4.6** [GREEN] `HistoryFilterBar.tsx` (Sort only this unit — Search/Status/Type land in U5, the range in U6).
+- [x] **4.7** [RED] `use-history-timeline.test.ts`: `requestKey` is the JSON of the request without its cursor; a changed key increments a generation ref, clears rows, sets `isLoading`; a response from a stale generation is dropped.
+- [x] **4.8** [GREEN] `use-history-timeline.ts`: request key + generation guard, wired to Sort/order only.
 - [ ] **4.9** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **4.10** [REFACTOR] lean-tests: `it.each` tables; dates built with `new Date(y, m, d)`.
-- [ ] **4.11** [VERIFY] `bun --cwd="frontend" run test -- history-params use-history-params HistoryFilterBar use-history-timeline`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`.
+- [x] **4.10** [REFACTOR] lean-tests: `it.each` tables applied throughout; no dates needed this unit.
+- [x] **4.11** [VERIFY] `bun --cwd="frontend" run test -- history-params use-history-params HistoryFilterBar use-history-timeline`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`.
 
 ---
 
