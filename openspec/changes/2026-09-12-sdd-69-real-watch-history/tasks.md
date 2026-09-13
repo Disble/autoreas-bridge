@@ -518,6 +518,11 @@ caught it); `fallow audit --quiet` clean, no unused-export finding.
 
 ## Slice 6 — `/history` Timeline: Grouping Helpers + Rows (Unwired)
 
+**Re-planned after Slices 1–5 landed ~1.7× forecast.** Slices 6–7 run as three work units: **6a** =
+6.1 + 6.2 + 7.3.1 + 7.3.3 (the timeline wired into the route, so Note F never arises); **6b** = 7.1 +
+7.2 (three states + windowing); **7** = 7.3.2 + 7.3.4 (deletions only). If `dharness check` rejects
+the unrendered `HistoryTable` at 6a's commit, 7.3.2 moves into 6a (Note E's reasoning still holds).
+
 **Leaves the app working because:** `HistoryTimeline` and its hook exist but `HistoryRoute.tsx` still
 renders `HistoryTable` — the live route is untouched.
 **Forecast:** 600 (at the cap — see Note F for the fallow risk this carries). Requirements:
