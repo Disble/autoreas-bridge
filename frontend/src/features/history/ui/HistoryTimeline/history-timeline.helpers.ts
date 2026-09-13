@@ -2,7 +2,7 @@ import type { Anime } from '../../../../shared/contracts/anime.types';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { HistoryDayGroup } from '../../../../shared/watch-history/watch-history.types';
 import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
-import type { HistoryStatusChipColor, HistoryTimelineGroup } from './history-timeline.types';
+import type { HistoryStatusChipColor, HistoryTimelineEntry, HistoryTimelineGroup } from './history-timeline.types';
 
 /** Maps a current anime status to History's local semantic Chip color. */
 export function getHistoryStatusColor(status: number): HistoryStatusChipColor {
@@ -36,6 +36,26 @@ export function toHistoryTimelineGroups(groups: readonly HistoryDayGroup[], cata
       };
     }),
   }));
+}
+
+/** Finds the loaded row a `ListBox` key names, across every loaded day. */
+export function findHistoryTimelineEntry(groups: readonly HistoryTimelineGroup[], key: string | number | undefined): HistoryTimelineEntry | undefined {
+  return groups.flatMap((group) => group.entries).find((entry) => entry.id === key);
+}
+
+/**
+ * Resolves the highlighted row from the URL selection (design D5): `rowId`
+ * when that row is loaded and belongs to `animeId`, else the anime's first
+ * loaded row, else nothing -- the inspector still shows the anime.
+ */
+export function resolveHistorySelectedKey(
+  groups: readonly HistoryTimelineGroup[],
+  animeId: string | undefined,
+  rowId: number | undefined,
+): number | undefined {
+  const animeEntries = groups.flatMap((group) => group.entries).filter((entry) => entry.animeId === animeId);
+
+  return (animeEntries.find((entry) => entry.id === rowId) ?? animeEntries[0])?.id;
 }
 
 /**

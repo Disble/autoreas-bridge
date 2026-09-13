@@ -105,6 +105,11 @@ export function parseHistoryParams(searchParams: URLSearchParams): HistoryParams
   };
 }
 
+/** True when a filter that narrows the read is set; sort and selection never narrow it (design D6's filtered-empty state). */
+export function hasActiveHistoryFilters(params: Readonly<HistoryParams>): boolean {
+  return params.search !== '' || params.status !== undefined || params.type !== undefined || params.range !== undefined;
+}
+
 /**
  * Encodes `HistoryParams` back into `/history`'s URL search params (design
  * D5), omitting every field at its default value so the URL stays clean

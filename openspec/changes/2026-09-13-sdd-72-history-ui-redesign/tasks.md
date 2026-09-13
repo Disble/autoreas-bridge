@@ -181,15 +181,16 @@ Chain strategy: stacked-to-main
 **Forecast:** 260–340 (D10).
 
 - [x] **8.1** [DELETE] (landed with U7: the ListBox rows broke it) `frontend/src/app/routes/__tests__/history-route-query-state.test.tsx` — pins the REMOVED "no persisted query state" requirement (proposal REMOVED table).
-- [ ] **8.2** [RED] `history-timeline.helpers.test.ts` (extend): selected-key resolution table — the `row` param when loaded and belonging to `anime`; else the first loaded row of `anime`; else nothing highlighted (D5).
-- [ ] **8.3** [GREEN] The selected-key helper in `history-timeline.helpers.ts`.
-- [ ] **8.4** [RED] `HistoryTimeline.test.tsx` (extend): `selectionBehavior="replace"`; a single click selects without navigating; Enter and double-click each call `navigate('/catalog/detail/' + animeId)`; arrow keys move focus and selection together (D7).
-- [ ] **8.5** [GREEN] `use-history-selection.ts` (new): `onSelectionChange → setSelection(anime, row)` via `useHistoryParams` replace; `onAction → navigate`.
-- [ ] **8.6** [RED] `frontend/src/app/routes/__tests__/history-route-url-state.test.tsx` (new, `MemoryRouter` with two entries): Back from `/catalog/detail/:id` restores `status`/`anime`/`row`; scroll position is not restored (the route remounts).
-- [ ] **8.7** [GREEN] Wire the selection through the route; confirm `useAnimeDetail.onBack`'s existing `navigate(-1)` round-trips the URL unchanged — no Anime Detail code changes here (D5).
+- [x] **8.2** [RED] `history-timeline.helpers.test.ts` (extend): selected-key resolution table — the `row` param when loaded and belonging to `anime`; else the first loaded row of `anime`; else nothing highlighted (D5).
+- [x] **8.3** [GREEN] The selected-key helper in `history-timeline.helpers.ts`.
+- [x] **8.4** [RED] `HistoryTimeline.test.tsx` (extend): `selectionBehavior="replace"`; a single click selects without navigating; Enter and double-click each call `navigate('/catalog/detail/' + animeId)`; arrow keys move focus and selection together (D7).
+- [x] **8.5** [GREEN] `use-history-selection.ts` (new): `onSelectionChange → setSelection(anime, row)` via `useHistoryParams` replace; `onAction → navigate`.
+- [x] **8.6** [RED] `frontend/src/app/routes/__tests__/history-route-url-state.test.tsx` (new, `MemoryRouter` with two entries): Back from `/catalog/detail/:id` restores `status`/`anime`/`row`; scroll position is not restored (the route remounts).
+- [x] **8.7** [GREEN] Wire the selection through the route; confirm `useAnimeDetail.onBack`'s existing `navigate(-1)` round-trips the URL unchanged — no Anime Detail code changes here (D5).
 - [ ] **8.8** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **8.9** [REFACTOR] lean-tests.
-- [ ] **8.10** [VERIFY] `bun --cwd="frontend" run test -- HistoryTimeline history-route`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **8.9** [REFACTOR] lean-tests.
+- [x] **8.10** [VERIFY] `bun --cwd="frontend" run test -- HistoryTimeline history-route`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **8.11** [ORCHESTRATOR] Mount HistoryFilterBar + wire search/range/status/type/order into the page request; filtered-empty copy; split layout deferred to U9 with the inspector.
 
 ---
 

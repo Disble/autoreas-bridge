@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryTimelineEntry, HistoryTimelineGroup, HistoryTimelineState } from '../history-timeline.types';
 import { HistoryTimeline } from '../HistoryTimeline';
@@ -31,8 +31,24 @@ function group(overrides: Partial<HistoryTimelineGroup>): HistoryTimelineGroup {
   };
 }
 
-/** Renders HistoryTimeline behind a router with the hook stubbed to the given state. */
-function renderTimeline(overrides: Partial<HistoryTimelineState>) {
+/** Prints the current route so a test can read what selection and navigation wrote. */
+function LocationProbe() {
+  const location = useLocation();
+
+  return <span data-testid="location">{location.pathname + location.search}</span>;
+}
+
+/** Presses a row with a real mouse pointer; a pointer-less click is a virtual press, which performs the row action instead. */
+function mouseDown(element: HTMLElement) {
+  const pointer = { button: 0, detail: 1, height: 10, pointerId: 1, pointerType: 'mouse', pressure: 0.5, width: 10 };
+
+  fireEvent.pointerDown(element, pointer);
+  fireEvent.pointerUp(element, pointer);
+  fireEvent.click(element, pointer);
+}
+
+/** Renders HistoryTimeline at `url` behind a router with the timeline data hook stubbed to the given state. */
+function renderTimeline(overrides: Partial<HistoryTimelineState>, url = '/history') {
   vi.spyOn(useHistoryTimelineModule, 'useHistoryTimeline').mockReturnValue({
     groups: [],
     isLoading: false,
@@ -44,11 +60,18 @@ function renderTimeline(overrides: Partial<HistoryTimelineState>) {
   });
 
   return render(
-    <MemoryRouter>
-      <HistoryTimeline />
+    <MemoryRouter initialEntries={[url]}>
+      <LocationProbe />
+      <Routes>
+        <Route element={<HistoryTimeline />} path="/history" />
+        <Route element={<div>Anime detail</div>} path="/catalog/detail/:id" />
+      </Routes>
     </MemoryRouter>,
   );
 }
+
+/** One day with two anime rows: row 2 (Bocchi the Rock) above row 1 (Frieren). */
+const twoRows = [group({ count: 2, entries: [entry({ id: 2, animeId: 'anime-2', animeName: 'Bocchi the Rock' }), entry({ id: 1 })] })];
 
 describe('HistoryTimeline', () => {
   afterEach(() => {
@@ -119,6 +142,53 @@ describe('HistoryTimeline', () => {
     expect(deletedRow).not.toHaveTextContent('Viendo');
   });
 
+  it('renders the filter bar above the list', () => {
+    renderTimeline({ groups: twoRows });
+
+    expect(screen.getByRole('region', { name: 'History filters' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: /search/i })).toBeInTheDocument();
+  });
+
+  it('selects a clicked row into the URL without navigating, and restores that row from the URL', () => {
+    renderTimeline({ groups: twoRows }, '/history?status=0&anime=anime-1&row=1');
+
+    expect(screen.getByRole('option', { name: /Frieren/ })).toHaveAttribute('aria-selected', 'true');
+
+    mouseDown(screen.getByRole('option', { name: /Bocchi/ }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/history?status=0&anime=anime-2&row=2');
+    expect(screen.getByRole('option', { name: /Bocchi/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('Anime detail')).toBeNull();
+  });
+
+  it('moves the selection with the arrow keys', () => {
+    renderTimeline({ groups: twoRows }, '/history?anime=anime-2&row=2');
+
+    act(() => screen.getByRole('option', { name: /Bocchi/ }).focus());
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'ArrowDown' });
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/history?anime=anime-1&row=1');
+  });
+
+  it.each<[string, (row: HTMLElement) => void]>([
+    ['Enter', (row) => {
+      act(() => row.focus());
+      fireEvent.keyDown(row, { key: 'Enter' });
+      fireEvent.keyUp(row, { key: 'Enter' });
+    }],
+    ['a double-click', (row) => {
+      mouseDown(row);
+      fireEvent.doubleClick(row, { detail: 2 });
+    }],
+  ])("opens the row's anime detail on %s", (_label, open) => {
+    renderTimeline({ groups: twoRows }, '/history?anime=anime-2&row=2');
+
+    open(screen.getByRole('option', { name: /Bocchi/ }));
+
+    expect(screen.getByText('Anime detail')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog/detail/anime-2');
+  });
+
   it('shows only the loading skeleton while the first page is unresolved, never real rows', () => {
     renderTimeline({
       isLoading: true,
@@ -136,6 +206,13 @@ describe('HistoryTimeline', () => {
     expect(screen.getByText(/Watch history starts 2026-07-05/)).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByRole('option')).toBeNull();
+  });
+
+  it('says no episodes match, instead of the unfiltered empty copy, when a filter narrows to zero rows', () => {
+    renderTimeline({ groups: [] }, '/history?type=1');
+
+    expect(screen.getByText('No episodes match these filters')).toBeInTheDocument();
+    expect(screen.queryByText('No watch history yet')).toBeNull();
   });
 
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {

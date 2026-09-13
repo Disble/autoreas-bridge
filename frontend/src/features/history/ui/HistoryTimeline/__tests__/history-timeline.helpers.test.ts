@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Anime } from '../../../../../shared/contracts/anime.types';
 import type { HistoryAnimeScope } from '../../HistoryFilterBar/history-filter-bar.types';
-import { getHistoryStatusColor, resolveHistoryAnimeScope, toHistoryTimelineGroups } from '../history-timeline.helpers';
+import type { HistoryTimelineGroup } from '../history-timeline.types';
+import {
+  findHistoryTimelineEntry,
+  getHistoryStatusColor,
+  resolveHistoryAnimeScope,
+  resolveHistorySelectedKey,
+  toHistoryTimelineGroups,
+} from '../history-timeline.helpers';
 
 /** Builds a minimal catalog `Anime` fixture, overriding only what a case needs. */
 function anime(overrides: Partial<Anime> = {}): Anime {
@@ -46,6 +53,35 @@ describe('resolveHistoryAnimeScope', () => {
     ['a Status filter matches nothing in the catalog', 3, undefined, [anime({ id: 'a', status: 0 })], { kind: 'none' }],
   ])('%s', (_label, status, type, catalog, expected) => {
     expect(resolveHistoryAnimeScope(catalog, status, type)).toEqual(expected);
+  });
+});
+
+/** Two loaded day groups: rows 3 and 1 belong to `a`, row 2 to `b`. */
+const loadedGroups: readonly HistoryTimelineGroup[] = [
+  { dayKey: '2026-09-12', heading: 'September 12, 2026', count: 2, partial: false, entries: [
+    { id: 3, animeId: 'a', animeName: 'Frieren', episode: 2, cycle: 1, watchedAtMs: 0, source: 'desktop' },
+    { id: 2, animeId: 'b', animeName: 'Bocchi', episode: 1, cycle: 1, watchedAtMs: 0, source: 'desktop' },
+  ] },
+  { dayKey: '2026-09-11', heading: 'September 11, 2026', count: 1, partial: true, entries: [
+    { id: 1, animeId: 'a', animeName: 'Frieren', episode: 1, cycle: 1, watchedAtMs: 0, source: 'desktop' },
+  ] },
+];
+
+describe('history row selection (design D5)', () => {
+  it.each<[string, string | undefined, number | undefined, number | undefined]>([
+    ['no anime is selected', undefined, 1, undefined],
+    ['the row is loaded and belongs to the anime', 'a', 1, 1],
+    ['the row belongs to another anime, so the anime\'s first loaded row wins', 'a', 2, 3],
+    ['the row is not loaded, so the anime\'s first loaded row wins', 'b', 99, 2],
+    ['no row is given, so the anime\'s first loaded row wins', 'a', undefined, 3],
+    ['the anime has no loaded row', 'c', undefined, undefined],
+  ])('selects the right key when %s', (_label, animeId, rowId, expected) => {
+    expect(resolveHistorySelectedKey(loadedGroups, animeId, rowId)).toBe(expected);
+  });
+
+  it('finds a loaded entry by its ListBox key across days, and nothing for an unknown key', () => {
+    expect(findHistoryTimelineEntry(loadedGroups, 1)?.animeId).toBe('a');
+    expect(findHistoryTimelineEntry(loadedGroups, 99)).toBeUndefined();
   });
 });
 

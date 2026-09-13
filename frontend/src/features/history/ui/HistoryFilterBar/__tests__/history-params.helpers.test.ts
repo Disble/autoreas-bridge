@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseHistoryParams, serializeHistoryParams, toLocalDayRangeMs } from '../history-params.helpers';
+import { hasActiveHistoryFilters, parseHistoryParams, serializeHistoryParams, toLocalDayRangeMs } from '../history-params.helpers';
 import type { HistoryParams } from '../history-filter-bar.types';
 
 describe('parseHistoryParams', () => {
@@ -51,6 +51,18 @@ describe('serializeHistoryParams', () => {
     };
 
     expect(parseHistoryParams(serializeHistoryParams(full))).toEqual(full);
+  });
+});
+
+describe('hasActiveHistoryFilters', () => {
+  it.each<[string, Partial<HistoryParams>, boolean]>([
+    ['only the sort and selection are set', { order: 'oldest', animeId: 'anime-1', rowId: 1 }, false],
+    ['a search is set', { search: 'fri' }, true],
+    ['a status is set', { status: 0 }, true],
+    ['a type is set', { type: 0 }, true],
+    ['a watched range is set', { range: { from: '2026-09-01', to: '2026-09-02' } }, true],
+  ])('when %s: %s', (_label, params, expected) => {
+    expect(hasActiveHistoryFilters({ search: '', order: 'newest', ...params })).toBe(expected);
   });
 });
 

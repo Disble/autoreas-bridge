@@ -3,27 +3,30 @@ import type { UIEvent } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
-import type { WatchHistoryEntry, WatchHistoryOrder, WatchHistoryPageRequest } from '../../../../shared/contracts/anime.types';
+import type { WatchHistoryEntry, WatchHistoryPageRequest } from '../../../../shared/contracts/anime.types';
 import { groupEntriesByDay } from '../../../../shared/watch-history/watch-history.helpers';
 import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
+import { toLocalDayRangeMs } from '../HistoryFilterBar/history-params.helpers';
 import { toHistoryTimelineGroups } from './history-timeline.helpers';
 import { useHistoryAnimeScope } from './use-history-anime-scope';
-import type { HistoryTimelineState } from './history-timeline.types';
+import type { HistoryTimelineFilters, HistoryTimelineState } from './history-timeline.types';
 
 /**
- * Builds the page request for the given order and Status/Type scope (design
- * D2): an `'ids'` scope narrows the read to that anime set; `'all'` and
+ * Builds the page request for the given filters and Status/Type scope (design
+ * D2, D4): an `'ids'` scope narrows the read to that anime set; `'all'` and
  * `'none'` both send an empty `animeIds` -- `'none'` is never actually sent,
- * since its caller short-circuits before fetching. Search and the watched
- * range are wired in a later unit (design D10 Unit 5 scope guard).
+ * since its caller short-circuits before fetching. The watched range goes out
+ * as half-open local-day millis, `0`/`0` when unbounded.
  */
-function buildPageRequest(order: WatchHistoryOrder, scope: HistoryAnimeScope, cursor: string): WatchHistoryPageRequest {
+function buildPageRequest(filters: HistoryTimelineFilters, scope: HistoryAnimeScope, cursor: string): WatchHistoryPageRequest {
+  const [watchedFromMs, watchedToMs] = filters.range === undefined ? [0, 0] : toLocalDayRangeMs(filters.range.from, filters.range.to);
+
   return {
-    search: '',
+    search: filters.search,
     animeIds: scope.kind === 'ids' ? scope.ids : [],
-    watchedFromMs: 0,
-    watchedToMs: 0,
-    order,
+    watchedFromMs,
+    watchedToMs,
+    order: filters.order,
     cursor,
     limit: 0,
   };
@@ -31,7 +34,7 @@ function buildPageRequest(order: WatchHistoryOrder, scope: HistoryAnimeScope, cu
 
 /**
  * Identifies one logical request independent of its cursor (design D6): the
- * JSON of `order`/`status`/`type`. Two calls with the same key page the SAME
+ * JSON of every filter. Two calls with the same key page the SAME
  * request, so accumulated rows survive; a changed key means the request
  * itself changed and the accumulated rows must be discarded. Built from the
  * raw filter inputs rather than the resolved `HistoryAnimeScope`, so an
@@ -39,8 +42,8 @@ function buildPageRequest(order: WatchHistoryOrder, scope: HistoryAnimeScope, cu
  * -- which both resolve to an empty `animeIds` -- are never mistaken for the
  * same request.
  */
-function buildRequestKey(order: WatchHistoryOrder, status: number | undefined, type: number | undefined): string {
-  return JSON.stringify({ order, status, type });
+function buildRequestKey({ order, range, search, status, type }: HistoryTimelineFilters): string {
+  return JSON.stringify({ order, range, search, status, type });
 }
 
 /**
@@ -51,7 +54,7 @@ function buildRequestKey(order: WatchHistoryOrder, status: number | undefined, t
  * active Status/Type filter against it before the first page fetch: a scope
  * of `'none'` renders the filtered-empty state without spending a binding
  * call. Fetches the first page once the catalog has loaded, and again
- * whenever `order`, `status`, or `type` changes; `onScroll` fetches the next
+ * whenever a filter changes; `onScroll` fetches the next
  * page on a near-bottom scroll (design D5a) -- deliberately does NOT use
  * `useProgressiveListWindow`: the server page IS the batch, so a client-side
  * render-limit window would only fight the accumulated page state.
@@ -67,9 +70,7 @@ function buildRequestKey(order: WatchHistoryOrder, status: number | undefined, t
  * twice and duplicate rows.
  */
 export function useHistoryTimeline(
-  order: WatchHistoryOrder = 'newest',
-  status: number | undefined = undefined,
-  type: number | undefined = undefined,
+  filters: HistoryTimelineFilters,
   source: BridgeRuntimeSource = bridgeRuntimeSource,
 ): HistoryTimelineState {
   // 1. Refs
@@ -87,13 +88,13 @@ export function useHistoryTimeline(
 
   // 3. Context/3rd Party Hooks
   /** Catalog resolution gates the first page and supplies row status chips (design D2). */
-  const { catalog, error: catalogError, scope } = useHistoryAnimeScope(status, type, source);
+  const { catalog, error: catalogError, scope } = useHistoryAnimeScope(filters.status, filters.type, source);
 
   // 4. Queries/Mutations
   const fetchPage = useCallback(
     async (cursor: string, generation: number, scope: HistoryAnimeScope) => {
       isFetchingRef.current = true;
-      const result = await source.getWatchHistoryPage?.(buildPageRequest(order, scope, cursor));
+      const result = await source.getWatchHistoryPage?.(buildPageRequest(filters, scope, cursor));
 
       if (generation !== generationRef.current) {
         // A newer request superseded this one while it was in flight; drop it.
@@ -122,7 +123,7 @@ export function useHistoryTimeline(
       }
       isFetchingRef.current = false;
     },
-    [source, order],
+    [source, filters],
   );
 
   // 5. Derived State (useMemo)
@@ -131,10 +132,7 @@ export function useHistoryTimeline(
     [catalog, entries],
   );
   /** `undefined` until `scope` resolves, so the reset effect below stays inert until then. */
-  const requestKey = useMemo(
-    () => (scope === undefined ? undefined : buildRequestKey(order, status, type)),
-    [scope, order, status, type],
-  );
+  const requestKey = scope === undefined ? undefined : buildRequestKey(filters);
 
   // 6. Callbacks (useCallback calling pure helpers)
   const fetchNextPage = useCallback(() => {
@@ -193,9 +191,9 @@ export function useHistoryTimeline(
     setIsLoading(true);
     void fetchPage('', generation, scope);
     // `fetchPage` is intentionally NOT listed: it also changes identity when
-    // only `source` is swapped (a test-only concern), which must not, by
-    // itself, reset an unrelated request. `requestKey` -- the JSON of
-    // `order`/`status`/`type` (design D6) -- is the one true trigger; `scope`
+    // only `source` or the `filters` object identity changes, which must not,
+    // by itself, reset an unrelated request. `requestKey` -- the JSON of
+    // every filter (design D6) -- is the one true trigger; `scope`
     // is read, not depended on, because it is derived from the same
     // `status`/`type` in the same render as `requestKey`, so it is never
     // stale when this effect's own render committed.

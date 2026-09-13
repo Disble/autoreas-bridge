@@ -21,6 +21,12 @@ export const HISTORY_TIMELINE_EMPTY_TITLE = 'No watch history yet';
  */
 export const HISTORY_TIMELINE_EMPTY_DESCRIPTION = 'Watch history starts 2026-07-05. Episodes you watch from now on will appear here.';
 
+/** Title of the empty state shown when an active filter narrows the read to zero rows (design D6). */
+export const HISTORY_TIMELINE_FILTERED_EMPTY_TITLE = 'No episodes match these filters';
+
+/** Description of the filtered empty state. */
+export const HISTORY_TIMELINE_FILTERED_EMPTY_DESCRIPTION = 'Clear or change a filter to see more of your watch history.';
+
 /**
  * Shape shared by the real row `Button` and its loading-skeleton placeholder,
  * so the two cannot drift apart silently (CLAUDE.md FE #14).

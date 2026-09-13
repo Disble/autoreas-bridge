@@ -1,7 +1,10 @@
 import type { UIEvent } from 'react';
 import type { Anime, WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
 import type { HistoryDayGroup } from '../../../../shared/watch-history/watch-history.types';
-import type { HistoryAnimeScope } from '../HistoryFilterBar/history-filter-bar.types';
+import type { HistoryAnimeScope, HistoryParams } from '../HistoryFilterBar/history-filter-bar.types';
+
+/** The URL filters that shape the page request; the selection half of `HistoryParams` never refetches. */
+export type HistoryTimelineFilters = Pick<HistoryParams, 'search' | 'status' | 'type' | 'range' | 'order'>;
 
 /** Semantic HeroUI Chip color tokens owned by the History feature. */
 export type HistoryStatusChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
@@ -22,6 +25,16 @@ export interface HistoryAnimeScopeLoadState {
   readonly catalog: readonly Anime[] | undefined;
   readonly scope: HistoryAnimeScope | undefined;
   readonly error: Error | undefined;
+}
+
+/** Selection state `useHistorySelection` derives from the URL for the History `ListBox` (design D5, D7). */
+export interface HistorySelectionState {
+  /** The highlighted row's key, or `undefined` when nothing loaded matches the URL selection. */
+  readonly selectedKey: number | undefined;
+  /** Writes the row a `ListBox` key names into the URL selection. */
+  readonly onSelect: (key: string | number | undefined) => void;
+  /** Opens the anime detail of the row a `ListBox` key names. */
+  readonly onOpen: (key: string | number) => void;
 }
 
 /** State returned by `useHistoryTimeline`: accumulated day groups plus keyset paging status. */
