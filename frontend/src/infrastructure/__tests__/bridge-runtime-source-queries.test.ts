@@ -121,4 +121,45 @@ describe('bridge-runtime-source read bindings', () => {
     await expect(historyPromise).resolves.toEqual(entries);
     expect(getAnimeHistoryMock).toHaveBeenCalledTimes(1);
   });
+
+  it('calls GetWatchHistoryPage once Go bindings become ready and resolves the mapped page', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
+    const source = createBridgeRuntimeSource();
+    const page = {
+      items: [{ id: 1, animeId: 'anime-1', animeName: 'Frieren', episode: 12, cycle: 1, watchedAtMs: 1700000000000, source: 'desktop' }],
+      nextCursor: '1700000000000:1',
+      status: 'ok',
+    };
+    const getWatchHistoryPageMock = vi.fn().mockResolvedValue(page);
+
+    const pagePromise = source.getWatchHistoryPage?.('');
+
+    window.go = { desktop: { App: { GetWatchHistoryPage: getWatchHistoryPageMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(pagePromise).resolves.toEqual(page);
+    expect(getWatchHistoryPageMock).toHaveBeenCalledWith('');
+  });
+
+  it('calls GetAnimeWatchHistoryPage with the anime id and cursor once Go bindings become ready', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const { WAILS_BINDINGS_POLL_MS } = await import('../wails-bindings.helpers');
+    const source = createBridgeRuntimeSource();
+    const page = {
+      items: [{ id: 2, animeId: 'anime-1', animeName: 'Frieren', episode: 13, cycle: 1, watchedAtMs: 1700000001000, source: 'mobile' }],
+      status: 'ok',
+    };
+    const getAnimeWatchHistoryPageMock = vi.fn().mockResolvedValue(page);
+
+    const pagePromise = source.getAnimeWatchHistoryPage?.('anime-1', '1700000000000:1');
+
+    window.go = { desktop: { App: { GetAnimeWatchHistoryPage: getAnimeWatchHistoryPageMock } } } as never;
+
+    await vi.advanceTimersByTimeAsync(WAILS_BINDINGS_POLL_MS);
+
+    await expect(pagePromise).resolves.toEqual(page);
+    expect(getAnimeWatchHistoryPageMock).toHaveBeenCalledWith('anime-1', '1700000000000:1');
+  });
 });

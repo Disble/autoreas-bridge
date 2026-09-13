@@ -11,6 +11,7 @@ import {
   GetAnimeEditorScheduleBoard,
   GetAnimeHistory,
   GetAnimes,
+  GetAnimeWatchHistoryPage,
   GetConnectedDevices,
   GetEffectiveAddress,
   GetEpisodeDayCounts,
@@ -18,6 +19,7 @@ import {
   GetPairingToken,
   GetSQLiteStatus,
   GetSyncingAnimeItems,
+  GetWatchHistoryPage,
   OpenAnimeFolder,
   OpenAnimePage,
   PickFile,
@@ -52,6 +54,7 @@ import {
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_CREATE_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
+  RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
 } from './bridge-runtime-source.constants';
 import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
@@ -372,6 +375,12 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     getAnimeHistory() {
       return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);
+    },
+    getWatchHistoryPage(cursor) {
+      return invokeGoBinding('GetWatchHistoryPage', () => GetWatchHistoryPage(cursor), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
+    },
+    getAnimeWatchHistoryPage(animeID, cursor) {
+      return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage(animeID, cursor), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
     },
     getEpisodeSchedule(day) {
       return invokeGoBinding('GetEpisodeSchedule', () => GetEpisodeSchedule(day), () => []);

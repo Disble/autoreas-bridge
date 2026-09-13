@@ -78,6 +78,28 @@ describe('bridge-runtime-source degraded paths', () => {
     await expect(historyPromise).resolves.toEqual([]);
   });
 
+  it('degrades getWatchHistoryPage to an error-status page when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const source = createBridgeRuntimeSource();
+
+    const pagePromise = source.getWatchHistoryPage?.('');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(pagePromise).resolves.toEqual({ items: [], status: 'error', message: 'runtime unavailable' });
+  });
+
+  it('degrades getAnimeWatchHistoryPage to an error-status page when the Go runtime is absent', async () => {
+    const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
+    const source = createBridgeRuntimeSource();
+
+    const pagePromise = source.getAnimeWatchHistoryPage?.('anime-1', '');
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(pagePromise).resolves.toEqual({ items: [], status: 'error', message: 'runtime unavailable' });
+  });
+
   it('degrades getAnimeDetail to null when the Go runtime is absent', async () => {
     const { createBridgeRuntimeSource } = await import('../bridge-runtime-source/bridge-runtime-source.helpers');
     const source = createBridgeRuntimeSource();

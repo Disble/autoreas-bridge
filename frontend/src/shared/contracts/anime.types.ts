@@ -84,6 +84,36 @@ export type AnimeHistoryEntry = Pick<
   readonly createdAt?: number;
 };
 
+/**
+ * WatchHistoryEntry is one recorded real-watch-history row returned by
+ * `GetWatchHistoryPage`/`GetAnimeWatchHistoryPage` (Real Watch History spec,
+ * "Read Models Are Keyset-Paged"): a single episode watched at a point in
+ * time. Additive alongside `AnimeHistoryEntry` above.
+ */
+export interface WatchHistoryEntry {
+  readonly id: number;
+  readonly animeId: string;
+  readonly animeName: string;
+  readonly episode: number;
+  readonly cycle: number;
+  readonly watchedAtMs: number;
+  readonly source: string;
+}
+
+/**
+ * WatchHistoryPage is a keyset-paged batch of `WatchHistoryEntry` rows.
+ * Unlike `AnimeHistoryEntry`'s swallow-to-empty-array contract, a fetch
+ * failure is surfaced through `status`/`message` rather than an empty
+ * `items` array, so the loading/error states never mistake a failure for an
+ * empty history.
+ */
+export interface WatchHistoryPage {
+  readonly items: readonly WatchHistoryEntry[];
+  readonly nextCursor?: string;
+  readonly status: string;
+  readonly message?: string;
+}
+
 /** Fidelity marker for legacy `estudios` ownership on the editor wire contract. */
 export type AnimeEditorStudiosKind = 'missing' | 'null' | 'empty' | 'values';
 

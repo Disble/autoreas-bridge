@@ -218,6 +218,56 @@ func TestAnimeHistoryItemEnglishJSONTags(t *testing.T) {
 	}
 }
 
+// TestWatchHistoryEntryEnglishJSONTags guards the additive real-watch-history
+// read model row (sdd-69 Slice 5): every field carries an English JSON tag.
+func TestWatchHistoryEntryEnglishJSONTags(t *testing.T) {
+	entry := WatchHistoryEntry{
+		ID: 1, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 12, Cycle: 1,
+		WatchedAtMS: 1700000000000, Source: "desktop",
+	}
+
+	encoded, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"id", "animeId", "animeName", "episode", "cycle", "watchedAtMs", "source"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+}
+
+// TestWatchHistoryPageEnglishJSONTags guards WatchHistoryPage's JSON tags and
+// its omitempty fields (NextCursor/Message) staying absent on a zero value.
+func TestWatchHistoryPageEnglishJSONTags(t *testing.T) {
+	page := WatchHistoryPage{Items: []WatchHistoryEntry{}, Status: "ok"}
+
+	encoded, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"items", "status"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+	for _, key := range []string{"nextCursor", "message"} {
+		if _, ok := raw[key]; ok {
+			t.Fatalf("expected omitempty key %q absent on zero value, got %s", key, encoded)
+		}
+	}
+}
+
 // TestAnimeDetailEnglishJSONTags guards the detailed anime read model DTO,
 // including its nested Content struct.
 func TestAnimeDetailEnglishJSONTags(t *testing.T) {

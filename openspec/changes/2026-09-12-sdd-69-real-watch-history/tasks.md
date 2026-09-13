@@ -467,29 +467,33 @@ unmodified.
 
 ### 5.1 Contracts (additive)
 
-- [ ] **5.1.1** [RED] `internal/api/contracts/contracts_english_test.go`: `WatchHistoryEntry` and
+- [x] **5.1.1** [RED] `internal/api/contracts/contracts_english_test.go`: `WatchHistoryEntry` and
   `WatchHistoryPage` have English JSON tags.
-- [ ] **5.1.2** [GREEN] `internal/api/contracts/contracts.go`: add `WatchHistoryEntry{ID, AnimeID,
+- [x] **5.1.2** [GREEN] `internal/api/contracts/contracts.go`: add `WatchHistoryEntry{ID, AnimeID,
   AnimeName, Episode, Cycle, WatchedAtMS, Source}` and `WatchHistoryPage{Items []WatchHistoryEntry,
   NextCursor, Status, Message}`. `AnimeHistoryItem` is untouched (Note A).
 
 ### 5.2 Wails bindings (additive)
 
-- [ ] **5.2.1** [RED] `internal/desktop/app_runtime_test.go`: `GetWatchHistoryPage(cursor)` and
+- [x] **5.2.1** [RED] `internal/desktop/app_runtime_test.go`: `GetWatchHistoryPage(cursor)` and
   `GetAnimeWatchHistoryPage(animeID, cursor)` degrade to `WatchHistoryPage{Status: "error", ...}` on a
   nil watch-history service, mirroring `GetAnimes`'s nil-guard contract; a successful call passes
   through `Store.Page`/`AnimePage`'s cursor and items. `GetAnimeHistory` is untouched (Note A).
-- [ ] **5.2.2** [GREEN] `internal/desktop/app_runtime.go`: add the two new bindings beside the existing
+- [x] **5.2.2** [GREEN] `internal/desktop/app_runtime.go`: add the two new bindings beside the existing
   `GetAnimeHistory`.
 
 ### 5.3 Frontend adapter + types (additive)
 
-- [ ] **5.3.1** [RED] `frontend/src/infrastructure/__tests__/bridge-runtime-source-*.test.ts` (extend or
+- [x] **5.3.1** [RED] `frontend/src/infrastructure/__tests__/bridge-runtime-source-*.test.ts` (extend or
   add): the adapter maps `GetWatchHistoryPage`/`GetAnimeWatchHistoryPage`'s Go DTO into the frontend
   `WatchHistoryPage`/`WatchHistoryEntry` shape. The existing `getAnimeHistory()` call is untouched.
-- [ ] **5.3.2** [GREEN] `frontend/src/infrastructure/bridge-runtime-source/bridge-runtime-source.helpers.ts`:
+- [x] **5.3.2** [GREEN] `frontend/src/infrastructure/bridge-runtime-source/bridge-runtime-source.helpers.ts`:
   wire the two new calls; `frontend/src/shared/contracts/anime.types.ts`: add `WatchHistoryEntry`/
   `WatchHistoryPage` (every property `readonly`) beside the existing `AnimeHistoryItem`.
+
+**Apply note (5.1-5.3):** 306 Go + 117 frontend insertions (423 total) against a 350 forecast, inside the
+600 budget. Note C's literal ban also caught doc comments ("watch_history" -> reworded, `checkarchitecture`
+caught it); `fallow audit --quiet` clean, no unused-export finding.
 
 ### 5.4 MUTATE
 

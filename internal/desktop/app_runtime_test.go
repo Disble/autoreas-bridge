@@ -3,6 +3,7 @@ package desktop
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"autoreas-bridge/internal/anime"
@@ -10,6 +11,7 @@ import (
 	"autoreas-bridge/internal/device"
 	"autoreas-bridge/internal/events"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 func TestGetBridgeStatusReturnsOkWhenNoStartupError(t *testing.T) {
@@ -315,6 +317,143 @@ func TestGetAnimeHistoryReturnsEmptySliceOnServiceError(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("expected empty slice on service error, got %#v", got)
+	}
+}
+
+// TestGetWatchHistoryPageDegradesAndPassesThroughStorePage covers
+// GetWatchHistoryPage's nil-guard (mirroring GetAnimes's contract),
+// error-surfacing (unlike GetAnimeHistory's swallow-to-empty behaviour), and
+// the successful passthrough of Store.Page's items and cursor.
+func TestGetWatchHistoryPageDegradesAndPassesThroughStorePage(t *testing.T) {
+	t.Parallel()
+
+	successPage := watchhistory.Page{
+		Items: []watchhistory.Entry{
+			{ID: 1, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 12, Cycle: 1, WatchedAtMS: 1700000000000, Source: "desktop"},
+		},
+		NextCursor: "1700000000000:1",
+	}
+
+	tests := []struct {
+		name  string
+		query watchHistoryReader
+		want  contracts.WatchHistoryPage
+	}{
+		{
+			name:  "nil watch history query degrades to an error status",
+			query: nil,
+			want:  contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"},
+		},
+		{
+			name:  "a store error surfaces as an error status rather than an empty result",
+			query: &stubWatchHistoryQuery{err: errors.New("store unavailable")},
+			want:  contracts.WatchHistoryPage{Status: "error", Message: "store unavailable"},
+		},
+		{
+			name:  "a successful page passes its items and cursor through",
+			query: &stubWatchHistoryQuery{page: successPage},
+			want: contracts.WatchHistoryPage{
+				Items: []contracts.WatchHistoryEntry{
+					{ID: 1, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 12, Cycle: 1, WatchedAtMS: 1700000000000, Source: "desktop"},
+				},
+				NextCursor: "1700000000000:1",
+				Status:     "ok",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := &App{ctx: context.Background(), watchHistoryQuery: tc.query}
+			if got := app.GetWatchHistoryPage("some-cursor"); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("expected %#v, got %#v", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestGetWatchHistoryPageForwardsCursorToStore asserts the cursor argument
+// reaches Store.Page unchanged, which the table above cannot assert because
+// its rows share one call site.
+func TestGetWatchHistoryPageForwardsCursorToStore(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubWatchHistoryQuery{}
+	app := &App{ctx: context.Background(), watchHistoryQuery: stub}
+
+	app.GetWatchHistoryPage("1700000000000:5")
+
+	if stub.lastCursor != "1700000000000:5" {
+		t.Fatalf("expected cursor %q forwarded to Store.Page, got %q", "1700000000000:5", stub.lastCursor)
+	}
+}
+
+// TestGetAnimeWatchHistoryPageDegradesAndPassesThroughAnimePage covers
+// GetAnimeWatchHistoryPage's nil-guard, error-surfacing, and successful
+// passthrough, mirroring TestGetWatchHistoryPageDegradesAndPassesThroughStorePage.
+func TestGetAnimeWatchHistoryPageDegradesAndPassesThroughAnimePage(t *testing.T) {
+	t.Parallel()
+
+	successPage := watchhistory.Page{
+		Items: []watchhistory.Entry{
+			{ID: 2, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 13, Cycle: 1, WatchedAtMS: 1700000001000, Source: "mobile"},
+		},
+	}
+
+	tests := []struct {
+		name  string
+		query watchHistoryReader
+		want  contracts.WatchHistoryPage
+	}{
+		{
+			name:  "nil watch history query degrades to an error status",
+			query: nil,
+			want:  contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"},
+		},
+		{
+			name:  "a store error surfaces as an error status rather than an empty result",
+			query: &stubWatchHistoryQuery{err: errors.New("store unavailable")},
+			want:  contracts.WatchHistoryPage{Status: "error", Message: "store unavailable"},
+		},
+		{
+			name:  "a successful page passes its items through",
+			query: &stubWatchHistoryQuery{page: successPage},
+			want: contracts.WatchHistoryPage{
+				Items: []contracts.WatchHistoryEntry{
+					{ID: 2, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 13, Cycle: 1, WatchedAtMS: 1700000001000, Source: "mobile"},
+				},
+				Status: "ok",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := &App{ctx: context.Background(), watchHistoryQuery: tc.query}
+			if got := app.GetAnimeWatchHistoryPage("anime-1", "some-cursor"); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("expected %#v, got %#v", tc.want, got)
+			}
+		})
+	}
+}
+
+// TestGetAnimeWatchHistoryPageForwardsAnimeIDAndCursorToStore asserts both
+// arguments reach Store.AnimePage unchanged.
+func TestGetAnimeWatchHistoryPageForwardsAnimeIDAndCursorToStore(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubWatchHistoryQuery{}
+	app := &App{ctx: context.Background(), watchHistoryQuery: stub}
+
+	app.GetAnimeWatchHistoryPage("anime-7", "1700000000000:5")
+
+	if stub.lastAnimeID != "anime-7" || stub.lastCursor != "1700000000000:5" {
+		t.Fatalf("expected animeID %q and cursor %q forwarded to Store.AnimePage, got animeID %q cursor %q",
+			"anime-7", "1700000000000:5", stub.lastAnimeID, stub.lastCursor)
 	}
 }
 

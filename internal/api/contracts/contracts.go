@@ -126,6 +126,32 @@ type AnimeHistoryItem struct {
 	CreatedAt *int64 `json:"createdAt,omitempty"`
 }
 
+// WatchHistoryEntry is one recorded real-watch-history row (Real Watch
+// History spec, "Read Models Are Keyset-Paged"): a single episode watched at a
+// point in time. Additive alongside AnimeHistoryItem above -- sdd-69 Note A:
+// AnimeHistoryItem is retired only once its last frontend caller is removed.
+type WatchHistoryEntry struct {
+	ID          int64  `json:"id"`
+	AnimeID     string `json:"animeId"`
+	AnimeName   string `json:"animeName"`
+	Episode     int64  `json:"episode"`
+	Cycle       int64  `json:"cycle"`
+	WatchedAtMS int64  `json:"watchedAtMs"`
+	Source      string `json:"source"`
+}
+
+// WatchHistoryPage is a keyset-paged batch of WatchHistoryEntry rows,
+// returned by GetWatchHistoryPage/GetAnimeWatchHistoryPage. Unlike
+// AnimeHistoryItem's swallow-to-empty-slice contract, a fetch failure is
+// surfaced through Status/Message rather than an empty Items slice, so the
+// frontend's empty state never lies about a failure (design.md D9).
+type WatchHistoryPage struct {
+	Items      []WatchHistoryEntry `json:"items"`
+	NextCursor string              `json:"nextCursor,omitempty"`
+	Status     string              `json:"status"`
+	Message    string              `json:"message,omitempty"`
+}
+
 // AnimeDetailProgress contains watched, total, and remaining episode counts.
 type AnimeDetailProgress struct {
 	Watched   float64  `json:"watched"`

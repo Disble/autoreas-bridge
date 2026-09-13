@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // episodeServiceUnavailableMessage is what every episode binding returns when the episode
@@ -200,6 +201,36 @@ func (a *App) GetAnimeHistory() []contracts.AnimeHistoryItem {
 	return items
 }
 
+// GetWatchHistoryPage returns a keyset page over the entire real-watch-history
+// log, newest first (Real Watch History spec, "Read Models Are Keyset-
+// Paged"). Unlike GetAnimeHistory's swallow-to-empty-slice contract, a nil
+// service or a query error surfaces as Status "error" rather than a silently
+// empty result (design.md D9), because an empty state that hides a failure
+// lies to the frontend. Additive: GetAnimeHistory above is untouched.
+func (a *App) GetWatchHistoryPage(cursor string) contracts.WatchHistoryPage {
+	if a.watchHistoryQuery == nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
+	}
+	page, err := a.watchHistoryQuery.Page(a.appContext(), watchhistory.PageQuery{Cursor: cursor})
+	if err != nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
+	}
+	return toWatchHistoryPage(page)
+}
+
+// GetAnimeWatchHistoryPage returns a keyset page scoped to one anime,
+// mirroring GetWatchHistoryPage's nil-guard and error-surfacing contract.
+func (a *App) GetAnimeWatchHistoryPage(animeID string, cursor string) contracts.WatchHistoryPage {
+	if a.watchHistoryQuery == nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
+	}
+	page, err := a.watchHistoryQuery.AnimePage(a.appContext(), animeID, watchhistory.PageQuery{Cursor: cursor})
+	if err != nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
+	}
+	return toWatchHistoryPage(page)
+}
+
 // GetAnimeDetailView is the structured detail read model (progress/dates/
 // content/download groups), renamed at merge time: the `GetAnimeDetail` name
 // stays with the flat MobileAnime binding above because the shipped
@@ -381,6 +412,30 @@ func (a *App) appContext() context.Context {
 		return context.Background()
 	}
 	return a.ctx
+}
+
+// toWatchHistoryPage maps a watchhistory.Page read model into its API
+// contract shape, tagging the result Status "ok".
+func toWatchHistoryPage(page watchhistory.Page) contracts.WatchHistoryPage {
+	return contracts.WatchHistoryPage{Items: toWatchHistoryEntries(page.Items), NextCursor: page.NextCursor, Status: "ok"}
+}
+
+// toWatchHistoryEntries maps real-watch-history read-model rows to their API
+// contract shape.
+func toWatchHistoryEntries(items []watchhistory.Entry) []contracts.WatchHistoryEntry {
+	entries := make([]contracts.WatchHistoryEntry, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, contracts.WatchHistoryEntry{
+			ID:          item.ID,
+			AnimeID:     item.AnimeID,
+			AnimeName:   item.AnimeName,
+			Episode:     item.Episode,
+			Cycle:       item.Cycle,
+			WatchedAtMS: item.WatchedAtMS,
+			Source:      item.Source,
+		})
+	}
+	return entries
 }
 
 // toEpisodeScheduleContracts maps episode schedule items to API contracts.

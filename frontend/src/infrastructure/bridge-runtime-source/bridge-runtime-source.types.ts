@@ -11,6 +11,7 @@ import type {
   AnimeHistoryEntry,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
+  WatchHistoryPage,
 } from '../../shared/contracts/anime.types';
 import type { SyncingAnime } from '../../shared/contracts/syncing-anime.types';
 
@@ -31,6 +32,8 @@ export interface BridgeRuntimeSource {
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
   readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
   readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
+  readonly getWatchHistoryPage?: (cursor: string) => Promise<WatchHistoryPage>;
+  readonly getAnimeWatchHistoryPage?: (animeID: string, cursor: string) => Promise<WatchHistoryPage>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   readonly getEpisodeDayCounts?: () => Promise<readonly contracts.EpisodeDayCount[]>;

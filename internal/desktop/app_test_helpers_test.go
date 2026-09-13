@@ -21,6 +21,7 @@ import (
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // newAppTestApp creates an application with test runtime dependencies.
@@ -199,6 +200,30 @@ func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contra
 }
 
 var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
+
+// stubWatchHistoryQuery is a minimal watchHistoryReader double for
+// app_runtime_test.go's GetWatchHistoryPage/GetAnimeWatchHistoryPage cases.
+// Page and AnimePage share one canned result/error pair since no test here
+// needs them to differ; each records the args it last saw.
+type stubWatchHistoryQuery struct {
+	page        watchhistory.Page
+	err         error
+	lastAnimeID string
+	lastCursor  string
+}
+
+func (s *stubWatchHistoryQuery) Page(_ context.Context, q watchhistory.PageQuery) (watchhistory.Page, error) {
+	s.lastCursor = q.Cursor
+	return s.page, s.err
+}
+
+func (s *stubWatchHistoryQuery) AnimePage(_ context.Context, animeID string, q watchhistory.PageQuery) (watchhistory.Page, error) {
+	s.lastAnimeID = animeID
+	s.lastCursor = q.Cursor
+	return s.page, s.err
+}
+
+var _ watchHistoryReader = (*stubWatchHistoryQuery)(nil)
 
 // stubAppCoverResolver is a coverResolver double for app_runtime_test.go's
 // GetAnimeCover cases: records the last (animeID, portadaPath) it was

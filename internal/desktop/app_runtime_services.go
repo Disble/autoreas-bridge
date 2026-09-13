@@ -218,6 +218,7 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	// resolution error degrades to a no-op cache internally), so this wiring
 	// is nil-safe by design -- see internal/anime/cover/production.go.
 	a.coverResolver = cover.NewDefaultResolver(0)
+	a.watchHistoryQuery = watchhistory.NewStore(a.bridgeDB)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeUpdateWriter)

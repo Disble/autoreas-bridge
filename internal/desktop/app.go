@@ -91,6 +91,7 @@ type App struct {
 	animeEditorScheduleQuery   *anime.ScheduleQueryService
 	animeEditorScheduleWrite   *anime.ScheduleService
 	coverResolver              coverResolver
+	watchHistoryQuery          watchHistoryReader
 	notifier                   notification.Notifier
 	notificationCenterStore    *center.Store
 	notificationCenterExecutor *center.Executor
@@ -209,6 +210,15 @@ type episodeCommandService interface {
 // (internal/anime/cover), wired in startup via cover.NewDefaultResolver.
 type coverResolver interface {
 	Resolve(ctx context.Context, animeID, portadaPath string) cover.Result
+}
+
+// watchHistoryReader is the narrow read port GetWatchHistoryPage and
+// GetAnimeWatchHistoryPage depend on, mirroring coverResolver above. The
+// real implementation is *watchhistory.Store, wired in
+// configureAnimeApplicationServices; app_runtime_test.go injects a stub.
+type watchHistoryReader interface {
+	Page(ctx context.Context, q watchhistory.PageQuery) (watchhistory.Page, error)
+	AnimePage(ctx context.Context, animeID string, q watchhistory.PageQuery) (watchhistory.Page, error)
 }
 
 // NewApp creates a new App application struct
