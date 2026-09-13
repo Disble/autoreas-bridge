@@ -559,7 +559,7 @@ sequenceDiagram
             M->>WH: ApplyTx(tx, Change{…, SourceActivityID:&id})
             WH->>WH: Derive → Record | Retract | None
         end
-        M->>AL: DeleteByActionTypes(tx, 4 navigation types)
+        M->>AL: DeleteNavigationTelemetry(tx)
         M->>M: set marker → COMMIT
     end
     Note over M: any error → ROLLBACK, log error,<br/>bootstrap continues, next launch retries
@@ -630,7 +630,7 @@ type WatchRecorder interface { RecordWatch(ctx context.Context, change watchhist
 type Snapshot struct { Estado int; NroCapVisto float64; Activo int } // exact stored JSON key shape
 func (s *Store) CountReplayable(ctx context.Context) (int64, error)
 func (s *Store) StreamOldestFirst(ctx context.Context, fn func(ProgressEvent) error) error
-func (s *Store) DeleteByActionTypes(ctx context.Context, tx *sql.Tx, actions ...string) (int64, error)
+func (s *Store) DeleteNavigationTelemetry(ctx context.Context, tx *sql.Tx) (int64, error)
 ```
 
 `anime.ActivityAnimeSnapshot` has **no JSON tags**, so `before_json`/`after_json` are stored under the

@@ -308,61 +308,70 @@ backfill leaves an empty history and retries next launch, it never blocks startu
 **Forecast:** 510. Requirements: "The Backfill Anchors Cycles To The Current Repetition Count", "The
 Backfill Is Marker-Guarded And Idempotent", "The Backfill Creates A Restore Point Before Mutating".
 
+**Apply notes:** trap 3 — the replay is buffered before `BEGIN` (`SetMaxOpenConns(1)` would starve a tx opened
+while the SELECT holds the connection). Trap 4 — `R` = `json_array_length(snapshot_json.$.repetitions)`; an anime
+with no snapshot row reads `R=0`. The purge became `DeleteNavigationTelemetry` with literal action types, so
+Slice 4.1.4 can drop the constants without touching the backfill. Measured on a sandbox copy of the real
+database: 201 rows over 36 anime, 277 navigation rows purged (394 audit rows left), restore point created.
+Both repeated anime hold only cycle-2 rows: the log has no progress before either reset. Mutation: sync 0.95
+(39/41; survivors `cycleFor` clamp `<=`/`1→2`, equivalent), activity 0.94 (17/18) before the refactor that
+removed the variadic guard and its equivalent mutant.
+
 ### 3.1 Activity ports — replay + purge (SQL stays in `internal/activity`)
 
-- [ ] **3.1.1** [RED] `internal/activity/store_test.go`: `CountReplayable` counts the replay input;
+- [x] **3.1.1** [RED] `internal/activity/store_test.go`: `CountReplayable` counts the replay input;
   `StreamOldestFirst` streams `occurred_at_ms ASC, id ASC` and decodes `before_json`/`after_json` into
   `anime.Snapshot{Estado, NroCapVisto, Activo}` using the exact untagged Go field names (D2's
   storage-format note — this is the retained Spanish-adjacent surface, CLAUDE.md #13);
-  `DeleteByActionTypes(tx, actions...)` deletes only the named action types and returns the count.
-- [ ] **3.1.2** [GREEN] `internal/activity/store.go`: add the three methods.
+  `DeleteNavigationTelemetry(tx)` deletes only the four navigation action types and returns the count.
+- [x] **3.1.2** [GREEN] `internal/activity/store.go`: add the three methods.
 
 ### 3.2 Cycle alignment — anchored backwards from `R` (D3)
 
-- [ ] **3.2.1** [RED] `internal/sync/watch_history_backfill_test.go`: `R=3, K=0` (the default, 59-of-61
+- [x] **3.2.1** [RED] `internal/sync/watch_history_backfill_test.go`: `R=3, K=0` (the default, 59-of-61
   case, per Note B) — every replayed row lands on cycle 4, and a subsequent live `RecordWatch` computes
   the same cycle 4. `R=1, K=1` (Date a Live II shape) — pre-reset segment 1, post-reset 2. `K > R` —
   per-row clamp, final segment still `R+1`, the resulting key collision is counted and warn-logged with
   the anime, `R`, and `K`.
-- [ ] **3.2.2** [GREEN] `internal/sync/watch_history_backfill.go`: `cycle(P) = max(1, R + 1 -
+- [x] **3.2.2** [GREEN] `internal/sync/watch_history_backfill.go`: `cycle(P) = max(1, R + 1 -
   resetsStrictlyAfter(P))` applied per row — never seeded once and then incremented.
 
 ### 3.3 Driver — marker, restore point, replay, purge (D6)
 
-- [ ] **3.3.1** [RED] Idempotent replay: running the migration twice yields the same row set. Marker
+- [x] **3.3.1** [RED] Idempotent replay: running the migration twice yields the same row set. Marker
   skips a second run outright. Fresh-install path (`CountReplayable` = 0) sets the marker and creates
   **no** restore point. A mid-replay failure rolls back, logs at `error`, and sets no marker (bootstrap
   still succeeds). The purge of the 4 navigation action types runs inside the same transaction as the
   replay, after every row is applied.
-- [ ] **3.3.2** [GREEN] `internal/sync/watch_history_backfill.go`: `ensureWatchHistoryBackfill(ctx, db,
-  dbPath)` — marker check → `CountReplayable` → `CreateRestorePoint` (only if rows > 0) → `BEGIN` →
-  `StreamOldestFirst` → per-row `Derive` via the `watchhistory` port → `ApplyTx` →
-  `DeleteByActionTypes`(4 nav types) → set marker → `COMMIT`; any error → `ROLLBACK` + log error, no
+- [x] **3.3.2** [GREEN] `internal/sync/watch_history_backfill.go`: `ensureWatchHistoryBackfill(ctx, db,
+  dbPath)` — marker check → `CountReplayable` → `CreateRestorePoint` (only if rows > 0) → buffer `StreamOldestFirst` → `BEGIN` →
+  per-row `Derive` via the `watchhistory` port → `ApplyTx` →
+  `DeleteNavigationTelemetry` → set marker → `COMMIT`; any error → `ROLLBACK` + log error, no
   marker set.
-- [ ] **3.3.3** [GREEN] **Schema registration moved to Slice 2** (see that slice's note beside 2.2.4 and
+- [x] **3.3.3** [GREEN] **Schema registration moved to Slice 2** (see that slice's note beside 2.2.4 and
   its apply report): `watchhistory.SchemaTables()` is already appended to `initializeBridgeDB`'s `tables`
   slice, proven by `internal/watchhistory/bootstrap_registration_test.go`. This task now only calls
   `ensureWatchHistoryBackfill` from `internal/sync/sqlite_bootstrap.go`'s `initializeBridgeDB`, after
   every table is ensured and after `ensureVocabularyMigration`.
-- [ ] **3.3.4** [RED] Fixtures built from the real `activity_log` row shape (untagged snapshot keys)
+- [x] **3.3.4** [RED] Fixtures built from the real `activity_log` row shape (untagged snapshot keys)
   replayed against the corrected rules (`CycleReset` guard + backwards cycle anchoring); **re-measure and
   record the resulting row count** (the explore.md §4.1 / design.md "> 201" open item) in the test name
   or a comment — measured, not estimated.
 
 ### 3.4 MUTATE
 
-- [ ] **3.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
+- [x] **3.4.1** [MUTATE] `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command
   "go test -count=1 -json ./internal/sync/"`.
-- [ ] **3.4.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/sync/
+- [x] **3.4.2** [MUTATE] `ditto staged --exclude-prefix frontend/ --exclude-prefix internal/sync/
   --threshold 0.80 --test-command "go test -count=1 -json ./internal/activity/"`.
-- [ ] **3.4.3** [REFACTOR] Address survivors.
+- [x] **3.4.3** [REFACTOR] Address survivors.
 
 ### 3.5 Verification & commit
 
-- [ ] **3.5.1** [VERIFY] `go test ./internal/sync/... ./internal/activity/...`; both golangci profiles;
+- [x] **3.5.1** [VERIFY] `go test ./internal/sync/... ./internal/activity/...`; both golangci profiles;
   `checkgofilesize`; confirm a fresh `bridge.db` boot (empty log) sets the marker and creates no restore
   point.
-- [ ] **3.5.2** Orchestrator verifies and commits this slice.
+- [x] **3.5.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** the one non-trivially-reversible slice. `CreateRestorePoint` runs before any mutation;
 documented repair is drop `watch_history` + clear its `schema_migration_markers` row + relaunch, which

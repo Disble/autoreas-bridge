@@ -3,6 +3,7 @@ package activity_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 
@@ -59,6 +60,135 @@ func TestBridgeBootstrapCreatesActivityLogSchema(t *testing.T) {
 	assertIndexExists(t, db, "idx_activity_log_anime")
 	assertIndexExists(t, db, "idx_activity_log_action")
 	assertIndexExists(t, db, "idx_activity_log_correlation")
+}
+
+// TestStoreCountsAndStreamsRowsOldestFirst proves CountReplayable counts the
+// whole replay input and StreamOldestFirst yields it in occurred_at_ms ASC,
+// id ASC order, decoding before/after into the exact untagged Snapshot shape
+// (CLAUDE.md #13).
+func TestStoreCountsAndStreamsRowsOldestFirst(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 2000, activity.Snapshot{NroCapVisto: 10, Activo: 1}, activity.Snapshot{NroCapVisto: 11, Activo: 1})
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{NroCapVisto: 9, Activo: 1}, activity.Snapshot{NroCapVisto: 10, Activo: 1})
+
+	count, err := store.CountReplayable(ctx)
+	if err != nil {
+		t.Fatalf("count replayable rows: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 replayable rows, got %d", count)
+	}
+
+	var streamed []activity.ProgressEvent
+	if err := store.StreamOldestFirst(ctx, func(event activity.ProgressEvent) error {
+		streamed = append(streamed, event)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream oldest first: %v", err)
+	}
+	if len(streamed) != 2 {
+		t.Fatalf("expected 2 streamed events, got %#v", streamed)
+	}
+	if streamed[0].OccurredAtMs != 1000 || streamed[1].OccurredAtMs != 2000 {
+		t.Fatalf("expected oldest-first order, got %#v", streamed)
+	}
+	if streamed[0].Before.NroCapVisto != 9 || streamed[0].After.NroCapVisto != 10 {
+		t.Fatalf("expected the untagged Snapshot shape decoded, got %#v", streamed[0])
+	}
+}
+
+// TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions proves the
+// purge is scoped: an unlisted action_type survives, and the caller
+// controls the transaction.
+func TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{}, activity.Snapshot{})
+	seedReplayRow(t, store, activity.ActionAnimePageOpened, "anime-1", "One", 2000, activity.Snapshot{}, activity.Snapshot{})
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	deleted, err := store.DeleteNavigationTelemetry(ctx, tx)
+	if err != nil {
+		t.Fatalf("delete navigation telemetry: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("expected exactly 1 deleted row, got %d", deleted)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit tx: %v", err)
+	}
+
+	remaining, err := store.CountReplayable(ctx)
+	if err != nil {
+		t.Fatalf("count remaining rows: %v", err)
+	}
+	if remaining != 1 {
+		t.Fatalf("expected only the non-navigation row to survive, got %d", remaining)
+	}
+}
+
+// TestStoreReturnsZeroOnQueryOrExecError proves both error paths' own return
+// value, not just error presence: an already-committed transaction fails
+// DeleteNavigationTelemetry's exec, and a closed connection fails
+// CountReplayable's query; both must report 0 rather than a mutated
+// sentinel.
+func TestStoreReturnsZeroOnQueryOrExecError(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit tx: %v", err)
+	}
+	deleted, err := store.DeleteNavigationTelemetry(ctx, tx)
+	if err == nil {
+		t.Fatal("expected an error executing against an already-committed transaction")
+	}
+	if deleted != 0 {
+		t.Fatalf("expected deleted count 0 on error, got %d", deleted)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+	count, err := store.CountReplayable(ctx)
+	if err == nil {
+		t.Fatal("expected an error querying a closed database")
+	}
+	if count != 0 {
+		t.Fatalf("expected count 0 on error, got %d", count)
+	}
+}
+
+// seedReplayRow records one activity row through the public Store API, so no
+// test writes activity_log's literal name outside this package.
+func seedReplayRow(t *testing.T, store *activity.Store, actionType, animeID, animeName string, occurredAtMs int64, before, after activity.Snapshot) {
+	t.Helper()
+	beforeJSON, err := json.Marshal(before)
+	if err != nil {
+		t.Fatalf("marshal before snapshot: %v", err)
+	}
+	afterJSON, err := json.Marshal(after)
+	if err != nil {
+		t.Fatalf("marshal after snapshot: %v", err)
+	}
+	if err := store.RecordActivity(context.Background(), activity.Record{
+		Source: activity.SourceDesktop, ActionType: actionType, AnimeID: animeID, AnimeName: animeName,
+		OccurredAtMs: occurredAtMs, BeforeJSON: beforeJSON, AfterJSON: afterJSON,
+	}); err != nil {
+		t.Fatalf("seed replay row: %v", err)
+	}
 }
 
 // openActivityTestDB opens a temporary bridge database for activity tests.

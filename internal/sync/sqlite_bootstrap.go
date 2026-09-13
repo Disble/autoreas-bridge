@@ -1,8 +1,10 @@
 package sync
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,7 +109,7 @@ func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open bridge db %q: %w", path, err)
 	}
 
-	if err := initializeBridgeDB(db); err != nil {
+	if err := initializeBridgeDB(db, path); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize bridge db %q: %w", path, err)
 	}
@@ -137,8 +139,9 @@ func BootstrapBridgeDB() (*sql.DB, error) {
 
 // initializeBridgeDB configures connection limits, applies pragmas, ensures every table
 // via the schema registry, and seeds default data. It is the only place where the sync
-// and download schema descriptor sets are assembled together.
-func initializeBridgeDB(db *sql.DB) error {
+// and download schema descriptor sets are assembled together. dbPath is the file this db
+// was opened from, needed only by the watch-history backfill's restore point.
+func initializeBridgeDB(db *sql.DB, dbPath string) error {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
@@ -182,6 +185,14 @@ func initializeBridgeDB(db *sql.DB) error {
 	// gateway.Recover finalization performs its first decode.
 	if err := ensureVocabularyMigration(db); err != nil {
 		return err
+	}
+
+	// SDD-69 slice 3: a failure here is a secondary-projection concern, never
+	// grounds to refuse opening the primary database (design.md D6) -- it
+	// rolls back internally and this call site only logs it, unlike the
+	// vocabulary migration above, whose failure must abort bootstrap.
+	if err := ensureWatchHistoryBackfill(context.Background(), db, dbPath); err != nil {
+		log.Printf("watch-history backfill: %v", err)
 	}
 
 	if err := ensureDefaultHosterPriority(db); err != nil {
