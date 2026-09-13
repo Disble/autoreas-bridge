@@ -3,6 +3,7 @@ package watchhistory
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -153,6 +154,62 @@ func TestAnimePageSeeksTheAnimeIndexOnly(t *testing.T) {
 	}
 	if got, want := itemIDs(page), []int64{3, 1}; !slices.Equal(got, want) {
 		t.Fatalf("item IDs = %v, want %v", got, want)
+	}
+}
+
+// TestAnimePageQueryPlanSeeksTheAnimeIndex asserts SQLite answers a per-anime
+// page by searching idx_watch_history_anime, never by scanning the table.
+func TestAnimePageQueryPlanSeeksTheAnimeIndex(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	query, args, err := buildPageQuery("anime-1", encodePageCursor(pageCursor{WatchedAtMS: 5000, ID: 3}), 50)
+	if err != nil {
+		t.Fatalf("build page query: %v", err)
+	}
+	rows, err := db.Query("EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		t.Fatalf("explain page query: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var plan []string
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatalf("scan query plan: %v", err)
+		}
+		plan = append(plan, detail)
+	}
+	if got := strings.Join(plan, "; "); !strings.Contains(got, "idx_watch_history_anime") || strings.Contains(got, "SCAN") {
+		t.Fatalf("expected the per-anime page to seek idx_watch_history_anime, got plan %q", got)
+	}
+}
+
+// TestAnimePageKeepsEachRowsRecordedName asserts a row shows the name it was
+// recorded under after a rename; reads never join the anime table, so a
+// deleted anime's rows stay readable too.
+func TestAnimePageKeepsEachRowsRecordedName(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	for _, change := range []Change{
+		{AnimeID: "anime-1", AnimeName: "Original Name", Source: "desktop", OccurredAtMS: 1000, BeforeEpisodes: 0, AfterEpisodes: 1, Cycle: 1},
+		{AnimeID: "anime-1", AnimeName: "Renamed", Source: "desktop", OccurredAtMS: 2000, BeforeEpisodes: 1, AfterEpisodes: 2, Cycle: 1},
+	} {
+		if err := store.Apply(ctx, change); err != nil {
+			t.Fatalf("apply %+v: %v", change, err)
+		}
+	}
+
+	page, err := store.AnimePage(ctx, "anime-1", PageQuery{})
+	if err != nil {
+		t.Fatalf("anime page: %v", err)
+	}
+	if len(page.Items) != 2 || page.Items[0].AnimeName != "Renamed" || page.Items[1].AnimeName != "Original Name" {
+		t.Fatalf("expected each row to keep its recorded name, got %#v", page.Items)
 	}
 }
 

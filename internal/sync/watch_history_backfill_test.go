@@ -226,6 +226,9 @@ func TestEnsureWatchHistoryBackfillReplaysRealisticFixtureAndPurgesNavigationRow
 		t.Fatalf("expected the navigation row alone to be purged (3 of 4 rows survive), got %d", remaining)
 	}
 
+	// The restore point must predate every mutation: it still holds the purged navigation row.
+	assertSingleRestorePointHoldsAuditRows(t, filepath.Dir(dbPath), 4)
+
 	if err := watchStore.Apply(context.Background(), watchhistory.Change{
 		AnimeID: "anime-1", AnimeName: "Anime One", Source: "desktop",
 		OccurredAtMS: 4000, BeforeEpisodes: 10, AfterEpisodes: 11, Cycle: 4,
@@ -411,15 +414,44 @@ func TestEnsureWatchHistoryBackfillFreshInstallSetsMarkerWithoutRestorePoint(t *
 		t.Fatal("expected the marker to be set after a fresh install with nothing to replay")
 	}
 
-	entries, err := os.ReadDir(filepath.Dir(dbPath))
+	if names := restorePointNames(t, filepath.Dir(dbPath)); len(names) != 0 {
+		t.Fatalf("expected no restore point on a fresh install, found %v", names)
+	}
+}
+
+// assertSingleRestorePointHoldsAuditRows opens the one restore point in dir and
+// requires it to hold wantRows audit rows, proving it was taken before the purge.
+func assertSingleRestorePointHoldsAuditRows(t *testing.T, dir string, wantRows int64) {
+	t.Helper()
+	restorePoints := restorePointNames(t, dir)
+	if len(restorePoints) != 1 {
+		t.Fatalf("expected one restore point taken before the replay, got %v", restorePoints)
+	}
+	snapshot, err := sql.Open("sqlite", filepath.Join(dir, restorePoints[0]))
+	if err != nil {
+		t.Fatalf("open restore point: %v", err)
+	}
+	defer closeTestDB(t, snapshot)
+	count, err := activity.NewStore(activity.NewSQLiteProvider(snapshot)).CountReplayable(context.Background())
+	if err != nil || count != wantRows {
+		t.Fatalf("expected the restore point to hold %d audit rows from before the purge, got %d (%v)", wantRows, count, err)
+	}
+}
+
+// restorePointNames lists the restore point files beside a bridge database.
+func restorePointNames(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read bridge db directory: %v", err)
 	}
+	var names []string
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), RestorePointPrefix) {
-			t.Fatalf("expected no restore point on a fresh install, found %q", entry.Name())
+			names = append(names, entry.Name())
 		}
 	}
+	return names
 }
 
 // TestEnsureWatchHistoryBackfillIsMarkerGuardedAndIdempotent proves scenario
