@@ -122,11 +122,15 @@ func TestPageWatchedRangeIsHalfOpen(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name  string
-		order Order
+		name         string
+		order        Order
+		fromMS, toMS int64
+		want         []int64
 	}{
-		{name: "newest first", order: OrderNewestFirst},
-		{name: "oldest first", order: OrderOldestFirst},
+		{name: "newest first", order: OrderNewestFirst, fromMS: 1000, toMS: 2000, want: []int64{2, 3}},
+		{name: "oldest first", order: OrderOldestFirst, fromMS: 1000, toMS: 2000, want: []int64{2, 3}},
+		{name: "a one-millisecond upper bound keeps only epoch-zero rows", toMS: 1, want: []int64{6}},
+		{name: "a one-millisecond lower bound drops only epoch-zero rows", fromMS: 1, want: []int64{1, 2, 3, 4, 5}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -139,15 +143,16 @@ func TestPageWatchedRangeIsHalfOpen(t *testing.T) {
 			insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 3, 3, 1999)) // inside the range
 			insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 4, 4, 2000)) // exactly at ToMS: excluded
 			insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 5, 5, 2001)) // after the range
+			insertWatchHistoryRow(t, ctx, store, historyRow("anime-1", 6, 6, 0))    // at epoch zero
 
-			page, err := store.Page(ctx, PageQuery{Limit: 10, Order: tc.order, FromMS: 1000, ToMS: 2000})
+			page, err := store.Page(ctx, PageQuery{Limit: 10, Order: tc.order, FromMS: tc.fromMS, ToMS: tc.toMS})
 			if err != nil {
 				t.Fatalf("page: %v", err)
 			}
 			got := itemIDs(page)
 			slices.Sort(got)
-			if want := []int64{2, 3}; !slices.Equal(got, want) {
-				t.Fatalf("item IDs = %v, want %v", got, want)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("item IDs = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -210,6 +215,7 @@ func TestAnimePageCycleFiltersOrLeavesUnfiltered(t *testing.T) {
 		{name: "zero is every cycle, oldest first", order: OrderOldestFirst, cycle: 0, want: []int64{1, 2}},
 		{name: "a positive cycle narrows to that watch, newest first", order: OrderNewestFirst, cycle: 2, want: []int64{2}},
 		{name: "a positive cycle narrows to that watch, oldest first", order: OrderOldestFirst, cycle: 2, want: []int64{2}},
+		{name: "the first watch narrows to cycle one", order: OrderNewestFirst, cycle: 1, want: []int64{1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
