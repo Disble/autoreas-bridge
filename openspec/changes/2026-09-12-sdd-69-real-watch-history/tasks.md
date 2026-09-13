@@ -587,20 +587,28 @@ State".
 
 ### 7.1 Three exclusive states (loading / empty / error)
 
-- [ ] **7.1.1** [RED] Extend `HistoryTimeline.test.tsx`: loading renders only the skeleton
+- [x] **7.1.1** [RED] Extend `HistoryTimeline.test.tsx`: loading renders only the skeleton
   (`role="status"`, `aria-live="polite"`, `aria-labelledby` → `sr-only` span) and never real rows (assert
   the negative); resolved-empty renders `shared/ui/AirisEmptyState` carrying the "history begins
   2026-07-05" sentence; failure renders the surface's error `Alert`. The three are mutually exclusive.
-- [ ] **7.1.2** [GREEN] Wire the three states per CLAUDE.md FE #14's conventions.
+- [x] **7.1.2** [GREEN] Wire the three states per CLAUDE.md FE #14's conventions.
 
 ### 7.2 DOM-count windowing guard (D5a / ADR-012's 2026-08-31 correction — mandatory)
 
-- [ ] **7.2.1** [RED] `HistoryTimeline.windowing.test.tsx`, following
+- [x] **7.2.1** [RED] `HistoryTimeline.windowing.test.tsx`, following
   `AnimeEditorWorkspace.windowing.test.tsx`'s shape: after the first load the DOM row count equals
   `PAGE_SIZE`; one near-bottom scroll event (via `isNearListBottom` on the wrapping `overflow-y-auto`
   div, never `Table.ScrollContainer`) fetches the next keyset page and grows the DOM row count by one
   further page. `Table.LoadMore`/`useLoadMoreSentinel` is never used (Note D).
-- [ ] **7.2.2** [GREEN] Wire `onScroll` + `isNearListBottom` in `use-history-timeline.ts`.
+- [x] **7.2.2** [GREEN] Wire `onScroll` + `isNearListBottom` in `use-history-timeline.ts`.
+
+**Slice 6b notes:** hook's `error: Error | undefined` scopes to the first page only (a later-page
+failure just stops paging, per D5a's "additive, never a return to the skeleton"). No dedicated Airis
+artwork exists for History yet; reused `today.webp` as a placeholder — flagged as a follow-up.
+Post-commit Stryker survivors on `use-history-timeline.ts` (bca77ed) closed with 4 test additions; one
+(`hasMore && true`, dropping the redundant cursor check) is equivalent given the hook's own invariant.
+Review fix: `fetchNextPage` gained an in-flight ref guard (a scroll burst before the page resolved was
+double-fetching the same cursor); pinned inside the existing onScroll test, no new test function.
 
 ### 7.3 Route switch + retired-module deletion (the size:exception unit)
 

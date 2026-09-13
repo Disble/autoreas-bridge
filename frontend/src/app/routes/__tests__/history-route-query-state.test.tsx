@@ -36,7 +36,9 @@ describe('the History route', () => {
       ],
       isLoading: false,
       hasMore: false,
+      error: undefined,
       fetchNextPage: vi.fn(),
+      onScroll: vi.fn(),
     });
     let latestSearch = 'unset';
 

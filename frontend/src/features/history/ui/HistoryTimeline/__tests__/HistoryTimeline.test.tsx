@@ -47,7 +47,9 @@ function renderTimeline(overrides: Partial<HistoryTimelineState>) {
     groups: [],
     isLoading: false,
     hasMore: false,
+    error: undefined,
     fetchNextPage: vi.fn(),
+    onScroll: vi.fn(),
     ...overrides,
   });
 
@@ -118,5 +120,33 @@ describe('HistoryTimeline', () => {
     fireEvent.click(screen.getByRole('button', { name: /Frieren/ }));
 
     expect(navigateMock).toHaveBeenCalledWith('/catalog/detail/anime-1');
+  });
+
+  it('shows only the loading skeleton while the first page is unresolved, never real rows', () => {
+    renderTimeline({
+      isLoading: true,
+      groups: [group({ entries: [entry({})] })],
+    });
+
+    expect(screen.getByRole('status', { name: 'Loading watch history...' })).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('shows the empty state, not a blank screen, when the first page resolves with zero rows', () => {
+    renderTimeline({ groups: [] });
+
+    expect(screen.getByText('No watch history yet')).toBeInTheDocument();
+    expect(screen.getByText(/Watch history starts 2026-07-05/)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {
+    renderTimeline({ groups: [], error: new Error('watch history service unavailable') });
+
+    expect(screen.getByText('Watch history unavailable')).toBeInTheDocument();
+    expect(screen.getByText('watch history service unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByText('No watch history yet')).toBeNull();
   });
 });
