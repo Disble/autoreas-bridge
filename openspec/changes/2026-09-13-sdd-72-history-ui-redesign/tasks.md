@@ -214,17 +214,17 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** additive alongside the still-present `AnimeRepetitionTimeline`.
 **Forecast:** 440–540 (D10).
 
-- [ ] **11.1** [RED] `shared/watch-history/__tests__/watch-history.helpers.test.ts` (extend): `formatRowDateTime` formats "Fri, Sep 11 · 20:03" (date and time together).
-- [ ] **11.2** [GREEN] `watch-history.helpers.ts`: `formatRowDateTime`.
-- [ ] **11.3** [GREEN] `git mv use-anime-watch-history.ts use-anime-watch-episodes.ts` (+ test); request shape `{animeId, cycle, limit}`; keep the accumulated keyset pages, `isNearListBottom`, and the generation guard.
-- [ ] **11.4** [RED] `use-anime-watch-episodes.test.ts` (rewrite): an `enabled` flag gates the fetch (`true` by default for All episodes); the generation guard drops a stale `animeId`'s response.
-- [ ] **11.5** [GREEN] Wire the `enabled` flag; `cycle: 0` for the All-episodes case.
-- [ ] **11.6** [RED] `AnimeWatchEpisodeList.test.tsx` (new): rows "Episode N" + a "Watch K" chip (visible only when a `cycle` is passed) + `formatRowDateTime`; three exclusive states, loading asserts the negative; no `ANIME_WATCH_HISTORY_TRUNCATED_NOTICE`.
-- [ ] **11.7** [GREEN] `AnimeWatchEpisodeList.tsx`: bounded scroll container, `onScroll` + `isNearListBottom` (ADR-012 live branch).
-- [ ] **11.8** [RED] `AnimeWatchEpisodeList.windowing.test.tsx` (new, following `HistoryTimeline.windowing.test.tsx`'s shape): the DOM row count starts at the initial batch and grows by one page after a near-bottom scroll.
+- [x] **11.1** [RED] `shared/watch-history/__tests__/watch-history.helpers.test.ts` (extend): `formatRowDateTime` formats "Fri, Sep 11 · 20:03" (date and time together).
+- [x] **11.2** [GREEN] `watch-history.helpers.ts`: `formatRowDateTime`.
+- [x] **11.3** [GREEN] `git mv use-anime-watch-history.ts use-anime-watch-episodes.ts` (+ test); request shape `{animeId, cycle, limit}`; keep the accumulated keyset pages, `isNearListBottom`, and the generation guard.
+- [x] **11.4** [RED] `use-anime-watch-episodes.test.ts` (rewrite): an `enabled` flag gates the fetch (`true` by default for All episodes); the generation guard drops a stale `animeId`'s response.
+- [x] **11.5** [GREEN] Wire the `enabled` flag; `cycle: 0` for the All-episodes case.
+- [x] **11.6** [RED] `AnimeWatchEpisodeList.test.tsx` (new): rows "Episode N" + a "Watch K" chip (visible only when a `cycle` is passed) + `formatRowDateTime`; three exclusive states, loading asserts the negative; no `ANIME_WATCH_HISTORY_TRUNCATED_NOTICE`.
+- [x] **11.7** [GREEN] `AnimeWatchEpisodeList.tsx`: bounded scroll container, `onScroll` + `isNearListBottom` (ADR-012 live branch).
+- [x] **11.8** [RED] `AnimeWatchEpisodeList.windowing.test.tsx` (new, following `HistoryTimeline.windowing.test.tsx`'s shape): the DOM row count starts at the initial batch and grows by one page after a near-bottom scroll.
 - [ ] **11.9** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **11.10** [REFACTOR] lean-tests.
-- [ ] **11.11** [VERIFY] `bun --cwd="frontend" run test -- watch-history use-anime-watch-episodes AnimeWatchEpisodeList`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`; `bun run render:smoke`.
+- [x] **11.10** [REFACTOR] lean-tests.
+- [x] **11.11** [VERIFY] `bun --cwd="frontend" run test -- watch-history use-anime-watch-episodes AnimeWatchEpisodeList`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture`; `bun run render:smoke`.
 
 ---
 

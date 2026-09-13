@@ -13,7 +13,7 @@ import {
   ANIME_WATCH_HISTORY_TRUNCATED_NOTICE,
 } from './anime-watch-history.constants';
 import type { AnimeWatchHistoryProps } from './anime-watch-history.types';
-import { useAnimeWatchHistory } from './use-anime-watch-history';
+import { useAnimeWatchEpisodes } from './use-anime-watch-episodes';
 
 /**
  * Per-anime episode-history section rendered beside AnimeRepetitionTimeline
@@ -25,10 +25,10 @@ import { useAnimeWatchHistory } from './use-anime-watch-history';
  * dropping older rows. Renders exactly one of three exclusive states
  * (CLAUDE.md FE #14): a row-shaped skeleton while unresolved, the surface
  * error Alert on failure, or AirisEmptyState when resolved with zero rows.
- * Owns its data via useAnimeWatchHistory.
+ * Owns its data via useAnimeWatchEpisodes.
  */
 export function AnimeWatchHistory(props: Readonly<AnimeWatchHistoryProps>) {
-  const { entries, isLoading, hasMore, error } = useAnimeWatchHistory(props.animeId);
+  const { entries, isLoading, hasMore, error } = useAnimeWatchEpisodes(props.animeId);
   const isEmpty = !isLoading && error === undefined && entries.length === 0;
 
   return (

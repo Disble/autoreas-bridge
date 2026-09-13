@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WatchHistoryEntry } from '../../contracts/anime.types';
-import { formatDayHeading, formatRowTime, groupEntriesByDay, toLocalDayKey } from '../watch-history.helpers';
+import { formatDayHeading, formatRowDateTime, formatRowTime, groupEntriesByDay, toLocalDayKey } from '../watch-history.helpers';
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
 function entry(overrides: Partial<WatchHistoryEntry>): WatchHistoryEntry {
@@ -35,6 +35,16 @@ describe('formatDayHeading', () => {
 describe('formatRowTime', () => {
   it('formats a zero-padded local HH:MM time', () => {
     expect(formatRowTime(new Date(2026, 8, 12, 9, 5, 0).getTime())).toBe('09:05');
+  });
+});
+
+describe('formatRowDateTime', () => {
+  it('formats date and time together as "Fri, Sep 11 · 20:03"', () => {
+    expect(formatRowDateTime(new Date(2026, 8, 11, 20, 3, 0).getTime())).toBe('Fri, Sep 11 · 20:03');
+  });
+
+  it('zero-pads a single-digit morning time', () => {
+    expect(formatRowDateTime(new Date(2026, 0, 5, 9, 7, 0).getTime())).toBe('Mon, Jan 5 · 09:07');
   });
 });
 

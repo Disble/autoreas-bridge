@@ -2,11 +2,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeWatchHistoryPageRequest, WatchHistoryEntry, WatchHistoryPage } from '../../../../../shared/contracts/anime.types';
-import { useAnimeWatchHistory } from '../use-anime-watch-history';
+import { useAnimeWatchEpisodes } from '../use-anime-watch-episodes';
 
-/** Builds the still-unscoped per-anime page request `useAnimeWatchHistory` sends this unit, overriding only the anime id. */
-function request(animeId: string): AnimeWatchHistoryPageRequest {
-  return { animeId, cycle: 0, cursor: '', limit: 0 };
+/** Builds the per-anime page request `useAnimeWatchEpisodes` sends, overriding only what a case needs. */
+function request(animeId: string, overrides: Partial<AnimeWatchHistoryPageRequest> = {}): AnimeWatchHistoryPageRequest {
+  return { animeId, cycle: 0, cursor: '', limit: 0, ...overrides };
 }
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
@@ -43,11 +43,11 @@ function createSource(getAnimeWatchHistoryPage?: BridgeRuntimeSource['getAnimeWa
   };
 }
 
-describe('useAnimeWatchHistory', () => {
+describe('useAnimeWatchEpisodes', () => {
   it('starts loading with no entries, then fetches the anime-scoped page with an empty cursor', async () => {
     const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
     const source = createSource(getAnimeWatchHistoryPage);
-    const { result } = renderHook(() => useAnimeWatchHistory('anime-1', source));
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.entries).toEqual([]);
@@ -59,9 +59,42 @@ describe('useAnimeWatchHistory', () => {
     expect(result.current.error).toBeUndefined();
   });
 
-  it('surfaces an error, rather than degrading to an empty result, when the page fails', async () => {
+  it('fetches with cycle 0 and enabled true by default, the All-episodes case', async () => {
+    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(getAnimeWatchHistoryPage).toHaveBeenCalledWith(request('anime-1', { cycle: 0 }));
+  });
+
+  it('scopes the request to the given watch cycle', async () => {
+    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({ cycle: 2 })] }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 2, true, source));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(getAnimeWatchHistoryPage).toHaveBeenCalledWith(request('anime-1', { cycle: 2 }));
+  });
+
+  it('makes zero binding calls and stays idle when disabled', async () => {
+    const getAnimeWatchHistoryPage = vi.fn().mockResolvedValue(page({ items: [entry({})] }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, false, source));
+
+    await act(async () => {});
+
+    expect(getAnimeWatchHistoryPage).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.entries).toEqual([]);
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('surfaces an error, rather than degrading to an empty result, when the first page fails', async () => {
     const source = createSource(vi.fn().mockResolvedValue(page({ status: 'error', message: 'boom' })));
-    const { result } = renderHook(() => useAnimeWatchHistory('anime-1', source));
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -71,7 +104,7 @@ describe('useAnimeWatchHistory', () => {
 
   it('surfaces an error, rather than throwing, when the source has no getAnimeWatchHistoryPage binding', async () => {
     const source = createSource();
-    const { result } = renderHook(() => useAnimeWatchHistory('anime-1', source));
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -83,7 +116,7 @@ describe('useAnimeWatchHistory', () => {
     ['no nextCursor is present', undefined, false],
   ])('reports hasMore correctly when %s', async (_label, nextCursor, expected) => {
     const source = createSource(vi.fn().mockResolvedValue(page({ items: [entry({})], nextCursor })));
-    const { result } = renderHook(() => useAnimeWatchHistory('anime-1', source));
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -101,7 +134,7 @@ describe('useAnimeWatchHistory', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 2, animeId: 'anime-2' })] }));
     const source = createSource(getAnimeWatchHistoryPage);
     const { result, rerender } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeWatchHistory(animeId, source),
+      ({ animeId }: { animeId: string }) => useAnimeWatchEpisodes(animeId, 0, true, source),
       { initialProps: { animeId: 'anime-1' } },
     );
 
@@ -124,7 +157,7 @@ describe('useAnimeWatchHistory', () => {
       .mockResolvedValueOnce(page({ items: [entry({ id: 2, animeId: 'anime-2' })] }));
     const source = createSource(getAnimeWatchHistoryPage);
     const { result, rerender } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeWatchHistory(animeId, source),
+      ({ animeId }: { animeId: string }) => useAnimeWatchEpisodes(animeId, 0, true, source),
       { initialProps: { animeId: 'anime-1' } },
     );
 
@@ -134,5 +167,42 @@ describe('useAnimeWatchHistory', () => {
 
     await waitFor(() => expect(getAnimeWatchHistoryPage).toHaveBeenLastCalledWith(request('anime-2')));
     await waitFor(() => expect(result.current.entries).toEqual([entry({ id: 2, animeId: 'anime-2' })]));
+  });
+
+  it('appends the next keyset page, rather than replacing, when fetchNextPage runs', async () => {
+    const getAnimeWatchHistoryPage = vi
+      .fn()
+      .mockResolvedValueOnce(page({ items: [entry({ id: 1 })], nextCursor: 'cursor-1' }))
+      .mockResolvedValueOnce(page({ items: [entry({ id: 2 })] }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
+
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+
+    act(() => {
+      result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.entries.map((item) => item.id)).toEqual([1, 2]));
+    expect(getAnimeWatchHistoryPage).toHaveBeenLastCalledWith(request('anime-1', { cursor: 'cursor-1' }));
+  });
+
+  it('keeps the rows already on screen and only stops paging when a later page fails', async () => {
+    const getAnimeWatchHistoryPage = vi
+      .fn()
+      .mockResolvedValueOnce(page({ items: [entry({ id: 1 })], nextCursor: 'cursor-1' }))
+      .mockResolvedValueOnce(page({ status: 'error', message: 'later page failed' }));
+    const source = createSource(getAnimeWatchHistoryPage);
+    const { result } = renderHook(() => useAnimeWatchEpisodes('anime-1', 0, true, source));
+
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+
+    act(() => {
+      result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.hasMore).toBe(false));
+    expect(result.current.entries.map((item) => item.id)).toEqual([1]);
+    expect(result.current.error).toBeUndefined();
   });
 });

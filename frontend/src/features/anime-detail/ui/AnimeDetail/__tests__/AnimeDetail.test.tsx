@@ -8,11 +8,11 @@ vi.mock('../use-anime-detail', () => ({
   useAnimeDetail: () => useAnimeDetailMock(),
 }));
 
-/** Stands in for the per-anime watch-history hook so this suite renders without a live fetch. */
-const useAnimeWatchHistoryMock = vi.fn().mockReturnValue({ entries: [], isLoading: false, hasMore: false, error: undefined });
+/** Stands in for the per-anime watch-episodes hook so this suite renders without a live fetch. */
+const useAnimeWatchEpisodesMock = vi.fn().mockReturnValue({ entries: [], isLoading: false, hasMore: false, error: undefined, fetchNextPage: vi.fn(), onScroll: vi.fn() });
 
-vi.mock('../../AnimeWatchHistory/use-anime-watch-history', () => ({
-  useAnimeWatchHistory: () => useAnimeWatchHistoryMock(),
+vi.mock('../../AnimeWatchHistory/use-anime-watch-episodes', () => ({
+  useAnimeWatchEpisodes: () => useAnimeWatchEpisodesMock(),
 }));
 
 import { AnimeDetail } from '../AnimeDetail';

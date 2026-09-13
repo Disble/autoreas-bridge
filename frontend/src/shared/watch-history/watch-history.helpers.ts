@@ -1,5 +1,5 @@
 import type { WatchHistoryEntry } from '../contracts/anime.types';
-import { DAY_HEADING_FORMATTER } from './watch-history.constants';
+import { DAY_HEADING_FORMATTER, ROW_DATE_FORMATTER } from './watch-history.constants';
 import type { HistoryDayGroup } from './watch-history.types';
 
 /** Zero-pads a number to a two-digit string, mirroring history-table.helpers.ts's padTwo. */
@@ -32,6 +32,19 @@ export function formatRowTime(epochMs: number): string {
   const date = new Date(epochMs);
 
   return `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
+}
+
+/**
+ * Formats epoch millis as a local date-plus-time episode stamp (e.g. "Fri,
+ * Sep 11 · 20:03"), the row timestamp for the Anime Detail episode lists
+ * (spec: "All Episodes Lists Every Recorded Episode With Its Watch"). The
+ * date half comes from `ROW_DATE_FORMATTER`; the time half reuses the same
+ * zero-padded `HH:MM` convention as `formatRowTime` so the two never disagree.
+ */
+export function formatRowDateTime(epochMs: number): string {
+  const date = new Date(epochMs);
+
+  return `${ROW_DATE_FORMATTER.format(date)} · ${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
 }
 
 /**

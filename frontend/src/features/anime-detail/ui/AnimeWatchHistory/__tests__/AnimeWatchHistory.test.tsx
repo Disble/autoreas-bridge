@@ -1,9 +1,9 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WatchHistoryEntry } from '../../../../../shared/contracts/anime.types';
-import type { AnimeWatchHistoryState } from '../anime-watch-history.types';
+import type { AnimeWatchEpisodesState } from '../anime-watch-history.types';
 import { AnimeWatchHistory } from '../AnimeWatchHistory';
-import * as useAnimeWatchHistoryModule from '../use-anime-watch-history';
+import * as useAnimeWatchEpisodesModule from '../use-anime-watch-episodes';
 
 /** Builds a minimal WatchHistoryEntry fixture, overriding only what a case needs. */
 function entry(overrides: Partial<WatchHistoryEntry> = {}): WatchHistoryEntry {
@@ -19,13 +19,15 @@ function entry(overrides: Partial<WatchHistoryEntry> = {}): WatchHistoryEntry {
   };
 }
 
-/** Renders AnimeWatchHistory with useAnimeWatchHistory stubbed to the given state. */
-function renderSection(overrides: Partial<AnimeWatchHistoryState>) {
-  vi.spyOn(useAnimeWatchHistoryModule, 'useAnimeWatchHistory').mockReturnValue({
+/** Renders AnimeWatchHistory with useAnimeWatchEpisodes stubbed to the given state. */
+function renderSection(overrides: Partial<AnimeWatchEpisodesState>) {
+  vi.spyOn(useAnimeWatchEpisodesModule, 'useAnimeWatchEpisodes').mockReturnValue({
     entries: [],
     isLoading: false,
     hasMore: false,
     error: undefined,
+    fetchNextPage: vi.fn(),
+    onScroll: vi.fn(),
     ...overrides,
   });
 
