@@ -52,3 +52,9 @@ export interface AnimeWatchViewModel {
   /** Present only on pre-log past watches, feeding the dashed summary. */
   readonly summary?: AnimeWatchSummary;
 }
+
+/** Props for the dashed pre-log summary of one watch, rendered instead of episode rows. */
+export interface AnimeWatchSummaryProps {
+  readonly watchNumber: number;
+  readonly summary: AnimeWatchSummary;
+}

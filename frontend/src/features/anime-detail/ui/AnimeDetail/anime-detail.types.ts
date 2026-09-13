@@ -23,30 +23,6 @@ export interface AnimeDetailSkeletonProps {
  */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
 
-/**
- * A single repetition-history entry mapped for display, carrying every field
- * the Legacy "Historial de repetición" record shows (Anime Detail delta
- * spec, "Repetition entry shows the full Legacy record"). Every `*Label`
- * date field already bakes in its explicit "No data" fallback.
- */
-export interface AnimeRepeticionViewModel {
-  readonly key: string;
-  readonly numRepeticion: number;
-  readonly estadoLabel: string;
-  readonly estadoColor: HeroChipColor;
-  readonly episodesWatchedLabel: string;
-  readonly creacionLabel: string;
-  readonly estrenoLabel: string;
-  readonly ultCapVistoLabel: string;
-  readonly eliminacionLabel: string;
-  readonly repeatedOnLabel: string;
-}
-
-/** Props for the dumb `AnimeRepetitionTimeline` subcomponent. */
-export interface AnimeRepetitionTimelineProps {
-  readonly repetitions: readonly AnimeRepeticionViewModel[];
-}
-
 /** A single per-episode stat tile (label + display-ready value). */
 export interface AnimeDetailStatTile {
   readonly label: string;
@@ -78,8 +54,6 @@ export interface AnimeDetailViewModel {
   readonly studios: string;
   readonly origin: string;
   readonly isFirstWatch: boolean;
-  readonly watches: readonly AnimeRepeticionViewModel[];
-  readonly hasWatches: boolean;
 }
 
 /** Discriminates the three states the shared detail can render. */

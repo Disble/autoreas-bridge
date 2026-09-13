@@ -262,15 +262,15 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** the deletion and its replacement's wiring land in the same commit — Anime Detail never has zero or two "history" sections.
 **Forecast:** 480–570 (D10).
 
-- [ ] **14.1** [RED] `AnimeWatchSummary.test.tsx` (new): a pre-log watch renders the dashed Started / Premiere / Last watched / Ended summary, no episode row list; Ended reads `deletedAt` (Decision b).
-- [ ] **14.2** [GREEN] `AnimeWatchSummary.tsx`.
-- [ ] **14.3** [GREEN] `AnimeWatchHistory.tsx`: each item renders `AnimeWatchSummary` when `isPreLog`, else `AnimeWatchEpisodeList`; a post-log past watch with zero rows states its episodes were **not recorded** (SDD-69 D3 empty-state copy, never implying none were watched).
-- [ ] **14.4** [DELETE] `AnimeRepetitionTimeline.tsx` + its test; remove `<AnimeRepetitionTimeline .../>` from `AnimeDetail.tsx`.
-- [ ] **14.5** [GREEN] `anime-detail.helpers.ts`/`.types.ts`/`.constants.ts`: remove `toAnimeRepeticionViewModel`, `sortAnimeRepeticionesMostRecentFirst`, `formatAnimeDetailRepetitionDate`, `AnimeRepeticionViewModel`, `AnimeRepetitionTimelineProps`, the six `ANIME_DETAIL_REPETITION_*` labels, `ANIME_DETAIL_NO_REPETITIONS_MESSAGE`, `ANIME_WATCH_HISTORY_TRUNCATED_NOTICE`.
-- [ ] **14.6** [RED/GREEN] `AnimeDetail.test.tsx`: remove the retired repetition-timeline cases; assert exactly one "Watch history" section renders and no "Repetition history"/"Episode history" section renders (spec scenario).
+- [x] **14.1** [RED] `AnimeWatchSummary.test.tsx` (new): a pre-log watch renders the dashed Started / Premiere / Last watched / Ended summary, no episode row list; Ended reads `deletedAt` (Decision b).
+- [x] **14.2** [GREEN] `AnimeWatchSummary.tsx`.
+- [x] **14.3** [GREEN] `AnimeWatchHistory.tsx`: each item renders `AnimeWatchSummary` when `isPreLog`, else `AnimeWatchEpisodeList`; a post-log past watch with zero rows states its episodes were **not recorded** (SDD-69 D3 empty-state copy, never implying none were watched).
+- [x] **14.4** [DELETE] `AnimeRepetitionTimeline.tsx` + its test; remove `<AnimeRepetitionTimeline .../>` from `AnimeDetail.tsx`.
+- [x] **14.5** [GREEN] `anime-detail.helpers.ts`/`.types.ts`/`.constants.ts`: remove `toAnimeRepeticionViewModel`, `sortAnimeRepeticionesMostRecentFirst`, `formatAnimeDetailRepetitionDate`, `AnimeRepeticionViewModel`, `AnimeRepetitionTimelineProps`, the six `ANIME_DETAIL_REPETITION_*` labels, `ANIME_DETAIL_NO_REPETITIONS_MESSAGE`, `ANIME_WATCH_HISTORY_TRUNCATED_NOTICE`.
+- [x] **14.6** [RED/GREEN] `AnimeDetail.test.tsx`: remove the retired repetition-timeline cases; assert exactly one "Watch history" section renders and no "Repetition history"/"Episode history" section renders (spec scenario).
 - [ ] **14.7** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **14.8** [REFACTOR] lean-tests; confirm zero remaining importers of `AnimeRepetitionTimeline`.
-- [ ] **14.9** [VERIFY] `bun --cwd="frontend" run test -- AnimeDetail AnimeWatchHistory AnimeWatchSummary`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`; `go run ./tools/checkarchitecture`; `dharness check` on staged files.
+- [x] **14.8** [REFACTOR] lean-tests; confirm zero remaining importers of `AnimeRepetitionTimeline`.
+- [x] **14.9** [VERIFY] `bun --cwd="frontend" run test -- AnimeDetail AnimeWatchHistory AnimeWatchSummary`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`; `go run ./tools/checkarchitecture`; `dharness check` on staged files.
 
 ---
 

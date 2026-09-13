@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AnimeDetail, AnimeRepeticion } from '../../../../../shared/contracts/anime.types';
-import { toAnimeWatchViewModels } from '../anime-watch-history.helpers';
+import { formatAnimeWatchSummaryDate, toAnimeWatchViewModels } from '../anime-watch-history.helpers';
 
 /** Local-midnight start of the watch-history log; written out so the suite never pins the production constant itself. */
 const LOG_START_MS = new Date(2026, 6, 5).getTime();
@@ -198,5 +198,14 @@ describe('toAnimeWatchViewModels', () => {
 
     expect(watches[0].isPreLog).toBe(false);
     expect(watches[0].summary).toBeUndefined();
+  });
+});
+
+describe('formatAnimeWatchSummaryDate', () => {
+  it.each([
+    { name: 'formats a stored timestamp as a long date', value: new Date(2021, 7, 16).getTime(), want: 'August 16, 2021' },
+    { name: 'falls back to the no-data label when the record holds nothing', value: undefined, want: 'No data' },
+  ])('$name', ({ value, want }) => {
+    expect(formatAnimeWatchSummaryDate(value)).toBe(want);
   });
 });

@@ -9,6 +9,8 @@ import {
   ANIME_WATCH_HISTORY_LOADING_LABEL,
   ANIME_WATCH_HISTORY_ROW_CLASS,
   ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT,
+  ANIME_WATCH_HISTORY_UNRECORDED_DESCRIPTION,
+  ANIME_WATCH_HISTORY_UNRECORDED_TITLE,
 } from './anime-watch-history.constants';
 import { ANIME_WATCH_EPISODE_LIST_SCROLL_TESTID, ANIME_WATCH_EPISODE_ROW_TESTID } from './anime-watch-episode-list.constants';
 import type { AnimeWatchEpisodeListProps } from './anime-watch-episode-list.types';
@@ -24,10 +26,11 @@ import { useAnimeWatchEpisodes } from './use-anime-watch-episodes';
  * Progressively"): a near-bottom scroll appends the next keyset page, so no
  * truncated-page notice ever renders. Renders exactly one of three exclusive
  * states (CLAUDE.md FE #14): a row-shaped skeleton while unresolved, the
- * surface error Alert on failure, or AirisEmptyState when resolved with zero
- * rows. Owns its data via useAnimeWatchEpisodes. Mounted by the Watch history
- * tabs from U13; additive this unit, beside the still-present
- * AnimeRepetitionTimeline.
+ * surface error Alert on failure, or the empty state when resolved with zero
+ * rows (a post-log past watch with zero rows states the episodes were not
+ * recorded instead). Owns its data via useAnimeWatchEpisodes. Mounted by the
+ * Watch history tabs, once per expanded Accordion item and once for the flat
+ * All-episodes tab.
  */
 export function AnimeWatchEpisodeList(props: Readonly<AnimeWatchEpisodeListProps>) {
   const { entries, isLoading, error, onScroll } = useAnimeWatchEpisodes(
@@ -73,9 +76,9 @@ export function AnimeWatchEpisodeList(props: Readonly<AnimeWatchEpisodeListProps
 
       {isEmpty ? (
         <AirisEmptyState
-          description={ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION}
+          description={props.isPastWatch === true ? ANIME_WATCH_HISTORY_UNRECORDED_DESCRIPTION : ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION}
           imageSrc={historyAirisArtwork}
-          title={ANIME_WATCH_HISTORY_EMPTY_TITLE}
+          title={props.isPastWatch === true ? ANIME_WATCH_HISTORY_UNRECORDED_TITLE : ANIME_WATCH_HISTORY_EMPTY_TITLE}
         />
       ) : null}
 

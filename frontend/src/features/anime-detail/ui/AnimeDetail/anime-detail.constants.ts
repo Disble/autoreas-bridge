@@ -31,16 +31,13 @@ export const ANIME_DETAIL_SKELETON_TILE_COUNT = 3;
 
 /**
  * Number of placeholder field-group sections rendered while loading,
- * matching the resolved Episode info / General data / Repetition history
+ * matching the resolved Episode info / General data / Watch history
  * sections.
  */
 export const ANIME_DETAIL_SKELETON_FIELD_GROUP_COUNT = 3;
 
 /** Message rendered when the anime id does not resolve to a record. */
 export const ANIME_DETAIL_NOT_FOUND_MESSAGE = 'Anime not found.';
-
-/** Message rendered when an anime has no repetition-history entries. */
-export const ANIME_DETAIL_NO_REPETITIONS_MESSAGE = 'No repetition history.';
 
 /** Label for the hero status chip when the anime record is active (`activo` = 1). */
 export const ANIME_DETAIL_STATUS_ACTIVE_LABEL = 'Active';
@@ -91,27 +88,9 @@ export const ANIME_DETAIL_RESTORE_LABEL = 'Restore';
 export const ANIME_DETAIL_CANCEL_LABEL = 'Cancel';
 
 /**
- * Fallback shown for an absent repetition-entry date. Deliberately distinct
+ * Fallback shown for an absent pre-log summary date. Deliberately distinct
  * from `ANIME_DETAIL_UNKNOWN_LABEL` ("Unknown", used by the general-data
  * section): the delta spec calls for an explicit "No data" label on every
- * repetition timeline date field.
+ * pre-log watch summary date field.
  */
 export const ANIME_DETAIL_NO_DATA_LABEL = 'No data';
-
-/** Definition-grid caption for a repetition entry's episodes-watched count. */
-export const ANIME_DETAIL_REPETITION_EPISODES_LABEL = 'Episodes watched';
-
-/** Definition-grid caption for a repetition entry's fecha de creación. */
-export const ANIME_DETAIL_REPETITION_CREATED_LABEL = 'Created';
-
-/** Definition-grid caption for a repetition entry's fecha de estreno. */
-export const ANIME_DETAIL_REPETITION_PREMIERE_LABEL = 'Premiere';
-
-/** Definition-grid caption for a repetition entry's fecha de último capítulo visto. */
-export const ANIME_DETAIL_REPETITION_LAST_WATCHED_LABEL = 'Last watched';
-
-/** Definition-grid caption for a repetition entry's fecha de eliminación. */
-export const ANIME_DETAIL_REPETITION_DELETED_LABEL = 'Deleted';
-
-/** Definition-grid caption for a repetition entry's siguiente repetición (`fechaRepeticion`). */
-export const ANIME_DETAIL_REPETITION_NEXT_LABEL = 'Next repetition';

@@ -20,7 +20,7 @@ function entry(overrides: Partial<WatchHistoryEntry> = {}): WatchHistoryEntry {
 }
 
 /** Renders AnimeWatchEpisodeList with useAnimeWatchEpisodes stubbed to the given state. */
-function renderList(cycle: number | undefined, overrides: Partial<AnimeWatchEpisodesState>) {
+function renderList(cycle: number | undefined, overrides: Partial<AnimeWatchEpisodesState>, isPastWatch = false) {
   const spy = vi.spyOn(useAnimeWatchEpisodesModule, 'useAnimeWatchEpisodes').mockReturnValue({
     entries: [],
     isLoading: false,
@@ -31,7 +31,7 @@ function renderList(cycle: number | undefined, overrides: Partial<AnimeWatchEpis
     ...overrides,
   });
 
-  render(<AnimeWatchEpisodeList animeId="anime-1" cycle={cycle} />);
+  render(<AnimeWatchEpisodeList animeId="anime-1" cycle={cycle} isPastWatch={isPastWatch} />);
 
   return spy;
 }
@@ -77,6 +77,16 @@ describe('AnimeWatchEpisodeList', () => {
 
     expect(screen.getByRole('status', { name: 'Loading episode history...' })).toBeInTheDocument();
     expect(screen.queryByText('Episode 12')).not.toBeInTheDocument();
+  });
+
+  it('states past watches kept no recorded rows instead of implying nothing was watched', () => {
+    renderList(2, { entries: [] }, true);
+
+    expect(screen.getByText('No recorded episodes')).toBeInTheDocument();
+    expect(
+      screen.getByText('Episodes from this watch were not recorded. That does not mean none were watched.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No episode history yet')).toBeNull();
   });
 
   it('shows the empty state, not a blank list, when the anime has no recorded rows', () => {

@@ -70,22 +70,26 @@ interface EpisodeHookCall {
 }
 
 /**
- * Stubs the episode hook per cycle: the live watch (cycle 2) serves episode
- * 12, the All-episodes tab (cycle 0) serves episode 11, the past watch
- * (cycle 1) stays rowless so cases can distinguish the panels.
+ * Stubs the episode hook per cycle like the real hook behaves across
+ * expand/collapse: an enabled list serves its rows, a disabled one keeps
+ * whatever it last served (rowless when never enabled). The live watch
+ * (cycle 2) serves episode 12, the All-episodes tab (cycle 0) serves episode
+ * 11, the past watch (cycle 1) stays rowless so cases can distinguish panels.
  */
 function stubEpisodesByCycle(calls: EpisodeHookCall[]): void {
+  const served = new Map<number | undefined, WatchHistoryEntry[]>();
   vi.spyOn(useAnimeWatchEpisodesModule, 'useAnimeWatchEpisodes').mockImplementation(
     (animeId: string, cycle?: number, enabled?: boolean) => {
       calls.push({ animeId, cycle, enabled });
 
-      if (cycle === 1) {
-        return idleState();
+      if (enabled === true) {
+        const rows = cycle === 1 ? [] : [entry({ episode: cycle === 2 ? 12 : 11, cycle: cycle === 2 ? 2 : 1 })];
+        served.set(cycle, rows);
+
+        return idleState({ entries: rows });
       }
 
-      return idleState({
-        entries: [entry({ episode: cycle === 2 ? 12 : 11, cycle: cycle === 2 ? 2 : 1 })],
-      });
+      return idleState({ entries: served.get(cycle) ?? [] });
     },
   );
 }
@@ -197,6 +201,34 @@ describe('AnimeWatchHistory', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'All episodes' }));
     expect(screen.getByText('No episode history yet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('renders the dashed summary, never episode rows, for a pre-log watch', () => {
+    const calls: EpisodeHookCall[] = [];
+    const base = detailFixture();
+    const preLog = {
+      ...base,
+      repetitions: [
+        {
+          numRepetitions: 0,
+          episodesWatched: 12,
+          status: 1,
+          createdAt: new Date(2021, 6, 3).getTime(),
+          premieredAt: new Date(2021, 6, 3).getTime(),
+          lastWatchedAt: new Date(2021, 8, 1).getTime(),
+          deletedAt: new Date(2021, 8, 8).getTime(),
+        },
+      ],
+    };
+    stubEpisodesByCycle(calls);
+    render(<AnimeWatchHistory animeId="anime-1" detail={preLog} />);
+
+    expect(screen.getByTestId('watch-summary-1')).toBeInTheDocument();
+    expect(screen.getByText('Started')).toBeInTheDocument();
+    expect(screen.getByText('Premiere')).toBeInTheDocument();
+    expect(screen.getByText('Last watched')).toBeInTheDocument();
+    expect(screen.getByText('Ended')).toBeInTheDocument();
+    expect(screen.queryByText(/Episode \d+/)).toBeNull();
   });
 
   it('shows the surface error alert, never rows, when the flat request fails', () => {

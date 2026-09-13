@@ -13,4 +13,11 @@ export interface AnimeWatchEpisodeListProps {
    * it pays no binding call until it expands. Defaults to true.
    */
   readonly enabled?: boolean;
+  /**
+   * Marks the list as a post-log past watch: with zero rows it states the
+   * episodes were not recorded, never implying none were watched. The parent
+   * passes it for every non-current watch; the pre-log branch never reaches
+   * the list, and the generic empty state stays for the All-episodes tab.
+   */
+  readonly isPastWatch?: boolean;
 }

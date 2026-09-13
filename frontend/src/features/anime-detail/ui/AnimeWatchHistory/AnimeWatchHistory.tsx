@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Accordion, Chip, ProgressBar, Tabs } from '@heroui/react';
 import { AnimeWatchEpisodeList } from './AnimeWatchEpisodeList';
+import { AnimeWatchSummary } from './AnimeWatchSummary';
 import { toAnimeWatchViewModels } from './anime-watch-history.helpers';
 import {
   ANIME_WATCH_HISTORY_ALL_EPISODES_TAB_ID,
@@ -14,7 +15,7 @@ import {
 import type { AnimeWatchHistoryProps } from './anime-watch-history.types';
 
 /**
- * Per-anime Watch history section beside AnimeRepetitionTimeline (Real Watch
+ * Per-anime Watch history section, the screen's single history section (Real Watch
  * History spec, "History Surfaces Redesign"): two tabs sharing one section
  * heading. "By watch" (default) renders one Accordion item per watch,
  * newest-first with the live watch carrying a Current chip; each heading shows
@@ -26,8 +27,9 @@ import type { AnimeWatchHistoryProps } from './anime-watch-history.types';
  * inactive panel (RAC Tabs behavior), collapsing it back to idle. The
  * per-watch view models derive from the raw detail DTO the parent drills in,
  * so mutation updates flow through the same freshness as the rest of the
- * screen. Pre-log summaries render from U14; this unit only wires headings,
- * tabs, and episode lists.
+ * screen. Pre-log watches render the dashed AnimeWatchSummary from their
+ * repetition record instead of episode rows; post-log past watches with zero
+ * rows state the episodes were not recorded.
  */
 export function AnimeWatchHistory(props: Readonly<AnimeWatchHistoryProps>) {
   const views = useMemo(() => toAnimeWatchViewModels(props.detail), [props.detail]);
@@ -85,11 +87,16 @@ export function AnimeWatchHistory(props: Readonly<AnimeWatchHistoryProps>) {
                 </Accordion.Heading>
                 <Accordion.Panel>
                   <Accordion.Body>
-                    <AnimeWatchEpisodeList
-                      animeId={props.animeId}
-                      cycle={view.number}
-                      enabled={expandedKeys.has(view.key)}
-                    />
+                    {view.isPreLog && view.summary !== undefined ? (
+                      <AnimeWatchSummary summary={view.summary} watchNumber={view.number} />
+                    ) : (
+                      <AnimeWatchEpisodeList
+                        animeId={props.animeId}
+                        cycle={view.number}
+                        enabled={expandedKeys.has(view.key)}
+                        isPastWatch={!view.isCurrent}
+                      />
+                    )}
                   </Accordion.Body>
                 </Accordion.Panel>
               </Accordion.Item>

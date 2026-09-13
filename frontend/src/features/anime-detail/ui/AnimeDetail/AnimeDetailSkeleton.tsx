@@ -11,7 +11,7 @@ import type { AnimeDetailSkeletonProps } from './anime-detail.types';
  * Placeholder shown while Anime Detail's request is unresolved. Mirrors the
  * resolved composition — a back button, the hero (avatar circle plus name
  * and subtitle lines), the stat-tile row, and the three stacked field-group
- * sections (Episode info, General data, Repetition history) — sharing the
+ * sections (Episode info, General data, Watch history) — sharing the
  * avatar and tile classes with the resolved content so the two shapes
  * cannot drift apart.
  */

@@ -47,8 +47,6 @@ function createDetailViewModel(overrides = {}) {
     studios: 'Madhouse',
     origin: 'Manga',
     isFirstWatch: true,
-    watches: [],
-    hasWatches: false,
     ...overrides,
   };
 }
@@ -395,49 +393,14 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('No genres listed')).toBeInTheDocument();
   });
 
-  it('renders the repetition timeline when populated', () => {
-    mockAnimeDetailState({
-      detail: createDetailViewModel({
-        hasWatches: true,
-        watches: [
-          {
-            key: '1-0',
-            numRepeticion: 1,
-            estadoLabel: 'Finalizado',
-            estadoColor: 'success',
-            episodesWatchedLabel: '24',
-            creacionLabel: 'January 1, 2022',
-            estrenoLabel: 'January 2, 2022',
-            ultCapVistoLabel: 'January 3, 2022',
-            eliminacionLabel: 'January 4, 2022',
-            repeatedOnLabel: 'June 1, 2023',
-          },
-        ],
-      }),
-    });
-
-    render(<AnimeDetail animeId="anime-1" />);
-
-    expect(screen.getByText('Repetition 1')).toBeInTheDocument();
-    expect(screen.getByText('Finalizado')).toBeInTheDocument();
-    expect(screen.getByText('24')).toBeInTheDocument();
-    expect(screen.getByText('January 1, 2022')).toBeInTheDocument();
-    expect(screen.queryByText('No repetition history.')).not.toBeInTheDocument();
-  });
-
-  it('renders the no-repetitions fallback when the timeline is empty', () => {
+  it('renders Watch history as the single history section, with no repetition or episode-history section', () => {
     mockAnimeDetailState();
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByText('No repetition history.')).toBeInTheDocument();
-  });
-
-  it('renders the per-anime watch history section beside the repetition timeline', () => {
-    mockAnimeDetailState();
-
-    render(<AnimeDetail animeId="anime-1" />);
-
-    expect(screen.getByRole('heading', { name: 'Watch history' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Watch history' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Repetition history' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Episode history' })).toBeNull();
+    expect(screen.queryByText('No repetition history.')).toBeNull();
   });
 });

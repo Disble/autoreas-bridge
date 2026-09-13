@@ -2,11 +2,10 @@ import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/
 import {
   formatAnimeDetailLongDate,
   formatAnimeDetailProgressRatio,
-  formatAnimeDetailRepetitionDate,
   getAnimeDetailEstadoColor,
   getAnimeDetailEstadoLabel,
 } from '../AnimeDetail/anime-detail.helpers';
-import { ANIME_DETAIL_UNKNOWN_LABEL } from '../AnimeDetail/anime-detail.constants';
+import { ANIME_DETAIL_NO_DATA_LABEL, ANIME_DETAIL_UNKNOWN_LABEL } from '../AnimeDetail/anime-detail.constants';
 import { ANIME_WATCH_HISTORY_SPAN_SEPARATOR } from './anime-watch-history.constants';
 import { WATCH_HISTORY_LOG_START_MS } from '../../../../shared/watch-history/watch-history.constants';
 import type { AnimeWatchSummary, AnimeWatchViewModel } from './anime-watch-history.types';
@@ -26,15 +25,25 @@ function formatSpanHalf(millis: number | undefined): string {
 }
 
 /**
+ * Renders one summary date from a pre-log repetition record: a stored
+ * timestamp becomes a long date, while a missing record degrades to the
+ * shared no-data label (moved from `formatAnimeDetailRepetitionDate`, whose
+ * only remaining reader built exactly this summary).
+ */
+export function formatAnimeWatchSummaryDate(millis: number | undefined): string {
+  return formatAnimeDetailLongDate(millis) ?? ANIME_DETAIL_NO_DATA_LABEL;
+}
+
+/**
  * Builds the dashed-summary dates of a pre-log past watch straight from its
  * repetition record; Ended reads `deletedAt` (design Decision b).
  */
 function toAnimeWatchSummary(entry: AnimeRepeticion): AnimeWatchSummary {
   return {
-    started: formatAnimeDetailRepetitionDate(entry.createdAt),
-    premiere: formatAnimeDetailRepetitionDate(entry.premieredAt),
-    lastWatched: formatAnimeDetailRepetitionDate(entry.lastWatchedAt),
-    ended: formatAnimeDetailRepetitionDate(entry.deletedAt),
+    started: formatAnimeWatchSummaryDate(entry.createdAt),
+    premiere: formatAnimeWatchSummaryDate(entry.premieredAt),
+    lastWatched: formatAnimeWatchSummaryDate(entry.lastWatchedAt),
+    ended: formatAnimeWatchSummaryDate(entry.deletedAt),
   };
 }
 

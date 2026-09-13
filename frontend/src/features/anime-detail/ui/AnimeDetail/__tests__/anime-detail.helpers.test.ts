@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AnimeDetail, AnimeRepeticion } from '../../../../../shared/contracts/anime.types';
+import type { AnimeDetail } from '../../../../../shared/contracts/anime.types';
 import {
   formatAnimeDetailDurationLabel,
   formatAnimeDetailLongDate,
   formatAnimeDetailProgressRatio,
-  formatAnimeDetailRepetitionDate,
   formatAnimeDetailSubtitle,
   formatAnimeDetailTotalLabel,
   getAnimeDetailEstadoColor,
@@ -13,9 +12,7 @@ import {
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
   hasPreviousHistoryEntry,
-  sortAnimeRepeticionesMostRecentFirst,
   toAnimeDetailViewModel,
-  toAnimeRepeticionViewModel,
 } from '../anime-detail.helpers';
 
 /** Minimal detail fixture (no optional fields) reused and overridden per case. */
@@ -151,31 +148,6 @@ describe('formatAnimeDetailProgressRatio', () => {
   });
 });
 
-describe('formatAnimeDetailRepetitionDate', () => {
-  it('formats epoch millis as a long-form local date', () => {
-    expect(formatAnimeDetailRepetitionDate(Date.UTC(2023, 5, 1, 12))).toBe('June 1, 2023');
-  });
-
-  it('returns the explicit "No data" fallback when millis are missing', () => {
-    expect(formatAnimeDetailRepetitionDate(undefined)).toBe('No data');
-  });
-});
-
-describe('sortAnimeRepeticionesMostRecentFirst', () => {
-  it('sorts entries descending by numrepeticion without mutating the input', () => {
-    const entries: readonly AnimeRepeticion[] = [
-      { numRepetitions: 0, episodesWatched: 12, status: 1 },
-      { numRepetitions: 2, episodesWatched: 40, status: 3 },
-      { numRepetitions: 1, episodesWatched: 24, status: 1 },
-    ];
-
-    const sorted = sortAnimeRepeticionesMostRecentFirst(entries);
-
-    expect(sorted.map((entry) => entry.numRepetitions)).toEqual([2, 1, 0]);
-    expect(entries.map((entry) => entry.numRepetitions)).toEqual([0, 2, 1]);
-  });
-});
-
 describe('hasPreviousHistoryEntry', () => {
   it('returns false when the history state is null', () => {
     expect(hasPreviousHistoryEntry(null)).toBe(false);
@@ -191,50 +163,6 @@ describe('hasPreviousHistoryEntry', () => {
 
   it('returns true when idx is greater than 0', () => {
     expect(hasPreviousHistoryEntry({ idx: 2 })).toBe(true);
-  });
-});
-
-describe('toAnimeRepeticionViewModel', () => {
-  it('maps a fully populated repetition entry', () => {
-    const viewModel = toAnimeRepeticionViewModel(
-      {
-        numRepetitions: 1,
-        episodesWatched: 24,
-        status: 1,
-        createdAt: Date.UTC(2022, 0, 1, 12),
-        premieredAt: Date.UTC(2022, 0, 2, 12),
-        lastWatchedAt: Date.UTC(2022, 0, 3, 12),
-        deletedAt: Date.UTC(2022, 0, 4, 12),
-        repeatedAt: Date.UTC(2023, 5, 1, 12),
-      },
-      0,
-    );
-
-    expect(viewModel).toEqual({
-      key: '1-0',
-      numRepeticion: 1,
-      estadoLabel: 'Finalizado',
-      estadoColor: 'success',
-      episodesWatchedLabel: '24',
-      creacionLabel: 'January 1, 2022',
-      estrenoLabel: 'January 2, 2022',
-      ultCapVistoLabel: 'January 3, 2022',
-      eliminacionLabel: 'January 4, 2022',
-      repeatedOnLabel: 'June 1, 2023',
-    });
-  });
-
-  it('degrades every absent date to the explicit "No data" fallback', () => {
-    const viewModel = toAnimeRepeticionViewModel(
-      { numRepetitions: 2, episodesWatched: 10, status: 1 },
-      1,
-    );
-
-    expect(viewModel.creacionLabel).toBe('No data');
-    expect(viewModel.estrenoLabel).toBe('No data');
-    expect(viewModel.ultCapVistoLabel).toBe('No data');
-    expect(viewModel.eliminacionLabel).toBe('No data');
-    expect(viewModel.repeatedOnLabel).toBe('No data');
   });
 });
 
@@ -270,8 +198,6 @@ describe('toAnimeDetailViewModel', () => {
       studios: 'Unknown',
       origin: 'Unknown',
       isFirstWatch: true,
-      watches: [],
-      hasWatches: false,
     });
   });
 
@@ -319,7 +245,8 @@ describe('toAnimeDetailViewModel', () => {
     expect(viewModel.creacionLabel).toBe('January 1, 2023');
     expect(viewModel.ultCapVistoLabel).toBe('March 22, 2024');
     expect(viewModel.hasGenres).toBe(false);
-    expect(viewModel.hasWatches).toBe(true);
+    expect(viewModel).not.toHaveProperty('watches');
+    expect(viewModel).not.toHaveProperty('hasWatches');
   });
 
   // Real fixture: 793/795 records carry portada.path === '' and one carries
@@ -376,18 +303,5 @@ describe('toAnimeDetailViewModel', () => {
   it('preserves the displayed authoritative modified token including zero', () => {
     expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 0 }).modifiedAt).toBe(0);
     expect(toAnimeDetailViewModel({ ...baseDetail, modified_at: 9876 }).modifiedAt).toBe(9876);
-  });
-
-  it('orders repetitions most-recent-first regardless of the wire order', () => {
-    const viewModel = toAnimeDetailViewModel({
-      ...baseDetail,
-      repetitions: [
-        { numRepetitions: 0, episodesWatched: 12, status: 1 },
-        { numRepetitions: 2, episodesWatched: 40, status: 3 },
-        { numRepetitions: 1, episodesWatched: 24, status: 1 },
-      ],
-    });
-
-    expect(viewModel.watches.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
   });
 });

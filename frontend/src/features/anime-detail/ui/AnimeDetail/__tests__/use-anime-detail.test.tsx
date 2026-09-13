@@ -70,14 +70,14 @@ describe('useAnimeDetail', () => {
     expect(getAnimeCover).not.toHaveBeenCalled();
   });
 
-  it('returns loaded with a populated repetition timeline', async () => {
+  it('returns loaded with the detail view model and its raw source at the same freshness', async () => {
     const source = createSource(populatedDetail);
     const { result } = renderHook(() => useAnimeDetail({ animeId: 'anime-1' }, source));
 
     await waitFor(() => expect(result.current.loadState).toBe('loaded'));
 
-    expect(result.current.detail?.hasWatches).toBe(true);
-    expect(result.current.detail?.watches).toHaveLength(1);
+    expect(result.current.detail).toBeDefined();
+    expect(result.current.detailSource).toEqual(populatedDetail);
     expect(source.getAnimeDetail).toHaveBeenCalledWith('anime-1');
   });
 

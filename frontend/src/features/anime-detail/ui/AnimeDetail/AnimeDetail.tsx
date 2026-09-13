@@ -3,7 +3,6 @@ import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlacehold
 import { AnimeWatchHistory } from '../AnimeWatchHistory/AnimeWatchHistory';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
-import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
 import {
   ANIME_DETAIL_BACK_LABEL,
   ANIME_DETAIL_HERO_AVATAR_CLASS,
@@ -11,7 +10,6 @@ import {
   ANIME_DETAIL_NOT_FOUND_MESSAGE,
   ANIME_DETAIL_NO_GENEROS_MESSAGE,
   ANIME_DETAIL_NO_PAGINA_MESSAGE,
-  ANIME_DETAIL_NO_REPETITIONS_MESSAGE,
   ANIME_DETAIL_PORTADA_ALT,
   ANIME_DETAIL_PORTADA_LOADING_MESSAGE,
   ANIME_DETAIL_PROGRESS_LABEL,
@@ -187,15 +185,6 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
               <p className="text-sm text-muted">{ANIME_DETAIL_NO_GENEROS_MESSAGE}</p>
             )}
           </div>
-        </section>
-
-        <section aria-label="Repetition history" className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-foreground">Repetition history</h3>
-          {detail.hasWatches ? (
-            <AnimeRepetitionTimeline repetitions={detail.watches} />
-          ) : (
-            <p className="text-sm text-muted">{ANIME_DETAIL_NO_REPETITIONS_MESSAGE}</p>
-          )}
         </section>
 
         {detailSource === undefined || detailSource === null ? null : (

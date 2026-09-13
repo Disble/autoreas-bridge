@@ -46,3 +46,25 @@ export const ANIME_WATCH_HISTORY_TABS_LABEL = 'Watch history views';
 
 /** Text of the chip marking the live (still current) watch in the By-watch Accordion. */
 export const ANIME_WATCH_HISTORY_CURRENT_CHIP_LABEL = 'Current';
+
+/** Label of the Started row in a pre-log watch summary. */
+export const ANIME_WATCH_SUMMARY_STARTED_LABEL = 'Started';
+
+/** Label of the Premiere row in a pre-log watch summary. */
+export const ANIME_WATCH_SUMMARY_PREMIERE_LABEL = 'Premiere';
+
+/** Label of the Last watched row in a pre-log watch summary. */
+export const ANIME_WATCH_SUMMARY_LAST_WATCHED_LABEL = 'Last watched';
+
+/** Label of the Ended row in a pre-log watch summary. */
+export const ANIME_WATCH_SUMMARY_ENDED_LABEL = 'Ended';
+
+/** Test-id stem of a pre-log watch summary; the watch number suffix scopes it per item. */
+export const ANIME_WATCH_SUMMARY_TESTID = 'watch-summary';
+
+/** Title shown when a post-log past watch kept no recorded episode rows. */
+export const ANIME_WATCH_HISTORY_UNRECORDED_TITLE = 'No recorded episodes';
+
+/** Description shown with the unrecorded title; states the rows are missing, never that nothing was watched. */
+export const ANIME_WATCH_HISTORY_UNRECORDED_DESCRIPTION =
+  'Episodes from this watch were not recorded. That does not mean none were watched.';
