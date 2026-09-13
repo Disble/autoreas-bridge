@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import type { HistoryFilterBarProps } from '../HistoryFilterBar/history-filter-bar.types';
 import { hasActiveHistoryFilters } from '../HistoryFilterBar/history-params.helpers';
 import { useHistoryFilterBarSearch } from '../HistoryFilterBar/use-history-filter-bar';
@@ -7,12 +8,16 @@ import type { HistorySelectionState, HistoryTimelineState } from './history-time
 import { useHistorySelection } from './use-history-selection';
 import { useHistoryTimeline } from './use-history-timeline';
 
-/** Everything the History surface renders: the filter bar's props, the list, and its selection. */
+/** Everything the History surface renders: the filter bar's props, the list, its selection, and the inspector. */
 export interface HistoryScreenState extends HistoryTimelineState, HistorySelectionState {
   /** Props for `HistoryFilterBar`, wired to the URL (design D5). */
   readonly filterBar: HistoryFilterBarProps;
   /** True when a narrowing filter is set, so an empty result reads as "no match" (design D6). */
   readonly isFiltered: boolean;
+  /** The URL-selected anime ID keying the inspector (design D8). */
+  readonly inspectorAnimeId: string | undefined;
+  /** Opens the inspected anime's detail (design D8). */
+  readonly onOpenAnime: (animeId: string) => void;
 }
 
 /**
@@ -23,9 +28,15 @@ export interface HistoryScreenState extends HistoryTimelineState, HistorySelecti
 export function useHistoryScreen(): HistoryScreenState {
   // 3. Context/3rd Party Hooks
   const { params, setRange, setSearch, setSelection, setSort, setStatus, setType } = useHistoryParams();
+  const navigate = useNavigate();
   const { debouncedSearch, draft, onDraftChange } = useHistoryFilterBarSearch(params.search);
   const timeline = useHistoryTimeline(params);
   const selection = useHistorySelection(timeline.groups, params.animeId, params.rowId, setSelection);
+
+  // 6. Callbacks (useCallback calling pure helpers)
+  const onOpenAnime = useCallback((animeId: string) => {
+    void navigate(`/catalog/detail/${animeId}`);
+  }, [navigate]);
 
   // 7. Effects
   useEffect(() => {
@@ -54,5 +65,7 @@ export function useHistoryScreen(): HistoryScreenState {
       onRangeChange: setRange,
     },
     isFiltered: hasActiveHistoryFilters(params),
+    inspectorAnimeId: params.animeId,
+    onOpenAnime,
   };
 }

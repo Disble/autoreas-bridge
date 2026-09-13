@@ -3,6 +3,7 @@ import historyAirisArtwork from '../../../../assets/airis-empty-states/today.web
 import { AirisEmptyState } from '../../../../shared/ui/AirisEmptyState/AirisEmptyState';
 import { formatRowTime } from '../../../../shared/watch-history/watch-history.helpers';
 import { HistoryFilterBar } from '../HistoryFilterBar/HistoryFilterBar';
+import { HistoryInspector } from '../HistoryInspector/HistoryInspector';
 import {
   HISTORY_TIMELINE_EMPTY_DESCRIPTION,
   HISTORY_TIMELINE_EMPTY_TITLE,
@@ -33,18 +34,19 @@ import { useHistoryScreen } from './use-history-screen';
  * returns to the skeleton.
  */
 export function HistoryTimeline() {
-  const { error, filterBar, groups, isFiltered, isLoading, onOpen, onScroll, onSelect, selectedKey } = useHistoryScreen();
+  const { error, filterBar, groups, inspectorAnimeId, isFiltered, isLoading, onOpen, onOpenAnime, onScroll, onSelect, selectedKey } = useHistoryScreen();
   const isEmpty = !isLoading && error === undefined && groups.length === 0;
 
   return (
     <div className="flex flex-col gap-4">
       <HistoryFilterBar {...filterBar} />
-      <div
-        aria-label={HISTORY_TIMELINE_LABEL}
-        className="flex max-h-[32rem] min-h-0 flex-col gap-4 overflow-y-auto"
-        data-testid="history-timeline-scroll"
-        onScroll={onScroll}
-      >
+      <div className="flex min-h-0 gap-4">
+        <div
+          aria-label={HISTORY_TIMELINE_LABEL}
+          className="flex max-h-[32rem] min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto"
+          data-testid="history-timeline-scroll"
+          onScroll={onScroll}
+        >
         {isLoading ? (
           <div aria-labelledby="history-timeline-loading-label" aria-live="polite" className="flex flex-col gap-3" role="status">
             <span className="sr-only" id="history-timeline-loading-label">{HISTORY_TIMELINE_LOADING_LABEL}</span>
@@ -107,6 +109,10 @@ export function HistoryTimeline() {
             ))}
           </ListBox>
         )}
+        </div>
+        <aside aria-label="Anime inspector" className="w-80 shrink-0">
+          <HistoryInspector animeId={inspectorAnimeId} onOpenAnime={onOpenAnime} />
+        </aside>
       </div>
     </div>
   );

@@ -199,13 +199,13 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** additive — a new panel, no writers into it yet from a stale build (the route already lands the selection from U8).
 **Forecast:** 430–530 (D10).
 
-- [ ] **9.1** [RED] `use-history-inspector.test.ts`: given an `animeId`, fetches `getAnimeDetail`; the snapshot is keyed by `animeId` with an `active` flag per effect — a stale `animeId`'s response is ignored; states table: no `animeId` → prompt; snapshot keyed to another `animeId` → skeleton; `null` detail → error; otherwise → content (D8).
-- [ ] **9.2** [GREEN] `use-history-inspector.ts`: `getAnimeDetail(animeId)` + derived Added (`repetitions[0]?.createdAt ?? createdAt`) and Last watched (newest recent row, fallback `lastWatchedAt`) via `history-inspector.helpers.ts`.
-- [ ] **9.3** [RED] `HistoryInspector.test.tsx`: a compact prompt when no `animeId` (not `AirisEmptyState`); a shape-mirroring skeleton (`role="status"`, `aria-labelledby` → `sr-only` span) while keyed to a stale `animeId`; an error `Alert` on `null` detail; content renders the cover placeholder, linked name, status + type chips, "N episodes" (`ProgressBar` only with a total), last watched, added date, and "Open anime detail".
-- [ ] **9.4** [GREEN] `HistoryInspector.tsx`, `history-inspector.{helpers,constants,types}.ts`.
+- [x] **9.1** [RED] `use-history-inspector.test.ts`: given an `animeId`, fetches `getAnimeDetail`; the snapshot is keyed by `animeId` with an `active` flag per effect — a stale `animeId`'s response is ignored; states table: no `animeId` → prompt; snapshot keyed to another `animeId` → skeleton; `null` detail → error; otherwise → content (D8).
+- [x] **9.2** [GREEN] `use-history-inspector.ts`: `getAnimeDetail(animeId)` + derived Added (`repetitions[0]?.createdAt ?? createdAt`) and Last watched (newest recent row, fallback `lastWatchedAt`) via `history-inspector.helpers.ts`.
+- [x] **9.3** [RED] `HistoryInspector.test.tsx`: a compact prompt when no `animeId` (not `AirisEmptyState`); a shape-mirroring skeleton (`role="status"`, `aria-labelledby` → `sr-only` span) while keyed to a stale `animeId`; an error `Alert` on `null` detail; content renders the cover placeholder, linked name, status + type chips, "N episodes" (`ProgressBar` only with a total), last watched, added date, and "Open anime detail".
+- [x] **9.4** [GREEN] `HistoryInspector.tsx`, `history-inspector.{helpers,constants,types}.ts`.
 - [ ] **9.5** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **9.6** [REFACTOR] lean-tests; every loading test asserts the negative.
-- [ ] **9.7** [VERIFY] `bun --cwd="frontend" run test -- HistoryInspector`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **9.6** [REFACTOR] lean-tests; every loading test asserts the negative.
+- [x] **9.7** [VERIFY] `bun --cwd="frontend" run test -- HistoryInspector`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
 
 ---
 
