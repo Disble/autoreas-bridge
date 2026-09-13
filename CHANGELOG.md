@@ -30,12 +30,14 @@ called out explicitly under its release.
 - Anime Detail shows that anime's own watch history: its 50 most recent episodes, with a pointer to History when there are more.
 - A jump of several episodes from the mobile app records each episode in between, all at the moment the change arrived, so nothing you skipped past goes missing.
 - The first launch of this version builds your history once from the progress the bridge already recorded, which goes back to 2026-07-05, and takes a restore point of the database right before it does. History cannot reach further back than that date, and the empty History screen says so.
+- El Historial ahora se filtra por nombre, estado, tipo y rango de fechas: los filtros viven en la URL (se pueden compartir y sobreviven a recargar), la búsqueda lleva debounce y seleccionar una fila abre un inspector con la portada, el estado, el tipo, el progreso y los 3 episodios más recientes.
 
 ### Changed
 
 - The History screen loads as you scroll instead of all at once, and shows a loading placeholder, an empty state or an error message rather than a blank table.
 - Opening or copying an anime's page or folder is no longer written to the activity log. It goes to the diagnostic event log, which rotates on its own.
 - The activity log keeps its most recent 5,000 entries — about two and a half years at the current rate — instead of growing forever.
+- El historial de Anime Detail es ahora una única sección Watch history con pestañas Por visualización (un acordeón por cada vez que se vio, con resumen de fechas para las anteriores al registro) y Todos los episodios; la antigua línea de tiempo de repeticiones desaparece.
 
 ### Internal
 

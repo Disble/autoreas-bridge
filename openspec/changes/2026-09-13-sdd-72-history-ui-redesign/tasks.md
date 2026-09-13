@@ -279,7 +279,7 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** completes the inspector added in U9; runs last in the History chain because it needs `formatRowDateTime` from U11.
 **Forecast:** 200–280, +~70 if U3's task 3.2 deferred the normalization move here (D10).
 
-- [ ] **10.1** [GREEN] (only if U3's 3.2 deferred it) Move `normalizeAnimeDetailPortadaUrl` → `normalizeStoredCoverPath` into `shared/anime-cover/anime-cover.helpers.ts` here instead of U3.
+- [x] **10.1** [GREEN] (only if U3's 3.2 deferred it) N/A — U3's 3.2 measured the hook move as a rename (58 lines), nothing was deferred here.
 - [x] **10.2** [RED] `use-history-inspector.test.ts` (extend): `getAnimeCover(animeId)` is called only with a stored cover path (via the shared `useAnimeCover` from U3); `getAnimeWatchHistoryPage({animeId, cycle: 0, cursor: '', limit: 3})` fetches the 3 recent episodes, ignored once the `animeId` is superseded.
 - [x] **10.3** [GREEN] Wire `useAnimeCover` and the 3-row recent-episodes page into `use-history-inspector.ts`.
 - [x] **10.4** [RED] `HistoryInspector.test.tsx` (extend): the cover renders from the shared hook; the 3 recent-episode rows use `formatRowDateTime`.
@@ -295,10 +295,10 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** documentation only, zero production code touched.
 **Forecast:** ~20–30 (prose only).
 
-- [ ] **15.1** Add a `CHANGELOG.md` `[Unreleased]` entry, in the user's language, Keep a Changelog headings: the redesigned History screen (filters, inspector) and Anime Detail's single Watch history section.
-- [ ] **15.2** `node scripts/log-lesson.mjs "<one sentence, <=300 chars>"` — a candidate: the D9 stable-sort-by-`numRepetitions` correction over trusting the stored array order at face value.
-- [ ] **15.3** No ADR — design.md's Open Questions do not call for one.
-- [ ] **15.4** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md` and `docs/learning-log.md`.
+- [x] **15.1** Add a `CHANGELOG.md` `[Unreleased]` entry, in the user's language, Keep a Changelog headings: the redesigned History screen (filters, inspector) and Anime Detail's single Watch history section.
+- [x] **15.2** `node scripts/log-lesson.mjs "<one sentence, <=300 chars>"` — a candidate: the D9 stable-sort-by-`numRepetitions` correction over trusting the stored array order at face value.
+- [x] **15.3** No ADR — design.md's Open Questions do not call for one.
+- [x] **15.4** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md` and `docs/learning-log.md`.
 - [ ] **15.5** Orchestrator verifies and commits this final unit.
 
 ---
