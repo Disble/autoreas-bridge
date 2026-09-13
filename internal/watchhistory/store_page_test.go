@@ -2,6 +2,7 @@ package watchhistory
 
 import (
 	"context"
+	"database/sql"
 	"slices"
 	"strings"
 	"testing"
@@ -157,13 +158,12 @@ func TestAnimePageSeeksTheAnimeIndexOnly(t *testing.T) {
 	}
 }
 
-// TestAnimePageQueryPlanSeeksTheAnimeIndex asserts SQLite answers a per-anime
-// page by searching idx_watch_history_anime, never by scanning the table.
-func TestAnimePageQueryPlanSeeksTheAnimeIndex(t *testing.T) {
-	t.Parallel()
-
-	db := openStoreTestDB(t)
-	query, args, err := buildPageQuery("anime-1", encodePageCursor(pageCursor{WatchedAtMS: 5000, ID: 3}), 50)
+// explainPageQueryPlan runs EXPLAIN QUERY PLAN over buildPageQuery's output
+// and joins the plan's detail column, shared by every plan test in this
+// package.
+func explainPageQueryPlan(t *testing.T, db *sql.DB, animeID string, q PageQuery, limit int) string {
+	t.Helper()
+	query, args, err := buildPageQuery(animeID, q, limit)
 	if err != nil {
 		t.Fatalf("build page query: %v", err)
 	}
@@ -181,7 +181,20 @@ func TestAnimePageQueryPlanSeeksTheAnimeIndex(t *testing.T) {
 		}
 		plan = append(plan, detail)
 	}
-	if got := strings.Join(plan, "; "); !strings.Contains(got, "idx_watch_history_anime") || strings.Contains(got, "SCAN") {
+	return strings.Join(plan, "; ")
+}
+
+// TestAnimePageQueryPlanSeeksTheAnimeIndex asserts SQLite answers an
+// unscoped per-anime page by searching idx_watch_history_anime, never by
+// scanning the table. A cycle-scoped page's plan is asserted separately in
+// TestAnimePageCycleScopedQueryPlanSeeksAnAnimeLeadingIndex, which accepts
+// either anime-leading index (design.md D1).
+func TestAnimePageQueryPlanSeeksTheAnimeIndex(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	got := explainPageQueryPlan(t, db, "anime-1", PageQuery{Cursor: encodePageCursor(pageCursor{WatchedAtMS: 5000, ID: 3})}, 50)
+	if !strings.Contains(got, "idx_watch_history_anime") || strings.Contains(got, "SCAN") {
 		t.Fatalf("expected the per-anime page to seek idx_watch_history_anime, got plan %q", got)
 	}
 }
