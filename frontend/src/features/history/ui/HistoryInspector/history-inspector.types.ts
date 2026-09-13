@@ -1,3 +1,4 @@
+import type { AnimeCoverEntry } from "../../../../shared/anime-cover/use-anime-cover";
 import type { AnimeDetail, WatchHistoryEntry } from "../../../../shared/contracts/anime.types";
 
 /** Props accepted by the `HistoryInspector` panel. */
@@ -12,8 +13,6 @@ export interface HistoryInspectorProps {
 export interface HistoryInspectorHookProps {
   /** The selected anime ID from the URL, or `undefined` when no row is selected. */
   readonly animeId: string | undefined;
-  /** Recent watch rows for the anime; the newest one owns "Last watched" (design D8). U10 wires the 3-row page here. */
-  readonly recentRows?: readonly WatchHistoryEntry[];
 }
 
 /** One in-flight detail read, keyed by the `animeId` that requested it. */
@@ -37,4 +36,8 @@ export interface HistoryInspectorState {
   readonly addedMs: number | undefined;
   /** The newest recent row, falling back to `lastWatchedAt` (design D8). */
   readonly lastWatchedMs: number | undefined;
+  /** Cover resolution from the shared `useAnimeCover` (design D1): placeholder until a stored path is known. */
+  readonly cover: AnimeCoverEntry;
+  /** The 3 most recent watch rows for the anime (design D8); empty while unresolved or on a page failure. */
+  readonly recentEpisodes: readonly WatchHistoryEntry[];
 }

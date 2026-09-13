@@ -280,13 +280,13 @@ Chain strategy: stacked-to-main
 **Forecast:** 200–280, +~70 if U3's task 3.2 deferred the normalization move here (D10).
 
 - [ ] **10.1** [GREEN] (only if U3's 3.2 deferred it) Move `normalizeAnimeDetailPortadaUrl` → `normalizeStoredCoverPath` into `shared/anime-cover/anime-cover.helpers.ts` here instead of U3.
-- [ ] **10.2** [RED] `use-history-inspector.test.ts` (extend): `getAnimeCover(animeId)` is called only with a stored cover path (via the shared `useAnimeCover` from U3); `getAnimeWatchHistoryPage({animeId, cycle: 0, cursor: '', limit: 3})` fetches the 3 recent episodes, ignored once the `animeId` is superseded.
-- [ ] **10.3** [GREEN] Wire `useAnimeCover` and the 3-row recent-episodes page into `use-history-inspector.ts`.
-- [ ] **10.4** [RED] `HistoryInspector.test.tsx` (extend): the cover renders from the shared hook; the 3 recent-episode rows use `formatRowDateTime`.
-- [ ] **10.5** [GREEN] Wire the recent-episodes list into `HistoryInspector.tsx`.
+- [x] **10.2** [RED] `use-history-inspector.test.ts` (extend): `getAnimeCover(animeId)` is called only with a stored cover path (via the shared `useAnimeCover` from U3); `getAnimeWatchHistoryPage({animeId, cycle: 0, cursor: '', limit: 3})` fetches the 3 recent episodes, ignored once the `animeId` is superseded.
+- [x] **10.3** [GREEN] Wire `useAnimeCover` and the 3-row recent-episodes page into `use-history-inspector.ts`.
+- [x] **10.4** [RED] `HistoryInspector.test.tsx` (extend): the cover renders from the shared hook; the 3 recent-episode rows use `formatRowDateTime`.
+- [x] **10.5** [GREEN] Wire the recent-episodes list into `HistoryInspector.tsx`.
 - [ ] **10.6** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines.
-- [ ] **10.7** [REFACTOR] lean-tests.
-- [ ] **10.8** [VERIFY] `bun --cwd="frontend" run test -- HistoryInspector anime-cover`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
+- [x] **10.7** [REFACTOR] lean-tests.
+- [x] **10.8** [VERIFY] `bun --cwd="frontend" run test -- HistoryInspector anime-cover`; `bun run typecheck`; eslint on touched files; `bun run render:smoke`.
 
 ---
 

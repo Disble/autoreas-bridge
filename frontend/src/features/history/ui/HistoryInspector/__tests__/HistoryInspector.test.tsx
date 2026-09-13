@@ -29,6 +29,8 @@ function renderInspector(state: Partial<HistoryInspectorState> & { readonly stat
     detail: undefined,
     addedMs: undefined,
     lastWatchedMs: undefined,
+    cover: { status: "placeholder" },
+    recentEpisodes: [],
     ...state,
   });
 
@@ -49,6 +51,8 @@ describe("HistoryInspector", () => {
       detail: undefined,
       addedMs: undefined,
       lastWatchedMs: undefined,
+      cover: { status: "placeholder" },
+      recentEpisodes: [],
     });
 
     render(<HistoryInspector animeId={undefined} onOpenAnime={vi.fn()} />);
@@ -100,5 +104,54 @@ describe("HistoryInspector", () => {
 
     expect(screen.getByText("8 episodes")).toBeDefined();
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("renders the resolved cover from the shared hook instead of the placeholder", () => {
+    renderInspector({
+      status: "content",
+      detail: detail(),
+      cover: { status: "cover", dataUrl: "data:image/png;base64,abc" },
+    });
+
+    const image = screen.getByRole("img");
+
+    expect(image.getAttribute("src")).toBe("data:image/png;base64,abc");
+  });
+
+  it("renders the recent episodes with their formatted watch dates", () => {
+    renderInspector({
+      status: "content",
+      detail: detail(),
+      recentEpisodes: [
+        {
+          id: 8,
+          animeId: "anime-1",
+          animeName: "Frieren",
+          episode: 8,
+          cycle: 1,
+          watchedAtMs: new Date(2026, 8, 12, 20, 3, 0).getTime(),
+          source: "test",
+        },
+        {
+          id: 7,
+          animeId: "anime-1",
+          animeName: "Frieren",
+          episode: 7,
+          cycle: 1,
+          watchedAtMs: new Date(2026, 8, 11, 20, 3, 0).getTime(),
+          source: "test",
+        },
+      ],
+    });
+
+    expect(screen.getByText("Episode 8")).toBeDefined();
+    expect(screen.getByText(/Sat, Sep 12 · 20:03/)).toBeDefined();
+    expect(screen.getByText("Episode 7")).toBeDefined();
+  });
+
+  it("renders no recent-episodes section while the detail is unresolved", () => {
+    renderInspector({ status: "loading" });
+
+    expect(screen.queryByText("Recent episodes")).toBeNull();
   });
 });

@@ -2,15 +2,18 @@ import { Alert, Button, Chip, Link, ProgressBar, Skeleton } from "@heroui/react"
 import { getAnimeEstadoLabel } from "../../../../shared/helpers/anime-estado.helpers";
 import { getAnimeTipoLabel } from "../../../../shared/helpers/anime-tipo.helpers";
 import { AnimeCoverPlaceholder } from "../../../../shared/ui/AnimeCoverPlaceholder";
+import { formatRowDateTime } from "../../../../shared/watch-history/watch-history.helpers";
 import { getHistoryStatusColor } from "../HistoryTimeline/history-timeline.helpers";
 import {
   HISTORY_INSPECTOR_ADDED_LABEL,
+  HISTORY_INSPECTOR_COVER_ALT,
   HISTORY_INSPECTOR_ERROR_TITLE,
   HISTORY_INSPECTOR_LAST_WATCHED_LABEL,
   HISTORY_INSPECTOR_LOADING_LABEL,
   HISTORY_INSPECTOR_OPEN_LABEL,
   HISTORY_INSPECTOR_PROGRESS_LABEL,
   HISTORY_INSPECTOR_PROMPT_TITLE,
+  HISTORY_INSPECTOR_RECENT_TITLE,
 } from "./history-inspector.constants";
 import {
   deriveHistoryInspectorProgressRatio,
@@ -34,7 +37,7 @@ import { useHistoryInspector } from "./use-history-inspector";
  * never on the collection alone.
  */
 export function HistoryInspector({ animeId, onOpenAnime }: HistoryInspectorProps) {
-  const { addedMs, detail, lastWatchedMs, status } = useHistoryInspector({ animeId });
+  const { addedMs, cover, detail, lastWatchedMs, recentEpisodes, status } = useHistoryInspector({ animeId });
 
   if (status === "prompt") {
     return <p className="text-sm text-muted">{HISTORY_INSPECTOR_PROMPT_TITLE}</p>;
@@ -72,7 +75,11 @@ export function HistoryInspector({ animeId, onOpenAnime }: HistoryInspectorProps
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <AnimeCoverPlaceholder className="size-16" />
+        {cover.status === "cover" ? (
+          <img alt={HISTORY_INSPECTOR_COVER_ALT} className="size-16 rounded object-cover" src={cover.dataUrl} />
+        ) : (
+          <AnimeCoverPlaceholder className="size-16" />
+        )}
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <Link onPress={() => onOpenAnime(detail.id)}>{detail.name}</Link>
           <span className="flex flex-wrap gap-1">
@@ -96,6 +103,19 @@ export function HistoryInspector({ animeId, onOpenAnime }: HistoryInspectorProps
       )}
       {addedMs === undefined ? null : (
         <p className="text-sm"><span className="text-muted">{HISTORY_INSPECTOR_ADDED_LABEL}: </span>{formatHistoryInspectorAdded(addedMs)}</p>
+      )}
+      {recentEpisodes.length === 0 ? null : (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-muted">{HISTORY_INSPECTOR_RECENT_TITLE}</p>
+          <ul className="flex flex-col gap-1">
+            {recentEpisodes.map((row) => (
+              <li className="flex items-baseline justify-between gap-2 text-sm" key={row.id}>
+                <span>Episode {row.episode}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted">{formatRowDateTime(row.watchedAtMs)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <Button onPress={() => onOpenAnime(detail.id)}>{HISTORY_INSPECTOR_OPEN_LABEL}</Button>
     </div>
