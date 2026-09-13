@@ -64,7 +64,7 @@ extends:
 # Two pre-commit jobs are deliberately absent. `frontend-lint` lints
 # `{staged_files}` because JSDoc adoption is incremental by construction (390
 # findings tree-wide, measured 2026-08-13), so a whole-tree run would fail every
-# merge and get removed within a week. `test:mutation:staged` measures staged
+# merge and get removed within a week. `frontend-mutation` measures staged
 # lines, and a merge contributes none of its own.
 #
 # A fast-forward merge writes no commit and runs no hook. Nothing to check: the
@@ -288,7 +288,19 @@ pre-commit:
           - name: frontend-layout-smoke
             run: bun --cwd="frontend" run layout:smoke
 
-          # dlinter:owned — managed by `dlinter init`; safe to re-run, do not rename
-          - name: test:mutation:staged
-            run: npm run test:mutation:staged
+          # Runs upstream dharness's own staged-scope mutation check, which
+          # reads the git index directly instead of a `{staged_files}`
+          # substitution -- the previous hand-rolled script resolved
+          # `--show-toplevel` to `frontend/` inside a linked worktree and
+          # silently skipped every production file (SDD-71).
+          #
+          # The exclusions keep that script's scope, `src/` only. dharness
+          # counts every JS/TS file under frontend/ as source, but the
+          # mutation suite (vitest.dlinter-mutation.mts) runs only `src/**`
+          # tests, so a staged line in scripts/ or a root config file has no
+          # related test and fails with "No tests were found". Name a new root
+          # config file here exactly; a broad prefix like `vite` would also
+          # hide any future path that happens to start with it.
+          - name: frontend-mutation
+            run: dharness mutate --staged --exclude-prefix src/test/ --exclude-prefix scripts/ --exclude-prefix eslint.config.js --exclude-prefix vite.config.ts --exclude-prefix vite.layout.config.ts --exclude-prefix vitest.dlinter-mutation.mts --concurrency 4
             root: frontend

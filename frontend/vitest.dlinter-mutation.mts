@@ -24,8 +24,9 @@ export default defineConfig({
     // forbidden here by `no-restricted-syntax` (it hides the cost rather than
     // removing it), and raising `dryRunTimeoutMinutes` did not help because
     // the failure is a per-test timeout inside the run, not the run's own
-    // budget. With this one file excluded the dry run completes and the score
-    // lands at 82.14 against a break threshold of 80.
+    // budget. With this one file excluded the dry run completes cleanly.
+    // (2026-09-13, SDD-71: the gate is a zero-tolerance verdict now, no
+    // numeric score or break threshold to clear.)
     //
     // Remove this the moment the test can finish inside 5s under contention.
     exclude: ['scripts/**', '**/scripts/**', '**/.dlinter-mutation-tmp/**', '**/NotificationTable.windowing.test.tsx'],

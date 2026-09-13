@@ -79,8 +79,12 @@ has unstaged changes on top of its staged ones — the same refusal the frontend
 guard makes, for the same reason: mutation would otherwise judge a tree state
 that is not what gets committed.
 
-Pass `--threshold 0.80` to match `stryker.dlinter.json`'s `break: 80`, so both
-sides of the repo are held to the same bar. ditto's own default is `1.00`.
+Pass `--threshold 0.80` to match the frontend gate's bar. The frontend side
+(`frontend/stryker.config.json`, via `dharness mutate --staged`) carries no
+`break` threshold of its own any more — it is a zero-tolerance verdict, not a
+score: any in-scope Survived or NoCoverage mutant blocks the commit outright.
+`--threshold 0.80` keeps the Go side held to an equivalent bar. ditto's own
+default is `1.00`.
 
 To audit a file you are not committing, stage it on a scratch branch:
 
@@ -263,10 +267,31 @@ useless on this repo, because the copy is what costs.
 
 ## The frontend guard, and the day it was found doing nothing
 
-The frontend has its own scoped runner: `frontend/scripts/dlinter-mutation-staged.mjs`,
-driven by Stryker through `stryker.dlinter.json`, wired into `lefthook.yml` as
-`test:mutation:staged`. Unlike the Go side it *is* in pre-commit, because it
-mutates only the lines a commit adds.
+**Retired 2026-09-13 (SDD-71).** The hand-rolled runner described in this
+section, `frontend/scripts/dlinter-mutation-staged.mjs`, is deleted. The
+`lefthook.yml` job is now `frontend-mutation`, running upstream `dharness
+mutate --staged --concurrency 4` against `frontend/stryker.config.json`
+(renamed from `stryker.dlinter.json`). Its `--exclude-prefix` list, `src/test/`,
+`scripts/` and the four root config files by exact name, keeps the retired
+script's `src/`-only scope: dharness counts every JS/TS file under `frontend/`
+as source, but `vitest.dlinter-mutation.mts` runs only `src/**` tests, so a
+staged line anywhere else has no related test and fails with "No tests were
+found". The migration commit's first gate run hit exactly that on the root
+config files it edits ("Found 2 of 867 file(s) to be mutated", then "No tests
+were found"), and 50 of the last 266 frontend commits touched such a file, not
+counting the since-untracked `wailsjs/` bindings. The
+worktree defect this section documents is the same class fixed four times on
+the hand-rolled script; scoping moved upstream instead of being patched a
+fifth time. See
+`openspec/changes/sdd-71-dharness-mutate-staged/specs/frontend-staged-mutation-gate/spec.md`
+for the current contract. What follows is kept as the historical record of
+why the retired script needed each fix.
+
+The frontend used to run its own scoped runner:
+`frontend/scripts/dlinter-mutation-staged.mjs`, driven by Stryker through
+`stryker.dlinter.json`, wired into `lefthook.yml` as `test:mutation:staged`.
+Unlike the Go side it *was* in pre-commit, because it mutated only the lines a
+commit added.
 
 **On 2026-08-13 it was found exiting 0 without mutating anything, and it had
 been doing so for an unknown period.**

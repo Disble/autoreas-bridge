@@ -20,6 +20,7 @@ type lefthookConfig struct {
 type lefthookJob struct {
 	Name  string        `yaml:"name"`
 	Run   string        `yaml:"run"`
+	Root  string        `yaml:"root"`
 	Group *lefthookJobs `yaml:"group"`
 }
 

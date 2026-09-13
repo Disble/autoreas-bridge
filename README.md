@@ -499,8 +499,9 @@ Line coverage does not tell you whether a test *asserts* anything. Both surfaces
 are covered:
 
 ```bash
-# Frontend — automated in the pre-commit hook, over staged lines
-bun --cwd="frontend" run test:mutation:staged
+# Frontend — runs automatically in the pre-commit hook (frontend-mutation job),
+# over staged lines. Narrow manual runs use test:mutation --mutate <file:range>.
+git commit
 
 # Go — manual, scoped to the owning package
 ditto staged --exclude-prefix frontend/ --threshold 0.80 \

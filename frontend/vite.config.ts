@@ -79,7 +79,6 @@ export default defineConfig(
               exclude: [
                 ...configDefaults.exclude,
                 '**/.stryker-*/**',
-                '**/*-mutation-tmp/**',
                 ...nodeTestInclude
               ]
             }
