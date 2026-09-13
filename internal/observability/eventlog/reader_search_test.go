@@ -161,6 +161,29 @@ func TestSearchFreeTextMatchesMessageDomainEventType(t *testing.T) {
 	}
 }
 
+// TestSearchEventTypeFilterExcludesResidueRowsWithNullEventType proves the
+// SDD-69 D7 confirmation: the pre-existing domain="anime" residue (371 rows
+// measured, one message, empty correlation_id/entity_id, null event_type,
+// none newer than 2026-08-30) never matches an EventType filter, while a
+// real navigation row carrying a populated event_type does.
+func TestSearchEventTypeFilterExcludesResidueRowsWithNullEventType(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db, EventStoreConfig{})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 100, Domain: "anime", Level: "info", Message: "publishing anime.changed for tracer-bullet-anime"})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 200, Domain: "anime", Level: "info", Message: "opened anime folder", EventType: "anime.folder_opened", EntityID: "anime-1"})
+
+	reader := NewReader(db)
+	page, err := reader.Search(context.Background(), EventSearchParams{Filters: EventFilters{EventType: "anime.folder_opened"}})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].EventType != "anime.folder_opened" {
+		t.Fatalf("expected only the real navigation row to match, got %#v", page.Items)
+	}
+}
+
 // TestSearchFreeTextDoesNotMatchMetadata asserts free text is not scoped to
 // metadata_json, per design decision 7.
 func TestSearchFreeTextDoesNotMatchMetadata(t *testing.T) {

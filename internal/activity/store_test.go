@@ -171,6 +171,67 @@ func TestStoreReturnsZeroOnQueryOrExecError(t *testing.T) {
 	}
 }
 
+// TestRecordActivityFirstWritePrunesUnconditionally proves a freshly
+// constructed Store prunes on its very first write rather than waiting for
+// PruneEvery, mirroring eventlog's TestNewStoreSeedsPruneCounterFromExistingRows
+// -- otherwise a desktop session shorter than PruneEvery writes would never
+// prune at all.
+func TestRecordActivityFirstWritePrunesUnconditionally(t *testing.T) {
+	db := openActivityTestDB(t)
+	seedStore := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1000, PruneEvery: 1000})
+	for i := range 5 {
+		seedReplayRow(t, seedStore, activity.ActionEpisodeAdjusted, "anime-1", "One", int64(1000+i), activity.Snapshot{}, activity.Snapshot{})
+	}
+	if count := countActivityRows(t, db); count != 5 {
+		t.Fatalf("expected 5 seeded rows, got %d", count)
+	}
+
+	freshStore := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 2, PruneEvery: 100})
+	seedReplayRow(t, freshStore, activity.ActionEpisodeAdjusted, "anime-1", "One", 9999, activity.Snapshot{}, activity.Snapshot{})
+	if count := countActivityRows(t, db); count != 2 {
+		t.Fatalf("expected the first write to prune unconditionally down to cap 2, got %d", count)
+	}
+}
+
+// TestRecordActivityPrunesOnCadenceNotEveryWrite proves prune fires only on
+// the configured write-count cadence after the first write, letting the
+// table exceed RowCap between boundaries, mirroring
+// eventlog's TestPruneRunsOnlyEveryNthWrite.
+func TestRecordActivityPrunesOnCadenceNotEveryWrite(t *testing.T) {
+	db := openActivityTestDB(t)
+	store := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1, PruneEvery: 3})
+
+	// Write 1 (successful=1) prunes unconditionally; there is only ever one
+	// row so far, so there is nothing to remove yet.
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{}, activity.Snapshot{})
+	if count := countActivityRows(t, db); count != 1 {
+		t.Fatalf("expected 1 row after write 1, got %d", count)
+	}
+
+	// Write 2 (successful=2) is off-cadence and must NOT prune, letting the
+	// table exceed RowCap by one row.
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1001, activity.Snapshot{}, activity.Snapshot{})
+	if count := countActivityRows(t, db); count != 2 {
+		t.Fatalf("expected write 2 to leave RowCap exceeded by 1, got %d", count)
+	}
+
+	// Write 3 (successful=3) hits the cadence boundary and enforces RowCap again.
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1002, activity.Snapshot{}, activity.Snapshot{})
+	if count := countActivityRows(t, db); count != 1 {
+		t.Fatalf("expected the cadence write to prune down to RowCap 1, got %d", count)
+	}
+}
+
+// countActivityRows returns the current activity_log row count.
+func countActivityRows(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM activity_log`).Scan(&count); err != nil {
+		t.Fatalf("count activity_log: %v", err)
+	}
+	return count
+}
+
 // seedReplayRow records one activity row through the public Store API, so no
 // test writes activity_log's literal name outside this package.
 func seedReplayRow(t *testing.T, store *activity.Store, actionType, animeID, animeName string, occurredAtMs int64, before, after activity.Snapshot) {

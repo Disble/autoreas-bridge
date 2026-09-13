@@ -413,21 +413,27 @@ build`/`go vet` pass clean. Measured: 76 insertions + 79 deletions across 6 file
 
 ### 4.2 `activity_log` retention cap (D8)
 
-- [ ] **4.2.1** [RED] `internal/activity/store_test.go`: `pruneOldestBeyondRetention` deletes the oldest
+- [x] **4.2.1** [RED] `internal/activity/store_test.go`: `pruneOldestBeyondRetention` deletes the oldest
   rows beyond a small `RowCap` via `NewStoreWithRetention`; the prune runs unconditionally on the first
   write of a process, mirroring `eventlog/store_test.go`'s cadence test; `NewStore(provider)` keeps its
   zero-value-default signature so no existing call site breaks.
-- [ ] **4.2.2** [GREEN] `internal/activity/store.go`: `StoreRetention{RowCap, PruneEvery}`,
+- [x] **4.2.2** [GREEN] `internal/activity/store.go`: `StoreRetention{RowCap, PruneEvery}`,
   `NewStoreWithRetention(provider, retention)`, defaults `RowCap=5000, PruneEvery=200`; `RecordActivity`
   becomes `BEGIN / INSERT / prune / COMMIT`.
 
+**Apply note (4.2):** two focused tests (acts differ: unconditional-first-write vs.
+cadence-skip-then-enforce), mirroring eventlog/syncdiag's shape rather than one table.
+
 ### 4.3 Confirm the 371 dead `anime`-domain rows are inert (verification, not migration — D7)
 
-- [ ] **4.3.1** [VERIFY] Confirm (against the live `runtime_events` table or an equivalent fixture) that
+- [x] **4.3.1** [VERIFY] Confirm (against the live `runtime_events` table or an equivalent fixture) that
   every pre-existing `domain="anime"` row carries the single tracer-bullet message, empty
   `correlation_id`/`entity_id`, a null `event_type`, and none newer than 2026-08-30. Record the
   confirmation as a test assertion distinguishing real rows (non-null `event_type`) from the residue.
   No delete, no migration, no domain rename.
+
+**Apply note (4.3):** no existing filter/search test distinguished a null-`event_type` residue row from
+a populated one; added one to `reader_search_test.go` seeding the measured residue shape.
 
 ### 4.4 ADR-022 — moved to Slice 9 (9.3.1)
 

@@ -27,6 +27,12 @@ const (
 	ActionAnimeRestored = "anime_restored"
 	// ActionAnimeRepeated records a repetition reset.
 	ActionAnimeRepeated = "anime_repeated"
+
+	// defaultRowCap bounds activity_log at roughly 2.4 years of audit trail
+	// at the measured post-relocation write rate (design.md D8).
+	defaultRowCap = 5000
+	// defaultPruneEvery mirrors eventlog's prune cadence window.
+	defaultPruneEvery = 200
 )
 
 // IsEpisodeAdjusted reports whether an action string denotes an episode-progress
@@ -45,9 +51,19 @@ type sqliteProvider struct {
 	db *sql.DB
 }
 
+// StoreRetention configures activity_log's row cap and prune cadence
+// (design.md D8). A non-positive field falls back to its default.
+type StoreRetention struct {
+	RowCap     int
+	PruneEvery int
+}
+
 // Store persists and lists activity records.
 type Store struct {
-	provider SQLiteProvider
+	provider   SQLiteProvider
+	rowCap     int
+	pruneEvery int
+	successful int
 }
 
 // Record captures one activity-log row.
@@ -103,17 +119,44 @@ func (p sqliteProvider) DB() *sql.DB {
 	return p.db
 }
 
-// NewStore builds an activity store over the provided provider.
+// NewStore builds an activity store over the provided provider, defaulting
+// to StoreRetention{RowCap: defaultRowCap, PruneEvery: defaultPruneEvery}.
+// The signature is unchanged so no existing call site breaks.
 func NewStore(provider SQLiteProvider) *Store {
-	return &Store{provider: provider}
+	return NewStoreWithRetention(provider, StoreRetention{})
 }
 
-// RecordActivity appends an activity-log record.
-func (s *Store) RecordActivity(ctx context.Context, record Record) error {
+// NewStoreWithRetention builds an activity store with an explicit retention
+// policy; a non-positive field falls back to its default (design.md D8).
+func NewStoreWithRetention(provider SQLiteProvider, retention StoreRetention) *Store {
+	rowCap := retention.RowCap
+	if rowCap <= 0 {
+		rowCap = defaultRowCap
+	}
+	pruneEvery := retention.PruneEvery
+	if pruneEvery <= 0 {
+		pruneEvery = defaultPruneEvery
+	}
+	return &Store{provider: provider, rowCap: rowCap, pruneEvery: pruneEvery}
+}
+
+// RecordActivity appends an activity-log record, pruning past the retention
+// cap in the same transaction: BEGIN / INSERT / prune / COMMIT, mirroring
+// internal/observability/eventlog/store.go's cadence (design.md D8).
+func (s *Store) RecordActivity(ctx context.Context, record Record) (err error) {
 	if record.Source == "" {
 		record.Source = SourceSystem
 	}
-	if _, err := s.provider.DB().ExecContext(ctx, `
+	tx, err := s.provider.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin activity transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO activity_log (
 			source, action_type, anime_id, anime_name, occurred_at_ms, correlation_id,
 			before_json, after_json
@@ -123,7 +166,32 @@ func (s *Store) RecordActivity(ctx context.Context, record Record) error {
 		record.CorrelationID, string(record.BeforeJSON), string(record.AfterJSON)); err != nil {
 		return fmt.Errorf("insert activity %q for anime %q: %w", record.ActionType, record.AnimeID, err)
 	}
-	return nil
+	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
+		return fmt.Errorf("prune activity beyond retention: %w", err)
+	}
+	return tx.Commit()
+}
+
+// pruneOldestBeyondRetention deletes the oldest activity rows past rowCap,
+// unconditionally on the first successful write of the process and
+// thereafter every pruneEvery writes. The write counter is per-process and
+// starts at zero, so cadence alone would never prune in a session shorter
+// than pruneEvery writes -- the common case for this desktop app -- which
+// would let the table grow past its cap across restarts and stay there.
+func (s *Store) pruneOldestBeyondRetention(ctx context.Context, tx *sql.Tx) error {
+	s.successful++
+	if s.successful > 1 && s.successful%s.pruneEvery != 0 {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+		DELETE FROM activity_log
+		WHERE id IN (
+			SELECT id FROM activity_log
+			ORDER BY occurred_at_ms DESC, id DESC
+			LIMIT -1 OFFSET ?
+		)
+	`, s.rowCap)
+	return err
 }
 
 // ListRecent returns the newest activity rows first.
