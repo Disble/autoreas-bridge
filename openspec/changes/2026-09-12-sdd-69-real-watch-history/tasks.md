@@ -379,11 +379,12 @@ replays from `activity_log` (proposal's Rollback Plan).
 
 ---
 
-## Slice 4 — Telemetry Relocation + `activity_log` Retention Cap + ADR-022
+## Slice 4 — Telemetry Relocation + `activity_log` Retention Cap
 
 **Leaves the app working because:** the four desktop actions still work identically from the user's
 point of view; only where their telemetry lands changes.
-**Forecast:** 580 (tight). Requirement: `observability`'s MODIFIED "Activity Log Remains Untouched By
+**Forecast:** 580 (tight), re-planned after Slices 1–3 each landed ~1.7× their forecast: ADR-022 moves
+to Slice 9, and the slice runs as two work units, 4a (4.1) and 4b (4.2–4.3), each committed on its own. Requirement: `observability`'s MODIFIED "Activity Log Remains Untouched By
 Runtime-Event Persistence" (both scenarios).
 
 ### 4.1 Telemetry relocation (D7)
@@ -424,14 +425,7 @@ Runtime-Event Persistence" (both scenarios).
   confirmation as a test assertion distinguishing real rows (non-null `event_type`) from the residue.
   No delete, no migration, no domain rename.
 
-### 4.4 ADR-022
-
-- [ ] **4.4.1** Write `docs/adr/022-watch-history-model.md`: the selected model (browser-history analogy,
-  one row per episode with its own timestamp, retraction deletes the row), the two rejected alternatives
-  (one-entry-per-log-row, day digest) with their measured noise ratios, the multi-episode
-  jump/enumeration decision (D2a), the anime-domain-residue finding, and the three-lifetimes rule
-  (permanent / capped / rotating) — content drawn from `design.md`'s "ADR-022 rationale" section, in the
-  repo's ADR format (measured band: 123-217 lines).
+### 4.4 ADR-022 — moved to Slice 9 (9.3.1)
 
 ### 4.5 MUTATE
 
@@ -693,10 +687,20 @@ Navigation From Detail No Longer Restores List State".
   `GetAnimeHistory`/`ListAnimeHistory` alive through Slice 6 to avoid breaking the still-live
   `HistoryTable` before its deletion.
 
-### 9.3 Verification & commit
+### 9.3 ADR-022 (moved from Slice 4 so every code slice stays under the cap)
 
-- [ ] **9.3.1** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md` and `docs/learning-log.md`.
-- [ ] **9.3.2** Orchestrator verifies and commits this slice.
+- [ ] **9.3.1** Write `docs/adr/022-watch-history-model.md`: the selected model (browser-history analogy,
+  one row per episode with its own timestamp, retraction deletes the row), the two rejected alternatives
+  (one-entry-per-log-row, day digest) with their measured noise ratios, the multi-episode
+  jump/enumeration decision (D2a), the anime-domain-residue finding, and the three-lifetimes rule
+  (permanent / capped / rotating) — content drawn from `design.md`'s "ADR-022 rationale" section, in the
+  repo's ADR format (measured band: 123-217 lines).
+
+### 9.4 Verification & commit
+
+- [ ] **9.4.1** [VERIFY] `git status --porcelain` shows only `CHANGELOG.md`, `docs/learning-log.md` and
+  `docs/adr/022-watch-history-model.md`.
+- [ ] **9.4.2** Orchestrator verifies and commits this slice.
 
 **Rollback:** `git revert`. Documentation only.
 
