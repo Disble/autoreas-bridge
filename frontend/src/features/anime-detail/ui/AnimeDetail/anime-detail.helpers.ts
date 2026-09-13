@@ -1,4 +1,5 @@
 import type { contracts } from '../../../../../wailsjs/go/models';
+import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
 import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
 import {
@@ -252,23 +253,6 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
   }
 }
 
-/**
- * Normalizes a legacy portada path into the value that gates whether the
- * cover-resolution binding is called. The real fixture carries
- * `portada.path === ''` on 793/795 records (plus one literal `'null'`
- * string), and neither is a renderable cover, so blank or sentinel paths
- * MUST resolve to `undefined` (no stored cover) rather than a path a caller
- * could reach into an `<img src>` (anime-cover-rendering spec, "An empty or
- * sentinel stored path skips the binding"). Exported so
- * `useAnimeDetailCover`'s gate and this module's own view-model mapping stay
- * provably in sync with a single source of truth.
- */
-export function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
-  const trimmed = portada?.trim();
-
-  return trimmed === undefined || trimmed === '' || trimmed === 'null' ? undefined : trimmed;
-}
-
 /** Joins the estado and tipo labels into the hero's "estado • tipo" subtitle line. */
 export function formatAnimeDetailSubtitle(estadoLabel: string, tipoLabel: string): string {
   return `${estadoLabel} • ${tipoLabel}`;
@@ -411,7 +395,7 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     modifiedAt: detail.modified_at,
     canRepeat: detail.status > 0,
     canRestore: detail.active === 0,
-    hasStoredCover: normalizeAnimeDetailPortadaUrl(detail.cover) !== undefined,
+    hasStoredCover: normalizeStoredCoverPath(detail.cover) !== undefined,
     estadoLabel,
     tipoLabel,
     subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),

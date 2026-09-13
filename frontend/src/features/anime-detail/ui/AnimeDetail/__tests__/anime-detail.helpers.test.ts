@@ -13,7 +13,6 @@ import {
   getAnimeDetailStatusLabel,
   getAnimeDetailTipoLabel,
   hasPreviousHistoryEntry,
-  normalizeAnimeDetailPortadaUrl,
   sortAnimeRepeticionesMostRecentFirst,
   toAnimeDetailViewModel,
   toAnimeRepeticionViewModel,
@@ -391,19 +390,4 @@ describe('toAnimeDetailViewModel', () => {
 
     expect(viewModel.repetitions.map((entry) => entry.numRepeticion)).toEqual([2, 1, 0]);
   });
-});
-
-describe('normalizeAnimeDetailPortadaUrl', () => {
-  it('trims surrounding whitespace from a valid stored path', () => {
-    expect(normalizeAnimeDetailPortadaUrl('  C:/legacy/portadas/frieren.jpg  ')).toBe(
-      'C:/legacy/portadas/frieren.jpg',
-    );
-  });
-
-  it.each([[undefined], [''], ['   '], ['null']])(
-    'rejects %j as an undefined (no-cover) stored path',
-    (portada) => {
-      expect(normalizeAnimeDetailPortadaUrl(portada)).toBeUndefined();
-    },
-  );
 });

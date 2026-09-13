@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction, SyntheticEvent } from 'react';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
-import type { AnimeDetailCoverEntry } from './use-anime-detail-cover';
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
@@ -162,7 +162,7 @@ export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationCon
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
   readonly detail: AnimeDetailViewModel | undefined;
-  readonly cover: AnimeDetailCoverEntry;
+  readonly cover: AnimeCoverEntry;
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;

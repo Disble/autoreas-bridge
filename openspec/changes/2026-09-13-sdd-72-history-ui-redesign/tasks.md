@@ -98,11 +98,11 @@ Chain strategy: stacked-to-main
 **Leaves the app working because:** a `git mv` behind an unchanged import at the one call site.
 **Forecast:** ~150 as a rename; 620–640 if git scores it as delete+add, in which case task 3.3 defers to U10 (D10).
 
-- [ ] **3.1** [GREEN] `git mv frontend/src/features/anime-detail/ui/AnimeDetail/use-anime-detail-cover.ts frontend/src/shared/anime-cover/use-anime-cover.ts` (+ its test); rename `useAnimeDetailCover` → `useAnimeCover`, `AnimeDetailCoverEntry` → `AnimeCoverEntry`; update `AnimeDetail`'s import.
-- [ ] **3.2** [MEASURE] Run `git diff -M --stat` on the staged move. If git recognizes it as a rename (≈150 changed lines), continue to 3.3 in this unit. If it scores as delete+add (≈620–640), stop here, commit the hook move alone, and defer 3.3 to U10 (task 10.1).
-- [ ] **3.3** [GREEN] (only if 3.2 measured a low-cost rename) Move `normalizeAnimeDetailPortadaUrl` beside the hook as `normalizeStoredCoverPath` in `anime-cover.helpers.ts`; update its one caller.
+- [x] **3.1** [GREEN] `git mv frontend/src/features/anime-detail/ui/AnimeDetail/use-anime-detail-cover.ts frontend/src/shared/anime-cover/use-anime-cover.ts` (+ its test); rename `useAnimeDetailCover` → `useAnimeCover`, `AnimeDetailCoverEntry` → `AnimeCoverEntry`; update `AnimeDetail`'s import.
+- [x] **3.2** [MEASURE] Run `git diff -M --stat` on the staged move. If git recognizes it as a rename (≈150 changed lines), continue to 3.3 in this unit. If it scores as delete+add (≈620–640), stop here, commit the hook move alone, and defer 3.3 to U10 (task 10.1). Measured: git scored it a rename at 58 changed lines (hook move alone); 125 changed lines total after 3.3.
+- [x] **3.3** [GREEN] (only if 3.2 measured a low-cost rename) Move `normalizeAnimeDetailPortadaUrl` beside the hook as `normalizeStoredCoverPath` in `anime-cover.helpers.ts`; update its one caller.
 - [ ] **3.4** [MUTATE] orchestrator, post-commit: Stryker by hand (frontend) on this unit's production lines (expect no new mutants for a pure move; confirm rather than assume).
-- [ ] **3.5** [VERIFY] `bun --cwd="frontend" run test -- anime-cover anime-detail`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture` (it scans `.ts`/`.tsx` too).
+- [x] **3.5** [VERIFY] `bun --cwd="frontend" run test -- anime-cover anime-detail`; `bun run typecheck`; eslint on touched files; `go run ./tools/checkarchitecture` (it scans `.ts`/`.tsx` too).
 
 ---
 

@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BridgeRuntimeSource } from '../../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
-import { useAnimeDetailCover } from '../use-anime-detail-cover';
+import type { BridgeRuntimeSource } from '../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import { useAnimeCover } from '../use-anime-cover';
 
 /**
  * Minimal `BridgeRuntimeSource` fixture (mirrors `use-anime-detail.test.tsx`'s
@@ -22,12 +22,12 @@ function createSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRunti
   };
 }
 
-describe('useAnimeDetailCover', () => {
+describe('useAnimeCover', () => {
   it('never calls getAnimeCover and returns the placeholder immediately when hasStoredCover is false', () => {
     const getAnimeCover = vi.fn();
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', false, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', false, source));
 
     expect(result.current).toEqual({ status: 'placeholder' });
     expect(getAnimeCover).not.toHaveBeenCalled();
@@ -37,7 +37,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockReturnValue(new Promise(() => {}));
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     expect(result.current).toEqual({ status: 'loading' });
     expect(getAnimeCover).toHaveBeenCalledWith('anime-1');
@@ -47,7 +47,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover', dataUrl: 'data:image/png;base64,abc' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'cover', dataUrl: 'data:image/png;base64,abc' }));
   });
@@ -56,7 +56,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'placeholder' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -65,7 +65,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'cover' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -74,7 +74,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockResolvedValue({ source: 'unknown', dataUrl: 'data:image/png;base64,abc' });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -83,7 +83,7 @@ describe('useAnimeDetailCover', () => {
     const getAnimeCover = vi.fn().mockRejectedValue(new Error('boom'));
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -94,7 +94,7 @@ describe('useAnimeDetailCover', () => {
     });
     const source = createSource({ getAnimeCover });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     await waitFor(() => expect(result.current).toEqual({ status: 'placeholder' }));
   });
@@ -102,7 +102,7 @@ describe('useAnimeDetailCover', () => {
   it('degrades to the placeholder without ever fetching when getAnimeCover is absent from the source', () => {
     const source = createSource({ getAnimeCover: undefined });
 
-    const { result } = renderHook(() => useAnimeDetailCover('anime-1', true, source));
+    const { result } = renderHook(() => useAnimeCover('anime-1', true, source));
 
     expect(result.current).toEqual({ status: 'placeholder' });
   });
@@ -118,7 +118,7 @@ describe('useAnimeDetailCover', () => {
     const source = createSource({ getAnimeCover });
 
     const { rerender, result } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeDetailCover(animeId, true, source),
+      ({ animeId }: { animeId: string }) => useAnimeCover(animeId, true, source),
       { initialProps: { animeId: 'anime-1' } },
     );
 
@@ -144,7 +144,7 @@ describe('useAnimeDetailCover', () => {
     const source = createSource({ getAnimeCover });
 
     const { rerender, result } = renderHook(
-      ({ animeId }: { animeId: string }) => useAnimeDetailCover(animeId, true, source),
+      ({ animeId }: { animeId: string }) => useAnimeCover(animeId, true, source),
       { initialProps: { animeId: 'anime-1' } },
     );
 

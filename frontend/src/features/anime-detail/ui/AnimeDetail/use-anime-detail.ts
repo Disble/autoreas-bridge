@@ -3,6 +3,7 @@ import type { SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import { useAnimeCover } from '../../../../shared/anime-cover/use-anime-cover';
 import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
 import {
   hasPreviousHistoryEntry,
@@ -13,7 +14,6 @@ import type {
   AnimeDetailProps,
   AnimeDetailState,
 } from './anime-detail.types';
-import { useAnimeDetailCover } from './use-anime-detail-cover';
 import { useAnimeDetailMutation } from './use-anime-detail-mutation';
 
 /**
@@ -59,10 +59,10 @@ export function useAnimeDetail(
     () => (detail ? toAnimeDetailViewModel(detail) : undefined),
     [detail],
   );
-  // useAnimeDetailCover is itself request-sequenced by animeId/hasStoredCover
+  // useAnimeCover is itself request-sequenced by animeId/hasStoredCover
   // (design D1); a locally failed load (onPortadaError/onPortadaLoad) folds
   // in on top of it here, exactly as the prior showPortadaPlaceholder boolean did.
-  const resolvedCover = useAnimeDetailCover(props.animeId, viewModel?.hasStoredCover ?? false, source);
+  const resolvedCover = useAnimeCover(props.animeId, viewModel?.hasStoredCover ?? false, source);
   const cover = failedPortadaAnimeId === props.animeId ? { status: 'placeholder' as const } : resolvedCover;
 
   // 6. Callbacks (useCallback calling pure helpers)

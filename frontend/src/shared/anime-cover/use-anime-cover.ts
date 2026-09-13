@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
+import type { BridgeRuntimeSource } from '../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 
 /**
- * The three states a single anime's cover can be in while `AnimeDetail`
- * renders its hero avatar (design D2). No stored path is ever carried
- * inside this type, so a raw stored path structurally cannot reach an
- * `<img src>` from here.
+ * The three states a single anime's cover can be in while a consumer (e.g.
+ * `AnimeDetail`) renders its hero avatar (design D2). No stored path is ever
+ * carried inside this type, so a raw stored path structurally cannot reach
+ * an `<img src>` from here.
  */
-export type AnimeDetailCoverEntry =
+export type AnimeCoverEntry =
   | { readonly status: 'loading' }
   | { readonly status: 'cover'; readonly dataUrl: string }
   | { readonly status: 'placeholder' };
@@ -35,11 +35,11 @@ export type AnimeDetailCoverEntry =
  * degrades to the placeholder rather than throwing.
  * @returns The cover's current resolution state.
  */
-export function useAnimeDetailCover(
+export function useAnimeCover(
   animeId: string,
   hasStoredCover: boolean,
   source: BridgeRuntimeSource,
-): AnimeDetailCoverEntry {
+): AnimeCoverEntry {
   // 1. Refs
 
   // 2. State
@@ -47,7 +47,7 @@ export function useAnimeDetailCover(
   // and `useNotificationDetailCovers` (neither pre-seeds a `loading` entry):
   // the effect below always runs on mount and immediately corrects this to
   // `loading` before the binding call when `hasStoredCover` is true.
-  const [cover, setCover] = useState<AnimeDetailCoverEntry>({ status: 'placeholder' });
+  const [cover, setCover] = useState<AnimeCoverEntry>({ status: 'placeholder' });
 
   // 3. Context/3rd Party Hooks
 
