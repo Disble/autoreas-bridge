@@ -8,6 +8,13 @@ vi.mock('../use-anime-detail', () => ({
   useAnimeDetail: () => useAnimeDetailMock(),
 }));
 
+/** Stands in for the per-anime watch-history hook so this suite renders without a live fetch. */
+const useAnimeWatchHistoryMock = vi.fn().mockReturnValue({ entries: [], isLoading: false, hasMore: false, error: undefined });
+
+vi.mock('../../AnimeWatchHistory/use-anime-watch-history', () => ({
+  useAnimeWatchHistory: () => useAnimeWatchHistoryMock(),
+}));
+
 import { AnimeDetail } from '../AnimeDetail';
 
 /** Baseline loaded anime-detail view model each case overrides one field of. */
@@ -391,5 +398,13 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.getByText('No repetition history.')).toBeInTheDocument();
+  });
+
+  it('renders the per-anime watch history section beside the repetition timeline', () => {
+    mockAnimeDetailState();
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByRole('heading', { name: 'Episode history' })).toBeInTheDocument();
   });
 });

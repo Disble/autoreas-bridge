@@ -1,5 +1,6 @@
 import { Button, Card, Chip, ProgressBar } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
+import { AnimeWatchHistory } from '../AnimeWatchHistory/AnimeWatchHistory';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
 import { AnimeRepetitionTimeline } from './AnimeRepetitionTimeline';
@@ -183,6 +184,8 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
             <p className="text-sm text-muted">{ANIME_DETAIL_NO_REPETITIONS_MESSAGE}</p>
           )}
         </section>
+
+        <AnimeWatchHistory animeId={props.animeId} />
 
       </Card.Content>
     </Card>

@@ -663,30 +663,37 @@ Navigation From Detail No Longer Restores List State".
 
 ### 8.1 `AnimeWatchHistory` component + hook
 
-- [ ] **8.1.1** [RED] `frontend/src/features/anime-detail/ui/AnimeWatchHistory/__tests__/...`: given an
+- [x] **8.1.1** [RED] `frontend/src/features/anime-detail/ui/AnimeWatchHistory/__tests__/...`: given an
   anime with recorded `watch_history` rows (via `GetAnimeWatchHistoryPage`), renders a section listing
   its episode history. Dumb component — HeroUI + Tailwind, no Wails call, no `useEffect` (the fetch lives
   in the `use-*` hook).
-- [ ] **8.1.2** [GREEN] `AnimeWatchHistory.tsx`, `use-anime-watch-history.ts`,
+- [x] **8.1.2** [GREEN] `AnimeWatchHistory.tsx`, `use-anime-watch-history.ts`,
   `anime-watch-history.types.ts` / `.constants.ts`.
-- [ ] **8.1.3** [RED] Three-states test (loading / empty / error), mirroring
+- [x] **8.1.3** [RED] Three-states test (loading / empty / error), mirroring
   `AnimeRepetitionTimeline.test.tsx`'s shape (measured comparable: 147 lines total).
-- [ ] **8.1.4** [GREEN] Wire the three states.
+- [x] **8.1.4** [GREEN] Wire the three states.
+
+Apply note: single first-page fetch (no scroll paging — a per-anime log fits one page); reused
+`shared/watch-history` day/time formatters and the `today.webp` Airis artwork rather than duplicating.
 
 ### 8.2 Wire into `AnimeDetail`
 
-- [ ] **8.2.1** [RED] `frontend/src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeDetail.test.tsx`:
+- [x] **8.2.1** [RED] `frontend/src/features/anime-detail/ui/AnimeDetail/__tests__/AnimeDetail.test.tsx`:
   the new section renders beside `AnimeRepetitionTimeline`.
-- [ ] **8.2.2** [GREEN] `AnimeDetail.tsx`: render `<AnimeWatchHistory animeId={...} />` beside
+- [x] **8.2.2** [GREEN] `AnimeDetail.tsx`: render `<AnimeWatchHistory animeId={...} />` beside
   `<AnimeRepetitionTimeline ... />`.
 
 ### 8.3 Back navigation (supersedes sdd-37's exact-spot restore)
 
-- [ ] **8.3.1** [RED] From Anime Detail reached via `/history`, back returns to `/history` with no
+- [x] **8.3.1** [RED] From Anime Detail reached via `/history`, back returns to `/history` with no
   restored page/search/filter state (there is none to restore). From Anime Detail reached without a
   `/history` entry in the navigation stack, back falls back to `/history`.
-- [ ] **8.3.2** [GREEN] Wire ordinary router back navigation with a `/history` fallback; adjust only if
+- [x] **8.3.2** [GREEN] Wire ordinary router back navigation with a `/history` fallback; adjust only if
   the router still attempts to restore the retired query-state contract.
+
+Apply note: already implemented and covered — `use-anime-detail.ts`'s `onBack` calls `hasPreviousHistoryEntry`;
+tests `calls navigate("/history") when there is no previous history entry` and `calls navigate(-1) when a
+previous history entry exists` in `use-anime-detail.test.tsx` pin both branches. No code change needed.
 
 ### 8.4 MUTATE
 
@@ -695,7 +702,7 @@ Navigation From Detail No Longer Restores List State".
 
 ### 8.5 Verification & commit
 
-- [ ] **8.5.1** [VERIFY] `bun --cwd="frontend" run test -- anime-detail anime-watch-history`; `bun
+- [x] **8.5.1** [VERIFY] `bun --cwd="frontend" run test -- anime-detail anime-watch-history`; `bun
   --cwd="frontend" run render:smoke`; ESLint `max-lines`; JSDoc lint.
 - [ ] **8.5.2** Orchestrator verifies and commits this slice.
 
