@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/activity"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -198,27 +200,47 @@ func TestRecordActivityFirstWritePrunesUnconditionally(t *testing.T) {
 // table exceed RowCap between boundaries, mirroring
 // eventlog's TestPruneRunsOnlyEveryNthWrite.
 func TestRecordActivityPrunesOnCadenceNotEveryWrite(t *testing.T) {
+	cases := []struct {
+		name       string
+		pruneEvery int
+		wantCounts []int
+	}{
+		{name: "every third write exceeds the cap in between", pruneEvery: 3, wantCounts: []int{1, 2, 1}},
+		{name: "a cadence of one prunes every write", pruneEvery: 1, wantCounts: []int{1, 1, 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openActivityTestDB(t)
+			store := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1, PruneEvery: tc.pruneEvery})
+			got := make([]int, len(tc.wantCounts))
+			for i := range got {
+				seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", int64(1000+i), activity.Snapshot{}, activity.Snapshot{})
+				got[i] = countActivityRows(t, db)
+			}
+			if !slices.Equal(got, tc.wantCounts) {
+				t.Fatalf("row counts after each write = %v, want %v", got, tc.wantCounts)
+			}
+		})
+	}
+}
+
+// TestRecordActivityRollsBackAFailedInsert proves a failed insert releases the
+// bridge database's single connection; a leaked transaction blocks the next write.
+func TestRecordActivityRollsBackAFailedInsert(t *testing.T) {
 	db := openActivityTestDB(t)
-	store := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1, PruneEvery: 3})
-
-	// Write 1 (successful=1) prunes unconditionally; there is only ever one
-	// row so far, so there is nothing to remove yet.
-	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{}, activity.Snapshot{})
-	if count := countActivityRows(t, db); count != 1 {
-		t.Fatalf("expected 1 row after write 1, got %d", count)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+	if _, err := db.Exec(`CREATE TRIGGER reject_boom BEFORE INSERT ON activity_log WHEN NEW.anime_id = 'boom'
+		BEGIN SELECT RAISE(ABORT, 'boom'); END`); err != nil {
+		t.Fatalf("create rejecting trigger: %v", err)
+	}
+	if err := store.RecordActivity(context.Background(), activity.Record{AnimeID: "boom"}); err == nil {
+		t.Fatal("expected the trigger to reject the insert")
 	}
 
-	// Write 2 (successful=2) is off-cadence and must NOT prune, letting the
-	// table exceed RowCap by one row.
-	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1001, activity.Snapshot{}, activity.Snapshot{})
-	if count := countActivityRows(t, db); count != 2 {
-		t.Fatalf("expected write 2 to leave RowCap exceeded by 1, got %d", count)
-	}
-
-	// Write 3 (successful=3) hits the cadence boundary and enforces RowCap again.
-	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1002, activity.Snapshot{}, activity.Snapshot{})
-	if count := countActivityRows(t, db); count != 1 {
-		t.Fatalf("expected the cadence write to prune down to RowCap 1, got %d", count)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := store.RecordActivity(ctx, activity.Record{AnimeID: "anime-1", OccurredAtMs: 1000}); err != nil {
+		t.Fatalf("expected the next write to succeed after the rollback, got %v", err)
 	}
 }
 
