@@ -66,6 +66,7 @@ func (a *App) ensureRuntimeDependencies() {
 	a.ensureSyncRuntimeDependencies()
 	a.ensureDesktopRuntimeDependencies()
 	a.ensureDownloadRuntimeDependencies()
+	a.ensureMyAnimeListRuntimeDependencies()
 }
 
 // ensureAnimeRuntimeDependencies fills missing anime runtime dependencies.

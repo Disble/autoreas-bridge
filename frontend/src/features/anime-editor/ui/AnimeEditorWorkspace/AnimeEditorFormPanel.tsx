@@ -1,5 +1,6 @@
 import { Button, Card, Chip, Disclosure, Label, ListBox, Select, Skeleton, Typography } from '@heroui/react';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
+import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
@@ -39,7 +40,28 @@ export function AnimeEditorFormPanel({ viewModel }: Readonly<AnimeEditorFormPane
         )}
         {!viewModel.isLoadingRecord && record === undefined && <Typography color="muted" type="body-sm">Pick an anime from the left to start editing.</Typography>}
         {!viewModel.isLoadingRecord && record !== undefined && <>
-          <LabeledTextField label="Name" value={viewModel.draft.name} onChange={(value) => viewModel.onDraftChange('name', value)} />
+          <div className="flex items-end gap-3">
+            <div className="min-w-0 flex-1">
+              <LabeledTextField label="Name" value={viewModel.draft.name} onChange={(value) => viewModel.onDraftChange('name', value)} />
+            </div>
+            <AnimeMetadataLookupModal
+              name={viewModel.draft.name}
+              source={viewModel.metadataLookupSource}
+              onConfirm={viewModel.onMetadataApplied}
+            />
+          </div>
+          {viewModel.appliedMetadata === undefined ? null : (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" variant="tertiary" onPress={viewModel.onMetadataUndo}>
+                Undo autofill
+              </Button>
+              {viewModel.appliedMetadata.unfilled.length === 0 ? null : (
+                <Typography color="muted" type="body-xs">
+                  MyAnimeList did not provide: {viewModel.appliedMetadata.unfilled.join(', ')}
+                </Typography>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-4 md:grid-cols-2">
             <Select

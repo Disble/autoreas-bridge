@@ -1,5 +1,6 @@
 import type { AnimeEditorRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeEditorRecord, AnimeEditorSaveResult, AnimeEditorScheduleApplyResult, ApplyAnimeScheduleDraftEntry } from '../../../../shared/contracts/anime.types';
+import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
 import type { AnimeScheduleOrderingTestDriverRef } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /** Route input for the ID-driven Anime Editor workspace. */
@@ -60,6 +61,23 @@ export type AnimeEditorGuardEvent =
 export interface UseAnimeEditorRecordOptions {
   readonly selectedAnimeId?: string;
   readonly source: AnimeEditorRuntimeSource;
+}
+
+/**
+ * Everything the focused metadata applied/undo hook hands back to the record
+ * hook that composes it (design D9). Split out of `UseAnimeEditorRecordOptions`'s
+ * owning hook so the applied/undo state, its confirm/undo handlers, and its
+ * reset live in one cohesive place (fallow complexity guard).
+ */
+export interface UseAnimeEditorMetadataPatchResult {
+  /** The draft's pending Undo -- absent once undone, discarded, or never applied. */
+  readonly appliedMetadata: AppliedMetadata<Partial<AnimeEditorDraft>> | undefined;
+  /** Applies a confirmed MyAnimeList selection to the draft. */
+  readonly onMetadataApplied: (selection: AnimeMetadataSelection) => void;
+  /** Reverts the draft's last applied metadata patch. A no-op when nothing is applied. */
+  readonly onMetadataUndo: () => void;
+  /** Clears the pending Undo without replaying it -- called on record swap and on discard. */
+  readonly resetAppliedMetadata: () => void;
 }
 
 /** Inputs for the single guarded-transition orchestrator. */

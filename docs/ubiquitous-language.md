@@ -46,3 +46,25 @@ SDD-52 does **not** change any REST or WebSocket wire shape.
 - Mobile and any other API consumers require no coordination for this slice.
 
 Any future slice that changes a bridge API contract must announce that change in `docs/openapi.yaml` before merge.
+
+## `Status:` (MyAnimeList) vs. `estado` (bridge editor) — two domains, one English word
+
+SDD-70 introduces a MyAnimeList metadata lookup, and MyAnimeList's detail page carries a label
+literally spelled `Status:`. It reports **airing status** — `Currently Airing`, `Finished Airing`,
+`Not yet aired` — a fact about the show's broadcast, not about any one viewer.
+
+The bridge's own `status` field on `AnimeEditorDraft` is the **watching `estado`** — the value the
+Spanish-language UI renders as `Sin ver` / `Ver hoy` / `Visto` / `No me gusto` (ADR-007). It is a
+fact about the user, not about the broadcast.
+
+| Term | Domain | Meaning | Bridge surface |
+| --- | --- | --- | --- |
+| `Status:` | MyAnimeList | Airing status of the show itself | `internal/myanimelist` only — read, then discarded (never mapped) |
+| `estado` / `status` | Bridge editor | The user's own watching progress | `AnimeEditorDraft.status`; UI copy `Sin ver`/`Ver hoy`/`Visto`/`No me gusto` |
+
+Conflating the two would write MyAnimeList's airing status into a user's own watching progress on
+autofill — a plausible-looking but wrong value, silently applied. `internal/myanimelist` is
+forbidden by depguard from importing `internal/anime` or `internal/api/contracts` (ADR-022, D5)
+precisely so this mapping has no code path in which to happen: the module that reads MAL's
+`Status:` never holds a reference to the type the bridge's `estado` lives on. See
+[ADR 022: MyAnimeList metadata source](./adr/022-myanimelist-metadata-source.md).

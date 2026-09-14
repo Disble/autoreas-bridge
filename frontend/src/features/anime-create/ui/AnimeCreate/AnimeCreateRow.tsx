@@ -1,5 +1,6 @@
 import { Button, Card, Disclosure, Typography } from '@heroui/react';
 import { ANIME_TIPO_FILTER_ENTRIES } from '../../../../shared/constants/anime-tipo.constants';
+import { AnimeMetadataLookupModal } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupModal';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import { LabeledTextField } from '../../../../shared/ui/LabeledTextField';
 import { PathPickerField } from '../../../../shared/ui/PathPickerField';
@@ -10,6 +11,7 @@ import type { AnimeCreateRowProps } from './anime-create.types';
 /** Renders one batch-create card: primary fields plus a collapsed optional-metadata section. */
 export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRowProps>) {
   const draftId = row.draftId;
+  const appliedMetadata = viewModel.appliedMetadataByRow[draftId];
   return (
     <Card>
       <Card.Content className="flex flex-col gap-4 p-4">
@@ -60,6 +62,29 @@ export function AnimeCreateRow({ row, index, viewModel }: Readonly<AnimeCreateRo
             onBrowse={() => viewModel.onBrowseFolder(draftId)}
             onChange={(value) => viewModel.onRowChange(draftId, { folder: value })}
           />
+        </div>
+
+        {/* Fetch metadata stays outside the disclosure below (anime-create-editor
+            delta) -- it must stay reachable regardless of the disclosure's own
+            expanded/collapsed state. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <AnimeMetadataLookupModal
+            name={row.name}
+            source={viewModel.metadataLookupSource}
+            onConfirm={(selection) => viewModel.onMetadataApplied(draftId, selection)}
+          />
+          {appliedMetadata === undefined ? null : (
+            <>
+              <Button size="sm" variant="tertiary" onPress={() => viewModel.onMetadataUndo(draftId)}>
+                Undo autofill
+              </Button>
+              {appliedMetadata.unfilled.length === 0 ? null : (
+                <Typography color="muted" type="body-xs">
+                  MyAnimeList did not provide: {appliedMetadata.unfilled.join(', ')}
+                </Typography>
+              )}
+            </>
+          )}
         </div>
 
         <Disclosure>

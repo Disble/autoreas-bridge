@@ -90,6 +90,7 @@ type App struct {
 	animeEditorScheduleQuery   *anime.ScheduleQueryService
 	animeEditorScheduleWrite   *anime.ScheduleService
 	coverResolver              coverResolver
+	myanimelistClient          myanimelistClientPort
 	notifier                   notification.Notifier
 	notificationCenterStore    *center.Store
 	notificationCenterExecutor *center.Executor

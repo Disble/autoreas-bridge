@@ -1,5 +1,9 @@
 import { useCallback, useState } from 'react';
 import { bridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.helpers';
+import { metadataLookupSource } from '../../../../infrastructure/metadata-lookup-source/metadata-lookup-source.helpers';
+import { buildUndoPatch } from '../../../../shared/metadata-lookup/metadata-lookup.helpers';
+import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import { toCreateRowPatch } from './anime-create-metadata.helpers';
 import { ANIME_CREATE_MIN_ROWS } from './anime-create.constants';
 import { applyRowCover, applyRowFolder, applyRowPatch, createAnimeCreateRow, rowHasData } from './anime-create.helpers';
 import type { AnimeCreateRowDraft, AnimeCreateRowPatch } from './anime-create.types';
@@ -19,6 +23,8 @@ export function useAnimeCreateRows(downloadsRoot: string) {
   const [rows, setRows] = useState<readonly AnimeCreateRowDraft[]>(() => [createAnimeCreateRow(1)]);
   const [nextRowIndex, setNextRowIndex] = useState(2);
   const [pendingRemoveId, setPendingRemoveId] = useState<string>();
+  /** One row's pending Undo, keyed by draftId (design D9) -- absent once undone or never applied. */
+  const [appliedMetadataByRow, setAppliedMetadataByRow] = useState<Readonly<Record<string, AppliedMetadata<AnimeCreateRowPatch>>>>({});
 
   const canRemoveRow = rows.length > ANIME_CREATE_MIN_ROWS;
   const isRemoveConfirmOpen = pendingRemoveId !== undefined;
@@ -48,6 +54,39 @@ export function useAnimeCreateRows(downloadsRoot: string) {
   const onRowChange = useCallback((draftId: string, patch: AnimeCreateRowPatch) => {
     setRows((current) => applyRowPatch(current, draftId, patch, downloadsRoot));
   }, [downloadsRoot]);
+  /**
+   * Applies a confirmed MyAnimeList selection to one row (design D9). Maps
+   * the selection through {@link toCreateRowPatch} and applies it through
+   * the same `onRowChange` channel the user's own typing uses -- never a
+   * separate write path -- so a `name` patch re-derives `folder` exactly as
+   * hand-typing would (D10). Records the row's pre-image for `onMetadataUndo`.
+   */
+  const onMetadataApplied = useCallback((draftId: string, selection: AnimeMetadataSelection) => {
+    const row = rows.find((candidate) => candidate.draftId === draftId);
+    if (row === undefined) {
+      return;
+    }
+    const patch = toCreateRowPatch(selection);
+    const previous = buildUndoPatch(row, patch);
+    onRowChange(draftId, patch);
+    setAppliedMetadataByRow((current) => ({
+      ...current,
+      [draftId]: { patch, previous, appliedFields: Object.keys(patch) as (keyof AnimeCreateRowPatch)[], unfilled: selection.unfilled },
+    }));
+  }, [rows, onRowChange]);
+  /**
+   * Reverts one row's last applied metadata patch (design D9): replays the
+   * recorded pre-image through the same `onRowChange` channel, then clears
+   * the row's pending Undo. A no-op when the row has nothing applied.
+   */
+  const onMetadataUndo = useCallback((draftId: string) => {
+    const applied = appliedMetadataByRow[draftId];
+    if (applied === undefined) {
+      return;
+    }
+    onRowChange(draftId, applied.previous);
+    setAppliedMetadataByRow((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== draftId)));
+  }, [appliedMetadataByRow, onRowChange]);
   const onBrowseFolder = useCallback((draftId: string) => {
     void bridgeRuntimeSource.pickFolder?.('Select anime folder').then((folder) => {
       setRows((current) => applyRowFolder(current, draftId, folder));
@@ -67,11 +106,15 @@ export function useAnimeCreateRows(downloadsRoot: string) {
     rows,
     canRemoveRow,
     isRemoveConfirmOpen,
+    appliedMetadataByRow,
+    metadataLookupSource,
     onAddRow,
     onRemoveRow,
     onConfirmRemove,
     onCancelRemove,
     onRowChange,
+    onMetadataApplied,
+    onMetadataUndo,
     onBrowseFolder,
     onBrowseCover,
     resetRows,
