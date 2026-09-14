@@ -49,7 +49,7 @@ func flattenMergeGateJobs(jobs []mergeGateJob) []mergeGateJob {
 //
 // The two pre-commit jobs missing from this list are missing on purpose.
 // frontend-lint lints {staged_files} because JSDoc adoption is incremental, so
-// a whole-tree run would fail every merge; test:mutation:staged measures staged
+// a whole-tree run would fail every merge; frontend-mutation measures staged
 // lines, of which a merge has none.
 var mergeGateWholeTreeJobs = map[string]string{
 	"gofmt":                 "go run ./tools/checkgofmt",

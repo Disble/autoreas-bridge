@@ -47,7 +47,7 @@ export default [
       // Stryker's scratch tree. It contains generated copies of src/ and, left
       // unignored, it produced 6395 of the 6415 findings a bare `eslint .`
       // reported on 2026-08-11.
-      '.dlinter-mutation-tmp/**/*',
+      '.stryker-*/**/*',
       'dist/**/*',
     ],
   },

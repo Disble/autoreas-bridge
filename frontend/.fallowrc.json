@@ -14,7 +14,7 @@
     // importer of `generate-wails-bindings.mjs`, which is otherwise reached
     // solely through package.json's postinstall hook.
     "scripts/__tests__/generate-wails-bindings.test.mjs",
-    // Named as a string in `stryker.dlinter.json` -> `vitest.configFile`, the
+    // Named as a string in `stryker.config.json` -> `vitest.configFile`, the
     // same JSON-reference blind spot as the `ignoreDependencies` entries
     // below. It is a real entry point, not dead code: deleting it breaks the
     // staged mutation gate, so it is declared rather than ignored.
@@ -43,7 +43,7 @@
     // import graph cannot see it.
     "dharness-eslint-plugin",
     // `@stryker-mutator/vitest-runner` is named as a string in the `plugins`
-    // list of `stryker.dlinter.json` and loaded by Stryker at runtime. Same
+    // list of `stryker.config.json` and loaded by Stryker at runtime. Same
     // blind spot: a plugin referenced from JSON is invisible to the import
     // graph, and removing it would silently break the mutation gate.
     "@stryker-mutator/vitest-runner",

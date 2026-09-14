@@ -168,7 +168,13 @@ So a `.types.ts` written for hooks or components that do not exist yet needs its
 - [ ] The chord does not collide — `findDuplicateBindings` asserts this over the shipped array, so a collision is a red test.
 - [ ] Nothing new is exported without an importer in the same commit.
 - [ ] You ran `bun --cwd="frontend" run test -- keyboard`.
-- [ ] Mutation: `bun --cwd="frontend" run test:mutation:staged`, and isolate to your own files — the repo-blended score hides survivors behind an average. Note that `// Stryker disable next-line` does **not** reach a trailing call-expression argument such as a deps array; document an equivalent mutant in prose instead of writing a directive that does nothing.
+- [ ] Mutation: stage only your shortcut files and run `git commit` (the `frontend-mutation` job runs `dharness mutate --staged`). It is a zero-tolerance verdict, not a score — any survivor prints its own `file:line`, nothing to hide behind. `// Stryker disable next-line <mutator>: <reason>` does **not** reach a trailing call-expression argument such as a deps array; use the RANGE form instead, with its matching restore line:
+  ```ts
+  // Stryker disable ArrayDeclaration: <reason>
+  useEffect(() => { /* ... */ }, [dep1, dep2]);
+  // Stryker restore ArrayDeclaration
+  ```
+  Omitting the restore line disables the mutator for the rest of the file.
 
 ## Next step
 

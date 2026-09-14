@@ -64,7 +64,7 @@ never for style trivia.
 Green is not the end of the cycle. The repo runs RED → GREEN → **MUTATE** →
 REFACTOR: a test that still passes with its guard deleted proves nothing, and
 neither `go test` nor a coverage percentage will say so. Frontend mutation is
-automated through `lefthook.yml`'s `test:mutation:staged`; see
+automated through `lefthook.yml`'s `frontend-mutation` job; see
 `docs/mutation-testing.md`.
 
 ### 4. Enforcement is mechanical, not editorial

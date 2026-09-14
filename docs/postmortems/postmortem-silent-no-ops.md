@@ -200,3 +200,4 @@ was no.
 - [`docs/mutation-testing.md`](../mutation-testing.md) — how mutation testing is run here
 - [`docs/learning-log.md`](../learning-log.md) — running log of non-obvious calls
 - [`docs/postmortems/postmortem-fallow-barrel-false-positives.md`](postmortem-fallow-barrel-false-positives.md) — a linter's uniform findings were true, not noise
+- 2026-09-13 (SDD-71): `docs/mutation-testing.md`'s frontend section documents a related failure mode on the OTHER mutation guard — `frontend/scripts/dlinter-mutation-staged.mjs` silently exiting 0 in a linked worktree. That script is now retired outright; scoping moved upstream to `dharness mutate --staged`, so this defect class can no longer be reintroduced by a repo-owned script.
