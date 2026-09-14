@@ -1,10 +1,12 @@
-import { DateField, DateRangePicker, RangeCalendar, SearchField } from '@heroui/react';
+import { Button, DateField, DateRangePicker, Label, RangeCalendar, SearchField } from '@heroui/react';
 import type { DateValue, RangeValue } from '@heroui/react';
 import { parseDate } from '@internationalized/date';
 import { LabeledSelect } from '../../../../shared/ui/LabeledSelect';
 import {
   HISTORY_FILTER_BAR_ALL_VALUE,
   HISTORY_FILTER_BAR_RANGE_ARIA_LABEL,
+  HISTORY_FILTER_BAR_RANGE_CLEAR_LABEL,
+  HISTORY_FILTER_BAR_RANGE_PLACEHOLDER,
   HISTORY_FILTER_BAR_SEARCH_ARIA_LABEL,
   HISTORY_FILTER_BAR_SEARCH_PLACEHOLDER,
   HISTORY_FILTER_BAR_SORT_ARIA_LABEL,
@@ -15,39 +17,20 @@ import {
   HISTORY_FILTER_BAR_TYPE_ARIA_LABEL,
   HISTORY_FILTER_BAR_TYPE_OPTIONS,
 } from './history-filter-bar.constants';
-import type { HistoryDateRange, HistoryFilterBarProps } from './history-filter-bar.types';
-
-/**
- * Reports a `DateRangePicker` value change as one `onRangeChange` write
- * (design D5): `null` (cleared) reports `undefined`. An edit can leave the
- * two `DateField`s independently set to an inverted range (`from > to`) --
- * editing one bound never re-orders the other (design D4) -- so that case is
- * ignored entirely: neither reported nor treated as a clear, leaving the
- * previously committed range untouched.
- * @param value The picker's new value, or `null` when cleared.
- * @param onRangeChange The bar's `onRangeChange` prop to report through.
- */
-function reportRangeChange(
-  value: RangeValue<DateValue> | null,
-  onRangeChange: (range: HistoryDateRange | undefined) => void,
-): void {
-  if (value === null) {
-    onRangeChange(undefined);
-    return;
-  }
-  if (value.start.compare(value.end) > 0) {
-    return;
-  }
-
-  onRangeChange({ from: value.start.toString(), to: value.end.toString() });
-}
+import { formatHistoryRangeLabel } from './history-params.helpers';
+import type { HistoryFilterBarProps } from './history-filter-bar.types';
 
 /**
  * Dumb filter bar for the History surface (design D5, D6): Search, Status,
- * Type, Sort, and the watched-date range. No Wails calls, no `useEffect`;
- * every control is driven entirely by props -- the caller (a colocated hook)
- * owns the Search draft's debounce and every write to the URL (CLAUDE.md FE
- * #1).
+ * Type, the watched-date range, and Sort, each labelled above its control in
+ * one row. No Wails calls, no `useEffect`; every control is driven entirely
+ * by props -- the caller (a colocated hook) owns the Search draft's debounce
+ * and every write to the URL (CLAUDE.md FE #1).
+ *
+ * The watched range reads as a compact label ("Sep 1 – Sep 13, 2026") on a
+ * trigger that opens the range calendar. A calendar pick is always ordered,
+ * so it reports as one complete `{from, to}` write; the popover's Clear
+ * action reports `undefined`.
  */
 export function HistoryFilterBar({
   onRangeChange,
@@ -61,24 +44,26 @@ export function HistoryFilterBar({
   status,
   type,
 }: Readonly<HistoryFilterBarProps>) {
+  const rangeLabel = range === undefined ? HISTORY_FILTER_BAR_RANGE_PLACEHOLDER : formatHistoryRangeLabel(range);
+
   return (
-    <section aria-label="History filters" className="flex flex-row flex-wrap items-center gap-3">
+    <section aria-label="History filters" className="flex flex-row flex-wrap items-end gap-3">
       <SearchField.Root
         aria-label={HISTORY_FILTER_BAR_SEARCH_ARIA_LABEL}
-        className="min-w-60 flex-1"
+        className="w-45"
         onChange={onSearchChange}
         value={search}
         variant="secondary"
       >
+        <Label>Search</Label>
         <SearchField.Group>
-          <SearchField.SearchIcon />
-          <SearchField.Input placeholder={HISTORY_FILTER_BAR_SEARCH_PLACEHOLDER} />
+          <SearchField.Input className="ps-3" placeholder={HISTORY_FILTER_BAR_SEARCH_PLACEHOLDER} />
           <SearchField.ClearButton />
         </SearchField.Group>
       </SearchField.Root>
       <LabeledSelect
         ariaLabel={HISTORY_FILTER_BAR_STATUS_ARIA_LABEL}
-        className="w-40"
+        className="w-32"
         fallbackValue={HISTORY_FILTER_BAR_ALL_VALUE}
         label="Status"
         options={HISTORY_FILTER_BAR_STATUS_OPTIONS}
@@ -89,7 +74,7 @@ export function HistoryFilterBar({
       />
       <LabeledSelect
         ariaLabel={HISTORY_FILTER_BAR_TYPE_ARIA_LABEL}
-        className="w-40"
+        className="w-32"
         fallbackValue={HISTORY_FILTER_BAR_ALL_VALUE}
         label="Type"
         options={HISTORY_FILTER_BAR_TYPE_OPTIONS}
@@ -100,19 +85,23 @@ export function HistoryFilterBar({
       />
       <DateRangePicker
         aria-label={HISTORY_FILTER_BAR_RANGE_ARIA_LABEL}
-        className="w-64"
+        className="w-48"
         value={range === undefined ? null : { start: parseDate(range.from), end: parseDate(range.to) }}
-        onChange={(value) => reportRangeChange(value, onRangeChange)}
+        onChange={(value: RangeValue<DateValue> | null) => {
+          if (value !== null) {
+            onRangeChange({ from: value.start.toString(), to: value.end.toString() });
+          }
+        }}
       >
+        <Label>Watched</Label>
         <DateField.Group fullWidth variant="secondary">
-          <DateField.Input slot="start">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
-          <DateRangePicker.RangeSeparator />
-          <DateField.Input slot="end">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
-          <DateField.Suffix>
-            <DateRangePicker.Trigger>
-              <DateRangePicker.TriggerIndicator />
-            </DateRangePicker.Trigger>
-          </DateField.Suffix>
+          <DateRangePicker.Trigger
+            aria-label={`${HISTORY_FILTER_BAR_RANGE_ARIA_LABEL}, ${rangeLabel}`}
+            className="h-full justify-between gap-2 px-3"
+          >
+            <span className={range === undefined ? 'truncate text-field-placeholder' : 'truncate text-field-foreground'}>{rangeLabel}</span>
+            <DateRangePicker.TriggerIndicator />
+          </DateRangePicker.Trigger>
         </DateField.Group>
         <DateRangePicker.Popover>
           <RangeCalendar aria-label={HISTORY_FILTER_BAR_RANGE_ARIA_LABEL}>
@@ -134,11 +123,16 @@ export function HistoryFilterBar({
               </RangeCalendar.YearPickerGridBody>
             </RangeCalendar.YearPickerGrid>
           </RangeCalendar>
+          {range === undefined ? null : (
+            <Button className="mt-2 w-full" size="sm" variant="tertiary" onPress={() => onRangeChange(undefined)}>
+              {HISTORY_FILTER_BAR_RANGE_CLEAR_LABEL}
+            </Button>
+          )}
         </DateRangePicker.Popover>
       </DateRangePicker>
       <LabeledSelect
         ariaLabel={HISTORY_FILTER_BAR_SORT_ARIA_LABEL}
-        className="w-40"
+        className="w-38"
         fallbackValue={HISTORY_FILTER_BAR_SORT_FALLBACK_VALUE}
         label="Sort"
         options={HISTORY_FILTER_BAR_SORT_OPTIONS}

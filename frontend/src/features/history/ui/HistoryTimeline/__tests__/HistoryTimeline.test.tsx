@@ -23,7 +23,7 @@ function entry(overrides: Partial<HistoryTimelineEntry>): HistoryTimelineEntry {
 function group(overrides: Partial<HistoryTimelineGroup>): HistoryTimelineGroup {
   return {
     dayKey: '2026-09-12',
-    heading: 'September 12, 2026',
+    heading: 'Saturday, September 12',
     count: 1,
     partial: false,
     entries: [],
@@ -91,15 +91,17 @@ describe('HistoryTimeline', () => {
         }),
         group({
           dayKey: '2026-09-11',
-          heading: 'September 11, 2026',
+          heading: 'Friday, September 11',
           partial: true,
           entries: [entry({ id: 3, animeId: 'anime-2', animeName: 'Bocchi the Rock', episode: 5, watchedAtMs: Date.UTC(2026, 8, 11, 12, 0) })],
         }),
       ],
     });
 
-    expect(screen.getByText('September 12, 2026 (2)')).toBeInTheDocument();
-    expect(screen.getByText('September 11, 2026 (1)')).toBeInTheDocument();
+    expect(screen.getByText('Saturday, September 12')).toBeInTheDocument();
+    expect(screen.getByText('2 episodes')).toBeInTheDocument();
+    expect(screen.getByText('Friday, September 11')).toBeInTheDocument();
+    expect(screen.getByText('1 episode')).toBeInTheDocument();
   });
 
   it('renders one ListBox option per episode, newest first within the day', () => {

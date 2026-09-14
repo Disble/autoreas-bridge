@@ -35,6 +35,7 @@ called out explicitly under its release.
 ### Changed
 
 - The History screen loads as you scroll instead of all at once, and shows a loading placeholder, an empty state or an error message rather than a blank table.
+- History follows its new layout: the filters sit in one labelled row, the Watched filter shows its range as dates ("Sep 1 – Sep 13, 2026") and clears from its calendar, each day reads like "SATURDAY, SEPTEMBER 12" with its episode count, and the side panel says when you last watched ("Yesterday, 17:16") and shows an illustration while no episode is selected.
 - Opening or copying an anime's page or folder is no longer written to the activity log. It goes to the diagnostic event log, which rotates on its own.
 - The activity log keeps its most recent 5,000 entries — about two and a half years at the current rate — instead of growing forever.
 - El historial de Anime Detail es ahora una única sección Watch history con pestañas Por visualización (un acordeón por cada vez que se vio, con resumen de fechas para las anteriores al registro) y Todos los episodios; la antigua línea de tiempo de repeticiones desaparece.

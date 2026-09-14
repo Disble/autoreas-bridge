@@ -60,6 +60,14 @@ describe("deriveHistoryInspectorAddedMs", () => {
       detail({ createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime() }),
       new Date(2026, 6, 31, 12, 0, 0).getTime(),
     ],
+    [
+      "falls back to the detail creation with an empty repetitions list",
+      detail({
+        createdAt: new Date(2026, 6, 31, 12, 0, 0).getTime(),
+        repetitions: [],
+      }),
+      new Date(2026, 6, 31, 12, 0, 0).getTime(),
+    ],
     ["returns undefined when neither source carries a date", detail(), undefined],
   ])("%s", (_label, input, expected) => {
     expect(deriveHistoryInspectorAddedMs(input)).toBe(expected);
@@ -78,6 +86,15 @@ describe("deriveHistoryInspectorLastWatchedMs", () => {
       new Date(2026, 8, 12, 17, 16, 0).getTime(),
     ],
     [
+      "prefers the newest row even when rows arrive newest-first",
+      detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
+      [
+        row(new Date(2026, 8, 12, 17, 16, 0).getTime()),
+        row(new Date(2026, 8, 11, 20, 3, 0).getTime()),
+      ],
+      new Date(2026, 8, 12, 17, 16, 0).getTime(),
+    ],
+    [
       "falls back to the stored last-watched stamp without recent rows",
       detail({ lastWatchedAt: new Date(2026, 8, 10, 10, 0, 0).getTime() }),
       [],
@@ -90,10 +107,14 @@ describe("deriveHistoryInspectorLastWatchedMs", () => {
 });
 
 describe("formatHistoryInspectorLastWatched", () => {
-  it("reads day and time together", () => {
-    expect(
-      formatHistoryInspectorLastWatched(new Date(2026, 8, 12, 17, 16, 0).getTime()),
-    ).toBe("September 12, 2026, 17:16");
+  const now = new Date(2026, 8, 13, 12, 0, 0).getTime();
+
+  it.each([
+    ["names today", new Date(2026, 8, 13, 9, 5, 0).getTime(), "Today, 09:05"],
+    ["names yesterday", new Date(2026, 8, 12, 17, 16, 0).getTime(), "Yesterday, 17:16"],
+    ["reads an older day in full", new Date(2026, 8, 11, 20, 3, 0).getTime(), "September 11, 2026, 20:03"],
+  ])("%s", (_case, millis, expected) => {
+    expect(formatHistoryInspectorLastWatched(millis, now)).toBe(expected);
   });
 });
 
@@ -113,6 +134,12 @@ describe("deriveHistoryInspectorProgressRatio", () => {
   it("returns undefined without a total", () => {
     expect(
       deriveHistoryInspectorProgressRatio(detail({ totalEpisodes: undefined })),
+    ).toBeUndefined();
+  });
+
+  it("returns undefined with a zero total", () => {
+    expect(
+      deriveHistoryInspectorProgressRatio(detail({ totalEpisodes: 0 })),
     ).toBeUndefined();
   });
 });

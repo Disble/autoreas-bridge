@@ -31,7 +31,12 @@ export const HISTORY_TIMELINE_FILTERED_EMPTY_DESCRIPTION = 'Clear or change a fi
  * Shape shared by the real row `Button` and its loading-skeleton placeholder,
  * so the two cannot drift apart silently (CLAUDE.md FE #14).
  */
-export const HISTORY_TIMELINE_ROW_CLASS = 'flex w-full items-center justify-between gap-3 rounded-lg border border-divider/60 bg-content1/60 px-3 py-2 text-left text-sm';
+export const HISTORY_TIMELINE_ROW_CLASS =
+  'grid min-h-9 w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-[10px] px-2.5 py-2 text-left text-[13px] data-[selected=true]:bg-default data-[selected=true]:ring-1 data-[selected=true]:ring-accent/55 data-[selected=true]:ring-inset';
+
+/** Day section heading: the uppercase weekday and date on the left, the day's episode count on the right. */
+export const HISTORY_TIMELINE_DAY_HEADER_CLASS =
+  'flex items-center justify-between gap-3 px-2.5 pt-2 pb-1 text-[11.5px] font-semibold tracking-wide text-muted uppercase';
 
 /** How many placeholder rows the timeline draws while its first page is unresolved. */
 export const HISTORY_TIMELINE_SKELETON_ROW_COUNT = 6;

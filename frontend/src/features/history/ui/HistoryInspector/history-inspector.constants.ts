@@ -1,5 +1,8 @@
-/** Compact prompt shown when no history row is selected (design D8: nothing was requested). */
-export const HISTORY_INSPECTOR_PROMPT_TITLE = "Select an episode to see its anime";
+/** Title of the inspector's empty state while no history row is selected. */
+export const HISTORY_INSPECTOR_PROMPT_TITLE = "No episode selected";
+
+/** Description of the inspector's empty state, naming the gesture that fills it. */
+export const HISTORY_INSPECTOR_PROMPT_DESCRIPTION = "Select an episode to see its anime.";
 
 /** Accessible label for the inspector loading region. */
 export const HISTORY_INSPECTOR_LOADING_LABEL = "Loading anime detail";
@@ -24,3 +27,6 @@ export const HISTORY_INSPECTOR_COVER_ALT = "Anime cover";
 
 /** Heading of the 3 most recent episodes list (design D8). */
 export const HISTORY_INSPECTOR_RECENT_TITLE = "Recent episodes";
+
+/** Label heading the watched-episodes count above the progress bar. */
+export const HISTORY_INSPECTOR_WATCHED_LABEL = "Watched";

@@ -1,5 +1,5 @@
 import type { AnimeDetail, WatchHistoryEntry } from "../../../../shared/contracts/anime.types";
-import { formatDayHeading, formatRowTime } from "../../../../shared/watch-history/watch-history.helpers";
+import { formatDayHeading, formatRowTime, toLocalDayKey } from "../../../../shared/watch-history/watch-history.helpers";
 
 /**
  * Derives the inspector "Added" date (design D8): the first repetition's
@@ -30,9 +30,23 @@ export function deriveHistoryInspectorLastWatchedMs(
   return newest ?? detail.lastWatchedAt;
 }
 
-/** Formats "Last watched" as day and time together (e.g. "September 12, 2026, 17:16"). */
-export function formatHistoryInspectorLastWatched(epochMs: number): string {
-  return `${formatDayHeading(epochMs)}, ${formatRowTime(epochMs)}`;
+/**
+ * Formats "Last watched" as day and time together, naming the day relative
+ * to `nowMs` when it is today or yesterday (e.g. "Yesterday, 17:16") and in
+ * full otherwise (e.g. "September 11, 2026, 20:03").
+ */
+export function formatHistoryInspectorLastWatched(epochMs: number, nowMs: number = Date.now()): string {
+  const dayKey = toLocalDayKey(epochMs);
+  const now = new Date(nowMs);
+  let day = formatDayHeading(epochMs);
+
+  if (dayKey === toLocalDayKey(nowMs)) {
+    day = "Today";
+  } else if (dayKey === toLocalDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime())) {
+    day = "Yesterday";
+  }
+
+  return `${day}, ${formatRowTime(epochMs)}`;
 }
 
 /** Formats "Added" as the long-form local day (e.g. "July 31, 2026"). */

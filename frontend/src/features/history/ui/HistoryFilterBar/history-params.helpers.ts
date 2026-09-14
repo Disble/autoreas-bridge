@@ -1,4 +1,5 @@
 import { ANIME_ESTADO_VALID_VALUES } from '../../../../shared/constants/anime-estado.constants';
+import { formatCompactDateRange } from '../../../../shared/watch-history/watch-history.helpers';
 import { HISTORY_PARAMS_ISO_LOCAL_DATE_PATTERN, HISTORY_PARAMS_TYPE_VALID_VALUES } from './history-filter-bar.constants';
 import type { HistoryDateRange, HistoryParams } from './history-filter-bar.types';
 
@@ -83,6 +84,19 @@ export function toLocalDayRangeMs(from: string, to: string): readonly [number, n
   const toMs = new Date(toYear, toMonth - 1, toDay + 1).getTime();
 
   return [fromMs, toMs];
+}
+
+/**
+ * Formats a watched range for the filter bar's trigger (e.g. "Sep 1 – Sep 13,
+ * 2026"). The exclusive end from `toLocalDayRangeMs` steps back one
+ * millisecond so the label names the last inclusive day.
+ * @param range The inclusive local-day range to label.
+ * @returns The compact range label.
+ */
+export function formatHistoryRangeLabel(range: Readonly<HistoryDateRange>): string {
+  const [fromMs, toMs] = toLocalDayRangeMs(range.from, range.to);
+
+  return formatCompactDateRange(fromMs, toMs - 1);
 }
 
 /**

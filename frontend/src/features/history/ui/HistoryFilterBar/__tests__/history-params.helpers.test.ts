@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasActiveHistoryFilters, parseHistoryParams, serializeHistoryParams, toLocalDayRangeMs } from '../history-params.helpers';
+import { formatHistoryRangeLabel, hasActiveHistoryFilters, parseHistoryParams, serializeHistoryParams, toLocalDayRangeMs } from '../history-params.helpers';
 import type { HistoryParams } from '../history-filter-bar.types';
 
 describe('parseHistoryParams', () => {
@@ -15,6 +15,8 @@ describe('parseHistoryParams', () => {
     ['a valid watched range', 'from=2026-09-01&to=2026-09-13', { range: { from: '2026-09-01', to: '2026-09-13' } }],
     ['from after to is absent, not an error', 'from=2026-09-13&to=2026-09-01', {}],
     ['a malformed date is absent, not an error', 'from=not-a-date&to=2026-09-13', {}],
+    ['a malformed to bound is absent, not an error', 'from=2026-09-01&to=not-a-date', {}],
+    ['a single-day range is a real range', 'from=2026-09-13&to=2026-09-13', { range: { from: '2026-09-13', to: '2026-09-13' } }],
     ['only one bound present is absent', 'from=2026-09-01', {}],
     ['an anime id and its row id', 'anime=anime-1&row=42', { animeId: 'anime-1', rowId: 42 }],
     ['a non-integer row id is absent, not an error', 'anime=anime-1&row=abc', { animeId: 'anime-1' }],
@@ -86,5 +88,15 @@ describe('toLocalDayRangeMs', () => {
       new Date(2026, 8, 28).getTime(),
       new Date(2026, 9, 1).getTime(),
     ]);
+  });
+});
+
+describe('formatHistoryRangeLabel', () => {
+  it.each([
+    ['names a shared year once', { from: '2026-09-01', to: '2026-09-13' }, 'Sep 1 – Sep 13, 2026'],
+    ['names both years across a year boundary', { from: '2025-12-30', to: '2026-01-02' }, 'Dec 30, 2025 – Jan 2, 2026'],
+    ['keeps a single-day range on its own day', { from: '2026-09-13', to: '2026-09-13' }, 'Sep 13 – Sep 13, 2026'],
+  ])('%s', (_case, range, expected) => {
+    expect(formatHistoryRangeLabel(range)).toBe(expected);
   });
 });

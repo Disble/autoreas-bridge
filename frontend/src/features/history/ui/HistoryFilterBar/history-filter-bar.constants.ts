@@ -6,7 +6,7 @@ import type { LabeledSelectOption } from '../../../../shared/ui/LabeledSelect.ty
 export const HISTORY_FILTER_BAR_SEARCH_ARIA_LABEL = 'Search watch history';
 
 /** Placeholder shown inside the Search control's input. */
-export const HISTORY_FILTER_BAR_SEARCH_PLACEHOLDER = 'Search by anime name...';
+export const HISTORY_FILTER_BAR_SEARCH_PLACEHOLDER = 'Search by name...';
 
 /** Accessible name of the Status control's trigger. */
 export const HISTORY_FILTER_BAR_STATUS_ARIA_LABEL = 'Filter by status';
@@ -19,6 +19,12 @@ export const HISTORY_FILTER_BAR_SORT_ARIA_LABEL = 'Sort watch history';
 
 /** Accessible name of the watched-range `DateRangePicker`. */
 export const HISTORY_FILTER_BAR_RANGE_ARIA_LABEL = 'Filter by watched date range';
+
+/** Placeholder the watched-range trigger shows while no range is set. */
+export const HISTORY_FILTER_BAR_RANGE_PLACEHOLDER = 'Any date';
+
+/** Label of the calendar action that clears a committed watched range. */
+export const HISTORY_FILTER_BAR_RANGE_CLEAR_LABEL = 'Clear dates';
 
 /** Sentinel `LabeledSelect` value meaning "no Status/Type filter applied". */
 export const HISTORY_FILTER_BAR_ALL_VALUE = 'all';
