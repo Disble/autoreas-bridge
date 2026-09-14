@@ -21,7 +21,15 @@ export const ANIME_WATCH_HISTORY_EMPTY_DESCRIPTION = 'Watch history starts 2026-
  * Shape shared by the real row and its loading-skeleton placeholder, so the
  * two cannot drift apart silently (CLAUDE.md FE #14).
  */
-export const ANIME_WATCH_HISTORY_ROW_CLASS = 'flex w-full items-center justify-between gap-3 rounded-lg border border-divider/60 bg-content1/60 px-3 py-2 text-sm';
+export const ANIME_WATCH_HISTORY_ROW_CLASS =
+  'grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[10px] bg-white/[0.03] px-3 py-1.5 text-[13px]';
+
+/** Row shape of the All-episodes list, which adds a "Watch K" chip column before the date. */
+export const ANIME_WATCH_HISTORY_TAGGED_ROW_CLASS =
+  'grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto_8.75rem] items-center gap-3 rounded-[10px] bg-white/[0.03] px-3 py-1.5 text-[13px]';
+
+/** Hint under a progressively paged list while older pages remain to load. */
+export const ANIME_WATCH_HISTORY_SCROLL_HINT = 'More episodes load as you scroll';
 
 /** How many placeholder rows the section draws while its page is unresolved. */
 export const ANIME_WATCH_HISTORY_SKELETON_ROW_COUNT = 3;
@@ -58,6 +66,10 @@ export const ANIME_WATCH_SUMMARY_LAST_WATCHED_LABEL = 'Last watched';
 
 /** Label of the Ended row in a pre-log watch summary. */
 export const ANIME_WATCH_SUMMARY_ENDED_LABEL = 'Ended';
+
+/** Sentence explaining why a pre-log watch lists record dates instead of episodes. */
+export const ANIME_WATCH_SUMMARY_EXPLANATION =
+  'This watch ended before watch history existed, so there are no episodes to list. Its rewatch record kept these dates.';
 
 /** Test-id stem of a pre-log watch summary; the watch number suffix scopes it per item. */
 export const ANIME_WATCH_SUMMARY_TESTID = 'watch-summary';

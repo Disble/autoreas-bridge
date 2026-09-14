@@ -164,6 +164,15 @@ describe('hasPreviousHistoryEntry', () => {
   it('returns true when idx is greater than 0', () => {
     expect(hasPreviousHistoryEntry({ idx: 2 })).toBe(true);
   });
+
+  it('returns false for a non-object history state even with a positive idx', () => {
+    const state = Object.assign(() => undefined, { idx: 2 });
+    expect(hasPreviousHistoryEntry(state as never)).toBe(false);
+  });
+
+  it('returns false for a non-numeric idx', () => {
+    expect(hasPreviousHistoryEntry({ idx: '2' } as never)).toBe(false);
+  });
 });
 
 describe('toAnimeDetailViewModel', () => {
@@ -187,7 +196,6 @@ describe('toAnimeDetailViewModel', () => {
         { label: 'Total episodes', value: '28' },
         { label: 'Duration', value: 'No episode duration data' },
       ],
-      progressRatio: Math.round((12 / 28) * 100),
       paginaUrl: undefined,
       carpetaLabel: 'Unknown',
       estrenoLabel: 'Unknown',
@@ -238,7 +246,6 @@ describe('toAnimeDetailViewModel', () => {
       { label: 'Total episodes', value: 'No total episodes data' },
       { label: 'Duration', value: '24 min' },
     ]);
-    expect(viewModel.progressRatio).toBeUndefined();
     expect(viewModel.paginaUrl).toBe('https://example.com/frieren');
     expect(viewModel.carpetaLabel).toBe('D:/anime/Frieren');
     expect(viewModel.estrenoLabel).toBe('September 29, 2023');

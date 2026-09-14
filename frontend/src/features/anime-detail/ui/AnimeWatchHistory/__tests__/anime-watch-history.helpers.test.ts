@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AnimeDetail, AnimeRepeticion } from '../../../../../shared/contracts/anime.types';
-import { formatAnimeWatchSummaryDate, toAnimeWatchViewModels } from '../anime-watch-history.helpers';
+import { formatAnimeWatchHistorySubtitle, formatAnimeWatchSummaryDate, toAnimeWatchViewModels } from '../anime-watch-history.helpers';
 
 /** Local-midnight start of the watch-history log; written out so the suite never pins the production constant itself. */
 const LOG_START_MS = new Date(2026, 6, 5).getTime();
@@ -39,13 +39,37 @@ function detail(overrides: Partial<AnimeDetail> = {}): AnimeDetail {
 describe('toAnimeWatchViewModels', () => {
   it('sorts a shuffled wire order by numRepetitions and numbers the current watch R + 1', () => {
     const watches = toAnimeWatchViewModels(
-      detail({ repetitions: [repetition({ numRepetitions: 1 }), repetition({ numRepetitions: 0 })] }),
+      detail({
+        episodesWatched: 11,
+        repetitions: [
+          repetition({ numRepetitions: 2, episodesWatched: 9 }),
+          repetition({ numRepetitions: 0, episodesWatched: 5 }),
+          repetition({ numRepetitions: 1, episodesWatched: 7 }),
+        ],
+      }),
       LOG_START_MS,
     );
 
-    expect(watches.map((watch) => watch.number)).toEqual([1, 2, 3]);
-    expect(watches.map((watch) => watch.isCurrent)).toEqual([false, false, true]);
-    expect(watches.map((watch) => watch.key)).toEqual(['watch-1', 'watch-2', 'watch-3']);
+    expect(watches.map((watch) => watch.number)).toEqual([1, 2, 3, 4]);
+    expect(watches.map((watch) => watch.isCurrent)).toEqual([false, false, false, true]);
+    expect(watches.map((watch) => watch.key)).toEqual(['watch-1', 'watch-2', 'watch-3', 'watch-4']);
+    // Identity per position: each past watch keeps its own stored episode
+    // count, so a wrong order (or no order at all) cannot hide behind the
+    // positional numbers above.
+    expect(watches.map((watch) => watch.episodesLabel)).toEqual([
+      '5 episodes',
+      '7 episodes',
+      '9 episodes',
+      '11 of 12 episodes',
+    ]);
+  });
+
+  it('renders a single live watch when the wire omits the repetitions field', () => {
+    const watches = toAnimeWatchViewModels(detail({ repetitions: undefined }), LOG_START_MS);
+
+    expect(watches).toHaveLength(1);
+    expect(watches[0].isCurrent).toBe(true);
+    expect(watches[0].number).toBe(1);
   });
 
   it.each([
@@ -56,7 +80,7 @@ describe('toAnimeWatchViewModels', () => {
         lastWatchedAt: new Date(2021, 8, 1).getTime(),
         repeatedAt: new Date(2026, 7, 29).getTime(),
       },
-      wantEnd: 'September 8, 2021',
+      wantSpan: 'Aug 16 – Sep 8, 2021',
     },
     {
       name: 'falls back to lastWatchedAt',
@@ -64,20 +88,20 @@ describe('toAnimeWatchViewModels', () => {
         lastWatchedAt: new Date(2021, 8, 1).getTime(),
         repeatedAt: new Date(2026, 7, 29).getTime(),
       },
-      wantEnd: 'September 1, 2021',
+      wantSpan: 'Aug 16 – Sep 1, 2021',
     },
     {
       name: 'falls back to repeatedAt',
       end: { repeatedAt: new Date(2026, 7, 29).getTime() },
-      wantEnd: 'August 29, 2026',
+      wantSpan: 'Aug 16, 2021 – Aug 29, 2026',
     },
-  ])('ends a past watch span at the $name date ($wantEnd)', ({ end, wantEnd }) => {
+  ])('ends a past watch span at the $name date ($wantSpan)', ({ end, wantSpan }) => {
     const watches = toAnimeWatchViewModels(
       detail({ repetitions: [repetition({ ...end })] }),
       LOG_START_MS,
     );
 
-    expect(watches[0].spanLabel).toBe(`August 16, 2021 – ${wantEnd}`);
+    expect(watches[0].spanLabel).toBe(wantSpan);
   });
 
   it('starts the current watch at the last repeat and ends it at lastWatchedAt', () => {
@@ -89,7 +113,7 @@ describe('toAnimeWatchViewModels', () => {
       LOG_START_MS,
     );
 
-    expect(watches[1].spanLabel).toBe('August 29, 2026 – August 15, 2026');
+    expect(watches[1].spanLabel).toBe('Aug 29 – Aug 15, 2026');
   });
 
   it('starts the current watch at createdAt when nothing was ever repeated', () => {
@@ -99,7 +123,16 @@ describe('toAnimeWatchViewModels', () => {
     );
 
     expect(watches).toHaveLength(1);
-    expect(watches[0].spanLabel).toBe('August 1, 2026 – August 15, 2026');
+    expect(watches[0].spanLabel).toBe('Aug 1 – Aug 15, 2026');
+  });
+
+  it.each([
+    { name: 'end', dates: { createdAt: new Date(2026, 7, 1).getTime() }, want: 'Aug 1, 2026 – Unknown' },
+    { name: 'start', dates: { lastWatchedAt: new Date(2026, 7, 15).getTime() }, want: 'Unknown – Aug 15, 2026' },
+  ])('names an undated span $name Unknown beside the dated half', ({ dates, want }) => {
+    const watches = toAnimeWatchViewModels(detail(dates), LOG_START_MS);
+
+    expect(watches[0].spanLabel).toBe(want);
   });
 
   it.each([
@@ -107,17 +140,27 @@ describe('toAnimeWatchViewModels', () => {
       name: 'counts against the total when known',
       watched: 5,
       total: 12 as number | undefined,
-      wantLabel: '5 of 12 episodes',
+      wantPastLabel: '5 episodes',
+      wantCurrentLabel: '5 of 12 episodes',
       wantRatio: 42 as number | undefined,
     },
     {
       name: 'counts standalone without a total',
       watched: 5,
       total: undefined,
-      wantLabel: '5 episodes',
+      wantPastLabel: '5 episodes',
+      wantCurrentLabel: '5 episodes',
       wantRatio: undefined,
     },
-  ])('$name', ({ watched, total, wantLabel, wantRatio }) => {
+    {
+      name: 'reads a single episode in the singular',
+      watched: 1,
+      total: undefined,
+      wantPastLabel: '1 episode',
+      wantCurrentLabel: '1 episode',
+      wantRatio: undefined,
+    },
+  ])('$name', ({ watched, total, wantPastLabel, wantCurrentLabel, wantRatio }) => {
     const watches = toAnimeWatchViewModels(
       detail({
         episodesWatched: watched,
@@ -127,9 +170,9 @@ describe('toAnimeWatchViewModels', () => {
       LOG_START_MS,
     );
 
-    expect(watches[0].episodesLabel).toBe(wantLabel);
+    expect(watches[0].episodesLabel).toBe(wantPastLabel);
     expect(watches[0].progressRatio).toBe(wantRatio);
-    expect(watches[1].episodesLabel).toBe(wantLabel);
+    expect(watches[1].episodesLabel).toBe(wantCurrentLabel);
     expect(watches[1].progressRatio).toBe(wantRatio);
   });
 
@@ -181,10 +224,10 @@ describe('toAnimeWatchViewModels', () => {
     );
 
     expect(watches[0].summary).toEqual({
-      started: 'August 16, 2021',
-      premiere: 'July 3, 2021',
-      lastWatched: 'September 1, 2021',
-      ended: 'September 8, 2021',
+      started: 'Aug 16, 2021',
+      premiere: 'Jul 3, 2021',
+      lastWatched: 'Sep 1, 2021',
+      ended: 'Sep 8, 2021',
     });
   });
 
@@ -203,9 +246,18 @@ describe('toAnimeWatchViewModels', () => {
 
 describe('formatAnimeWatchSummaryDate', () => {
   it.each([
-    { name: 'formats a stored timestamp as a long date', value: new Date(2021, 7, 16).getTime(), want: 'August 16, 2021' },
+    { name: 'formats a stored timestamp as a short date', value: new Date(2021, 7, 16).getTime(), want: 'Aug 16, 2021' },
     { name: 'falls back to the no-data label when the record holds nothing', value: undefined, want: 'No data' },
   ])('$name', ({ value, want }) => {
     expect(formatAnimeWatchSummaryDate(value)).toBe(want);
+  });
+});
+
+describe('formatAnimeWatchHistorySubtitle', () => {
+  it.each([
+    { count: 1, want: '1 watch · episodes recorded since July 5, 2026' },
+    { count: 2, want: '2 watches · episodes recorded since July 5, 2026' },
+  ])('reads $count as "$want"', ({ count, want }) => {
+    expect(formatAnimeWatchHistorySubtitle(count, LOG_START_MS)).toBe(want);
   });
 });

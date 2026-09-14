@@ -346,7 +346,6 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     statusLabel: getAnimeDetailStatusLabel(detail.active),
     statusColor: getAnimeDetailStatusColor(detail.active),
     statTiles: buildAnimeDetailStatTiles(detail.episodesWatched, totalLabel, durationLabel),
-    progressRatio: formatAnimeDetailProgressRatio(detail.episodesWatched, detail.totalEpisodes),
     paginaUrl: detail.sourceUrl,
     carpetaLabel: detail.folder ?? ANIME_DETAIL_UNKNOWN_LABEL,
     estrenoLabel: formatAnimeDetailLongDate(detail.premieredAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,

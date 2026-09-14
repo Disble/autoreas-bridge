@@ -43,7 +43,6 @@ export interface AnimeDetailViewModel {
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
   readonly statTiles: readonly AnimeDetailStatTile[];
-  readonly progressRatio?: number;
   readonly paginaUrl?: string;
   readonly carpetaLabel: string;
   readonly estrenoLabel: string;
@@ -127,9 +126,18 @@ export interface AnimeDetailMutationController {
   readonly onConfirmAction: () => Promise<void>;
 }
 
-/** Props for the dumb action buttons, feedback alert, and confirmation modal. */
+/** Props for the dumb feedback alert and confirmation modal of the Repeat/Restore mutations. */
 export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationController {
   readonly detail: AnimeDetailViewModel;
+}
+
+/** Props for the dumb Repeat/Restore buttons the hero header renders beside the status chip. */
+export interface AnimeDetailMutationActionsProps {
+  readonly canRepeat: boolean;
+  readonly canRestore: boolean;
+  readonly isMutating: boolean;
+  readonly onRequestRepeat: () => void;
+  readonly onRequestRestore: () => void;
 }
 
 /** State returned by the `useAnimeDetail` hook. */

@@ -27,6 +27,7 @@ describe('AnimeWatchSummary', () => {
     expect(screen.getByText('September 1, 2021')).toBeInTheDocument();
     expect(screen.getByText('Ended')).toBeInTheDocument();
     expect(screen.getByText('September 8, 2021')).toBeInTheDocument();
+    expect(screen.getByText(/This watch ended before watch history existed/)).toBeInTheDocument();
   });
 
   it('renders no episode rows, since a pre-log watch owns no logged episodes', () => {

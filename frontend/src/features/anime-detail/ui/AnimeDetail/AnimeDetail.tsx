@@ -1,6 +1,7 @@
-import { Button, Card, Chip, ProgressBar, Skeleton } from '@heroui/react';
+import { Button, Card, Chip, Skeleton } from '@heroui/react';
 import { AnimeCoverPlaceholder } from '../../../../shared/ui/AnimeCoverPlaceholder';
 import { AnimeWatchHistory } from '../AnimeWatchHistory/AnimeWatchHistory';
+import { AnimeDetailMutationActions } from './AnimeDetailMutationActions';
 import { AnimeDetailMutationControls } from './AnimeDetailMutationControls';
 import { AnimeDetailSkeleton } from './AnimeDetailSkeleton';
 import {
@@ -12,7 +13,6 @@ import {
   ANIME_DETAIL_NO_PAGINA_MESSAGE,
   ANIME_DETAIL_PORTADA_ALT,
   ANIME_DETAIL_PORTADA_LOADING_MESSAGE,
-  ANIME_DETAIL_PROGRESS_LABEL,
   ANIME_DETAIL_STAT_TILE_CLASS,
 } from './anime-detail.constants';
 import type { AnimeDetailProps } from './anime-detail.types';
@@ -56,12 +56,12 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
 
   return (
     <Card className={props.className}>
-      <Card.Content className="flex flex-col gap-6">
-        <Button className="self-start" onPress={onBack} variant="ghost">
+      <Card.Content className="flex flex-col gap-5">
+        <Button className="self-start" onPress={onBack} size="sm" variant="ghost">
           {ANIME_DETAIL_BACK_LABEL}
         </Button>
 
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
           {cover.status === 'loading' ? (
             <div
               aria-labelledby="anime-detail-portada-loading-label"
@@ -86,18 +86,25 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
               className={`flex items-center justify-center bg-white/[0.04] text-muted ${ANIME_DETAIL_HERO_AVATAR_CLASS}`}
               data-testid="anime-detail-portada-placeholder"
             >
-              <AnimeCoverPlaceholder className="size-16" />
+              <AnimeCoverPlaceholder className="size-14" />
             </div>
           )}
 
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold text-foreground">{detail.nombre}</h2>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <h2 className="text-[21px] font-bold text-foreground">{detail.nombre}</h2>
             <p className="text-sm text-muted">{detail.subtitleLabel}</p>
-            <Chip color={detail.statusColor} size="sm" variant="soft">
-              <Chip.Label>{detail.statusLabel}</Chip.Label>
-            </Chip>
-            <div className="pt-2">
-              <Button onPress={onEditAnime} size="sm" variant="secondary">Edit anime</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Chip color={detail.statusColor} size="sm" variant="soft">
+                <Chip.Label>{detail.statusLabel}</Chip.Label>
+              </Chip>
+              <Button onPress={onEditAnime} size="sm" variant="tertiary">Edit anime</Button>
+              <AnimeDetailMutationActions
+                canRepeat={detail.canRepeat}
+                canRestore={detail.canRestore}
+                isMutating={isMutating}
+                onRequestRepeat={onRequestRepeat}
+                onRequestRestore={onRequestRestore}
+              />
             </div>
           </div>
         </header>
@@ -114,23 +121,15 @@ export function AnimeDetail(props: Readonly<AnimeDetailProps>) {
           onRequestRestore={onRequestRestore}
         />
 
-        <section aria-label="Episode info" className="flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-foreground">Episode info</h3>
-          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+        <section aria-label="Episode info">
+          <dl className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
             {detail.statTiles.map((tile) => (
               <div className={ANIME_DETAIL_STAT_TILE_CLASS} key={tile.label}>
-                <dt className="text-muted">{tile.label}</dt>
-                <dd className="text-foreground">{tile.value}</dd>
+                <dt className="text-xs text-muted">{tile.label}</dt>
+                <dd className="text-[13px] text-foreground tabular-nums">{tile.value}</dd>
               </div>
             ))}
-          </div>
-          {detail.progressRatio === undefined ? null : (
-            <ProgressBar aria-label={ANIME_DETAIL_PROGRESS_LABEL} value={detail.progressRatio}>
-              <ProgressBar.Track>
-                <ProgressBar.Fill />
-              </ProgressBar.Track>
-            </ProgressBar>
-          )}
+          </dl>
         </section>
 
         <section aria-label="General data" className="flex flex-col gap-2">

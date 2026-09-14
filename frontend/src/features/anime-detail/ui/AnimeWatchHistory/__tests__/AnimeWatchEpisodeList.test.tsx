@@ -42,13 +42,13 @@ describe('AnimeWatchEpisodeList', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders one row per recorded episode with its date and time together, plus a Watch chip when scoped to a cycle', () => {
+  it('renders one row per recorded episode with its date and time together, without a Watch chip when scoped to a cycle', () => {
     renderList(2, { entries: [entry({ episode: 12 }), entry({ id: 2, episode: 11 })] });
 
     expect(screen.getByText('Episode 12')).toBeInTheDocument();
     expect(screen.getByText('Episode 11')).toBeInTheDocument();
     expect(screen.getAllByText('Fri, Sep 11 · 20:03')).toHaveLength(2);
-    expect(screen.getAllByText('Watch 2')).toHaveLength(2);
+    expect(screen.queryByText('Watch 2')).toBeNull();
   });
 
   it('names each row’s own stored cycle in the All-episodes case, when no cycle is passed', () => {
@@ -72,11 +72,23 @@ describe('AnimeWatchEpisodeList', () => {
     expect(screen.queryByText('Showing the 50 most recent episodes. The full list is in History.')).toBeNull();
   });
 
+  it.each([
+    { name: 'says more rows load on scroll while older pages remain', hasMore: true, want: 1 },
+    { name: 'drops the scroll hint once every page is loaded', hasMore: false, want: 0 },
+  ])('$name', ({ hasMore, want }) => {
+    renderList(undefined, { entries: [entry({})], hasMore });
+
+    expect(screen.queryAllByText('More episodes load as you scroll')).toHaveLength(want);
+  });
+
   it('shows only the loading skeleton while unresolved, never real rows', () => {
     renderList(undefined, { isLoading: true, entries: [entry({})] });
 
     expect(screen.getByRole('status', { name: 'Loading episode history...' })).toBeInTheDocument();
     expect(screen.queryByText('Episode 12')).not.toBeInTheDocument();
+    // Placeholder height is a contract: the skeleton renders one row-shaped
+    // block per expected row, so an empty or rowless skeleton is a regression.
+    expect(screen.getAllByTestId('anime-watch-episode-list-skeleton-row')).toHaveLength(3);
   });
 
   it('states past watches kept no recorded rows instead of implying nothing was watched', () => {
@@ -87,20 +99,32 @@ describe('AnimeWatchEpisodeList', () => {
       screen.getByText('Episodes from this watch were not recorded. That does not mean none were watched.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('No episode history yet')).toBeNull();
+    expect(
+      screen.queryByText('Watch history starts 2026-07-05. Episodes you watch from now on will appear here.'),
+    ).toBeNull();
   });
 
   it('shows the empty state, not a blank list, when the anime has no recorded rows', () => {
     renderList(undefined, { entries: [] });
 
     expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    expect(
+      screen.getByText('Watch history starts 2026-07-05. Episodes you watch from now on will appear here.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No recorded episodes')).toBeNull();
+    expect(
+      screen.queryByText('Episodes from this watch were not recorded. That does not mean none were watched.'),
+    ).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('shows the surface error alert, never a skeleton or empty state, when the request fails', () => {
-    renderList(undefined, { entries: [], error: new Error('episode history service unavailable') });
+    renderList(undefined, { entries: [entry({})], error: new Error('episode history service unavailable') });
 
     expect(screen.getByText('Episode history unavailable')).toBeInTheDocument();
     expect(screen.getByText('episode history service unavailable')).toBeInTheDocument();
     expect(screen.queryByText('No episode history yet')).toBeNull();
+    // Exclusive states: stale rows never render alongside the error.
+    expect(screen.queryByText('Episode 12')).not.toBeInTheDocument();
   });
 });

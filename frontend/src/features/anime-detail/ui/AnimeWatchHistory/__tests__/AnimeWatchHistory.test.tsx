@@ -122,27 +122,46 @@ describe('AnimeWatchHistory', () => {
     expect(pastHeading.textContent).not.toMatch(/Current/);
   });
 
-  it('shows status, episode count, and progress in every watch heading', () => {
+  it('states how many watches the section holds under its heading', () => {
+    const calls: EpisodeHookCall[] = [];
+    renderSection(calls);
+
+    expect(screen.getByRole('heading', { name: 'Watch history' })).toBeInTheDocument();
+    expect(screen.getByText('2 watches · episodes recorded since July 5, 2026')).toBeInTheDocument();
+  });
+
+  it('shows status and episode count in every watch heading', () => {
     const calls: EpisodeHookCall[] = [];
     renderSection(calls);
 
     expect(screen.getByRole('button', { name: /Watch 2/ }).textContent).toMatch(/Viendo/);
     expect(screen.getByRole('button', { name: /Watch 1/ }).textContent).toMatch(/Finalizado/);
     expect(screen.getByText('12 of 24 episodes')).toBeInTheDocument();
-    expect(screen.getByText('24 of 24 episodes')).toBeInTheDocument();
-    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
+    expect(screen.getByText('24 episodes')).toBeInTheDocument();
   });
 
-  it('expands one watch into its own cycle-scoped episode list', () => {
+  it('opens the current watch by default into its own cycle-scoped episode list, leaving past watches unfetched', () => {
     const calls: EpisodeHookCall[] = [];
     renderSection(calls);
 
-    fireEvent.click(screen.getByRole('button', { name: /Watch 2/ }));
-
+    expect(screen.getByRole('button', { name: /Watch 2/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /Watch 1/ })).toHaveAttribute('aria-expanded', 'false');
     expect(calls).toContainEqual({ animeId: 'anime-1', cycle: 2, enabled: true });
+    expect(calls).not.toContainEqual({ animeId: 'anime-1', cycle: 1, enabled: true });
     expect(screen.getByText('Episode 12')).toBeInTheDocument();
-    expect(screen.getAllByText('Watch 2')).toHaveLength(2);
+    expect(screen.getAllByText('Watch 2')).toHaveLength(1);
+    expect(screen.getByRole('progressbar', { name: 'Watch 2 progress' })).toBeInTheDocument();
     expect(screen.queryByText('Episode 11')).not.toBeInTheDocument();
+  });
+
+  it('expands a past watch into its own cycle-scoped list on demand', () => {
+    const calls: EpisodeHookCall[] = [];
+    renderSection(calls);
+
+    fireEvent.click(screen.getByRole('button', { name: /Watch 1/ }));
+
+    expect(calls).toContainEqual({ animeId: 'anime-1', cycle: 1, enabled: true });
+    expect(screen.getByRole('progressbar', { name: 'Watch 1 progress' })).toBeInTheDocument();
   });
 
   it('keeps loaded rows after collapsing their watch', () => {
@@ -150,10 +169,10 @@ describe('AnimeWatchHistory', () => {
     renderSection(calls);
     const trigger = screen.getByRole('button', { name: /Watch 2/ });
 
-    fireEvent.click(trigger);
     expect(screen.getByText('Episode 12')).toBeInTheDocument();
 
     fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('Episode 12')).toBeInTheDocument();
   });
 
@@ -224,11 +243,13 @@ describe('AnimeWatchHistory', () => {
     render(<AnimeWatchHistory animeId="anime-1" detail={preLog} />);
 
     expect(screen.getByTestId('watch-summary-1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Watch 1/ })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Started')).toBeInTheDocument();
     expect(screen.getByText('Premiere')).toBeInTheDocument();
     expect(screen.getByText('Last watched')).toBeInTheDocument();
     expect(screen.getByText('Ended')).toBeInTheDocument();
-    expect(screen.queryByText(/Episode \d+/)).toBeNull();
+    expect(screen.queryByRole('progressbar', { name: 'Watch 1 progress' })).toBeNull();
+    expect(calls.some((call) => call.cycle === 1)).toBe(false);
   });
 
   it('shows the surface error alert, never rows, when the flat request fails', () => {
@@ -242,5 +263,42 @@ describe('AnimeWatchHistory', () => {
     expect(screen.getByText('Episode history unavailable')).toBeInTheDocument();
     expect(screen.getByText('episode history service unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Episode 12')).toBeNull();
+  });
+
+  it('recomputes the watch list when a new detail arrives', () => {
+    const calls: EpisodeHookCall[] = [];
+    stubEpisodesByCycle(calls);
+    const view = render(<AnimeWatchHistory animeId="anime-1" detail={detailFixture()} />);
+    expect(screen.getByText('12 of 24 episodes')).toBeInTheDocument();
+
+    view.rerender(<AnimeWatchHistory animeId="anime-1" detail={{ ...detailFixture(), episodesWatched: 13 }} />);
+
+    expect(screen.getByText('13 of 24 episodes')).toBeInTheDocument();
+    expect(screen.queryByText('12 of 24 episodes')).toBeNull();
+  });
+
+  it('renders no progress bar for a watch without a known total', () => {
+    const calls: EpisodeHookCall[] = [];
+    const base = detailFixture();
+    const noTotal: AnimeDetail = { ...base, totalEpisodes: undefined };
+    stubEpisodesByCycle(calls);
+    render(<AnimeWatchHistory animeId="anime-1" detail={noTotal} />);
+
+    expect(screen.getByText('12 episodes')).toBeInTheDocument();
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
+  });
+
+  it('states the ordinary empty copy, never the unrecorded one, for a rowless live watch', () => {
+    // The past watch serves one row so only the expanded live panel can
+    // render an empty copy; a flipped isPastWatch would print the unrecorded
+    // title inside the live panel instead.
+    vi.spyOn(useAnimeWatchEpisodesModule, 'useAnimeWatchEpisodes').mockImplementation(
+      (animeId: string, cycle?: number, enabled?: boolean) =>
+        idleState({ entries: cycle === 1 ? [entry({ episode: 24, cycle: 1 })] : [] }),
+    );
+    render(<AnimeWatchHistory animeId="anime-1" detail={detailFixture()} />);
+
+    expect(screen.getByText('No episode history yet')).toBeInTheDocument();
+    expect(screen.queryByText('No recorded episodes')).toBeNull();
   });
 });

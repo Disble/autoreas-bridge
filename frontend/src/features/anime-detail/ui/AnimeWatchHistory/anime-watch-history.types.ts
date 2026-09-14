@@ -43,9 +43,9 @@ export interface AnimeWatchViewModel {
   readonly isPreLog: boolean;
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
-  /** Display-ready `createdAt` → end span (the live watch ends at `lastWatchedAt`). */
+  /** Compact `createdAt` → end span, e.g. "Aug 29 – Sep 11, 2026" (the live watch ends at `lastWatchedAt`). */
   readonly spanLabel: string;
-  /** "X of Y episodes", or "X episodes" when the anime has no total. */
+  /** "X of Y episodes" for the live watch with a total; otherwise the watch's own count ("X episodes"). */
   readonly episodesLabel: string;
   /** 0-100 progress against the anime total; absent without a total. */
   readonly progressRatio?: number;

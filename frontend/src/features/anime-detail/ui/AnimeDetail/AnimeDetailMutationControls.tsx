@@ -1,30 +1,15 @@
-import { Alert, Button, ButtonGroup, Modal, Typography } from '@heroui/react';
-import {
-  ANIME_DETAIL_CANCEL_LABEL,
-  ANIME_DETAIL_REPEAT_LABEL,
-  ANIME_DETAIL_RESTORE_LABEL,
-} from './anime-detail.constants';
+import { Alert, Button, Modal, Typography } from '@heroui/react';
+import { ANIME_DETAIL_CANCEL_LABEL } from './anime-detail.constants';
 import type { AnimeDetailMutationControlsProps } from './anime-detail.types';
 
-/** Renders display-ready mutation controls while the hook owns every decision and side effect. */
+/**
+ * Renders the mutation feedback alert and confirmation modal while the hook
+ * owns every decision and side effect; the Repeat/Restore buttons that open
+ * the modal live in the hero header (`AnimeDetailMutationActions`).
+ */
 export function AnimeDetailMutationControls(props: Readonly<AnimeDetailMutationControlsProps>) {
   return (
     <>
-      {props.detail.canRepeat || props.detail.canRestore ? (
-        <ButtonGroup className="self-start">
-          {props.detail.canRepeat ? (
-            <Button isDisabled={props.isMutating} onPress={props.onRequestRepeat} variant="primary">
-              {ANIME_DETAIL_REPEAT_LABEL}
-            </Button>
-          ) : null}
-          {props.detail.canRestore ? (
-            <Button isDisabled={props.isMutating} onPress={props.onRequestRestore} variant="secondary">
-              {ANIME_DETAIL_RESTORE_LABEL}
-            </Button>
-          ) : null}
-        </ButtonGroup>
-      ) : null}
-
       {props.feedback === undefined ? null : (
         <Alert status={props.feedback.status}>
           <Alert.Indicator />

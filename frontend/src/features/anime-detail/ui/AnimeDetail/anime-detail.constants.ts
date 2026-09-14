@@ -17,7 +17,7 @@ export const ANIME_DETAIL_LOADING_MESSAGE = 'Loading anime detail...';
  * `AnimeDetailSkeleton` so the placeholder circle cannot drift out of sync
  * with the resolved avatar's footprint.
  */
-export const ANIME_DETAIL_HERO_AVATAR_CLASS = 'size-24 shrink-0 rounded-full';
+export const ANIME_DETAIL_HERO_AVATAR_CLASS = 'size-21 shrink-0 rounded-full';
 
 /**
  * Shared class for a single stat tile, used by both the resolved tile row
@@ -71,9 +71,6 @@ export const ANIME_DETAIL_PORTADA_ALT = 'Cover art';
 
 /** Message announced by the hero avatar's loading region while the cover binding is in flight (design D3). */
 export const ANIME_DETAIL_PORTADA_LOADING_MESSAGE = 'Loading cover art...';
-
-/** Accessible label for the per-episode watched/total progress bar. */
-export const ANIME_DETAIL_PROGRESS_LABEL = 'Episodes watched progress';
 
 /** Label for the back-navigation button (Anime Detail delta spec, "Back returns to the exact History spot"). */
 export const ANIME_DETAIL_BACK_LABEL = 'Back';

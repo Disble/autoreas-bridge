@@ -1,3 +1,21 @@
+import type { WatchHistoryEntry } from '../../../../shared/contracts/anime.types';
+
+/** Props for the resolved rows of one episode list. */
+export interface AnimeWatchEpisodeRowsProps {
+  /** The accumulated rows, newest first. */
+  readonly entries: readonly WatchHistoryEntry[];
+  /** True while older keyset pages remain, so a scroll hint renders under the rows. */
+  readonly hasMore: boolean;
+  /** True for the unscoped All-episodes list, whose rows carry a "Watch K" chip. */
+  readonly isTagged: boolean;
+}
+
+/** Props for the loading placeholder of one episode list. */
+export interface AnimeWatchEpisodeListSkeletonProps {
+  /** True for the unscoped All-episodes list, whose placeholder rows reserve the chip column. */
+  readonly isTagged: boolean;
+}
+
 /** Props for the flat per-anime episode list, optionally scoped to one watch cycle. */
 export interface AnimeWatchEpisodeListProps {
   /** The owning anime's id, forwarded to the episodes hook as its request scope. */

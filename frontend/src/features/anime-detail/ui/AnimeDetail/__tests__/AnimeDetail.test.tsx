@@ -36,7 +36,6 @@ function createDetailViewModel(overrides = {}) {
       { label: 'Total episodes', value: '28' },
       { label: 'Duration', value: '24 min' },
     ],
-    progressRatio: 43,
     paginaUrl: undefined,
     carpetaLabel: 'Unknown',
     estrenoLabel: 'Unknown',
@@ -159,7 +158,7 @@ describe('AnimeDetail', () => {
 
     expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cover art')).not.toBeInTheDocument();
-    expect(screen.getByTestId('anime-detail-portada-placeholder')).toHaveClass('size-24');
+    expect(screen.getByTestId('anime-detail-portada-placeholder')).toHaveClass('size-21');
     expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
   });
@@ -217,6 +216,19 @@ describe('AnimeDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit anime' }));
 
     expect(onEditAnime).toHaveBeenCalledTimes(1);
+  });
+
+  it('groups Edit anime, Repeat and Restore beside the status chip in the hero header', () => {
+    mockAnimeDetailState({ detail: createDetailViewModel({ canRepeat: true, canRestore: true }) });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    const hero = screen.getByRole('heading', { name: 'Frieren' }).closest('header');
+    expect(hero).not.toBeNull();
+    for (const name of ['Edit anime', 'Repeat', 'Restore']) {
+      expect(hero?.contains(screen.getByRole('button', { name }))).toBe(true);
+    }
+    expect(hero?.contains(screen.getByText('Active'))).toBe(true);
   });
 
   it('shows Repeat and Restore only when the loaded anime is eligible', () => {
@@ -311,10 +323,7 @@ describe('AnimeDetail', () => {
           { label: 'Total episodes', value: 'No total episodes data' },
           { label: 'Duration', value: 'No episode duration data' },
         ],
-        progressRatio: undefined,
       }),
-      // Unmounts Watch history so the assertion only sees the Episode-info progress bar (or its absence).
-      detailSource: undefined,
     });
 
     render(<AnimeDetail animeId="anime-1" />);
@@ -322,19 +331,6 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('No total episodes data')).toBeInTheDocument();
     expect(screen.getByText('No episode duration data')).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-  });
-
-  it('renders the progress bar only when the progress ratio is known', () => {
-    mockAnimeDetailState({
-      detail: createDetailViewModel({ progressRatio: 43 }),
-      // Unmounts Watch history so the assertion only sees the Episode-info progress bar.
-      detailSource: undefined,
-    });
-
-    render(<AnimeDetail animeId="anime-1" />);
-
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
   it('renders página as a clickable external link when present', () => {
