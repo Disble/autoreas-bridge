@@ -5,6 +5,7 @@ import type { HistoryTimelineGroup } from '../history-timeline.types';
 import {
   findHistoryTimelineEntry,
   getHistoryStatusColor,
+  resolveEventRowKey,
   resolveHistoryAnimeScope,
   resolveHistorySelectedKey,
   toHistoryTimelineGroups,
@@ -82,6 +83,23 @@ describe('history row selection (design D5)', () => {
   it('finds a loaded entry by its ListBox key across days, and nothing for an unknown key', () => {
     expect(findHistoryTimelineEntry(loadedGroups, 1)?.animeId).toBe('a');
     expect(findHistoryTimelineEntry(loadedGroups, 99)).toBeUndefined();
+  });
+});
+
+describe('open-gesture row resolution (proposal: open the row under the cursor)', () => {
+  /** Builds a fake event target whose closest() resolves like an option carrying `data-key`. */
+  function targetWithRowKey(raw: string | null): unknown {
+    return { closest: (_selector: string) => (raw === null ? null : { getAttribute: (_name: string) => raw }) };
+  }
+
+  it.each<[string, unknown, number | undefined]>([
+    ['a stringified numeric key resolves to the loaded row id', targetWithRowKey('2'), 2],
+    ['a target outside any row resolves to nothing', { closest: (_selector: string) => null }, undefined],
+    ['a non-element target resolves to nothing', 'not-an-element', undefined],
+    ['a null target resolves to nothing', null, undefined],
+    ['a data-key with no loaded row resolves to nothing', targetWithRowKey('99'), undefined],
+  ])('%s', (_label, target, expected) => {
+    expect(resolveEventRowKey(target, loadedGroups)).toBe(expected);
   });
 });
 

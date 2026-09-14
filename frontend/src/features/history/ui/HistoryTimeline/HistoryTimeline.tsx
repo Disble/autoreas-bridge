@@ -32,9 +32,22 @@ import { useHistoryScreen } from './use-history-screen';
  * flags, never on the collection alone, so a state never renders alongside
  * stale content. Appending a further page (design D5a) is additive: it never
  * returns to the skeleton.
+ *
+ * Interaction contract (proposal: select fills the inspector without
+ * navigating; Enter, link, or button open the detail): the ListBox carries
+ * selectionBehavior="replace" with NO `onAction`, so a click only ever
+ * selects -- including the first click from an empty selection, which under
+ * "toggle" fires `onAction` without selecting (verified against the
+ * react-aria-components 1.19 bundle in dist). Enter is handled on the
+ * scroll-container div's capture phase (React Aria stops a starting press at
+ * the option, so bubble-phase and ListBox-level capture handlers never see
+ * it) and double-click on the ListBox; both open through `onOpenTarget`,
+ * which resolves the row from the event target (a double-click's two clicks
+ * outrun the URL-round-tripped selection) and suppresses React Aria's
+ * post-gesture selection echo so it cannot navigate back to `/history`.
  */
 export function HistoryTimeline() {
-  const { error, filterBar, groups, inspectorAnimeId, isFiltered, isLoading, onOpen, onOpenAnime, onScroll, onSelect, selectedKey } = useHistoryScreen();
+  const { error, filterBar, groups, inspectorAnimeId, isFiltered, isLoading, onOpenTarget, onOpenAnime, onScroll, onSelect, selectedKey } = useHistoryScreen();
   const isEmpty = !isLoading && error === undefined && groups.length === 0;
 
   return (
@@ -45,6 +58,15 @@ export function HistoryTimeline() {
           aria-label={HISTORY_TIMELINE_LABEL}
           className="flex max-h-[32rem] min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto"
           data-testid="history-timeline-scroll"
+          // Capture phase on plain DOM (not on the ListBox): RAC stops a
+          // starting press (Enter/Space) at the option, so a ListBox-level
+          // bubble handler never sees Enter, and prop forwarding through the
+          // HeroUI/RAC layers is not guaranteed for capture handlers.
+          onKeyDownCapture={(event) => {
+            if (event.key === 'Enter') {
+              onOpenTarget(event.target);
+            }
+          }}
           onScroll={onScroll}
         >
         {isLoading ? (
@@ -84,9 +106,17 @@ export function HistoryTimeline() {
             aria-label={HISTORY_TIMELINE_LABEL}
             disallowEmptySelection
             selectedKeys={selectedKey === undefined ? [] : [selectedKey]}
+            // No onAction by design: under RAC "replace" a press fires it on
+            // every click, and under "toggle" on the first click with an
+            // empty selection -- neither expresses the proposal contract
+            // (click and arrows select only; Enter and double-click open).
+            // "replace" keeps the arrows moving the selection; Enter and
+            // double-click open the selected row explicitly below.
             selectionBehavior="replace"
             selectionMode="single"
-            onAction={onOpen}
+            onDoubleClick={(event) => {
+              onOpenTarget(event.target);
+            }}
             onSelectionChange={(keys) => onSelect(Array.from(keys)[0])}
           >
             {groups.map((group) => (

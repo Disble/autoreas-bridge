@@ -35,6 +35,12 @@ export interface HistorySelectionState {
   readonly onSelect: (key: string | number | undefined) => void;
   /** Opens the anime detail of the row a `ListBox` key names. */
   readonly onOpen: (key: string | number) => void;
+  /**
+   * Opens the row an Enter or double-click gesture landed on, resolved from
+   * the DOM event target with the settled selection as the fallback; arms a
+   * one-shot suppress for React Aria's post-gesture selection echo.
+   */
+  readonly onOpenTarget: (target: unknown) => void;
 }
 
 /** State returned by `useHistoryTimeline`: accumulated day groups plus keyset paging status. */

@@ -189,6 +189,26 @@ describe('HistoryTimeline', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/catalog/detail/anime-2');
   });
 
+  it.each<[string, (row: HTMLElement) => void]>([
+    ['Enter', (row) => {
+      // Focus without selecting: the real race is arrows-focus the row, then
+      // Enter before the URL-round-tripped selection settles. A keydown on an
+      // unfocused row cannot happen in a real browser (keys go to focus).
+      act(() => row.focus());
+      fireEvent.keyDown(row, { key: 'Enter' });
+      fireEvent.keyUp(row, { key: 'Enter' });
+    }],
+    ['a double-click', (row) => {
+      fireEvent.doubleClick(row, { detail: 2 });
+    }],
+  ])('%s opens the row under the cursor when the URL selection is still stale', (_label, open) => {
+    renderTimeline({ groups: twoRows }, '/history?anime=anime-1&row=1');
+
+    open(screen.getByRole('option', { name: /Bocchi/ }));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog/detail/anime-2');
+  });
+
   it('shows only the loading skeleton while the first page is unresolved, never real rows', () => {
     renderTimeline({
       isLoading: true,

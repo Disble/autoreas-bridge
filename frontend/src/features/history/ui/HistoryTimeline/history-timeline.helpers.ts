@@ -44,6 +44,34 @@ export function findHistoryTimelineEntry(groups: readonly HistoryTimelineGroup[]
 }
 
 /**
+ * Resolves the row an open gesture (Enter, double-click) landed on from the
+ * DOM event target: React Aria renders `data-key` on every option, so the
+ * gesture opens the row under the cursor even when the URL-round-tripped
+ * selection has not settled yet (a double-click's two clicks outrun it).
+ * Returns `undefined` when the target names no loaded row; the caller keeps
+ * the settled selection as the fallback.
+ */
+export function resolveEventRowKey(target: unknown, groups: readonly HistoryTimelineGroup[]): number | undefined {
+  if (target === null || typeof target !== 'object') {
+    return undefined;
+  }
+  const closest = (target as Element).closest;
+  if (typeof closest !== 'function') {
+    return undefined;
+  }
+  const option = closest.call(target, '[data-key]');
+  if (option === null || typeof option !== 'object') {
+    return undefined;
+  }
+  const raw = (option as Element).getAttribute?.('data-key');
+  if (typeof raw !== 'string') {
+    return undefined;
+  }
+
+  return groups.flatMap((group) => group.entries).find((entry) => String(entry.id) === raw)?.id;
+}
+
+/**
  * Resolves the highlighted row from the URL selection (design D5): `rowId`
  * when that row is loaded and belongs to `animeId`, else the anime's first
  * loaded row, else nothing -- the inspector still shows the anime.
