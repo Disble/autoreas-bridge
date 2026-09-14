@@ -28,7 +28,7 @@ called out explicitly under its release.
 - History is now a real watch history. Every episode you watch gets its own row with the time you watched it, listed newest first under a heading for each day that shows how many episodes you watched that day — the way a browser lists the pages you visited. Select any row to open that anime.
 - Rolling an episode back removes its row, so the history always agrees with your progress. Rewatching an anime from the start keeps the history of the earlier watch instead of wiping it.
 - Anime Detail shows that anime's own watch history: its 50 most recent episodes, with a pointer to History when there are more.
-- A jump of several episodes from the mobile app records each episode in between, all at the moment the change arrived, so nothing you skipped past goes missing.
+- A jump of several episodes from the mobile app records each episode in between, so nothing you skipped past goes missing. The episode the sync lands on is dated by the phone's own watch time; the episodes in between keep the sync time, because nothing ever reported when those were watched.
 - The first launch of this version builds your history once from the progress the bridge already recorded, which goes back to 2026-07-05, and takes a restore point of the database right before it does. History cannot reach further back than that date, and the empty History screen says so.
 - El Historial ahora se filtra por nombre, estado, tipo y rango de fechas: los filtros viven en la URL (se pueden compartir y sobreviven a recargar), la búsqueda lleva debounce y seleccionar una fila abre un inspector con la portada, el estado, el tipo, el progreso y los 3 episodios más recientes.
 
@@ -41,11 +41,16 @@ called out explicitly under its release.
 - The activity log keeps its most recent 5,000 entries — about two and a half years at the current rate — instead of growing forever.
 - El historial de Anime Detail es ahora una única sección Watch history con pestañas Por visualización (un acordeón por cada vez que se vio, con resumen de fechas para las anteriores al registro) y Todos los episodios; la antigua línea de tiempo de repeticiones desaparece.
 
+### Fixed
+
+    - Episodes you mark on the phone now show the time you watched them, not the time your phone reconnected. Watching three episodes offline and syncing hours later used to put all three at the moment of the sync; each episode now keeps its own watch time. A phone whose clock is wrong cannot push a time into the future either: such a time is ignored and the sync time is used instead.
+
 ### Internal
 
 - No REST or WebSocket contract changed: the new history reaches the desktop UI through two new Wails bindings, and the old snapshot-based history binding is gone.
 - The history lives in its own permanent table, one row per episode per rewatch, separate from the capped audit log and the rotating diagnostic log. Recording is derived from the before/after progress of each change rather than from what kind of action caused it, so the desktop and mobile write paths cannot disagree. Recorded in `docs/adr/023-watch-history-model.md`.
 - Mutation testing now runs after each commit in a separate worktree with a per-test timeout. A mutant that deadlocks the single SQLite connection used to hang a run for go test's default ten minutes.
+    - The phone's own watch time is stored beside the moment the bridge received the change, on the audit row, instead of replacing it. The audit still records what arrived and when, and the correlation id built from it does not move, while a replay of the history now reproduces the rows a live write produced rather than re-creating the old behaviour. Correcting the rows that were already stored was done once, deliberately, outside the application: the application's startup path gains no data-mutating step, and no migration, marker or command for it ships.
 
 ## [1.12.0] — 2026-09-11
 

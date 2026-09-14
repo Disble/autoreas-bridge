@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -256,5 +257,71 @@ func TestApplyTxAppliesWithinCallersTransaction(t *testing.T) {
 
 	if got := recordedEpisodes(t, db, "anime-1", 1); len(got) != 0 {
 		t.Fatalf("expected the rolled-back transaction to leave no rows, got %v", got)
+	}
+}
+
+// recordedInstants returns each recorded episode's stored instant for one anime
+// and cycle, keyed by episode.
+func recordedInstants(t *testing.T, db *sql.DB, animeID string, cycle int64) map[int64]int64 {
+	t.Helper()
+	rows, err := db.Query(`SELECT episode, watched_at_ms FROM watch_history WHERE anime_id = ? AND cycle = ?`, animeID, cycle)
+	if err != nil {
+		t.Fatalf("query recorded instants: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	instants := make(map[int64]int64)
+	for rows.Next() {
+		var episode, watchedAtMS int64
+		if err := rows.Scan(&episode, &watchedAtMS); err != nil {
+			t.Fatalf("scan recorded instant: %v", err)
+		}
+		instants[episode] = watchedAtMS
+	}
+	return instants
+}
+
+// TestApplyAttributesReportedInstantToTheLandingEpisodeOnly pins the SDD-73
+// attribution rule at the point it becomes observable: a jump stores the
+// reported instant on the highest newly reached episode and dates every episode
+// below it at the observation instant, because nobody ever reported when those
+// were watched.
+func TestApplyAttributesReportedInstantToTheLandingEpisodeOnly(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+
+	change := step(6, 8, 2000, 1)
+	change.ReportedAtMS = 1000
+	if err := store.Apply(context.Background(), change); err != nil {
+		t.Fatalf("apply jump change: %v", err)
+	}
+
+	got := recordedInstants(t, db, "anime-1", 1)
+	want := map[int64]int64{7: 2000, 8: 1000}
+	if !maps.Equal(got, want) {
+		t.Fatalf("recorded instants = %v, want %v", got, want)
+	}
+}
+
+// TestApplyFallsBackToTheObservationInstantForEveryEpisode proves the fallback
+// path end to end: an unusable reported instant leaves the stored rows exactly
+// as they were before provenance existed.
+func TestApplyFallsBackToTheObservationInstantForEveryEpisode(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db)
+
+	change := step(6, 8, 2000, 1)
+	change.ReportedAtMS = 2001
+	if err := store.Apply(context.Background(), change); err != nil {
+		t.Fatalf("apply jump change: %v", err)
+	}
+
+	got := recordedInstants(t, db, "anime-1", 1)
+	want := map[int64]int64{7: 2000, 8: 2000}
+	if !maps.Equal(got, want) {
+		t.Fatalf("recorded instants = %v, want %v", got, want)
 	}
 }

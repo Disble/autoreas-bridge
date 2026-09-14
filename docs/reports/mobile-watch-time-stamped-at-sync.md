@@ -1,8 +1,20 @@
 # Phone-marked episodes are stamped with the sync time, not the watch time
 
-> **Status:** open, parked for a later change. Nothing here has been fixed.
+> **Status:** fixed by SDD-73 (`openspec/changes/2026-09-14-sdd-73-mobile-watch-time-provenance`).
+> The forward fix is implemented and verified. The rows this report describes were corrected
+> once, deliberately, outside the application; that code does not ship and the application's
+> startup path gains no data-mutating step. This report is kept as the measurement record.
 > **Found:** 2026-09-13, while polishing the SDD-72 History UI (worktree `sdd-69-real-history`).
 > **Reported as:** "these times are not in the computer's local time, convert them".
+>
+> **Outcome.** Bridge now records the phone's own watch time on the episode a patch lands on,
+> bounded so an untrusted device clock can never write a future row, and the rows
+> this report describes were corrected once, deliberately, outside the application, from the
+> per-operation evidence the capture store still held; that code is not part of the
+> application and leaves no migration, marker or command behind. Measured on a copy of the
+> live database and then confirmed against it: **138 rows corrected**, 15 rejected by the
+> bound, 2 left alone on conflicting evidence. The "Open decision" below is resolved as
+> *forward fixes the recording; the stored rows were corrected once*.
 
 ## Verdict
 

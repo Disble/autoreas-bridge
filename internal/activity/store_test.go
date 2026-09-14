@@ -102,6 +102,60 @@ func TestStoreCountsAndStreamsRowsOldestFirst(t *testing.T) {
 	}
 }
 
+// TestStoreRetainsTheReportedInstantBesideTheObservationInstant pins the SDD-73
+// provenance split. The row's own instant stays the moment the bridge observed
+// the change, a reported instant is retained beside it, and an absent report
+// stays NULL rather than being defaulted to the observation instant -- an absent
+// report and a report that happens to equal the observation are different facts
+// (observability delta spec).
+func TestStoreRetainsTheReportedInstantBesideTheObservationInstant(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	if err := store.RecordActivity(ctx, activity.Record{
+		Source: activity.SourceMobile, ActionType: activity.ActionEpisodeAdjusted,
+		AnimeID: "anime-with-report", AnimeName: "One", OccurredAtMs: 2000, ReportedAtMS: 1000,
+		BeforeJSON: []byte(`{"NroCapVisto":1}`), AfterJSON: []byte(`{"NroCapVisto":2}`),
+	}); err != nil {
+		t.Fatalf("record activity with a reported instant: %v", err)
+	}
+	if err := store.RecordActivity(ctx, activity.Record{
+		Source: activity.SourceMobile, ActionType: activity.ActionEpisodeAdjusted,
+		AnimeID: "anime-without-report", AnimeName: "Two", OccurredAtMs: 2000,
+		BeforeJSON: []byte(`{"NroCapVisto":1}`), AfterJSON: []byte(`{"NroCapVisto":2}`),
+	}); err != nil {
+		t.Fatalf("record activity without a reported instant: %v", err)
+	}
+
+	streamed := map[string]activity.ProgressEvent{}
+	if err := store.StreamOldestFirst(ctx, func(event activity.ProgressEvent) error {
+		streamed[event.AnimeID] = event
+		return nil
+	}); err != nil {
+		t.Fatalf("stream oldest first: %v", err)
+	}
+
+	withReport := streamed["anime-with-report"]
+	if withReport.ReportedAtMS != 1000 || withReport.OccurredAtMs != 2000 {
+		t.Fatalf("expected the reported instant 1000 beside the observation instant 2000, got %#v", withReport)
+	}
+	withoutReport := streamed["anime-without-report"]
+	if withoutReport.ReportedAtMS != 0 || withoutReport.OccurredAtMs != 2000 {
+		t.Fatalf("expected an absent report to read back as 0 beside the observation instant 2000, got %#v", withoutReport)
+	}
+
+	// Read back as 0 is not enough: 0 is the absence sentinel AND a storable
+	// number, so only the raw column proves which one was written.
+	var isNull bool
+	if err := db.QueryRow(`SELECT reported_at_ms IS NULL FROM activity_log WHERE anime_id = ?`, "anime-without-report").Scan(&isNull); err != nil {
+		t.Fatalf("read the stored reported column: %v", err)
+	}
+	if !isNull {
+		t.Fatal("expected an absent report to be persisted as NULL, not as a number")
+	}
+}
+
 // TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions proves the
 // purge is scoped: an unlisted action_type survives, and the caller
 // controls the transaction.

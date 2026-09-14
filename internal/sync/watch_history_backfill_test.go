@@ -27,6 +27,9 @@ type backfillActivityRowSeed struct {
 	animeName    string
 	actionType   string
 	occurredAtMs int64
+	// reportedAtMs is the instant the original change reported for itself; 0
+	// seeds an audit row written before provenance existed.
+	reportedAtMs int64
 	beforeEp     float64
 	afterEp      float64
 }
@@ -83,7 +86,7 @@ func seedActivityLogRowForBackfill(t *testing.T, db *sql.DB, seed backfillActivi
 	}
 	if err := store.RecordActivity(context.Background(), activity.Record{
 		Source: activity.SourceDesktop, ActionType: seed.actionType, AnimeID: seed.animeID, AnimeName: seed.animeName,
-		OccurredAtMs: seed.occurredAtMs, BeforeJSON: before, AfterJSON: after,
+		OccurredAtMs: seed.occurredAtMs, ReportedAtMS: seed.reportedAtMs, BeforeJSON: before, AfterJSON: after,
 	}); err != nil {
 		t.Fatalf("seed activity row for backfill: %v", err)
 	}
@@ -509,6 +512,43 @@ func TestEnsureWatchHistoryBackfillIsMarkerGuardedAndIdempotent(t *testing.T) {
 	}
 	if len(untouchedPage.Items) != 0 {
 		t.Fatalf("expected the marker to skip a second run outright, but anime-2 was replayed: %#v", untouchedPage.Items)
+	}
+}
+
+// TestEnsureWatchHistoryBackfillReplaysTheReportedInstant pins the replay parity
+// requirement end to end: a replayed audit row reproduces the instant live
+// recording wrote, instead of falling back to the observation instant the
+// pre-provenance projection always used. Without it, rebuilding the projection
+// would silently re-create the defect this change exists to fix.
+func TestEnsureWatchHistoryBackfillReplaysTheReportedInstant(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "bridge.db")
+	preSeed := openPreBootstrapActivityDB(t, dbPath, false)
+	seedActivityLogRowForBackfill(t, preSeed, backfillActivityRowSeed{
+		animeID: "anime-1", animeName: "Anime One", actionType: activity.ActionEpisodeAdjusted,
+		occurredAtMs: 2000, reportedAtMs: 1000, beforeEp: 8, afterEp: 9,
+	})
+	seedAnimeSnapshotRepetitions(t, preSeed, "anime-1", 0)
+	closeTestDB(t, preSeed)
+
+	db, err := OpenBridgeDB(dbPath)
+	if err != nil {
+		t.Fatalf("bootstrap over a seeded audit row: %v", err)
+	}
+	defer closeTestDB(t, db)
+
+	page, err := watchhistory.NewStore(db).AnimePage(context.Background(), "anime-1", watchhistory.PageQuery{})
+	if err != nil {
+		t.Fatalf("read replayed anime page: %v", err)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected exactly one replayed row, got %#v", page.Items)
+	}
+	got := page.Items[0]
+	if got.Episode != 9 {
+		t.Fatalf("expected the replayed row for episode 9, got %#v", got)
+	}
+	if got.WatchedAtMS != 1000 {
+		t.Fatalf("expected the replayed row to keep the reported instant 1000, got %d", got.WatchedAtMS)
 	}
 }
 

@@ -6,6 +6,38 @@ import (
 	"testing"
 )
 
+// deriveCase is one row of TestDeriveGuardOrder's table.
+type deriveCase struct {
+	name string
+	// wantLanding is the instant the highest newly reached episode must carry.
+	// Every row that does not set ReportedAtMS or OccurredAtMS leaves it at
+	// zero, so the assertion also proves the fallback is not silently inventing
+	// a value.
+	wantLanding int64
+	change      Change
+	want        Effect
+}
+
+// assertDeriveCase checks one row's Effect against its expectation. It takes the
+// whole row so the table's loop stays under gocognit's limit, the same shape
+// store_test.go's assertStepSequence uses.
+func assertDeriveCase(t *testing.T, tc deriveCase) {
+	t.Helper()
+	got := Derive(tc.change)
+	if got.Kind != tc.want.Kind {
+		t.Fatalf("Kind = %v, want %v", got.Kind, tc.want.Kind)
+	}
+	if got.Kind == EffectRetract && got.Floor != tc.want.Floor {
+		t.Fatalf("Floor = %v, want %v", got.Floor, tc.want.Floor)
+	}
+	if got.Kind == EffectRecord && !reflect.DeepEqual(got.Episodes, tc.want.Episodes) {
+		t.Fatalf("Episodes = %v, want %v", got.Episodes, tc.want.Episodes)
+	}
+	if got.Kind == EffectRecord && got.LandingAtMS != tc.wantLanding {
+		t.Fatalf("LandingAtMS = %d, want %d", got.LandingAtMS, tc.wantLanding)
+	}
+}
+
 // TestDeriveGuardOrder exercises every guard of the D2 semantics table, in
 // evaluation order, plus the multi-episode jump cases design.md's worked
 // examples pin exactly. Guard 2 (isFiniteNonNegativeChange) rejects NaN and
@@ -13,11 +45,7 @@ import (
 func TestDeriveGuardOrder(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name   string
-		change Change
-		want   Effect
-	}{
+	cases := []deriveCase{
 		{
 			name:   "a cycle reset records and retracts nothing",
 			change: Change{BeforeEpisodes: 11, AfterEpisodes: 0, CycleReset: true},
@@ -100,6 +128,59 @@ func TestDeriveGuardOrder(t *testing.T) {
 			want:   Effect{Kind: EffectRecord, Episodes: []int64{11}},
 		},
 		{
+			// SDD-73: a usable reported instant becomes the landing instant,
+			// even when it is far earlier than the observation (an offline
+			// phone syncing hours later).
+			name:        "a usable reported instant becomes the landing instant",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: 1000},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 1000,
+		},
+		{
+			// The smallest accepted report, asserted at the edge: the rule is
+			// "strictly positive", so the boundary belongs in the table rather
+			// than left to whatever magnitude happens to look plausible.
+			name:        "the smallest positive reported instant is accepted",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: 1},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 1,
+		},
+		{
+			// reported > 0 is the floor: epoch zero is never a real watch time,
+			// so a zero report must be treated as no report at all.
+			name:        "a zero reported instant falls back to the observation instant",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: 0},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 2000,
+		},
+		{
+			name:        "a negative reported instant falls back to the observation instant",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: -5},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 2000,
+		},
+		{
+			// An untrusted device clock must never write a future row.
+			name:        "a reported instant later than the observation instant falls back",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: 2001},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 2000,
+		},
+		{
+			name:        "a reported instant earlier than the observation instant is used",
+			change:      Change{BeforeEpisodes: 8, AfterEpisodes: 9, OccurredAtMS: 2000, ReportedAtMS: 1999},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{9}},
+			wantLanding: 1999,
+		},
+		{
+			// A jump exposes ONE landing instant; attributing it to the highest
+			// episode only is the store's job (store_test.go).
+			name:        "a jump exposes the landing instant for its highest episode",
+			change:      Change{BeforeEpisodes: 6, AfterEpisodes: 8, OccurredAtMS: 2000, ReportedAtMS: 1000},
+			want:        Effect{Kind: EffectRecord, Episodes: []int64{7, 8}},
+			wantLanding: 1000,
+		},
+		{
 			// The ceiling guard MUST compare the DIFFERENCE of the floors,
 			// never their sum: at a non-zero floor a sum comparison would
 			// reject an ordinary +1 step (kills an Arithmetic mutant that
@@ -113,16 +194,7 @@ func TestDeriveGuardOrder(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := Derive(tc.change)
-			if got.Kind != tc.want.Kind {
-				t.Fatalf("Kind = %v, want %v", got.Kind, tc.want.Kind)
-			}
-			if got.Kind == EffectRetract && got.Floor != tc.want.Floor {
-				t.Fatalf("Floor = %v, want %v", got.Floor, tc.want.Floor)
-			}
-			if got.Kind == EffectRecord && !reflect.DeepEqual(got.Episodes, tc.want.Episodes) {
-				t.Fatalf("Episodes = %v, want %v", got.Episodes, tc.want.Episodes)
-			}
+			assertDeriveCase(t, tc)
 		})
 	}
 }

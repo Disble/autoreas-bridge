@@ -191,8 +191,13 @@ type ActivityRecord struct {
 	AnimeName     string
 	OccurredAtMs  int64
 	CorrelationID string
-	Before        ActivityAnimeSnapshot
-	After         ActivityAnimeSnapshot
+	// ReportedAtMS is the instant the change reported for itself, or 0 when it
+	// reported none. It travels beside OccurredAtMs rather than replacing it:
+	// the row's own instant stays the moment the bridge observed the change, and
+	// the correlation id built from it must not move (design.md D4).
+	ReportedAtMS int64
+	Before       ActivityAnimeSnapshot
+	After        ActivityAnimeSnapshot
 }
 
 // ActivityAnimeSnapshot captures the anime state before or after one activity.

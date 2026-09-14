@@ -353,6 +353,7 @@ func (a activityRecorderAdapter) RecordActivity(ctx context.Context, record anim
 		AnimeName:     record.AnimeName,
 		OccurredAtMs:  record.OccurredAtMs,
 		CorrelationID: record.CorrelationID,
+		ReportedAtMS:  record.ReportedAtMS,
 		BeforeJSON:    beforeJSON,
 		AfterJSON:     afterJSON,
 	})

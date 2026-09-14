@@ -49,7 +49,7 @@ func (s *Store) Conflicts() int64 {
 func (s *Store) ApplyTx(ctx context.Context, tx *sql.Tx, change Change) error {
 	switch effect := Derive(change); effect.Kind {
 	case EffectRecord:
-		return s.insertEpisodes(ctx, tx, change, effect.Episodes)
+		return s.insertEpisodes(ctx, tx, change, effect)
 	case EffectRetract:
 		if _, err := tx.ExecContext(ctx, retractWatchHistorySQL, change.AnimeID, change.Cycle, effect.Floor); err != nil {
 			return fmt.Errorf("retract watch_history rows: %w", err)
@@ -73,13 +73,19 @@ func (s *Store) Apply(ctx context.Context, change Change) error {
 	return tx.Commit()
 }
 
-// insertEpisodes inserts one row per newly reached episode, counting and
-// warn-logging (never silently swallowing) any conflicting insert with
-// enough context to investigate it.
-func (s *Store) insertEpisodes(ctx context.Context, tx *sql.Tx, change Change, episodes []int64) error {
-	for _, episode := range episodes {
+// insertEpisodes inserts one row per newly reached episode. Every episode
+// carries the instant the bridge observed the change, except the highest one,
+// which carries the effect's landing instant -- the source's reported watch
+// time when it is usable, otherwise the same observation instant
+// (design.md D1/D3).
+func (s *Store) insertEpisodes(ctx context.Context, tx *sql.Tx, change Change, effect Effect) error {
+	for i, episode := range effect.Episodes {
+		occurredAtMS := change.OccurredAtMS
+		if i == len(effect.Episodes)-1 {
+			occurredAtMS = effect.LandingAtMS
+		}
 		result, err := tx.ExecContext(ctx, insertWatchHistorySQL,
-			change.AnimeID, change.AnimeName, episode, change.Cycle, change.OccurredAtMS, change.Source, change.SourceActivityID)
+			change.AnimeID, change.AnimeName, episode, change.Cycle, occurredAtMS, change.Source, change.SourceActivityID)
 		if err != nil {
 			return fmt.Errorf("insert watch_history row: %w", err)
 		}

@@ -185,6 +185,7 @@ func (c *cycleTracker) change(event activity.ProgressEvent) watchhistory.Change 
 		AnimeName:        event.AnimeName,
 		Source:           event.Source,
 		OccurredAtMS:     event.OccurredAtMs,
+		ReportedAtMS:     event.ReportedAtMS,
 		BeforeEpisodes:   event.Before.NroCapVisto,
 		AfterEpisodes:    event.After.NroCapVisto,
 		Cycle:            cycle,

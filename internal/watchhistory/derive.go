@@ -20,6 +20,12 @@ type Change struct {
 	AfterEpisodes  float64
 	// Cycle is the 1-based rewatch cycle.
 	Cycle int64
+	// ReportedAtMS is the instant the source itself reported for this change,
+	// or 0 when it reported none. It is deliberately separate from
+	// OccurredAtMS, which stays the instant the bridge observed the change
+	// (design.md D1). Device clocks are untrusted, so a reported instant is
+	// never stored unless isUsableReportedInstant accepts it.
+	ReportedAtMS int64
 	// CycleReset is true when the patch that produced this Change carried a
 	// repeat (RepeatAt): the episodes watched in the closing cycle are still
 	// watched, so this MUST record nothing and retract nothing (design.md D3).
@@ -51,6 +57,14 @@ type Effect struct {
 	Kind     EffectKind
 	Episodes []int64
 	Floor    float64
+	// LandingAtMS is the instant the HIGHEST newly reached episode carries:
+	// the change's reported instant when it is usable, otherwise the
+	// observation instant. Episodes below it always carry OccurredAtMS -- their
+	// watch time was never reported by anyone, so inventing one would claim
+	// precision the evidence does not support (design.md D3). Unread for
+	// EffectNone and EffectRetract, exactly as Floor is unread for
+	// EffectRecord.
+	LandingAtMS int64
 }
 
 // Derive is pure: no clock, no context, no database. It is the single point
@@ -76,7 +90,29 @@ func Derive(change Change) Effect {
 	if floorAfter-floorBefore > maxEpisodesPerChange {
 		return Effect{Kind: EffectNone}
 	}
-	return Effect{Kind: EffectRecord, Episodes: newlyReachedEpisodes(floorBefore, floorAfter)}
+	return Effect{Kind: EffectRecord, Episodes: newlyReachedEpisodes(floorBefore, floorAfter), LandingAtMS: landingInstant(change)}
+}
+
+// landingInstant resolves the instant the highest newly reached episode
+// carries: the source's own report when it is usable, otherwise the instant the
+// bridge observed the change (design.md D2). The rule can only ever REJECT a
+// reported instant, never accept an unsupported one, so a rejection degrades to
+// the behaviour that existed before provenance was recorded.
+func landingInstant(change Change) int64 {
+	if isUsableReportedInstant(change.ReportedAtMS, change.OccurredAtMS) {
+		return change.ReportedAtMS
+	}
+	return change.OccurredAtMS
+}
+
+// isUsableReportedInstant reports whether a source-reported instant may be
+// stored. There is deliberately no third, lower bound: an offline phone may
+// legitimately report a watch time days before the sync that carries it
+// (measured gaps reach 24.2 hours), and no trustworthy floor exists -- the
+// anime snapshot's own last-watched value is stamped by unrelated patches
+// (design.md D2).
+func isUsableReportedInstant(reported, observed int64) bool {
+	return reported > 0 && reported <= observed
 }
 
 // isFiniteNonNegativeChange reports whether both episode values are finite

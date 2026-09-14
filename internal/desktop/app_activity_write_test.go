@@ -54,7 +54,10 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 
 	progress := 2.0
 	base := int64(1000)
-	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, Base: &base}); err != nil {
+	// SDD-73: the phone's own watch time travels with the patch, hours before
+	// the bridge observes it.
+	reportedAtMs := int64(1709000000000)
+	if _, err := service.PatchAnime(ctx, "anime-1", contracts.AnimePatch{NroCapVisto: &progress, FechaUltCapVisto: &reportedAtMs, Base: &base}); err != nil {
 		t.Fatalf("patch anime: %v", err)
 	}
 
@@ -76,6 +79,39 @@ func TestActivityAnimeWriteServiceRecordsMobilePatch(t *testing.T) {
 	if change.AnimeID != "anime-1" || change.AnimeName != "Frieren" || change.Source != anime.ActivitySourceMobile ||
 		change.BeforeEpisodes != 1 || change.AfterEpisodes != 2 || change.Cycle != 1 || change.OccurredAtMS != 1710000000123 || change.CycleReset {
 		t.Fatalf("unexpected watch history change: %#v", change)
+	}
+
+	// The projected fact carries the phone's watch time, while the audit row's
+	// own instant -- and therefore the correlation id built from it -- stays at
+	// the moment the bridge received the change (design.md D1/D4).
+	if change.ReportedAtMS != reportedAtMs {
+		t.Fatalf("expected the reported watch time %d on the change, got %d", reportedAtMs, change.ReportedAtMS)
+	}
+	if records[0].OccurredAtMs != 1710000000123 {
+		t.Fatalf("expected the activity row to keep the receipt instant, got %d", records[0].OccurredAtMs)
+	}
+	if records[0].ReportedAtMS != reportedAtMs {
+		t.Fatalf("expected the audit row to retain the reported instant %d, got %d", reportedAtMs, records[0].ReportedAtMS)
+	}
+}
+
+// TestReportedAtMsDistinguishesAnAbsentReportFromAValue pins the absence
+// sentinel directly. The projection reads 0 as "not reported" and falls back to
+// the receipt instant, so the nil branch returning any other number would turn
+// an unreported change into a fabricated watch time. Kept as a white-box call on
+// the unexported helper (same package) rather than a second full PatchAnime
+// scenario, mirroring
+// TestActivityAnimeWriteServiceOccurredAtMsDefaultsToZeroWithNoClockWired.
+func TestReportedAtMsDistinguishesAnAbsentReportFromAValue(t *testing.T) {
+	t.Parallel()
+
+	if got := reportedAtMs(nil); got != 0 {
+		t.Fatalf("expected an absent report to stay 0, got %d", got)
+	}
+
+	reported := int64(1709000000000)
+	if got := reportedAtMs(&reported); got != reported {
+		t.Fatalf("expected the reported instant %d, got %d", reported, got)
 	}
 }
 

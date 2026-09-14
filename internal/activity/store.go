@@ -75,8 +75,12 @@ type Record struct {
 	AnimeName     string
 	OccurredAtMs  int64
 	CorrelationID string
-	BeforeJSON    []byte
-	AfterJSON     []byte
+	// ReportedAtMS is the instant the change reported for itself, or 0 when it
+	// reported none; 0 is persisted as NULL. It is deliberately separate from
+	// OccurredAtMs, which stays the instant the bridge observed the change.
+	ReportedAtMS int64
+	BeforeJSON   []byte
+	AfterJSON    []byte
 }
 
 // ListQuery controls recent-activity listing.
@@ -106,6 +110,11 @@ type ProgressEvent struct {
 	Source       string
 	ActionType   string
 	OccurredAtMs int64
+	// ReportedAtMS is the instant the original change reported for itself, or 0
+	// when it reported none. The replay feeds it back into the same derivation
+	// the live write used, so a replay reproduces live recording instead of
+	// reconstructing the pre-provenance behaviour (design.md D4).
+	ReportedAtMS int64
 	Before       Snapshot
 	After        Snapshot
 }
@@ -159,17 +168,27 @@ func (s *Store) RecordActivity(ctx context.Context, record Record) (err error) {
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO activity_log (
 			source, action_type, anime_id, anime_name, occurred_at_ms, correlation_id,
-			before_json, after_json
+			reported_at_ms, before_json, after_json
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, record.Source, record.ActionType, record.AnimeID, record.AnimeName, record.OccurredAtMs,
-		record.CorrelationID, string(record.BeforeJSON), string(record.AfterJSON)); err != nil {
+		record.CorrelationID, nullableReportedAtMS(record.ReportedAtMS), string(record.BeforeJSON), string(record.AfterJSON)); err != nil {
 		return fmt.Errorf("insert activity %q for anime %q: %w", record.ActionType, record.AnimeID, err)
 	}
 	if err = s.pruneOldestBeyondRetention(ctx, tx); err != nil {
 		return fmt.Errorf("prune activity beyond retention: %w", err)
 	}
 	return tx.Commit()
+}
+
+// nullableReportedAtMS maps the absence sentinel to SQL NULL. An absent report
+// and a report equal to the observation instant are different facts, so absence
+// MUST NOT be persisted as a number (design.md D4).
+func nullableReportedAtMS(reportedAtMS int64) any {
+	if reportedAtMS == 0 {
+		return nil
+	}
+	return reportedAtMS
 }
 
 // pruneOldestBeyondRetention deletes the oldest activity rows past rowCap,
@@ -201,7 +220,7 @@ func (s *Store) ListRecent(ctx context.Context, query ListQuery) (records []Reco
 		limit = 50
 	}
 	rows, err := s.provider.DB().QueryContext(ctx, `
-		SELECT id, source, action_type, anime_id, anime_name, occurred_at_ms, correlation_id, before_json, after_json
+		SELECT id, source, action_type, anime_id, anime_name, occurred_at_ms, correlation_id, reported_at_ms, before_json, after_json
 		FROM activity_log
 		ORDER BY occurred_at_ms DESC, id DESC
 		LIMIT ?
@@ -219,11 +238,15 @@ func (s *Store) ListRecent(ctx context.Context, query ListQuery) (records []Reco
 	records = []Record{}
 	for rows.Next() {
 		var record Record
+		var reportedAtMS sql.NullInt64
 		var beforeJSON sql.NullString
 		var afterJSON sql.NullString
 		if err := rows.Scan(&record.ID, &record.Source, &record.ActionType, &record.AnimeID, &record.AnimeName,
-			&record.OccurredAtMs, &record.CorrelationID, &beforeJSON, &afterJSON); err != nil {
+			&record.OccurredAtMs, &record.CorrelationID, &reportedAtMS, &beforeJSON, &afterJSON); err != nil {
 			return nil, fmt.Errorf("scan activity row: %w", err)
+		}
+		if reportedAtMS.Valid {
+			record.ReportedAtMS = reportedAtMS.Int64
 		}
 		if beforeJSON.Valid {
 			record.BeforeJSON = []byte(beforeJSON.String)
@@ -260,7 +283,7 @@ func (s *Store) CountReplayable(ctx context.Context) (int64, error) {
 // the one this query holds open.
 func (s *Store) StreamOldestFirst(ctx context.Context, fn func(ProgressEvent) error) error {
 	rows, err := s.provider.DB().QueryContext(ctx, `
-		SELECT id, anime_id, anime_name, source, action_type, occurred_at_ms, before_json, after_json
+		SELECT id, anime_id, anime_name, source, action_type, occurred_at_ms, reported_at_ms, before_json, after_json
 		FROM activity_log
 		ORDER BY occurred_at_ms ASC, id ASC
 	`)
@@ -285,10 +308,14 @@ func (s *Store) StreamOldestFirst(ctx context.Context, fn func(ProgressEvent) er
 // a NULL before/after column by leaving that side at its zero Snapshot.
 func scanProgressEvent(rows *sql.Rows) (ProgressEvent, error) {
 	var event ProgressEvent
+	var reportedAtMS sql.NullInt64
 	var beforeJSON, afterJSON sql.NullString
 	if err := rows.Scan(&event.ID, &event.AnimeID, &event.AnimeName, &event.Source, &event.ActionType,
-		&event.OccurredAtMs, &beforeJSON, &afterJSON); err != nil {
+		&event.OccurredAtMs, &reportedAtMS, &beforeJSON, &afterJSON); err != nil {
 		return ProgressEvent{}, fmt.Errorf("scan activity row for replay: %w", err)
+	}
+	if reportedAtMS.Valid {
+		event.ReportedAtMS = reportedAtMS.Int64
 	}
 	if beforeJSON.Valid {
 		if err := json.Unmarshal([]byte(beforeJSON.String), &event.Before); err != nil {
