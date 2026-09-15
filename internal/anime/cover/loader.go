@@ -62,7 +62,7 @@ func (r *Resolver) loadURL(ctx context.Context, url string) (Source, error) {
 			if r.exceedsMax(data) {
 				return Source{}, ErrInvalid
 			}
-			return newURLSource(data, ""), nil
+			return newURLSource(data, r.originIdentity(url, data), ""), nil
 		}
 	}
 	if r.fetch == nil {
@@ -83,9 +83,31 @@ func (r *Resolver) loadURL(ctx context.Context, url string) (Source, error) {
 			return Source{}, fmt.Errorf("%w: persist fetched cover: %w", ErrTransient, err)
 		}
 	}
-	source := newURLSource(result.Data, result.ContentType)
+	source := newURLSource(result.Data, r.originIdentity(url, result.Data), result.ContentType)
 	source.RetryAfterSeconds = result.RetryAfterSeconds
 	return source, nil
+}
+
+// originIdentifier is a Cache that also persists the URL origin-byte SHA-256 sidecar (design D4); the production diskCache implements it, a fake test Cache safely does not.
+type originIdentifier interface {
+	originSHA256(key string) (string, bool)
+	putOriginSHA256(key, sha256Hex string) error
+}
+
+// originIdentity returns a URL source's origin-byte SHA-256 identity, reusing a persisted sidecar when the cache keeps one and write-once persisting the first identity it computes (design D2.3/D2.5).
+func (r *Resolver) originIdentity(url string, data []byte) string {
+	sc, ok := r.cache.(originIdentifier)
+	if ok {
+		if sha, hit := sc.originSHA256(url); hit {
+			return sha
+		}
+	}
+	sum := sha256.Sum256(data)
+	sha := fmt.Sprintf("%x", sum)
+	if ok {
+		_ = sc.putOriginSHA256(url, sha)
+	}
+	return sha
 }
 
 // exceedsMax applies the resolver's fallback size guard consistently to local,
@@ -107,14 +129,13 @@ func imageMIME(contentType string, data []byte) (string, bool) {
 	return contentType, strings.HasPrefix(contentType, "image/")
 }
 
-// newURLSource computes the complete-origin identity used by later cache work.
-func newURLSource(data []byte, contentType string) Source {
-	sum := sha256.Sum256(data)
+// newURLSource builds a URL Source carrying the given origin-byte identity.
+func newURLSource(data []byte, originIdentity, contentType string) Source {
 	return Source{
 		Bytes:       data,
 		ContentType: contentType,
 		Kind:        KindURL,
-		Identity:    SourceIdentity{OriginSHA256: fmt.Sprintf("%x", sum)},
+		Identity:    SourceIdentity{OriginSHA256: originIdentity},
 	}
 }
 
