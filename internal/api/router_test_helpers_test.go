@@ -34,8 +34,9 @@ func (s stubDeviceService) AuthenticateToken(context.Context, string) (device.Pa
 }
 
 type stubAnimeQueryService struct {
-	list []contracts.MobileAnime
-	item *contracts.MobileAnime
+	list   []contracts.MobileAnime
+	item   *contracts.MobileAnime
+	getErr error
 }
 
 func (s stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -47,7 +48,7 @@ func (s stubAnimeQueryService) ListMobileAnimes(context.Context) ([]contracts.Mo
 }
 
 func (s stubAnimeQueryService) GetMobileAnime(context.Context, string) (*contracts.MobileAnime, error) {
-	return s.item, nil
+	return s.item, s.getErr
 }
 
 func (s stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.AnimeListItem, error) {

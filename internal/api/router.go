@@ -21,6 +21,7 @@ type Handler struct {
 	seasonRatings          http.Handler
 	activeSeason           http.Handler
 	syncDiagnostics        http.Handler
+	animeCover             http.Handler
 	mux                    *http.ServeMux
 	captureMux             http.Handler
 	config                 Config
@@ -35,6 +36,7 @@ func NewHandler(config Config) http.Handler {
 	h.seasonRatings = buildSeasonRatingHandler(h, config)
 	h.activeSeason = buildActiveSeasonHandler(h, config)
 	h.syncDiagnostics = buildSyncDiagnosticsHandler(h, config)
+	h.animeCover = buildAnimeCoverHandler(h, config)
 	h.mux = buildHandlerMux(h, config)
 	h.captureMux = CaptureMiddleware(h.mux, CaptureMiddlewareDeps{Capture: config.Capture, PersistTerminal: config.PersistTerminal})
 	return h
@@ -109,6 +111,7 @@ func buildHandlerMux(h *Handler, config Config) *http.ServeMux {
 		{path: "/api/devices/", handler: h.handleDeviceByID},
 		{path: "/api/animes", handler: h.handleAnimes},
 		{path: "/api/animes/", handler: h.handleAnimeByID},
+		{path: "/api/animes/{id}/cover", handler: h.animeCover.ServeHTTP},
 		{path: "/api/status", handler: h.handleStatus},
 		{path: "/api/conflicts", handler: h.handleConflicts},
 		{path: "/api/conflicts/", handler: h.handleConflictByID},
