@@ -1,5 +1,25 @@
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:ed4076e694aef86d73fdffe0de95ed52b9cfaea61229098c2a04bd5d0d59e65b
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 11/11
+scenarios: 27/27
+test_command: go test -p=4 -count=1 ./...
+test_exit_code: 0
+test_output_hash: sha256:126f290e7982ec2e0a5056f87c8769ed689e3e9f37b3e3779a018501286c428b
+build_command: go build ./...
+build_exit_code: 0
+build_output_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+```
+
 # Verify Report — SDD-74 mobile covers
 
+- **Envelope evidence (re-run 2026-09-15 on `9158361`, the committed candidate):** `evidence_revision` is the
+  SHA-256 of `git ls-tree -r 9158361`, i.e. the exact committed tree. `go test -p=4 -count=1 ./...` exited 0
+  with 48 packages `ok` and no failure lines; `go build ./...` exited 0 with empty output (hence the
+  empty-input digest). The hashes are of the captured combined stdout/stderr of each command.
 - **Change:** `2026-09-14-sdd-74-mobile-covers`
 - **Worktree:** `D:\dev\disble\autoreas-sp\autoreas-bridge-worktrees\sdd-74-mobile-covers` (branch `feat/sdd-74-mobile-covers`, base `dev` @ `47f2b9c`)
 - **Date:** 2026-09-15
