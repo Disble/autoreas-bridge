@@ -53,7 +53,7 @@ MUST NOT block. The gate MUST print it as Ignored with its reason.
 
 The gate MUST mutate only added lines of staged production `.ts`/`.tsx`
 files, excluding tests and `src/test/`. Production means `frontend/src/`:
-the mutation suite (`vitest.dlinter-mutation.mts`) runs only `src/**` tests,
+the mutation suite (`vitest.mutation.mts`, renamed from `vitest.dlinter-mutation.mts` in SDD-75) runs only `src/**` tests,
 so JS/TS under `frontend/scripts/` or in a root config file can never have a
 related test there and MUST stay out of scope. Renames bill zero mutants;
 deletion-only changes pass; a partially staged file is judged on its staged
@@ -218,7 +218,7 @@ proven by the config loading on a narrow `--mutate` range, not by a full run.
 
 - GIVEN `stryker.dlinter.json` is renamed to `stryker.config.json`
 - WHEN the `test:mutation` command runs with a narrow `--mutate` range
-- THEN Stryker loads that config, uses `vitest.dlinter-mutation.mts`, and
+- THEN Stryker loads that config, uses `vitest.mutation.mts`, and
   writes a report for the range
 
 #### Scenario: Removing the job fails the Go suite

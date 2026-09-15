@@ -46,7 +46,7 @@ func TestRepositoryHookKeepsFrontendLintAsTheFileSizeFailurePath(t *testing.T) {
 //
 // The exclusions keep the scope the retired script had, `src/` only. dharness
 // treats any JS or TS file under frontend/ as source, but the mutation runner's
-// suite (frontend/vitest.dlinter-mutation.mts) includes only `src/**` tests and
+// suite (frontend/vitest.mutation.mts) includes only `src/**` tests and
 // excludes `scripts/**`, so a staged line outside `src/` can never have a
 // related test there and fails with "No tests were found". 50 of the last 266
 // frontend commits touched such a file, not counting the since-untracked
@@ -65,7 +65,7 @@ func TestRepositoryHookRunsStagedMutationAfterFrontendTests(t *testing.T) {
 		" --exclude-prefix eslint.config.js" +
 		" --exclude-prefix vite.config.ts" +
 		" --exclude-prefix vite.layout.config.ts" +
-		" --exclude-prefix vitest.dlinter-mutation.mts" +
+		" --exclude-prefix vitest.mutation.mts" +
 		" --concurrency 4"
 
 	if _, retired := jobIndex(heavyJobs, "test:mutation:staged"); retired {

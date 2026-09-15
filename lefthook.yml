@@ -296,11 +296,11 @@ pre-commit:
           #
           # The exclusions keep that script's scope, `src/` only. dharness
           # counts every JS/TS file under frontend/ as source, but the
-          # mutation suite (vitest.dlinter-mutation.mts) runs only `src/**`
+          # mutation suite (vitest.mutation.mts) runs only `src/**`
           # tests, so a staged line in scripts/ or a root config file has no
           # related test and fails with "No tests were found". Name a new root
           # config file here exactly; a broad prefix like `vite` would also
           # hide any future path that happens to start with it.
           - name: frontend-mutation
-            run: dharness mutate --staged --exclude-prefix src/test/ --exclude-prefix scripts/ --exclude-prefix eslint.config.js --exclude-prefix vite.config.ts --exclude-prefix vite.layout.config.ts --exclude-prefix vitest.dlinter-mutation.mts --concurrency 4
+            run: dharness mutate --staged --exclude-prefix src/test/ --exclude-prefix scripts/ --exclude-prefix eslint.config.js --exclude-prefix vite.config.ts --exclude-prefix vite.layout.config.ts --exclude-prefix vitest.mutation.mts --concurrency 4
             root: frontend

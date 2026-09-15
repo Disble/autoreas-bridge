@@ -9,6 +9,6 @@
     "clear-text"
   ],
   "vitest": {
-    "configFile": "vitest.dlinter-mutation.mts"
+    "configFile": "vitest.mutation.mts"
   }
 }

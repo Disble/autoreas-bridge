@@ -274,7 +274,7 @@ mutate --staged --concurrency 4` against `frontend/stryker.config.json`
 (renamed from `stryker.dlinter.json`). Its `--exclude-prefix` list, `src/test/`,
 `scripts/` and the four root config files by exact name, keeps the retired
 script's `src/`-only scope: dharness counts every JS/TS file under `frontend/`
-as source, but `vitest.dlinter-mutation.mts` runs only `src/**` tests, so a
+as source, but `vitest.mutation.mts` runs only `src/**` tests, so a
 staged line anywhere else has no related test and fails with "No tests were
 found". The migration commit's first gate run hit exactly that on the root
 config files it edits ("Found 2 of 867 file(s) to be mutated", then "No tests

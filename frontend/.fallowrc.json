@@ -18,7 +18,7 @@
     // same JSON-reference blind spot as the `ignoreDependencies` entries
     // below. It is a real entry point, not dead code: deleting it breaks the
     // staged mutation gate, so it is declared rather than ignored.
-    "vitest.dlinter-mutation.mts",
+    "vitest.mutation.mts",
     // The layout-smoke fixture page: a real entry point, built by
     // `vite.layout.config.ts` rather than by the app's own build, so the app's
     // import graph cannot reach it. Deleting it breaks the layout gate.

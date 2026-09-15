@@ -29,7 +29,7 @@ export default defineConfig({
     // numeric score or break threshold to clear.)
     //
     // Remove this the moment the test can finish inside 5s under contention.
-    exclude: ['scripts/**', '**/scripts/**', '**/.dlinter-mutation-tmp/**', '**/NotificationTable.windowing.test.tsx'],
+    exclude: ['scripts/**', '**/scripts/**', '**/NotificationTable.windowing.test.tsx'],
     server: { deps: { inline: ['react-aria-components'] } },
     deps: { optimizer: { client: { enabled: false }, ssr: { enabled: false } } },
   },
