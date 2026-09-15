@@ -3,7 +3,9 @@ package cover_test
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/anime/cover"
 )
@@ -35,17 +37,48 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// fakeFileInfo supplies metadata for the FileReader stat seam.
+type fakeFileInfo struct {
+	size    int64
+	modTime time.Time
+}
+
+func (i fakeFileInfo) Size() int64        { return i.size }
+func (i fakeFileInfo) ModTime() time.Time { return i.modTime }
+
 // fakeFileReader is a map-backed FileReader: keys present in files resolve
-// successfully, everything else returns an error (mirrors os.ReadFile on a
-// missing path).
+// successfully, everything else returns a missing-file error.
 type fakeFileReader struct {
-	files map[string][]byte
+	files      map[string][]byte
+	infos      map[string]cover.FileInfo
+	statErrors map[string]error
+	readErrors map[string]error
+	statCalls  int
+	readCalls  int
+}
+
+func (f *fakeFileReader) Stat(path string) (cover.FileInfo, error) {
+	f.statCalls++
+	if err := f.statErrors[path]; err != nil {
+		return nil, err
+	}
+	if info, ok := f.infos[path]; ok {
+		return info, nil
+	}
+	if data, ok := f.files[path]; ok {
+		return fakeFileInfo{size: int64(len(data))}, nil
+	}
+	return nil, fs.ErrNotExist
 }
 
 func (f *fakeFileReader) ReadFile(path string) ([]byte, error) {
+	f.readCalls++
+	if err := f.readErrors[path]; err != nil {
+		return nil, err
+	}
 	data, ok := f.files[path]
 	if !ok {
-		return nil, errors.New("file not found")
+		return nil, fs.ErrNotExist
 	}
 	return data, nil
 }
@@ -56,12 +89,16 @@ type fakeFetcher struct {
 	calls       int
 	data        []byte
 	contentType string
+	result      cover.FetchResult
 	err         error
 }
 
-func (f *fakeFetcher) Fetch(_ context.Context, _ string) ([]byte, string, error) {
+func (f *fakeFetcher) Fetch(_ context.Context, _ string) (cover.FetchResult, error) {
 	f.calls++
-	return f.data, f.contentType, f.err
+	if f.result.Data != nil || f.result.StatusCode != 0 || f.result.RetryAfterSeconds != 0 {
+		return f.result, f.err
+	}
+	return cover.FetchResult{Data: f.data, ContentType: f.contentType}, f.err
 }
 
 // fakeCache is an in-memory Cache double that also records Put calls so
@@ -105,8 +142,8 @@ func TestResolverResolveEmptyOrNullSentinelReturnsPlaceholderWithoutIO(t *testin
 			t.Fatalf("Resolve(%q) = %#v, want placeholder", path, got)
 		}
 	}
-	if fetch.calls != 0 {
-		t.Fatalf("expected fetcher never called, got %d calls", fetch.calls)
+	if files.statCalls != 0 || files.readCalls != 0 || fetch.calls != 0 {
+		t.Fatalf("unexpected I/O: stat=%d read=%d fetch=%d", files.statCalls, files.readCalls, fetch.calls)
 	}
 }
 
@@ -173,14 +210,14 @@ func TestResolverResolveURLCacheMissSuccessfulFetchPersistsAndServes(t *testing.
 		t.Fatalf("expected cover result on successful download, got %#v", got)
 	}
 	if fetch.calls != 1 {
-		t.Fatalf("expected exactly one fetch call, got %d", fetch.calls)
+		t.Fatalf("expected exactly one fetch call, got %d calls", fetch.calls)
 	}
 	if len(cache.putCalls) != 1 || cache.putCalls[0] != url {
 		t.Fatalf("expected Cache.Put called once with the source URL, got %#v", cache.putCalls)
 	}
 }
 
-func TestResolverResolveURLCacheMissFetchErrorDegradesWithoutPoisoningCache(t *testing.T) {
+func TestResolverResolveURLFetchErrorDegradesWithoutPoisoningCache(t *testing.T) {
 	t.Parallel()
 
 	const url = "https://cdn.example.com/cover.jpg"

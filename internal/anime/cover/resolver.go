@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/http"
-	"strings"
 )
 
 // defaultMaxBytes is the resolver's fallback size guard when a Resolver is
@@ -31,58 +29,14 @@ func NewResolver(files FileReader, fetch Fetcher, cache Cache, maxBytes int64) *
 	return &Resolver{files: files, fetch: fetch, cache: cache, maxBytes: maxBytes}
 }
 
-// Resolve turns a raw portada string into a Result. It never returns an
-// error: every failure/absence branch degrades to the placeholder signal.
+// Resolve turns a raw portada string into a Result. It preserves the existing
+// placeholder contract by adapting every typed loading failure to no cover.
 func (r *Resolver) Resolve(ctx context.Context, animeID, portadaPath string) Result {
-	switch Classify(portadaPath) {
-	case KindLocalPath:
-		return r.resolveLocal(portadaPath)
-	case KindURL:
-		return r.resolveURL(ctx, portadaPath)
-	default:
-		return placeholderResult
-	}
-}
-
-// resolveLocal resolves a cover from a local file path.
-func (r *Resolver) resolveLocal(path string) Result {
-	if r.files == nil {
-		return placeholderResult
-	}
-	data, err := r.files.ReadFile(path)
+	source, err := r.Load(ctx, portadaPath)
 	if err != nil {
 		return placeholderResult
 	}
-	// Local-disk sources are always read live and sniffed; there is no
-	// transport Content-Type header to prefer, and per spec they are never
-	// copied into the cache.
-	return r.toDataURLResult(data, "")
-}
-
-// resolveURL resolves a cover by fetching its source URL.
-func (r *Resolver) resolveURL(ctx context.Context, sourceURL string) Result {
-	if r.cache != nil {
-		if cached, ok := r.cache.Get(sourceURL); ok {
-			return r.toDataURLResult(cached, "")
-		}
-	}
-	if r.fetch == nil {
-		return placeholderResult
-	}
-	data, contentType, err := r.fetch.Fetch(ctx, sourceURL)
-	if err != nil {
-		return placeholderResult
-	}
-	result := r.toDataURLResult(data, contentType)
-	if !result.IsCover {
-		// Guardrail rejection (non-image, oversize) must not poison the
-		// cache, same as a network failure.
-		return placeholderResult
-	}
-	if r.cache != nil {
-		_ = r.cache.Put(sourceURL, data)
-	}
-	return result
+	return r.toDataURLResult(source.Bytes, source.ContentType)
 }
 
 // toDataURLResult converts cover bytes into a data URL result.
@@ -94,11 +48,8 @@ func (r *Resolver) toDataURLResult(data []byte, contentType string) Result {
 	if int64(len(data)) > maxBytes {
 		return placeholderResult
 	}
-	mime := contentType
-	if mime == "" {
-		mime = http.DetectContentType(data)
-	}
-	if !strings.HasPrefix(mime, "image/") {
+	mime, ok := imageMIME(contentType, data)
+	if !ok {
 		return placeholderResult
 	}
 	dataURL := fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
