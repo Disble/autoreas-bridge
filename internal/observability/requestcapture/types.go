@@ -20,6 +20,10 @@ const (
 	// its size was not declared, so reading it before auth would stream
 	// unboundedly.
 	CaptureStateOmittedStreaming = "omitted_streaming"
+	// CaptureStateOmittedBinary marks a response body skipped because the
+	// response carries a binary media type, where retained bytes have no
+	// diagnostic value.
+	CaptureStateOmittedBinary = "omitted_binary"
 	// OutcomePending is the transport-only arrival outcome written before a
 	// handler runs, replaced by the terminal write that follows it.
 	OutcomePending = "pending"
