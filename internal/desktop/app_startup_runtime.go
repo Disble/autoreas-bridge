@@ -185,6 +185,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		RecordSeasonRating:     a.recordSeasonRating(),
 		ActiveSeasonSnapshot:   a.activeSeasonSnapshot(),
 		IngestSyncDiagnostics:  a.ingestSyncDiagnostics(),
+		CoverThumbnails:        apiCoverThumbnails{service: a.coverThumbnails},
 		RealtimeHub:            a.realtimeHub,
 		Logger:                 a.sharedLogger,
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),
