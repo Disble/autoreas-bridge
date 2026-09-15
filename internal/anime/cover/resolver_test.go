@@ -128,168 +128,6 @@ func (c *fakeCache) Put(key string, data []byte) error {
 // image/jpeg (the JPEG SOI marker plus JFIF bytes are enough).
 var jpegBytes = []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00}
 
-func TestResolverResolveEmptyOrNullSentinelReturnsPlaceholderWithoutIO(t *testing.T) {
-	t.Parallel()
-
-	files := &fakeFileReader{files: map[string][]byte{}}
-	fetch := &fakeFetcher{}
-	cache := newFakeCache()
-	r := cover.NewResolver(files, fetch, cache, 0)
-
-	for _, path := range []string{"", "null"} {
-		got := r.Resolve(context.Background(), "anime-1", path)
-		if got.IsCover {
-			t.Fatalf("Resolve(%q) = %#v, want placeholder", path, got)
-		}
-	}
-	if files.statCalls != 0 || files.readCalls != 0 || fetch.calls != 0 {
-		t.Fatalf("unexpected I/O: stat=%d read=%d fetch=%d", files.statCalls, files.readCalls, fetch.calls)
-	}
-}
-
-func TestResolverResolveLocalPathPresentReturnsDataURLWithSniffedMIME(t *testing.T) {
-	t.Parallel()
-
-	const path = `C:\anime\cover.jpg`
-	files := &fakeFileReader{files: map[string][]byte{path: jpegBytes}}
-	r := cover.NewResolver(files, &fakeFetcher{}, newFakeCache(), 0)
-
-	got := r.Resolve(context.Background(), "anime-1", path)
-	if !got.IsCover {
-		t.Fatalf("expected cover result for existing local path, got %#v", got)
-	}
-	if got.DataURL == "" {
-		t.Fatal("expected non-empty data URL")
-	}
-	const wantPrefix = "data:image/jpeg;base64,"
-	if len(got.DataURL) < len(wantPrefix) || got.DataURL[:len(wantPrefix)] != wantPrefix {
-		t.Fatalf("expected data URL to start with %q, got %q", wantPrefix, got.DataURL)
-	}
-}
-
-func TestResolverResolveLocalPathMissingReturnsPlaceholderWithoutPanicking(t *testing.T) {
-	t.Parallel()
-
-	files := &fakeFileReader{files: map[string][]byte{}}
-	r := cover.NewResolver(files, &fakeFetcher{}, newFakeCache(), 0)
-
-	got := r.Resolve(context.Background(), "anime-1", `C:\missing\cover.jpg`)
-	if got.IsCover {
-		t.Fatalf("expected placeholder for missing local path, got %#v", got)
-	}
-}
-
-func TestResolverResolveURLCacheHitReturnsCachedBytesWithoutFetching(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/cover.jpg"
-	cache := newFakeCache()
-	cache.entries[url] = jpegBytes
-	fetch := &fakeFetcher{}
-	r := cover.NewResolver(&fakeFileReader{}, fetch, cache, 0)
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if !got.IsCover {
-		t.Fatalf("expected cover result on cache hit, got %#v", got)
-	}
-	if fetch.calls != 0 {
-		t.Fatalf("expected fetcher not called on cache hit, got %d calls", fetch.calls)
-	}
-}
-
-func TestResolverResolveURLCacheMissSuccessfulFetchPersistsAndServes(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/cover.jpg"
-	fetch := &fakeFetcher{data: jpegBytes, contentType: "image/jpeg"}
-	cache := newFakeCache()
-	r := cover.NewResolver(&fakeFileReader{}, fetch, cache, 0)
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if !got.IsCover {
-		t.Fatalf("expected cover result on successful download, got %#v", got)
-	}
-	if fetch.calls != 1 {
-		t.Fatalf("expected exactly one fetch call, got %d calls", fetch.calls)
-	}
-	if len(cache.putCalls) != 1 || cache.putCalls[0] != url {
-		t.Fatalf("expected Cache.Put called once with the source URL, got %#v", cache.putCalls)
-	}
-}
-
-func TestResolverResolveURLFetchErrorDegradesWithoutPoisoningCache(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/cover.jpg"
-	fetch := &fakeFetcher{err: errors.New("connection refused")}
-	cache := newFakeCache()
-	r := cover.NewResolver(&fakeFileReader{}, fetch, cache, 0)
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if got.IsCover {
-		t.Fatalf("expected placeholder on fetch error, got %#v", got)
-	}
-	if len(cache.putCalls) != 0 {
-		t.Fatalf("expected no cache writes on fetch error, got %#v", cache.putCalls)
-	}
-}
-
-func TestResolverResolveURLNonImageContentTypeDegradesToPlaceholder(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/error-page"
-	fetch := &fakeFetcher{data: []byte("<html>error</html>"), contentType: "text/html"}
-	cache := newFakeCache()
-	r := cover.NewResolver(&fakeFileReader{}, fetch, cache, 0)
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if got.IsCover {
-		t.Fatalf("expected placeholder for non-image content-type, got %#v", got)
-	}
-	if len(cache.putCalls) != 0 {
-		t.Fatalf("expected non-image bodies never cached, got %#v", cache.putCalls)
-	}
-}
-
-func TestResolverResolveURLOversizeBodyDegradesToPlaceholder(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/huge.jpg"
-	oversize := make([]byte, 0, len(jpegBytes)+10)
-	oversize = append(oversize, jpegBytes...)
-	oversize = append(oversize, make([]byte, 10)...)
-	fetch := &fakeFetcher{data: oversize, contentType: "image/jpeg"}
-	cache := newFakeCache()
-	r := cover.NewResolver(&fakeFileReader{}, fetch, cache, int64(len(jpegBytes)))
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if got.IsCover {
-		t.Fatalf("expected placeholder for oversize body, got %#v", got)
-	}
-	if len(cache.putCalls) != 0 {
-		t.Fatalf("expected oversize bodies never cached, got %#v", cache.putCalls)
-	}
-}
-
-func TestResolverResolveURLPrefersContentTypeHeaderOverSniffedMIME(t *testing.T) {
-	t.Parallel()
-
-	const url = "https://cdn.example.com/cover.jpg"
-	// jpegBytes would sniff as image/jpeg; assert the header wins by using a
-	// distinguishable (still image/*) header value.
-	fetch := &fakeFetcher{data: jpegBytes, contentType: "image/webp"}
-	r := cover.NewResolver(&fakeFileReader{}, fetch, newFakeCache(), 0)
-
-	got := r.Resolve(context.Background(), "anime-1", url)
-	if !got.IsCover {
-		t.Fatalf("expected cover result, got %#v", got)
-	}
-	const wantPrefix = "data:image/webp;base64,"
-	if len(got.DataURL) < len(wantPrefix) || got.DataURL[:len(wantPrefix)] != wantPrefix {
-		t.Fatalf("expected header content-type to win, got %q", got.DataURL)
-	}
-}
-
 func TestNewDefaultResolverIsNonNilAndDegradesGracefullyOnCacheRootFailure(t *testing.T) {
 	t.Parallel()
 
@@ -298,27 +136,30 @@ func TestNewDefaultResolverIsNonNilAndDegradesGracefullyOnCacheRootFailure(t *te
 		t.Fatal("expected a non-nil default resolver")
 	}
 
-	// Empty/null portada must still resolve to a placeholder through the
-	// fully-wired production adapters, with no panic anywhere in the chain.
-	got := r.Resolve(context.Background(), "anime-1", "")
-	if got.IsCover {
-		t.Fatalf("expected placeholder for empty portada, got %#v", got)
+	// An empty portada must still classify as absent through the fully-wired production adapters,
+	// with no panic anywhere in the chain.
+	if _, err := r.Load(context.Background(), ""); !errors.Is(err, cover.ErrAbsent) {
+		t.Fatalf("Load(\"\") error = %v, want ErrAbsent", err)
 	}
 }
 
-func TestResolverResolveLocalSourceIsNeverCopiedIntoCache(t *testing.T) {
+// TestResolverLoadLocalSourceNeverTouchesTheCache keeps the guarantee the deleted Resolve suite
+// carried: a local disk cover loads from the filesystem and is never copied into the raw cache.
+func TestResolverLoadLocalSourceNeverTouchesTheCache(t *testing.T) {
 	t.Parallel()
 
 	const path = `C:\anime\cover.jpg`
-	files := &fakeFileReader{files: map[string][]byte{path: jpegBytes}}
 	cache := newFakeCache()
-	r := cover.NewResolver(files, &fakeFetcher{}, cache, 0)
+	resolver := cover.NewResolver(&fakeFileReader{files: map[string][]byte{path: jpegBytes}}, &fakeFetcher{}, cache, 0)
 
-	got := r.Resolve(context.Background(), "anime-1", path)
-	if !got.IsCover {
-		t.Fatalf("expected cover result for local path, got %#v", got)
+	source, err := resolver.Load(context.Background(), path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if source.Kind != cover.KindLocalPath || len(source.Bytes) == 0 {
+		t.Fatalf("source = %#v, want the local bytes with their kind", source)
 	}
 	if len(cache.putCalls) != 0 {
-		t.Fatalf("expected local-disk source never written to cache, got %#v", cache.putCalls)
+		t.Fatalf("expected a local-disk source never to be written to the cache, got %#v", cache.putCalls)
 	}
 }

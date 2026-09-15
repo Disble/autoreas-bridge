@@ -110,10 +110,3 @@ type Source struct {
 	Identity          SourceIdentity
 	RetryAfterSeconds int
 }
-
-// Result is the transport-neutral outcome of a cover resolution; the App
-// layer turns it into contracts.AnimeCover.
-type Result struct {
-	DataURL string
-	IsCover bool
-}
