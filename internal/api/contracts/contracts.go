@@ -105,25 +105,55 @@ type AnimeListItem struct {
 	HasFolder bool `json:"hasFolder"`
 }
 
-// AnimeHistoryItem is the slim History read-model row (Anime History spec,
-// "History Read Model"): a watch-activity log entry equivalent to Legacy
-// "Historial", distinct from the download-gap-focused AnimeListItem.
-// Membership (a present LastWatchedAt) and DESC ordering by it are
-// enforced server-side by AnimeQueryService.ListAnimeHistory, never in the
-// frontend.
-type AnimeHistoryItem struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	EpisodesWatched float64 `json:"episodesWatched"`
-	// LastWatchedAt is epoch millis, always present by membership (rows
-	// without it are excluded, never zero-valued here).
-	LastWatchedAt int64 `json:"lastWatchedAt"`
-	Status        int   `json:"status"`
-	// Kind and CreatedAt (epoch millis) are additive projections from the
-	// same MobileAnime normalization ListAnimeHistory already uses (sdd-37
-	// D1): nil when absent from the source, never zero-valued.
-	Kind      *int   `json:"kind,omitempty"`
-	CreatedAt *int64 `json:"createdAt,omitempty"`
+// WatchHistoryEntry is one recorded real-watch-history row (Real Watch
+// History spec, "Read Models Are Keyset-Paged"): a single episode watched at a
+// point in time. It is the sole watch-history read model exposed to the
+// frontend -- the earlier slim History read-model row and its query/binding
+// surface were retired once their last frontend caller was removed (sdd-69
+// Slice 7, Note A).
+type WatchHistoryEntry struct {
+	ID          int64  `json:"id"`
+	AnimeID     string `json:"animeId"`
+	AnimeName   string `json:"animeName"`
+	Episode     int64  `json:"episode"`
+	Cycle       int64  `json:"cycle"`
+	WatchedAtMS int64  `json:"watchedAtMs"`
+	Source      string `json:"source"`
+}
+
+// WatchHistoryPage is a keyset-paged batch of WatchHistoryEntry rows,
+// returned by GetWatchHistoryPage/GetAnimeWatchHistoryPage. A fetch failure is
+// surfaced through Status/Message rather than an empty Items slice, so the
+// frontend's empty state never lies about a failure (design.md D9).
+type WatchHistoryPage struct {
+	Items      []WatchHistoryEntry `json:"items"`
+	NextCursor string              `json:"nextCursor,omitempty"`
+	Status     string              `json:"status"`
+	Message    string              `json:"message,omitempty"`
+}
+
+// WatchHistoryPageRequest is the wire request for GetWatchHistoryPage: the
+// global read model's optional narrowing filters plus keyset paging (History
+// UI Redesign spec, "Read Models Are Keyset-Paged"). Every filter field's
+// zero value means "not applied" (design.md D3).
+type WatchHistoryPageRequest struct {
+	Search        string   `json:"search"`        // trimmed substring of anime_name; "" = not applied
+	AnimeIDs      []string `json:"animeIds"`      // empty = not applied
+	WatchedFromMS int64    `json:"watchedFromMs"` // inclusive; 0 = unbounded
+	WatchedToMS   int64    `json:"watchedToMs"`   // exclusive; 0 = unbounded
+	Order         string   `json:"order"`         // "newest" | "oldest"; "" = newest
+	Cursor        string   `json:"cursor"`
+	Limit         int      `json:"limit"` // 0 = default 50, clamped to 200
+}
+
+// AnimeWatchHistoryPageRequest is the wire request for
+// GetAnimeWatchHistoryPage: one anime's keyset page, optionally scoped to a
+// single watch (design.md D3).
+type AnimeWatchHistoryPageRequest struct {
+	AnimeID string `json:"animeId"`
+	Cycle   int64  `json:"cycle"` // 0 = every cycle
+	Cursor  string `json:"cursor"`
+	Limit   int    `json:"limit"`
 }
 
 // AnimeDetailProgress contains watched, total, and remaining episode counts.

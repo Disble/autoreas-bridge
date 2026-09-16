@@ -3,8 +3,11 @@ package activity_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"autoreas-bridge/internal/activity"
 	bridgeSync "autoreas-bridge/internal/sync"
@@ -59,6 +62,270 @@ func TestBridgeBootstrapCreatesActivityLogSchema(t *testing.T) {
 	assertIndexExists(t, db, "idx_activity_log_anime")
 	assertIndexExists(t, db, "idx_activity_log_action")
 	assertIndexExists(t, db, "idx_activity_log_correlation")
+}
+
+// TestStoreCountsAndStreamsRowsOldestFirst proves CountReplayable counts the
+// whole replay input and StreamOldestFirst yields it in occurred_at_ms ASC,
+// id ASC order, decoding before/after into the exact untagged Snapshot shape
+// (CLAUDE.md #13).
+func TestStoreCountsAndStreamsRowsOldestFirst(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 2000, activity.Snapshot{NroCapVisto: 10, Activo: 1}, activity.Snapshot{NroCapVisto: 11, Activo: 1})
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{NroCapVisto: 9, Activo: 1}, activity.Snapshot{NroCapVisto: 10, Activo: 1})
+
+	count, err := store.CountReplayable(ctx)
+	if err != nil {
+		t.Fatalf("count replayable rows: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 replayable rows, got %d", count)
+	}
+
+	var streamed []activity.ProgressEvent
+	if err := store.StreamOldestFirst(ctx, func(event activity.ProgressEvent) error {
+		streamed = append(streamed, event)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream oldest first: %v", err)
+	}
+	if len(streamed) != 2 {
+		t.Fatalf("expected 2 streamed events, got %#v", streamed)
+	}
+	if streamed[0].OccurredAtMs != 1000 || streamed[1].OccurredAtMs != 2000 {
+		t.Fatalf("expected oldest-first order, got %#v", streamed)
+	}
+	if streamed[0].Before.NroCapVisto != 9 || streamed[0].After.NroCapVisto != 10 {
+		t.Fatalf("expected the untagged Snapshot shape decoded, got %#v", streamed[0])
+	}
+}
+
+// TestStoreRetainsTheReportedInstantBesideTheObservationInstant pins the SDD-73
+// provenance split. The row's own instant stays the moment the bridge observed
+// the change, a reported instant is retained beside it, and an absent report
+// stays NULL rather than being defaulted to the observation instant -- an absent
+// report and a report that happens to equal the observation are different facts
+// (observability delta spec).
+func TestStoreRetainsTheReportedInstantBesideTheObservationInstant(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	if err := store.RecordActivity(ctx, activity.Record{
+		Source: activity.SourceMobile, ActionType: activity.ActionEpisodeAdjusted,
+		AnimeID: "anime-with-report", AnimeName: "One", OccurredAtMs: 2000, ReportedAtMS: 1000,
+		BeforeJSON: []byte(`{"NroCapVisto":1}`), AfterJSON: []byte(`{"NroCapVisto":2}`),
+	}); err != nil {
+		t.Fatalf("record activity with a reported instant: %v", err)
+	}
+	if err := store.RecordActivity(ctx, activity.Record{
+		Source: activity.SourceMobile, ActionType: activity.ActionEpisodeAdjusted,
+		AnimeID: "anime-without-report", AnimeName: "Two", OccurredAtMs: 2000,
+		BeforeJSON: []byte(`{"NroCapVisto":1}`), AfterJSON: []byte(`{"NroCapVisto":2}`),
+	}); err != nil {
+		t.Fatalf("record activity without a reported instant: %v", err)
+	}
+
+	streamed := map[string]activity.ProgressEvent{}
+	if err := store.StreamOldestFirst(ctx, func(event activity.ProgressEvent) error {
+		streamed[event.AnimeID] = event
+		return nil
+	}); err != nil {
+		t.Fatalf("stream oldest first: %v", err)
+	}
+
+	withReport := streamed["anime-with-report"]
+	if withReport.ReportedAtMS != 1000 || withReport.OccurredAtMs != 2000 {
+		t.Fatalf("expected the reported instant 1000 beside the observation instant 2000, got %#v", withReport)
+	}
+	withoutReport := streamed["anime-without-report"]
+	if withoutReport.ReportedAtMS != 0 || withoutReport.OccurredAtMs != 2000 {
+		t.Fatalf("expected an absent report to read back as 0 beside the observation instant 2000, got %#v", withoutReport)
+	}
+
+	// Read back as 0 is not enough: 0 is the absence sentinel AND a storable
+	// number, so only the raw column proves which one was written.
+	var isNull bool
+	if err := db.QueryRow(`SELECT reported_at_ms IS NULL FROM activity_log WHERE anime_id = ?`, "anime-without-report").Scan(&isNull); err != nil {
+		t.Fatalf("read the stored reported column: %v", err)
+	}
+	if !isNull {
+		t.Fatal("expected an absent report to be persisted as NULL, not as a number")
+	}
+}
+
+// TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions proves the
+// purge is scoped: an unlisted action_type survives, and the caller
+// controls the transaction.
+func TestStoreDeleteNavigationTelemetryRemovesOnlyNavigationActions(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+	seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", 1000, activity.Snapshot{}, activity.Snapshot{})
+	seedReplayRow(t, store, "anime_page_opened", "anime-1", "One", 2000, activity.Snapshot{}, activity.Snapshot{})
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	deleted, err := store.DeleteNavigationTelemetry(ctx, tx)
+	if err != nil {
+		t.Fatalf("delete navigation telemetry: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("expected exactly 1 deleted row, got %d", deleted)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit tx: %v", err)
+	}
+
+	remaining, err := store.CountReplayable(ctx)
+	if err != nil {
+		t.Fatalf("count remaining rows: %v", err)
+	}
+	if remaining != 1 {
+		t.Fatalf("expected only the non-navigation row to survive, got %d", remaining)
+	}
+}
+
+// TestStoreReturnsZeroOnQueryOrExecError proves both error paths' own return
+// value, not just error presence: an already-committed transaction fails
+// DeleteNavigationTelemetry's exec, and a closed connection fails
+// CountReplayable's query; both must report 0 rather than a mutated
+// sentinel.
+func TestStoreReturnsZeroOnQueryOrExecError(t *testing.T) {
+	ctx := context.Background()
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit tx: %v", err)
+	}
+	deleted, err := store.DeleteNavigationTelemetry(ctx, tx)
+	if err == nil {
+		t.Fatal("expected an error executing against an already-committed transaction")
+	}
+	if deleted != 0 {
+		t.Fatalf("expected deleted count 0 on error, got %d", deleted)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+	count, err := store.CountReplayable(ctx)
+	if err == nil {
+		t.Fatal("expected an error querying a closed database")
+	}
+	if count != 0 {
+		t.Fatalf("expected count 0 on error, got %d", count)
+	}
+}
+
+// TestRecordActivityFirstWritePrunesUnconditionally proves a freshly
+// constructed Store prunes on its very first write rather than waiting for
+// PruneEvery, mirroring eventlog's TestNewStoreSeedsPruneCounterFromExistingRows
+// -- otherwise a desktop session shorter than PruneEvery writes would never
+// prune at all.
+func TestRecordActivityFirstWritePrunesUnconditionally(t *testing.T) {
+	db := openActivityTestDB(t)
+	seedStore := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1000, PruneEvery: 1000})
+	for i := range 5 {
+		seedReplayRow(t, seedStore, activity.ActionEpisodeAdjusted, "anime-1", "One", int64(1000+i), activity.Snapshot{}, activity.Snapshot{})
+	}
+	if count := countActivityRows(t, db); count != 5 {
+		t.Fatalf("expected 5 seeded rows, got %d", count)
+	}
+
+	freshStore := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 2, PruneEvery: 100})
+	seedReplayRow(t, freshStore, activity.ActionEpisodeAdjusted, "anime-1", "One", 9999, activity.Snapshot{}, activity.Snapshot{})
+	if count := countActivityRows(t, db); count != 2 {
+		t.Fatalf("expected the first write to prune unconditionally down to cap 2, got %d", count)
+	}
+}
+
+// TestRecordActivityPrunesOnCadenceNotEveryWrite proves prune fires only on
+// the configured write-count cadence after the first write, letting the
+// table exceed RowCap between boundaries, mirroring
+// eventlog's TestPruneRunsOnlyEveryNthWrite.
+func TestRecordActivityPrunesOnCadenceNotEveryWrite(t *testing.T) {
+	cases := []struct {
+		name       string
+		pruneEvery int
+		wantCounts []int
+	}{
+		{name: "every third write exceeds the cap in between", pruneEvery: 3, wantCounts: []int{1, 2, 1}},
+		{name: "a cadence of one prunes every write", pruneEvery: 1, wantCounts: []int{1, 1, 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openActivityTestDB(t)
+			store := activity.NewStoreWithRetention(activity.NewSQLiteProvider(db), activity.StoreRetention{RowCap: 1, PruneEvery: tc.pruneEvery})
+			got := make([]int, len(tc.wantCounts))
+			for i := range got {
+				seedReplayRow(t, store, activity.ActionEpisodeAdjusted, "anime-1", "One", int64(1000+i), activity.Snapshot{}, activity.Snapshot{})
+				got[i] = countActivityRows(t, db)
+			}
+			if !slices.Equal(got, tc.wantCounts) {
+				t.Fatalf("row counts after each write = %v, want %v", got, tc.wantCounts)
+			}
+		})
+	}
+}
+
+// TestRecordActivityRollsBackAFailedInsert proves a failed insert releases the
+// bridge database's single connection; a leaked transaction blocks the next write.
+func TestRecordActivityRollsBackAFailedInsert(t *testing.T) {
+	db := openActivityTestDB(t)
+	store := activity.NewStore(activity.NewSQLiteProvider(db))
+	if _, err := db.Exec(`CREATE TRIGGER reject_boom BEFORE INSERT ON activity_log WHEN NEW.anime_id = 'boom'
+		BEGIN SELECT RAISE(ABORT, 'boom'); END`); err != nil {
+		t.Fatalf("create rejecting trigger: %v", err)
+	}
+	if err := store.RecordActivity(context.Background(), activity.Record{AnimeID: "boom"}); err == nil {
+		t.Fatal("expected the trigger to reject the insert")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := store.RecordActivity(ctx, activity.Record{AnimeID: "anime-1", OccurredAtMs: 1000}); err != nil {
+		t.Fatalf("expected the next write to succeed after the rollback, got %v", err)
+	}
+}
+
+// countActivityRows returns the current activity_log row count.
+func countActivityRows(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM activity_log`).Scan(&count); err != nil {
+		t.Fatalf("count activity_log: %v", err)
+	}
+	return count
+}
+
+// seedReplayRow records one activity row through the public Store API, so no
+// test writes activity_log's literal name outside this package.
+func seedReplayRow(t *testing.T, store *activity.Store, actionType, animeID, animeName string, occurredAtMs int64, before, after activity.Snapshot) {
+	t.Helper()
+	beforeJSON, err := json.Marshal(before)
+	if err != nil {
+		t.Fatalf("marshal before snapshot: %v", err)
+	}
+	afterJSON, err := json.Marshal(after)
+	if err != nil {
+		t.Fatalf("marshal after snapshot: %v", err)
+	}
+	if err := store.RecordActivity(context.Background(), activity.Record{
+		Source: activity.SourceDesktop, ActionType: actionType, AnimeID: animeID, AnimeName: animeName,
+		OccurredAtMs: occurredAtMs, BeforeJSON: beforeJSON, AfterJSON: afterJSON,
+	}); err != nil {
+		t.Fatalf("seed replay row: %v", err)
+	}
 }
 
 // openActivityTestDB opens a temporary bridge database for activity tests.

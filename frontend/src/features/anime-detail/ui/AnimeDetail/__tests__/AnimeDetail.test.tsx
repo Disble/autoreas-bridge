@@ -8,6 +8,13 @@ vi.mock('../use-anime-detail', () => ({
   useAnimeDetail: () => useAnimeDetailMock(),
 }));
 
+/** Stands in for the per-anime watch-episodes hook so this suite renders without a live fetch. */
+const useAnimeWatchEpisodesMock = vi.fn().mockReturnValue({ entries: [], isLoading: false, hasMore: false, error: undefined, fetchNextPage: vi.fn(), onScroll: vi.fn() });
+
+vi.mock('../../AnimeWatchHistory/use-anime-watch-episodes', () => ({
+  useAnimeWatchEpisodes: () => useAnimeWatchEpisodesMock(),
+}));
+
 import { AnimeDetail } from '../AnimeDetail';
 
 /** Baseline loaded anime-detail view model each case overrides one field of. */
@@ -18,7 +25,7 @@ function createDetailViewModel(overrides = {}) {
     modifiedAt: 1000,
     canRepeat: true,
     canRestore: false,
-    portadaUrl: undefined,
+    hasStoredCover: false,
     estadoLabel: 'No me gusto',
     tipoLabel: 'Serie',
     subtitleLabel: 'No me gusto • Serie',
@@ -29,7 +36,6 @@ function createDetailViewModel(overrides = {}) {
       { label: 'Total episodes', value: '28' },
       { label: 'Duration', value: '24 min' },
     ],
-    progressRatio: 43,
     paginaUrl: undefined,
     carpetaLabel: 'Unknown',
     estrenoLabel: 'Unknown',
@@ -40,8 +46,23 @@ function createDetailViewModel(overrides = {}) {
     studios: 'Madhouse',
     origin: 'Manga',
     isFirstWatch: true,
-    repetitions: [],
-    hasRepetitionHistory: false,
+    ...overrides,
+  };
+}
+
+/** Baseline raw detail DTO feeding Watch history; repetitions stay empty so the section renders its live watch only. */
+function createDetailSource(overrides = {}) {
+  return {
+    id: 'anime-1',
+    name: 'Frieren',
+    status: 0,
+    episodesWatched: 12,
+    totalEpisodes: 28,
+    active: 1,
+    days: [],
+    genres: ['Fantasy'],
+    firstCycle: 1,
+    modified_at: 1000,
     ...overrides,
   };
 }
@@ -51,7 +72,8 @@ function mockAnimeDetailState(overrides = {}) {
   useAnimeDetailMock.mockReturnValue({
     loadState: 'loaded',
     detail: createDetailViewModel(),
-    showPortadaPlaceholder: true,
+    detailSource: createDetailSource(),
+    cover: { status: 'placeholder' },
     onPortadaError: vi.fn(),
     onPortadaLoad: vi.fn(),
     onBack: vi.fn(),
@@ -77,7 +99,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -90,7 +111,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'loading',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -113,7 +133,6 @@ describe('AnimeDetail', () => {
     useAnimeDetailMock.mockReturnValue({
       loadState: 'not-found',
       detail: undefined,
-      showPortadaPlaceholder: true,
       onPortadaError: vi.fn(),
     });
 
@@ -132,23 +151,33 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
-  it('renders the cute-anime SVG placeholder instead of raw alt text when portada is missing', () => {
-    mockAnimeDetailState({ showPortadaPlaceholder: true });
+  it('renders the cute-anime SVG placeholder instead of raw alt text when the cover resolved to placeholder', () => {
+    mockAnimeDetailState({ cover: { status: 'placeholder' } });
 
     render(<AnimeDetail animeId="anime-1" />);
 
     expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cover art')).not.toBeInTheDocument();
-    expect(screen.getByTestId('anime-detail-portada-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('anime-detail-portada-placeholder')).toHaveClass('size-21');
     expect(screen.getByRole('img', { name: 'No cover art' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
   });
 
-  it('renders the cover image and wires onError/onLoad to the hook callbacks when portada is present', () => {
+  it('renders a named loading region for the hero avatar while the cover resolves, without the image or the placeholder', () => {
+    mockAnimeDetailState({ cover: { status: 'loading' } });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    expect(screen.getByRole('status', { name: 'Loading cover art...' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Cover art' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+  });
+
+  it('renders the cover image and wires onError/onLoad to the hook callbacks when the cover resolved', () => {
     const onPortadaError = vi.fn();
     const onPortadaLoad = vi.fn();
     mockAnimeDetailState({
-      detail: createDetailViewModel({ portadaUrl: 'C:/legacy/portadas/frieren.jpg' }),
-      showPortadaPlaceholder: false,
+      cover: { status: 'cover', dataUrl: 'data:image/jpeg;base64,ZmFrZQ==' },
       onPortadaError,
       onPortadaLoad,
     });
@@ -156,7 +185,9 @@ describe('AnimeDetail', () => {
     render(<AnimeDetail animeId="anime-1" />);
 
     const image = screen.getByRole('img', { name: 'Cover art' });
-    expect(image).toHaveAttribute('src', 'C:/legacy/portadas/frieren.jpg');
+    expect(image).toHaveAttribute('src', 'data:image/jpeg;base64,ZmFrZQ==');
+    expect(screen.queryByTestId('anime-detail-portada-placeholder')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading cover art...' })).not.toBeInTheDocument();
 
     fireEvent.error(image);
     expect(onPortadaError).toHaveBeenCalledTimes(1);
@@ -185,6 +216,19 @@ describe('AnimeDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit anime' }));
 
     expect(onEditAnime).toHaveBeenCalledTimes(1);
+  });
+
+  it('groups Edit anime, Repeat and Restore beside the status chip in the hero header', () => {
+    mockAnimeDetailState({ detail: createDetailViewModel({ canRepeat: true, canRestore: true }) });
+
+    render(<AnimeDetail animeId="anime-1" />);
+
+    const hero = screen.getByRole('heading', { name: 'Frieren' }).closest('header');
+    expect(hero).not.toBeNull();
+    for (const name of ['Edit anime', 'Repeat', 'Restore']) {
+      expect(hero?.contains(screen.getByRole('button', { name }))).toBe(true);
+    }
+    expect(hero?.contains(screen.getByText('Active'))).toBe(true);
   });
 
   it('shows Repeat and Restore only when the loaded anime is eligible', () => {
@@ -279,7 +323,6 @@ describe('AnimeDetail', () => {
           { label: 'Total episodes', value: 'No total episodes data' },
           { label: 'Duration', value: 'No episode duration data' },
         ],
-        progressRatio: undefined,
       }),
     });
 
@@ -288,15 +331,6 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('No total episodes data')).toBeInTheDocument();
     expect(screen.getByText('No episode duration data')).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-  });
-
-  it('renders the progress bar only when the progress ratio is known', () => {
-    mockAnimeDetailState({ detail: createDetailViewModel({ progressRatio: 43 }) });
-
-    render(<AnimeDetail animeId="anime-1" />);
-
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
   it('renders página as a clickable external link when present', () => {
@@ -355,41 +389,14 @@ describe('AnimeDetail', () => {
     expect(screen.getByText('No genres listed')).toBeInTheDocument();
   });
 
-  it('renders the repetition timeline when populated', () => {
-    mockAnimeDetailState({
-      detail: createDetailViewModel({
-        hasRepetitionHistory: true,
-        repetitions: [
-          {
-            key: '1-0',
-            numRepeticion: 1,
-            estadoLabel: 'Finalizado',
-            estadoColor: 'success',
-            episodesWatchedLabel: '24',
-            creacionLabel: 'January 1, 2022',
-            estrenoLabel: 'January 2, 2022',
-            ultCapVistoLabel: 'January 3, 2022',
-            eliminacionLabel: 'January 4, 2022',
-            repeatedOnLabel: 'June 1, 2023',
-          },
-        ],
-      }),
-    });
-
-    render(<AnimeDetail animeId="anime-1" />);
-
-    expect(screen.getByText('Repetition 1')).toBeInTheDocument();
-    expect(screen.getByText('Finalizado')).toBeInTheDocument();
-    expect(screen.getByText('24')).toBeInTheDocument();
-    expect(screen.getByText('January 1, 2022')).toBeInTheDocument();
-    expect(screen.queryByText('No repetition history.')).not.toBeInTheDocument();
-  });
-
-  it('renders the no-repetitions fallback when the timeline is empty', () => {
+  it('renders Watch history as the single history section, with no repetition or episode-history section', () => {
     mockAnimeDetailState();
 
     render(<AnimeDetail animeId="anime-1" />);
 
-    expect(screen.getByText('No repetition history.')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Watch history' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Repetition history' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Episode history' })).toBeNull();
+    expect(screen.queryByText('No repetition history.')).toBeNull();
   });
 });

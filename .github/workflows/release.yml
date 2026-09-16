@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -72,10 +72,10 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download every platform artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -105,11 +105,11 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Publish the release
-        # Pinned to a commit, not the `v2` tag: this action holds
+        # Pinned to a commit, not the `v3` tag: this action holds
         # `contents: write` and publishes the release, so it is the single most
         # privileged third-party step in the pipeline (SonarQube
         # githubactions:S7637).
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           name: Autoreas Bridge ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.body }}

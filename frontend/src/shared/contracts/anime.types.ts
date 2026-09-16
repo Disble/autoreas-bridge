@@ -70,19 +70,66 @@ export interface AnimeDetail extends Omit<
 }
 
 /**
- * AnimeHistoryEntry is a single row of the History read model returned by
- * `GetAnimeHistory` (Anime History spec, "History Read Model"): a
- * watch-activity log entry, server-sorted DESC by `lastWatchedAt` and
- * membership-filtered (only animes with a present `lastWatchedAt`) --
- * never re-derived or re-sorted on the frontend.
+ * WatchHistoryEntry is one recorded real-watch-history row returned by
+ * `GetWatchHistoryPage`/`GetAnimeWatchHistoryPage` (Real Watch History spec,
+ * "Read Models Are Keyset-Paged"): a single episode watched at a point in
+ * time. It is the sole watch-history read model exposed to the frontend --
+ * the earlier slim History read-model type and its adapter method were
+ * retired once their last consuming component was removed (sdd-69 Slice 7,
+ * Note A).
  */
-export type AnimeHistoryEntry = Pick<
-  Anime,
-  'id' | 'name' | 'episodesWatched' | 'status' | 'kind'
-> & {
-  readonly lastWatchedAt: number;
-  readonly createdAt?: number;
-};
+export interface WatchHistoryEntry {
+  readonly id: number;
+  readonly animeId: string;
+  readonly animeName: string;
+  readonly episode: number;
+  readonly cycle: number;
+  readonly watchedAtMs: number;
+  readonly source: string;
+}
+
+/**
+ * WatchHistoryPage is a keyset-paged batch of `WatchHistoryEntry` rows. A
+ * fetch failure is surfaced through `status`/`message` rather than an empty
+ * `items` array, so the loading/error states never mistake a failure for an
+ * empty history.
+ */
+export interface WatchHistoryPage {
+  readonly items: readonly WatchHistoryEntry[];
+  readonly nextCursor?: string;
+  readonly status: string;
+  readonly message?: string;
+}
+
+/** Sort direction accepted by `WatchHistoryPageRequest.order` (History UI Redesign design.md D3). */
+export type WatchHistoryOrder = 'newest' | 'oldest';
+
+/**
+ * Request for `GetWatchHistoryPage`: the global read model's optional
+ * narrowing filters plus keyset paging (design.md D3). Every filter field's
+ * empty/zero value means "not applied".
+ */
+export interface WatchHistoryPageRequest {
+  readonly search: string;
+  readonly animeIds: readonly string[];
+  readonly watchedFromMs: number;
+  readonly watchedToMs: number;
+  readonly order: WatchHistoryOrder;
+  readonly cursor: string;
+  readonly limit: number;
+}
+
+/**
+ * Request for `GetAnimeWatchHistoryPage`: one anime's keyset page, optionally
+ * scoped to a single watch cycle (design.md D3). `cycle: 0` means every
+ * cycle.
+ */
+export interface AnimeWatchHistoryPageRequest {
+  readonly animeId: string;
+  readonly cycle: number;
+  readonly cursor: string;
+  readonly limit: number;
+}
 
 /** Fidelity marker for legacy `estudios` ownership on the editor wire contract. */
 export type AnimeEditorStudiosKind = 'missing' | 'null' | 'empty' | 'values';

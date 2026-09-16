@@ -102,7 +102,6 @@ type AnimeQueryService interface {
 	ListMobileAnimes(ctx context.Context) ([]MobileAnime, error)
 	GetMobileAnime(ctx context.Context, id string) (*MobileAnime, error)
 	ListAnimeItems(ctx context.Context) ([]AnimeListItem, error)
-	ListAnimeHistory(ctx context.Context) ([]AnimeHistoryItem, error)
 	GetAnimeDetail(ctx context.Context, id string) (*AnimeDetail, error)
 }
 

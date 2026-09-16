@@ -10,6 +10,7 @@ import (
 	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/anime/domain"
+	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -28,10 +29,12 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 	writeService := anime.NewWriteService(store, writer)
 	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
 	activityRecorder := &stubEpisodeActivityRecorder{}
+	watchRecorder := &stubWatchRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:    anime.NewQueryService(store),
 		Writer:   writeService,
 		Activity: activityRecorder,
+		Watch:    watchRecorder,
 		Now:      func() time.Time { return time.UnixMilli(1710000000123).UTC() },
 	})
 
@@ -45,11 +48,11 @@ func TestEpisodeServiceAdjustWatchedEpisodesWritesProgressAndRecordsActivity(t *
 		t.Fatalf("adjust watched episodes: %v", err)
 	}
 
-	assertEpisodeAdjustmentResult(t, ctx, store, result, activityRecorder)
+	assertEpisodeAdjustmentResult(t, ctx, store, result, activityRecorder, watchRecorder)
 }
 
 // assertEpisodeAdjustmentResult verifies the episode adjustment outcome.
-func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore, result anime.EpisodeCommandResult, activityRecorder *stubEpisodeActivityRecorder) {
+func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bridgeSync.AnimeSnapshotStore, result anime.EpisodeCommandResult, activityRecorder *stubEpisodeActivityRecorder, watchRecorder *stubWatchRecorder) {
 	t.Helper()
 	if result.NroCapVisto != 3 {
 		t.Fatalf("expected resulting progress 3, got %v", result.NroCapVisto)
@@ -68,6 +71,93 @@ func assertEpisodeAdjustmentResult(t *testing.T, ctx context.Context, store *bri
 	record := activityRecorder.records[0]
 	if record.ActionType != activity.ActionEpisodeAdjusted || record.AnimeID != "anime-1" || record.AnimeName != "Dungeon Meshi" || record.Source != anime.ActivitySourceDesktop || record.Before.NroCapVisto != 2.5 || record.After.NroCapVisto != 3 {
 		t.Fatalf("unexpected adjustment record: %#v", record)
+	}
+	if len(watchRecorder.calls) != 1 {
+		t.Fatalf("expected 1 watch history record, got %d", len(watchRecorder.calls))
+	}
+	change := watchRecorder.calls[0]
+	if change.AnimeID != "anime-1" || change.AnimeName != "Dungeon Meshi" || change.Source != anime.ActivitySourceDesktop ||
+		change.BeforeEpisodes != 2.5 || change.AfterEpisodes != 3 || change.Cycle != 1 || change.OccurredAtMS != 1710000000123 || change.CycleReset {
+		t.Fatalf("unexpected watch history change: %#v", change)
+	}
+}
+
+// TestEpisodeServiceAdjustWatchedEpisodesRecordWatchGuardsLoggerAndError
+// asserts D4's degrade-on-error guard from every angle it can fail: a
+// success never logs even with a logger wired, a failure with no logger
+// wired degrades silently (never dereferencing a nil logger), and a failure
+// with a logger wired warn-logs exactly once under domain="watch-history".
+// The command reports success in every row either way, unlike a
+// RecordActivity failure which still propagates.
+func TestEpisodeServiceAdjustWatchedEpisodesRecordWatchGuardsLoggerAndError(t *testing.T) {
+	tests := []struct {
+		name           string
+		watchErr       error
+		wireLogger     bool
+		wantLogEntries int
+	}{
+		{name: "success with logger wired logs nothing", wireLogger: true},
+		{name: "failure with no logger wired degrades silently", watchErr: errors.New("watch history unavailable")},
+		{name: "failure with logger wired warn-logs once", watchErr: errors.New("watch history unavailable"), wireLogger: true, wantLogEntries: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assertRecordWatchLoggingGuard(t, tc.watchErr, tc.wireLogger, tc.wantLogEntries)
+		})
+	}
+}
+
+// assertRecordWatchLoggingGuard runs one AdjustWatchedEpisodes call against
+// the given watch-recorder error and logger wiring, asserting the command
+// still succeeds and the logger observed exactly wantLogEntries entries.
+func assertRecordWatchLoggingGuard(t *testing.T, watchErr error, wireLogger bool, wantLogEntries int) {
+	t.Helper()
+	ctx := context.Background()
+	store := openAnimeServiceTestStore(t)
+	seedAnimeSnapshotWithModifiedAt(
+		t,
+		store,
+		"anime-1",
+		`{"id":"anime-1","name":"Dungeon Meshi","episodesWatched":2,"status":0,"totalEpisodes":24,"active":true}`,
+		1000,
+	)
+
+	writer := &stubAnimeWriter{}
+	writeService := anime.NewWriteService(store, writer)
+	writeService.SetNow(func() time.Time { return time.UnixMilli(1710000000123).UTC() })
+	deps := anime.EpisodeServiceDeps{
+		Query:  anime.NewQueryService(store),
+		Writer: writeService,
+		Watch:  &stubWatchRecorder{err: watchErr},
+		Now:    func() time.Time { return time.UnixMilli(1710000000123).UTC() },
+	}
+	var memLogger *sharedlogger.MemLogger
+	if wireLogger {
+		memLogger = sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
+		deps.Logger = memLogger
+	}
+	service := anime.NewEpisodeService(deps)
+
+	result, err := service.AdjustWatchedEpisodes(ctx, anime.AdjustWatchedEpisodesCommand{
+		AnimeID: "anime-1",
+		Delta:   1,
+		Base:    new(int64(1000)),
+	})
+	if err != nil {
+		t.Fatalf("adjust watched episodes: %v", err)
+	}
+	if result.NroCapVisto != 3 {
+		t.Fatalf("expected the command to still succeed with progress 3, got %v", result.NroCapVisto)
+	}
+	if memLogger == nil {
+		return
+	}
+	entries := memLogger.Recent()
+	if len(entries) != wantLogEntries {
+		t.Fatalf("expected %d watch-history log entries, got %#v", wantLogEntries, entries)
+	}
+	if wantLogEntries > 0 && (entries[0].Domain != "watch-history" || entries[0].Level != sharedlogger.LevelWarn) {
+		t.Fatalf("expected a watch-history warn log entry, got %#v", entries[0])
 	}
 }
 
@@ -145,9 +235,11 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 	)
 
 	writer := &stubAnimeWriter{}
+	watchRecorder := &stubWatchRecorder{}
 	service := anime.NewEpisodeService(anime.EpisodeServiceDeps{
 		Query:  anime.NewQueryService(store),
 		Writer: anime.NewWriteService(store, writer),
+		Watch:  watchRecorder,
 		Now:    func() time.Time { return time.UnixMilli(1710000000456).UTC() },
 	})
 
@@ -167,6 +259,9 @@ func TestEpisodeServiceSetAnimeDaysWritesDias(t *testing.T) {
 	days := value.Days
 	if len(days) != 1 || days[0].Day != "Ver hoy" || days[0].Order != 1 {
 		t.Fatalf("dias = %+v, want a single Ver hoy/1 entry", days)
+	}
+	if len(watchRecorder.calls) != 0 {
+		t.Fatalf("expected SetAnimeDays to never record watch history, got %#v", watchRecorder.calls)
 	}
 }
 

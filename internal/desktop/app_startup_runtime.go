@@ -185,6 +185,7 @@ func (a *App) buildHTTPServer(deviceService device.AuthService, animeWrite contr
 		RecordSeasonRating:     a.recordSeasonRating(),
 		ActiveSeasonSnapshot:   a.activeSeasonSnapshot(),
 		IngestSyncDiagnostics:  a.ingestSyncDiagnostics(),
+		CoverThumbnails:        apiCoverThumbnails{service: a.coverThumbnails},
 		RealtimeHub:            a.realtimeHub,
 		Logger:                 a.sharedLogger,
 		OnPairingTokenConsumed: a.onPairingTokenConsumed(),
@@ -374,6 +375,35 @@ func (a *App) registerAnimeRuntimeEventBridge(ctx context.Context) {
 			ChangeType:    changed.ChangeType,
 			ChangedFields: changed.ChangedFields,
 			CorrelationID: changed.CorrelationID,
+		})
+	})
+}
+
+// registerDeviceSyncRuntimeEventBridge forwards device-acknowledgment events
+// to the desktop frontend so the Connected Devices panel refreshes its rows
+// in place instead of only on route remount (connected-devices-realtime
+// spec, "Device acknowledgment publishes a realtime signal"). Mirrors
+// registerAnimeRuntimeEventBridge's shape -- a mapped contracts DTO, never
+// the bare domain event.
+func (a *App) registerDeviceSyncRuntimeEventBridge(ctx context.Context) {
+	if a.eventBus == nil || a.emitFn == nil {
+		return
+	}
+	a.eventBus.Subscribe(events.EventNameSyncDeviceAcknowledged, func(event events.Event) {
+		acknowledged, ok := event.(events.DeviceAcknowledgedEvent)
+		if !ok {
+			return
+		}
+		emitCtx := a.ctx
+		if emitCtx == nil {
+			emitCtx = ctx
+		}
+		if emitCtx == nil || a.emitFn == nil {
+			return
+		}
+		a.emitFn(emitCtx, events.EventNameSyncDeviceAcknowledged, contracts.DeviceAcknowledgedNotice{
+			DeviceID:     acknowledged.DeviceID,
+			LastSeenAtMs: acknowledged.LastSeenAtMs,
 		})
 	})
 }

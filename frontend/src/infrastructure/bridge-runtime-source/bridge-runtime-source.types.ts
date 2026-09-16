@@ -8,11 +8,19 @@ import type {
   AnimeEditorSaveResult,
   AnimeEditorScheduleApplyResult,
   AnimeEditorScheduleBoardResult,
-  AnimeHistoryEntry,
+  AnimeWatchHistoryPageRequest,
   ApplyAnimeScheduleDraftCommand,
   SaveAnimeEditorCommand,
+  WatchHistoryPage,
+  WatchHistoryPageRequest,
 } from '../../shared/contracts/anime.types';
 import type { SyncingAnime } from '../../shared/contracts/syncing-anime.types';
+
+/** Payload carried by the Wails `sync.device_acknowledged` runtime event. */
+export interface DeviceAcknowledgedNotice {
+  readonly deviceId: string;
+  readonly lastSeenAtMs: number;
+}
 
 /**
  * Request/reply port for bridge runtime bindings plus the pairing-consumed event stream.
@@ -30,7 +38,8 @@ export interface BridgeRuntimeSource {
   readonly getAnimeEditorScheduleBoard?: (originAnimeID: string) => Promise<AnimeEditorScheduleBoardResult>;
   readonly applyAnimeEditorSchedule?: (command: ApplyAnimeScheduleDraftCommand) => Promise<AnimeEditorScheduleApplyResult>;
   readonly createAnime?: (command: AnimeCreateCommand) => Promise<AnimeCreateResult>;
-  readonly getAnimeHistory: () => Promise<readonly AnimeHistoryEntry[]>;
+  readonly getWatchHistoryPage?: (request: WatchHistoryPageRequest) => Promise<WatchHistoryPage>;
+  readonly getAnimeWatchHistoryPage?: (request: AnimeWatchHistoryPageRequest) => Promise<WatchHistoryPage>;
   readonly getEpisodeSchedule?: (day: string) => Promise<readonly contracts.EpisodeScheduleItem[]>;
   readonly getAnimeCover?: (animeID: string) => Promise<contracts.AnimeCover>;
   readonly getEpisodeDayCounts?: () => Promise<readonly contracts.EpisodeDayCount[]>;
@@ -49,6 +58,7 @@ export interface BridgeRuntimeSource {
   readonly triggerReconcile: () => Promise<string>;
   readonly unpairDevice?: (deviceID: string) => Promise<string>;
   readonly onPairingTokenConsumed: (listener: () => void) => () => void;
+  readonly onDeviceAcknowledged?: (listener: (notice: DeviceAcknowledgedNotice) => void) => () => void;
 }
 
 /** Required editor subset implemented by the production Wails adapter. */
@@ -58,6 +68,7 @@ export interface AnimeEditorRuntimeSource {
   readonly saveAnimeEditor: NonNullable<BridgeRuntimeSource['saveAnimeEditor']>;
   readonly deactivateAnime: NonNullable<BridgeRuntimeSource['deactivateAnime']>;
   readonly restoreAnime: NonNullable<BridgeRuntimeSource['restoreAnime']>;
+  readonly repeatAnime: NonNullable<BridgeRuntimeSource['repeatAnime']>;
   readonly getAnimeEditorScheduleBoard: NonNullable<BridgeRuntimeSource['getAnimeEditorScheduleBoard']>;
   readonly applyAnimeEditorSchedule: NonNullable<BridgeRuntimeSource['applyAnimeEditorSchedule']>;
   readonly pickFolder: NonNullable<BridgeRuntimeSource['pickFolder']>;

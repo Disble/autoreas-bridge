@@ -16,6 +16,7 @@ import (
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // configureRuntimeServices wires and starts the bridge runtime services.
@@ -213,10 +214,15 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	animeQuery := anime.NewQueryService(snapshotStore)
 	a.animeQuery = animeQuery
 	a.animeEditorQuery = anime.NewQueryService(snapshotStore)
-	// cover.NewDefaultResolver never fails construction (a cache-root
-	// resolution error degrades to a no-op cache internally), so this wiring
-	// is nil-safe by design -- see internal/anime/cover/production.go.
-	a.coverResolver = cover.NewDefaultResolver(0)
+	// cover.NewDefaultResolver never fails construction (a cache-root resolution error degrades
+	// to a no-op cache internally), but the derived thumbnail cache needs a real root: if the
+	// platform has none, both surfaces keep their documented fail-closed behavior (the desktop
+	// binding shows its placeholder, the route answers 503) rather than writing thumbnails
+	// somewhere unintended. One service instance is shared by both.
+	if root, err := cover.DefaultCacheRoot(); err == nil {
+		a.coverThumbnails = cover.NewThumbnailService(cover.NewDefaultResolver(0), root)
+	}
+	a.watchHistoryQuery = watchhistory.NewStore(a.bridgeDB)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)
 	a.animeEditorWrite = anime.NewEditorService(snapshotStore, a.animeUpdateWriter)
@@ -271,10 +277,12 @@ func (a *App) recoverStagedAnimeWrites(ctx context.Context) bool {
 // newMobileAnimeWriteService builds the mobile anime writer with activity recording.
 func (a *App) newMobileAnimeWriteService() activityAnimeWriteService {
 	return activityAnimeWriteService{
-		query:    a.animeQuery,
-		writer:   a.animeWrite,
-		recorder: activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))},
-		source:   anime.ActivitySourceMobile,
-		now:      func() int64 { return time.Now().UnixMilli() },
+		query:         a.animeQuery,
+		writer:        a.animeWrite,
+		recorder:      activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))},
+		watchRecorder: watchRecorderAdapter{store: watchhistory.NewStore(a.bridgeDB)},
+		logger:        a.sharedLogger,
+		source:        anime.ActivitySourceMobile,
+		now:           func() int64 { return time.Now().UnixMilli() },
 	}
 }

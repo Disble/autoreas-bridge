@@ -19,7 +19,13 @@ const defaultSendTimeout = 100 * time.Millisecond
 
 // Client is one websocket connection managed by the realtime hub.
 type Client interface {
+	// ID is the per-connection identity: a reconnect gets a distinct ID so an
+	// old client's unregister cannot kill a newer one for the same device.
 	ID() string
+	// DeviceID is the stable paired-device identity behind this connection,
+	// distinct from ID. It never changes across a reconnect and is what
+	// presence (ConnectedDeviceIDs) groups by.
+	DeviceID() string
 	Send(ctx context.Context, payload []byte) error
 	Close() error
 }
@@ -31,6 +37,10 @@ type Hub interface {
 	BroadcastAnimeChanged(ctx context.Context, event events.AnimeChangedEvent)
 	BroadcastPreferencesChanged(ctx context.Context, seasonMode bool)
 	BroadcastSeasonChanged(ctx context.Context, seasonID, status string)
+	// ConnectedDeviceIDs returns the distinct device IDs with at least one
+	// live client connection. A device with two clients (e.g. across a
+	// reconnect) counts once.
+	ConnectedDeviceIDs() []string
 }
 
 // MemoryHubConfig configures the in-memory websocket fan-out hub.
@@ -260,6 +270,30 @@ func (h *MemoryHub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
+}
+
+// ConnectedDeviceIDs returns the distinct device IDs with at least one live
+// client connection, deduplicated because one device may legitimately hold
+// more than one concurrent client (e.g. across a reconnect, which gets its
+// own composite client ID rather than replacing the old one).
+func (h *MemoryHub) ConnectedDeviceIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	seen := make(map[string]struct{}, len(h.clients))
+	ids := make([]string, 0, len(h.clients))
+	for _, state := range h.clients {
+		deviceID := state.client.DeviceID()
+		if deviceID == "" {
+			continue
+		}
+		if _, ok := seen[deviceID]; ok {
+			continue
+		}
+		seen[deviceID] = struct{}{}
+		ids = append(ids, deviceID)
+	}
+	return ids
 }
 
 // Close shuts down the hub and all registered clients.

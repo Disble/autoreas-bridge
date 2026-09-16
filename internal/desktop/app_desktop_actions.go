@@ -6,16 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
 	"autoreas-bridge/internal/api/contracts"
+	sharedlogger "autoreas-bridge/internal/logger"
 )
 
 // OpenAnimePage opens the anime's stored page in the default browser and
 // records the activity. The stored URL is validated at this sink rather than
 // trusted: a hostile value in the database must not reach the OS launcher.
 func (a *App) OpenAnimePage(animeID string) contracts.EpisodeCommandResult {
-	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimePageOpened, pageValue, func(ctx context.Context, value string) error {
+	return a.runAnimeDesktopAction(animeID, "anime.page_opened", pageValue, func(ctx context.Context, value string) error {
 		if err := anime.ValidatePageURL(value); err != nil {
 			return err
 		}
@@ -28,7 +28,7 @@ func (a *App) OpenAnimePage(animeID string) contracts.EpisodeCommandResult {
 // CopyAnimePage copies the anime's stored page URL to the clipboard and records
 // the activity. No URL validation, because the clipboard is not a launcher.
 func (a *App) CopyAnimePage(animeID string) contracts.EpisodeCommandResult {
-	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimePageCopied, pageValue, func(ctx context.Context, value string) error {
+	return a.runAnimeDesktopAction(animeID, "anime.page_copied", pageValue, func(ctx context.Context, value string) error {
 		a.ensureRuntimeDependencies()
 		return a.copyText(ctx, value)
 	})
@@ -38,7 +38,7 @@ func (a *App) CopyAnimePage(animeID string) contracts.EpisodeCommandResult {
 // records the activity. The stored path is validated at this sink for the same
 // reason as OpenAnimePage.
 func (a *App) OpenAnimeFolder(animeID string) contracts.EpisodeCommandResult {
-	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimeFolderOpened, folderValue, func(_ context.Context, value string) error {
+	return a.runAnimeDesktopAction(animeID, "anime.folder_opened", folderValue, func(_ context.Context, value string) error {
 		if err := anime.ValidateLocalFolder(value); err != nil {
 			return err
 		}
@@ -50,15 +50,18 @@ func (a *App) OpenAnimeFolder(animeID string) contracts.EpisodeCommandResult {
 // CopyAnimeFolder copies the anime's download-folder path to the clipboard and
 // records the activity.
 func (a *App) CopyAnimeFolder(animeID string) contracts.EpisodeCommandResult {
-	return a.runAnimeDesktopAction(animeID, anime.ActivityActionAnimeFolderCopied, folderValue, func(ctx context.Context, value string) error {
+	return a.runAnimeDesktopAction(animeID, "anime.folder_copied", folderValue, func(ctx context.Context, value string) error {
 		a.ensureRuntimeDependencies()
 		return a.copyText(ctx, value)
 	})
 }
 
-// runAnimeDesktopAction executes a desktop action and records its activity.
+// runAnimeDesktopAction executes a desktop action and records its telemetry
+// through the shared logger. Recording is best-effort (D7): Logf never
+// fails, so unlike the retired activity.Store path a recording problem can no
+// longer turn a completed action into an error result.
 func (a *App) runAnimeDesktopAction(
-	animeID, actionType string,
+	animeID, eventType string,
 	valueFn func(contracts.MobileAnime) *string,
 	run func(context.Context, string) error,
 ) contracts.EpisodeCommandResult {
@@ -81,9 +84,8 @@ func (a *App) runAnimeDesktopAction(
 	}
 
 	occurredAtMs := time.Now().UnixMilli()
-	if err := a.recordDesktopAnimeAction(*current, actionType, occurredAtMs); err != nil {
-		return contracts.EpisodeCommandResult{Status: "error", Message: err.Error(), AnimeID: animeID, AnimeName: current.Name}
-	}
+	correlationID := fmt.Sprintf("anime.desktop-action:%s:%d", animeID, occurredAtMs)
+	a.recordDesktopAnimeAction(*current, eventType, correlationID)
 
 	return contracts.EpisodeCommandResult{
 		Status:          "ok",
@@ -92,31 +94,25 @@ func (a *App) runAnimeDesktopAction(
 		AnimeStatus:     current.Status,
 		EpisodesWatched: current.EpisodesWatched,
 		OccurredAtMs:    occurredAtMs,
-		CorrelationID:   fmt.Sprintf("anime.desktop-action:%s:%d", animeID, occurredAtMs),
+		CorrelationID:   correlationID,
 	}
 }
 
-// recordDesktopAnimeAction persists a desktop action for the current anime.
-func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, actionType string, occurredAtMs int64) error {
-	if a.bridgeDB == nil {
-		return nil
+// recordDesktopAnimeAction emits one desktop navigation action through the
+// shared logger under domain "anime" (D7). It degrades silently when the
+// shared logger is not wired, mirroring every other lazily wired App
+// collaborator; metadata_json bounding/redaction happens downstream in the
+// eventlog sink, not here.
+func (a *App) recordDesktopAnimeAction(current contracts.MobileAnime, eventType, correlationID string) {
+	if a.sharedLogger == nil {
+		return
 	}
-	recorder := activityRecorderAdapter{store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB))}
-	snapshot := anime.ActivityAnimeSnapshot{
-		Estado:      current.Status,
-		NroCapVisto: current.EpisodesWatched,
-		Activo:      current.Active,
-	}
-	return recorder.RecordActivity(a.appContext(), anime.ActivityRecord{
-		Source:        anime.ActivitySourceDesktop,
-		ActionType:    actionType,
-		AnimeID:       current.ID,
-		AnimeName:     current.Name,
-		OccurredAtMs:  occurredAtMs,
-		CorrelationID: fmt.Sprintf("anime.desktop-action:%s:%d", current.ID, occurredAtMs),
-		Before:        snapshot,
-		After:         snapshot,
-	})
+	a.sharedLogger.Logf("anime", sharedlogger.LevelInfo, sharedlogger.Fields{
+		EntityID:      current.ID,
+		EventType:     eventType,
+		CorrelationID: correlationID,
+		Metadata:      map[string]any{"animeName": current.Name, "source": "desktop"},
+	}, "desktop action %s for %s", eventType, current.Name)
 }
 
 // pageValue returns the stored anime page URL.

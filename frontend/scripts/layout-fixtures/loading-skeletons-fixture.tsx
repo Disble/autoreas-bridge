@@ -9,6 +9,8 @@ import { EpisodeScheduleSkeleton } from '../../src/features/episodes/ui/EpisodeS
 import { NetworkTable } from '../../src/features/network/ui/NetworkTable/NetworkTable';
 import { KeymapBindingRow } from '../../src/shared/keyboard/ui/KeymapBindingRow/KeymapBindingRow';
 import { KeymapPanelSkeleton } from '../../src/shared/keyboard/ui/KeymapPanel/KeymapPanelSkeleton';
+import { AnimeMetadataLookupCandidate } from '../../src/shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupCandidate';
+import { AnimeMetadataLookupCandidateSkeleton } from '../../src/shared/metadata-lookup/ui/AnimeMetadataLookupModal/AnimeMetadataLookupCandidateSkeleton';
 import { checkThePage, measureWhenReady, VerdictReport, type Check } from './verdict';
 
 /**
@@ -96,6 +98,16 @@ const KEYMAP_BINDING = {
   section: 'Navigation',
 } as const;
 
+/** A MyAnimeList candidate carrying a cover thumbnail and its full subtitle, its tallest ordinary shape. */
+const METADATA_LOOKUP_CANDIDATE = {
+  malId: 41467,
+  name: 'Bleach: Sennen Kessen-hen',
+  image: 'https://cdn.myanimelist.net/r/116x180/images/anime/1908/135431.jpg',
+  mediaType: 'TV',
+  startYear: 2022,
+  score: '8.98',
+} as const;
+
 /** Every surface measured on this page: its real row beside the placeholder that stands in for it. */
 const COMPARISONS: readonly SkeletonComparison[] = [
   {
@@ -125,6 +137,18 @@ const COMPARISONS: readonly SkeletonComparison[] = [
     rowTestId: 'anime-editor-skeleton-row',
     real: <AnimeEditorListRow item={EDITOR_ITEM} onSelectAnime={() => undefined} />,
     skeleton: <AnimeEditorListSkeleton />,
+  },
+  {
+    subject: 'metadata-lookup',
+    rowTestId: 'metadata-lookup-skeleton-row',
+    real: (
+      <AnimeMetadataLookupCandidate
+        candidate={METADATA_LOOKUP_CANDIDATE}
+        isSelected={false}
+        onSelect={() => undefined}
+      />
+    ),
+    skeleton: <AnimeMetadataLookupCandidateSkeleton />,
   },
   {
     subject: 'today',

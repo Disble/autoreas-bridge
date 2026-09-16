@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -180,16 +181,101 @@ func TestMemoryHubBroadcastsPreferencesChangedToRegisteredClients(t *testing.T) 
 	assertPreferencesChangedPayload(t, second.Receive(t), true)
 }
 
+// TestMemoryHubConnectedDeviceIDsDedupsMultipleClientsPerDevice pins that
+// presence is keyed on the device, not the per-connection client ID: a
+// reconnect (or a second tab) registers a distinct client ID for the same
+// device, and that must still count as one connected device.
+func TestMemoryHubConnectedDeviceIDsDedupsMultipleClientsPerDevice(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	first := newRecordingClientForDevice("device-1-1", "device-1")
+	second := newRecordingClientForDevice("device-1-2", "device-1")
+	other := newRecordingClientForDevice("device-2-1", "device-2")
+	if err := hub.Register(context.Background(), first); err != nil {
+		t.Fatalf("register first: %v", err)
+	}
+	if err := hub.Register(context.Background(), second); err != nil {
+		t.Fatalf("register second: %v", err)
+	}
+	if err := hub.Register(context.Background(), other); err != nil {
+		t.Fatalf("register other: %v", err)
+	}
+
+	got := hub.ConnectedDeviceIDs()
+	sort.Strings(got)
+	if len(got) != 2 || got[0] != "device-1" || got[1] != "device-2" {
+		t.Fatalf("expected deduped device ids [device-1 device-2], got %v", got)
+	}
+}
+
+// TestMemoryHubConnectedDeviceIDsSkipsClientsWithoutADeviceID guards the
+// defensive branch in ConnectedDeviceIDs: a Client implementation that
+// reports no device identity (a bug, or a transport that never learned one)
+// must not be surfaced as a "connected" empty-string device.
+func TestMemoryHubConnectedDeviceIDsSkipsClientsWithoutADeviceID(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	anonymous := newRecordingClientForDevice("anonymous-1", "")
+	known := newRecordingClientForDevice("device-1-1", "device-1")
+	if err := hub.Register(context.Background(), anonymous); err != nil {
+		t.Fatalf("register anonymous: %v", err)
+	}
+	if err := hub.Register(context.Background(), known); err != nil {
+		t.Fatalf("register known: %v", err)
+	}
+
+	got := hub.ConnectedDeviceIDs()
+	if len(got) != 1 || got[0] != "device-1" {
+		t.Fatalf("expected only [device-1], got %v", got)
+	}
+}
+
+// TestMemoryHubConnectedDeviceIDsExcludesUnregisteredClients pins that a
+// disconnected client's device stops being reported as present.
+func TestMemoryHubConnectedDeviceIDsExcludesUnregisteredClients(t *testing.T) {
+	t.Parallel()
+
+	hub := NewMemoryHub(context.Background(), MemoryHubConfig{})
+	t.Cleanup(func() { _ = hub.Close() })
+
+	client := newRecordingClientForDevice("device-1-1", "device-1")
+	if err := hub.Register(context.Background(), client); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	hub.Unregister(client.ID())
+
+	if got := hub.ConnectedDeviceIDs(); len(got) != 0 {
+		t.Fatalf("expected no connected devices after unregister, got %v", got)
+	}
+}
+
 type recordingClient struct {
 	id       string
+	deviceID string
 	received chan []byte
 	closed   chan struct{}
 }
 
-// newRecordingClient creates a client that records delivered payloads.
+// newRecordingClient creates a client that records delivered payloads. The
+// device ID defaults to the connection ID, which is fine for every test that
+// does not care about device-level presence grouping.
 func newRecordingClient(id string) *recordingClient {
+	return newRecordingClientForDevice(id, id)
+}
+
+// newRecordingClientForDevice creates a client with a connection ID distinct
+// from its device ID, mirroring a real reconnect where the same device holds
+// a new composite client ID.
+func newRecordingClientForDevice(id, deviceID string) *recordingClient {
 	return &recordingClient{
 		id:       id,
+		deviceID: deviceID,
 		received: make(chan []byte, 8),
 		closed:   make(chan struct{}),
 	}
@@ -197,6 +283,10 @@ func newRecordingClient(id string) *recordingClient {
 
 func (c *recordingClient) ID() string {
 	return c.id
+}
+
+func (c *recordingClient) DeviceID() string {
+	return c.deviceID
 }
 
 func (c *recordingClient) Send(_ context.Context, payload []byte) error {
@@ -275,6 +365,10 @@ func newBlockingClient(id string) *blockingClient {
 }
 
 func (c *blockingClient) ID() string {
+	return c.id
+}
+
+func (c *blockingClient) DeviceID() string {
 	return c.id
 }
 

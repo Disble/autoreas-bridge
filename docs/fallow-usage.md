@@ -18,7 +18,7 @@ This project uses **Fallow** as the frontend static-analysis layer for dead code
 | Gate entrypoint | `lefthook.yml` runs `bun --cwd="frontend" run fallow audit --quiet` |
 | Config file | `frontend/.fallowrc.json` (JSONC, comments allowed) |
 | Architecture boundaries | Declared in `.dharness/fallow.jsonc`, pulled in with `"extends"` |
-| Manual entry points | `src/main.*`, `src/test/setup.ts`, `scripts/__tests__/check-file-size-warnings.test.mjs` and `scripts/__tests__/generate-wails-bindings.test.mjs` (ESM script tests outside `src`, which Fallow does not infer as test roots), and `vitest.dlinter-mutation.mts` (named as a string in `stryker.dlinter.json` → `vitest.configFile`, so the import graph cannot see it) |
+| Manual entry points | `src/main.*`, `src/test/setup.ts`, `scripts/__tests__/check-file-size-warnings.test.mjs` and `scripts/__tests__/generate-wails-bindings.test.mjs` (ESM script tests outside `src`, which Fallow does not infer as test roots), and `vitest.mutation.mts` (named as a string in `stryker.config.json` → `vitest.configFile`, so the import graph cannot see it) |
 | Generated ignore | `wailsjs/**` is ignored — and since 2026-08-23 also untracked, see below |
 | Ignored dependency | `eslint` — imported only by `scripts/check-file-size-warnings.mjs`, never by shipped runtime code |
 | Duplication mode | `semantic` |

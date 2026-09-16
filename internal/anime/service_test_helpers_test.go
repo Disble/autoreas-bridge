@@ -2,6 +2,7 @@ package anime_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/notification"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // decodeAnimeDomain decodes a test payload into the domain anime model.
@@ -70,8 +72,12 @@ func (s *stubNotifier) Notify(_ context.Context, n notification.Notification) er
 	return s.err
 }
 
-// openAnimeServiceTestStore opens the SQLite store used by anime tests.
-func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
+// openAnimeServiceTestDB opens the bootstrapped SQLite database backing the
+// anime service tests. openAnimeServiceTestStore wraps it for tests that only
+// need the snapshot store; tests that also need a real watchhistory.Store
+// (e.g. the repeat/cycle-reset tests) call this directly instead of opening a
+// second database.
+func openAnimeServiceTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "bridge.db")
@@ -82,8 +88,13 @@ func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
 	t.Cleanup(func() {
 		_ = db.Close()
 	})
+	return db
+}
 
-	return bridgeSync.NewAnimeSnapshotStore(db)
+// openAnimeServiceTestStore opens the SQLite store used by anime tests.
+func openAnimeServiceTestStore(t *testing.T) *bridgeSync.AnimeSnapshotStore {
+	t.Helper()
+	return bridgeSync.NewAnimeSnapshotStore(openAnimeServiceTestDB(t))
 }
 
 // seedAnimeSnapshot inserts a snapshot fixture into the test store.
@@ -142,6 +153,17 @@ func (s *stubAnimeWriter) RequestWrite(_ context.Context, animeID string, payloa
 	s.calls++
 	s.animeID = animeID
 	s.payload = append([]byte(nil), payload...)
+	return s.err
+}
+
+// stubWatchRecorder is the anime.WatchRecorder test double.
+type stubWatchRecorder struct {
+	calls []watchhistory.Change
+	err   error
+}
+
+func (s *stubWatchRecorder) RecordWatch(_ context.Context, change watchhistory.Change) error {
+	s.calls = append(s.calls, change)
 	return s.err
 }
 

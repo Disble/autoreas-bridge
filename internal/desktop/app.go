@@ -29,6 +29,7 @@ import (
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tracerbullet"
 	"autoreas-bridge/internal/tray"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // App struct
@@ -89,7 +90,9 @@ type App struct {
 	animeEditorWrite           *anime.EditorService
 	animeEditorScheduleQuery   *anime.ScheduleQueryService
 	animeEditorScheduleWrite   *anime.ScheduleService
-	coverResolver              coverResolver
+	coverThumbnails            coverThumbnails
+	watchHistoryQuery          watchHistoryReader
+	myanimelistClient          myanimelistClientPort
 	notifier                   notification.Notifier
 	notificationCenterStore    *center.Store
 	notificationCenterExecutor *center.Executor
@@ -202,12 +205,22 @@ type episodeCommandService interface {
 	ListEpisodeDayCounts(ctx context.Context) ([]anime.EpisodeDayCount, error)
 }
 
-// coverResolver is the local seam GetAnimeCover depends on (mirrors
-// episodeCommandService above) so app_runtime_test.go can inject a fake
-// without a real HTTP client. The real implementation is *cover.Resolver
-// (internal/anime/cover), wired in startup via cover.NewDefaultResolver.
-type coverResolver interface {
-	Resolve(ctx context.Context, animeID, portadaPath string) cover.Result
+// coverThumbnails is the narrow cover seam the desktop binding and the HTTP adapter share: the
+// waiting desktop acquire, and the bounded HTTP acquire the route uses. The real implementation is
+// *cover.ThumbnailService, wired once in configureAnimeApplicationServices; a test injects a double
+// for the states the real service cannot produce (an error beside bytes, or no bytes without one).
+type coverThumbnails interface {
+	GetDesktop(ctx context.Context, path string) (cover.ThumbnailResult, error)
+	GetHTTP(ctx context.Context, path string) (cover.ThumbnailResult, error)
+}
+
+// watchHistoryReader is the narrow read port GetWatchHistoryPage and
+// GetAnimeWatchHistoryPage depend on, mirroring coverResolver above. The
+// real implementation is *watchhistory.Store, wired in
+// configureAnimeApplicationServices; app_runtime_test.go injects a stub.
+type watchHistoryReader interface {
+	Page(ctx context.Context, q watchhistory.PageQuery) (watchhistory.Page, error)
+	AnimePage(ctx context.Context, animeID string, q watchhistory.PageQuery) (watchhistory.Page, error)
 }
 
 // NewApp creates a new App application struct
@@ -230,6 +243,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ensureRuntimeDependencies()
 	a.registerDownloadRuntimeEventBridge(ctx)
 	a.registerAnimeRuntimeEventBridge(ctx)
+	a.registerDeviceSyncRuntimeEventBridge(ctx)
 	a.tracerBulletRunner = a.newTracerBulletRunner(a.eventBus, a.newTracerBulletSink(), a.sharedLogger)
 	a.tracerBulletRunner.Start()
 	if !a.configureTray(ctx) {
@@ -296,6 +310,8 @@ func (a *App) wireEpisodeServiceWithWriter(writer contracts.AnimePatcher) {
 		deps.Activity = activityRecorderAdapter{
 			store: activity.NewStore(activity.NewSQLiteProvider(a.bridgeDB)),
 		}
+		deps.Watch = watchRecorderAdapter{store: watchhistory.NewStore(a.bridgeDB)}
+		deps.Logger = a.sharedLogger
 	}
 	a.episodeService = anime.NewEpisodeService(deps)
 }
@@ -338,9 +354,20 @@ func (a activityRecorderAdapter) RecordActivity(ctx context.Context, record anim
 		AnimeName:     record.AnimeName,
 		OccurredAtMs:  record.OccurredAtMs,
 		CorrelationID: record.CorrelationID,
+		ReportedAtMS:  record.ReportedAtMS,
 		BeforeJSON:    beforeJSON,
 		AfterJSON:     afterJSON,
 	})
+}
+
+// watchRecorderAdapter adapts watchhistory.Store to anime.WatchRecorder,
+// mirroring activityRecorderAdapter above.
+type watchRecorderAdapter struct {
+	store *watchhistory.Store
+}
+
+func (a watchRecorderAdapter) RecordWatch(ctx context.Context, change watchhistory.Change) error {
+	return a.store.Apply(ctx, change)
 }
 
 // shutdown stops runtime services and closes bridge resources.

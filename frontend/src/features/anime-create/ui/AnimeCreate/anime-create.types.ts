@@ -1,4 +1,6 @@
 import type { AnimeEditorScheduleBoard } from '../../../../shared/contracts/anime.types';
+import type { AnimeMetadataSelection, AppliedMetadata } from '../../../../shared/metadata-lookup/metadata-lookup.types';
+import type { AnimeMetadataLookupSource } from '../../../../shared/metadata-lookup/ui/AnimeMetadataLookupModal/use-anime-metadata-lookup';
 import type { AnimeScheduleOrderingCreateSubmit, AnimeScheduleOrderingDraftEntry } from '../../../../shared/ordering/ui/AnimeScheduleOrdering/anime-schedule-ordering.types';
 
 /**
@@ -47,6 +49,10 @@ export interface AnimeCreateViewModel {
   readonly lockedAnimeIds: readonly string[];
   /** Why a row's name cannot be used, keyed by draft id; absent when it is free. */
   readonly nameConflicts: Readonly<Record<string, string>>;
+  /** One row's pending Undo, keyed by draftId (design D9) -- absent once undone or never applied. */
+  readonly appliedMetadataByRow: Readonly<Record<string, AppliedMetadata<AnimeCreateRowPatch>>>;
+  /** The MyAnimeList lookup's two Wails-bound calls, injected into every row's lookup modal. */
+  readonly metadataLookupSource: AnimeMetadataLookupSource;
   readonly feedback?: string;
   readonly isSubmitting: boolean;
   readonly canRemoveRow: boolean;
@@ -61,6 +67,10 @@ export interface AnimeCreateViewModel {
   readonly onConfirmRemove: () => void;
   readonly onCancelRemove: () => void;
   readonly onRowChange: (draftId: string, patch: AnimeCreateRowPatch) => void;
+  /** Applies a confirmed MyAnimeList selection to one row (design D9/D10). */
+  readonly onMetadataApplied: (draftId: string, selection: AnimeMetadataSelection) => void;
+  /** Reverts one row's last applied metadata patch (design D9). */
+  readonly onMetadataUndo: (draftId: string) => void;
   readonly onBrowseFolder: (draftId: string) => void;
   readonly onBrowseCover: (draftId: string) => void;
   readonly onOpenBoard: () => void;

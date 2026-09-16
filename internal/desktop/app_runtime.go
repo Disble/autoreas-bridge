@@ -11,6 +11,7 @@ import (
 	"autoreas-bridge/internal/device"
 	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // episodeServiceUnavailableMessage is what every episode binding returns when the episode
@@ -105,6 +106,9 @@ func (a *App) GetConnectedDevices() []contracts.DeviceInfo {
 	if a.bridgeDB != nil {
 		service.SetSyncStateStore(syncDeviceStateAdapter{store: bridgeSync.NewChangelogStore(bridgeSync.NewSQLiteProvider(a.bridgeDB))})
 	}
+	if a.realtimeHub != nil {
+		service.SetPresenceStore(a.realtimeHub)
+	}
 	devices, err := service.ListDevices(a.appContext())
 	if err != nil {
 		return []contracts.DeviceInfo{}
@@ -185,19 +189,40 @@ func (a *App) GetAnimeDetail(id string) *contracts.MobileAnime {
 	return item
 }
 
-// GetAnimeHistory returns the slim watch-activity read model (Anime History
-// spec, "History Read Model"), server-sorted DESC by fechaUltCapVisto.
-// Degrades to an empty (non-nil) slice on a nil service or any query error,
-// mirroring GetAnimes's nil-guard contract.
-func (a *App) GetAnimeHistory() []contracts.AnimeHistoryItem {
-	if a.animeQuery == nil {
-		return []contracts.AnimeHistoryItem{}
+// GetWatchHistoryPage returns a keyset page over the global real-watch-
+// history log, narrowed by the request's optional search/watched-range/
+// anime-ID filters and ordered newest- or oldest-first (History UI Redesign
+// spec, "Read Models Are Keyset-Paged"). A nil service, an unrecognized
+// Order, or a query error each surface as Status "error" rather than a
+// silently empty result (design.md D9), because an empty state that hides a
+// failure lies to the frontend.
+func (a *App) GetWatchHistoryPage(request contracts.WatchHistoryPageRequest) contracts.WatchHistoryPage {
+	if a.watchHistoryQuery == nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
 	}
-	items, err := a.animeQuery.ListAnimeHistory(a.appContext())
+	query, err := toWatchHistoryPageQuery(request)
 	if err != nil {
-		return []contracts.AnimeHistoryItem{}
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
 	}
-	return items
+	page, err := a.watchHistoryQuery.Page(a.appContext(), query)
+	if err != nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
+	}
+	return toWatchHistoryPage(page)
+}
+
+// GetAnimeWatchHistoryPage returns a keyset page scoped to one anime,
+// optionally narrowed to a single watch cycle, mirroring GetWatchHistoryPage's
+// nil-guard and error-surfacing contract.
+func (a *App) GetAnimeWatchHistoryPage(request contracts.AnimeWatchHistoryPageRequest) contracts.WatchHistoryPage {
+	if a.watchHistoryQuery == nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: "watch history service unavailable"}
+	}
+	page, err := a.watchHistoryQuery.AnimePage(a.appContext(), request.AnimeID, toAnimeWatchHistoryPageQuery(request))
+	if err != nil {
+		return contracts.WatchHistoryPage{Status: "error", Message: err.Error()}
+	}
+	return toWatchHistoryPage(page)
 }
 
 // GetAnimeDetailView is the structured detail read model (progress/dates/
@@ -227,31 +252,6 @@ func (a *App) GetEpisodeSchedule(day string) []contracts.EpisodeScheduleItem {
 		return []contracts.EpisodeScheduleItem{}
 	}
 	return toEpisodeScheduleContracts(items)
-}
-
-// GetAnimeCover resolves a single anime's cover into a base64 data-URL, or
-// an explicit placeholder signal (episodes-cover-pipeline spec, "Cover
-// resolution follows a deterministic, placeholder-first order"). Degrades to
-// the placeholder signal -- never an error -- on a nil dependency, a lookup
-// failure, or a resolver-reported non-cover, mirroring GetAnimeDetail's
-// nil-guard shape.
-func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
-	if a.animeQuery == nil || a.coverResolver == nil {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	current, err := a.animeQuery.GetMobileAnime(a.appContext(), animeID)
-	if err != nil || current == nil {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	cover := ""
-	if current.Cover != nil {
-		cover = *current.Cover
-	}
-	res := a.coverResolver.Resolve(a.appContext(), animeID, cover)
-	if !res.IsCover {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	return contracts.AnimeCover{DataURL: res.DataURL, Source: contracts.CoverSourceCover}
 }
 
 // AdjustWatchedEpisodes moves an anime's watched-episode count by delta. base
@@ -381,6 +381,30 @@ func (a *App) appContext() context.Context {
 		return context.Background()
 	}
 	return a.ctx
+}
+
+// toWatchHistoryPage maps a watchhistory.Page read model into its API
+// contract shape, tagging the result Status "ok".
+func toWatchHistoryPage(page watchhistory.Page) contracts.WatchHistoryPage {
+	return contracts.WatchHistoryPage{Items: toWatchHistoryEntries(page.Items), NextCursor: page.NextCursor, Status: "ok"}
+}
+
+// toWatchHistoryEntries maps real-watch-history read-model rows to their API
+// contract shape.
+func toWatchHistoryEntries(items []watchhistory.Entry) []contracts.WatchHistoryEntry {
+	entries := make([]contracts.WatchHistoryEntry, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, contracts.WatchHistoryEntry{
+			ID:          item.ID,
+			AnimeID:     item.AnimeID,
+			AnimeName:   item.AnimeName,
+			Episode:     item.Episode,
+			Cycle:       item.Cycle,
+			WatchedAtMS: item.WatchedAtMS,
+			Source:      item.Source,
+		})
+	}
+	return entries
 }
 
 // toEpisodeScheduleContracts maps episode schedule items to API contracts.

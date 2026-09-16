@@ -1,9 +1,12 @@
 import type { contracts } from '../../../wailsjs/go/models';
-import type { AnimeCreateResult, AnimeEditorSaveResult } from '../../shared/contracts/anime.types';
+import type { AnimeCreateResult, AnimeEditorSaveResult, WatchHistoryPage } from '../../shared/contracts/anime.types';
 import type { BridgeRuntimeSource } from './bridge-runtime-source.types';
 
 /** Event emitted when the active pairing token gets consumed. */
 export const PAIRING_TOKEN_CONSUMED_EVENT_NAME = 'pairing.token-consumed';
+
+/** Event emitted when a device's changelog acknowledgment advances `last_seen_at_ms`. */
+export const DEVICE_ACKNOWLEDGED_EVENT_NAME = 'sync.device_acknowledged';
 
 /** Fail-closed result matching the generated Wails command-result contract. */
 export const RUNTIME_UNAVAILABLE_COMMAND_RESULT: contracts.EpisodeCommandResult = {
@@ -24,6 +27,17 @@ export const RUNTIME_UNAVAILABLE_CREATE_RESULT: AnimeCreateResult = {
   message: 'runtime unavailable',
   modifiedAt: 0,
   outcome: 'error',
+};
+
+/**
+ * Fail-closed page for `getWatchHistoryPage`/`getAnimeWatchHistoryPage` when
+ * the runtime is unavailable. `status: 'error'` keeps the failure visible to
+ * the caller rather than degrading to an empty array.
+ */
+export const RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE: WatchHistoryPage = {
+  items: [],
+  status: 'error',
+  message: 'runtime unavailable',
 };
 
 /** Module-local singleton container for the shared bridge runtime source. */

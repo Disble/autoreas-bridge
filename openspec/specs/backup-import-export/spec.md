@@ -124,19 +124,21 @@ bundle's commit point: a bundle without it is not a partial bundle, it is not a 
 - THEN it MUST return that error to its caller
 - AND it MUST NOT write `manifest.json`
 
-### Requirement: Export Scope Is Exactly Three Table Groups
+### Requirement: Export Scope Is Exactly Four Groups
 
-The system MUST export `anime_snapshots`, `seasons`, and `season_animes`, and nothing else. There
-MUST be no flag, option, setting, or configuration value that adds any other table to an export.
+The system MUST export `anime_snapshots`, `seasons`, `season_animes`, and the `keyboard_keymap`
+group — the single `app_settings["keyboard.keymap"]` value — and nothing else. There MUST be no
+flag, option, setting, or configuration value that adds any other table, or any other `app_settings`
+key, to an export.
 
-#### Scenario: Exactly the three in-scope groups are present
+#### Scenario: Exactly the four in-scope groups are present
 
-- GIVEN a bridge DB with rows in `anime_snapshots`, `seasons`, and `season_animes`
+- GIVEN a bridge DB with rows in `anime_snapshots`, `seasons`, and `season_animes`, and a non-empty
+  keymap persisted at `app_settings["keyboard.keymap"]`
 - WHEN an export runs
-- THEN `manifest.json`'s `contexts[]` MUST name exactly the groups covering those three tables
-- AND `contexts[]` MUST contain no other entry
-- AND each entry's `recordCount` MUST equal the number of JSONL lines in its `data/{name}.jsonl`
-  file
+- THEN `manifest.json`'s `contexts[]` MUST name exactly those three table groups plus
+  `keyboard_keymap`, and no other entry
+- AND each entry's `recordCount` MUST equal the number of JSONL lines in its `data/{name}.jsonl` file
 
 #### Scenario: Secret tables contribute zero rows to the bundle
 
@@ -147,17 +149,27 @@ MUST be no flag, option, setting, or configuration value that adds any other tab
 - AND scanning the decompressed bytes of every `data/{name}.jsonl` file MUST find zero occurrences
   of any seeded marker value
 - AND the total number of records across all `data/{name}.jsonl` files MUST equal the combined row
-  count of `anime_snapshots`, `seasons`, and `season_animes` only
+  count of `anime_snapshots`, `seasons`, and `season_animes`, plus the `keyboard_keymap` group's own
+  record count, and no more
 
-#### Scenario: Machine-bound and machine-local tables contribute zero rows to the bundle
+#### Scenario: Machine-bound secrets contribute zero rows to the bundle
 
 - GIVEN a bridge DB seeded with rows in `download_jd_config` (including a non-empty
-  `myjd_password_encrypted`), `app_settings`, and `download_hoster_priority`, each carrying a
-  distinctive marker value
+  `myjd_password_encrypted`) and `download_hoster_priority`, each carrying a distinctive marker
+  value
 - WHEN an export runs
-- THEN no `contexts[]` entry MUST be named for any of those tables
+- THEN no `contexts[]` entry MUST be named for either of those tables
 - AND scanning the decompressed bytes of every `data/{name}.jsonl` file MUST find zero occurrences
   of any seeded marker value
+
+#### Scenario: Every app_settings key other than keyboard.keymap contributes zero bytes
+
+- GIVEN a bridge DB with `app_settings["downloads.root"]` set to a distinctive marker value, and no
+  other `app_settings` key carrying that marker
+- WHEN an export runs
+- THEN no `contexts[]` entry MUST be named `app_settings`
+- AND scanning the decompressed bytes of every `data/{name}.jsonl` file, including
+  `data/keyboard_keymap.jsonl`, MUST find zero occurrences of the seeded marker value
 
 #### Scenario: Observability and bookkeeping tables contribute zero rows to the bundle
 

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -21,6 +20,7 @@ import (
 	"autoreas-bridge/internal/realtime"
 	bridgeSync "autoreas-bridge/internal/sync"
 	"autoreas-bridge/internal/tray"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // newAppTestApp creates an application with test runtime dependencies.
@@ -170,8 +170,6 @@ type stubAnimeQueryService struct {
 	mobileAnime  *contracts.MobileAnime
 	mobileAnimes []contracts.MobileAnime
 	err          error
-	history      []contracts.AnimeHistoryItem
-	historyErr   error
 }
 
 func (s *stubAnimeQueryService) GetEffectiveAnime(context.Context, string) (*contracts.EffectiveAnime, error) {
@@ -190,30 +188,37 @@ func (s *stubAnimeQueryService) ListAnimeItems(context.Context) ([]contracts.Ani
 	return nil, nil
 }
 
-func (s *stubAnimeQueryService) ListAnimeHistory(context.Context) ([]contracts.AnimeHistoryItem, error) {
-	return s.history, s.historyErr
-}
-
 func (s *stubAnimeQueryService) GetAnimeDetail(context.Context, string) (*contracts.AnimeDetail, error) {
 	return nil, nil
 }
 
 var _ contracts.AnimeQueryService = (*stubAnimeQueryService)(nil)
 
-// stubAppCoverResolver is a coverResolver double for app_runtime_test.go's
-// GetAnimeCover cases: records the last (animeID, portadaPath) it was
-// called with and returns a canned cover.Result.
-type stubAppCoverResolver struct {
-	result      cover.Result
+// stubWatchHistoryQuery is a minimal watchHistoryReader double for
+// app_runtime_test.go's GetWatchHistoryPage/GetAnimeWatchHistoryPage cases.
+// Page and AnimePage share one canned result/error pair since no test here
+// needs them to differ; each records the args it last saw, including the
+// full mapped PageQuery so a test can assert on any of its fields (SDD-72
+// D3's request-struct mapping) without a dedicated recorder per field.
+type stubWatchHistoryQuery struct {
+	page        watchhistory.Page
+	err         error
 	lastAnimeID string
-	lastPortada string
+	lastQuery   watchhistory.PageQuery
 }
 
-func (s *stubAppCoverResolver) Resolve(_ context.Context, animeID, portadaPath string) cover.Result {
-	s.lastAnimeID = animeID
-	s.lastPortada = portadaPath
-	return s.result
+func (s *stubWatchHistoryQuery) Page(_ context.Context, q watchhistory.PageQuery) (watchhistory.Page, error) {
+	s.lastQuery = q
+	return s.page, s.err
 }
+
+func (s *stubWatchHistoryQuery) AnimePage(_ context.Context, animeID string, q watchhistory.PageQuery) (watchhistory.Page, error) {
+	s.lastAnimeID = animeID
+	s.lastQuery = q
+	return s.page, s.err
+}
+
+var _ watchHistoryReader = (*stubWatchHistoryQuery)(nil)
 
 type stubAppEpisodeService struct {
 	schedule       []anime.EpisodeScheduleItem
@@ -348,6 +353,11 @@ func (s *stubAppRealtimeHub) BroadcastSeasonChanged(_ context.Context, _, status
 	}
 }
 func (*stubAppRealtimeHub) Close() error { return nil }
+
+// ConnectedDeviceIDs is unused by every test that wires stubAppRealtimeHub
+// today (they exercise broadcast/lifecycle, not device presence), so it
+// degrades to "nobody connected" rather than fabricating presence.
+func (*stubAppRealtimeHub) ConnectedDeviceIDs() []string { return nil }
 
 type stubAppChangelogRecorder struct {
 	started bool

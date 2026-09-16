@@ -108,6 +108,60 @@ describe('resolveAnimeDetailMutation', () => {
     expect(resolution.feedback.description).toContain('unexpected result');
     expect(resolution.shouldRefetch).toBe(false);
   });
+
+  it('fails closed without a message when the transport error carries none', () => {
+    expect(resolveAnimeDetailMutation('repeat', {
+      status: 'error',
+      modifiedAt: 0,
+    } as never)).toEqual({
+      feedback: {
+        status: 'danger',
+        title: 'Repeat failed',
+        description: 'Repeat is unavailable.',
+      },
+      shouldRefetch: false,
+    });
+  });
+
+  it('rejects a result without a current version', () => {
+    const resolution = resolveAnimeDetailMutation('repeat', {
+      status: 'ok',
+      outcome: 'applied',
+      modifiedAt: Number.NaN,
+    } as never);
+
+    expect(resolution.feedback.status).toBe('danger');
+    expect(resolution.feedback.title).toBe('Repeat failed');
+    expect(resolution.feedback.description).toContain('without a current version');
+    expect(resolution.shouldRefetch).toBe(false);
+  });
+
+  it('fails closed for a conflict outcome without identity', () => {
+    const resolution = resolveAnimeDetailMutation('restore', {
+      status: 'ok',
+      outcome: 'conflict',
+      modifiedAt: 9,
+    } as never);
+
+    expect(resolution.feedback.status).toBe('danger');
+    expect(resolution.feedback.title).toBe('Restore failed');
+    expect(resolution.feedback.description).toContain('unexpected result');
+    expect(resolution.shouldRefetch).toBe(false);
+  });
+
+  it('fails closed for a conflict outcome with empty identity', () => {
+    const resolution = resolveAnimeDetailMutation('restore', {
+      status: 'ok',
+      outcome: 'conflict',
+      modifiedAt: 9,
+      conflictId: '',
+    } as never);
+
+    expect(resolution.feedback.status).toBe('danger');
+    expect(resolution.feedback.title).toBe('Restore failed');
+    expect(resolution.feedback.description).toContain('unexpected result');
+    expect(resolution.shouldRefetch).toBe(false);
+  });
 });
 
 describe('withAnimeDetailRefreshFailure', () => {

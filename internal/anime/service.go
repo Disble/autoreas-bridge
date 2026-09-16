@@ -2,7 +2,6 @@ package anime
 
 import (
 	"context"
-	"sort"
 
 	"autoreas-bridge/internal/anime/domain"
 	"autoreas-bridge/internal/anime/store"
@@ -126,42 +125,6 @@ func (s *QueryService) ListAnimeItems(ctx context.Context) ([]contracts.AnimeLis
 			HasFolder:       hasNonEmptyLegacyString(item.Folder),
 		})
 	}
-	return result, nil
-}
-
-// ListAnimeHistory projects the same snapshot set as ListAnimeItems into the
-// slim watch-activity read model (Anime History spec, "History Read Model"):
-// membership requires a present LastWatchedAt (absent rows excluded), and
-// the result is sorted DESC by it. Soft-deleted/inactive animes are NOT
-// filtered out here, mirroring ListAnimeItems's existing behavior (verified:
-// TestQueryServiceListAnimeItemsReturnsActiveAndInactive) -- History is an
-// activity log, so an eliminated-but-watched anime stays listed with its
-// status, matching Legacy's "Historial" screen.
-// ListAnimeHistory returns the history read model sorted by last-watched descending.
-func (s *QueryService) ListAnimeHistory(ctx context.Context) ([]contracts.AnimeHistoryItem, error) {
-	records, err := s.ListReadRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]contracts.AnimeHistoryItem, 0, len(records))
-	for _, record := range records {
-		item := mobileAnimeFromDomain(record.Value, record.Snapshot.ModifiedAt)
-		if item.LastWatchedAt == nil {
-			continue
-		}
-		result = append(result, contracts.AnimeHistoryItem{
-			ID:              item.ID,
-			Name:            item.Name,
-			EpisodesWatched: item.EpisodesWatched,
-			LastWatchedAt:   *item.LastWatchedAt,
-			Status:          item.Status,
-			Kind:            item.Kind,
-			CreatedAt:       item.CreatedAt,
-		})
-	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].LastWatchedAt > result[j].LastWatchedAt
-	})
 	return result, nil
 }
 

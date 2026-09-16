@@ -14,6 +14,51 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-15
+
+### Added
+
+- Your anime covers now reach the phone. The mobile app shows each anime's cover art: the bridge serves it as a small thumbnail, the phone keeps it, and the list still looks right when the bridge is out of reach.
+- A cover whose image file you move, rename or delete keeps working. The bridge holds on to the last copy it loaded and serves that one, instead of reporting the anime as having no cover — which used to make the phone drop the copy it already had. Putting a different image at the same path still switches everyone to the new art.
+- Fill in an anime's details straight from MyAnimeList. Both the Create form and the Editor now have
+  a "Fetch metadata" action beside the name: type a name, pick the right match from the search
+  results, and confirm to fill in type, episode count, duration, source, genres and studio — you
+  always pick, nothing is applied automatically. A misspelled or approximate name still finds the
+  right anime; MyAnimeList's own search tolerates typos far better than the alternatives tried.
+  Fields the lookup cannot answer — like your download page, folder, or watched episodes on Create,
+  and your watching status and premiere date on the Editor — are never touched, and a field
+  MyAnimeList genuinely does not report is called out rather than silently left blank. One button
+  press undoes the fill if you change your mind.
+- History is now a real watch history. Every episode you watch gets its own row with the time you watched it, listed newest first under a heading for each day that shows how many episodes you watched that day — the way a browser lists the pages you visited. Select any row to open that anime.
+- Rolling an episode back removes its row, so the history always agrees with your progress. Rewatching an anime from the start keeps the history of the earlier watch instead of wiping it.
+- Anime Detail shows that anime's own watch history: its 50 most recent episodes, with a pointer to History when there are more.
+- A jump of several episodes from the mobile app records each episode in between, so nothing you skipped past goes missing. The episode the sync lands on is dated by the phone's own watch time; the episodes in between keep the sync time, because nothing ever reported when those were watched.
+- The first launch of this version builds your history once from the progress the bridge already recorded, which goes back to 2026-07-05, and takes a restore point of the database right before it does. History cannot reach further back than that date, and the empty History screen says so.
+- El Historial ahora se filtra por nombre, estado, tipo y rango de fechas: los filtros viven en la URL (se pueden compartir y sobreviven a recargar), la búsqueda lleva debounce y seleccionar una fila abre un inspector con la portada, el estado, el tipo, el progreso y los 3 episodios más recientes.
+
+### Changed
+
+- The History screen loads as you scroll instead of all at once, and shows a loading placeholder, an empty state or an error message rather than a blank table.
+- History follows its new layout: the filters sit in one labelled row, the Watched filter shows its range as dates ("Sep 1 – Sep 13, 2026") and clears from its calendar, each day reads like "SATURDAY, SEPTEMBER 12" with its episode count, and the side panel says when you last watched ("Yesterday, 17:16") and shows an illustration while no episode is selected.
+- Anime Detail puts Edit anime, Repeat and Restore beside the anime's status. Its Watch history opens the current watch, and any watch from before the log began, as soon as the page loads; each watch shows its dates as a range ("Aug 29 – Sep 11, 2026") with its progress inside, and All episodes tags every row with the watch it belongs to.
+- Opening or copying an anime's page or folder is no longer written to the activity log. It goes to the diagnostic event log, which rotates on its own.
+- The activity log keeps its most recent 5,000 entries — about two and a half years at the current rate — instead of growing forever.
+- El historial de Anime Detail es ahora una única sección Watch history con pestañas Por visualización (un acordeón por cada vez que se vio, con resumen de fechas para las anteriores al registro) y Todos los episodios; la antigua línea de tiempo de repeticiones desaparece.
+
+### Fixed
+
+    - Episodes you mark on the phone now show the time you watched them, not the time your phone reconnected. Watching three episodes offline and syncing hours later used to put all three at the moment of the sync; each episode now keeps its own watch time. A phone whose clock is wrong cannot push a time into the future either: such a time is ignored and the sync time is used instead.
+
+### Internal
+
+- Wire change: one new REST route, `GET /api/animes/{id}/cover`, documented in `docs/openapi.yaml`. It answers a JPEG thumbnail of at most 320 px tall with a strong ETag, 304 when the phone already holds those bytes, 204 when the anime has no usable cover, and 503 with `Retry-After` while thumbnail generation is saturated. No existing endpoint changed shape, so a phone that does not know about this route is unaffected.
+- A thumbnail is generated once and cached on disk under the image's identity — its path, size and modification time for a local file, the hash of the downloaded bytes for a URL — together with the thumbnail spec version, so a replaced image or a spec change can never serve stale bytes. The last-good copy of a local file is kept beside that cache and only ever used when the original is missing. Recorded in `docs/adr/024-cover-thumbnail-cache.md`.
+- Captured requests no longer store image bodies, so serving covers does not grow the diagnostics database by a copy of every image. The desktop renders its own covers through the same pipeline that serves the phone, rather than a separate path.
+- No REST or WebSocket contract changed: the new history reaches the desktop UI through two new Wails bindings, and the old snapshot-based history binding is gone.
+- The history lives in its own permanent table, one row per episode per rewatch, separate from the capped audit log and the rotating diagnostic log. Recording is derived from the before/after progress of each change rather than from what kind of action caused it, so the desktop and mobile write paths cannot disagree. Recorded in `docs/adr/023-watch-history-model.md`.
+- Mutation testing now runs after each commit in a separate worktree with a per-test timeout. A mutant that deadlocks the single SQLite connection used to hang a run for go test's default ten minutes.
+    - The phone's own watch time is stored beside the moment the bridge received the change, on the audit row, instead of replacing it. The audit still records what arrived and when, and the correlation id built from it does not move, while a replay of the history now reproduces the rows a live write produced rather than re-creating the old behaviour. Correcting the rows that were already stored was done once, deliberately, outside the application: the application's startup path gains no data-mutating step, and no migration, marker or command for it ships.
+
 ## [1.12.0] — 2026-09-11
 
 ### Added

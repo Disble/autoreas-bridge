@@ -1,0 +1,14 @@
+{
+  "testRunner": "vitest",
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ],
+  "ignoreStatic": true,
+  "cleanTempDir": "always",
+  "reporters": [
+    "clear-text"
+  ],
+  "vitest": {
+    "configFile": "vitest.mutation.mts"
+  }
+}

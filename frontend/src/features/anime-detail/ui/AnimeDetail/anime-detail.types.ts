@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction, SyntheticEvent } from 'react';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import type { AnimeDetail as AnimeDetailDto } from '../../../../shared/contracts/anime.types';
+import type { AnimeCoverEntry } from '../../../../shared/anime-cover/use-anime-cover';
 
 /**
  * Props for the shared AnimeDetail component. Reached by route from either
@@ -17,35 +18,10 @@ export interface AnimeDetailSkeletonProps {
 }
 
 /**
- * HeroUI chip color tokens supported by the project's design system (mirrors
- * `HistoryTable`'s `HeroChipColor`, duplicated per this repo's
- * feature-local-constants convention).
+ * HeroUI chip color tokens supported by the project's design system,
+ * duplicated per this repo's feature-local-constants convention.
  */
 export type HeroChipColor = 'accent' | 'default' | 'success' | 'warning' | 'danger';
-
-/**
- * A single repetition-history entry mapped for display, carrying every field
- * the Legacy "Historial de repetición" record shows (Anime Detail delta
- * spec, "Repetition entry shows the full Legacy record"). Every `*Label`
- * date field already bakes in its explicit "No data" fallback.
- */
-export interface AnimeRepeticionViewModel {
-  readonly key: string;
-  readonly numRepeticion: number;
-  readonly estadoLabel: string;
-  readonly estadoColor: HeroChipColor;
-  readonly episodesWatchedLabel: string;
-  readonly creacionLabel: string;
-  readonly estrenoLabel: string;
-  readonly ultCapVistoLabel: string;
-  readonly eliminacionLabel: string;
-  readonly repeatedOnLabel: string;
-}
-
-/** Props for the dumb `AnimeRepetitionTimeline` subcomponent. */
-export interface AnimeRepetitionTimelineProps {
-  readonly repetitions: readonly AnimeRepeticionViewModel[];
-}
 
 /** A single per-episode stat tile (label + display-ready value). */
 export interface AnimeDetailStatTile {
@@ -60,14 +36,13 @@ export interface AnimeDetailViewModel {
   readonly modifiedAt: number;
   readonly canRepeat: boolean;
   readonly canRestore: boolean;
-  readonly portadaUrl?: string;
+  readonly hasStoredCover: boolean;
   readonly estadoLabel: string;
   readonly tipoLabel: string;
   readonly subtitleLabel: string;
   readonly statusLabel: string;
   readonly statusColor: HeroChipColor;
   readonly statTiles: readonly AnimeDetailStatTile[];
-  readonly progressRatio?: number;
   readonly paginaUrl?: string;
   readonly carpetaLabel: string;
   readonly estrenoLabel: string;
@@ -78,8 +53,6 @@ export interface AnimeDetailViewModel {
   readonly studios: string;
   readonly origin: string;
   readonly isFirstWatch: boolean;
-  readonly repetitions: readonly AnimeRepeticionViewModel[];
-  readonly hasRepetitionHistory: boolean;
 }
 
 /** Discriminates the three states the shared detail can render. */
@@ -153,16 +126,27 @@ export interface AnimeDetailMutationController {
   readonly onConfirmAction: () => Promise<void>;
 }
 
-/** Props for the dumb action buttons, feedback alert, and confirmation modal. */
+/** Props for the dumb feedback alert and confirmation modal of the Repeat/Restore mutations. */
 export interface AnimeDetailMutationControlsProps extends AnimeDetailMutationController {
   readonly detail: AnimeDetailViewModel;
+}
+
+/** Props for the dumb Repeat/Restore buttons the hero header renders beside the status chip. */
+export interface AnimeDetailMutationActionsProps {
+  readonly canRepeat: boolean;
+  readonly canRestore: boolean;
+  readonly isMutating: boolean;
+  readonly onRequestRepeat: () => void;
+  readonly onRequestRestore: () => void;
 }
 
 /** State returned by the `useAnimeDetail` hook. */
 export interface AnimeDetailState {
   readonly loadState: AnimeDetailLoadState;
   readonly detail: AnimeDetailViewModel | undefined;
-  readonly showPortadaPlaceholder: boolean;
+  /** Raw detail DTO backing `detail`, exposed so Watch history derives per-watch view models at the same freshness. `null` when the anime was not found; the section mounts only when this is non-null. */
+  readonly detailSource: AnimeDetailDto | null | undefined;
+  readonly cover: AnimeCoverEntry;
   readonly onPortadaError: () => void;
   readonly onPortadaLoad: (event: SyntheticEvent<HTMLImageElement>) => void;
   readonly onBack: () => void;

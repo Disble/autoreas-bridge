@@ -9,8 +9,8 @@ import {
   GetAnimeDetail,
   GetAnimeEditorRecord,
   GetAnimeEditorScheduleBoard,
-  GetAnimeHistory,
   GetAnimes,
+  GetAnimeWatchHistoryPage,
   GetConnectedDevices,
   GetEffectiveAddress,
   GetEpisodeDayCounts,
@@ -18,6 +18,7 @@ import {
   GetPairingToken,
   GetSQLiteStatus,
   GetSyncingAnimeItems,
+  GetWatchHistoryPage,
   OpenAnimeFolder,
   OpenAnimePage,
   PickFile,
@@ -48,12 +49,14 @@ import type {
 } from '../../shared/contracts/anime.types';
 import {
   BRIDGE_RUNTIME_SOURCE_STATE,
+  DEVICE_ACKNOWLEDGED_EVENT_NAME,
   PAIRING_TOKEN_CONSUMED_EVENT_NAME,
   RUNTIME_UNAVAILABLE_COMMAND_RESULT,
   RUNTIME_UNAVAILABLE_CREATE_RESULT,
   RUNTIME_UNAVAILABLE_EDITOR_RESULT,
+  RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
 } from './bridge-runtime-source.constants';
-import type { AnimeEditorRuntimeSource, BridgeRuntimeSource } from './bridge-runtime-source.types';
+import type { AnimeEditorRuntimeSource, BridgeRuntimeSource, DeviceAcknowledgedNotice } from './bridge-runtime-source.types';
 import { createRuntimeSubscription, invokeGoBinding } from '../wails-bindings.helpers';
 
 /**
@@ -329,6 +332,10 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     return EventsOn(PAIRING_TOKEN_CONSUMED_EVENT_NAME, () => emit(undefined));
   });
 
+  const deviceAcknowledgedSubscription = createRuntimeSubscription<DeviceAcknowledgedNotice>((emit) => {
+    return EventsOn(DEVICE_ACKNOWLEDGED_EVENT_NAME, (notice: DeviceAcknowledgedNotice) => emit(notice));
+  });
+
   BRIDGE_RUNTIME_SOURCE_STATE.sharedSource = {
     getSQLiteStatus() {
       return invokeGoBinding('GetSQLiteStatus', GetSQLiteStatus, () => 'runtime unavailable');
@@ -370,8 +377,15 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     createAnime(command) {
       return invokeGoBinding('CreateAnime', () => CreateAnime(toAnimeCreateDTO(command)), () => RUNTIME_UNAVAILABLE_CREATE_RESULT as unknown as wailsContracts.AnimeCreateResult).then(toAnimeCreateResult);
     },
-    getAnimeHistory() {
-      return invokeGoBinding('GetAnimeHistory', GetAnimeHistory, () => []);
+    getWatchHistoryPage(request) {
+      return invokeGoBinding(
+        'GetWatchHistoryPage',
+        () => GetWatchHistoryPage({ ...request, animeIds: [...request.animeIds] }),
+        () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE,
+      );
+    },
+    getAnimeWatchHistoryPage(request) {
+      return invokeGoBinding('GetAnimeWatchHistoryPage', () => GetAnimeWatchHistoryPage({ ...request }), () => RUNTIME_UNAVAILABLE_WATCH_HISTORY_PAGE);
     },
     getEpisodeSchedule(day) {
       return invokeGoBinding('GetEpisodeSchedule', () => GetEpisodeSchedule(day), () => []);
@@ -426,6 +440,9 @@ export function createBridgeRuntimeSource(): BridgeRuntimeSource & AnimeEditorRu
     },
     onPairingTokenConsumed(listener) {
       return pairingTokenSubscription.subscribe(listener);
+    },
+    onDeviceAcknowledged(listener) {
+      return deviceAcknowledgedSubscription.subscribe(listener);
     },
   };
 

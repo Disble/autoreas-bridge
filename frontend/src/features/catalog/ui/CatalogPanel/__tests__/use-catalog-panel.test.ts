@@ -42,7 +42,6 @@ function createSource(items: Anime[], shouldReject = false): BridgeRuntimeSource
       ? vi.fn().mockRejectedValue(new Error('boom'))
       : vi.fn().mockResolvedValue(items),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
-    getAnimeHistory: vi.fn(),
     triggerReconcile: vi.fn(),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
   };

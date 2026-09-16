@@ -2,12 +2,12 @@ package desktop
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 
-	"autoreas-bridge/internal/activity"
 	"autoreas-bridge/internal/anime"
+	"autoreas-bridge/internal/api/contracts"
+	sharedlogger "autoreas-bridge/internal/logger"
 	bridgeSync "autoreas-bridge/internal/sync"
 )
 
@@ -18,10 +18,12 @@ func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"sourceUrl":"https://anime.example/frieren"}`, 1000)
 
 	var openedURL string
+	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
 	app := &App{
-		ctx:        ctx,
-		bridgeDB:   db,
-		animeQuery: anime.NewQueryService(store),
+		ctx:          ctx,
+		bridgeDB:     db,
+		animeQuery:   anime.NewQueryService(store),
+		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
 		openURL: func(_ context.Context, url string) {
 			openedURL = url
 		},
@@ -35,7 +37,7 @@ func TestOpenAnimePageOpensPageAndRecordsActivity(t *testing.T) {
 	if openedURL != "https://anime.example/frieren" {
 		t.Fatalf("expected page URL to be opened, got %q", openedURL)
 	}
-	assertDesktopActionActivity(t, db, activity.ActionAnimePageOpened)
+	assertDesktopActionEvent(t, memLogger, "anime.page_opened", "anime-1", "Frieren", got.CorrelationID)
 }
 
 func TestCopyAnimeFolderCopiesFolderAndRecordsActivity(t *testing.T) {
@@ -45,10 +47,12 @@ func TestCopyAnimeFolderCopiesFolderAndRecordsActivity(t *testing.T) {
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true,"folder":"C:/Anime/Frieren"}`, 1000)
 
 	var copiedText string
+	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
 	app := &App{
-		ctx:        ctx,
-		bridgeDB:   db,
-		animeQuery: anime.NewQueryService(store),
+		ctx:          ctx,
+		bridgeDB:     db,
+		animeQuery:   anime.NewQueryService(store),
+		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
 		copyText: func(_ context.Context, value string) error {
 			copiedText = value
 			return nil
@@ -63,7 +67,17 @@ func TestCopyAnimeFolderCopiesFolderAndRecordsActivity(t *testing.T) {
 	if copiedText != "C:/Anime/Frieren" {
 		t.Fatalf("expected folder path to be copied, got %q", copiedText)
 	}
-	assertDesktopActionActivity(t, db, activity.ActionAnimeFolderCopied)
+	assertDesktopActionEvent(t, memLogger, "anime.folder_copied", "anime-1", "Frieren", got.CorrelationID)
+}
+
+// TestRecordDesktopAnimeActionDegradesSilentlyWithoutASharedLogger proves the
+// D7 recording-failure coupling is gone: a nil sharedLogger (mirroring every
+// other lazily wired App collaborator) does not panic and there is no error
+// to report -- unlike the retired activity.Store path, Logf never fails.
+func TestRecordDesktopAnimeActionDegradesSilentlyWithoutASharedLogger(t *testing.T) {
+	app := &App{}
+
+	app.recordDesktopAnimeAction(contracts.MobileAnime{ID: "anime-1", Name: "Frieren"}, "anime.folder_copied", "anime.desktop-action:anime-1:1000")
 }
 
 func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
@@ -73,10 +87,12 @@ func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
 	seedRuntimeAnimeSnapshot(t, store, "anime-1", `{"id":"anime-1","name":"Frieren","episodesWatched":2,"status":0,"active":true}`, 1000)
 
 	opened := false
+	memLogger := sharedlogger.NewMemLogger(sharedlogger.MemLoggerConfig{})
 	app := &App{
-		ctx:        ctx,
-		bridgeDB:   db,
-		animeQuery: anime.NewQueryService(store),
+		ctx:          ctx,
+		bridgeDB:     db,
+		animeQuery:   anime.NewQueryService(store),
+		sharedLogger: sharedlogger.NewFanoutLogger(memLogger),
 		openURL: func(context.Context, string) {
 			opened = true
 		},
@@ -90,12 +106,8 @@ func TestOpenAnimePageRejectsMissingPage(t *testing.T) {
 	if opened {
 		t.Fatal("expected missing page not to open anything")
 	}
-	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(ctx, activity.ListQuery{Limit: 10})
-	if err != nil {
-		t.Fatalf("list activity rows: %v", err)
-	}
-	if len(records) != 0 {
-		t.Fatalf("expected no activity rows, got %#v", records)
+	if entries := memLogger.Recent(); len(entries) != 0 {
+		t.Fatalf("expected no telemetry for a rejected action, got %#v", entries)
 	}
 }
 
@@ -140,18 +152,23 @@ func mustJSONText(t *testing.T, value string) string {
 	return string(encoded)
 }
 
-// assertDesktopActionActivity verifies the activity row for a desktop action.
-func assertDesktopActionActivity(t *testing.T, db *sql.DB, actionType string) {
+// assertDesktopActionEvent verifies the shared-logger event for a desktop
+// navigation action (D7): domain "anime", the dotted event type, the anime id
+// as entity, the anime name and source in metadata, and the correlation id
+// carried over unchanged from the command result.
+func assertDesktopActionEvent(t *testing.T, memLogger *sharedlogger.MemLogger, eventType, animeID, animeName, correlationID string) {
 	t.Helper()
 
-	records, err := activity.NewStore(activity.NewSQLiteProvider(db)).ListRecent(context.Background(), activity.ListQuery{Limit: 10})
-	if err != nil {
-		t.Fatalf("list activity rows: %v", err)
+	entries := memLogger.Recent()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 logged event, got %#v", entries)
 	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 activity row, got %#v", records)
+	entry := entries[0]
+	if entry.Domain != "anime" || entry.Level != sharedlogger.LevelInfo || entry.EventType != eventType ||
+		entry.EntityID != animeID || entry.CorrelationID != correlationID {
+		t.Fatalf("unexpected logged event: %#v", entry)
 	}
-	if records[0].Source != activity.SourceDesktop || records[0].ActionType != actionType {
-		t.Fatalf("unexpected activity row: %#v", records[0])
+	if entry.Metadata["animeName"] != animeName || entry.Metadata["source"] != "desktop" {
+		t.Fatalf("unexpected event metadata: %#v", entry.Metadata)
 	}
 }

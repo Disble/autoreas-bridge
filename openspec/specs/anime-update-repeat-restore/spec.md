@@ -5,8 +5,9 @@ Capability: `anime-update-repeat-restore`
 
 ## Purpose
 
-AnimeDetail MUST expose safe, base-aware Repeat and Restore actions that preserve
-Legacy semantics and report whether a write applied.
+Every surface that exposes Repeat and Restore MUST do so as safe, base-aware
+actions that preserve Legacy semantics and report whether a write applied.
+AnimeDetail and the Anime Editor's general form are both such surfaces.
 
 ## Requirements
 

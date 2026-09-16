@@ -179,12 +179,8 @@ describe('TransactionPanel progressive list (live rail)', () => {
     expect(listTransactions).toHaveBeenCalledTimes(1);
   });
 
-  it('appends the next cursor page below the existing rows once the window consumes the loaded ones', async () => {
-    const listTransactions = vi
-      .fn()
-      .mockImplementation((filters: CaptureQueryFilters) =>
-        Promise.resolve(filters.cursor === 'cursor-1' ? capturePage(rows(10, 100)) : capturePage(rows(60), 'cursor-1')),
-      );
+  it('reveals the loaded window on scroll without fetching while loaded rows remain', async () => {
+    const listTransactions = vi.fn().mockResolvedValue(capturePage(rows(60), 'cursor-1'));
     const source = createFakeSource({ listTransactions });
 
     render(<TransactionPanel source={source} />);
@@ -198,13 +194,34 @@ describe('TransactionPanel progressive list (live rail)', () => {
       expect(countRenderedRows()).toBe(50);
     });
 
+    // 25 + 25 < 60, so the cursor page must stay unfetched after one growth.
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+    expect(renderedRoutes().slice(0, before.length)).toEqual(before);
+  });
+
+  it('fetches the next cursor page once the window has consumed the loaded rows', async () => {
+    const listTransactions = vi
+      .fn()
+      .mockImplementation((filters: CaptureQueryFilters) =>
+        Promise.resolve(filters.cursor === 'cursor-1' ? capturePage(rows(10, 100)) : capturePage(rows(25), 'cursor-1')),
+      );
+    const source = createFakeSource({ listTransactions });
+
+    render(<TransactionPanel source={source} />);
+
+    await screen.findByText('/api/animes/anime-0');
+
+    const before = renderedRoutes();
+
+    // 25 + 25 >= 25: the first growth already consumes every loaded row, so one
+    // scroll both grows the window and triggers the cursor fetch.
     fireEvent.scroll(scroller());
     await waitFor(() => {
-      expect(countRenderedRows()).toBe(70);
+      expect(countRenderedRows()).toBe(35);
     });
 
     expect(renderedRoutes().slice(0, before.length)).toEqual(before);
-    expect(renderedRoutes()[69]).toBe('/api/animes/anime-109');
+    expect(renderedRoutes()[34]).toBe('/api/animes/anime-109');
     expect(listTransactions).toHaveBeenCalledTimes(2);
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-1' }));
   });
@@ -243,11 +260,13 @@ describe('TransactionPanel progressive list (live rail)', () => {
     expect(getTransactionStoreState().nextCursor).toBe('cursor-1');
   });
 
-  it('a terminal capture delta updating a row in place leaves the window and the selection untouched', async () => {
+  it('a scrolled window keeps the row selection the user already made', async () => {
+    // No continuation cursor: this test owns the scroll-plus-selection
+    // behavior, so no fetch path may run here at all.
     const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(60), 'cursor-1')),
+      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30))),
     });
-    const { runtimeSource, push } = createPushableRuntimeSource();
+    const { runtimeSource } = createPushableRuntimeSource();
 
     render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
 
@@ -255,9 +274,30 @@ describe('TransactionPanel progressive list (live rail)', () => {
 
     fireEvent.scroll(scroller());
     await waitFor(() => {
-      expect(countRenderedRows()).toBe(50);
+      expect(countRenderedRows()).toBe(30);
     });
 
+    screen.getByText('/api/animes/anime-5').closest('tr')?.click();
+    await waitFor(() => {
+      expect(getTransactionStoreState().selectedId).toBe('req-5');
+    });
+
+    expect(countRenderedRows()).toBe(30);
+    expect(getTransactionStoreState().selectedId).toBe('req-5');
+  });
+
+  it('a terminal capture delta updating a row in place leaves the window and the selection untouched', async () => {
+    const source = createFakeSource({
+      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30), 'cursor-1')),
+    });
+    const { runtimeSource, push } = createPushableRuntimeSource();
+
+    render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
+
+    await screen.findByText('/api/animes/anime-0');
+
+    // req-5 and req-7 both sit inside the first batch, so no scroll is needed:
+    // the delta updates the row in place without touching the window.
     screen.getByText('/api/animes/anime-5').closest('tr')?.click();
     await waitFor(() => {
       expect(getTransactionStoreState().selectedId).toBe('req-5');
@@ -271,7 +311,7 @@ describe('TransactionPanel progressive list (live rail)', () => {
       expect(screen.getByText('rejected')).toBeInTheDocument();
     });
 
-    expect(countRenderedRows()).toBe(50);
+    expect(countRenderedRows()).toBe(25);
     expect(getTransactionStoreState().selectedId).toBe('req-5');
   });
 

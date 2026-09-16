@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BridgeRuntimeSource } from '../../../../infrastructure/bridge-runtime-source/bridge-runtime-source.types';
 import { useSyncStatusChip } from '../use-sync-status-chip';
 
+/** Builds a runtime source stubbing every binding `useSyncStatusChip` calls. */
 function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeRuntimeSource {
   return {
     getSQLiteStatus: vi.fn().mockResolvedValue('ok'),
@@ -11,7 +12,6 @@ function createFakeSource(overrides: Partial<BridgeRuntimeSource> = {}): BridgeR
     getSyncingAnimeItems: vi.fn().mockResolvedValue([]),
     getAnimes: vi.fn().mockResolvedValue([]),
     getAnimeDetail: vi.fn().mockResolvedValue(null),
-    getAnimeHistory: vi.fn().mockResolvedValue([]),
     triggerReconcile: vi.fn().mockResolvedValue(''),
     onPairingTokenConsumed: vi.fn().mockReturnValue(() => undefined),
     ...overrides,

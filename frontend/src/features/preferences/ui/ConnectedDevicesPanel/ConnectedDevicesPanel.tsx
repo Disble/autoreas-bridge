@@ -1,5 +1,6 @@
 import { Alert, Button, Chip, Table } from '@heroui/react';
 import { CONNECTED_DEVICES_EMPTY_MESSAGE } from './connected-devices-panel.constants';
+import { getConnectionStatusColor } from './connected-devices-panel.helpers';
 import type { ConnectedDevicesPanelProps } from './connected-devices-panel.types';
 import { useConnectedDevicesPanel } from './use-connected-devices-panel';
 
@@ -44,7 +45,7 @@ export function ConnectedDevicesPanel(props: Readonly<ConnectedDevicesPanelProps
                 </Table.Cell>
                 <Table.Cell>{device.lastSyncLabel}</Table.Cell>
                 <Table.Cell>
-                  <Chip size="sm" color={device.syncStatus === 'stale' ? 'warning' : 'default'} variant="soft">
+                  <Chip size="sm" color={getConnectionStatusColor(device.connectionStatus, device.syncStatus)} variant="soft">
                     {device.connectionStatus}
                   </Chip>
                 </Table.Cell>

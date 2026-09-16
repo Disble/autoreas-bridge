@@ -11,12 +11,12 @@
  * not an open domain like `dias`/`generos`, so its options are static — never
  * discovered dynamically from the catalog data.
  *
- * Only {@link ANIME_TIPO_FILTER_ENTRIES} is exported today because it is the
- * one shape consumers need. The label map and value list stay module-private
- * until a surface needs them directly; that slice exports them with its own
- * consumer so no dead export ships (mirrors the estado module's live exports).
+ * Only {@link ANIME_TIPO_FILTER_ENTRIES} and {@link ANIME_TIPO_LABELS} are
+ * exported: the entries for option lists, the labels for
+ * `shared/helpers/anime-tipo.helpers.ts`. The value list stays module-private
+ * until a surface needs it directly.
  */
-const ANIME_TIPO_LABELS: Readonly<Record<number, string>> = {
+export const ANIME_TIPO_LABELS: Readonly<Record<number, string>> = {
   0: 'Anime (TV)',
   1: 'Película',
   2: 'Especial',

@@ -182,22 +182,15 @@ func TestAnimeListItemEnglishJSONTags(t *testing.T) {
 	}
 }
 
-// TestAnimeHistoryItemEnglishJSONTags guards the History read model DTO
-// (the closest real DTO to the proposal's since-renamed "AnimeChangeSummary").
-func TestAnimeHistoryItemEnglishJSONTags(t *testing.T) {
-	kind := 1
-	createdAt := int64(2)
-	item := AnimeHistoryItem{
-		ID:              "anime-1",
-		Name:            "Frieren",
-		EpisodesWatched: 5,
-		LastWatchedAt:   1,
-		Status:          0,
-		Kind:            &kind,
-		CreatedAt:       &createdAt,
+// TestWatchHistoryEntryEnglishJSONTags guards the additive real-watch-history
+// read model row (sdd-69 Slice 5): every field carries an English JSON tag.
+func TestWatchHistoryEntryEnglishJSONTags(t *testing.T) {
+	entry := WatchHistoryEntry{
+		ID: 1, AnimeID: "anime-1", AnimeName: "Frieren", Episode: 12, Cycle: 1,
+		WatchedAtMS: 1700000000000, Source: "desktop",
 	}
 
-	encoded, err := json.Marshal(item)
+	encoded, err := json.Marshal(entry)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -206,14 +199,80 @@ func TestAnimeHistoryItemEnglishJSONTags(t *testing.T) {
 	if err := json.Unmarshal(encoded, &raw); err != nil {
 		t.Fatalf("unmarshal raw map: %v", err)
 	}
-	for _, key := range []string{"name", "episodesWatched", "lastWatchedAt", "status", "kind", "createdAt"} {
+	for _, key := range []string{"id", "animeId", "animeName", "episode", "cycle", "watchedAtMs", "source"} {
 		if _, ok := raw[key]; !ok {
 			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
 		}
 	}
-	for _, key := range []string{"nombre", "nrocapvisto", "fechaUltCapVisto", "estado", "tipo", "fechaCreacion"} {
+}
+
+// TestWatchHistoryPageEnglishJSONTags guards WatchHistoryPage's JSON tags and
+// its omitempty fields (NextCursor/Message) staying absent on a zero value.
+func TestWatchHistoryPageEnglishJSONTags(t *testing.T) {
+	page := WatchHistoryPage{Items: []WatchHistoryEntry{}, Status: "ok"}
+
+	encoded, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"items", "status"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+	for _, key := range []string{"nextCursor", "message"} {
 		if _, ok := raw[key]; ok {
-			t.Fatalf("did not expect stale Spanish JSON key %q, got %s", key, encoded)
+			t.Fatalf("expected omitempty key %q absent on zero value, got %s", key, encoded)
+		}
+	}
+}
+
+// TestWatchHistoryPageRequestEnglishJSONTags guards the global page request's
+// JSON tags (SDD-72 D3): every field carries an English wire name.
+func TestWatchHistoryPageRequestEnglishJSONTags(t *testing.T) {
+	request := WatchHistoryPageRequest{
+		Search: "frieren", AnimeIDs: []string{"anime-1"}, WatchedFromMS: 1700000000000,
+		WatchedToMS: 1700003600000, Order: "oldest", Cursor: "1700000000000:1", Limit: 50,
+	}
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"search", "animeIds", "watchedFromMs", "watchedToMs", "order", "cursor", "limit"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
+		}
+	}
+}
+
+// TestAnimeWatchHistoryPageRequestEnglishJSONTags guards the per-anime page
+// request's JSON tags (SDD-72 D3): every field carries an English wire name.
+func TestAnimeWatchHistoryPageRequestEnglishJSONTags(t *testing.T) {
+	request := AnimeWatchHistoryPageRequest{AnimeID: "anime-1", Cycle: 2, Cursor: "1700000000000:1", Limit: 3}
+
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatalf("unmarshal raw map: %v", err)
+	}
+	for _, key := range []string{"animeId", "cycle", "cursor", "limit"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("expected English JSON key %q, got %s", key, encoded)
 		}
 	}
 }

@@ -29,124 +29,142 @@ func newFetcherWithTransport(rt http.RoundTripper, timeout time.Duration, maxByt
 func TestHTTPFetcherFetchReturnsBodyAndContentTypeHeader(t *testing.T) {
 	t.Parallel()
 
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	fetcher := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader("jpeg-bytes")),
 			Header:     http.Header{"Content-Type": []string{"image/jpeg"}},
 		}, nil
-	})
-	fetcher := newFetcherWithTransport(rt, time.Second, 1<<20)
+	}), time.Second, 1<<20)
 
-	data, contentType, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/x.jpg")
+	got, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/x.jpg")
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
-	if string(data) != "jpeg-bytes" {
-		t.Fatalf("expected body jpeg-bytes, got %q", data)
-	}
-	if contentType != "image/jpeg" {
-		t.Fatalf("expected content-type image/jpeg, got %q", contentType)
+	if string(got.Data) != "jpeg-bytes" || got.ContentType != "image/jpeg" || got.StatusCode != http.StatusOK {
+		t.Fatalf("Fetch() = %#v, want successful body, content type, and status", got)
 	}
 }
 
-func TestHTTPFetcherFetchWithNoContentTypeHeaderReturnsEmptyString(t *testing.T) {
+func TestHTTPFetcherFetchRejectsLimitPlusOneWithoutReturningPrefix(t *testing.T) {
 	t.Parallel()
 
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	const limit = 16
+	body := strings.NewReader(strings.Repeat("x", limit+2))
+	fetcher := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader("bytes")),
-			Header:     http.Header{},
-		}, nil
-	})
-	fetcher := newFetcherWithTransport(rt, time.Second, 1<<20)
-
-	_, contentType, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/x")
-	if err != nil {
-		t.Fatalf("Fetch: %v", err)
-	}
-	if contentType != "" {
-		t.Fatalf("expected empty content-type when header absent (Resolver sniffs), got %q", contentType)
-	}
-}
-
-func TestHTTPFetcherFetchNon200StatusReturnsErrorWithoutLeakingBody(t *testing.T) {
-	t.Parallel()
-
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusNotFound,
-			Body:       io.NopCloser(strings.NewReader("not found")),
-			Header:     http.Header{},
-		}, nil
-	})
-	fetcher := newFetcherWithTransport(rt, time.Second, 1<<20)
-
-	data, _, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/missing.jpg")
-	if err == nil {
-		t.Fatal("expected error on non-200 status")
-	}
-	if data != nil {
-		t.Fatalf("expected no body on error, got %q", data)
-	}
-}
-
-func TestHTTPFetcherFetchTimesOutPastClientTimeout(t *testing.T) {
-	t.Parallel()
-
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		select {
-		case <-req.Context().Done():
-			return nil, req.Context().Err()
-		case <-time.After(2 * time.Second):
-			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("late"))}, nil
-		}
-	})
-	fetcher := newFetcherWithTransport(rt, 20*time.Millisecond, 1<<20)
-
-	_, _, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/slow.jpg")
-	if err == nil {
-		t.Fatal("expected a timeout error")
-	}
-}
-
-func TestHTTPFetcherFetchPropagatesContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		return nil, errors.New("should not be reached after cancellation")
-	})
-	fetcher := newFetcherWithTransport(rt, time.Second, 1<<20)
-
-	_, _, err := fetcher.Fetch(ctx, "https://cdn.example.com/x.jpg")
-	if err == nil {
-		t.Fatal("expected error from a pre-cancelled context")
-	}
-}
-
-func TestHTTPFetcherFetchCapsBodyReadAtMaxBytes(t *testing.T) {
-	t.Parallel()
-
-	const maxBytes = 16
-	hostile := strings.Repeat("x", maxBytes*4)
-	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(hostile)),
+			Body:       io.NopCloser(body),
 			Header:     http.Header{"Content-Type": []string{"image/jpeg"}},
 		}, nil
-	})
-	fetcher := newFetcherWithTransport(rt, time.Second, maxBytes)
+	}), time.Second, limit)
 
-	data, _, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/huge.jpg")
-	if err != nil {
-		t.Fatalf("Fetch: %v", err)
+	got, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/huge.jpg")
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Fetch() error = %v, want invalid classification", err)
 	}
-	if len(data) > maxBytes {
-		t.Fatalf("expected fetcher to cap body at %d bytes, got %d", maxBytes, len(data))
+	if got.Data != nil {
+		t.Fatalf("Fetch() data = %q, want no truncated prefix", got.Data)
+	}
+	if body.Len() != 1 {
+		t.Fatalf("remaining body bytes = %d, want 1", body.Len())
+	}
+	exact := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", limit)))}, nil
+	}), time.Second, limit)
+	got, err = exact.Fetch(context.Background(), "https://cdn.example.com/exact.jpg")
+	if err != nil || len(got.Data) != limit {
+		t.Fatalf("Fetch() = %#v, %v; want exactly-limit streamed body", got, err)
+	}
+}
+
+func TestHTTPFetcherFetchRejectsDeclaredOversizeWithoutReturningBody(t *testing.T) {
+	t.Parallel()
+
+	const limit = 16
+	fetcher := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			ContentLength: limit + 1,
+			Body:          io.NopCloser(strings.NewReader("ignored")),
+			Header:        http.Header{},
+		}, nil
+	}), time.Second, limit)
+
+	got, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/declared-huge.jpg")
+	if !errors.Is(err, ErrInvalid) || got.Data != nil {
+		t.Fatalf("Fetch() = %#v, %v; want invalid without body", got, err)
+	}
+	exact := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, ContentLength: limit, Body: io.NopCloser(strings.NewReader(strings.Repeat("x", limit)))}, nil
+	}), time.Second, limit)
+	got, err = exact.Fetch(context.Background(), "https://cdn.example.com/declared-exact.jpg")
+	if err != nil || len(got.Data) != limit {
+		t.Fatalf("Fetch() = %#v, %v; want exactly-limit declared body", got, err)
+	}
+}
+
+func TestHTTPFetcherFetchClassifiesOriginStatusAndRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		status    int
+		retry     string
+		want      error
+		wantRetry int
+	}{
+		{name: "399 is transient", status: 399, want: ErrTransient},
+		{name: "400 is gone", status: 400, want: ErrGone},
+		{name: "499 is gone", status: 499, want: ErrGone},
+		{name: "500 is transient", status: 500, want: ErrTransient},
+		{name: "forbidden is gone", status: http.StatusForbidden, want: ErrGone},
+		{name: "request timeout is transient", status: http.StatusRequestTimeout, retry: "22", want: ErrTransient},
+		{name: "too many requests carries retry", status: http.StatusTooManyRequests, retry: "22", want: ErrTransient, wantRetry: 22},
+		{name: "service unavailable carries retry", status: http.StatusServiceUnavailable, retry: "7200", want: ErrTransient, wantRetry: 3600},
+		{name: "server failure is transient", status: http.StatusBadGateway, retry: "22", want: ErrTransient},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: tc.status,
+					Body:       io.NopCloser(strings.NewReader("origin error")),
+					Header:     http.Header{"Retry-After": []string{tc.retry}},
+				}, nil
+			}), time.Second, 100)
+
+			got, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/status")
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Fetch() error = %v, want %v classification", err, tc.want)
+			}
+			if got.Data != nil || got.RetryAfterSeconds != tc.wantRetry {
+				t.Fatalf("Fetch() = %#v, want no body and retry %d", got, tc.wantRetry)
+			}
+		})
+	}
+}
+
+func TestHTTPFetcherFetchClassifiesTransportAndCancellationAsTransient(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{name: "network", err: errors.New("connection reset")},
+		{name: "cancelled", err: context.Canceled},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := newFetcherWithTransport(roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return nil, tc.err
+			}), time.Second, 100)
+
+			_, err := fetcher.Fetch(context.Background(), "https://cdn.example.com/failure")
+			if !errors.Is(err, ErrTransient) {
+				t.Fatalf("Fetch() error = %v, want transient classification", err)
+			}
+		})
 	}
 }

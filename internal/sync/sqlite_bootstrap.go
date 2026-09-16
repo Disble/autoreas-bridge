@@ -1,8 +1,10 @@
 package sync
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"autoreas-bridge/internal/observability/syncdiag"
 	"autoreas-bridge/internal/persistence"
 	"autoreas-bridge/internal/season"
+	"autoreas-bridge/internal/watchhistory"
 	// Registers the "sqlite" driver with database/sql. Nothing in this file
 	// references the package, so the import exists purely for that init side effect
 	// and removing it turns every sql.Open("sqlite", ...) here into a runtime error.
@@ -106,7 +109,7 @@ func (b SQLiteBootstrap) OpenBridgeDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open bridge db %q: %w", path, err)
 	}
 
-	if err := initializeBridgeDB(db); err != nil {
+	if err := initializeBridgeDB(db, path); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize bridge db %q: %w", path, err)
 	}
@@ -136,8 +139,9 @@ func BootstrapBridgeDB() (*sql.DB, error) {
 
 // initializeBridgeDB configures connection limits, applies pragmas, ensures every table
 // via the schema registry, and seeds default data. It is the only place where the sync
-// and download schema descriptor sets are assembled together.
-func initializeBridgeDB(db *sql.DB) error {
+// and download schema descriptor sets are assembled together. dbPath is the file this db
+// was opened from, needed only by the watch-history backfill's restore point.
+func initializeBridgeDB(db *sql.DB, dbPath string) error {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
@@ -164,6 +168,12 @@ func initializeBridgeDB(db *sql.DB) error {
 	tables = append(tables, eventlog.SchemaTables()...)
 	tables = append(tables, syncdiag.SchemaTables()...)
 	tables = append(tables, centerschema.SchemaTables()...)
+	// SDD-69 slice 2: registered here (not in the backfill's own slice)
+	// because this is the first slice that writes to the real watch-history
+	// projection at runtime -- without its table, every live RecordWatch
+	// would hit "no such table" and D4 would silently warn-log it away.
+	// tasks.md 3.3.3 notes the move.
+	tables = append(tables, watchhistory.SchemaTables()...)
 	for _, t := range tables {
 		if err := persistence.EnsureTableSchema(db, t); err != nil {
 			return err
@@ -175,6 +185,14 @@ func initializeBridgeDB(db *sql.DB) error {
 	// gateway.Recover finalization performs its first decode.
 	if err := ensureVocabularyMigration(db); err != nil {
 		return err
+	}
+
+	// SDD-69 slice 3: a failure here is a secondary-projection concern, never
+	// grounds to refuse opening the primary database (design.md D6) -- it
+	// rolls back internally and this call site only logs it, unlike the
+	// vocabulary migration above, whose failure must abort bootstrap.
+	if err := ensureWatchHistoryBackfill(context.Background(), db, dbPath); err != nil {
+		log.Printf("watch-history backfill: %v", err)
 	}
 
 	if err := ensureDefaultHosterPriority(db); err != nil {

@@ -1,10 +1,10 @@
 import type { contracts } from '../../../../../wailsjs/go/models';
+import { normalizeStoredCoverPath } from '../../../../shared/anime-cover/anime-cover.helpers';
 import { getAnimeEstadoLabel } from '../../../../shared/helpers/anime-estado.helpers';
-import type { AnimeDetail, AnimeRepeticion } from '../../../../shared/contracts/anime.types';
+import type { AnimeDetail } from '../../../../shared/contracts/anime.types';
 import {
   ANIME_DETAIL_DURATION_TILE_LABEL,
   ANIME_DETAIL_LONG_DATE_FORMATTER,
-  ANIME_DETAIL_NO_DATA_LABEL,
   ANIME_DETAIL_NO_DURATION_MESSAGE,
   ANIME_DETAIL_NO_TOTAL_EPISODES_MESSAGE,
   ANIME_DETAIL_STATUS_ACTIVE_LABEL,
@@ -19,7 +19,6 @@ import type {
   AnimeDetailMutationResolution,
   AnimeDetailStatTile,
   AnimeDetailViewModel,
-  AnimeRepeticionViewModel,
   HeroChipColor,
 } from './anime-detail.types';
 
@@ -184,16 +183,6 @@ export function formatAnimeDetailLongDate(millis?: number): string | undefined {
 }
 
 /**
- * Formats a repetition-entry date field as a long-form local date, falling
- * back to the explicit `ANIME_DETAIL_NO_DATA_LABEL` ("No data") rather than
- * the general-data section's "Unknown" fallback (Anime Detail delta spec,
- * "Repetition entry shows the full Legacy record").
- */
-export function formatAnimeDetailRepetitionDate(millis?: number): string {
-  return formatAnimeDetailLongDate(millis) ?? ANIME_DETAIL_NO_DATA_LABEL;
-}
-
-/**
  * Estado label from the canonical shared vocabulary
  * (`shared/helpers/anime-estado.helpers.ts`): 0=Viendo, 1=Finalizado, 2=No me gusto,
  * 3=En pausa. Falls back to the raw estado for any unrecognized value.
@@ -250,19 +239,6 @@ export function getAnimeDetailTipoLabel(tipo?: number): string {
     default:
       return String(tipo);
   }
-}
-
-/**
- * Normalizes a legacy portada path into a usable image URL. The real fixture
- * carries `portada.path === ''` on 793/795 records (plus one literal
- * `'null'` string) — and an `<img src="">` never fires `onError`, so blank
- * or sentinel paths MUST resolve to `undefined` (placeholder path) instead
- * of reaching the `<img>`.
- */
-function normalizeAnimeDetailPortadaUrl(portada?: string): string | undefined {
-  const trimmed = portada?.trim();
-
-  return trimmed === undefined || trimmed === '' || trimmed === 'null' ? undefined : trimmed;
 }
 
 /** Joins the estado and tipo labels into the hero's "estado • tipo" subtitle line. */
@@ -328,45 +304,6 @@ function buildAnimeDetailStatTiles(
 }
 
 /**
- * Maps a single legacy repetition entry into its full display view model
- * (Anime Detail delta spec, "Repetition entry shows the full Legacy
- * record"): estado label/color, episodes-watched count, and all five date
- * fields, each with the explicit "No data" fallback baked in via
- * {@link formatAnimeDetailRepetitionDate}.
- */
-export function toAnimeRepeticionViewModel(
-  entry: AnimeRepeticion,
-  index: number,
-): AnimeRepeticionViewModel {
-  return {
-    key: `${entry.numRepetitions}-${index}`,
-    numRepeticion: entry.numRepetitions,
-    estadoLabel: getAnimeDetailEstadoLabel(entry.status),
-    estadoColor: getAnimeDetailEstadoColor(entry.status),
-    episodesWatchedLabel: String(entry.episodesWatched),
-    creacionLabel: formatAnimeDetailRepetitionDate(entry.createdAt),
-    estrenoLabel: formatAnimeDetailRepetitionDate(entry.premieredAt),
-    ultCapVistoLabel: formatAnimeDetailRepetitionDate(entry.lastWatchedAt),
-    eliminacionLabel: formatAnimeDetailRepetitionDate(entry.deletedAt),
-    repeatedOnLabel: formatAnimeDetailRepetitionDate(entry.repeatedAt),
-  };
-}
-
-/**
- * Sorts repetition entries most-recent-first by their `numrepeticion`
- * counter (Anime Detail delta spec, "Repetition entry shows the full Legacy
- * record"). Verified against the real fixture: `numrepeticion` increases
- * monotonically per anime, and each entry's `fechaCreacion` equals the
- * previous entry's `fechaRepeticion`, so a higher `numrepeticion` is always
- * the more recent repetition. Never mutates `entries`.
- */
-export function sortAnimeRepeticionesMostRecentFirst(
-  entries: readonly AnimeRepeticion[],
-): readonly AnimeRepeticion[] {
-  return entries.toSorted((a, b) => b.numRepetitions - a.numRepetitions);
-}
-
-/**
  * Returns `true` when `historyState` (the raw `window.history.state` value)
  * carries a react-router v7 `idx` greater than 0, meaning the current
  * location was reached by pushing at least one prior entry onto this
@@ -385,17 +322,12 @@ export function hasPreviousHistoryEntry(historyState: unknown): boolean {
 
 /**
  * Converts the `AnimeDetail` DTO into the view model rendered by the shared
- * detail component. `repetir` is optional on the wire (Go's `omitempty` drops
- * the key for the ~93% of anime with no repetition history), so it MUST be
- * defaulted with `?? []` here rather than assumed present. Every field the
- * Anime Detail delta spec calls out (hero, per-episode, general data) gets an
- * explicit fallback rather than a silent blank. Repetitions are ordered
- * most-recent-first via {@link sortAnimeRepeticionesMostRecentFirst}.
+ * detail component. Every field the Anime Detail delta spec calls out (hero,
+ * per-episode, general data) gets an explicit fallback rather than a silent
+ * blank. Per-watch history derives from the raw DTO in `AnimeWatchHistory`,
+ * not from this view model.
  */
 export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewModel {
-  const repetitions = sortAnimeRepeticionesMostRecentFirst(detail.repetitions ?? []).map((entry, index) =>
-    toAnimeRepeticionViewModel(entry, index),
-  );
   const totalLabel = formatAnimeDetailTotalLabel(detail.totalEpisodes);
   const durationLabel = formatAnimeDetailDurationLabel(detail.durationMinutes);
   const estadoLabel = getAnimeDetailEstadoLabel(detail.status);
@@ -407,14 +339,13 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     modifiedAt: detail.modified_at,
     canRepeat: detail.status > 0,
     canRestore: detail.active === 0,
-    portadaUrl: normalizeAnimeDetailPortadaUrl(detail.cover),
+    hasStoredCover: normalizeStoredCoverPath(detail.cover) !== undefined,
     estadoLabel,
     tipoLabel,
     subtitleLabel: formatAnimeDetailSubtitle(estadoLabel, tipoLabel),
     statusLabel: getAnimeDetailStatusLabel(detail.active),
     statusColor: getAnimeDetailStatusColor(detail.active),
     statTiles: buildAnimeDetailStatTiles(detail.episodesWatched, totalLabel, durationLabel),
-    progressRatio: formatAnimeDetailProgressRatio(detail.episodesWatched, detail.totalEpisodes),
     paginaUrl: detail.sourceUrl,
     carpetaLabel: detail.folder ?? ANIME_DETAIL_UNKNOWN_LABEL,
     estrenoLabel: formatAnimeDetailLongDate(detail.premieredAt) ?? ANIME_DETAIL_UNKNOWN_LABEL,
@@ -425,7 +356,5 @@ export function toAnimeDetailViewModel(detail: AnimeDetail): AnimeDetailViewMode
     studios: detail.studios ?? ANIME_DETAIL_UNKNOWN_LABEL,
     origin: detail.origin ?? ANIME_DETAIL_UNKNOWN_LABEL,
     isFirstWatch: detail.firstCycle === 1,
-    repetitions,
-    hasRepetitionHistory: repetitions.length > 0,
   };
 }

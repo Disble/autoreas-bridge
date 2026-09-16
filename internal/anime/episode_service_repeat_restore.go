@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"autoreas-bridge/internal/api/contracts"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // RestoreAnime reactivates one anime and records activity when the write applies.
@@ -79,27 +80,43 @@ func (s *EpisodeService) RepeatAnime(ctx context.Context, cmd RepeatAnimeCommand
 		source = ActivitySourceDesktop
 	}
 	correlationID := fmt.Sprintf("%s:%s:%d", defaultActivityCorrelationType, cmd.AnimeID, occurredAtMs)
-	if s.activity != nil && patchResult.Outcome == contracts.AnimePatchOutcomeApplied {
-		if err := s.activity.RecordActivity(ctx, ActivityRecord{
-			Source:        source,
-			ActionType:    ActivityActionAnimeRepeated,
-			AnimeID:       cmd.AnimeID,
-			AnimeName:     current.Name,
-			OccurredAtMs:  occurredAtMs,
-			CorrelationID: correlationID,
-			Before: ActivityAnimeSnapshot{
-				Estado:      current.Status,
-				NroCapVisto: current.EpisodesWatched,
-				Activo:      current.Active,
-			},
-			After: ActivityAnimeSnapshot{
-				Estado:      0,
-				NroCapVisto: 0,
-				Activo:      1,
-			},
-		}); err != nil {
-			return EpisodeCommandResult{}, err
+	if patchResult.Outcome == contracts.AnimePatchOutcomeApplied {
+		if s.activity != nil {
+			if err := s.activity.RecordActivity(ctx, ActivityRecord{
+				Source:        source,
+				ActionType:    ActivityActionAnimeRepeated,
+				AnimeID:       cmd.AnimeID,
+				AnimeName:     current.Name,
+				OccurredAtMs:  occurredAtMs,
+				CorrelationID: correlationID,
+				Before: ActivityAnimeSnapshot{
+					Estado:      current.Status,
+					NroCapVisto: current.EpisodesWatched,
+					Activo:      current.Active,
+				},
+				After: ActivityAnimeSnapshot{
+					Estado:      0,
+					NroCapVisto: 0,
+					Activo:      1,
+				},
+			}); err != nil {
+				return EpisodeCommandResult{}, err
+			}
 		}
+		// A repeat carries CycleReset: the episodes watched in the closing
+		// cycle are still watched, so this MUST record nothing and retract
+		// nothing (design.md D3) -- Derive's guard 1 enforces it regardless
+		// of the Before/After values supplied here.
+		s.recordWatch(ctx, cmd.AnimeID, watchhistory.Change{
+			AnimeID:        cmd.AnimeID,
+			AnimeName:      current.Name,
+			Source:         source,
+			OccurredAtMS:   occurredAtMs,
+			BeforeEpisodes: current.EpisodesWatched,
+			AfterEpisodes:  0,
+			Cycle:          int64(len(current.Repetitions)) + 1,
+			CycleReset:     true,
+		})
 	}
 
 	return episodeCommandResult(patchResult, current.Name, 0, 0, occurredAtMs, correlationID), nil
