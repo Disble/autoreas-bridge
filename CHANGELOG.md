@@ -14,6 +14,10 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Backup export/import now includes your watch history. Restoring a backup on another machine used to leave the History screen empty even though everything else came back — the bundle now carries every watch-history row and restores it exactly.
+
 ## [1.13.0] — 2026-09-15
 
 ### Added

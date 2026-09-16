@@ -3,6 +3,7 @@ export const BACKUP_GROUP_LABELS: Readonly<Record<string, string>> = {
   anime_snapshots: 'animes',
   seasons: 'seasons',
   season_animes: 'season animes',
+  watched_episodes: 'watch history',
   keyboard_keymap: 'keymap',
 };
 

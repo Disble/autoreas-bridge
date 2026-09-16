@@ -124,14 +124,14 @@ func TestExportBackupReadsManifestBackBeforeReportingSuccess(t *testing.T) {
 	}
 }
 
-func TestExportedBundleHasExactlyFourGroups(t *testing.T) {
+func TestExportedBundleHasExactlyFiveGroups(t *testing.T) {
 	app := appBackupTestDB(t)
 
 	result, err := app.ExportBackup()
 	if err != nil {
 		t.Fatalf("export backup: %v", err)
 	}
-	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "keyboard_keymap"}
+	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "watched_episodes", "keyboard_keymap"}
 	if len(result.Groups) != len(wantNames) {
 		t.Fatalf("expected exactly %d groups, got %d: %+v", len(wantNames), len(result.Groups), result.Groups)
 	}
