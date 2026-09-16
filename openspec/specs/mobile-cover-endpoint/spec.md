@@ -18,7 +18,7 @@ The endpoint MUST evaluate a request in this order and answer with the first mat
 | 2 | Bearer authentication fails | 401 |
 | 3 | Anime id is unknown (a soft-deleted anime still resolves) | 404 |
 | 4 | The anime lookup fails for a reason other than "not found" | 503, no `Retry-After` |
-| 5 | Cover is empty, `"null"`, a missing local file, not a decodable image, over 10 MB, over 16 megapixels, an ICO/SVG/BMP file, or the origin returns a 4xx status other than 408 | 204, no body |
+| 5 | Cover is empty, `"null"`, a missing local file with no last-good copy on record, not a decodable image, over 10 MB, over 16 megapixels, an ICO/SVG/BMP file, or the origin returns a 4xx status other than 408 | 204, no body |
 | 6 | Origin times out or returns a network error, a 5xx status, 429, or 408; local file unreadable for a reason other than missing; or generation is saturated | 503, `Retry-After` when estimable |
 | 7 | `If-None-Match` matches the current ETag | 304, no body |
 | 8 | None of the above | 200, `image/jpeg`, `Content-Length`, `ETag` |
@@ -66,6 +66,12 @@ The endpoint MUST evaluate a request in this order and answer with the first mat
 - GIVEN the anime's cover decodes to more than 16,777,216 pixels
 - WHEN a device requests its cover
 - THEN the response is 204 with no body
+
+#### Scenario: A missing local file with a last-good copy answers 200, not 204
+
+- GIVEN the anime's local cover file has been deleted since it last loaded successfully
+- WHEN a device requests its cover
+- THEN the response is 200 with the last good copy's derived thumbnail, not 204
 
 ### Requirement: 304 Revalidation Uses A Strong ETag
 

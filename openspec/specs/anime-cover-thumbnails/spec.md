@@ -85,6 +85,44 @@ origin is fetched and reused on later requests.
 - THEN the next request for that path serves a newly generated thumbnail with a different ETag
 - AND the stale cached thumbnail is not served
 
+### Requirement: A Deleted Local Source Falls Back To Its Last Good Copy
+
+The system MUST keep a best-effort last-good copy of a local-file source's bytes and the
+identity recorded when they were copied. WHEN a local source's original file is gone (not
+merely unreadable), the system MUST serve that copy under its originally recorded identity
+instead of treating the source as permanently absent, and MUST NOT fall back for any other
+local read failure. A copy write failure MUST NOT fail or delay the source it rides along with,
+and MUST NOT rewrite the copy when the source's identity is unchanged since the last write.
+
+#### Scenario: A deleted local file still serves its last good copy
+
+- GIVEN a local cover that loaded successfully at least once
+- WHEN its file is later deleted and the same cover is requested again
+- THEN the response serves the previously loaded bytes
+- AND the served identity (and therefore the derived thumbnail's ETag) matches what it was
+  before the file was deleted
+
+#### Scenario: A local file that never loaded successfully still answers absent
+
+- GIVEN a local cover path with no last-good copy on record
+- WHEN its file does not exist
+- THEN the source is classified permanently gone, exactly as before this requirement existed
+
+#### Scenario: A transient local read failure never falls back to a stale copy
+
+- GIVEN a local cover with a last-good copy on record
+- WHEN the current read fails for a reason other than the file not existing
+- THEN the result is classified transient
+- AND the last-good copy is not served
+
+#### Scenario: Replacing the local file in place updates the last-good copy
+
+- GIVEN a local cover with a last-good copy on record
+- WHEN a different image is successfully loaded from the same path, changing its size or
+  modification time
+- THEN the last-good copy is updated to the new bytes and identity
+- AND a later deletion falls back to the new copy, not the stale one
+
 ### Requirement: Cached Thumbnails Are Written Once, Safely Under Concurrent Writers
 
 The system MUST publish a new cache entry through a uniquely named temporary file before it

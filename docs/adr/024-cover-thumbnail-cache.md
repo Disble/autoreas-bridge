@@ -123,6 +123,45 @@ the same cache; neither re-implements the transform, and the desktop no longer b
 originals. The API seam is deliberately left unwired (503) in the unit that adds the route, so a
 partially deployed bridge reports "cannot serve" rather than silently serving originals again.
 
+### D7 — A local source keeps a last-good copy so a deleted original still serves
+
+Offline-first requires that a cover which loaded once must never stop loading because the user
+moved or deleted its original file. Before this decision, `Resolver.loadLocal`'s not-exist case
+(`classifyLocalError` -> `ErrGone`) propagated straight through `ThumbnailService` to a permanent
+`204`/placeholder, which then made mobile delete its own good copy — exactly the outcome
+offline-first exists to prevent for a URL cover, but not, until now, for a local one.
+
+`diskCache` gains a second, independent capability (`internal/anime/cover/local_last_good.go`),
+keyed by `path` rather than by `SourceIdentity`, so it survives across identity changes for the
+same source:
+
+- **Layout.** `<cache root>/local-last-good/<sha256(path)>.json` is a small pointer naming a
+  `<hash>.img` content file beside it; the content filename is itself derived from `path` and the
+  identity (`size`, `mtime`) recorded when it was copied, so it never collides across generations.
+- **Read (behaviour 2).** `Resolver.loadLocal` calls this only when the classified error is
+  `ErrGone` (not-exist), never for `ErrTransient` (behaviour 4 is unchanged: a transient local
+  error still fails the way it always has). It returns the copy's bytes under the identity
+  recorded at copy time, so the derived thumbnail cache key and ETag are exactly what they were
+  before deletion -- mobile gets a 304, not a fresh push.
+- **Write (behaviour 1).** Every successful local load best-effort persists its bytes as the new
+  last-good copy; a write failure is swallowed exactly like `originIdentity`'s
+  `putOriginSHA256` above it, never delaying or failing the serve. The write is skipped entirely
+  when the pointer already records the same `(size, mtime)` -- no disk write on a repeat load of
+  an unchanged file.
+- **Atomic replace.** The pointer is the only file this feature ever replaces, and it always names
+  a content file that is already complete on disk before the pointer is republished to point at
+  it (mirrors D3's metadata-last commit order). A reader therefore never observes a torn file or a
+  copy whose identity disagrees with its bytes, including across an in-place replacement of the
+  original (behaviour: changing either `size` or `mtime` alone, not just both together, is treated
+  as a new generation, never mistaken for "unchanged").
+- Both `local-last-good` and `thumbs/v<spec>` share the same cache root and the same
+  `writeOnceFile`/`publishOnce` primitives from `cache_publish.go`, so this decision adds no new
+  I/O primitive, only a new keying scheme suited to a mutable, path-addressed pointer rather than
+  an immutable, identity-addressed entry.
+- Old content files orphaned by an in-place replacement are not swept (same accepted trade-off as
+  the `.sha256` sidecar orphan noted below); this is scoped to the source loader only and never
+  touches the wire contract, the store, or the frontend.
+
 ## Consequences
 
 - Repeat requests for a cover are a disk read plus an ETag compare; the 12-69 ms above is paid once

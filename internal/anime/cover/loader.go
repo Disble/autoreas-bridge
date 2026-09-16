@@ -26,32 +26,67 @@ func (r *Resolver) Load(ctx context.Context, path string) (Source, error) {
 	}
 }
 
-// loadLocal reads a local source after collecting the metadata that identifies
-// its bytes for later thumbnail caching.
+// loadLocal reads a local source after collecting the metadata that identifies its bytes for
+// later thumbnail caching, and best-effort keeps a last-good copy so a source deleted after a
+// successful load can still be served (offline-first: see localFallback and saveLocalLastGood).
 func (r *Resolver) loadLocal(path string) (Source, error) {
 	if r.files == nil {
 		return Source{}, ErrTransient
 	}
 	info, err := r.files.Stat(path)
 	if err != nil {
-		return Source{}, classifyLocalError("stat", err)
+		return r.localFallback(path, classifyLocalError("stat", err))
 	}
 	data, err := r.files.ReadFile(path)
 	if err != nil {
-		return Source{}, classifyLocalError("read", err)
+		return r.localFallback(path, classifyLocalError("read", err))
 	}
 	if r.exceedsMax(data) {
 		return Source{}, ErrInvalid
 	}
-	return Source{
-		Bytes: data,
-		Kind:  KindLocalPath,
-		Identity: SourceIdentity{
-			LocalPath:       path,
-			Size:            info.Size(),
-			ModTimeUnixNano: info.ModTime().UnixNano(),
-		},
-	}, nil
+	identity := SourceIdentity{
+		LocalPath:       path,
+		Size:            info.Size(),
+		ModTimeUnixNano: info.ModTime().UnixNano(),
+	}
+	r.saveLocalLastGood(path, data, identity)
+	return Source{Bytes: data, Kind: KindLocalPath, Identity: identity}, nil
+}
+
+// localCopyStore is a Cache that also persists a best-effort last-good copy of a local-file
+// source, so a deleted original still serves its most recently loaded bytes under their original
+// identity (offline-first); the production diskCache implements it, a fake test Cache safely does
+// not.
+type localCopyStore interface {
+	getLocalLastGood(path string) ([]byte, SourceIdentity, bool)
+	putLocalLastGood(path string, data []byte, identity SourceIdentity) error
+}
+
+// localFallback serves path's last-good copy when classified is the not-exist case (ErrGone) and a
+// copy is on record, and otherwise returns classified unchanged: a transient error never falls back
+// to a possibly stale copy, and an ErrGone with no copy on record behaves exactly as before.
+func (r *Resolver) localFallback(path string, classified error) (Source, error) {
+	if !errors.Is(classified, ErrGone) {
+		return Source{}, classified
+	}
+	store, ok := r.cache.(localCopyStore)
+	if !ok {
+		return Source{}, classified
+	}
+	data, identity, ok := store.getLocalLastGood(path)
+	if !ok {
+		return Source{}, classified
+	}
+	return Source{Bytes: data, Kind: KindLocalPath, Identity: identity}, nil
+}
+
+// saveLocalLastGood best-effort persists a successfully loaded local source as its last-good copy.
+// A write failure is ignored, matching this package's existing convention for best-effort sidecar
+// persistence (originIdentity's putOriginSHA256 below does the same).
+func (r *Resolver) saveLocalLastGood(path string, data []byte, identity SourceIdentity) {
+	if store, ok := r.cache.(localCopyStore); ok {
+		_ = store.putLocalLastGood(path, data, identity)
+	}
 }
 
 // loadURL returns cached raw bytes when available or fetches and persists a
