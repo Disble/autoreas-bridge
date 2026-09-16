@@ -19,11 +19,7 @@ import (
 func TestCaptureMiddlewareCapturesRequestBodyExactlyAndRestoresItForTheHandler(t *testing.T) {
 	t.Parallel()
 
-	var captured []requestcapture.CaptureRecord
-	capture := func(record requestcapture.CaptureRecord) bool {
-		captured = append(captured, record)
-		return true
-	}
+	log := &captureLog{}
 
 	wantBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
 	var handlerSaw string
@@ -36,7 +32,7 @@ func TestCaptureMiddlewareCapturesRequestBodyExactlyAndRestoresItForTheHandler(t
 		requestcapture.Enrich(r.Context()).SetOutcome("accepted")
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(wantBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -45,7 +41,7 @@ func TestCaptureMiddlewareCapturesRequestBodyExactlyAndRestoresItForTheHandler(t
 	if handlerSaw != wantBody {
 		t.Fatalf("expected handler to receive exact request body %q, got %q", wantBody, handlerSaw)
 	}
-	terminal := captured[1]
+	terminal := log.records[1]
 	if terminal.RequestBody == nil || *terminal.RequestBody != wantBody {
 		t.Fatalf("expected exact captured request body %q, got %#v", wantBody, terminal.RequestBody)
 	}
@@ -62,11 +58,7 @@ func TestCaptureMiddlewareCapturesRequestBodyExactlyAndRestoresItForTheHandler(t
 func TestCaptureMiddlewareMarksOversizedRequestBodiesWithoutChangingHandlerInput(t *testing.T) {
 	t.Parallel()
 
-	var captured []requestcapture.CaptureRecord
-	capture := func(record requestcapture.CaptureRecord) bool {
-		captured = append(captured, record)
-		return true
-	}
+	log := &captureLog{}
 
 	wantBody := strings.Repeat("x", requestcapture.MaxCapturedBodyBytes+1)
 	var handlerSaw string
@@ -78,7 +70,7 @@ func TestCaptureMiddlewareMarksOversizedRequestBodiesWithoutChangingHandlerInput
 		handlerSaw = string(body)
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", strings.NewReader(wantBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -87,7 +79,7 @@ func TestCaptureMiddlewareMarksOversizedRequestBodiesWithoutChangingHandlerInput
 	if handlerSaw != wantBody {
 		t.Fatalf("expected handler to receive exact oversized request body, got %d bytes", len(handlerSaw))
 	}
-	terminal := captured[1]
+	terminal := log.records[1]
 	if terminal.RequestBody != nil {
 		t.Fatalf("expected oversized request body capture to stay absent, got %d bytes", len(*terminal.RequestBody))
 	}
@@ -103,11 +95,7 @@ func TestCaptureMiddlewareMarksOversizedRequestBodiesWithoutChangingHandlerInput
 func TestCaptureMiddlewareSkipsPreauthReadForUnknownLengthRequestBodies(t *testing.T) {
 	t.Parallel()
 
-	var captured []requestcapture.CaptureRecord
-	capture := func(record requestcapture.CaptureRecord) bool {
-		captured = append(captured, record)
-		return true
-	}
+	log := &captureLog{}
 
 	body := `{"streamed":true}`
 	reader := &countingReadCloser{Reader: strings.NewReader(body)}
@@ -123,7 +111,7 @@ func TestCaptureMiddlewareSkipsPreauthReadForUnknownLengthRequestBodies(t *testi
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 
 	req := httptest.NewRequest(http.MethodPatch, "/api/animes/anime-1", nil)
 	req.Body = reader
@@ -133,7 +121,7 @@ func TestCaptureMiddlewareSkipsPreauthReadForUnknownLengthRequestBodies(t *testi
 	if readsBeforeHandler.Load() != 0 {
 		t.Fatalf("expected zero pre-handler reads for unknown-length body, got %d", readsBeforeHandler.Load())
 	}
-	terminal := captured[1]
+	terminal := log.records[1]
 	if terminal.RequestBody != nil {
 		t.Fatalf("expected unknown-length request body capture to stay absent, got %#v", terminal.RequestBody)
 	}
@@ -148,22 +136,18 @@ func TestCaptureMiddlewareSkipsPreauthReadForUnknownLengthRequestBodies(t *testi
 func TestCaptureMiddlewareMarksOversizedResponsesAsTruncated(t *testing.T) {
 	t.Parallel()
 
-	var captured []requestcapture.CaptureRecord
-	capture := func(record requestcapture.CaptureRecord) bool {
-		captured = append(captured, record)
-		return true
-	}
+	log := &captureLog{}
 
 	body := strings.Repeat("r", requestcapture.MaxCapturedBodyBytes+17)
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(body))
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/animes", nil))
 
-	terminal := captured[1]
+	terminal := log.records[1]
 	if terminal.ResponseBody == nil {
 		t.Fatal("expected oversized response to keep a bounded captured prefix")
 	}
@@ -222,21 +206,17 @@ func TestCaptureMiddlewareRecoversDroppedTerminalAfterAcceptedArrival(t *testing
 func TestCaptureMiddlewareCapturesOnlyDeliveredResponseBytes(t *testing.T) {
 	t.Parallel()
 
-	var captured []requestcapture.CaptureRecord
-	capture := func(record requestcapture.CaptureRecord) bool {
-		captured = append(captured, record)
-		return true
-	}
+	log := &captureLog{}
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("abcdef"))
 	})
-	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
+	handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 	writer := &partialResponseWriter{ResponseWriter: httptest.NewRecorder(), accepted: 3, err: errors.New("short write")}
 
 	handler.ServeHTTP(writer, httptest.NewRequest(http.MethodGet, "/api/animes", nil))
 
-	terminal := captured[1]
+	terminal := log.records[1]
 	if terminal.ResponseBody == nil || *terminal.ResponseBody != "abc" {
 		t.Fatalf("expected only delivered response bytes to be captured, got %#v", terminal.ResponseBody)
 	}
@@ -259,24 +239,102 @@ func TestCaptureMiddlewareOmitsBodiesDisallowedByTheWire(t *testing.T) {
 		{name: "204", method: http.MethodGet, status: http.StatusNoContent},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var captured []requestcapture.CaptureRecord
-			capture := func(record requestcapture.CaptureRecord) bool {
-				captured = append(captured, record)
-				return true
-			}
+			log := &captureLog{}
 			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte("should-not-appear"))
 			})
-			handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: capture})
-
+			handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
 			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(tc.method, "/api/animes", nil))
 
-			if terminal := captured[1]; terminal.ResponseBody != nil {
+			if terminal := log.records[1]; terminal.ResponseBody != nil {
 				t.Fatalf("expected no captured response body for %s/%d, got %#v", tc.method, tc.status, terminal.ResponseBody)
 			}
 		})
 	}
+}
+
+// TestCaptureMiddlewareOmitsImageResponseBodiesButPreservesMetadata guards the binary response rule: image bytes are never retained while status, headers (ETag included) and duration are, and every non-image or bodyless response is unchanged.
+func TestCaptureMiddlewareOmitsImageResponseBodiesButPreservesMetadata(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		method      string
+		contentType string
+		status      int
+		wantBody    string
+		wantOmitted bool
+	}{
+		{name: "image jpeg 200 omits the body", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusOK, wantOmitted: true},
+		{name: "media type casing is ignored", method: http.MethodGet, contentType: "Image/JPEG", status: http.StatusOK, wantOmitted: true},
+		{name: "image webp is omitted too", method: http.MethodGet, contentType: "image/webp", status: http.StatusOK, wantOmitted: true},
+		{name: "json 200 keeps the exact bytes", method: http.MethodGet, contentType: "application/json", status: http.StatusOK, wantBody: "image-or-text-payload"},
+		{name: "text 200 keeps the exact bytes", method: http.MethodGet, contentType: "text/plain; charset=utf-8", status: http.StatusOK, wantBody: "image-or-text-payload"},
+		{name: "head image stays bodyless", method: http.MethodHead, contentType: "image/jpeg", status: http.StatusOK},
+		{name: "image 204 stays bodyless", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusNoContent},
+		{name: "image 304 stays bodyless", method: http.MethodGet, contentType: "image/jpeg", status: http.StatusNotModified},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			log := &captureLog{}
+			inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tc.contentType)
+				w.Header().Set("ETag", `"abc123"`)
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte("image-or-text-payload"))
+			})
+			handler := CaptureMiddleware(inner, CaptureMiddlewareDeps{Capture: log.accept})
+			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(tc.method, "/api/animes/anime-1/cover", nil))
+
+			terminal := log.records[1]
+			if terminal.HTTPStatus == nil || *terminal.HTTPStatus != tc.status {
+				t.Fatalf("captured status = %#v, want %d", terminal.HTTPStatus, tc.status)
+			}
+			if terminal.DurationMS == nil {
+				t.Fatal("expected the terminal record to keep its duration")
+			}
+			if got := terminal.ResponseHeaders["Etag"]; got != `"abc123"` {
+				t.Fatalf("captured ETag = %q, want the image response's strong validator", got)
+			}
+			assertCapturedBody(t, terminal, tc.wantBody, tc.wantOmitted)
+		})
+	}
+}
+
+// assertCapturedBody checks one terminal record's body and state against its table row.
+func assertCapturedBody(t *testing.T, terminal requestcapture.CaptureRecord, wantBody string, wantOmitted bool) {
+	t.Helper()
+
+	if wantOmitted {
+		// The literal is the durable stored value mobile and the Network view read back.
+		if terminal.ResponseBody != nil || terminal.ResponseBodyState != "omitted_binary" {
+			t.Fatalf("binary body = %#v state = %q, want no body and %q", terminal.ResponseBody, terminal.ResponseBodyState, "omitted_binary")
+		}
+		return
+	}
+	if terminal.ResponseBodyState != "" {
+		t.Fatalf("state = %q, want no degraded state outside the binary rule", terminal.ResponseBodyState)
+	}
+	got := ""
+	if terminal.ResponseBody != nil {
+		got = *terminal.ResponseBody
+	}
+	if got != wantBody {
+		t.Fatalf("body = %q, want %q", got, wantBody)
+	}
+}
+
+// captureLog accumulates every accepted capture record for one test.
+type captureLog struct {
+	records []requestcapture.CaptureRecord
+}
+
+// accept appends one record and reports it accepted, satisfying CaptureFunc.
+func (c *captureLog) accept(record requestcapture.CaptureRecord) bool {
+	c.records = append(c.records, record)
+	return true
 }
 
 type countingReadCloser struct {

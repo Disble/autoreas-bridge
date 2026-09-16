@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"autoreas-bridge/internal/anime"
-	"autoreas-bridge/internal/anime/cover"
 	"autoreas-bridge/internal/api"
 	"autoreas-bridge/internal/api/contracts"
 	"autoreas-bridge/internal/device"
@@ -220,21 +219,6 @@ func (s *stubWatchHistoryQuery) AnimePage(_ context.Context, animeID string, q w
 }
 
 var _ watchHistoryReader = (*stubWatchHistoryQuery)(nil)
-
-// stubAppCoverResolver is a coverResolver double for app_runtime_test.go's
-// GetAnimeCover cases: records the last (animeID, portadaPath) it was
-// called with and returns a canned cover.Result.
-type stubAppCoverResolver struct {
-	result      cover.Result
-	lastAnimeID string
-	lastPortada string
-}
-
-func (s *stubAppCoverResolver) Resolve(_ context.Context, animeID, portadaPath string) cover.Result {
-	s.lastAnimeID = animeID
-	s.lastPortada = portadaPath
-	return s.result
-}
 
 type stubAppEpisodeService struct {
 	schedule       []anime.EpisodeScheduleItem

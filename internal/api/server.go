@@ -80,6 +80,7 @@ type Config struct {
 	RecordSeasonRating     RecordSeasonRatingFunc
 	ActiveSeasonSnapshot   ActiveSeasonSnapshotFunc
 	IngestSyncDiagnostics  IngestSyncDiagnosticsFunc
+	CoverThumbnails        contracts.CoverThumbnailService
 	RealtimeHub            realtime.Hub
 	Logger                 sharedlogger.Logger
 	OnPairingTokenConsumed func()

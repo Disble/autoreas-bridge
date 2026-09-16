@@ -963,6 +963,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/animes/{id}/cover:
+    get:
+      summary: Fetch one anime cover thumbnail
+      description: |
+        Returns the anime's cover thumbnail as a JPEG. The thumbnail is generated once
+        per source identity and cached on disk under the fixed v1 spec (320 px height
+        fit, never upscaled, JPEG q80, strong ETag). A soft-deleted anime still
+        resolves, so its cover stays fetchable.
+
+        2026-09-14 mobile consumer note: treat `204` as a placeholder and revalidate it
+        after 7 days; treat `404` as an unknown anime and revalidate after 24 hours. A
+        bridge older than this change answers `404` for every cover request, because the
+        path falls through to the existing anime-by-id handler, which does not know it.
+
+        `ETag` is a strong validator: send it back as `If-None-Match` for a `304` with no
+        body. `Retry-After` appears only when the delay is estimable: generation
+        saturation reports 5 seconds, and an origin's own `Retry-After` is passed through
+        clamped to 1-3600 seconds.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+          description: A previously received strong `ETag`; an exact match returns `304`.
+      responses:
+        '200':
+          description: JPEG thumbnail for this anime's cover
+          headers:
+            ETag:
+              description: Strong validator for this thumbnail's exact bytes
+              schema:
+                type: string
+            Content-Length:
+              description: Size of the returned JPEG in bytes
+              schema:
+                type: integer
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: |
+            No cover to serve: an empty or `"null"` cover value, a missing local file, an
+            undecodable or unsupported image (ICO/SVG/BMP), a source over 10 MB or over
+            16,777,216 pixels, or an origin 4xx other than 408. Revalidate after 7 days.
+        '304':
+          description: The `If-None-Match` ETag matches the current thumbnail
+          headers:
+            ETag:
+              description: The matching strong validator
+              schema:
+                type: string
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            Unknown anime id, or a bridge predating this route. Revalidate after 24 hours.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method other than GET (HEAD included) was used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            The cover cannot be produced right now: an origin timeout or network error,
+            an origin 5xx/429/408, an unreadable local file, saturated generation, or an
+            unwired cover service.
+          headers:
+            Retry-After:
+              description: Present only when the retry delay is estimable
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/status:
     get:
       summary: Get bridge status

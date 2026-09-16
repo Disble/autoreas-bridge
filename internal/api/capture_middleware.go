@@ -220,9 +220,15 @@ func (w *capturingResponseWriter) Write(p []byte) (int, error) {
 }
 
 // captureDeliveredBytes appends only the bytes the underlying writer accepted,
-// preserving wire-faithful capture while enforcing the response-body budget.
+// preserving wire-faithful capture while enforcing the response-body budget. A
+// binary response records the omission state instead of any bytes: an image has
+// no diagnostic content to keep, and the headers still carry its metadata.
 func (w *capturingResponseWriter) captureDeliveredBytes(p []byte, delivered int) {
 	if delivered <= 0 || !responseBodyAllowed(w.method, w.status) {
+		return
+	}
+	if isBinaryResponse(w.Header().Get("Content-Type")) {
+		w.body, w.bodyState = nil, requestcapture.CaptureStateOmittedBinary
 		return
 	}
 	if delivered > len(p) {
@@ -239,6 +245,12 @@ func (w *capturingResponseWriter) captureDeliveredBytes(p []byte, delivered int)
 		return
 	}
 	w.body = append(w.body, p[:delivered]...)
+}
+
+// isBinaryResponse reports whether a response Content-Type is a binary image type,
+// compared case-insensitively because media types are case-insensitive.
+func isBinaryResponse(contentType string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/")
 }
 
 // responseBodyAllowed reports whether this method/status pair can legally carry

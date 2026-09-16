@@ -254,31 +254,6 @@ func (a *App) GetEpisodeSchedule(day string) []contracts.EpisodeScheduleItem {
 	return toEpisodeScheduleContracts(items)
 }
 
-// GetAnimeCover resolves a single anime's cover into a base64 data-URL, or
-// an explicit placeholder signal (episodes-cover-pipeline spec, "Cover
-// resolution follows a deterministic, placeholder-first order"). Degrades to
-// the placeholder signal -- never an error -- on a nil dependency, a lookup
-// failure, or a resolver-reported non-cover, mirroring GetAnimeDetail's
-// nil-guard shape.
-func (a *App) GetAnimeCover(animeID string) contracts.AnimeCover {
-	if a.animeQuery == nil || a.coverResolver == nil {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	current, err := a.animeQuery.GetMobileAnime(a.appContext(), animeID)
-	if err != nil || current == nil {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	cover := ""
-	if current.Cover != nil {
-		cover = *current.Cover
-	}
-	res := a.coverResolver.Resolve(a.appContext(), animeID, cover)
-	if !res.IsCover {
-		return contracts.AnimeCover{Source: contracts.CoverSourcePlaceholder}
-	}
-	return contracts.AnimeCover{DataURL: res.DataURL, Source: contracts.CoverSourceCover}
-}
-
 // AdjustWatchedEpisodes moves an anime's watched-episode count by delta. base
 // is the caller's last-seen modification stamp and drives optimistic
 // concurrency, so a stale desktop view loses to a newer write instead of

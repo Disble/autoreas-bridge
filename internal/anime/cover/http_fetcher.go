@@ -13,13 +13,12 @@ import (
 // indefinitely.
 const defaultFetchTimeout = 10 * time.Second
 
-// httpFetcher is the default Fetcher adapter: an *http.Client honouring both
-// a fixed timeout and ctx cancellation, with the response body capped at
-// maxBytes via io.LimitReader so a hostile/huge response can never be fully
-// buffered (the Resolver's own size guard then rejects an over-cap body).
+// httpFetcher is the default Fetcher adapter. It returns only complete 200
+// bodies and classifies origin/transport failures without inspecting text.
 type httpFetcher struct {
 	client   *http.Client
 	maxBytes int64
+	now      func() time.Time
 }
 
 // NewHTTPFetcher constructs a production Fetcher. timeout <= 0 falls back to
@@ -31,38 +30,63 @@ func NewHTTPFetcher(timeout time.Duration, maxBytes int64) *httpFetcher {
 	return &httpFetcher{
 		client:   &http.Client{Timeout: timeout},
 		maxBytes: maxBytes,
+		now:      time.Now,
 	}
 }
 
-func (f *httpFetcher) Fetch(ctx context.Context, url string) (data []byte, contentType string, err error) {
+func (f *httpFetcher) Fetch(ctx context.Context, url string) (result FetchResult, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, "", err
+		return FetchResult{}, fmt.Errorf("%w: create cover request: %w", ErrTransient, err)
 	}
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, "", err
+		return FetchResult{}, fmt.Errorf("%w: request cover: %w", ErrTransient, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); err == nil && closeErr != nil {
-			data = nil
-			contentType = ""
-			err = fmt.Errorf("close cover response body: %w", closeErr)
+			result = FetchResult{}
+			err = fmt.Errorf("%w: close cover response body: %w", ErrTransient, closeErr)
 		}
 	}()
 
+	result.StatusCode = resp.StatusCode
+	result.ContentType = resp.Header.Get("Content-Type")
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("cover fetch: unexpected status %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			result.RetryAfterSeconds, _ = parseRetryAfter(resp.Header.Get("Retry-After"), f.now())
+		}
+		return result, originStatusError(resp.StatusCode)
 	}
 
 	limit := f.maxBytes
 	if limit <= 0 {
 		limit = defaultMaxBytes
 	}
-	data, err = io.ReadAll(io.LimitReader(resp.Body, limit))
-	if err != nil {
-		return nil, "", err
+	if resp.ContentLength > limit {
+		return FetchResult{StatusCode: resp.StatusCode, ContentType: result.ContentType}, ErrInvalid
 	}
-	return data, resp.Header.Get("Content-Type"), nil
+	data, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if readErr != nil {
+		return FetchResult{}, fmt.Errorf("%w: read cover response: %w", ErrTransient, readErr)
+	}
+	if int64(len(data)) > limit {
+		return FetchResult{StatusCode: resp.StatusCode, ContentType: result.ContentType}, ErrInvalid
+	}
+	result.Data = data
+	return result, nil
+}
+
+// originStatusError classifies an origin response by status family and its
+// explicitly retryable exceptions.
+func originStatusError(status int) error {
+	switch {
+	case status == http.StatusRequestTimeout, status == http.StatusTooManyRequests, status >= 500:
+		return fmt.Errorf("%w: origin status %d", ErrTransient, status)
+	case status >= 400 && status < 500:
+		return fmt.Errorf("%w: origin status %d", ErrGone, status)
+	default:
+		return fmt.Errorf("%w: origin status %d", ErrTransient, status)
+	}
 }

@@ -342,6 +342,26 @@ The system MUST capture and sanitize `response_body` for failed mobile PATCH, RE
 - THEN `response_body` MAY be null
 - AND the omission MUST NOT be treated as a malformed row
 
+### Requirement: Image Response Bodies Are Omitted From Capture, Not Their Metadata
+
+When the capture middleware captures a response whose `Content-Type` header begins with
+`image/`, the system MUST record the response's status, headers (including `ETag`), and
+duration as usual, MUST NOT store any response body bytes, and MUST record the response body
+state as `omitted_binary`.
+
+#### Scenario: An image response is captured without its body
+
+- GIVEN a request whose response has `Content-Type: image/jpeg` and status 200
+- WHEN the capture middleware records the response
+- THEN the captured row's response body is empty
+- AND its response body state is `omitted_binary`
+
+#### Scenario: Status and headers are still captured for an omitted image body
+
+- GIVEN the same `image/jpeg` response
+- WHEN the capture row is read back
+- THEN its HTTP status, `ETag` header, and duration are present and correct
+
 ### Requirement: Transport-Level Capture Middleware
 
 A single HTTP middleware wrapping the mux MUST record transport facts (method, route, HTTP status, duration, request/response headers, response body) for every request reaching the mux, without any per-handler capture code. Handlers MUST contribute only semantic facts (outcome, error_code, anime_id, correlation/changelog/conflict IDs) through a request-scoped enrichment mechanism read by the middleware after the handler returns.

@@ -3,7 +3,6 @@ package cover
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -31,16 +30,31 @@ func (c *diskCache) Get(key string) ([]byte, bool) {
 	return data, true
 }
 
+// Put persists data under key through a unique temp file, so concurrent writers of the same key never share one in-flight file.
 func (c *diskCache) Put(key string, data []byte) error {
 	if err := os.MkdirAll(c.root, 0o755); err != nil {
 		return err
 	}
 	finalPath := c.entryPath(key)
-	tmpPath := finalPath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+	return writeOnceFile(c.root, filepath.Base(finalPath)+".*.tmp", finalPath, data)
+}
+
+// putOriginSHA256 persists a URL source's origin-byte SHA-256 write-once beside its raw cache entry (design D4's "<sha256(url)>.sha256").
+func (c *diskCache) putOriginSHA256(key, sha256Hex string) error {
+	if err := os.MkdirAll(c.root, 0o755); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, finalPath)
+	finalPath := c.sidecarPath(key)
+	return writeOnceFile(c.root, filepath.Base(finalPath)+".*.tmp", finalPath, []byte(sha256Hex))
+}
+
+// originSHA256 reads key's persisted origin-identity sidecar; ok is false for a pre-SDD-74 entry awaiting lazy migration.
+func (c *diskCache) originSHA256(key string) (string, bool) {
+	data, err := os.ReadFile(c.sidecarPath(key))
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
 }
 
 // entryPath derives the cache filename for key: sha256(key) hex, suffixed
@@ -49,8 +63,18 @@ func (c *diskCache) Put(key string, data []byte) error {
 // NOT included here since the Cache interface is anime-agnostic by design
 // -- callers that want per-anime scoping fold the anime ID into key.
 func (c *diskCache) entryPath(key string) string {
+	return filepath.Join(c.root, hashKey(key)+".img")
+}
+
+// sidecarPath derives the origin-identity sidecar filename beside key's ".img" entry.
+func (c *diskCache) sidecarPath(key string) string {
+	return filepath.Join(c.root, hashKey(key)+".sha256")
+}
+
+// hashKey is the sha256(key) hex digest shared by every diskCache filename.
+func hashKey(key string) string {
 	sum := sha256.Sum256([]byte(key))
-	return filepath.Join(c.root, fmt.Sprintf("%s.img", hex.EncodeToString(sum[:])))
+	return hex.EncodeToString(sum[:])
 }
 
 // DefaultCacheRoot wraps os.UserCacheDir() + "autoreas-bridge/covers" for

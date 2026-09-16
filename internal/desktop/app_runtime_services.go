@@ -214,10 +214,14 @@ func (a *App) configureAnimeApplicationServices() *bridgeSync.ConflictStore {
 	animeQuery := anime.NewQueryService(snapshotStore)
 	a.animeQuery = animeQuery
 	a.animeEditorQuery = anime.NewQueryService(snapshotStore)
-	// cover.NewDefaultResolver never fails construction (a cache-root
-	// resolution error degrades to a no-op cache internally), so this wiring
-	// is nil-safe by design -- see internal/anime/cover/production.go.
-	a.coverResolver = cover.NewDefaultResolver(0)
+	// cover.NewDefaultResolver never fails construction (a cache-root resolution error degrades
+	// to a no-op cache internally), but the derived thumbnail cache needs a real root: if the
+	// platform has none, both surfaces keep their documented fail-closed behavior (the desktop
+	// binding shows its placeholder, the route answers 503) rather than writing thumbnails
+	// somewhere unintended. One service instance is shared by both.
+	if root, err := cover.DefaultCacheRoot(); err == nil {
+		a.coverThumbnails = cover.NewThumbnailService(cover.NewDefaultResolver(0), root)
+	}
 	a.watchHistoryQuery = watchhistory.NewStore(a.bridgeDB)
 	conflictService := bridgeSync.NewConflictStore(a.bridgeDB)
 	a.animeWrite = anime.NewWriteService(snapshotStore, a.animeUpdateWriter)

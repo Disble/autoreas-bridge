@@ -90,7 +90,7 @@ type App struct {
 	animeEditorWrite           *anime.EditorService
 	animeEditorScheduleQuery   *anime.ScheduleQueryService
 	animeEditorScheduleWrite   *anime.ScheduleService
-	coverResolver              coverResolver
+	coverThumbnails            coverThumbnails
 	watchHistoryQuery          watchHistoryReader
 	myanimelistClient          myanimelistClientPort
 	notifier                   notification.Notifier
@@ -205,12 +205,13 @@ type episodeCommandService interface {
 	ListEpisodeDayCounts(ctx context.Context) ([]anime.EpisodeDayCount, error)
 }
 
-// coverResolver is the local seam GetAnimeCover depends on (mirrors
-// episodeCommandService above) so app_runtime_test.go can inject a fake
-// without a real HTTP client. The real implementation is *cover.Resolver
-// (internal/anime/cover), wired in startup via cover.NewDefaultResolver.
-type coverResolver interface {
-	Resolve(ctx context.Context, animeID, portadaPath string) cover.Result
+// coverThumbnails is the narrow cover seam the desktop binding and the HTTP adapter share: the
+// waiting desktop acquire, and the bounded HTTP acquire the route uses. The real implementation is
+// *cover.ThumbnailService, wired once in configureAnimeApplicationServices; a test injects a double
+// for the states the real service cannot produce (an error beside bytes, or no bytes without one).
+type coverThumbnails interface {
+	GetDesktop(ctx context.Context, path string) (cover.ThumbnailResult, error)
+	GetHTTP(ctx context.Context, path string) (cover.ThumbnailResult, error)
 }
 
 // watchHistoryReader is the narrow read port GetWatchHistoryPage and

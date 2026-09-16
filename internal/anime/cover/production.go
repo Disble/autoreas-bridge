@@ -9,6 +9,10 @@ func (osFileReader) ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+func (osFileReader) Stat(path string) (FileInfo, error) {
+	return os.Stat(path)
+}
+
 // noopCache is the degraded Cache used when DefaultCacheRoot() cannot be
 // resolved (e.g. os.UserCacheDir() failure): every Get misses, every Put is
 // a no-op. This keeps NewDefaultResolver's "must never panic" guarantee --
