@@ -419,11 +419,11 @@ func TestPendingPreviewIsClearedAfterAnyTerminalOutcome(t *testing.T) {
 	}
 }
 
-func TestImportedBundleAppliesExactlyTheFourKnownGroups(t *testing.T) {
+func TestImportedBundleAppliesExactlyTheFiveKnownGroups(t *testing.T) {
 	app, _ := appBackupImportTestApp(t)
 	groups := app.importGroups()
 
-	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "keyboard_keymap"}
+	wantNames := []string{"anime_snapshots", "seasons", "season_animes", "watched_episodes", "keyboard_keymap"}
 	if len(groups) != len(wantNames) {
 		t.Fatalf("expected exactly %d import groups, got %d: %+v", len(wantNames), len(groups), groups)
 	}

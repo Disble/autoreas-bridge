@@ -13,7 +13,8 @@ are not lost between changes.
 
 `internal/backup` owns only the container writer and the export driver. Each table group's rows are
 produced by a function owned by the package owning those tables (`internal/sync` for
-`anime_snapshots`, `internal/season` for `seasons` and `season_animes`).
+`anime_snapshots`, `internal/season` for `seasons` and `season_animes`, `internal/watchhistory` for
+the `watched_episodes` group, which carries the `watch_history` table).
 
 ## Requirements
 
@@ -124,21 +125,34 @@ bundle's commit point: a bundle without it is not a partial bundle, it is not a 
 - THEN it MUST return that error to its caller
 - AND it MUST NOT write `manifest.json`
 
-### Requirement: Export Scope Is Exactly Four Groups
+### Requirement: Export Scope Is Exactly Five Groups
 
-The system MUST export `anime_snapshots`, `seasons`, `season_animes`, and the `keyboard_keymap`
-group — the single `app_settings["keyboard.keymap"]` value — and nothing else. There MUST be no
-flag, option, setting, or configuration value that adds any other table, or any other `app_settings`
-key, to an export.
+The system MUST export `anime_snapshots`, `seasons`, `season_animes`, the `watched_episodes` group
+— every `watch_history` row —, and the `keyboard_keymap` group — the single `app_settings["keyboard.keymap"]` value — and nothing else.
+There MUST be no flag, option, setting, or configuration value that adds any other table, or any
+other `app_settings` key, to an export.
 
-#### Scenario: Exactly the four in-scope groups are present
+#### Scenario: Exactly the five in-scope groups are present
 
-- GIVEN a bridge DB with rows in `anime_snapshots`, `seasons`, and `season_animes`, and a non-empty
-  keymap persisted at `app_settings["keyboard.keymap"]`
+- GIVEN a bridge DB with rows in `anime_snapshots`, `seasons`, `season_animes`, and `watch_history`,
+  and a non-empty keymap persisted at `app_settings["keyboard.keymap"]`
 - WHEN an export runs
-- THEN `manifest.json`'s `contexts[]` MUST name exactly those three table groups plus
-  `keyboard_keymap`, and no other entry
+- THEN `manifest.json`'s `contexts[]` MUST name exactly `anime_snapshots`, `seasons`,
+  `season_animes`, `watched_episodes`, and `keyboard_keymap`, and no other entry
 - AND each entry's `recordCount` MUST equal the number of JSONL lines in its `data/{name}.jsonl` file
+
+#### Scenario: Watched episodes round-trip through export and import
+
+- GIVEN a bridge DB with `watch_history` rows, including at least one row with a NULL
+  `source_activity_id` and one with a non-NULL `source_activity_id`
+- WHEN an export runs and the resulting bundle is imported into a fresh bridge DB
+- THEN every `watch_history` row on the target MUST match the source row for the same `id`, byte
+  for byte, across every column including `episode`, `cycle`, `watched_at_ms`, `source`, and
+  `source_activity_id`
+- AND a `source_activity_id` that was NULL on the source MUST remain NULL on the target
+- AND a `source_activity_id` that was non-NULL on the source MUST round-trip verbatim on the
+  target, whether or not the referenced `activity_log` row exists there — `activity_log` is
+  excluded from every bundle, so this field is never resolved, only carried
 
 #### Scenario: Secret tables contribute zero rows to the bundle
 
@@ -149,8 +163,8 @@ key, to an export.
 - AND scanning the decompressed bytes of every `data/{name}.jsonl` file MUST find zero occurrences
   of any seeded marker value
 - AND the total number of records across all `data/{name}.jsonl` files MUST equal the combined row
-  count of `anime_snapshots`, `seasons`, and `season_animes`, plus the `keyboard_keymap` group's own
-  record count, and no more
+  count of `anime_snapshots`, `seasons`, `season_animes`, and `watch_history`, plus the
+  `keyboard_keymap` group's own record count, and no more
 
 #### Scenario: Machine-bound secrets contribute zero rows to the bundle
 

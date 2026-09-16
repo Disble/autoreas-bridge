@@ -8,6 +8,7 @@ import (
 	"autoreas-bridge/internal/season"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // errBackupImportUnavailable is returned when the bridge database has not
@@ -29,13 +30,14 @@ type pendingBackupImport struct {
 }
 
 // importGroups builds the fixed, inline import group slice -- same shape,
-// order, and reasoning as ExportBackup's export slice. Adding a fourth group
+// order, and reasoning as ExportBackup's export slice. Adding another group
 // is one line here and one file in the owning package.
 func (a *App) importGroups() []backup.ImportGroup {
 	return []backup.ImportGroup{
 		{Name: "anime_snapshots", Validate: bridgeSync.ValidateAnimeSnapshots(), Import: bridgeSync.ImportAnimeSnapshots(a.bridgeDB)},
 		{Name: "seasons", Validate: season.ValidateSeasons(), Import: season.ImportSeasons(a.bridgeDB)},
 		{Name: "season_animes", Validate: season.ValidateSeasonAnimes(), Import: season.ImportSeasonAnimes(a.bridgeDB)},
+		{Name: "watched_episodes", Validate: watchhistory.ValidateWatchHistory(), Import: watchhistory.ImportWatchHistory(a.bridgeDB)},
 		{Name: "keyboard_keymap", Validate: settings.ValidateKeymap(), Import: settings.ImportKeymap(a.bridgeDB)},
 	}
 }

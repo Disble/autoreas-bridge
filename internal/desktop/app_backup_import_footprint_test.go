@@ -17,6 +17,7 @@ import (
 	"autoreas-bridge/internal/season/domain"
 	"autoreas-bridge/internal/settings"
 	bridgeSync "autoreas-bridge/internal/sync"
+	"autoreas-bridge/internal/watchhistory"
 )
 
 // declaredImportGroupFootprints is the guard's registry: every shipped
@@ -25,10 +26,11 @@ import (
 // app.importGroups() with no entry here fails the guard -- proven by
 // TestUndeclaredImportGroupFailsTheFootprintGuard's deliberate inversion.
 var declaredImportGroupFootprints = map[string]string{
-	"anime_snapshots": "anime_snapshots",
-	"seasons":         "seasons",
-	"season_animes":   "season_animes",
-	"keyboard_keymap": "keyboard.keymap",
+	"anime_snapshots":  "anime_snapshots",
+	"seasons":          "seasons",
+	"season_animes":    "season_animes",
+	"watched_episodes": "watched_episodes",
+	"keyboard_keymap":  "keyboard.keymap",
 }
 
 // footprintSnapshot is a comparable dump of every table and app_settings key
@@ -39,6 +41,7 @@ type footprintSnapshot struct {
 	animeSnapshots       string
 	seasons              string
 	seasonAnimes         string
+	watchedEpisodes      string
 	settingsExceptKeymap map[string]string
 	keymap               string
 }
@@ -51,6 +54,7 @@ func footprintFields(snap footprintSnapshot) map[string]string {
 		"anime_snapshots":            snap.animeSnapshots,
 		"seasons":                    snap.seasons,
 		"season_animes":              snap.seasonAnimes,
+		"watched_episodes":           snap.watchedEpisodes,
 		"app_settings_except_keymap": encodeSettingsSnapshot(snap.settingsExceptKeymap),
 		"keyboard.keymap":            snap.keymap,
 	}
@@ -130,6 +134,7 @@ func snapshotFootprintState(t *testing.T, db *sql.DB) footprintSnapshot {
 		animeSnapshots:       dumpTable(t, db, "anime_snapshots"),
 		seasons:              dumpTable(t, db, "seasons"),
 		seasonAnimes:         dumpTable(t, db, "season_animes"),
+		watchedEpisodes:      dumpWatchedEpisodes(t, db),
 		settingsExceptKeymap: snapshotAppSettingsExcludingKeymap(t, db),
 		keymap:               keymap,
 	}
@@ -144,10 +149,10 @@ type footprintFixtureIDs struct {
 }
 
 // seedFootprintFixture creates one row for every import-group footprint --
-// anime_snapshots, seasons, season_animes, and
+// anime_snapshots, seasons, season_animes, watched episodes, and
 // app_settings["keyboard.keymap"] -- all tagged with marker, and returns the
-// season/season-anime ids so a later mutateFootprintFixture call updates
-// these SAME rows rather than adding new ones.
+// season/season-anime ids so a later mutateFootprintFixture
+// call updates these SAME rows rather than adding new ones.
 func seedFootprintFixture(t *testing.T, db *sql.DB, marker string) footprintFixtureIDs {
 	t.Helper()
 	ctx := context.Background()
@@ -167,11 +172,41 @@ func seedFootprintFixture(t *testing.T, db *sql.DB, marker string) footprintFixt
 		t.Fatalf("seed season anime: %v", err)
 	}
 
+	setWatchedEpisodeMarker(t, db, marker)
+
 	if err := settings.NewSQLiteStore(db).SetKeymap(ctx, marker); err != nil {
 		t.Fatalf("seed keymap: %v", err)
 	}
 
 	return footprintFixtureIDs{seasonID: s.ID, seasonAnimeID: sa.ID}
+}
+
+// setWatchedEpisodeMarker writes the single footprint-owned watched episode
+// (fixed id 1) with marker as its anime name, so seeding and mutating touch
+// the SAME row. It goes through the owning package's backup importer rather
+// than raw SQL: tools/checkarchitecture confines the table name to
+// internal/watchhistory, and the store's write API derives episode/cycle
+// bookkeeping a one-row fixture does not need.
+func setWatchedEpisodeMarker(t *testing.T, db *sql.DB, marker string) {
+	t.Helper()
+
+	line := fmt.Sprintf(`{"id":1,"anime_id":"footprint-anime","anime_name":%q,"episode":1,"cycle":1,"watched_at_ms":1700000000000,"source":"desktop","source_activity_id":null}`, marker)
+	if _, err := watchhistory.ImportWatchHistory(db)(context.Background(), strings.NewReader(line+"\n")); err != nil {
+		t.Fatalf("set watched episode marker: %v", err)
+	}
+}
+
+// dumpWatchedEpisodes returns a deterministic dump of every watched episode
+// row, read through the owning package's exporter (ordered by id, every
+// column) for the same boundary reason as setWatchedEpisodeMarker.
+func dumpWatchedEpisodes(t *testing.T, db *sql.DB) string {
+	t.Helper()
+
+	var sb strings.Builder
+	if _, err := watchhistory.ExportWatchHistory(db)(context.Background(), &sb); err != nil {
+		t.Fatalf("dump watched episodes: %v", err)
+	}
+	return sb.String()
 }
 
 // mutateFootprintFixture updates the SAME rows seedFootprintFixture created
@@ -197,6 +232,8 @@ func mutateFootprintFixture(t *testing.T, db *sql.DB, ids footprintFixtureIDs, m
 	if err := seasonStore.UpdateSeasonAnime(ctx, sa); err != nil {
 		t.Fatalf("mutate season anime: %v", err)
 	}
+
+	setWatchedEpisodeMarker(t, db, marker)
 
 	if err := settings.NewSQLiteStore(db).SetKeymap(ctx, marker); err != nil {
 		t.Fatalf("mutate keymap: %v", err)
