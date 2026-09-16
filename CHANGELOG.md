@@ -14,8 +14,12 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-15
+
 ### Added
 
+- Your anime covers now reach the phone. The mobile app shows each anime's cover art: the bridge serves it as a small thumbnail, the phone keeps it, and the list still looks right when the bridge is out of reach.
+- A cover whose image file you move, rename or delete keeps working. The bridge holds on to the last copy it loaded and serves that one, instead of reporting the anime as having no cover — which used to make the phone drop the copy it already had. Putting a different image at the same path still switches everyone to the new art.
 - Fill in an anime's details straight from MyAnimeList. Both the Create form and the Editor now have
   a "Fetch metadata" action beside the name: type a name, pick the right match from the search
   results, and confirm to fill in type, episode count, duration, source, genres and studio — you
@@ -47,6 +51,9 @@ called out explicitly under its release.
 
 ### Internal
 
+- Wire change: one new REST route, `GET /api/animes/{id}/cover`, documented in `docs/openapi.yaml`. It answers a JPEG thumbnail of at most 320 px tall with a strong ETag, 304 when the phone already holds those bytes, 204 when the anime has no usable cover, and 503 with `Retry-After` while thumbnail generation is saturated. No existing endpoint changed shape, so a phone that does not know about this route is unaffected.
+- A thumbnail is generated once and cached on disk under the image's identity — its path, size and modification time for a local file, the hash of the downloaded bytes for a URL — together with the thumbnail spec version, so a replaced image or a spec change can never serve stale bytes. The last-good copy of a local file is kept beside that cache and only ever used when the original is missing. Recorded in `docs/adr/024-cover-thumbnail-cache.md`.
+- Captured requests no longer store image bodies, so serving covers does not grow the diagnostics database by a copy of every image. The desktop renders its own covers through the same pipeline that serves the phone, rather than a separate path.
 - No REST or WebSocket contract changed: the new history reaches the desktop UI through two new Wails bindings, and the old snapshot-based history binding is gone.
 - The history lives in its own permanent table, one row per episode per rewatch, separate from the capped audit log and the rotating diagnostic log. Recording is derived from the before/after progress of each change rather than from what kind of action caused it, so the desktop and mobile write paths cannot disagree. Recorded in `docs/adr/023-watch-history-model.md`.
 - Mutation testing now runs after each commit in a separate worktree with a per-test timeout. A mutant that deadlocks the single SQLite connection used to hang a run for go test's default ten minutes.
