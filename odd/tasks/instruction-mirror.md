@@ -8,7 +8,7 @@ Keep `AGENTS.md` and `CLAUDE.md` byte-identical while retaining durable, actiona
 
 - [x] Draft one concise canonical instruction set without feature-specific references or static skill-loading lists.
 - [x] Copy the canonical content to both mirror files and verify they are identical.
-- [~] Review the diff and create the required work-unit commit after checks pass.
+- [x] Review the diff and create the required work-unit commit after checks pass.
 
 ## Constraints
 
@@ -22,3 +22,4 @@ Keep `AGENTS.md` and `CLAUDE.md` byte-identical while retaining durable, actiona
 - `cmp -s AGENTS.md CLAUDE.md` passed after synchronization.
 - Both mirrors are 81 lines / 9,072 bytes; the prior combined 70,337-byte instruction payload is now 18,144 bytes.
 - `git diff --check` passed.
+- Work-unit commit: `0384044` (`docs: mirror project agent instructions`).
