@@ -375,7 +375,7 @@ autoreas-bridge/
 │       └── test/            # Test bootstrap
 ├── tools/                   # Repo-owned Go guards (file size, gofmt, architecture, OpenAPI…)
 ├── docs/                    # Architecture, ADRs, OpenAPI, postmortems, learning log
-├── openspec/                # Spec-Driven Development artifacts
+├── openspec/                # Historical planning artifacts, not an execution contract
 └── .github/workflows/       # Build Windows, Build Linux, Release
 ```
 
@@ -486,7 +486,7 @@ judge, so a docs-only commit runs almost nothing):
 | Group | Jobs |
 | --- | --- |
 | **Go** | `gofmt` guard · file-size guard · architecture guard · `golangci-lint` (base + plugin) · `go vet` · `go test ./... -cover` |
-| **Repo** | app-icon guard (`genicons -check`) · SDD artifact gate · OpenAPI contract guard |
+| **Repo** | app-icon guard (`genicons -check`) · OpenAPI contract guard |
 | **Frontend** | TypeScript typecheck · ESLint 9 flat config (delivery purity, dumb-UI rules, hook anatomy, strict colocation, readonly props, JSDoc, no import cycles, cognitive complexity, 500-line max) · Vitest · render smoke · layout smoke · Stryker mutation testing on staged lines |
 
 > [!TIP]
@@ -539,12 +539,9 @@ and how to read a failed run.
 
 ## Contributing
 
-This project runs on **Spec-Driven Development (SDD)**, orchestrated through
-`openspec/` and `.atl/`. Substantial changes move through a structured flow:
-
-```text
-Explore → Propose → Spec → Design → Tasks → Apply → Verify → Archive
-```
+The codebase and current product documentation are the execution contract.
+`openspec/` is retained only as historical planning evidence and is not an
+execution contract.
 
 Before opening a PR:
 

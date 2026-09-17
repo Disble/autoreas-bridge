@@ -103,8 +103,8 @@ pre-merge-commit:
             run: powershell -ExecutionPolicy Bypass -File scripts/lint.ps1 -Profile all
 
           # Cross-file pairings a merge can break without either side noticing:
-          # the spec against the router, the icons against their master, the SDD
-          # artifacts against the active change.
+          # the OpenAPI contract against the router and the icons against their
+          # master.
           - name: openapi
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/checkopenapi
@@ -113,9 +113,6 @@ pre-merge-commit:
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/genicons -check
 
-          - name: sdd-gate
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checksdd
 
           - name: frontend-typecheck
             run: bun --cwd="frontend" run typecheck
@@ -197,12 +194,6 @@ pre-commit:
             env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
             run: go run ./tools/genicons -check
 
-          - name: sdd-gate
-            glob:
-              - "openspec/**"
-              - "*.go"
-            env: {GOFLAGS: "-p=4", GOMAXPROCS: "4"}
-            run: go run ./tools/checksdd
 
           - name: openapi
             glob:
@@ -292,7 +283,7 @@ pre-commit:
           # reads the git index directly instead of a `{staged_files}`
           # substitution -- the previous hand-rolled script resolved
           # `--show-toplevel` to `frontend/` inside a linked worktree and
-          # silently skipped every production file (SDD-71).
+          # silently skipped every production file before the staged runner replaced it.
           #
           # The exclusions keep that script's scope, `src/` only. dharness
           # counts every JS/TS file under frontend/ as source, but the

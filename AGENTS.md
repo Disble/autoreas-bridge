@@ -5,8 +5,7 @@
 - Repo: `autoreas-bridge`
 - Stack: Go + Wails v2 + React/Vite
 - Architecture target: Hexagonal / Ports & Adapters with bounded contexts and an in-memory Event Bus
-- SDD mode: `hybrid`
-- Bridge is the sole owner of anime state; its embedded SQLite database (`anime_snapshots` and related tables) is the only source of truth. There is no Legacy Desktop synchronization channel (retired in SDD-55 — see `docs/adr/008-legacy-breakup-sqlite-sole-owner.md`).
+- Bridge is the sole owner of anime state; its embedded SQLite database (`anime_snapshots` and related tables) is the only source of truth. There is no Legacy Desktop synchronization channel; see `docs/adr/008-legacy-breakup-sqlite-sole-owner.md`.
 
 ## CRITICAL FRONTEND ARCHITECTURE CONSTRAINTS (DO NOT IGNORE)
 
@@ -27,30 +26,28 @@
 13. **Shared Dumb Components Rule**: Reusable presentation-only components live in `frontend/src/shared/ui/` — e.g. `LabeledTextField`, `LabeledSelect`, `LabeledCheckbox`, `PathPickerField`, `AnimeCoverPlaceholder`. PREFER composing these over hand-writing another raw `Label`/`Input`/`Select` block. When a Label/Input/Select pattern repeats (3+ instances), EXTRACT a new generic `shared/ui` component (readonly props in a colocated `*.types.ts`, JSDoc, colocated test) — this is the sanctioned way to cut JSX duplication and render complexity that the Fallow gate flags.
 14. **Loading and Empty State Rule**: Three states map to three components, and this is MANDATORY. An unresolved request MUST render a skeleton mirroring the shape of the content that will replace it — or `shared/ui/LoadingBars/` when that placeholder is a stack of uniform bars. A resolved-empty result MUST render `shared/ui/AirisEmptyState/`. A failed request MUST render the surface's error `Alert`, never an empty state and never a skeleton. A loading sentence or a lone `Spinner` is NOT a loading state. Every loading branch MUST expose `role="status"` with `aria-live="polite"` and **`aria-labelledby` pointing at an `sr-only` span holding the wording** — `aria-labelledby` is required because `role="status"` takes its accessible name from the author and ARIA's name-from-content allowlist excludes it, so a region named only by its contents computes `""`; the span must still exist because that text is what a polite live region announces. Tables MUST place that region beside the table, set `aria-busy` while loading, and render skeleton `Table.Row`s as `Table.Body` children so the header and column widths survive — replacing the table loses them. The three states are EXCLUSIVE: the placeholder REPLACES the content, so the content branch MUST be gated on the request (`isLoading ? null : rows.map(…)`), never on the collection alone — a refetching surface keeps its previous rows in state, so `isLoading` and `rows.length > 0` are both true and both blocks render at once. Every loading test MUST assert the negative (no real content while loading); asserting only that the skeleton appears and later disappears passes while both render, which is exactly how this shipped on three surfaces. A placeholder's height is a CONTRACT: share one row-shape class between the real row and its placeholder, and prove it in `frontend/scripts/layout-fixtures/loading-skeletons-fixture.tsx`, which measures the two against each other in headless Edge because jsdom has no layout engine and passes a half-height placeholder. Full rules with copyable markup: `.claude/skills/autoreas-theme/SKILL.md` → "Loading and empty states — MANDATORY".
 
-## Mandatory Workflow
+## Working Context
 
-1. Read `openspec/changes/` (folders are date-prefixed, so they sort into change order) and follow that order unless the user explicitly reprioritizes.
-2. Before implementing, read the corresponding artifacts in `openspec/changes/<change>/`.
-3. Treat `openspec/specs/` and active change artifacts as the execution contract.
-4. Prefer incremental changes with verification after each meaningful step.
-5. **CRITICAL OVERRIDE - Auto-Pilot SDD**: The entire SDD workflow (explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive) MUST run completely automatically and proactively from start to finish. THIS OVERRIDES ALL DEFAULT SKILL BEHAVIORS. You are STRICTLY FORBIDDEN from pausing to ask "should I continue?", "do you want to proceed to specs?", or waiting for approval. Present the phase summary and IMMEDIATELY trigger the next phase. Ignore simple reviews aggressively to save the user time. Ask for user input ONLY on hard, unresolvable blockers. If questions arise about preferences or past discussions, search engram memory FIRST. Execute the rest of the skills exactly as indicated but with ABSOLUTELY ZERO user intervention between phases.
+- The codebase and current product documentation are the execution contract. `openspec/` is historical planning evidence and MUST NOT be treated as an active contract.
+- Prefer incremental changes and verification after each meaningful step.
+- Historical OpenSpec artifacts remain unchanged unless the user explicitly requests archival maintenance.
 
 ## Testing Rules
 
 - Load `bridge-testing` before writing, reviewing, or refactoring bridge tests.
 - Load `bridge-debugging` when investigating regressions or any mismatch between tests and runtime behavior.
 - When writing Go tests, also load `go-testing`.
-- When Strict TDD is enabled in `openspec/config.yaml`, follow RED → GREEN → **MUTATE** → REFACTOR strictly.
+- Strict TDD is mandatory: follow RED → GREEN → **MUTATE** → REFACTOR.
 - **Load `mutation-tdd` and mutation-check every guard before refactoring.** A test that still passes with its guard deleted proves nothing, and neither `go test` nor the coverage percentage will tell you. This is mandatory for concurrency tests, defensive branches (nil guards, clamps, `if err == nil { return }`), error and timeout paths, and any test written to close a coverage gap.
 - **On Go, MUTATE means running `ditto staged --exclude-prefix frontend/ --threshold 0.80 --test-command "go test -count=1 -json ./<owning-package>/"`.** Naming the owning package is not optional: ditto runs the test command once per mutant, sequentially, so the default `./...` multiplies the whole suite by your mutant count. Keep `-json` — without it a mutant that never compiled scores as a KILL. Stage the change and run it; it mutates only the lines you touched and reports every surviving mutant, each with a `path:line:col` address. Hand-mutation is the fallback for one guard mid-edit, not the step itself — it mutates where you were already looking, so it confirms a suspicion rather than surveying the change. On 2026-08-09 four hand-picked mutants all died while the wrapper found a test asserting against the very constant it claimed to pin. See `docs/postmortems/postmortem-silent-no-ops.md`.
 - **Before concluding a hand-mutation was killed, prove it applied.** A failed edit and a perfectly-covered guard print the same thing. `sd` is NOT installed here despite what global instructions say — use `perl -0pi -e '<s///>' <file>` and follow it with `git diff --quiet -- <file> && echo "!! MUTATION DID NOT APPLY"`.
 - **Mutation coverage differs by surface — do not assume one answer for the repo.**
-  - **Frontend: automated.** `lefthook.yml` runs the `frontend-mutation` job with `root: frontend`, invoking upstream `dharness mutate --staged --concurrency 4` with `--exclude-prefix` for `src/test/`, `scripts/` and the four root config files, which keeps the scope to `src/` because the mutation suite runs only `src/**` tests (`lefthook.yml` holds the exact line) (SDD-71; replaced the hand-rolled `test:mutation:staged` script, which silently skipped every production file from a linked worktree). The runner is Stryker via `frontend/stryker.config.json`, and `frontend/package.json` also exposes `test:mutation` for a manual narrow `--mutate` run. The staged job covers only the added lines of staged frontend files with a zero-tolerance verdict (any Survived/NoCoverage mutant blocks, no score); everything else exits fast with no mutation run.
+  - **Frontend: automated.** `lefthook.yml` runs the `frontend-mutation` job with `root: frontend`, invoking upstream `dharness mutate --staged --concurrency 4` with `--exclude-prefix` for `src/test/`, `scripts/` and the four root config files, which keeps the scope to `src/` because the mutation suite runs only `src/**` tests (`lefthook.yml` holds the exact line); it replaced the hand-rolled `test:mutation:staged` script, which silently skipped every production file from a linked worktree. The runner is Stryker via `frontend/stryker.config.json`, and `frontend/package.json` also exposes `test:mutation` for a manual narrow `--mutate` run. The staged job covers only the added lines of staged frontend files with a zero-tolerance verdict (any Survived/NoCoverage mutant blocks, no score); everything else exits fast with no mutation run.
   - **Go: a runner exists and is the MUTATE step; no gate is wired.** `ditto staged` mutates the staged production Go files, scoped to the lines the staged diff touched, against a copy of the index. Do not claim the Go side has no mutation tooling. It is invoked by hand rather than by a hook because it recompiles and re-runs the named package's suite per mutant, on top of an already ~90s gate. Add `--dry` to see the computed scope without paying for a run.
   - Line scoping is what makes it usable as a routine step — before it, the same change cost 89 mutants and ~6 minutes because whole files were mutated. A scope it cannot derive does fall OPEN to whole-file mutation, but that is NOT the usual cause of a slow run: **the usual cause is an unscoped `--test-command`.** ditto prints nothing per mutant without `-verbose`, so a healthy run and a hang look identical. Check `--dry` for the scope and the `--test-command` for the cost before concluding the tool is broken — on 2026-08-30 a bare `ditto staged` was killed twice at ten minutes and escalated as a tool defect; it was the default `./...`.
   - See `docs/mutation-testing.md`.
 - Branches the scheduler cannot reach (a raced pointer swap, `setErr(nil)`) need direct invocation of the unexported function from an in-package test. A stress loop that never reaches the branch passes while proving nothing — this has already happened twice in this repo.
-- Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted in SDD-55) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
+- Prefer real stored-shape validation for the `internal/anime/store` codec: use the synthetic and single-line stored-shape fixtures under `internal/anime/store/testdata` (cloned from a real database row before `resources/autoreas-data/animes.dat` was deleted during the Legacy-channel retirement) when validating codec round-trips or stored-shape assumptions. Never mutate fixtures in place during tests; copy to temp locations first.
 
 ## Cross-Cutting File Size Policy
 
@@ -69,12 +66,10 @@
 
 - The repo uses `lefthook.yml` as the single pre-commit entrypoint.
 - **The gate is SLOW by design — budget for it.** A full pre-commit run takes ~90 seconds and can exceed 2 minutes on a cold cache (golangci-lint, `go vet`/coverage, frontend typecheck/lint/test/Fallow, filesize). Jobs are declared `parallel: true`, so their output interleaves — on a failure, read the job name rather than assuming the last lines belong to it. When you run `git commit`, use a generous command timeout (≥ 5 minutes / 300000 ms) so the commit is not killed mid-hook. A killed commit leaves changes staged but unrecorded — re-run `git commit` (do not `--no-verify`) to complete it.
-- The gate is intentionally **complete**, not partial: frontend Fallow audit + lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and SDD artifact validation all run before commit.
-- Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, `tools/checksdd`, and `tools/genicons`; avoid reintroducing shell-specific orchestration scripts for the gate.
+- The gate is intentionally **complete**, not partial: frontend Fallow audit + lint/test via Bun, formatting, lint, `go vet`, `go test`, coverage, and repository contract validation all run before commit.
+- Repo-owned validators live in `tools/checkgofmt`, `tools/checkgofilesize`, `tools/checkarchitecture`, `tools/checkopenapi`, and `tools/genicons`; avoid reintroducing shell-specific orchestration scripts for the gate.
 - **App icons are generated, never hand-edited.** `build/appicon.png` is the only master; `go run ./tools/genicons` rewrites `build/windows/icon.ico` and `internal/tray/tray-icon.ico` from it, and the `app-icons` job runs `-check`. See `docs/app-icons.md`.
 - **A merge commit does not run the pre-commit gate — `pre-merge-commit` does, and it is a different gate.** Git never runs `pre-commit` for a merge. `pre-merge-commit` is a hook lefthook supports natively (`lefthook install` syncs it by name and silently ignores an unrecognised one; note `lefthook validate` does NOT check hook names and reports "All good" for a hook that does not exist). It runs the same checks **whole-tree instead of globbed**, because a merge produces a tree rather than a diff — a `glob:` there compares against the merge's own empty file list and skips. `frontend-lint` and `frontend-mutation` are deliberately excluded: both are scoped to the staged set, which a merge does not have. `tools/checkgofilesize/merge_gate_test.go` pins the job list so it cannot quietly drift from pre-commit. A fast-forward merge writes no commit and runs no hook, which is correct: its commits already passed pre-commit.
-- If more than one active change exists under `openspec/changes/`, set `.atl/active-sdd-change` locally (gitignored) to the change name that the commit belongs to.
-- An active change MUST have `proposal.md`, `design.md`, `tasks.md`, at least one `spec.md`, and a `verify-report.md` whose verdict is `PASS` or `PASS WITH WARNINGS`.
 
 ## Branch Model
 
@@ -146,7 +141,7 @@
 - Real behavior beats permissive mocks.
 - Anime state lives in `anime_snapshots.snapshot_json`, keyed by `_id`; effective state must be reasoned by `_id`, not by naive row-order diffs.
 - `activo=false` is not a tombstone.
-- Bridge no longer watches, parses, or writes any external Legacy file (SDD-55). There is no `animes.dat` file-watch or atomic-replace concern left to reason about.
+- Bridge no longer watches, parses, or writes any external Legacy file. There is no `animes.dat` file-watch or atomic-replace concern left to reason about.
 
 ## Delegation and Verification Guardrails
 
@@ -172,7 +167,7 @@
 
 ## Sizing a Change
 
-- **Never size a change by eye, and never trust a phase forecast.** Measure comparables in this tree with `wc -l` first. SDD-61's four slices were forecast at 390-420, 430-460, 390-420 and 330-360 lines; slice 2 landed at **597**, and slices 3 and 4 re-estimated bottom-up to **499-702** and **502-708**. The forecasts ran 30% to 70% low, every time in the same direction, which is what makes it a method problem rather than bad luck.
+- **Never size a change by eye, and never trust a forecast.** Measure comparables in this tree with `wc -l` first. A prior four-slice effort forecast 390-420, 430-460, 390-420 and 330-360 lines; slice 2 landed at **597**, and slices 3 and 4 re-estimated bottom-up to **499-702** and **502-708**. The forecasts ran 30% to 70% low, every time in the same direction, which is what makes it a method problem rather than bad luck.
 - **The miss is always the tests, and strict TDD makes them non-negotiable.** Slice 2 spent 361 of its 597 lines on tests (60%). A "400-line" slice here is roughly 200 production plus 200 test. Estimate against these measured bands, all taken from this repo:
 
   | Shape | Measured |
@@ -185,13 +180,13 @@
   | `shared/<domain>/` module: constants + types + helpers + hook | ~160 production, roughly doubling once its tests exist |
 
 - **Mandatory JSDoc on every declaration is a multiplier, not a rounding error.** Budget it per declaration, not per file.
-- **Prose counts against the budget.** `sdd-attempt` measured slice 2 at 673 lines where `git diff --stat` said 597; the difference was the `tasks.md` edit. Budget 40-80 lines for the artifact prose a slice rewrites.
+- **Prose counts against the budget.** A prior task ledger measured slice 2 at 673 lines where `git diff --stat` said 597; the difference was the `tasks.md` edit. Budget 40-80 lines for the task-record prose a work unit rewrites.
 - **A rule you impose on one dimension inflates the budget of another.** After fallow rejected an unexercised export, the orchestrator required "no export without a consumer in the same commit". Under strict TDD that mandates a RED test per exported function before the function exists, which added three test suites nobody had forecast. Price a new constraint when you introduce it, in the budget it actually spends.
-- **Overshooting the cap is an over-engineering finding, not a forecast finding — refactor it down, never block on it.** Everything above is how you size; this is what happens when you miss anyway. Because the band already counts the strict-TDD and mutation tests, an overrun can no longer be explained by "the tests were the miss" — that explanation is already priced in. So the overrun is read as over-engineering in the work itself, it is refactored until it fits, and the SDD **continues**. It is never a reason to block a work unit, and never a reason to reset the ledger objective: a reset spends a maintainer decision on what is an ordinary engineering defect. SDD-67's slice 2 was the case that established this — 884 lines against a 600 cap, where the orchestrator had classified the overrun as legitimate test volume and stopped for a maintainer decision. It was neither legitimate nor a decision: the diff held four hand-copied instances of one test shape that belonged in a table, `Partial`-override builders written for a single call site, and a mocked positive case re-proving wiring an end-to-end test already proved through the real observable.
-- **What over-engineering looks like in this tree's tests lives in the `lean-tests` skill** — load it at the RED step, at the MUTATE step, and whenever a slice passes its budget. Its smell table (`.claude/skills/lean-tests/references/smells.md`) is the single source of truth; it moved there because a table in this always-loaded file did not stop SDD-69's slice 1 from killing mutants with new test functions instead of table rows.
+- **Overshooting the cap is an over-engineering finding, not a forecast finding — refactor it down, never block on it.** Everything above is how you size; this is what happens when you miss anyway. Because the band already counts the strict-TDD and mutation tests, an overrun can no longer be explained by "the tests were the miss" — that explanation is already priced in. So the overrun is read as over-engineering in the work itself, it is refactored until it fits, and the work **continues**. It is never a reason to block a work unit, and never a reason to reset the ledger objective: a reset spends a maintainer decision on what is an ordinary engineering defect. One prior slice established this — 884 lines against a 600 cap, where the orchestrator had classified the overrun as legitimate test volume and stopped for a maintainer decision. It was neither legitimate nor a decision: the diff held four hand-copied instances of one test shape that belonged in a table, `Partial`-override builders written for a single call site, and a mocked positive case re-proving wiring an end-to-end test already proved through the real observable.
+- **What over-engineering looks like in this tree's tests lives in the `lean-tests` skill** — load it at the RED step, at the MUTATE step, and whenever a slice passes its budget. Its smell table (`.claude/skills/lean-tests/references/smells.md`) is the single source of truth; it moved there because a table in this always-loaded file did not stop a prior slice from killing mutants with new test functions instead of table rows.
 
   Refactoring is bounded by coverage, not by the number: never delete an assertion, a scenario, or a case that kills a known mutant to make a budget. If the genuine fat is gone and it still does not fit, report the measured remainder and what it is — that outcome is honest and the slice plan was too big, which is a planning fix, not a trimming one.
-- **Measured correction: a refactor cannot bring the changed-line number down after the fact, so judge it by `wc -l`, not by the ledger.** The cap is measured on insertions **plus deletions**, so removing 51 lines from files that already exist registers as 51 new deletions. SDD-67's slice-2 cleanup took 864 lines of test code down to 813 — a real 51 removed, every mutant still dying — while the changed-line count moved 884 → 881. The code got smaller and the metric did not budge. Two consequences, and the second is the one that bites:
+- **Measured correction: a refactor cannot bring the changed-line number down after the fact, so judge it by `wc -l`, not by the ledger.** The cap is measured on insertions **plus deletions**, so removing 51 lines from files that already exist registers as 51 new deletions. A prior slice's cleanup took 864 lines of test code down to 813 — a real 51 removed, every mutant still dying — while the changed-line count moved 884 → 881. The code got smaller and the metric did not budge. Two consequences, and the second is the one that bites:
   1. Judge an over-engineering refactor by the before/after file sizes, never by expecting the ledger's number to fall. Expecting it to fall is a category error about what the metric measures.
   2. **The cap is therefore a pre-commit discipline: the lines have to not be written, not be removed later.** Once a slice has landed, its number is final. So the refactor and the bookkeeping are separate acts — the refactor discharges the engineering debt, and a maintainer reset is what lets the next work unit open. Conflating them is what made the orchestrator stop the chain for a decision it should have just reported.
 
@@ -230,7 +225,6 @@
 - `docs/fallow-usage.md`
 - `docs/mutation-testing.md`
 - `docs/adr/007-english-code-spanish-boundaries.md`
-- `openspec/config.yaml`
 - `.atl/skill-registry.md`
 
 <!-- standards:v1.1.0 -->
@@ -440,12 +434,12 @@ evidence the gate runs it, and do not read its absence from the hook as evidence
 no runner exists, or that running it is optional.
 
 - `deviates: P07 — the gate's failure path is unproven.` `tools/` holds
-  `checkgofmt`, `checkgofilesize`, `checkarchitecture`, `checkopenapi` and
-  `checksdd`, and nothing that stages a broken file to assert the hook rejects it.
+  `checkgofmt`, `checkgofilesize`, `checkarchitecture`, `checkopenapi`, and
+  `genicons`, and nothing that stages a broken file to assert the hook rejects it.
   The sister mobile repo has `scripts/verify-precommit-fail-path.mjs`; this repo
   has no equivalent. The ladder calls L5 the rung most often missing, and it is
   missing here.
 - `deviates: P06 — local and cloud verdicts are not comparable.` The only CI
   workflow is `go-lint.yml`, which runs the Go lint profile. The frontend gate,
-  the coverage run, the SDD gate and the OpenAPI check exist only locally, so CI
-  green proves substantially less than a local commit does.
+  the coverage run and the OpenAPI check exist only locally, so CI green proves
+  substantially less than a local commit does.
