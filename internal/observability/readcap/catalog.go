@@ -51,6 +51,11 @@ func All() []Capability {
 		{Name: "search_events", Store: StoreRuntimeEvents, Kind: KindQuery},
 		{Name: "get_correlation_timeline", Store: StoreRuntimeEvents, Kind: KindTimeline},
 		{Name: "summary_events", Store: StoreRuntimeEvents, Kind: KindAggregate},
+		// list_device_sync_diagnostics is the only attributed source of a
+		// device's own sync reports: device_sync_diagnostics is the sole store
+		// that can attribute a report to a device (the diagnostics capture in
+		// request_captures carries the report but not the device).
+		{Name: "list_device_sync_diagnostics", Store: StoreSyncDiagnostics, Kind: KindQuery},
 	}
 }
 

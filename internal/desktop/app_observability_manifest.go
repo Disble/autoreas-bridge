@@ -11,6 +11,7 @@ func ObservabilityCapabilities() []string {
 		"summary_requests",
 		"search_events",
 		"summary_events",
+		"list_device_sync_diagnostics",
 	}
 }
 

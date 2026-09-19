@@ -29,14 +29,16 @@ func TestManifestMatchesCatalogAndServerRoster(t *testing.T) {
 	}
 	got := ExposedCapabilities()
 	assertUniqueCapabilityNames(t, got)
-	if !sameCapabilityMembership(got, readcap.Names()) {
-		t.Fatalf("expected catalog membership %#v, got %#v", readcap.Names(), got)
-	}
+	assertCatalogPartitionDeclared(t, got, ExcludedCapabilities())
 	if !reflect.DeepEqual(got, wantOrder) {
 		t.Fatalf("expected declared roster order %#v, got %#v", wantOrder, got)
 	}
-	if excluded := ExcludedCapabilities(); len(excluded) != 0 {
-		t.Fatalf("expected no excluded capabilities, got %#v", excluded)
+	excluded := ExcludedCapabilities()
+	if len(excluded) != 1 {
+		t.Fatalf("expected exactly one excluded capability, got %#v", excluded)
+	}
+	if reason := excluded["list_device_sync_diagnostics"]; reason == "" {
+		t.Fatalf("expected list_device_sync_diagnostics to be excluded with a mechanical reason, got %#v", excluded)
 	}
 
 	reader, err := OpenReader(openToolTestDB(t))
@@ -68,25 +70,34 @@ func assertUniqueCapabilityNames(t *testing.T, names []string) {
 	}
 }
 
-// sameCapabilityMembership reports whether two duplicate-free rosters contain
-// the same capability names regardless of their independent order.
-func sameCapabilityMembership(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
+// assertCatalogPartitionDeclared pins that the sidecar's exposed list plus
+// its excluded map exactly partition the core catalog, without overlap, so a
+// capability can neither vanish nor be double-declared.
+func assertCatalogPartitionDeclared(t *testing.T, exposed []string, excluded map[string]string) {
+	t.Helper()
+
+	catalog := readcap.Names()
+	if len(exposed)+len(excluded) != len(catalog) {
+		t.Fatalf("expected exposed plus excluded to cover the %d catalog capabilities, got %#v and %#v", len(catalog), exposed, excluded)
 	}
-	members := make(map[string]struct{}, len(left))
-	for _, name := range left {
-		members[name] = struct{}{}
+	declared := make(map[string]struct{}, len(catalog))
+	for _, name := range exposed {
+		declared[name] = struct{}{}
 	}
-	if len(members) != len(left) {
-		return false
+	for name, reason := range excluded {
+		if _, alsoExposed := declared[name]; alsoExposed {
+			t.Fatalf("capability %q is both exposed and excluded", name)
+		}
+		if reason == "" {
+			t.Fatalf("capability %q is excluded without a reason", name)
+		}
+		declared[name] = struct{}{}
 	}
-	for _, name := range right {
-		if _, exists := members[name]; !exists {
-			return false
+	for _, name := range catalog {
+		if _, found := declared[name]; !found {
+			t.Fatalf("catalog capability %q is not declared", name)
 		}
 	}
-	return true
 }
 
 // TestMCPReaderPreservesCoreRequestCaptureAnswers pins the MCP reader wrapper

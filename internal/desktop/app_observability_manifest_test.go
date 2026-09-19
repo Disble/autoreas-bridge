@@ -46,6 +46,27 @@ func TestDesktopObservabilityManifestCoversCatalog(t *testing.T) {
 	}
 }
 
+// TestDesktopObservabilityManifestExposesDeviceSyncDiagnostics pins the new
+// sync-diagnostics capability to the desktop adapter's exposed list, and
+// never to its exclusion map.
+func TestDesktopObservabilityManifestExposesDeviceSyncDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	exposed := ObservabilityCapabilities()
+	found := false
+	for _, name := range exposed {
+		if name == "list_device_sync_diagnostics" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected list_device_sync_diagnostics to be exposed, got %#v", exposed)
+	}
+	if _, excluded := ObservabilityExcludedCapabilities()["list_device_sync_diagnostics"]; excluded {
+		t.Fatal("list_device_sync_diagnostics must not be excluded")
+	}
+}
+
 // TestDesktopCaptureProjectionsPreserveCoreAnswers pins the desktop list, get,
 // summary, and resolve bindings to the core reader over one temporary database.
 func TestDesktopCaptureProjectionsPreserveCoreAnswers(t *testing.T) {

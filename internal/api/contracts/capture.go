@@ -164,3 +164,43 @@ type CaptureSummary struct {
 	Groups   []CaptureSummaryGroup `json:"groups"`
 	Degraded bool                  `json:"degraded"`
 }
+
+// DeviceSyncDiagnosticReport is one attributed device sync diagnostics
+// report, read from device_sync_diagnostics -- the only store that can
+// attribute a report to a device: a diagnostics capture in request_captures
+// carries the report body but not the device, because the
+// POST /api/sync/diagnostics body has no device_id and identity travels
+// only in the Authorization header.
+type DeviceSyncDiagnosticReport struct {
+	DeviceID                  string  `json:"deviceId"`
+	ReportedAtMS              int64   `json:"reportedAtMs"`
+	CycleID                   string  `json:"cycleId"`
+	Degraded                  *string `json:"degraded,omitempty"`
+	TriggerSource             string  `json:"triggerSource"`
+	AppState                  string  `json:"appState"`
+	ConsecutiveUnclosedCycles int     `json:"consecutiveUnclosedCycles"`
+	PendingOpsCount           int     `json:"pendingOpsCount"`
+	Cursor                    int     `json:"cursor"`
+	PreviousOutcome           *string `json:"previousOutcome,omitempty"`
+	PreviousElapsedMS         *int64  `json:"previousElapsedMs,omitempty"`
+	PreviousErrorFingerprint  *string `json:"previousErrorFingerprint,omitempty"`
+}
+
+// DeviceSyncDiagnosticsQuery is the in-process query DTO for
+// ListDeviceSyncDiagnostics. An empty DeviceID applies no device predicate;
+// a zero or negative Limit means the reader's package default.
+type DeviceSyncDiagnosticsQuery struct {
+	DeviceID string
+	Limit    int
+}
+
+// DeviceSyncDiagnosticsResult is the ListDeviceSyncDiagnostics result
+// envelope. Items is always a non-nil slice so the frontend can range over
+// it without a nil check; Degraded marks a reader-unavailable or query-error
+// outcome (never a panic) exactly as CapturePage does. Degraded,
+// PreviousOutcome, PreviousElapsedMS and PreviousErrorFingerprint stay
+// pointers so an absent value is never rendered as zero.
+type DeviceSyncDiagnosticsResult struct {
+	Items    []DeviceSyncDiagnosticReport `json:"items"`
+	Degraded bool                         `json:"degraded"`
+}

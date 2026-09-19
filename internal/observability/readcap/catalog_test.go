@@ -49,13 +49,14 @@ func TestAllReturnsExpectedNameSet(t *testing.T) {
 	t.Parallel()
 
 	wantNames := map[string]struct{}{
-		"search_requests":          {},
-		"resolve_request_context":  {},
-		"get_request_context":      {},
-		"summary_requests":         {},
-		"search_events":            {},
-		"get_correlation_timeline": {},
-		"summary_events":           {},
+		"search_requests":              {},
+		"resolve_request_context":      {},
+		"get_request_context":          {},
+		"summary_requests":             {},
+		"search_events":                {},
+		"get_correlation_timeline":     {},
+		"summary_events":               {},
+		"list_device_sync_diagnostics": {},
 	}
 	got := All()
 	gotNames := make(map[string]struct{}, len(got))
@@ -88,6 +89,27 @@ func TestNamesMatchesAllNameForNameAndInOrder(t *testing.T) {
 			t.Errorf("Names()[%d] = %q, want %q", index, names[index], capability.Name)
 		}
 	}
+}
+
+// TestListDeviceSyncDiagnosticsCapability pins the sync-diagnostics entry's
+// identity so a store or kind drift fails loudly instead of silently
+// changing what adapters declare against.
+func TestListDeviceSyncDiagnosticsCapability(t *testing.T) {
+	t.Parallel()
+
+	for _, capability := range All() {
+		if capability.Name != "list_device_sync_diagnostics" {
+			continue
+		}
+		if capability.Store != StoreSyncDiagnostics {
+			t.Fatalf("Store = %q, want %q", capability.Store, StoreSyncDiagnostics)
+		}
+		if capability.Kind != KindQuery {
+			t.Fatalf("Kind = %q, want %q", capability.Kind, KindQuery)
+		}
+		return
+	}
+	t.Fatal("catalog is missing list_device_sync_diagnostics")
 }
 
 // TestAllReturnsFreshSlice ensures a caller cannot mutate the catalog.

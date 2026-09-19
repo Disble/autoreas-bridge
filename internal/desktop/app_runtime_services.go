@@ -24,6 +24,7 @@ func (a *App) configureRuntimeServices(ctx context.Context) {
 	a.configureCaptureQueue()
 	a.sweepOrphanedCaptures()
 	a.configureCaptureReader()
+	a.configureSyncDiagReader()
 	a.configureEventLogQueue(ctx)
 	a.configureEventReader()
 	a.prepareAnimeRuntime(ctx)
@@ -94,6 +95,27 @@ func (a *App) configureCaptureReader() {
 		return
 	}
 	a.captureReader = a.newCaptureReader(a.bridgeDB)
+}
+
+// configureSyncDiagReader wires the in-process device sync diagnostics read
+// path (ListDeviceSyncDiagnostics) once, over the app's own bridgeDB handle --
+// never a second SQLite connection. It is the exact mirror of
+// configureCaptureReader: nil-safe when bridgeDB is absent, and a no-op once a
+// reader already exists. The recover mirrors configureEventReader: the
+// constructor probes device_sync_diagnostics, and a bare, unopened *sql.DB{}
+// (as a degraded bootstrap or a unit-test fixture supplies) panics on query
+// rather than erroring. Leaving the reader nil there is the correct
+// degradation -- the bound read already reports a nil reader as Degraded.
+func (a *App) configureSyncDiagReader() {
+	if a.syncDiagReader != nil || a.bridgeDB == nil || a.newSyncDiagReader == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil && a.sharedLogger != nil {
+			a.sharedLogger.Warnf("api", "failed to wire the sync diagnostics reader: %v", recovered)
+		}
+	}()
+	a.syncDiagReader = a.newSyncDiagReader(a.bridgeDB)
 }
 
 // eventPersistDebugSettingKey is the app_settings key controlling whether
