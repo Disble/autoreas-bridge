@@ -68,3 +68,35 @@ forbidden by depguard from importing `internal/anime` or `internal/api/contracts
 precisely so this mapping has no code path in which to happen: the module that reads MAL's
 `Status:` never holds a reference to the type the bridge's `estado` lives on. See
 [ADR 022: MyAnimeList metadata source](./adr/022-myanimelist-metadata-source.md).
+
+## Bridge status vs. device sync health vs. device sync diagnostics — three things, one word
+
+Three unrelated readings of the same word coexist, and one of them is forbidden by the
+schema that stores it. The agent-generated report in `snapshot.html` titled a card
+`Sync health reported by the device`, which is that report's wording and not bridge
+vocabulary.
+
+| Concept | Source | What it actually is |
+| --- | --- | --- |
+| **Bridge status** | `BridgeStatusCard`, `useBridgeStatusCard` | The bridge's own **SQLite storage** status. No device is involved |
+| **Device sync health** | `device_sync_state` → `notifyDeviceSyncHealth`, notification kind `sync_health_warning` | Device **staleness** — approaching or past the stale window. It drives a notification |
+| **Device sync diagnostics** | `device_sync_diagnostics` (`internal/observability/syncdiag`) | The per-cycle **report a device sends about itself** |
+
+`device_sync_diagnostics` is **not** health. The schema says so in its own words:
+`degraded` "is a FIDELITY signal, not a health signal … It reports how complete the
+record is, not how the device is doing." A report can be perfectly complete and describe
+a device that is failing, and a full event ring can ship `degraded = 'events'` for a
+perfectly healthy cycle.
+
+Write **diagnostics** or **sync cycle report** for the third concept, never health.
+Related schema constraints that follow from the same definition:
+
+- `app_state` is stored but is **not a filter dimension** — the client hardcodes
+  `background`, so a foreground cycle also reports it. `trigger_source` is the only
+  trustworthy discriminator.
+- A diagnostics **capture** in `request_captures` cannot be attributed to a device: the
+  report body carries no `device_id` by design, since identity travels only in the
+  Authorization header. Attribution exists only in the `device_sync_diagnostics` row,
+  which the ingestion seam fills from the authenticated token.
+
+See [ADR 025: Sanitization is an egress rule, not a display rule](./adr/025-sanitization-is-an-egress-rule.md).
