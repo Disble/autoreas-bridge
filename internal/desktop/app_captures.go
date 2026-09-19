@@ -20,6 +20,25 @@ func (a *App) ListCaptureTransactions(query contracts.CaptureQuery) contracts.Ca
 	return toCapturePage(page)
 }
 
+// ResolveCaptureTransactions is the Wails-bound resolution of an imprecise
+// captured-request reference. It never panics: an unwired reader or a query
+// error returns an empty, never-nil candidate list.
+func (a *App) ResolveCaptureTransactions(reference string) contracts.CaptureResolveResult {
+	result := contracts.CaptureResolveResult{Candidates: []contracts.CaptureResolveCandidate{}}
+	if a.captureReader == nil {
+		return result
+	}
+	candidates, err := a.captureReader.Resolve(a.seasonCtx(), reference)
+	if err != nil {
+		return result
+	}
+	result.Candidates = make([]contracts.CaptureResolveCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		result.Candidates = append(result.Candidates, contracts.CaptureResolveCandidate{RequestID: candidate.RequestID})
+	}
+	return result
+}
+
 // GetCaptureTransaction is the Wails-bound single-transaction detail read.
 // Found=false with Degraded=false means "no such request id"; Degraded=true
 // means the reader itself is unavailable or the query failed.

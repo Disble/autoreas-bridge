@@ -33,6 +33,18 @@ type CaptureQuery struct {
 	ChangelogID *int64
 }
 
+// CaptureResolveCandidate is one request capture selected by an imprecise
+// reference.
+type CaptureResolveCandidate struct {
+	RequestID string `json:"requestId"`
+}
+
+// CaptureResolveResult is the ranked candidate list returned by
+// ResolveCaptureTransactions. Candidates is always a non-nil slice.
+type CaptureResolveResult struct {
+	Candidates []CaptureResolveCandidate `json:"candidates"`
+}
+
 // CaptureRow is one transaction-list row: the fixed base projection fields
 // every capture carries, regardless of the underlying schema version.
 type CaptureRow struct {
