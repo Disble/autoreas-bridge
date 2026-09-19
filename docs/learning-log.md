@@ -261,3 +261,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-16]: SDD-69 shipped watch_history but deferred its backup coverage; a full restore looked complete while History stayed empty, and only a VM restore surfaced the missing group.
 - [2026-09-16]: 1.13.1 is a patch: backups gained the watched_episodes group so a restore brings watch history back; old bundles lack it and leave history untouched, so testing needs a fresh export.
 - [2026-09-19]: Sanitization is an egress rule, not a display rule: applied at the local display boundary it protected nobody and hid 212 stored diagnostics reports that no surface could read.
+- [2026-09-19]: A policy test pinning one exact sentence breaks when mirrored instruction files are reworded, so assert the rule and tool name instead.
