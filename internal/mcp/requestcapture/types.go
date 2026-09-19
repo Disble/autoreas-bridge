@@ -67,10 +67,8 @@ type GetRequestContextInput struct {
 	RequestID string `json:"request_id"`
 }
 
-// ResolveCandidate is one ranked request matched by a reference.
-type ResolveCandidate struct {
-	RequestID string `json:"request_id"`
-}
+// ResolveCandidate now lives in the core request-capture package.
+type ResolveCandidate = obs.ResolveCandidate
 
 // SearchRequestsResult is the newest-first page returned by search.
 type SearchRequestsResult = obs.SearchPage
