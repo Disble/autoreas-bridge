@@ -25,35 +25,18 @@ confidentiality at the display boundary.
 
 ## Tasks
 
-- [ ] Record the boundary rule and the vocabulary: add an ADR stating that
-  sanitization is an **egress** rule and not a display rule, add the
-  bridge-status / device-sync-health / device-sync-diagnostics distinction to
-  `docs/ubiquitous-language.md`, and log the lesson.
-- [ ] Move the fuzzy resolve capability down into
-  `internal/observability/requestcapture` so it stops being adapter-local, keeping
-  the MCP tool's behaviour identical.
-- [ ] Introduce the core capability catalog: canonical name, owning store, kind.
-  It must know nothing about Wails or MCP.
-- [ ] Declare one capability manifest per adapter: the MCP's seven tools and the
-  desktop's bindings, each carrying its exclusions and their reasons.
-- [ ] Write one shared conformance suite and run it against **both** adapters.
-- [ ] Add the fitness function: the manifest set difference must be empty except
-  for registered exclusions, and every observability table must have a read path or
-  a recorded exclusion.
-- [ ] Make the diagnostics report legible inside Transactions by projecting the
-  captured payload into values, honouring `request_body_state`. It must **not**
-  render a device: diagnostics captures carry no attribution (see Evidence).
-- [ ] Add a read path over `device_sync_diagnostics` — it is the **only** store
-  that can attribute a report to a device, so it is the answer to every per-device
-  question the capture path structurally cannot reach.
-- [ ] Add a route-scoped way to reach the diagnostics rows without knowing the
-  route string `/api/sync/diagnostics`.
-- [ ] Resolve the Runtime Events question for diagnostics: emit a `cycle_id`-deduplicated
-  event, or record why not.
+- [x] Record the boundary rule and the vocabulary: ADR-025 states that sanitization is an **egress** rule and not a display rule, the three-way distinction is in `docs/ubiquitous-language.md`, and the lesson is logged. `ab64188`
+- [x] Move the fuzzy resolve capability down into `internal/observability/requestcapture` so it stops being adapter-local, keeping the MCP tool's behaviour identical. Mutation 59/63, score 0.94. `6eaac74`
+- [x] Introduce the core capability catalog in `internal/observability/readcap`: canonical name, owning store, kind, no adapter knowledge. `821a550`
+- [x] Declare one capability manifest per adapter, each carrying its exclusions and their reasons. The MCP roster keeps its original order; the desktop declares what it binds and excludes `get_correlation_timeline` with its mechanical reason. The desktop also gained the resolve binding it could not reach before. `526e848`
+- [x] Write one shared conformance suite and run it against **both** adapters: one conformance function over two adapter descriptors. Each adapter also asserts in its own package that its projections preserve the core's answers. `526e848`
+- [x] Add the fitness function: an adapter's `exposed ∪ excluded` must equal the catalog, disjoint and reasoned, so a capability cannot be lost or hidden silently. **Residual**: the gate is capability-level; a table that no capability names is still unguarded. `526e848`
+- [x] Add a read path over `device_sync_diagnostics` — the only store that can attribute a report to a device. Mutation 25/26, score 0.96, the survivor being an equivalent LIMIT-clamp mutant. `e9da0ac`
+- [x] Expose that read path through the desktop: catalog entry, desktop exposure, MCP mechanical exclusion, pointer-safe contracts, nil-safe wiring. Mutation 16/16, score 1.00. `de276dc`
+- [ ] Resolve the Runtime Events question for diagnostics: emit a `cycle_id`-deduplicated event, or record why not.
 - [ ] Move `BridgeStatusCard` from the Activity strip into Overview.
 - [ ] State retention caps and page/sample limits on every observability surface.
-- [ ] Replace the hand-written parity note in the Overview with the count the
-  catalog derives.
+- [ ] Replace the hand-written parity note in the Overview with the count the catalog derives.
 
 ## Constraints
 
@@ -140,3 +123,31 @@ Measured 2026-09-19 against the live bridge database
   tracer-bullet 1 342, download 766, api 551, anime 383, system 372, device 9,
   bus 4, schedule 4.
 - Nothing is implemented yet; every task above is open.
+
+Pending work, not a blocker: the diagnostics projection inside Transactions and
+the route preset that reaches those rows (tasks 9 and 10 of the original list)
+are implemented and staged, but not committed, and the remaining work is ours to
+finish. Frontend tests pass (3048/3048), typecheck passes, render smoke passes,
+layout smoke passes. Two checks still fail: `dharness/require-jsdoc` fires on a
+pre-existing fixture declaration in `TransactionDetail.test.tsx` that this change
+brought into scope with a one-line edit, and the frontend mutation job reports 43
+uncaught mutants (37 survived, 6 with no coverage) across the 193 in-scope
+mutants of the nine staged production files.
+
+How the surviving mutants are closed, per the repository's own `lean-tests` skill
+(hard rule 1 and its decision gate): **by consolidating tests, not by adding
+them**. A surviving mutant is killed with a new ROW in that behaviour's existing
+table, or by strengthening an existing fixture so the same scenario carries more
+assertions — never by adding a new test function per mutant, which is the exact
+failure this repository already logged ("MUTATE survivors got new test functions
+though the task said table rows"). This matters mechanically, not only
+stylistically: the mutation suite runs once per mutant, so every test added for a
+single mutant raises the cost of every future mutant. The measurement is mutant
+kills before and after, with the suite runtime flat or lower.
+
+Recorded while working, not part of the plan: `ditto staged` scopes mutants to
+the staged diff but scores them against one test command, so a staged change
+spanning several packages reports an unmeasurable score when the command names
+only some of them. Written up for the ditto team in
+`docs/reports/ditto-mutation-scope.md` (`debb318`). The workaround that works is
+to name every owning package in the test command.

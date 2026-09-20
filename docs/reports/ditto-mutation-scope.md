@@ -127,6 +127,19 @@ Worth stating, because it is why this case stands out as a remaining hole rather
 So ditto already knows the mutants' files, the command, and the command's cost. It has everything
 needed to notice that the command cannot execute the packages that own 17 of them.
 
+## What we already knew, and what we are actually reporting
+
+Our own test reference documents the workaround and we should have followed it: a staged scope
+spanning two packages under one package's test command marks every mutant in the other as
+surviving, and it recorded the same shape of damage earlier (0.63 reported against real scores of
+0.90 and 1.00), with the remedy "name the package in the test command and `--exclude-prefix` the
+others".
+
+So this is not a bug we found in ditto's scoping logic. It is a report about what ditto *prints*
+when the situation occurs: the workaround is ours to apply, and the tool is the place where the
+situation is visible or not. Everything below is therefore about detection and disclosure, not
+about ditto choosing our scope for us.
+
 ## Suggested behaviour, from cheap to expansive
 
 1. **Detect and declare (minimal).** Derive the owning package set from the mutated files, and
