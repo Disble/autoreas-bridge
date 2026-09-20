@@ -9,6 +9,15 @@ import type { ActivityTabId } from '../../features/network/ui/ActivityView/activ
  * Status, Network, and Events routes: the runtime event log now lives in
  * its own `ActivityView` tab (`initialTab="runtime-events"`), and the
  * aggregate overview lives in another — neither adds a route of its own.
+ *
+ * The bridge status strip is composed HERE, in the app layer — composing
+ * siblings is this layer's job, and the route may import the dashboard
+ * feature legally. The card travels down as the opaque `statusStrip`
+ * element, so the network feature learns nothing about the dashboard. It
+ * lives inside the Overview tab, which exists to answer "what is the bridge
+ * doing"; the deliberate consequence is that `/activity/runtime-events` no
+ * longer shows it, which is the intended outcome of the product owner's
+ * information-architecture decision.
  */
 export function ActivityRoute({ initialTab = 'transactions' }: Readonly<{ initialTab?: ActivityTabId }>) {
   return (
@@ -19,11 +28,8 @@ export function ActivityRoute({ initialTab = 'transactions' }: Readonly<{ initia
           Captured HTTP transactions between mobile clients and the bridge
         </Typography>
       </header>
-      <div className="min-w-0 max-w-2xl">
-        <BridgeStatusCard />
-      </div>
       <div className="min-w-0">
-        <ActivityView initialTab={initialTab} />
+        <ActivityView initialTab={initialTab} statusStrip={<BridgeStatusCard />} />
       </div>
     </div>
   );

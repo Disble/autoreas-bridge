@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { RuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 
@@ -9,6 +10,17 @@ import type { RuntimeEventSource } from '../../../../infrastructure/runtime-even
 export interface ActivityOverviewProps {
   readonly captureSource?: CaptureTransactionSource;
   readonly eventSource?: RuntimeEventSource;
+  /**
+   * Opaque status strip composed by the app layer (`ActivityRoute` renders the
+   * bridge status card there), rendered above the aggregation content. This is
+   * where the card lives now — the product owner's information-architecture
+   * decision places bridge storage status inside Overview, the tab that
+   * answers "what is the bridge doing" — so `/activity/runtime-events` no
+   * longer shows it. The component treats the strip as presentation-only: it
+   * never inspects it, and absence renders nothing, so every other caller of
+   * this tab keeps working unchanged.
+   */
+  readonly statusStrip?: ReactNode;
 }
 
 /** One bounded recent-error reference rendered under a request-health group. */
@@ -63,6 +75,43 @@ export interface EventSampleRowViewModel {
   readonly domain: string;
   readonly level: string;
   readonly message: string;
+}
+
+/**
+ * Props for the captured-request health card: the header, the degraded
+ * disclosure and the (route, status, outcome) count table. All values are
+ * projected by `useActivityOverview` and passed down; the card only renders.
+ */
+export interface ActivityOverviewRequestHealthCardProps {
+  /** Whether the two aggregations have not resolved yet; swaps in skeleton rows. */
+  readonly isLoading: boolean;
+  /** Presentation-ready request-health rows, one per route/status/outcome group. */
+  readonly requestRows: readonly RequestHealthRowViewModel[];
+  /** Total captured requests across all groups, shown in the card description. */
+  readonly requestCount: number;
+  /** Degraded-store disclosure, or `null` on a healthy read. */
+  readonly requestStatusMessage: string | null;
+  /** Empty-state copy shown by the table when a healthy read matched nothing. */
+  readonly requestEmptyMessage: string;
+}
+
+/**
+ * Props for the persisted runtime-event summary card: the header, the degraded
+ * disclosure, the three grouping sections and the newest-samples list. All
+ * values are projected by `useActivityOverview` and passed down; the card only
+ * renders.
+ */
+export interface ActivityOverviewEventSummaryCardProps {
+  /** Whether the two aggregations have not resolved yet; swaps in skeleton rows. */
+  readonly isLoading: boolean;
+  /** The three independent runtime-event grouping sections with their rows. */
+  readonly eventSections: readonly EventSummarySectionViewModel[];
+  /** Bounded newest-matching runtime-event samples for the samples list. */
+  readonly eventSamples: readonly EventSampleRowViewModel[];
+  /** Degraded-store disclosure, or `null` on a healthy read. */
+  readonly eventStatusMessage: string | null;
+  /** Empty-state copy shown by the grouping tables when a healthy read matched nothing. */
+  readonly eventEmptyMessage: string;
 }
 
 /**

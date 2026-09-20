@@ -4,8 +4,18 @@ import type { CaptureTransactionSource } from '../../../../../infrastructure/cap
 import type { RuntimeEventSource } from '../../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import type { CaptureSummary } from '../../../../../shared/contracts/capture.types';
 import type { RuntimeEventSummary } from '../../../../../shared/contracts/runtime-event.types';
-import { OVERVIEW_LOADING_MESSAGE, OVERVIEW_SKELETON_ROW_COUNT } from '../activity-overview.constants';
 import { ActivityOverview } from '../ActivityOverview';
+import { NETWORK_EVENTS_DEGRADED_MESSAGE } from '../../NetworkPanel/network-panel.constants';
+import {
+  OVERVIEW_EVENTS_EMPTY_MESSAGE,
+  OVERVIEW_EVENT_SUMMARY_DESCRIPTION,
+  OVERVIEW_LOADING_MESSAGE,
+  OVERVIEW_PARITY_NOTE,
+  OVERVIEW_REQUESTS_DEGRADED_MESSAGE,
+  OVERVIEW_REQUEST_HEALTH_TITLE,
+  OVERVIEW_SKELETON_ROW_COUNT,
+  OVERVIEW_UNMEASURED_DESCRIPTION,
+} from '../activity-overview.constants';
 
 /** Builds a request-health aggregation envelope, defaulting to a healthy read. */
 function requestSummary(overrides: Partial<CaptureSummary> = {}): CaptureSummary {
@@ -160,6 +170,39 @@ describe('ActivityOverview', () => {
     expect(screen.queryByText('Newest events')).not.toBeInTheDocument();
   });
 
+  it.each([
+    {
+      description: 'an available healthy read',
+      summary: eventSummary(),
+      header: OVERVIEW_EVENT_SUMMARY_DESCRIPTION,
+      alertText: null,
+      emptyCopies: 3,
+    },
+    {
+      description: 'a degraded read',
+      summary: eventSummary({ degraded: true }),
+      header: OVERVIEW_UNMEASURED_DESCRIPTION,
+      alertText: NETWORK_EVENTS_DEGRADED_MESSAGE,
+      emptyCopies: 0,
+    },
+  ])('renders the runtime-events header state of $description', async ({ summary, header, alertText, emptyCopies }) => {
+    const { container } = render(<ActivityOverview captureSource={createFakeCaptureSource()} eventSource={createFakeEventSource(summary)} />);
+
+    // The header states which of the two card descriptions applies, the
+    // degraded alert is present exactly when the read failed, and the healthy
+    // empty state renders once per grouping section — a swapped branch, a
+    // negated equality or a dropped renderEmptyState fails one of these.
+    expect(await screen.findByText(header)).toBeInTheDocument();
+    expect(screen.queryAllByText(OVERVIEW_EVENTS_EMPTY_MESSAGE)).toHaveLength(emptyCopies);
+    const alert = container.querySelector('[data-slot="alert-root"]');
+    if (alertText === null) {
+      expect(alert).toBeNull();
+    } else {
+      expect(alert).not.toBeNull();
+      expect(alert).toHaveTextContent(alertText);
+    }
+  });
+
   it('discloses a failed captured-request read', async () => {
     render(
       <ActivityOverview
@@ -171,6 +214,37 @@ describe('ActivityOverview', () => {
     expect(await screen.findByText(/captured-request store could not be read/)).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Route' })).not.toBeInTheDocument();
     expect(screen.queryByText(/0 captured requests across/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      description: 'a healthy read with one group',
+      summary: requestSummary({
+        groups: [{ route: '/api/animes', httpStatus: 202, outcome: 'accepted', count: 472, latestErrorSamples: [] }],
+      }),
+      header: '472 captured requests across 1 route/status/outcome groups',
+      alertText: null,
+    },
+    {
+      description: 'a degraded read',
+      summary: requestSummary({ degraded: true }),
+      header: OVERVIEW_UNMEASURED_DESCRIPTION,
+      alertText: OVERVIEW_REQUESTS_DEGRADED_MESSAGE,
+    },
+  ])('renders the request-health header state of $description', async ({ summary, header, alertText }) => {
+    const { container } = render(<ActivityOverview captureSource={createFakeCaptureSource(summary)} eventSource={createFakeEventSource()} />);
+
+    // The header states which of the two card descriptions applies and the
+    // degraded alert is present exactly when the read failed — a swapped
+    // branch or a negated equality fails one of the two rows.
+    expect(await screen.findByText(header)).toBeInTheDocument();
+    const alert = container.querySelector('[data-slot="alert-root"]');
+    if (alertText === null) {
+      expect(alert).toBeNull();
+    } else {
+      expect(alert).not.toBeNull();
+      expect(alert).toHaveTextContent(alertText);
+    }
   });
 
   it('states that the two stores are summarized separately, so the missing timeline is an exclusion and not a gap', async () => {
@@ -191,6 +265,20 @@ describe('ActivityOverview', () => {
     expect(screen.getAllByTestId('activity-overview-request-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT);
     expect(screen.getAllByTestId('activity-overview-event-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT * 3);
     expect(screen.getAllByTestId('activity-overview-sample-skeleton-row')).toHaveLength(OVERVIEW_SKELETON_ROW_COUNT);
+    // Each skeleton row also carries its sectioned key: the per-section prefix
+    // keeps placeholder rows addressable per grouping table instead of
+    // colliding across the three event tables (React Aria renders the row's
+    // collection key as `data-key`).
+    expect(screen.getAllByTestId('activity-overview-request-skeleton-row').map((row) => row.getAttribute('data-key'))).toEqual([
+      'activity-overview-request-skeleton-0',
+      'activity-overview-request-skeleton-1',
+      'activity-overview-request-skeleton-2',
+      'activity-overview-request-skeleton-3',
+    ]);
+    const eventSkeletonKeys = screen.getAllByTestId('activity-overview-event-skeleton-row').map((row) => row.getAttribute('data-key'));
+    expect(eventSkeletonKeys).toContain('activity-overview-event-skeleton-domain-0');
+    expect(eventSkeletonKeys).toContain('activity-overview-event-skeleton-level-0');
+    expect(eventSkeletonKeys).toContain('activity-overview-event-skeleton-eventType-3');
   });
 
   it('drops the busy flag, the status regions and the placeholders once both aggregations resolve', async () => {
@@ -202,6 +290,39 @@ describe('ActivityOverview', () => {
     expect(screen.queryAllByTestId('activity-overview-request-skeleton-row')).toHaveLength(0);
     expect(screen.queryAllByTestId('activity-overview-event-skeleton-row')).toHaveLength(0);
     expect(screen.queryAllByTestId('activity-overview-sample-skeleton-row')).toHaveLength(0);
+  });
+
+  it('renders the status strip the route composes above its aggregation content', async () => {
+    render(
+      <ActivityOverview
+        statusStrip={<div data-testid="bridge-status-strip">bridge status</div>}
+        captureSource={createFakeCaptureSource()}
+        eventSource={createFakeEventSource()}
+      />,
+    );
+
+    const strip = screen.getByTestId('bridge-status-strip');
+    // Placement is part of the contract: the strip sits ABOVE everything the
+    // tab aggregates — the parity note AND the request-health card — never
+    // between or after them.
+    const parityNote = screen.getByText(OVERVIEW_PARITY_NOTE);
+    expect(strip.compareDocumentPosition(parityNote) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const requestHealthTitle = screen.getByText(OVERVIEW_REQUEST_HEALTH_TITLE);
+    expect(strip.compareDocumentPosition(requestHealthTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The strip is an addition, not a replacement: the tab's own aggregation
+    // content still resolves and renders.
+    expect(await screen.findByText('No captured requests match the current filters.')).toBeInTheDocument();
+  });
+
+  it('renders no strip wrapper when the route composes none', () => {
+    render(<ActivityOverview captureSource={createFakeCaptureSource()} eventSource={createFakeEventSource()} />);
+
+    expect(screen.queryByTestId('bridge-status-strip')).not.toBeInTheDocument();
+    // A condition negated on the wrapper still renders an empty wrapper <div>
+    // when no strip exists, which no test id catches: without a strip the
+    // parity note is the root container's first child, with nothing before it.
+    const parityNote = screen.getByText(OVERVIEW_PARITY_NOTE);
+    expect(parityNote.parentElement?.firstElementChild).toBe(parityNote);
   });
 
   it('renders no real event row while a reload keeps the previous grouping and sets isLoading', async () => {
