@@ -87,8 +87,13 @@ type OperationRef struct {
 
 // SearchParams defines search pagination plus optional server-side filters.
 type SearchParams struct {
-	Limit   int
-	Cursor  string
+	Limit  int
+	Cursor string
+	// Summary selects the projection: summary is the list projection
+	// (request_body, response_body, request_headers, response_headers are not
+	// read), full is the detail projection. The zero value keeps the full
+	// detail projection.
+	Summary bool
 	Filters SearchFilters
 }
 

@@ -57,10 +57,14 @@ func (a *App) GetCaptureTransaction(requestID string) contracts.CaptureDetailRes
 }
 
 // toSearchParams maps a CaptureQuery into the reader's SearchParams/SearchFilters shape.
+// Summary requests the list projection: the bound CaptureRow DTO never carries
+// bodies or headers, so reading them per row would only burn I/O. The detail
+// read (GetCaptureTransaction) keeps the full projection via reader.Get.
 func toSearchParams(query contracts.CaptureQuery) requestcapture.SearchParams {
 	return requestcapture.SearchParams{
-		Limit:  query.Limit,
-		Cursor: query.Cursor,
+		Limit:   query.Limit,
+		Cursor:  query.Cursor,
+		Summary: true,
 		Filters: requestcapture.SearchFilters{
 			Route:       query.Route,
 			HTTPStatus:  query.HTTPStatus,

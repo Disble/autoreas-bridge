@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -278,6 +279,198 @@ func seedSearchFixtures(t *testing.T, store *SQLiteStore) {
 	reconcileAccepted.Correlations = Correlations{ChangelogIDs: []int64{77}, OperationRefs: []OperationRef{}}
 	if err := store.UpsertCapture(context.Background(), reconcileAccepted); err != nil {
 		t.Fatalf("seed reconcileAccepted: %v", err)
+	}
+}
+
+// TestSearchReadIsBoundedToLimitPlusOneWindow pins the SQL-side LIMIT the
+// search must apply: rows beyond the limit+1 window are never read. That is
+// observable through malformed-row counting -- a row past the window cannot be
+// counted, while a malformed row inside the window still is (and consumes a
+// window slot, so a full window with one malformed row yields no cursor).
+func TestSearchReadIsBoundedToLimitPlusOneWindow(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name              string
+		malformedAtMS     int64
+		wantMalformedRows int
+		wantCursorSet     bool
+	}{
+		{name: "a malformed row beyond the limit+1 window is not read", malformedAtMS: 50, wantMalformedRows: 0, wantCursorSet: true},
+		{name: "a malformed row inside the window is counted and consumes a window slot", malformedAtMS: 150, wantMalformedRows: 1, wantCursorSet: false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			db := openCaptureTestDB(t)
+			store := NewStore(db, StoreConfig{})
+			seedDatedCaptureRows(t, store)
+			seedMalformedCaptureRow(t, db, "req-bad", testCase.malformedAtMS)
+
+			reader := NewReader(db)
+			page, err := reader.Search(context.Background(), SearchParams{Limit: 2})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if page.MalformedRowsSkipped != testCase.wantMalformedRows {
+				t.Fatalf("expected malformed_rows_skipped %d, got %d", testCase.wantMalformedRows, page.MalformedRowsSkipped)
+			}
+			if page.WarningCount != testCase.wantMalformedRows {
+				t.Fatalf("expected warning_count %d, got %d", testCase.wantMalformedRows, page.WarningCount)
+			}
+			if (page.NextCursor != "") != testCase.wantCursorSet {
+				t.Fatalf("expected next_cursor set=%t, got %q", testCase.wantCursorSet, page.NextCursor)
+			}
+		})
+	}
+}
+
+// TestSearchNextCursorOnlyWhenAnotherPageExists pins the cursor contract that
+// must survive the LIMIT change: only a page filled to the applied limit
+// proves a further page; a partial page and a zero-match page set none.
+func TestSearchNextCursorOnlyWhenAnotherPageExists(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		params    SearchParams
+		wantItems int
+	}{
+		{name: "a partial page does not set a cursor", params: SearchParams{Limit: 10}, wantItems: 3},
+		{name: "zero matches return no cursor", params: SearchParams{Limit: 10, Filters: SearchFilters{Route: "/api/animes/does-not-exist"}}, wantItems: 0},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			db := openCaptureTestDB(t)
+			store := NewStore(db, StoreConfig{})
+			seedDatedCaptureRows(t, store)
+
+			reader := NewReader(db)
+			page, err := reader.Search(context.Background(), testCase.params)
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if len(page.Items) != testCase.wantItems {
+				t.Fatalf("expected %d items, got %#v", testCase.wantItems, page.Items)
+			}
+			if page.NextCursor != "" {
+				t.Fatalf("expected no next cursor, got %q", page.NextCursor)
+			}
+		})
+	}
+}
+
+// TestSearchSummaryProjectionMatchesFullProjection asserts the summary
+// projection (SearchParams.Summary) returns nil bodies and nil headers while
+// every other field stays identical to the full projection for the same row,
+// that the zero-value params still return the full projection, and that Get
+// keeps returning bodies, headers and duration.
+func TestSearchSummaryProjectionMatchesFullProjection(t *testing.T) {
+	t.Parallel()
+
+	db := openCaptureTestDB(t)
+	store := NewStore(db, StoreConfig{})
+	seedTelemetryCaptureRow(t, store, "req-rich", 100)
+
+	reader := NewReader(db)
+	full, err := reader.Search(context.Background(), SearchParams{Limit: 10})
+	if err != nil {
+		t.Fatalf("full search: %v", err)
+	}
+	summary, err := reader.Search(context.Background(), SearchParams{Limit: 10, Summary: true})
+	if err != nil {
+		t.Fatalf("summary search: %v", err)
+	}
+	if len(full.Items) != 1 || len(summary.Items) != 1 {
+		t.Fatalf("expected one row on both projections, got full %#v summary %#v", full.Items, summary.Items)
+	}
+
+	assertFullProjectionCarriesTelemetry(t, full.Items[0])
+	assertSummaryProjection(t, summary.Items[0], full.Items[0])
+
+	result, err := reader.Get(context.Background(), "req-rich")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !result.Found {
+		t.Fatal("expected req-rich to be found by Get")
+	}
+	assertFullProjectionCarriesTelemetry(t, result.Item)
+}
+
+// assertFullProjectionCarriesTelemetry asserts a record read with the full
+// (zero-value) projection carries every optional telemetry field.
+func assertFullProjectionCarriesTelemetry(t *testing.T, record CaptureRecord) {
+	t.Helper()
+	if record.RequestBody == nil || record.ResponseBody == nil || record.RequestHeaders == nil || record.ResponseHeaders == nil {
+		t.Fatalf("expected the full projection to carry bodies and headers, got %#v", record)
+	}
+	if record.DurationMS == nil || *record.DurationMS != 123 {
+		t.Fatalf("expected duration 123 on the full projection, got %#v", record.DurationMS)
+	}
+}
+
+// assertSummaryProjection asserts summary equals full on every field except
+// the four body/header blobs, which the summary projection must leave nil.
+// The blobs' presence on full is asserted by assertFullProjectionCarriesTelemetry.
+func assertSummaryProjection(t *testing.T, summary, full CaptureRecord) {
+	t.Helper()
+	expected := full
+	expected.RequestBody = nil
+	expected.ResponseBody = nil
+	expected.RequestHeaders = nil
+	expected.ResponseHeaders = nil
+	if !reflect.DeepEqual(summary, expected) {
+		t.Fatalf("expected summary %#v to equal the full projection minus bodies and headers %#v", summary, expected)
+	}
+}
+
+// seedDatedCaptureRows stores three well-formed captures at 300/200/100 ms so
+// a limit=2 search has a full limit+1 window of good rows.
+func seedDatedCaptureRows(t *testing.T, store *SQLiteStore) {
+	t.Helper()
+	for i, requestID := range []string{"req-a", "req-b", "req-c"} {
+		record := NewCaptureRecord("patch", "device-1")
+		record.RequestID = requestID
+		record.CapturedAtMS = int64(300 - 100*i)
+		if err := store.UpsertCapture(context.Background(), record); err != nil {
+			t.Fatalf("seed capture %s: %v", requestID, err)
+		}
+	}
+}
+
+// seedMalformedCaptureRow inserts one capture row with unparseable payload
+// JSON directly, bypassing the store, so scanning it fails at read time.
+func seedMalformedCaptureRow(t *testing.T, db *sql.DB, requestID string, capturedAtMS int64) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO request_captures (
+			request_id, captured_at_ms, kind, route, transport, device_id, device_name, outcome, payload_json, correlation_json
+		) VALUES (?, ?, 'patch', '/api/animes/anime-1', 'http', 'device-1', 'Phone', 'accepted', '{bad', '{"operation_refs":[]}')
+	`, requestID, capturedAtMS)
+	if err != nil {
+		t.Fatalf("seed malformed capture row %s: %v", requestID, err)
+	}
+}
+
+// seedTelemetryCaptureRow stores one capture carrying bodies, body states,
+// header sets and a duration -- the row shape the projection tests compare.
+func seedTelemetryCaptureRow(t *testing.T, store *SQLiteStore, requestID string, capturedAtMS int64) {
+	t.Helper()
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
+	responseBody := `{"error":"failed"}`
+	duration := int64(123)
+	record := NewCaptureRecord("patch", "device-1")
+	record.RequestID, record.CapturedAtMS = requestID, capturedAtMS
+	record.RequestBody, record.ResponseBody, record.DurationMS = &requestBody, &responseBody, &duration
+	record.RequestBodyState, record.ResponseBodyState = CaptureStateTruncated, CaptureStateOmittedTooLarge
+	record.RequestHeaders = map[string]string{"Content-Type": "application/json"}
+	record.ResponseHeaders = map[string]string{"Content-Type": "application/json"}
+	if err := store.UpsertCapture(context.Background(), record); err != nil {
+		t.Fatalf("seed telemetry capture %s: %v", requestID, err)
 	}
 }
 
