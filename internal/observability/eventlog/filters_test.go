@@ -54,12 +54,13 @@ func TestEventFiltersZeroValueReturnsEmptyClause(t *testing.T) {
 
 // TestEventFiltersTextExpandsToMessageDomainEventType asserts Text expands to
 // a parenthesized OR clause over message, domain, and event_type, each bound
-// with a %value% wildcard.
+// with the shared sqltext substring pattern and carrying the explicit
+// ESCAPE '\\' clause SQLite's LIKE needs for it.
 func TestEventFiltersTextExpandsToMessageDomainEventType(t *testing.T) {
 	t.Parallel()
 
 	clause, args := EventFilters{Text: "reconcile"}.whereClause()
-	want := "(message LIKE ? OR domain LIKE ? OR event_type LIKE ?)"
+	want := "(message LIKE ? ESCAPE '\\' OR domain LIKE ? ESCAPE '\\' OR event_type LIKE ? ESCAPE '\\')"
 	if clause != want {
 		t.Fatalf("expected clause %q, got %q", want, clause)
 	}

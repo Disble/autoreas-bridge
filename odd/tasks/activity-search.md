@@ -102,10 +102,10 @@ The events reader already proves the intended shape, in its own words
 - [x] **2. Stop reading detail columns in the list projection.** The search select list
   excludes `request_body`, `response_body`, `request_headers`, `response_headers`;
   `Get` keeps the full projection byte-for-byte.
-- [ ] **3. Make the text filters substring through one shared rule.** `route`,
+- [x] **3. Make the text filters substring through one shared rule.** `route`,
   `outcome`, `kind` (captures) and `text` (events) build their pattern through the same
   helper: escaped metacharacters, `ESCAPE '\'`, and an empty input adds no predicate.
-- [ ] **4. Declare the shared rule where capability parity can hold it.** The pattern
+- [x] **4. Declare the shared rule where capability parity can hold it.** The pattern
   rule lives once in the core; both adapters project it; the conformance suite pins
   that both apply the same substring rule and that neither adapter implements matching.
 - [ ] **5. Record the no-index decision and its trigger.** The measurement, the caps,
@@ -164,6 +164,36 @@ values read as zero); it is a temporary probe run against the live store and del
 Verification: `go test -count=1 ./internal/observability/requestcapture/` and
 `./internal/desktop/` green, `go build ./...`, `go vet`, `gofmt -l` clean,
 `go run ./tools/checkgofilesize` clean.
+
+## Work unit 2 — substring text filters through one shared rule (tasks 3 and 4)
+
+New package `internal/sqltext` holds the single rule: `Contains(raw)` returns `%` + raw
+with `\`, `%` and `_` escaped, and every caller pairs it with `LIKE ? ESCAPE '\'` — the
+comment states why, because SQLite's LIKE has no default escape character. This is a
+fourth-copy avoided: `internal/notification/center` and `internal/watchhistory` each keep
+a private copy already, and neither was touched.
+
+Wired through `requestcapture.SearchFilters` (`route`, `outcome`, `kind`) and
+`eventlog.EventFilters` (`text`). `http_status`, `device_id`, `anime_id`, `error_code`,
+`changelog_id` and the time bounds stay exact: they are identifiers and numbers, not
+text.
+
+**Recorded consequence**: `SearchFilters` is the CORE filter set, so the substring
+semantics reach BOTH adapters — the desktop binding and the MCP `search_requests` tool.
+That is deliberate (one capability, one meaning) and it is stated in the type's doc
+comment and in the two MCP tool descriptions. A route search for `/api/animes` now also
+returns `/api/animes/<id>/cover`; the alternative was a per-adapter semantics switch,
+which would put two meanings behind one filter name.
+
+The escaping is proved against the real engine, not by string shaping: against
+`modernc.org/sqlite` a literal `100%` pattern matches only the row containing `100%`,
+while the unescaped pattern deliberately matches both rows (`sqltext` package test).
+
+Verification: `go test` green across `sqltext`, `observability/...`, `mcp/requestcapture`
+and `desktop`; `gofmt`, `go vet`, `checkgofilesize` (no new warning — the substring test
+lives in the package's new `filters_test.go`, matching its eventlog sibling, so
+`reader_search_test.go` stays under the 400-line warning) and `checkarchitecture` clean;
+the advanced lint profile reports 0 issues.
 
 ## Constraints
 

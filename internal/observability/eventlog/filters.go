@@ -1,6 +1,10 @@
 package eventlog
 
-import "strings"
+import (
+	"strings"
+
+	"autoreas-bridge/internal/sqltext"
+)
 
 // EventFilters is the runtime-event filter set. It shares only correlation
 // id, entity id, and the time window with requestcapture.SearchFilters --
@@ -12,7 +16,7 @@ type EventFilters struct {
 	EventType     string
 	CorrelationID string
 	EntityID      string
-	Text          string // free text over message, domain, event_type
+	Text          string // case-insensitive substring (sqltext.Contains) over message, domain, event_type
 	StartMS       *int64
 	EndMS         *int64
 }
@@ -54,8 +58,8 @@ func (f EventFilters) whereClause() (string, []any) {
 		args = append(args, *f.EndMS)
 	}
 	if f.Text != "" {
-		like := "%" + f.Text + "%"
-		clauses = append(clauses, "(message LIKE ? OR domain LIKE ? OR event_type LIKE ?)")
+		like := sqltext.Contains(f.Text)
+		clauses = append(clauses, "(message LIKE ? ESCAPE '\\' OR domain LIKE ? ESCAPE '\\' OR event_type LIKE ? ESCAPE '\\')")
 		args = append(args, like, like, like)
 	}
 

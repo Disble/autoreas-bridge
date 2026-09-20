@@ -1,15 +1,28 @@
 package requestcapture
 
-import "strings"
+import (
+	"strings"
 
-// SearchFilters is the shared, optional server-side filter set accepted by
-// both Search and Summary. Every populated field composes with the others as
-// a conjunction (AND); an unmatched combination is expected to yield an empty
-// result rather than an error.
+	"autoreas-bridge/internal/sqltext"
+)
+
+// SearchFilters is the CORE, shared, optional server-side filter set accepted
+// by both Search and Summary. It is shared by BOTH adapters that read
+// captures -- the desktop binding and the MCP search_requests tool -- so the
+// substring semantics of the text filters below intentionally apply to both;
+// the MCP surface is not exempt. Every populated field composes with the
+// others as a conjunction (AND); an unmatched combination is expected to
+// yield an empty result rather than an error.
 type SearchFilters struct {
-	Route       string
-	HTTPStatus  *int
-	Outcome     string
+	// Route is a case-insensitive substring predicate built by
+	// sqltext.Contains, so a partial route fragment matches.
+	Route      string
+	HTTPStatus *int
+	// Outcome is a case-insensitive substring predicate built by
+	// sqltext.Contains, so a partial outcome fragment matches.
+	Outcome string
+	// Kind is a case-insensitive substring predicate built by
+	// sqltext.Contains, so a partial kind fragment matches.
 	Kind        string
 	DeviceID    string
 	AnimeID     string
@@ -27,20 +40,20 @@ func (f SearchFilters) whereClause() (string, []any) {
 	var args []any
 
 	if f.Route != "" {
-		clauses = append(clauses, "route = ?")
-		args = append(args, f.Route)
+		clauses = append(clauses, "route LIKE ? ESCAPE '\\'")
+		args = append(args, sqltext.Contains(f.Route))
 	}
 	if f.HTTPStatus != nil {
 		clauses = append(clauses, "http_status = ?")
 		args = append(args, *f.HTTPStatus)
 	}
 	if f.Outcome != "" {
-		clauses = append(clauses, "outcome = ?")
-		args = append(args, f.Outcome)
+		clauses = append(clauses, "outcome LIKE ? ESCAPE '\\'")
+		args = append(args, sqltext.Contains(f.Outcome))
 	}
 	if f.Kind != "" {
-		clauses = append(clauses, "kind = ?")
-		args = append(args, f.Kind)
+		clauses = append(clauses, "kind LIKE ? ESCAPE '\\'")
+		args = append(args, sqltext.Contains(f.Kind))
 	}
 	if f.DeviceID != "" {
 		clauses = append(clauses, "device_id = ?")
