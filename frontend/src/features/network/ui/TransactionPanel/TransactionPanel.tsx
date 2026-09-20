@@ -1,11 +1,17 @@
 import { Alert, Button } from '@heroui/react';
 import { captureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.helpers';
+import { useObservabilityFacts } from '../../../../shared/hooks/use-observability-facts/use-observability-facts';
 import { createCaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.helpers';
 import { ACTIVITY_MASTER_DETAIL_CLASS } from '../ActivityView/activity-view.constants';
 import { TransactionDetail } from '../TransactionDetail/TransactionDetail';
 import { TransactionFilterBar } from '../TransactionFilterBar/TransactionFilterBar';
 import { TransactionTable } from '../TransactionTable/TransactionTable';
-import { TRANSACTION_CAPTURE_DEGRADED_MESSAGE, TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL } from './transaction-panel.constants';
+import {
+  DEFAULT_TRANSACTION_PAGE_LIMIT,
+  TRANSACTION_CAPTURE_DEGRADED_MESSAGE,
+  TRANSACTION_RETENTION_UNAVAILABLE_NOTE,
+  TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL,
+} from './transaction-panel.constants';
 import type { TransactionPanelProps } from './transaction-panel.types';
 import { useTransactionPanel } from './use-transaction-panel';
 
@@ -42,6 +48,7 @@ export function TransactionPanel({
     onSyncDiagnosticsRoute,
     onDetailTabChange,
   } = useTransactionPanel(source, limit, runtimeSource);
+  const facts = useObservabilityFacts();
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,6 +73,13 @@ export function TransactionPanel({
           status={status}
         />
       </div>
+
+      <p className="text-[11px] text-muted">
+        {`Showing ${DEFAULT_TRANSACTION_PAGE_LIMIT} captured transactions per page; `}
+        {facts === null
+          ? TRANSACTION_RETENTION_UNAVAILABLE_NOTE
+          : `the capture store retains the most recent ${facts.retention.captureRows} rows.`}
+      </p>
 
       {degraded ? (
         <Alert status="warning">

@@ -1,7 +1,8 @@
+import { useObservabilityFacts } from '../../../../shared/hooks/use-observability-facts/use-observability-facts';
 import { ActivityOverviewEventSummaryCard } from './ActivityOverviewEventSummaryCard';
 import { ActivityOverviewRequestHealthCard } from './ActivityOverviewRequestHealthCard';
-import { OVERVIEW_PARITY_NOTE } from './activity-overview.constants';
 import type { ActivityOverviewProps } from './activity-overview.types';
+import { toOverviewLimitsNote, toOverviewParityNote } from './activity-overview.helpers';
 import { useActivityOverview } from './use-activity-overview';
 
 /**
@@ -15,7 +16,8 @@ import { useActivityOverview } from './use-activity-overview';
  * keyed on different values, so a combined correlation timeline would render an
  * empty request side by construction. All data flows from `useActivityOverview`
  * into the two colocated cards; this component only composes the status strip,
- * the parity note and the cards.
+ * the derived parity and retention notes (facts come from the adapter through
+ * `useObservabilityFacts`, projected by the colocated helpers), and the cards.
  */
 export function ActivityOverview({ captureSource, eventSource, statusStrip }: Readonly<ActivityOverviewProps>) {
   const {
@@ -29,6 +31,7 @@ export function ActivityOverview({ captureSource, eventSource, statusStrip }: Re
     eventStatusMessage,
     eventEmptyMessage,
   } = useActivityOverview(captureSource, eventSource);
+  const facts = useObservabilityFacts();
 
   return (
     <div className="flex flex-col gap-4">
@@ -39,7 +42,9 @@ export function ActivityOverview({ captureSource, eventSource, statusStrip }: Re
           outcome of the placement decision. Absence renders nothing. */}
       {statusStrip != null ? <div className="min-w-0">{statusStrip}</div> : null}
 
-      <p className="text-[11px] text-muted">{OVERVIEW_PARITY_NOTE}</p>
+      <p className="text-[11px] text-muted">{toOverviewParityNote(facts)}</p>
+
+      <p className="text-[11px] text-muted">{toOverviewLimitsNote(facts)}</p>
 
       <ActivityOverviewRequestHealthCard
         isLoading={isLoading}

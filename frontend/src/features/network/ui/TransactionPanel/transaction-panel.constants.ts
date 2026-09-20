@@ -58,6 +58,10 @@ export const TRANSACTION_EMPTY_STATE_MESSAGE = 'No captured transactions match t
 export const TRANSACTION_CAPTURE_DEGRADED_MESSAGE =
   'Captured transaction data is temporarily unavailable. Showing whatever was already loaded.';
 
+/** Copy for the limits line when the facts binding could not report the capture store's retention. */
+export const TRANSACTION_RETENTION_UNAVAILABLE_NOTE =
+  "the capture store's retention limit is currently unavailable.";
+
 /** Placeholder rows `TransactionTable` renders per unresolved page fetch, mirroring its six columns. */
 export const TRANSACTION_TABLE_SKELETON_ROW_COUNT = 6;
 

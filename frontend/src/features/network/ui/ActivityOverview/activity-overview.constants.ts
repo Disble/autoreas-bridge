@@ -75,7 +75,10 @@ export const OVERVIEW_REQUEST_SKELETON_COLUMN_WIDTHS: readonly string[] = ['w-fu
 export const OVERVIEW_EVENT_SKELETON_COLUMN_WIDTHS: readonly string[] = ['w-full', 'w-10', 'w-10'];
 
 /**
- * Standing note that the overview covers six of the MCP's seven read tools.
+ * Fallback copy for the overview's parity note, shown when the facts binding
+ * could not be read: the derived parity line needs the adapter's facts, and a
+ * read that never resolved must render this standing substance instead of a
+ * fabricated count.
  *
  * `get_correlation_timeline` has no desktop equivalent by construction: the two
  * stores are keyed on different values, so a merged request+event timeline
@@ -84,3 +87,6 @@ export const OVERVIEW_EVENT_SKELETON_COLUMN_WIDTHS: readonly string[] = ['w-full
  */
 export const OVERVIEW_PARITY_NOTE =
   'Captured requests and runtime events are summarized separately: they are keyed on different values, so there is no merged correlation timeline.';
+
+/** Copy shown in place of the retention line when the facts binding could not be read. */
+export const OVERVIEW_LIMITS_UNAVAILABLE_NOTE = 'Store retention limits are currently unavailable.';

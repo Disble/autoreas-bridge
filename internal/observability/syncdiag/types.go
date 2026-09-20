@@ -32,6 +32,13 @@ const (
 // context.DeadlineExceeded.
 var ErrWriteBudget = errors.New("syncdiag: write budget exceeded")
 
+// RetentionLimit returns the sync diagnostics store's retention limit: the
+// row cap enforced by pruning (retentionLimit). It is exposed so a surface
+// can state how much history the store keeps without copying the constant.
+func RetentionLimit() int {
+	return retentionLimit
+}
+
 // IngestOutcome classifies the result of InsertReport.
 type IngestOutcome int
 

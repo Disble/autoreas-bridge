@@ -1,9 +1,14 @@
 import { Alert } from '@heroui/react';
+import { useObservabilityFacts } from '../../../../shared/hooks/use-observability-facts/use-observability-facts';
 import { ACTIVITY_MASTER_DETAIL_CLASS } from '../ActivityView/activity-view.constants';
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
-import { NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE } from './network-panel.constants';
+import {
+  EVENT_PAGE_SIZE,
+  NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE,
+  NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE,
+} from './network-panel.constants';
 import type { NetworkPanelProps } from './network-panel.types';
 import { useNetworkPanel } from './use-network-panel';
 
@@ -42,6 +47,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     onClose,
     onScroll,
   } = useNetworkPanel(source);
+  const facts = useObservabilityFacts();
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +62,13 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
       />
 
       <p className="text-[11px] text-default-400">{NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE}</p>
+
+      <p className="text-[11px] text-default-400">
+        {`Showing ${EVENT_PAGE_SIZE} events per page; `}
+        {facts === null
+          ? NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE
+          : `the event store retains the most recent ${facts.retention.eventRows} rows.`}
+      </p>
 
       {statusMessage === null ? null : (
         <Alert status="warning">

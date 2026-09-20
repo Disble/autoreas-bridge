@@ -1,4 +1,5 @@
 import type { CaptureSummary, CaptureSummaryGroup } from '../../../../shared/contracts/capture.types';
+import type { ObservabilityFacts } from '../../../../infrastructure/observability-facts-source/observability-facts-source.types';
 import type {
   RuntimeEventCountGroup,
   RuntimeEventSummary,
@@ -6,7 +7,9 @@ import type {
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 import {
   OVERVIEW_EVENT_SECTION_TITLES,
+  OVERVIEW_LIMITS_UNAVAILABLE_NOTE,
   OVERVIEW_NO_STATUS_LABEL,
+  OVERVIEW_PARITY_NOTE,
   OVERVIEW_REQUESTS_DEGRADED_MESSAGE,
   OVERVIEW_UNLABELLED_KEY_LABEL,
 } from './activity-overview.constants';
@@ -152,5 +155,47 @@ export function resolveRequestSummaryStatusMessage(degraded: boolean): string | 
   }
 
   return null;
+}
+
+/**
+ * Derives the overview's parity note from the adapter's facts: how many of
+ * how many catalog capabilities Activity exposes, plus every excluded
+ * capability with its reason. An unavailable read renders the fallback
+ * substance instead of a fabricated count.
+ * @param facts The adapter's facts, or null while unavailable.
+ * @returns The parity line to render.
+ */
+export function toOverviewParityNote(facts: ObservabilityFacts | null): string {
+  if (facts === null) {
+    return OVERVIEW_PARITY_NOTE;
+  }
+
+  const { catalogTotal, exposedCapabilities, excludedCapabilities } = facts.parity;
+
+  if (excludedCapabilities.length === 0) {
+    return `Activity exposes all ${catalogTotal} catalog read capabilities.`;
+  }
+
+  const exclusions = excludedCapabilities
+    .map((capability) => `${capability.name}: ${capability.reason}`)
+    .join(' ');
+
+  return `Activity exposes ${exposedCapabilities.length} of ${catalogTotal} catalog read capabilities. ${exclusions}`;
+}
+
+/**
+ * Derives the overview's retention line from the adapter's facts: the row
+ * caps of the two stores this tab summarizes, plus each summary's bounded
+ * sample size. An unavailable read renders the unavailable copy instead of a
+ * zero presented as a measurement.
+ * @param facts The adapter's facts, or null while unavailable.
+ * @returns The retention line to render.
+ */
+export function toOverviewLimitsNote(facts: ObservabilityFacts | null): string {
+  if (facts === null) {
+    return OVERVIEW_LIMITS_UNAVAILABLE_NOTE;
+  }
+
+  return `The request-capture store retains the most recent ${facts.retention.captureRows} rows; the runtime-event store retains the most recent ${facts.retention.eventRows} rows. Summaries show at most ${facts.sampleCaps.eventSamples} newest events and at most ${facts.sampleCaps.captureErrorSamples} latest error samples per group.`;
 }
 

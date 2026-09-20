@@ -392,6 +392,14 @@ func applyOptionalCaptureFields(record *CaptureRecord, scan captureRowScan) {
 	}
 }
 
+// RetentionLimit returns the capture store's retention limit: the row cap
+// enforced by pruning (defaultRetentionLimit, applied by
+// SQLiteStore.pruneOldestBeyondRetention). It is exposed so a surface can
+// state how much history the store keeps without copying the constant.
+func RetentionLimit() int {
+	return defaultRetentionLimit
+}
+
 // scanCaptureRow reads one capture row into a CaptureRecord. columns must
 // match the exact SELECT column order produced by optionalColumns.selectColumns.
 func scanCaptureRow(scanner interface{ Scan(dest ...any) error }, columns []string) (CaptureRecord, error) {

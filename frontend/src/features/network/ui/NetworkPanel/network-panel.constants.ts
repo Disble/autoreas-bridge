@@ -107,6 +107,10 @@ export const NETWORK_EVENTS_DEGRADED_MESSAGE =
 export const NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE =
   'Debug-level events are not persisted under the current policy, so the Debug filter only shows events pushed during this session.';
 
+/** Copy for the limits line when the facts binding could not report the event store's retention. */
+export const NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE =
+  "the event store's retention limit is currently unavailable.";
+
 /** Copy shown in the Trace tab when the selected event carries no correlation id. */
 export const NETWORK_TRACE_NO_CORRELATION_MESSAGE =
   'This event carries no correlation id, so it has no sibling events to follow.';

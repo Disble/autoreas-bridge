@@ -98,3 +98,18 @@ type EventStoreConfig struct {
 	RowCap     int
 	PruneEvery int
 }
+
+// RowCap returns the event store's retention limit: the row cap enforced by
+// pruning (defaultRowCap). It is exposed so a surface can state how much
+// history the store keeps without copying the constant.
+func RowCap() int {
+	return defaultRowCap
+}
+
+// SummarySampleCap returns the runtime-event summary's bounded newest-sample
+// count per group (defaultSummarySampleCap), the cap behind the summary's
+// Samples list. It is exposed so a surface can state how much of the summary
+// is shown without copying the constant.
+func SummarySampleCap() int {
+	return defaultSummarySampleCap
+}
