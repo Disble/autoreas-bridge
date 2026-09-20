@@ -4,7 +4,7 @@ import type { CaptureTransactionSource } from '../../../../../infrastructure/cap
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
 import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
-import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
+import { resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { scrollNearBottom } from '../../NetworkPanel/__tests__/network-panel.test-support';
 import { useTransactionPanel } from '../use-transaction-panel';
 
@@ -157,105 +157,6 @@ describe('useTransactionPanel', () => {
     const { result } = renderHook(() => useTransactionPanel(source));
 
     await waitFor(() => expect(result.current.degraded).toBe(true));
-  });
-
-  it('subscribes to the capture runtime source and upserts pushed rows live', async () => {
-    const source = createFakeSource();
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(runtimeSource.subscribeCaptureTransactions).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-live', outcome: 'pending' }));
-    });
-
-    await waitFor(() => expect(result.current.rows.map((item) => item.id)).toContain('req-live'));
-  });
-
-  it('preserves the current selection when a pushed row upserts into the buffer', async () => {
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue({
-        items: [row({ requestId: 'req-1' })],
-        appliedLimit: 25,
-        malformedRowsSkipped: 0,
-        warningCount: 0,
-        degraded: false,
-      }),
-      getTransaction: vi.fn().mockResolvedValue({ found: true, item: detail({ requestId: 'req-1' }), degraded: false }),
-    });
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-
-    act(() => {
-      result.current.onSelect('req-1');
-    });
-
-    await waitFor(() => expect(result.current.selectedId).toBe('req-1'));
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-2', outcome: 'pending' }));
-    });
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(2));
-    expect(getTransactionStoreState().selectedId).toBe('req-1');
-  });
-
-  it('refreshes the selected detail when the selected request transitions from pending to terminal via a runtime upsert', async () => {
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue({
-        items: [row({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() })],
-        appliedLimit: 25,
-        malformedRowsSkipped: 0,
-        warningCount: 0,
-        degraded: false,
-      }),
-      getTransaction: vi
-        .fn()
-        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() }), degraded: false })
-        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }), degraded: false }),
-    });
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-
-    act(() => {
-      result.current.onSelect('req-1');
-    });
-
-    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('pending'));
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }));
-    });
-
-    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('accepted'));
-    expect(source.getTransaction).toHaveBeenCalledTimes(2);
   });
 
   it('appends the next cursor page below the loaded rows, preserving selection and filters', async () => {

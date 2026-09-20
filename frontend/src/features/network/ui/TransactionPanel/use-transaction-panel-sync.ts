@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import { toBackendCaptureFilters } from '../../../../shared/store/transaction-store/transaction-store.helpers';
+import {
+  getTransactionStoreState,
+  matchesTransactionFilters,
+  toBackendCaptureFilters,
+} from '../../../../shared/store/transaction-store/transaction-store.helpers';
 import type { TransactionDetailTab } from './transaction-panel.types';
 import type { useTransactionStoreBindings } from './use-transaction-store-bindings';
 
@@ -19,6 +23,16 @@ interface TransactionPanelSyncInput {
  * Owns every asynchronous edge of the transaction panel: the first page and
  * filter-driven reloads, the selected row's detail, the detail-tab reset on a
  * new selection, and the live `capture.transaction` push subscription.
+ *
+ * The push path subscribes once for the panel's lifetime: its listener reads
+ * the store snapshot rather than closing over React state, so a filter or
+ * selection change never tears down and re-attaches the Wails runtime
+ * listener. It admits a pushed row only when it satisfies the currently
+ * active filters (`matchesTransactionFilters`, the same rule the backend
+ * applies over the whole table), so a filter no longer lets non-matching rows
+ * keep arriving at the head of the rail. The selected row's detail refresh is
+ * exempt from that gate: it refreshes a row that is already on screen
+ * regardless of filters.
  *
  * Split out of `useTransactionPanel` on 2026-08-14. Four effects and their
  * cancellation bookkeeping were the densest part of a function that held thirty
@@ -103,16 +117,35 @@ export function useTransactionPanelSync(input: Readonly<TransactionPanelSyncInpu
     }
   }, [selectedId, setDetailTab]);
 
+  // The live listener reads the store snapshot rather than closing over React
+  // state: the admission boundary, the head rows and the active filters all
+  // change while one subscription is open, and re-subscribing on each of them
+  // would drop pushes in the gap between teardown and re-attach.
   useEffect(() => {
     return runtimeSource.subscribeCaptureTransactions((row) => {
-      upsertRows([row]);
-      if (selectedId === row.requestId && row.outcome !== 'pending') {
+      const state = getTransactionStoreState();
+
+      // The selected row's detail refresh is exempt from the filter gate: it
+      // refreshes a row that is already on screen regardless of filters, so a
+      // selected row's own terminal update must land even if the user has
+      // since filtered it out of view.
+      if (state.selectedId === row.requestId && row.outcome !== 'pending') {
         void source.getTransaction(row.requestId).then((result) => {
-          setSelectedDetail(result.found ? result.item : null);
+          state.setSelectedDetail(result.found ? result.item : null);
         });
       }
+
+      // Same rule as the backend query: a pushed row that would not match the
+      // active filters never enters the buffer. It is not lost -- it appears
+      // when the rail next queries -- and a filter the row cannot vouch for
+      // (device, changelog) rejects it the same way.
+      if (!matchesTransactionFilters(row, state.filters)) {
+        return;
+      }
+
+      state.upsertRows([row]);
     });
-  }, [runtimeSource, selectedId, setSelectedDetail, source, upsertRows]);
+  }, [runtimeSource, source]);
 
   return { loadMore };
 }

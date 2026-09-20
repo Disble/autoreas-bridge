@@ -48,6 +48,14 @@ export const TRANSACTION_BODY_PROJECTION_NOTE = 'Showing the captured body exact
 /** Placeholder for the exact HTTP status filter input. */
 export const TRANSACTION_STATUS_FILTER_PLACEHOLDER = '404';
 
+/**
+ * Placeholder for the Route filter input: a fragment that actually exists in
+ * the capture store's route set, taught as a substring match. The previous
+ * placeholder named a full per-anime route, which the owner typed verbatim
+ * and got zero rows.
+ */
+export const TRANSACTION_ROUTE_FILTER_PLACEHOLDER = 'animes';
+
 /** Empty-state message for the transaction table before any data has loaded. */
 export const TRANSACTION_LOADING_STATE_MESSAGE = 'Loading captured transactions...';
 
