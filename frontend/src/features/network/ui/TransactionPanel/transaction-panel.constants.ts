@@ -68,3 +68,20 @@ export const TRANSACTION_DETAIL_TAB_LABELS = {
   response: 'Response',
 } as const;
 
+/**
+ * The exact wire route the capture layer records for sync diagnostics
+ * submissions. Both the detail inspector's report projection and the
+ * Transactions filter preset key off this literal; a diagnostics capture
+ * cannot be attributed to a device (the body carries no device_id, identity
+ * travels only in the Authorization header, and the capture layer records
+ * none), which is why route equality is the only honest selector here.
+ */
+export const SYNC_DIAGNOSTICS_ROUTE = '/api/sync/diagnostics';
+
+/** Label of the Transactions filter preset that applies the diagnostics route filter in one action. */
+export const TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL = 'Sync diagnostics reports';
+
+/** Notice shown when a diagnostics capture has a body that cannot be read as a sync diagnostics report. */
+export const TRANSACTION_DIAGNOSTICS_NO_REPORT_NOTICE =
+  'The captured body could not be read as a sync diagnostics report.';
+

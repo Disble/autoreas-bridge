@@ -3,6 +3,7 @@ import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-ru
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
 import type { HeroChipColor } from '../NetworkPanel/network-panel.types';
+import type { TransactionDiagnosticsReportViewModel } from '../TransactionDetail/transaction-diagnostics.types';
 
 /** Active tab in the transaction detail inspector. */
 export type TransactionDetailTab = 'general' | 'request' | 'response';
@@ -87,6 +88,13 @@ export interface TransactionDetailViewModel {
   readonly responseHeaders: readonly TransactionDetailFieldRow[];
   readonly requestPayload: TransactionBodyViewModel;
   readonly responseBody: TransactionBodyViewModel;
+  /**
+   * The projected sync diagnostics report for the Request tab, or `null` when
+   * the capture is not on the diagnostics route. Off-route captures render no
+   * projection at all; on-route captures with a skipped/empty/unreadable body
+   * carry the explicit no-report outcome instead of fabricated values.
+   */
+  readonly diagnosticsReport: TransactionDiagnosticsReportViewModel | null;
   readonly correlations: readonly TransactionDetailFieldRow[];
 }
 

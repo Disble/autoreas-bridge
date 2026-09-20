@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TransactionDetailViewModel } from '../../TransactionPanel/transaction-panel.types';
 import { TransactionDetail } from '../TransactionDetail';
 
+/** Builds a transaction detail view-model, overridable per test. */
 function detail(overrides: Partial<TransactionDetailViewModel> = {}): TransactionDetailViewModel {
   return {
     requestId: 'req-1',
@@ -22,6 +23,7 @@ function detail(overrides: Partial<TransactionDetailViewModel> = {}): Transactio
     responseHeaders: [],
     requestPayload: { state: 'not-captured', notice: 'This request did not include a body.', raw: '' },
     responseBody: { state: 'not-captured', notice: 'Not captured for this transaction.', raw: '' },
+    diagnosticsReport: null,
     correlations: [],
     ...overrides,
   };

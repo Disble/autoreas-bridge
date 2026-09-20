@@ -1,6 +1,7 @@
 import type { CaptureDetail, CaptureRow } from '../../../../shared/contracts/capture.types';
 import { formatLocalTime } from '../../../../shared/datetime/datetime.helpers';
 import { isStalePendingCapture } from '../../../../shared/store/transaction-store/transaction-store.helpers';
+import { toDiagnosticsReport } from '../TransactionDetail/transaction-diagnostics.helpers';
 import {
   TRANSACTION_EMPTY_LABEL,
   TRANSACTION_PAYLOAD_NOT_CAPTURED_NOTICE,
@@ -271,14 +272,31 @@ function toHeaderRows(headers: Readonly<Record<string, string>> | undefined): re
     .map(([label, value]) => ({ label, value }));
 }
 
-/** Builds the General tab's label/value field rows. */
+/**
+ * Builds the General tab's label/value field rows.
+ *
+ * The device row is emitted only when the capture actually recorded a device:
+ * a diagnostics capture carries no device_id (identity travels only in the
+ * Authorization header and the capture layer records none), and rendering an
+ * empty `deviceName` row would fabricate an attribution that does not exist.
+ * The same honesty applies to any other deviceless capture.
+ */
 function toGeneralFields(detail: Readonly<CaptureDetail>): readonly TransactionDetailFieldRow[] {
-  return [
+  const fields: TransactionDetailFieldRow[] = [
     { label: 'requestId', value: detail.requestId },
     { label: 'transport', value: detail.transport },
-    { label: 'deviceName', value: detail.deviceName },
-    { label: 'errorCode', value: detail.errorCode === undefined || detail.errorCode === '' ? TRANSACTION_EMPTY_LABEL : detail.errorCode },
   ];
+
+  if (detail.deviceName !== '') {
+    fields.push({ label: 'deviceName', value: detail.deviceName });
+  }
+
+  fields.push({
+    label: 'errorCode',
+    value: detail.errorCode === undefined || detail.errorCode === '' ? TRANSACTION_EMPTY_LABEL : detail.errorCode,
+  });
+
+  return fields;
 }
 
 /**
@@ -319,6 +337,7 @@ export function toTransactionDetail(detail: Readonly<CaptureDetail>, now: number
     responseHeaders: toHeaderRows(detail.responseHeaders),
     requestPayload: toTransactionBody({ kind: 'request', raw: detail.requestBody, captureState: detail.requestBodyState }),
     responseBody: toTransactionBody({ kind: 'response', raw: detail.responseBody, captureState: detail.responseBodyState }),
+    diagnosticsReport: toDiagnosticsReport(detail),
     correlations: toCorrelationRows(detail),
   };
 }

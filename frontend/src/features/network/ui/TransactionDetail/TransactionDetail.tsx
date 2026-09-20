@@ -37,6 +37,7 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
     responseHeaders,
     responseBody,
     correlations,
+    diagnosticsReport,
   } = detail;
 
   return (
@@ -99,7 +100,7 @@ export function TransactionDetail({ detail, detailTab, onDetailTabChange, onClos
             <TransactionDetailGeneral correlations={correlations} fields={generalFields} />
           </Tabs.Panel>
           <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="request">
-            <TransactionDetailRequest headers={requestHeaders} payload={requestPayload} />
+            <TransactionDetailRequest diagnostics={diagnosticsReport} headers={requestHeaders} payload={requestPayload} />
           </Tabs.Panel>
           <Tabs.Panel className="flex min-h-0 min-w-0 flex-1 flex-col" id="response">
             <TransactionDetailResponse body={responseBody} headers={responseHeaders} />
