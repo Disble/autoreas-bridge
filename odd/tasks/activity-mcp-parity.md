@@ -33,10 +33,31 @@ confidentiality at the display boundary.
 - [x] Add the fitness function: an adapter's `exposed ∪ excluded` must equal the catalog, disjoint and reasoned, so a capability cannot be lost or hidden silently. **Residual**: the gate is capability-level; a table that no capability names is still unguarded. `526e848`
 - [x] Add a read path over `device_sync_diagnostics` — the only store that can attribute a report to a device. Mutation 25/26, score 0.96, the survivor being an equivalent LIMIT-clamp mutant. `e9da0ac`
 - [x] Expose that read path through the desktop: catalog entry, desktop exposure, MCP mechanical exclusion, pointer-safe contracts, nil-safe wiring. Mutation 16/16, score 1.00. `de276dc`
-- [ ] Resolve the Runtime Events question for diagnostics: emit a `cycle_id`-deduplicated event, or record why not.
-- [ ] Move `BridgeStatusCard` from the Activity strip into Overview.
-- [ ] State retention caps and page/sample limits on every observability surface.
-- [ ] Replace the hand-written parity note in the Overview with the count the catalog derives.
+- [x] Resolve the Runtime Events question for diagnostics: ingestion now emits exactly one `sync`/`info` event per **stored** report. The deduplication is free — `IngestOutcome` already separates `Stored` from `Duplicate` (via `cycle_id UNIQUE`) and `Shed`, so a retry is not new information and a shed write is not a stored report. `c6bda20`
+- [x] Move `BridgeStatusCard` from the Activity strip into Overview. Composition stays in the app layer: `ActivityRoute` passes the card as an opaque `statusStrip` element through `ActivityView` into `ActivityOverview`, so the network feature never imports the dashboard feature and the fallow boundary count stays at its 12 pre-existing crossings. Accepted consequence: `/activity/runtime-events` no longer shows the strip. `586115e`
+- [x] State retention caps and page/sample limits on every observability surface. Each store exposes its row cap through one accessor, the desktop manifest is readable as data, and a single binding carries the parity facts plus the retention and sample limits; every number on screen comes from the code that enforces it. An unavailable binding states that the limits are unavailable and renders **no** count. `497c6d0`
+- [x] Replace the hand-written parity note in the Overview with the count the catalog derives: how many of the catalog capabilities Activity exposes, plus each excluded capability named with its registered reason, falling back to the previous substance with no count when the binding is unavailable. `497c6d0`
+
+## Mutation ledger
+
+Every Go work unit was measured with `ditto staged` against its owning packages, and every
+frontend unit with `dharness mutate --staged`.
+
+| Unit | Score | Note |
+| --- | --- | --- |
+| Resolve moved to the core | 59/63 = 0.94 | Four survivors: the pagination batch size, unobservable without pinning the constant, plus two equivalent comparison guards |
+| Desktop capability declarations | 4/4 = 1.00 | |
+| `syncdiag` read path | 25/26 = 0.96 | Survivor is an equivalent LIMIT-clamp mutant |
+| Diagnostics exposure | 16/16 = 1.00 | |
+| Diagnostics legibility in Transactions | 193 in-scope, 43 uncaught → **0** | Closed by consolidating nine one-scenario tests into one 13-row table plus a 4-row skips table, a 3-row general-fields table, and a five-row hook table |
+| Bridge status strip into Overview | 32/32 = 1.00 | |
+| Derived parity and visible limits | 46 in-scope, **0** uncaught | |
+
+The legibility unit also removed four pieces of **dead production code** rather than testing or
+suppressing them: a number-type check before `Number.isFinite`, which never coerces; an array
+exclusion where the reader only reads seven named string keys; an object-type check that could not
+change any projection outcome; and a catch that returned exactly what the guard after it returned.
+Equivalence was evidence of redundancy, and suppressing a survivor is forbidden here.
 
 ## Constraints
 
@@ -129,25 +150,27 @@ the route preset that reaches those rows (tasks 9 and 10 of the original list)
 are implemented and staged, but not committed, and the remaining work is ours to
 finish. Frontend tests pass (3048/3048), typecheck passes, render smoke passes,
 layout smoke passes. Two checks still fail: `dharness/require-jsdoc` fires on a
-pre-existing fixture declaration in `TransactionDetail.test.tsx` that this change
-brought into scope with a one-line edit, and the frontend mutation job reports 43
-uncaught mutants (37 survived, 6 with no coverage) across the 193 in-scope
-mutants of the nine staged production files.
+Pending-check history, closed: this unit was once recorded as blocked on 43 uncaught mutants
+(37 survived, 6 with no coverage) across the nine staged production files. It closed at zero by
+**consolidating tests rather than adding them**, per the repository's own `lean-tests` skill (hard
+rule 1 and its decision gate): a surviving mutant is killed with a new ROW in that behaviour's
+existing table, or by strengthening an existing fixture — never by adding a test function per
+mutant, which is the exact failure this repository already logged. The reason is mechanical, not
+stylistic: the mutation suite runs once per mutant, so every test added for a single mutant raises
+the cost of every future mutant.
 
-How the surviving mutants are closed, per the repository's own `lean-tests` skill
-(hard rule 1 and its decision gate): **by consolidating tests, not by adding
-them**. A surviving mutant is killed with a new ROW in that behaviour's existing
-table, or by strengthening an existing fixture so the same scenario carries more
-assertions — never by adding a new test function per mutant, which is the exact
-failure this repository already logged ("MUTATE survivors got new test functions
-though the task said table rows"). This matters mechanically, not only
-stylistically: the mutation suite runs once per mutant, so every test added for a
-single mutant raises the cost of every future mutant. The measurement is mutant
-kills before and after, with the suite runtime flat or lower.
+Known deviations, recorded rather than hidden:
 
-Recorded while working, not part of the plan: `ditto staged` scopes mutants to
-the staged diff but scores them against one test command, so a staged change
-spanning several packages reports an unmeasurable score when the command names
-only some of them. Written up for the ditto team in
-`docs/reports/ditto-mutation-scope.md` (`debb318`). The workaround that works is
-to name every owning package in the test command.
+- The fitness function is capability-level. A table that no capability names is still unguarded.
+- The observability-facts hook reads the binding through `window.go` directly, because
+  `frontend/wailsjs/` is generated and was untracked while the unit was built. The bindings have
+  since been regenerated and now export `GetObservabilityFacts`, so the direct call can be
+  swapped for the generated import in a follow-up.
+- `frontend`'s layout/render smoke tooling leaves untracked `.tmp-*.png` screenshots in the
+  repository root.
+
+Recorded while working, not part of the plan: `ditto staged` scopes mutants to the staged diff but
+scores them against one test command, so a staged change spanning several packages reports an
+unmeasurable score when the command names only some of them. Our own lean-tests reference already
+documented the workaround, which the report to the ditto team now discloses. See
+`docs/reports/ditto-mutation-scope.md` (`debb318`).
