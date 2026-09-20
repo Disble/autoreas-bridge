@@ -20,6 +20,9 @@ The single source of truth for what over-engineered tests look like in this tree
 | A helper taking many positional arguments where the row struct belongs | Name the row type and pass it whole, as `assertX(t, tc)` |
 | A table whose `t.Run` body nests loops fails `gocognit` (limit 15, second lint profile only) | Move the body into `assertX(t, tc)`. SDD-69's R1 table scored 18 and blocked its commit; a bare `golangci-lint run` reports clean because it skips that profile |
 | A doc comment re-narrating what the row names already say | Delete it |
+| A guard kept because "it might not be an object" whose difference no caller can observe | Delete the clause. Four fell in one session: a `typeof value === 'number'` before `Number.isFinite` (which never coerces, so it was unreachable), an `!Array.isArray` where the reader only reads seven named string keys, a `typeof value === 'object'` that could not change any projected row, and a `catch` that returned byte-identical output to the guard after it |
+| An equivalent mutant whose only cause is that nothing can vary the input | Make the input injectable, then the row kills it. A hook with `useEffect(…, [])` is unkillable against a constant-literal dep mutant because the literal is the same value every render; giving the hook an injectable loader the test can swap makes the dependency real |
+| Tabling every state of a component reveals the production function is over the cognitive threshold | Split the production function in the same refactor, not after the gate fails. One session scored `ActivityOverview` at 16 cognitive and `toDiagnosticsReport` at 21 the moment their states became rows; both were split into helpers, and suppressing either was not an option |
 
 ## Verifying a test refactor
 
@@ -36,6 +39,11 @@ Verify by breaking production, never by reading the diff, and compare the score 
 - **One package per run.** A staged scope spanning two packages under one package's test command marks
   every mutant in the other as surviving: it reported 0.63 on a slice whose real scores were 0.90 and 1.00.
   Name the package in the test command and `--exclude-prefix` the others.
+- **The mutant text is a hypothesis, not a diagnosis.** Two of one session's survivors were
+  mis-attributed by reading the diff: a mutant printed at a nested guard was described as a
+  top-level one, and the row prescribed for it could never have reached the line. Open the code the
+  mutant sits in, and prove equivalence by exercising the claim — probing every reachable input —
+  rather than from the mutant's rendering of it.
 
 ## The measured slices that set these rules
 
@@ -52,3 +60,12 @@ literal about fourteen times. The apply agent then reported that no further cuts
 tried tables without the constructor that makes them shrink. About 270 test lines were confirmed
 removable. Production (458 lines) was not bloated; that slice was also too large and should have been
 two, so it ended as both an over-engineering finding and a planning miss.
+
+**One session, four frontend units — consolidation alone reached zero.** 43 uncaught mutants
+became 0 in the Transactions diagnostics work; 9 became 0 in the Activity Overview cards; 32 became
+0 in the bridge status strip; 46 became 0 in the derived-parity work. Not one test function was
+added for a mutant: nine one-scenario tests became one 13-row table plus a 4-row skips table, a
+3-row general-fields table replaced fourteen survivors, and one five-row table replaced a
+dependency-array mutant that no amount of new tests could have killed. Where a survivor could not
+be killed, the answer was deleting redundant production code or making an input injectable, never a
+new test.

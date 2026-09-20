@@ -4,7 +4,7 @@ description: "Trigger: writing tests, killing a surviving mutant, a slice over i
 license: Apache-2.0
 metadata:
   author: autoreas-bridge
-  version: "1.1.0"
+  version: "1.2.0"
   scope: project
 ---
 
@@ -30,6 +30,12 @@ already counts TDD and mutation tests, so an overrun means bloat, never "the tes
    into `assertX(t, tc)`, since `gocognit` fails functions above 15.
 6. Cut by **mutants killed**, measured, never by reading. Keep any case that kills a mutant nothing
    else kills.
+7. **Resolve an equivalent mutant; never report it as the end state.** Equivalence is evidence of
+   redundant or unobservable code, not of a weak test. In preference order: delete the dead clause;
+   or make the difference observable by making the input injectable; or, only when neither is
+   possible, report it with a proof. `dharness` offers a `// Stryker disable` for equivalents, and
+   that offer loses here: `AGENTS.md` forbids suppressing a survivor. Never add a test for an
+   equivalent mutant — it would pass under the mutant too.
 
 ## Decision Gates
 
@@ -41,6 +47,8 @@ already counts TDD and mutation tests, so an overrun means bloat, never "the tes
 | Write a slice, map or sort helper | Use the stdlib |
 | Seed data a new way | Reuse the package's helper |
 | White-box test a helper the public function exposes | Move it to a public-function row, then measure: a later guard can mask the helper |
+| A mutant that survives because no input can distinguish it | Delete the dead clause, or make the input injectable. Do not add a test |
+| An equivalent mutant, where the guard really is load-bearing and nothing can vary it | Prove the equivalence by exercising it — probe every reachable input — and report the proof. Reading the mutant text is not a proof |
 
 ## Execution Steps
 
@@ -55,7 +63,8 @@ already counts TDD and mutation tests, so an overrun means bloat, never "the tes
 ## Output Contract
 
 Return per-file `wc -l` split by production and test, the mutation score before and after step 3,
-and each surviving mutant with why it is equivalent.
+and each surviving mutant with why it is equivalent, and the disposition applied: the clause you
+  deleted, the input you made injectable, or the proof that neither was possible.
 
 ## References
 
