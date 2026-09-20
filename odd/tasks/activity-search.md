@@ -120,7 +120,8 @@ The events reader already proves the intended shape, in its own words
 - [ ] **8. Debounce the query, not the echo.** One query per pause in both rails, with
   the existing obsolete-response guard; the input echoes immediately and no skeleton
   flashes per keystroke.
-- [ ] **9. Verify at the boundary and close.** Re-measure the same three calls against a
+  **Closed as not implemented, on the measurement** (see Work unit 5).
+- [x] **9. Verify at the boundary and close.** Re-measure the same three calls against a
   copy of the live database and through the MCP sidecar, run the repository gates
   (`ditto staged` on the owning packages, frontend mutation gate, lint profiles,
   size/architecture checks), commit per work unit, and record the before/after numbers
@@ -233,6 +234,61 @@ shadow table, with its write amplification and the `name_key` desync class, and 
 Go-side index, which goes stale across processes against the read-only sidecar) and the
 trigger that reopens it (a cap raised by an order of magnitude, or a substring over an
 unbounded table — re-measure first).
+
+## Work unit 5 — debounce re-scoped, and the final measurement (tasks 8 and 9)
+
+**Task 8 was not implemented, deliberately.** The debounce was planned when every
+keystroke cost 150–370 ms and up to 24 MB. After units 1 and 2, a query costs
+sub-millisecond and returns 25 rows, so a 150–200 ms debounce would not remove any
+measurable work — it would only delay the first filtered result by that much, and the
+per-keystroke queries it would suppress are now the cheaper feedback. The obsolete-
+response guard it was meant to pair with already exists (`active` in the query effect),
+so a slow response cannot land out of order either. The mechanism was dropped for the
+reason the repository asks for everywhere: no new machinery without a measured cause.
+If typing turns out to flicker between the skeleton and the rows, the fix is NOT a
+debounce but keeping the loaded rows on screen while a filter-driven refetch is in
+flight, with the skeleton reserved for the first load. That is the follow-up to reach
+for, and it needs the owner's report first because it was never observed.
+
+Final measurement, read-only against the live store, through the same reader the
+desktop binding calls (3 059 captures, 7 677 runtime events, 2026-09-20). The
+sub-millisecond entries sit below this machine's ~0.5 ms timer resolution:
+
+| Call | Before | After |
+| --- | --- | --- |
+| Transactions first page, full projection (the MCP path) | 144–359 ms | ~0.5 ms |
+| Transactions first page, summary projection (the desktop list) | n/a — it read the bodies | ~0.5 ms |
+| `route` matching substring (`animes`, 336 rows) | exact equality only, so a partial matched nothing | ~0.5 ms, and partials match |
+| `route` with no match (the worst case: nothing to stop the scan early) | 58 ms | 3.2 ms |
+| `outcome` / `kind` substring | exact equality only | ≤0.5 ms matching, ~3.0 ms with no match |
+| Runtime Events text substring (7 677 rows) | ~5 ms at 7.5 k rows | ~0.5 ms matching, 2.6 ms with no match |
+| A literal `%` typed into the events search | returned every row (a wildcard) | returns the 2 rows whose text contains a literal `%` |
+
+The last row is the escaping fix observed on real data: the search that used to be a
+match-everything wildcard is now an honest literal search.
+
+Gates at close: the Go suite plus both lint profiles green on every work unit; the
+frontend gate green including its zero-tolerance staged mutation report (88/88 mutants
+killed, 0 survived, 1 static-ignored) after three rounds of closing survivors found by
+that gate; `ditto staged` 1.00 on unit 1, no scoreable mutants on unit 2 and unit 4, and
+the resolve unit closed by deleting the redundant literal rather than pinning it.
+
+Commits: `5afcf2b` tasks 1–2 · `922aabf` tasks 3–4 · `de3678b` tasks 6–7 · `a764231`
+tasks 5 and 10.
+
+### Deviations recorded rather than hidden
+
+- The freeze/crash the owner reported was never reproduced by the agent. The measured
+  cost per keystroke is the evidence behind the fix, and the symptom is consistent with
+  it, but a reproduction would have been stronger.
+- The `Summary` flag on the resolve pager is a performance choice that behaviour cannot
+  observe (recorded in Work unit 4); the batch-size literal that could be observed was
+  deleted rather than pinned.
+- The substring semantics reach the MCP `search_requests` tool as well as the desktop,
+  deliberately and documented in both the core type and the tool descriptions.
+- One frontend gate run failed on two unrelated 5 s test timeouts under the hook's
+  parallel load (a documented contention class in `lefthook.yml`); the same suites passed
+  standalone and on the next run, and nothing in this feature was changed for it.
 
 ## Constraints
 
