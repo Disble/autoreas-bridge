@@ -130,7 +130,17 @@ func (r *Reader) collectResolveCandidates(ctx context.Context, reference string,
 	var ranked [3][]ResolveCandidate
 	var componentMatches []ResolveCandidate
 	for cursor := ""; ; {
-		page, err := r.Search(ctx, SearchParams{Limit: 100, Cursor: cursor})
+		// Summary requests the list projection, which is sufficient here:
+		// every field the ranking reads (RequestID, Route, HTTPStatus,
+		// AnimeID, Correlations) is a base column the summary projection
+		// keeps. It leaves the request/response body and header blobs
+		// unread, which the resolve path never looks at and which dominate
+		// the read cost when paging the whole table. The page size is the
+		// reader's own ceiling (maxSearchLimit) rather than a number
+		// invented here: the pager asks for the largest page the reader
+		// will serve and follows cursors until the backend stops offering
+		// them.
+		page, err := r.Search(ctx, SearchParams{Limit: maxSearchLimit, Cursor: cursor, Summary: true})
 		if err != nil {
 			return ranked, nil, err
 		}

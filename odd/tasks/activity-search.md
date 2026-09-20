@@ -108,7 +108,7 @@ The events reader already proves the intended shape, in its own words
 - [x] **4. Declare the shared rule where capability parity can hold it.** The pattern
   rule lives once in the core; both adapters project it; the conformance suite pins
   that both apply the same substring rule and that neither adapter implements matching.
-- [ ] **5. Record the no-index decision and its trigger.** The measurement, the caps,
+- [x] **5. Record the no-index decision and its trigger.** The measurement, the caps,
   the per-row cost and the reopening threshold, in the task record and in the code
   comment that owns the query.
 - [ ] **6. Wire the substring semantics through the desktop surface.** Transactions
@@ -125,6 +125,9 @@ The events reader already proves the intended shape, in its own words
   (`ditto staged` on the owning packages, frontend mutation gate, lint profiles,
   size/architecture checks), commit per work unit, and record the before/after numbers
   here.
+- [x] **10. Stop the resolve pager from reading bodies.** `Reader.Resolve` pages the whole
+  capture table; it now asks for the summary projection, since every field its ranking
+  reads is a base column. Found while auditing which read paths still pay for the bodies.
 
 ## Work unit 1 — bounded page + summary projection (tasks 1 and 2)
 
@@ -194,6 +197,42 @@ and `desktop`; `gofmt`, `go vet`, `checkgofilesize` (no new warning — the subs
 lives in the package's new `filters_test.go`, matching its eventlog sibling, so
 `reader_search_test.go` stays under the 400-line warning) and `checkarchitecture` clean;
 the advanced lint profile reports 0 issues.
+
+## Work unit 4 — the resolve pager and the no-index record (tasks 5 and 10)
+
+`Resolve` paged every capture through `Search` with no projection selector, so the
+most expensive read path in the app was the one whose output is a list of request ids:
+it read each row's request/response body and header maps and used none of them. It now
+requests the summary projection, and the comment states why that is sufficient (every
+ranked field — `RequestID`, `Route`, `HTTPStatus`, `AnimeID`, `Correlations` — is a base
+column the summary projection keeps).
+
+**Known deviation, recorded rather than hidden**: the `Summary` flag on this call is a
+performance choice that behaviour cannot observe — the summary projection carries every
+field the ranking reads, so the resolve results are identical with the flag set or
+unset, and the reader exposes no seam for observing which column list was requested.
+Inventing one would test the test. The guard is the comment plus review, and the
+behavioural conformance suite still pins that ranking is unchanged.
+
+The mutation gate then found what that observation implies. Its only mutants for this
+unit were the batch size the pager passed (`100` → `99` and `100` → `101`), and both
+survived — correctly, because the pager loops until the backend stops offering cursors,
+so the page size changes the number of round trips and nothing else. That literal
+duplicated the reader's own declared ceiling, so it was deleted rather than tested:
+the pager now passes `maxSearchLimit` and the staged scope produces no mutants at all
+(ditto reports the score as unmeasurable, `-1`). The surviving-literal class was already
+declared by the parity unit that moved resolve into the core, which recorded "the
+pagination batch size, unobservable without pinning the constant"; this unit removes the
+constant instead of pinning it.
+
+The no-index decision now lives where the rule lives: the `internal/sqltext` package doc
+carries the measurement (a `SCAN`, 0.13–1.70 ms over 3 043 rows), the bounds (5 000
+captures, 20 000 events, both from retention caps wired in
+`internal/desktop/app_defaults.go`), the two rejected alternatives (an FTS5 `trigram`
+shadow table, with its write amplification and the `name_key` desync class, and a
+Go-side index, which goes stale across processes against the read-only sidecar) and the
+trigger that reopens it (a cap raised by an order of magnitude, or a substring over an
+unbounded table — re-measure first).
 
 ## Constraints
 
