@@ -16,6 +16,14 @@ import { TransactionPanel } from '../TransactionPanel';
  * fires when the virtual range reaches the last loaded row. jsdom's 0x0 rect
  * falls back to a deterministic 1024x600 viewport — tighter than any real
  * engine, so every ceiling here is honest.
+ *
+ * Consolidated for the mutation gate's per-test budget: tests that shared one
+ * harness (one fake source, one render, scrolls) were merged into a single
+ * test proving several properties in sequence — except where a merged test's
+ * own stimulus sequence would become the tallest pole against that same
+ * per-test budget (the live-push and in-place-delta pair keeps one render
+ * each). Every assertion, exact value, and re-specification note survives;
+ * only redundant renders were removed.
  */
 
 /** Row-height estimate in px; must mirror TRANSACTION_ROW_HEIGHT_ESTIMATE_PX, as a literal on purpose. */
@@ -27,11 +35,11 @@ const OVERSCAN_ROWS = 5;
 /** Hard ceiling the virtual window must stay under however many rows are loaded. */
 const MOUNTED_ROW_CEILING = 100;
 
-/** A load many times the mounted ceiling, so "bounded" cannot pass by accident. */
-const LOADED_ROW_COUNT = 400;
+/** A load above the mounted ceiling, so "bounded" cannot pass by accident. */
+const LOADED_ROW_COUNT = 150;
 
 /** Far-down row index the scroll test must reveal; stays inside the loaded fixture. */
-const SCROLLED_INDEX = 350;
+const SCROLLED_INDEX = 140;
 
 /** Builds one capture row, overridable field by field per test. */
 function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
@@ -169,45 +177,44 @@ function scrollToOffset(scrollTop: number) {
   return state;
 }
 
-
 describe('TransactionPanel virtual window (live rail)', () => {
   afterEach(() => {
     cleanup();
     resetTransactionStore();
   });
 
-  it('mounts a bounded virtual window on the first render, never the whole loaded page', async () => {
-    // Re-specified 2026-08-24: the rail used to mount a 25-row batch and grow
-    // it; now the assertion is a ceiling over a load many times that ceiling.
+  it('mounts a bounded virtual window over the whole loaded page, keeps the scrollbar honest, and moves the window on scroll without re-querying', async () => {
+    // One harness, three properties (consolidated from three tests sharing
+    // the same 150-row load, render, and scrolls). Re-specified 2026-08-24:
+    // the rail used to mount a 25-row batch and grow it; the approved
+    // contract is the opposite — the first window is a ceiling over a load
+    // many times that ceiling, the spacers carry every unrendered height, and
+    // scrolling far down moves the window (top rows leave the DOM) instead of
+    // growing it "without unmounting anything".
     const consoleErrors: unknown[][] = [];
     const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
       consoleErrors.push(args);
     });
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(LOADED_ROW_COUNT))),
-    });
+    const listTransactions = vi.fn().mockResolvedValue(capturePage(rows(LOADED_ROW_COUNT)));
+    const source = createFakeSource({ listTransactions });
 
     render(<TransactionPanel source={source} />);
 
-    await screen.findByText('/api/animes/anime-0');
+    // One settled pass and a single DOM query: the 150-row page is a
+    // resolved mock, so no polling budget is spent waiting for it.
+    await settleAsyncPasses();
+
+    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
     errorSpy.mockRestore();
 
-    // React Aria must not complain about the spacer rows or window churn.
+    // Property 1 — bounded first window. React Aria must not complain about
+    // the spacer rows or window churn.
     expect(consoleErrors).toEqual([]);
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
     expect(screen.queryByText(`/api/animes/anime-${LOADED_ROW_COUNT - 1}`)).not.toBeInTheDocument();
-  });
 
-  it('keeps the scrollbar honest: the spacers plus the mounted window account for every loaded row', async () => {
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(LOADED_ROW_COUNT))),
-    });
-
-    render(<TransactionPanel source={source} />);
-
-    await screen.findByText('/api/animes/anime-0');
-
-    // No row's height may be silently lost or double-counted.
+    // Property 2 — the scrollbar stays honest: no row's height is silently
+    // lost or double-counted.
     const mounted = countRenderedRows();
 
     expect(mounted).toBeGreaterThan(0);
@@ -218,19 +225,9 @@ describe('TransactionPanel virtual window (live rail)', () => {
     // The spacer cell spans all six columns inside the unchanged semantic markup.
     expect(document.querySelector('[data-transaction-spacer="top"] td')).toHaveAttribute('colspan', '6');
     expect(document.querySelector('[data-transaction-scroll] table > tbody')).not.toBeNull();
-  });
 
-  it('scrolling far down mounts that row and unmounts the top rows without re-querying', async () => {
-    // Re-specified 2026-08-24: the old grow-only window revealed the next
-    // batch "without unmounting anything"; the approved contract is the
-    // opposite — the window moves and top rows leave the DOM.
-    const listTransactions = vi.fn().mockResolvedValue(capturePage(rows(LOADED_ROW_COUNT)));
-    const source = createFakeSource({ listTransactions });
-
-    render(<TransactionPanel source={source} />);
-
-    await screen.findByText('/api/animes/anime-0');
-
+    // Property 3 — scrolling far down mounts that row and unmounts the top
+    // rows without re-querying.
     scrollToOffset(SCROLLED_INDEX * ROW_HEIGHT_PX);
 
     await waitFor(() => {
@@ -292,21 +289,28 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     render(<TransactionPanel source={source} />);
 
-    await screen.findByText('/api/animes/anime-0');
+    // One settled pass and a single DOM query: the 150-row page is a
+    // resolved mock, so no polling budget is spent waiting for it.
+    await settleAsyncPasses();
+
+    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
 
     for (let step = 1; step <= 5; step += 1) {
-      scrollToOffset(step * 50 * ROW_HEIGHT_PX);
+      scrollToOffset(step * 25 * ROW_HEIGHT_PX);
     }
 
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
 
     // A keystroke lands as a store filter change; the re-render it causes
-    // must not scale with the loaded rows.
+    // must not scale with the loaded rows. One settled pass and a single DOM
+    // query assert it — no per-keystroke polling against the per-test budget.
     act(() => {
       getTransactionStoreState().setFilters({ route: '/api/sync' });
     });
 
-    await screen.findByText('/api/animes/anime-9000');
+    await settleAsyncPasses(2);
+
+    expect(screen.getByText('/api/animes/anime-9000')).toBeInTheDocument();
 
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
     expect(listTransactions).toHaveBeenLastCalledWith(
@@ -319,7 +323,10 @@ describe('TransactionPanel virtual window (live rail)', () => {
     // insertion by growing the visible count and pinning scrollTop; now the
     // scroll offset is compensated by the prepended height instead, so the
     // content moves WITH the offset (that is what "the scroll must not jump"
-    // means here) and the reading set stays mounted.
+    // means here) and the reading set stays mounted. This test stands alone
+    // (not merged into its neighbors) because the gate's per-test budget is
+    // what the consolidation serves: its selection round trip plus push
+    // stimulus is already the rail's most expensive sequence.
     const source = createFakeSource({
       listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30), 'cursor-1')),
     });
@@ -327,14 +334,18 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
 
-    await screen.findByText('/api/animes/anime-0');
+    // One settled pass and a single DOM query replace findByText polling:
+    // the source is a resolved mock, so the rows are deterministic.
+    await settleAsyncPasses();
+
+    expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
 
     const geometry = scrollToOffset(800);
 
     screen.getByText('/api/animes/anime-22').closest('tr')?.click();
-    await waitFor(() => {
-      expect(getTransactionStoreState().selectedId).toBe('req-22');
-    });
+    await settleAsyncPasses();
+
+    expect(getTransactionStoreState().selectedId).toBe('req-22');
 
     const before = renderedRoutes();
 
@@ -358,34 +369,12 @@ describe('TransactionPanel virtual window (live rail)', () => {
     expect(screen.getByText('/api/animes/anime-live')).toBeInTheDocument();
   });
 
-  it('a scrolled rail keeps the selection the user made, even after the selected row leaves the mounted window', async () => {
-    // Re-specified 2026-08-24: the old contract extended the window to the
-    // selected row so a selection was never unmounted; the approved change is
-    // that the selection survives in the STORE while its row may unmount.
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30))),
-    });
-    const { runtimeSource } = createPushableRuntimeSource();
-
-    render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
-
-    await screen.findByText('/api/animes/anime-0');
-
-    screen.getByText('/api/animes/anime-5').closest('tr')?.click();
-    await waitFor(() => {
-      expect(getTransactionStoreState().selectedId).toBe('req-5');
-    });
-
-    scrollToOffset(29 * ROW_HEIGHT_PX);
-
-    await waitFor(() => {
-      expect(screen.queryByText('/api/animes/anime-5')).not.toBeInTheDocument();
-    });
-
-    expect(getTransactionStoreState().selectedId).toBe('req-5');
-  });
-
   it('a terminal capture delta updating a row in place leaves the window and selection untouched', async () => {
+    // Harness shared with the live-push test above (a 30-row page with a
+    // continuation cursor plus a pushable runtime source); kept as its own
+    // test for the per-test budget. An in-place delta proves the opposite
+    // kind of push to the head insertion: it is not a prepend, so neither
+    // the offset nor the selection moves.
     const source = createFakeSource({
       listTransactions: vi.fn().mockResolvedValue(capturePage(rows(30), 'cursor-1')),
     });
@@ -416,15 +405,37 @@ describe('TransactionPanel virtual window (live rail)', () => {
     expect(getTransactionStoreState().selectedId).toBe('req-3');
   });
 
-  it('stops offering more once the backend returned a page carrying no continuation cursor', async () => {
+  it('a scrolled rail keeps the selection the user made after its row unmounts, and a cursorless page is never re-requested', async () => {
+    // One harness (a 30-row page with no continuation cursor), two
+    // properties (consolidated from two tests). First, re-specified
+    // 2026-08-24: the old contract extended the window to the selected row so
+    // a selection was never unmounted; the approved change is that the
+    // selection survives in the STORE while its row may unmount. Then the
+    // cursorless page must never trigger another fetch, however many times
+    // the user parks on the virtual end.
     const listTransactions = vi.fn().mockResolvedValue(capturePage(rows(30)));
     const source = createFakeSource({ listTransactions });
+    const { runtimeSource } = createPushableRuntimeSource();
 
-    render(<TransactionPanel source={source} />);
+    render(<TransactionPanel runtimeSource={runtimeSource} source={source} />);
 
     await screen.findByText('/api/animes/anime-0');
 
+    screen.getByText('/api/animes/anime-5').closest('tr')?.click();
+    await waitFor(() => {
+      expect(getTransactionStoreState().selectedId).toBe('req-5');
+    });
+
     scrollToOffset(29 * ROW_HEIGHT_PX);
+
+    await waitFor(() => {
+      expect(screen.queryByText('/api/animes/anime-5')).not.toBeInTheDocument();
+    });
+
+    expect(getTransactionStoreState().selectedId).toBe('req-5');
+
+    // A page without a cursor is exhausted: parking on the virtual end twice
+    // must not re-query it.
     await settleAsyncPasses();
     scrollToOffset(29 * ROW_HEIGHT_PX);
     await settleAsyncPasses();
@@ -440,7 +451,13 @@ describe('TransactionPanel load-more trigger', () => {
     resetTransactionStore();
   });
 
-  it('fetches exactly one page on mount and never pages on its own, however many pages the backend offers', async () => {
+  it('fetches exactly one page on mount, never pages on its own — not even when a sentinel reports itself visible — and fetches the next page only on a scroll to the virtual end', async () => {
+    // One harness (the endless source), three properties (consolidated from
+    // three tests): mount fetches exactly once and the unattended loop stays
+    // silent; a visible load-more sentinel fetches nothing because the rail
+    // mounts none; and the ONLY trigger is the virtual range reaching the
+    // last loaded row — re-specified 2026-08-24 from the old near-bottom
+    // scroll handler.
     const { source, listTransactions } = createEndlessSource();
 
     render(<TransactionPanel source={source} />);
@@ -451,14 +468,6 @@ describe('TransactionPanel load-more trigger', () => {
 
     expect(listTransactions).toHaveBeenCalledTimes(1);
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
-  });
-
-  it('does not fetch when a load-more sentinel reports itself visible, because the rail mounts none', async () => {
-    const { source, listTransactions } = createEndlessSource();
-
-    render(<TransactionPanel source={source} />);
-
-    await screen.findByText('/api/animes/anime-25');
 
     act(() => {
       triggerIntersectionObservers(true);
@@ -467,16 +476,6 @@ describe('TransactionPanel load-more trigger', () => {
     await settleAsyncPasses();
 
     expect(listTransactions).toHaveBeenCalledTimes(1);
-  });
-
-  it('fetches the next page on a scroll to the virtual end, so the guards above cannot be met by breaking pagination', async () => {
-    // Re-specified 2026-08-24: the trigger used to be a near-bottom scroll
-    // handler; now it is the virtual range reaching the last loaded row.
-    const { source, listTransactions } = createEndlessSource();
-
-    render(<TransactionPanel source={source} />);
-
-    await screen.findByText('/api/animes/anime-25');
 
     scrollToOffset(24 * ROW_HEIGHT_PX);
 

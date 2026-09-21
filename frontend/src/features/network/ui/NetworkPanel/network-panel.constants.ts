@@ -53,29 +53,25 @@ export const NETWORK_ALL_DOMAINS_VALUE = 'all';
 export const NETWORK_ALL_DOMAINS_OPTION: NetworkDomainFilterOption = { value: NETWORK_ALL_DOMAINS_VALUE, label: 'All' };
 
 /**
- * Rows rendered before the first scroll. The rail grows from here by
- * the page batch and never unmounts a rendered row (ADR-012, live branch).
+ * Rows requested per `SearchRuntimeEvents` page.
  *
- * 20 matches every other rail in the app (`RUN_HISTORY_PAGE_SIZE`,
- * `PROGRESSIVE_LIST_INITIAL_COUNT`). It is a UX choice, not a derived value:
- * an earlier draft used 10 only because a guard test asserted a window of 11
- * from a `currentVisibleCount` of 10, which the initial-batch floor makes
- * unreachable. The test now starts from a reachable window instead.
- */
-export const EVENT_PAGE_INITIAL_COUNT = 20;
-
-/**
- * Rows requested per `SearchRuntimeEvents` page, and the batch the visible
- * window grows by on scroll-near-bottom.
- *
- * Deliberately equal to `EVENT_PAGE_INITIAL_COUNT`, so one scroll reveals
- * exactly one fetched page and the two numbers can never drift apart. 20 is the
- * rail convention across the app (`RUN_HISTORY_PAGE_SIZE`,
- * `PROGRESSIVE_LIST_INITIAL_COUNT`); an earlier draft used 50, which would have
- * made a single scroll reveal two and a half pages and left the fetch size
- * unrelated to anything the user sees.
+ * 20 is the rail convention across the app (`RUN_HISTORY_PAGE_SIZE`,
+ * `PROGRESSIVE_LIST_INITIAL_COUNT`). The rail's RENDERED window no longer
+ * grows by this batch: since virtualization the table mounts only the rows
+ * the virtual window reports, and this constant is purely the fetch size —
+ * the old grow-only `EVENT_PAGE_INITIAL_COUNT` batch went away with the
+ * window that consumed it.
  */
 export const EVENT_PAGE_SIZE = 20;
+
+/** Column count of the runtime-event table; the virtual spacer cells span all of them. */
+export const NETWORK_EVENTS_TABLE_COLUMN_COUNT = 5;
+
+/** Collection id of the virtual spacer row carrying the height above the window. */
+export const NETWORK_EVENTS_TABLE_SPACER_TOP_ID = 'network-events-virtual-spacer-top';
+
+/** Collection id of the virtual spacer row carrying the height below the window. */
+export const NETWORK_EVENTS_TABLE_SPACER_BOTTOM_ID = 'network-events-virtual-spacer-bottom';
 
 /**
  * Copy shown when this database has no persisted runtime-event table at all.

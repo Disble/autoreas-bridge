@@ -1,38 +1,6 @@
 /** Default page size for ListCaptureTransactions when the panel does not override it. */
 export const DEFAULT_TRANSACTION_PAGE_LIMIT = 25;
 
-/**
- * Constant estimated height of one transaction row in px, the input the
- * virtual window's `estimateSize` runs on.
- *
- * The layout smoke measures a real transaction row at 36-39 px, so 36 is the
- * floor of the band. The drift risk is recorded here on purpose instead of
- * turning on dynamic `measureElement`: with a constant estimate the spacer
- * math is exact by construction, while real rows up to 3 px taller make the
- * scrollbar under-report by at most ~0.1% per row inside the window band
- * (spacers are computed from the same estimate, so total scroll height stays
- * exact for the ESTIMATED layout; only real content position can drift a few
- * px inside the mounted window). Revisit dynamic measurement only if a real
- * engine shows visible scroll drift.
- */
-export const TRANSACTION_ROW_HEIGHT_ESTIMATE_PX = 36;
-
-/** Rows the virtual window renders beyond each visible edge. */
-export const TRANSACTION_VIRTUAL_OVERSCAN_ROWS = 5;
-
-/**
- * Viewport the virtual window assumes before a real measurement arrives.
- *
- * A measured 0x0 rect would produce an EMPTY virtual window (the range math
- * treats a zero viewport as "nothing visible"), which is what a bare jsdom
- * element measures. The hook maps a zero measurement to this viewport, so
- * tests run against a deterministic 1024x600 rail (the same figure the
- * virtualization spike used) and a real engine only ever sees it between
- * mount and its first rect observation, which ResizeObserver resolves in the
- * same frame.
- */
-export const TRANSACTION_VIRTUAL_INITIAL_VIEWPORT_PX = { width: 1_024, height: 600 };
-
 /** Column count of the transaction table; the virtual spacer cells span all of them. */
 export const TRANSACTION_TABLE_COLUMN_COUNT = 6;
 

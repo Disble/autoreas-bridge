@@ -13,10 +13,10 @@ import { useNetworkStoreBindings } from './use-network-store-bindings';
 
 /**
  * useNetworkPanel composes the Runtime Events rail: the persisted-page +
- * live-overlay store, the live visible window, and the asynchronous edges.
- * It owns no async I/O and no window arithmetic of its own — those live in
- * `use-network-panel-sync` and `use-network-panel-window`, and the store
- * subscriptions live in `use-network-store-bindings`.
+ * live-overlay store, the virtual window over the merged feed, and the
+ * asynchronous edges. It owns no async I/O and no window arithmetic of its
+ * own — those live in `use-network-panel-sync` and the shared virtual rail
+ * window, and the store subscriptions live in `use-network-store-bindings`.
  *
  * The rail reads the PERSISTED runtime-event store through
  * `SearchRuntimeEvents`, not the in-process ring buffer, so its history
@@ -56,15 +56,16 @@ export function useNetworkPanel(
 
   // 5. Derived State (useMemo)
   const onReachEnd = useCallback(() => loadMoreRef.current(), []);
-  const { visibleRows, rows: feedRows, onScroll } = useNetworkPanelWindow({
+  const { rows: feedRows, windowedRows, topSpacerHeightPx, bottomSpacerHeightPx, scrollRef } = useNetworkPanelWindow({
     feed,
-    selectedId: store.selectedId,
     onReachEnd,
   });
   const { detailTab, onDetailTabChange } = useNetworkPanelDetailTab(store.selectedId);
-  const { rows, selectedEntry, selectedDetail, statusMessage, emptyMessage, entryCount, errorCount, shownCount } =
+  const { rows, selectedEntry, selectedDetail, statusMessage, emptyMessage, entryCount, errorCount } =
     useNetworkPanelViewModel({
-      visibleRows,
+      // The TABLE renders the virtual window's slice; the full merged feed
+      // still drives the selection and the summary counters.
+      visibleRows: windowedRows,
       feedRows,
       selectedId: store.selectedId,
       traceSiblings,
@@ -111,13 +112,19 @@ export function useNetworkPanel(
     emptyMessage,
     entryCount,
     errorCount,
-    shownCount,
+    // Under virtualization every loaded row is rendered into the table — the
+    // mounted window is a rendering detail, not a shown count — so "shown"
+    // stays the loaded feed's size instead of the view model's mounted-row
+    // count, which would fluctuate with every scroll.
+    shownCount: feedRows.length,
+    topSpacerHeightPx,
+    bottomSpacerHeightPx,
+    scrollRef,
     onSelect,
     onQueryChange,
     onLevelFilterChange,
     onDomainFilterChange,
     onDetailTabChange,
     onClose,
-    onScroll,
   };
 }

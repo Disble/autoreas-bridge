@@ -106,7 +106,11 @@ code — never by a suppression.
 | --- | --- | --- |
 | 1 | 8 | Early-return guards with `===` instead of one compound `&&`; the `useCallback` ref wrapper deleted (React's setState is already stable, so the wrapper existed only to give the gate a dependency array to weaken) |
 | 2 | 4 | The measurement seam made observable (a LOCAL observer that measures synchronously on attach and keeps a `ResizeObserver`), the zero-check reduced to the HEIGHT alone, and the `prependedCount === 0` guard deleted as provably equivalent (`scrollTop += 0` is a no-op) |
-| 3 | 0 | `resolveWindowViewport` un-exported (it was a dead export) and the hook's test file split at its natural seam into range and viewport siblings |
+| 3 | 2 | `resolveWindowViewport` un-exported (it was a dead export) and the hook's test file split at its natural seam into range and viewport siblings |
+| 4 | 2 | The observer's `{ box: 'border-box' }` pinned exactly on the stub's recorded call — measuring the rail without its padding would shrink the window |
+| 5 | 1 | The missing-observer branch covered: a rail whose engine offers no `ResizeObserver` must still mount the window its synchronous measurement fits |
+| 6 | 1 | The null-target-window branch covered with a scroller from a detached document, reachable because `virtual-core` takes `targetWindow = scrollElement.ownerDocument.defaultView` (null there) and calls the observer option anyway |
+| 7 | **0** | Gate green: `599bea8`, all mutants killed |
 
 Two lessons worth keeping: a guard whose other side is a no-op (`x > 0` → `>= 0`) is
 provably equivalent and can never be killed — the fix is to delete the redundancy or
@@ -114,6 +118,14 @@ reshape it into exact-equality early returns whose both sides are observable; an
 that jsdom never exercises (an inert `ResizeObserver` stub) leaves whole branches
 uncovered, which is why the observer now measures synchronously instead of waiting for a
 callback that never arrives in tests.
+
+**The freeze-regression test was also made cheap enough to stop flaking.** It loaded
+2 000 rows and timed out at 5.4 s under full-suite load; it now loads 400 (still over
+three times the 100-row ceiling the assertion pins, proven live by mutating the overscan
+so the window mounts all 400 and watching the test fail) and its worst case in a full run
+is 771 ms.
+
+Commit for tasks 1-2: `599bea8`.
 
 ## Tasks
 

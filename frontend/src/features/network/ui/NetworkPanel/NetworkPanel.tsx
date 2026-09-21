@@ -39,13 +39,15 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     entryCount,
     errorCount,
     shownCount,
+    topSpacerHeightPx,
+    bottomSpacerHeightPx,
+    scrollRef,
     onSelect,
     onQueryChange,
     onLevelFilterChange,
     onDomainFilterChange,
     onDetailTabChange,
     onClose,
-    onScroll,
   } = useNetworkPanel(source);
   const facts = useObservabilityFacts();
 
@@ -81,12 +83,14 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
 
       <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <NetworkTable
+          bottomSpacerHeightPx={bottomSpacerHeightPx}
           emptyMessage={emptyMessage}
           isLoading={isLoading}
-          onScroll={onScroll}
           onSelect={onSelect}
           rows={rows}
+          scrollRef={scrollRef}
           selectedId={selectedId}
+          topSpacerHeightPx={topSpacerHeightPx}
         />
         <NetworkDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>

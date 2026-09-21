@@ -262,3 +262,4 @@ this file only explains the *why*, it never replaces the *how*.
 - [2026-09-16]: 1.13.1 is a patch: backups gained the watched_episodes group so a restore brings watch history back; old bundles lack it and leave history untouched, so testing needs a fresh export.
 - [2026-09-19]: Sanitization is an egress rule, not a display rule: applied at the local display boundary it protected nobody and hid 212 stored diagnostics reports that no surface could read.
 - [2026-09-19]: A policy test pinning one exact sentence breaks when mirrored instruction files are reworded, so assert the rule and tool name instead.
+- [2026-09-21]: Activity live rails that append and never unmount re-render every mounted row per store change -- jsdom: 100 rows ~1.4-3 s, 2 000 = worker OOM; real cost: WebView2 RENDER_PROCESS_UNRESPONSIVE freeze. Both rails now share useVirtualRailWindow; jsdom cannot prove spacer height or scroll anchoring.
