@@ -33,6 +33,7 @@
     "@iconify/react": "^6.0.2",
     "@internationalized/date": "^3.12.2",
     "@nivo/bar": "^0.99.0",
+    "@tanstack/react-virtual": "^3.14.13",
     "qrcode": "1.5.4",
     "react": "19.2.5",
     "react-dom": "19.2.5",

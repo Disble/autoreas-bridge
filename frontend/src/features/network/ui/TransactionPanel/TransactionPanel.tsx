@@ -40,7 +40,9 @@ export function TransactionPanel({
     degraded,
     onSelect,
     onClose,
-    onScroll,
+    scrollRef,
+    topSpacerHeightPx,
+    bottomSpacerHeightPx,
     onRouteChange,
     onOutcomeChange,
     onKindChange,
@@ -92,11 +94,13 @@ export function TransactionPanel({
 
       <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <TransactionTable
+          bottomSpacerHeightPx={bottomSpacerHeightPx}
           isLoading={isLoading}
-          onScroll={onScroll}
           onSelect={onSelect}
           rows={rows}
+          scrollRef={scrollRef}
           selectedId={selectedId}
+          topSpacerHeightPx={topSpacerHeightPx}
         />
         <TransactionDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>

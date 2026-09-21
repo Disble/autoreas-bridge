@@ -13,10 +13,10 @@ import { useTransactionStoreBindings } from './use-transaction-store-bindings';
 
 /**
  * useTransactionPanel composes the Transactions rail: the cursor-paged store,
- * the live visible window, and the asynchronous edges. It owns no async I/O and
- * no window arithmetic of its own — those live in `use-transaction-panel-sync`
- * and `use-transaction-panel-window`, and the store subscriptions live in
- * `use-transaction-store-bindings`.
+ * the virtual visible window, and the asynchronous edges. It owns no async
+ * I/O and no window arithmetic of its own — those live in
+ * `use-transaction-panel-sync` and `use-transaction-panel-window`, and the
+ * store subscriptions live in `use-transaction-store-bindings`.
  *
  * Every filter is evaluated by the backend over the whole capture table. The
  * rail used to narrow the status class and a free-text query over the rows it
@@ -50,9 +50,8 @@ export function useTransactionPanel(
 
   // 5. Derived State (useMemo)
   const onReachEnd = useCallback(() => loadMoreRef.current(), []);
-  const { visibleItems, onScroll } = useTransactionPanelWindow({
+  const { windowedRows, topSpacerHeightPx, bottomSpacerHeightPx, scrollRef } = useTransactionPanelWindow({
     items: store.items,
-    selectedId: store.selectedId,
     onReachEnd,
   });
   // No clock here, deliberately. This mapping used to take a ticking `now`, so
@@ -62,7 +61,7 @@ export function useTransactionPanel(
   // outstanding request. A row's live elapsed indicator is derived where it is
   // shown instead (`use-transaction-row-live`), so these rows keep their
   // identity for as long as the store does.
-  const rows = useMemo(() => visibleItems.map((row) => toTransactionRow(row)), [visibleItems]);
+  const rows = useMemo(() => windowedRows.map((row) => toTransactionRow(row)), [windowedRows]);
   const detailViewModel = useMemo(
     () => (store.selectedDetail === null ? null : toTransactionDetail(store.selectedDetail)),
     [store.selectedDetail],
@@ -96,7 +95,9 @@ export function useTransactionPanel(
     degraded: store.degraded,
     onSelect,
     onClose,
-    onScroll,
+    scrollRef,
+    topSpacerHeightPx,
+    bottomSpacerHeightPx,
     ...filterCallbacks,
     onDetailTabChange,
   };

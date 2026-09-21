@@ -1,11 +1,13 @@
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
 import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
-import { resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
-import { scrollNearBottom } from '../../NetworkPanel/__tests__/network-panel.test-support';
+import {
+  getTransactionStoreState,
+  resetTransactionStore,
+} from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { useTransactionPanel } from '../use-transaction-panel';
 
 /** Builds one capture row, overridable field by field per test. */
@@ -62,6 +64,33 @@ function createFakeRuntimeSource(overrides: Partial<CaptureRuntimeSource> = {}):
     subscribeCaptureTransactions: vi.fn().mockReturnValue(() => undefined),
     ...overrides,
   };
+}
+
+/** Row-height estimate the virtual window runs on, in px; must mirror TRANSACTION_ROW_HEIGHT_ESTIMATE_PX. */
+const ROW_HEIGHT_PX = 36;
+
+/**
+ * Attaches a detached scroll container to the hook's scrollRef so the virtual
+ * window has an element to observe. Mirrors the helper in
+ * `use-transaction-panel-window.test.ts` — a shared support file is outside
+ * this task's allowed surfaces.
+ */
+function attachScroller(result: { current: { scrollRef: (element: HTMLDivElement | null) => void } }): HTMLDivElement {
+  const element = document.createElement('div');
+
+  act(() => {
+    result.current.scrollRef(element);
+  });
+
+  return element;
+}
+
+/** Moves the scroller to `scrollTop` and fires the scroll event the virtualizer observes. */
+function scrollTo(element: HTMLDivElement, scrollTop: number): void {
+  act(() => {
+    element.scrollTop = scrollTop;
+    fireEvent.scroll(element);
+  });
 }
 
 describe('useTransactionPanel', () => {
@@ -173,7 +202,9 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
     act(() => {
       result.current.onSelect('req-3');
@@ -183,13 +214,21 @@ describe('useTransactionPanel', () => {
     });
     await waitFor(() => expect(listTransactions).toHaveBeenCalledTimes(2));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    // Re-specified 2026-08-24: load-more used to be a near-bottom scroll
+    // handler; now it fires when the virtual range reaches the last loaded
+    // row, so the scroller is moved onto the last loaded row's offset. The
+    // virtual window no longer mirrors the loaded set, so the append itself is
+    // asserted on the store and the window's head after scrolling back to top.
+    const scroller = attachScroller(result);
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(50));
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(50));
+    expect(getTransactionStoreState().items[49]?.requestId).toBe('req-49');
+
+    scrollTo(scroller, 0);
+
     expect(result.current.rows[0]?.id).toBe('req-0');
-    expect(result.current.rows[49]?.id).toBe('req-49');
     expect(result.current.selectedId).toBe('req-3');
     expect(result.current.route).toBe('/api/animes/anime-1');
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-1' }));
@@ -206,14 +245,14 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    const scroller = attachScroller(result);
+
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
 
     expect(listTransactions).toHaveBeenCalledTimes(1);
   });
@@ -242,17 +281,21 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    await waitFor(() => expect(result.current.rows).toHaveLength(50));
+    const scroller = attachScroller(result);
+
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(50));
 
     act(() => {
       result.current.onKindChange('post');
     });
 
+    // Both replacement rows fit inside the virtual window, so `rows` mirrors
+    // the load again here.
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
     expect(result.current.rows.map((item) => item.id)).toEqual(['req-900', 'req-901']);
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined, kind: 'post' }));

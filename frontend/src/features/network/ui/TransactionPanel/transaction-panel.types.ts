@@ -1,4 +1,5 @@
-import type { UIEvent } from 'react';
+import type { RefCallback } from 'react';
+import type { CaptureRow } from '../../../../shared/contracts/capture.types';
 import type { CaptureRuntimeSource } from '../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureTransactionSource } from '../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CodeBlockState } from '../../../../shared/ui/CodeBlock/code-block.types';
@@ -105,18 +106,41 @@ export interface TransactionPanelProps {
   readonly runtimeSource?: CaptureRuntimeSource;
 }
 
+/** Everything the virtual window needs from the loaded rows. */
+export interface TransactionPanelWindowInput {
+  /** Every capture row loaded so far, newest-first: cursor pages at the tail, live pushes at the head. */
+  readonly items: readonly CaptureRow[];
+  /** Called when the virtual range reaches the last loaded row, so the next cursor page can be fetched. */
+  readonly onReachEnd: () => void;
+}
+
+/** What the virtual window hands the dumb table: in-view rows, spacer heights, and the scroll ref. */
+export interface TransactionPanelWindowModel {
+  /** The capture rows the virtualizer reports in view (plus overscan). */
+  readonly windowedRows: readonly CaptureRow[];
+  /** Height in px of the unrendered content above the window; 0 when the window starts at the first row. */
+  readonly topSpacerHeightPx: number;
+  /** Height in px of the unrendered content below the window; 0 when the window ends at the last row. */
+  readonly bottomSpacerHeightPx: number;
+  /** Attaches to the rail's scroll container so the virtualizer can observe its rect and offset. */
+  readonly scrollRef: RefCallback<HTMLDivElement>;
+}
+
 /**
- * Props for the dumb TransactionTable presentational component. `onScroll` is
- * the rail's only load-more trigger; there is no `hasNextPage` because there is
- * no sentinel left to mount or unmount. An exhausted cursor is already a no-op
- * inside `loadMore`, so the rail needs no second copy of that decision.
+ * Props for the dumb TransactionTable presentational component. The rows are
+ * already the virtualizer's window; the spacer heights and the scroll ref are
+ * the virtual window's rendering half. There is no `onScroll`: the virtualizer
+ * observes the scroll element itself, and load-more fires from the virtual
+ * range inside the window hook.
  */
 export interface TransactionTableProps {
   readonly rows: readonly TransactionRowViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly isLoading: boolean;
-  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  readonly topSpacerHeightPx: number;
+  readonly bottomSpacerHeightPx: number;
+  readonly scrollRef: RefCallback<HTMLDivElement>;
 }
 
 /** Props for the memoized TransactionRow presentational component. */
