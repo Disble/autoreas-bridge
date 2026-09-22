@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_TRANSACTION_FILTERS, TRANSACTION_STALE_PENDING_THRESHOLD_MS } from '../transaction-store.constants';
 import {
   getTransactionStoreState,
+  matchesTransactionFilters,
   mergeTransactionPage,
   resetTransactionStore,
   selectHasPendingTransactions,
@@ -92,6 +93,202 @@ describe('transaction-store.helpers', () => {
 
       expect(selectHasPendingTransactions(stale, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS - 1)).toBe(true);
       expect(selectHasPendingTransactions(stale, capturedAtMs + TRANSACTION_STALE_PENDING_THRESHOLD_MS)).toBe(false);
+    });
+  });
+
+  describe('matchesTransactionFilters', () => {
+    /** The default filters every table row starts from, one override per case. */
+    const baseFilters = { ...DEFAULT_TRANSACTION_FILTERS };
+
+    it.each([
+      [
+        'applies no route predicate when the route filter is unset',
+        { route: '' },
+        row(),
+        true,
+      ],
+      [
+        'matches a route by partial substring',
+        { route: 'seasons' },
+        row({ route: '/api/seasons/active' }),
+        true,
+      ],
+      [
+        'matches a middle route fragment',
+        { route: 'sync/' },
+        row({ route: '/api/sync/reconcile' }),
+        true,
+      ],
+      [
+        'matches a route case-insensitively',
+        { route: 'ANIMES' },
+        row({ route: '/api/animes' }),
+        true,
+      ],
+      [
+        'treats a literal % in the route filter as a literal, never a wildcard',
+        { route: '%api%' },
+        row({ route: '/api/animes' }),
+        false,
+      ],
+      [
+        'rejects a route that does not contain the fragment',
+        { route: 'animes' },
+        row({ route: '/ws' }),
+        false,
+      ],
+      [
+        'applies no outcome predicate when the outcome filter is unset',
+        { outcome: '' },
+        row({ outcome: 'rejected' }),
+        true,
+      ],
+      [
+        'matches an outcome by case-insensitive substring',
+        { outcome: 'REJECT' },
+        row({ outcome: 'rejected' }),
+        true,
+      ],
+      [
+        'rejects a non-matching outcome',
+        { outcome: 'accepted' },
+        row({ outcome: 'rejected' }),
+        false,
+      ],
+      [
+        'applies no kind predicate when the kind filter is unset',
+        { kind: '' },
+        row({ kind: 'post' }),
+        true,
+      ],
+      [
+        'matches a kind by case-insensitive substring',
+        { kind: 'PATCH' },
+        row({ kind: 'patch' }),
+        true,
+      ],
+      [
+        'rejects a non-matching kind',
+        { kind: 'post' },
+        row({ kind: 'patch' }),
+        false,
+      ],
+      [
+        'applies no status predicate when the status filter is unset',
+        { httpStatus: null },
+        row({ httpStatus: undefined }),
+        true,
+      ],
+      [
+        'matches the exact chosen status',
+        { httpStatus: 200 },
+        row({ httpStatus: 200 }),
+        true,
+      ],
+      [
+        'rejects a row whose status differs from the chosen one',
+        { httpStatus: 404 },
+        row({ httpStatus: 200 }),
+        false,
+      ],
+      [
+        'rejects a row with no status at all when a status is chosen',
+        { httpStatus: 200 },
+        row({ httpStatus: undefined }),
+        false,
+      ],
+      [
+        'applies no anime predicate when the anime filter is unset',
+        { animeId: '' },
+        row({ animeId: undefined }),
+        true,
+      ],
+      [
+        'matches the exact anime id',
+        { animeId: 'anime-1' },
+        row({ animeId: 'anime-1' }),
+        true,
+      ],
+      [
+        'rejects a different anime id',
+        { animeId: 'anime-1' },
+        row({ animeId: 'anime-2' }),
+        false,
+      ],
+      [
+        'applies no error-code predicate when the error-code filter is unset',
+        { errorCode: '' },
+        row({ errorCode: undefined }),
+        true,
+      ],
+      [
+        'matches the exact error code',
+        { errorCode: 'conflict' },
+        row({ errorCode: 'conflict' }),
+        true,
+      ],
+      [
+        'rejects a row with no error code when one is chosen',
+        { errorCode: 'conflict' },
+        row({ errorCode: undefined }),
+        false,
+      ],
+      [
+        'applies no lower time bound when startMs is unset',
+        { startMs: null },
+        row({ capturedAtMs: 500 }),
+        true,
+      ],
+      [
+        'admits an instant before the epoch when startMs is unset, because an absent bound is not a bound of zero',
+        { startMs: null },
+        row({ capturedAtMs: -5_000 }),
+        true,
+      ],
+      [
+        'admits a row at the lower time bound',
+        { startMs: 1000 },
+        row({ capturedAtMs: 1000 }),
+        true,
+      ],
+      [
+        'rejects a row before the lower time bound',
+        { startMs: 2000 },
+        row({ capturedAtMs: 1999 }),
+        false,
+      ],
+      [
+        'applies no upper time bound when endMs is unset',
+        { endMs: null },
+        row({ capturedAtMs: 99_999 }),
+        true,
+      ],
+      [
+        'admits a row at the upper time bound',
+        { endMs: 1000 },
+        row({ capturedAtMs: 1000 }),
+        true,
+      ],
+      [
+        'rejects a row after the upper time bound',
+        { endMs: 1000 },
+        row({ capturedAtMs: 1001 }),
+        false,
+      ],
+      [
+        'rejects every row while a device filter is set: the pushed row cannot vouch for a device',
+        { deviceId: 'device-9' },
+        row(),
+        false,
+      ],
+      [
+        'rejects every row while a changelog filter is set: the push carries no correlations envelope',
+        { changelogId: 77 },
+        row(),
+        false,
+      ],
+    ])('%s', (_caseName, filterOverrides, candidate, expected) => {
+      expect(matchesTransactionFilters(candidate, { ...baseFilters, ...filterOverrides })).toBe(expected);
     });
   });
 

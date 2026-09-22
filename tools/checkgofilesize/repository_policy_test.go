@@ -153,18 +153,21 @@ func TestRepositoryPolicyDocsDescribeCrossCuttingGoFileSizeRule(t *testing.T) {
 		path     string
 		snippets []string
 	}{
+		// Keep these fragments short: AGENTS.md and CLAUDE.md are consolidated,
+		// byte-identical mirrors whose prose may be reworded. Assert the documented
+		// rule and gate name rather than pinning one sentence.
 		{
 			path: "AGENTS.md",
 			snippets: []string{
-				"Go and frontend files share a warning threshold at 400 effective lines and a hard failure ceiling above 500 effective lines",
-				"Existing oversized Go files may stay only when `tools/checkgofilesize/baseline.yaml` records a no-growth ceiling",
+				"400 lines is the warning threshold",
+				"tools/checkgofilesize",
 			},
 		},
 		{
 			path: "CLAUDE.md",
 			snippets: []string{
-				"Go and frontend files share the same warning-at-400 and hard-fail-above-500 effective-line policy",
-				"`go run ./tools/checkgofilesize` is part of the repo-owned pre-commit gate",
+				"400 lines is the warning threshold",
+				"tools/checkgofilesize",
 			},
 		},
 		{

@@ -33,6 +33,18 @@ type CaptureQuery struct {
 	ChangelogID *int64
 }
 
+// CaptureResolveCandidate is one request capture selected by an imprecise
+// reference.
+type CaptureResolveCandidate struct {
+	RequestID string `json:"requestId"`
+}
+
+// CaptureResolveResult is the ranked candidate list returned by
+// ResolveCaptureTransactions. Candidates is always a non-nil slice.
+type CaptureResolveResult struct {
+	Candidates []CaptureResolveCandidate `json:"candidates"`
+}
+
 // CaptureRow is one transaction-list row: the fixed base projection fields
 // every capture carries, regardless of the underlying schema version.
 type CaptureRow struct {
@@ -151,4 +163,98 @@ type CaptureSummaryGroup struct {
 type CaptureSummary struct {
 	Groups   []CaptureSummaryGroup `json:"groups"`
 	Degraded bool                  `json:"degraded"`
+}
+
+// DeviceSyncDiagnosticReport is one attributed device sync diagnostics
+// report, read from device_sync_diagnostics -- the only store that can
+// attribute a report to a device: a diagnostics capture in request_captures
+// carries the report body but not the device, because the
+// POST /api/sync/diagnostics body has no device_id and identity travels
+// only in the Authorization header.
+type DeviceSyncDiagnosticReport struct {
+	DeviceID                  string  `json:"deviceId"`
+	ReportedAtMS              int64   `json:"reportedAtMs"`
+	CycleID                   string  `json:"cycleId"`
+	Degraded                  *string `json:"degraded,omitempty"`
+	TriggerSource             string  `json:"triggerSource"`
+	AppState                  string  `json:"appState"`
+	ConsecutiveUnclosedCycles int     `json:"consecutiveUnclosedCycles"`
+	PendingOpsCount           int     `json:"pendingOpsCount"`
+	Cursor                    int     `json:"cursor"`
+	PreviousOutcome           *string `json:"previousOutcome,omitempty"`
+	PreviousElapsedMS         *int64  `json:"previousElapsedMs,omitempty"`
+	PreviousErrorFingerprint  *string `json:"previousErrorFingerprint,omitempty"`
+}
+
+// DeviceSyncDiagnosticsQuery is the in-process query DTO for
+// ListDeviceSyncDiagnostics. An empty DeviceID applies no device predicate;
+// a zero or negative Limit means the reader's package default.
+type DeviceSyncDiagnosticsQuery struct {
+	DeviceID string
+	Limit    int
+}
+
+// DeviceSyncDiagnosticsResult is the ListDeviceSyncDiagnostics result
+// envelope. Items is always a non-nil slice so the frontend can range over
+// it without a nil check; Degraded marks a reader-unavailable or query-error
+// outcome (never a panic) exactly as CapturePage does. Degraded,
+// PreviousOutcome, PreviousElapsedMS and PreviousErrorFingerprint stay
+// pointers so an absent value is never rendered as zero.
+type DeviceSyncDiagnosticsResult struct {
+	Items    []DeviceSyncDiagnosticReport `json:"items"`
+	Degraded bool                         `json:"degraded"`
+}
+
+// ObservabilityFacts is the GetObservabilityFacts result envelope: the
+// desktop adapter's parity statement over the readcap catalog plus each
+// observability store's retention limit. Parity.ExposedCapabilities and
+// Parity.ExcludedCapabilities are never nil, and Degraded marks an unwired
+// observability read path, under which both blocks are zeroed rather than
+// partial.
+type ObservabilityFacts struct {
+	Parity     ObservabilityParityFacts     `json:"parity"`
+	Retention  ObservabilityRetentionLimits `json:"retention"`
+	SampleCaps ObservabilitySampleCaps      `json:"sampleCaps"`
+	Degraded   bool                         `json:"degraded"`
+}
+
+// ObservabilityParityFacts is the machine-readable parity statement for the
+// desktop adapter's observability read surfaces: the exposed capability
+// names, the excluded names with their registered mechanical reasons, and
+// the canonical catalog total the two lists partition. Both lists are never
+// nil so the wire never carries a JSON null.
+type ObservabilityParityFacts struct {
+	ExposedCapabilities  []string                          `json:"exposedCapabilities"`
+	ExcludedCapabilities []ObservabilityExcludedCapability `json:"excludedCapabilities"`
+	CatalogTotal         int                               `json:"catalogTotal"`
+}
+
+// ObservabilityExcludedCapability is one canonical read capability the
+// desktop adapter intentionally does not expose, with the mechanical reason
+// registered for its absence.
+type ObservabilityExcludedCapability struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
+}
+
+// ObservabilityRetentionLimits carries each observability store's retention
+// limit as reported by its owning package, so a surface can state how much
+// history each store keeps instead of copying a row cap into the UI.
+type ObservabilityRetentionLimits struct {
+	CaptureRows        int `json:"captureRows"`
+	EventRows          int `json:"eventRows"`
+	SyncDiagnosticRows int `json:"syncDiagnosticRows"`
+}
+
+// ObservabilitySampleCaps carries each summary's bounded sample size as
+// reported by its owning package: the runtime-event summary's newest-events
+// sample cap and the captured-request summary's per-group latest-error
+// sample cap, so a surface can state how much of each summary is shown
+// instead of copying the constant into the UI.
+type ObservabilitySampleCaps struct {
+	// EventSamples is the runtime-event summary's newest-events sample cap.
+	EventSamples int `json:"eventSamples"`
+	// CaptureErrorSamples is the captured-request summary's per-group
+	// latest-error sample cap.
+	CaptureErrorSamples int `json:"captureErrorSamples"`
 }

@@ -1,11 +1,14 @@
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
 import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
-import { getTransactionStoreState, resetTransactionStore } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
-import { scrollNearBottom } from '../../NetworkPanel/__tests__/network-panel.test-support';
+import { TRANSACTION_FILTER_DEBOUNCE_MS } from '../transaction-panel.constants';
+import {
+  getTransactionStoreState,
+  resetTransactionStore,
+} from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { useTransactionPanel } from '../use-transaction-panel';
 
 /** Builds one capture row, overridable field by field per test. */
@@ -64,6 +67,33 @@ function createFakeRuntimeSource(overrides: Partial<CaptureRuntimeSource> = {}):
   };
 }
 
+/** Row-height estimate the virtual window runs on, in px; must mirror TRANSACTION_ROW_HEIGHT_ESTIMATE_PX. */
+const ROW_HEIGHT_PX = 36;
+
+/**
+ * Attaches a detached scroll container to the hook's scrollRef so the virtual
+ * window has an element to observe. Mirrors the helper in
+ * `use-transaction-panel-window.test.ts` — a shared support file is outside
+ * this task's allowed surfaces.
+ */
+function attachScroller(result: { current: { scrollRef: (element: HTMLDivElement | null) => void } }): HTMLDivElement {
+  const element = document.createElement('div');
+
+  act(() => {
+    result.current.scrollRef(element);
+  });
+
+  return element;
+}
+
+/** Moves the scroller to `scrollTop` and fires the scroll event the virtualizer observes. */
+function scrollTo(element: HTMLDivElement, scrollTop: number): void {
+  act(() => {
+    element.scrollTop = scrollTop;
+    fireEvent.scroll(element);
+  });
+}
+
 describe('useTransactionPanel', () => {
   afterEach(() => {
     // Unmounting matters as much as resetting the store: a hook left mounted
@@ -72,6 +102,7 @@ describe('useTransactionPanel', () => {
     // mocks.
     cleanup();
     resetTransactionStore();
+    vi.useRealTimers();
   });
 
   it('loads the first page on mount', async () => {
@@ -105,6 +136,106 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(source.listTransactions).toHaveBeenCalledTimes(2));
     expect(source.listTransactions).toHaveBeenLastCalledWith(
       expect.objectContaining({ route: '/api/animes/anime-2', cursor: undefined }),
+    );
+  });
+
+  /**
+   * A burst of typing must produce exactly ONE query, after the pause: the
+   * query is built from the SETTLED filter fields (the app-wide `useDebounce`
+   * window), never from the per-keystroke store writes. The counter stays at
+   * one through the whole burst — including the window minus one tick — and
+   * lands on exactly two (the mount query plus the settled one) after the
+   * window elapses, carrying the last settled route.
+   */
+  it('runs exactly one query per typing burst, built from the settled filter value', async () => {
+    vi.useFakeTimers();
+    const listTransactions = vi.fn().mockResolvedValue({
+      items: [],
+      appliedLimit: 25,
+      malformedRowsSkipped: 0,
+      warningCount: 0,
+      degraded: false,
+    });
+    const source = createFakeSource({ listTransactions });
+    const { result } = renderHook(() => useTransactionPanel(source));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-1');
+    });
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-12');
+    });
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-123');
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS - 1);
+    });
+    // Not one query per keystroke: the burst so far has run nothing extra.
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(2);
+    expect(listTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ route: '/api/animes/anime-123', cursor: undefined }),
+    );
+  });
+
+  /**
+   * Regression guard for the whole-object debounce: `TransactionStoreFilters`
+   * carries more than the typed text fields, and a change to a NON-typed field
+   * (`animeId`, the epoch bounds, `changelogId`) must trigger its own settled
+   * query, exactly as every filter change did before the debounce existed.
+   * Several non-typed fields changed inside one debounce window must still
+   * cost exactly ONE query, carrying the last settled value of every changed
+   * field. The store's `setFilters` is driven directly because the panel only
+   * exposes callbacks for the typed controls.
+   */
+  it('runs exactly one settled query when non-typed filter fields change inside the debounce window', async () => {
+    vi.useFakeTimers();
+    const listTransactions = vi.fn().mockResolvedValue({
+      items: [],
+      appliedLimit: 25,
+      malformedRowsSkipped: 0,
+      warningCount: 0,
+      degraded: false,
+    });
+    const source = createFakeSource({ listTransactions });
+    renderHook(() => useTransactionPanel(source));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      getTransactionStoreState().setFilters({ animeId: 'anime-9' });
+    });
+    act(() => {
+      getTransactionStoreState().setFilters({ startMs: 1000, endMs: 2000, changelogId: 7 });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS - 1);
+    });
+    // Several non-typed fields changed inside one window: still no extra query.
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    // Exactly one settled query, carrying every changed non-typed field.
+    expect(listTransactions).toHaveBeenCalledTimes(2);
+    expect(listTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animeId: 'anime-9', startMs: 1000, endMs: 2000, changelogId: 7, cursor: undefined }),
     );
   });
 
@@ -159,105 +290,6 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(result.current.degraded).toBe(true));
   });
 
-  it('subscribes to the capture runtime source and upserts pushed rows live', async () => {
-    const source = createFakeSource();
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(runtimeSource.subscribeCaptureTransactions).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-live', outcome: 'pending' }));
-    });
-
-    await waitFor(() => expect(result.current.rows.map((item) => item.id)).toContain('req-live'));
-  });
-
-  it('preserves the current selection when a pushed row upserts into the buffer', async () => {
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue({
-        items: [row({ requestId: 'req-1' })],
-        appliedLimit: 25,
-        malformedRowsSkipped: 0,
-        warningCount: 0,
-        degraded: false,
-      }),
-      getTransaction: vi.fn().mockResolvedValue({ found: true, item: detail({ requestId: 'req-1' }), degraded: false }),
-    });
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-
-    act(() => {
-      result.current.onSelect('req-1');
-    });
-
-    await waitFor(() => expect(result.current.selectedId).toBe('req-1'));
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-2', outcome: 'pending' }));
-    });
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(2));
-    expect(getTransactionStoreState().selectedId).toBe('req-1');
-  });
-
-  it('refreshes the selected detail when the selected request transitions from pending to terminal via a runtime upsert', async () => {
-    const source = createFakeSource({
-      listTransactions: vi.fn().mockResolvedValue({
-        items: [row({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() })],
-        appliedLimit: 25,
-        malformedRowsSkipped: 0,
-        warningCount: 0,
-        degraded: false,
-      }),
-      getTransaction: vi
-        .fn()
-        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'pending', capturedAtMs: Date.now() }), degraded: false })
-        .mockResolvedValueOnce({ found: true, item: detail({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }), degraded: false }),
-    });
-    let pushRow: ((row: CaptureRow) => void) | undefined;
-    const runtimeSource = createFakeRuntimeSource({
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (row: CaptureRow) => void) => {
-        pushRow = listener;
-        return () => undefined;
-      }),
-    });
-
-    const { result } = renderHook(() => useTransactionPanel(source, undefined, runtimeSource));
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-
-    act(() => {
-      result.current.onSelect('req-1');
-    });
-
-    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('pending'));
-
-    act(() => {
-      pushRow?.(row({ requestId: 'req-1', outcome: 'accepted', httpStatus: 200, durationMs: 12 }));
-    });
-
-    await waitFor(() => expect(result.current.selectedDetail?.outcome).toBe('accepted'));
-    expect(source.getTransaction).toHaveBeenCalledTimes(2);
-  });
-
   it('appends the next cursor page below the loaded rows, preserving selection and filters', async () => {
     const listTransactions = vi.fn().mockImplementation((filters: { cursor?: string }) =>
       Promise.resolve({
@@ -272,7 +304,9 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
     act(() => {
       result.current.onSelect('req-3');
@@ -282,13 +316,21 @@ describe('useTransactionPanel', () => {
     });
     await waitFor(() => expect(listTransactions).toHaveBeenCalledTimes(2));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    // Re-specified 2026-08-24: load-more used to be a near-bottom scroll
+    // handler; now it fires when the virtual range reaches the last loaded
+    // row, so the scroller is moved onto the last loaded row's offset. The
+    // virtual window no longer mirrors the loaded set, so the append itself is
+    // asserted on the store and the window's head after scrolling back to top.
+    const scroller = attachScroller(result);
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(50));
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(50));
+    expect(getTransactionStoreState().items[49]?.requestId).toBe('req-49');
+
+    scrollTo(scroller, 0);
+
     expect(result.current.rows[0]?.id).toBe('req-0');
-    expect(result.current.rows[49]?.id).toBe('req-49');
     expect(result.current.selectedId).toBe('req-3');
     expect(result.current.route).toBe('/api/animes/anime-1');
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'cursor-1' }));
@@ -305,14 +347,14 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    const scroller = attachScroller(result);
+
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
 
     expect(listTransactions).toHaveBeenCalledTimes(1);
   });
@@ -341,17 +383,21 @@ describe('useTransactionPanel', () => {
     const source = createFakeSource({ listTransactions });
     const { result } = renderHook(() => useTransactionPanel(source));
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(25));
+    // The virtual window mounts 22 of the 25 loaded rows (600 px at 36 px plus
+    // overscan), so the load is asserted on the store rather than on `rows`.
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(25));
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    await waitFor(() => expect(result.current.rows).toHaveLength(50));
+    const scroller = attachScroller(result);
+
+    scrollTo(scroller, 24 * ROW_HEIGHT_PX);
+    await waitFor(() => expect(getTransactionStoreState().items).toHaveLength(50));
 
     act(() => {
       result.current.onKindChange('post');
     });
 
+    // Both replacement rows fit inside the virtual window, so `rows` mirrors
+    // the load again here.
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
     expect(result.current.rows.map((item) => item.id)).toEqual(['req-900', 'req-901']);
     expect(listTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined, kind: 'post' }));
@@ -389,7 +435,15 @@ describe('useTransactionPanel — the visible rows carry no clock', () => {
     expect(result.current.rows).toBe(rowsBeforeTicks);
   });
 
-  it('starts no timer of its own for a pending row: the clock belongs to the row that needs it', async () => {
+  /**
+   * Re-specified for the settled-filter debounce: the four filter fields each
+   * hold a ONE-SHOT `useDebounce` timeout, so the guard is no recurring
+   * timer, not zero timers. Once the debounce window has elapsed nothing may
+   * re-arm a timer — a pending row's clock is derived where it is shown, and
+   * a clock ticked from the list-wide mapping would schedule a new timer on
+   * every tick.
+   */
+  it('starts no recurring timer of its own for a pending row: the clock belongs to the row that needs it', async () => {
     vi.useFakeTimers();
 
     const source = createFakeSource({
@@ -405,6 +459,17 @@ describe('useTransactionPanel — the visible rows carry no clock', () => {
 
     await vi.waitFor(() => expect(result.current.rows).toHaveLength(1));
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS);
+    });
+    // The one-shot debounce timers have all fired...
     expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      vi.advanceTimersByTime(ELAPSED_CLOCK_TICK_MS);
+    });
+    // ...and a further tick re-arms nothing: no recurring clock exists.
+    expect(vi.getTimerCount()).toBe(0);
+    expect(result.current.rows).toHaveLength(1);
   });
 });

@@ -1,65 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UIEvent } from 'react';
-import type { CaptureRow } from '../../../../shared/contracts/capture.types';
-import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
-import { reconcileVisibleEventCount } from '../NetworkPanel/network-feed.helpers';
-import { DEFAULT_TRANSACTION_PAGE_LIMIT, TRANSACTION_PAGE_INITIAL_COUNT } from './transaction-panel.constants';
-
-/** Everything the live window needs from the loaded rows and the current selection. */
-interface TransactionPanelWindowInput {
-  /** Every capture row loaded so far, newest-first: cursor pages at the tail, live pushes at the head. */
-  readonly items: readonly CaptureRow[];
-  readonly selectedId: string | null;
-  /** Called when the growth would run past the loaded rows, so the next cursor page can be fetched. */
-  readonly onReachEnd: () => void;
-}
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  VIRTUAL_RAIL_OVERSCAN_ROWS,
+  VIRTUAL_RAIL_ROW_HEIGHT_ESTIMATE_PX,
+} from '../../../../shared/hooks/use-virtual-rail-window/virtual-rail-window.constants';
+import { useVirtualRailWindow } from '../../../../shared/hooks/use-virtual-rail-window/use-virtual-rail-window';
+import type { TransactionPanelWindowInput, TransactionPanelWindowModel } from './transaction-panel.types';
 
 /**
- * Owns the Transactions rail's visible window.
+ * Owns the Transactions rail's VIRTUAL window by delegating to the shared
+ * `useVirtualRailWindow` — the virtualizer, the deterministic viewport
+ * fallback, the load-more trigger and the head-insertion compensation all
+ * live there now. What stays rail-specific is exactly one thing: detecting
+ * THIS rail's head insertions, because a capture push, a filter reload and an
+ * in-place terminal delta are capture-shaped questions the shared window
+ * must not know about.
  *
- * **This rail is LIVE** (ADR-012, live branch): the `capture.transaction` push
- * inserts arrival and terminal rows at the head while the user reads. It
- * therefore does NOT use `useProgressiveListWindow` — that hook's render-phase
- * reset would snap the user back to the first batch on every pushed capture —
- * and reuses only `isNearListBottom` for the scroll trigger. Rows are appended
- * and never unmounted, so the scrollbar starts short and grows honestly; there
- * is no windowing, no virtualization and no `Virtualizer`/`ListLayout`.
- *
- * The trigger is a plain `onScroll` on the rail's own scroll container, exactly
- * like the Runtime Events rail, and NOT `Table.LoadMore`. That sentinel is
- * React Aria's `useLoadMoreSentinel`, which counts itself as intersecting while
- * it is up to a full container height below the fold and rebuilds its
- * IntersectionObserver every time the collection changes, "so that we can
- * properly trigger additional loadMores if there is room for more items". On a
- * rail that appends the page it just fetched, that is a loop: append → observer
- * rebuilt → still inside the margin → fetch again. It paged the whole ~1,300-row
- * capture table unattended, to roughly 20,000 DOM nodes, and the in-flight
- * `isFetchingMoreRef` guard never stopped it — it only prevents CONCURRENT
- * fetches, never the next one. A scroll handler cannot self-feed: appending rows
- * raises no scroll event.
- *
- * The reconciliation itself is `reconcileVisibleEventCount`, shared with the
- * Runtime Events rail rather than reimplemented. A capture push is a head
- * insertion exactly like a runtime-event push, so it needs the same
- * `prependedCount` term: without it every push silently drops the bottom
- * visible row, and a second copy of these rules is a second place for that term
- * to go missing (design §4.1).
- *
- * The batch's ORIGIN is the only thing that differs from the in-memory rails:
- * once the window has consumed every loaded row, the next batch is the next
- * backend cursor page rather than a slice of a local buffer.
- * @param input The loaded rows, the current selection, and the load-more trigger.
- * @returns The windowed slice, its size, and the scroll handler.
+ * The layout constants come from the shared window's constants rather than a
+ * transaction copy, so the two rails cannot drift into two different
+ * windowing rules.
+ * @param input The loaded rows and the load-more trigger.
+ * @returns The in-view rows, the spacer heights, and the scroll ref.
  */
-export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindowInput>) {
-  const { items, selectedId, onReachEnd } = input;
+export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindowInput>): TransactionPanelWindowModel {
+  const { items, onReachEnd } = input;
 
   // 1. Refs
   const previousTotalRef = useRef(0);
   const previousHeadIdRef = useRef<string | null>(null);
 
   // 2. State
-  const [visibleCount, setVisibleCount] = useState(TRANSACTION_PAGE_INITIAL_COUNT);
 
   // 3. Context/3rd Party Hooks
 
@@ -67,63 +36,45 @@ export function useTransactionPanelWindow(input: Readonly<TransactionPanelWindow
 
   // 5. Derived State (useMemo)
   const identities = useMemo(() => items.map((item) => ({ id: item.requestId })), [items]);
-  const visibleItems = useMemo(() => items.slice(0, visibleCount), [items, visibleCount]);
+  const prependCount = countPrependedRows(identities, previousHeadIdRef.current, previousTotalRef.current);
+  const model = useVirtualRailWindow({
+    estimateSizePx: VIRTUAL_RAIL_ROW_HEIGHT_ESTIMATE_PX,
+    items,
+    onReachEnd,
+    overscan: VIRTUAL_RAIL_OVERSCAN_ROWS,
+    prependCount,
+  });
 
-  // 6. Callbacks (useCallback calling pure helpers)
-  const onScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      const element = event.currentTarget;
-
-      if (!isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight)) {
-        return;
-      }
-
-      setVisibleCount(Math.min(items.length, visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT));
-
-      if (visibleCount + DEFAULT_TRANSACTION_PAGE_LIMIT >= items.length) {
-        onReachEnd();
-      }
-    },
-    [items.length, onReachEnd, visibleCount],
-  );
+  // 6. Callbacks (useCallback calling pure helpers): none — see the shared
+  // window; the scroll ref is already the referentially stable state setter.
 
   // 7. Effects
+  // The bookkeeping refs update AFTER the shared window's compensation effect
+  // has consumed this render's `prependCount` (effects flush in declaration
+  // order, and the shared hook is called first), so a push is never recorded
+  // before it was compensated.
   useEffect(() => {
-    // Both bookkeeping values are read into locals BEFORE the updater is
-    // queued: React may run a state updater eagerly or defer it, so reading the
-    // refs from inside the closure would sometimes see the values the two lines
-    // below have already overwritten.
-    const previousTotal = previousTotalRef.current;
-    const prependedCount = countPrependedRows(identities, previousHeadIdRef.current, previousTotal);
-
     previousTotalRef.current = identities.length;
     previousHeadIdRef.current = identities[0]?.id ?? null;
+  }, [identities]);
 
-    setVisibleCount((currentVisibleCount) =>
-      reconcileVisibleEventCount({
-        currentVisibleCount,
-        previousTotal,
-        nextRows: identities,
-        selectedId,
-        prependedCount,
-        initialCount: TRANSACTION_PAGE_INITIAL_COUNT,
-      }),
-    );
-  }, [identities, selectedId]);
-
-  return { visibleItems, visibleCount, onScroll };
+  return {
+    bottomSpacerHeightPx: model.bottomSpacerHeightPx,
+    scrollRef: model.scrollRef,
+    topSpacerHeightPx: model.topSpacerHeightPx,
+    windowedRows: model.visibleItems,
+  };
 }
 
 /**
  * Counts how many rows entered at the head since the previous pass.
  *
- * The Runtime Events rail can subtract two overlay lengths because its store
- * keeps the live half separate. Transactions merge pushes straight into one
- * buffer, so the head insertions are recovered by locating the previously
- * newest row: everything above it is new. A row that is no longer present (a
- * filter reload replaced the whole buffer) prepends nothing — that is a fresh
- * query, not an insertion — and neither does an in-place terminal update, which
- * leaves the head where it was.
+ * Transactions merge pushes straight into one buffer, so the head insertions
+ * are recovered by locating the previously newest row: everything above it is
+ * new. A row that is no longer present (a filter reload replaced the whole
+ * buffer) prepends nothing — that is a fresh query, not an insertion — and
+ * neither does an in-place terminal update, which leaves the head where it
+ * was.
  */
 function countPrependedRows(
   rows: readonly { readonly id: string }[],

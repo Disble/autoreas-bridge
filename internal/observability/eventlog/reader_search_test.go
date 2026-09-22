@@ -139,6 +139,65 @@ func TestSearchDomainLevelTimeWindowConjunction(t *testing.T) {
 	}
 }
 
+// TestSearchFreeTextMatchesPartialCaseInsensitive proves Text is a
+// case-insensitive substring predicate per the shared sqltext rule: a
+// partial fragment, a middle fragment, and a differently-cased fragment all
+// match the same rows.
+func TestSearchFreeTextMatchesPartialCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db, EventStoreConfig{})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 100, Domain: "sync", Level: "info", Message: "apply reconciliation failed"})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 200, Domain: "sync", Level: "info", Message: "APPLY RECONCILIATION retried"})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 300, Domain: "sync", Level: "info", Message: "unrelated"})
+
+	cases := []struct {
+		name      string
+		text      string
+		wantCount int
+	}{
+		{name: "a partial fragment matches", text: "recon", wantCount: 2},
+		{name: "a middle fragment matches", text: "ciliation", wantCount: 2},
+		{name: "a differently-cased fragment matches", text: "RECON", wantCount: 2},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			reader := NewReader(db)
+			page, err := reader.Search(context.Background(), EventSearchParams{Filters: EventFilters{Text: testCase.text}})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if len(page.Items) != testCase.wantCount {
+				t.Fatalf("expected %d matches for text %q, got %d: %#v", testCase.wantCount, testCase.text, len(page.Items), page.Items)
+			}
+		})
+	}
+}
+
+// TestSearchFreeTextEscapesLikeMetacharacters proves a literal '%' typed in
+// Text matches only rows containing a percent sign, never acting as a
+// match-everything LIKE wildcard, per the shared sqltext rule paired with
+// the explicit ESCAPE '\' clause.
+func TestSearchFreeTextEscapesLikeMetacharacters(t *testing.T) {
+	t.Parallel()
+
+	db := openStoreTestDB(t)
+	store := NewStore(db, EventStoreConfig{})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 100, Domain: "sync", Level: "info", Message: "charge is 100% done"})
+	insertTestEvent(t, store, EventRecord{OccurredAtMS: 200, Domain: "sync", Level: "info", Message: "charge is 1000 units done"})
+
+	reader := NewReader(db)
+	page, err := reader.Search(context.Background(), EventSearchParams{Filters: EventFilters{Text: "100%"}})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Message != "charge is 100% done" {
+		t.Fatalf("expected only the literal-percent row for text \"100%%\", got %#v", page.Items)
+	}
+}
+
 // TestSearchFreeTextMatchesMessageDomainEventType asserts Text matches
 // message, domain, or event_type.
 func TestSearchFreeTextMatchesMessageDomainEventType(t *testing.T) {

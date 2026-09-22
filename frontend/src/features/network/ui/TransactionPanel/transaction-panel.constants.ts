@@ -2,15 +2,27 @@
 export const DEFAULT_TRANSACTION_PAGE_LIMIT = 25;
 
 /**
- * Rows rendered before the first growth, and the batch the visible window
- * grows by on load-more.
- *
- * Deliberately equal to {@link DEFAULT_TRANSACTION_PAGE_LIMIT}, so one
- * load-more reveals exactly one fetched page and the two numbers cannot drift
- * apart. Written as a literal rather than aliasing that constant so a change to
- * either one is a deliberate decision about the rail it belongs to.
+ * Settling window (ms) before a filter query runs: the debounce period after
+ * the last keystroke, so a burst of typing produces exactly one query. The
+ * same figure History and Notifications use.
  */
-export const TRANSACTION_PAGE_INITIAL_COUNT = 25;
+export const TRANSACTION_FILTER_DEBOUNCE_MS = 300;
+
+/**
+ * Discreet hint shown in the rail's status line while a settled filter query
+ * is in flight and the previous rows are still on screen; the skeleton is
+ * reserved for a rail that has nothing to show yet.
+ */
+export const TRANSACTION_UPDATING_STATE_MESSAGE = 'updating…';
+
+/** Column count of the transaction table; the virtual spacer cells span all of them. */
+export const TRANSACTION_TABLE_COLUMN_COUNT = 6;
+
+/** Collection id of the virtual spacer row carrying the height above the window. */
+export const TRANSACTION_TABLE_SPACER_TOP_ID = 'transaction-virtual-spacer-top';
+
+/** Collection id of the virtual spacer row carrying the height below the window. */
+export const TRANSACTION_TABLE_SPACER_BOTTOM_ID = 'transaction-virtual-spacer-bottom';
 
 /** Null Object placeholder for an absent value. */
 export const TRANSACTION_EMPTY_LABEL = '–';
@@ -48,6 +60,14 @@ export const TRANSACTION_BODY_PROJECTION_NOTE = 'Showing the captured body exact
 /** Placeholder for the exact HTTP status filter input. */
 export const TRANSACTION_STATUS_FILTER_PLACEHOLDER = '404';
 
+/**
+ * Placeholder for the Route filter input: a fragment that actually exists in
+ * the capture store's route set, taught as a substring match. The previous
+ * placeholder named a full per-anime route, which the owner typed verbatim
+ * and got zero rows.
+ */
+export const TRANSACTION_ROUTE_FILTER_PLACEHOLDER = 'animes';
+
 /** Empty-state message for the transaction table before any data has loaded. */
 export const TRANSACTION_LOADING_STATE_MESSAGE = 'Loading captured transactions...';
 
@@ -58,6 +78,10 @@ export const TRANSACTION_EMPTY_STATE_MESSAGE = 'No captured transactions match t
 export const TRANSACTION_CAPTURE_DEGRADED_MESSAGE =
   'Captured transaction data is temporarily unavailable. Showing whatever was already loaded.';
 
+/** Copy for the limits line when the facts binding could not report the capture store's retention. */
+export const TRANSACTION_RETENTION_UNAVAILABLE_NOTE =
+  "the capture store's retention limit is currently unavailable.";
+
 /** Placeholder rows `TransactionTable` renders per unresolved page fetch, mirroring its six columns. */
 export const TRANSACTION_TABLE_SKELETON_ROW_COUNT = 6;
 
@@ -67,4 +91,21 @@ export const TRANSACTION_DETAIL_TAB_LABELS = {
   request: 'Request',
   response: 'Response',
 } as const;
+
+/**
+ * The exact wire route the capture layer records for sync diagnostics
+ * submissions. Both the detail inspector's report projection and the
+ * Transactions filter preset key off this literal; a diagnostics capture
+ * cannot be attributed to a device (the body carries no device_id, identity
+ * travels only in the Authorization header, and the capture layer records
+ * none), which is why route equality is the only honest selector here.
+ */
+export const SYNC_DIAGNOSTICS_ROUTE = '/api/sync/diagnostics';
+
+/** Label of the Transactions filter preset that applies the diagnostics route filter in one action. */
+export const TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL = 'Sync diagnostics reports';
+
+/** Notice shown when a diagnostics capture has a body that cannot be read as a sync diagnostics report. */
+export const TRANSACTION_DIAGNOSTICS_NO_REPORT_NOTICE =
+  'The captured body could not be read as a sync diagnostics report.';
 

@@ -14,6 +14,32 @@ called out explicitly under its release.
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-09-21
+
+### Added
+
+- Device sync diagnostics are finally readable. The bridge stores every sync-cycle report a paired device sends, but until now the only way to look at one was raw JSON. A new read path over the stored reports, with the desktop bindings to match, surfaces each report's trigger, outcome and counters as values, and a diagnostics capture in the Activity rail renders the report legibly — saying so when a capture carries no report instead of showing blanks as zeroes.
+- Every stored diagnostics report now also appears as a runtime event, so a stream of failing syncs is visible in Runtime Events without opening the reports. A retried report is not a second event: only a report the bridge actually stored emits one.
+- The Activity Overview tab now states the limits each diagnostics surface obeys — how many rows each store keeps, how many each page returns — taken from the code that enforces them rather than written by hand, and shows how many of the bridge's diagnostic read capabilities Activity exposes, naming any it deliberately leaves to the agent-facing side.
+
+### Changed
+
+- The Activity rails stay fast however far you scroll. The Transactions and Runtime Events tables used to keep mounted every row you had ever paged past; they now render only the rows on screen plus a small margin, so scrolling deep into thousands of captures, or typing with hundreds loaded, no longer drags the whole window down.
+- The Activity text filters search now. Route, outcome, kind and the events search box used to match a value exactly — the Route field's own placeholder named a value the database never contains — and they match case-insensitive substrings now, with `%`, `_` and `\` searched literally instead of acting as wildcards. The HTTP status filter stays exact: searching `4` does not start matching `404`.
+- Activity searches got bounded. Each filter query reads one page from SQLite instead of every matching capture — response bodies and headers included — so a first page that took 150–370 ms now answers in about a millisecond, and the captured-request resolver stopped reading every stored body on every page it walks.
+- The bridge status strip lives in the Activity Overview tab, where it belongs, instead of sitting above the rails; the Runtime Events tab no longer shows it.
+
+### Fixed
+
+- The Activity rails no longer freeze the window. A focused row combined with a table reload sent the table component into an endless internal scan — the renderer burned a whole core for as long as you left it sitting there, with the loading skeleton frozen on screen. The loading placeholders no longer sit inside that component's row collection, so the scan has nothing to walk.
+- Typing in an Activity filter no longer flickers the rail. The query now waits until you stop typing, the rows already on screen stay put while the refreshed page arrives — with a discreet note in the status line — and the skeleton is reserved for a rail that has nothing to show yet.
+- Newly captured requests respect the filter you are searching by. A live arrival used to be inserted no matter what the active filters said, so a filtered rail quietly refilled with rows that did not match.
+
+### Internal
+
+- No REST or WebSocket contract changed in this release: the new diagnostics read reaches the desktop UI through Wails bindings, and parity between the desktop and the agent-facing diagnostics tools is now held by structure — a capability catalog in the core, a declared manifest per adapter, one conformance suite run against both, and a build-time fitness function — instead of by discipline.
+- Documentation and instruction housekeeping: the ODD feature records for this batch (activity search, filter debouncing, rail virtualization, observability parity), the project instructions mirrored into one byte-identical canonical pair, active SDD guidance deprecated, the lean-tests skill gained guidance for equivalent mutants, the policy test now asserts the documented size rule instead of one exact sentence, `.gitignore` ignores the gentle-ai profile, and the ditto mutation-scope limitation was reported to the ditto team.
+
 ## [1.13.1] — 2026-09-16
 
 ### Fixed

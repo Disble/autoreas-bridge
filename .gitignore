@@ -26,3 +26,4 @@ opencode.json
 
 # Local AI runtime state
 .atl/
+.pi/gentle-ai/profile.json

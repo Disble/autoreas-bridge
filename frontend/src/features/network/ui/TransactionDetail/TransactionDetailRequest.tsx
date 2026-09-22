@@ -1,17 +1,25 @@
 import { CodeBlock } from '../../../../shared/ui/CodeBlock/CodeBlock';
 import type { TransactionBodyViewModel, TransactionDetailFieldRow } from '../TransactionPanel/transaction-panel.types';
+import type { TransactionDiagnosticsReportViewModel } from './transaction-diagnostics.types';
+import { TransactionDetailDiagnostics } from './TransactionDetailDiagnostics';
 import { TransactionDetailFieldList } from './TransactionDetailFieldList';
 
 /**
- * Dumb Request-tab pane: request headers plus the exact captured request body,
- * rendered through the shared `CodeBlock` primitive. `CaptureDetail.payload`
+ * Dumb Request-tab pane: request headers, the projected sync diagnostics
+ * report when the capture is on the diagnostics route, and the exact captured
+ * request body through the shared `CodeBlock` primitive. `CaptureDetail.payload`
  * still exists for semantic/domain consumers, while this pane reads only the
  * dedicated raw `requestBody` field mapped by `toTransactionBody`.
  */
 export function TransactionDetailRequest({
   headers,
   payload,
-}: Readonly<{ headers: readonly TransactionDetailFieldRow[]; payload: TransactionBodyViewModel }>) {
+  diagnostics,
+}: Readonly<{
+  headers: readonly TransactionDetailFieldRow[];
+  payload: TransactionBodyViewModel;
+  diagnostics: TransactionDiagnosticsReportViewModel | null;
+}>) {
   return (
     // The payload pane takes whatever the card has left, and `min-h-0` is what
     // lets it shrink back into that card rather than growing it. The headers
@@ -26,6 +34,8 @@ export function TransactionDetailRequest({
           <TransactionDetailFieldList rows={headers} />
         </div>
       </div>
+
+      {diagnostics !== null ? <TransactionDetailDiagnostics report={diagnostics} /> : null}
 
       <CodeBlock label="Payload" notice={payload.notice} raw={payload.raw} state={payload.state} />
     </div>

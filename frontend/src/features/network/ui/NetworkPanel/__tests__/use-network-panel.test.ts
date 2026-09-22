@@ -1,7 +1,8 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEventPage } from '../../../../../shared/contracts/runtime-event.types';
 import { resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
+import { NETWORK_FILTER_DEBOUNCE_MS } from '../network-panel.constants';
 import { useNetworkPanel } from '../use-network-panel';
 import { createFakeSource, eventPage, record } from './network-panel.test-support';
 
@@ -14,7 +15,57 @@ import { createFakeSource, eventPage, record } from './network-panel.test-suppor
  */
 describe('useNetworkPanel', () => {
   afterEach(() => {
+    // Unmount before resetting: a hook left mounted stays subscribed to the
+    // shared zustand store, and a late page resolution from the previous
+    // test would otherwise land on top of the reset state.
+    cleanup();
     resetNetworkStore();
+    vi.useRealTimers();
+  });
+
+  /**
+   * A burst of typing must produce exactly ONE query, after the pause: the
+   * query is built from the SETTLED filter fields (the app-wide `useDebounce`
+   * window), never from the per-keystroke store writes. The counter stays at
+   * one through the whole burst — including the window minus one tick — and
+   * lands on exactly two (the mount query plus the settled one) after the
+   * window elapses, carrying the last settled text.
+   */
+  it('runs exactly one query per typing burst, built from the settled filter value', async () => {
+    vi.useFakeTimers();
+    const searchEvents = vi.fn().mockResolvedValue(eventPage([record(1)]));
+    const source = createFakeSource({ searchEvents });
+    const { result } = renderHook(() => useNetworkPanel(source));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(searchEvents).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.onQueryChange('time');
+    });
+    act(() => {
+      result.current.onQueryChange('timeo');
+    });
+    act(() => {
+      result.current.onQueryChange('timeout');
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NETWORK_FILTER_DEBOUNCE_MS - 1);
+    });
+    // Not one query per keystroke: the burst so far has run nothing extra.
+    expect(searchEvents).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(searchEvents).toHaveBeenCalledTimes(2);
+    expect(searchEvents).toHaveBeenLastCalledWith({
+      limit: 20,
+      filters: { text: 'timeout', level: undefined, domain: undefined },
+    });
   });
 
   it('starts with no rows, no selection, and isLoading true before the first page resolves', () => {

@@ -1,9 +1,15 @@
 import { Alert } from '@heroui/react';
+import { useObservabilityFacts } from '../../../../shared/hooks/use-observability-facts/use-observability-facts';
 import { ACTIVITY_MASTER_DETAIL_CLASS } from '../ActivityView/activity-view.constants';
 import { NetworkDetail } from '../NetworkDetail/NetworkDetail';
 import { NetworkFilterBar } from '../NetworkFilterBar/NetworkFilterBar';
 import { NetworkTable } from '../NetworkTable/NetworkTable';
-import { NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE } from './network-panel.constants';
+import {
+  EVENT_PAGE_SIZE,
+  NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE,
+  NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE,
+  NETWORK_UPDATING_STATE_MESSAGE,
+} from './network-panel.constants';
 import type { NetworkPanelProps } from './network-panel.types';
 import { useNetworkPanel } from './use-network-panel';
 
@@ -29,19 +35,23 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     domainOptions,
     detailTab,
     isLoading,
+    isUpdating,
     statusMessage,
     emptyMessage,
     entryCount,
     errorCount,
     shownCount,
+    topSpacerHeightPx,
+    bottomSpacerHeightPx,
+    scrollRef,
     onSelect,
     onQueryChange,
     onLevelFilterChange,
     onDomainFilterChange,
     onDetailTabChange,
     onClose,
-    onScroll,
   } = useNetworkPanel(source);
+  const facts = useObservabilityFacts();
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,6 +67,16 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
 
       <p className="text-[11px] text-default-400">{NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE}</p>
 
+      <p className="text-[11px] text-default-400">
+        {`Showing ${EVENT_PAGE_SIZE} events per page; `}
+        {facts === null
+          ? NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE
+          : `the event store retains the most recent ${facts.retention.eventRows} rows.`}
+        {/* Discreet updating hint inside the existing status line: no grid
+            item and no extra line, so the layout gate's height budget holds. */}
+        {isUpdating ? <span className="text-default-400">{` · ${NETWORK_UPDATING_STATE_MESSAGE}`}</span> : null}
+      </p>
+
       {statusMessage === null ? null : (
         <Alert status="warning">
           <Alert.Indicator />
@@ -68,12 +88,15 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
 
       <div className={ACTIVITY_MASTER_DETAIL_CLASS}>
         <NetworkTable
+          bottomSpacerHeightPx={bottomSpacerHeightPx}
           emptyMessage={emptyMessage}
           isLoading={isLoading}
-          onScroll={onScroll}
+          isUpdating={isUpdating}
           onSelect={onSelect}
           rows={rows}
+          scrollRef={scrollRef}
           selectedId={selectedId}
+          topSpacerHeightPx={topSpacerHeightPx}
         />
         <NetworkDetail detail={selectedDetail} detailTab={detailTab} onClose={onClose} onDetailTabChange={onDetailTabChange} />
       </div>

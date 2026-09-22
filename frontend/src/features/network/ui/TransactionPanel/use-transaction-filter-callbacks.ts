@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { TransactionStoreFilters } from '../../../../shared/store/transaction-store/transaction-store.types';
+import { SYNC_DIAGNOSTICS_ROUTE } from './transaction-panel.constants';
 import { toStatusFilter } from './transaction-panel.helpers';
 
 /**
@@ -19,5 +20,13 @@ export function useTransactionFilterCallbacks(setFilters: (filters: Partial<Tran
   const onKindChange = useCallback((kind: string) => setFilters({ kind }), [setFilters]);
   const onStatusChange = useCallback((status: string) => setFilters({ httpStatus: toStatusFilter(status) }), [setFilters]);
 
-  return { onRouteChange, onOutcomeChange, onKindChange, onStatusChange };
+  /**
+   * Applies the sync diagnostics route filter in one action, through the same
+   * backend-evaluated `setFilters` path as every other control — the owner
+   * reaches the diagnostics rows without knowing the route string, and the
+   * result is an honest server-side query, not a client-side narrowing.
+   */
+  const onSyncDiagnosticsRoute = useCallback(() => setFilters({ route: SYNC_DIAGNOSTICS_ROUTE }), [setFilters]);
+
+  return { onRouteChange, onOutcomeChange, onKindChange, onStatusChange, onSyncDiagnosticsRoute };
 }

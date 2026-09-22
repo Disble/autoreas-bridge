@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, fireEvent, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeEventPage, RuntimeEventQuery } from '../../../../../shared/contracts/runtime-event.types';
 import { resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
@@ -9,14 +9,53 @@ import {
   eventPage,
   eventSummary,
   record,
-  scrollNearBottom,
 } from './network-panel.test-support';
+
+/**
+ * Row-height estimate the virtual window runs on, in px. Mirrors
+ * VIRTUAL_RAIL_ROW_HEIGHT_ESTIMATE_PX as a literal on purpose: the offset these
+ * tests scroll to must be exact against the production spacer math, not against
+ * a constant a refactor could repoint.
+ */
+const ROW_HEIGHT_PX = 36;
+
+/** The slice of the composition root's return the virtual-end scroll plumbing needs. */
+interface PanelScrollHandle {
+  readonly current: {
+    readonly scrollRef: (element: HTMLDivElement | null) => void;
+  };
+}
+
+/** Attaches the panel's scroll ref to a detached container so the virtualizer can observe its rect and offset. */
+function attachScroller(result: PanelScrollHandle): HTMLDivElement {
+  const element = document.createElement('div');
+
+  act(() => {
+    result.current.scrollRef(element);
+  });
+
+  return element;
+}
+
+/** Moves the rail's scroll offset onto `rowIndex` and fires the scroll event the virtualizer observes. */
+function scrollToRowIndex(element: HTMLDivElement, rowIndex: number): void {
+  act(() => {
+    element.scrollTop = rowIndex * ROW_HEIGHT_PX;
+    fireEvent.scroll(element);
+  });
+}
 
 /**
  * The Runtime Events rail's asynchronous edges, driven through the composition
  * root the way `use-transaction-panel.test.ts` drives its own sync hook: server-
  * side filters, the cursor-paged load-more, the unfiltered domain facet, the
  * live push overlay, disclosed availability, and the persisted sibling lookup.
+ *
+ * Load-more is driven the way the virtualized rail drives it (re-specified when
+ * the grow-only window and its `onScroll` handler were replaced by the shared
+ * virtual window): the composition root's scroll ref is attached to a container,
+ * the offset is moved onto the last loaded row, and the scroll event lands the
+ * virtual range on that row — the moment the rail reaches its end.
  */
 describe('useNetworkPanelSync (through useNetworkPanel)', () => {
   afterEach(() => {
@@ -150,21 +189,25 @@ describe('useNetworkPanelSync (through useNetworkPanel)', () => {
       expect(result.current.entryCount).toBe(50);
     });
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    // At rest the mounted window's head is the feed's newest row: the first
+    // page's order is intact before anything scrolls.
+    expect(result.current.rows[0]?.message).toBe('event 0');
+
+    const element = attachScroller(result);
+
+    scrollToRowIndex(element, 49);
 
     await vi.waitFor(() => {
-      expect(result.current.rows).toHaveLength(60);
+      // Re-specified for the virtual window: `rows` is the mounted slice, not
+      // the whole feed, so the append is proven by the second page's first row
+      // (feed index 50) mounting once the feed grows past the parked window's
+      // band — real rows below the first batch, not a counter bump.
+      expect(result.current.rows.map((mounted) => mounted.message)).toContain('event 100');
     });
 
     expect(result.current.entryCount).toBe(60);
     expect(searchEvents).toHaveBeenLastCalledWith({ limit: 20, cursor: 'cursor-1', filters: { text: undefined, level: undefined, domain: undefined } });
-    expect(result.current.rows[0].message).toBe('event 0');
-    expect(result.current.rows[50].message).toBe('event 100');
+    expect(result.current.rows.map((mounted) => mounted.message)).toContain('event 100');
   });
 
   it('stops requesting once the backend returned a page carrying no continuation cursor', async () => {
@@ -177,15 +220,13 @@ describe('useNetworkPanelSync (through useNetworkPanel)', () => {
       expect(result.current.entryCount).toBe(50);
     });
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    const element = attachScroller(result);
+
+    // Two scroll passes with the range landing on the last loaded row both
+    // times: an exhausted cursor is a no-op inside load-more, so neither may
+    // request a second page.
+    scrollToRowIndex(element, 49);
+    scrollToRowIndex(element, 49.5);
 
     expect(searchEvents).toHaveBeenCalledTimes(1);
   });
@@ -208,18 +249,17 @@ describe('useNetworkPanelSync (through useNetworkPanel)', () => {
       expect(result.current.entryCount).toBe(50);
     });
 
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
+    const element = attachScroller(result);
+
+    scrollToRowIndex(element, 49);
+
+    await vi.waitFor(() => {
+      expect(searchEvents).toHaveBeenCalledTimes(2);
     });
 
-    expect(searchEvents).toHaveBeenCalledTimes(2);
-
-    act(() => {
-      result.current.onScroll(scrollNearBottom());
-    });
+    // A second range pass at the end while the first page is still in flight
+    // must be swallowed by the in-flight guard, not queued as a third request.
+    scrollToRowIndex(element, 49.5);
 
     expect(searchEvents).toHaveBeenCalledTimes(2);
 

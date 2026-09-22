@@ -17,12 +17,9 @@ type Server struct {
 // the four request-capture tools plus the three runtime-event tools
 // (search_events, get_correlation_timeline, summary_events).
 func NewServer(reader Reader) *Server {
-	server := &Server{reader: reader, tools: []string{
-		"resolve_request_context", "search_requests", "get_request_context", "summary_requests",
-		"search_events", "get_correlation_timeline", "summary_events",
-	}}
+	server := &Server{reader: reader, tools: ExposedCapabilities()}
 	sdk := mcp.NewServer(&mcp.Implementation{Name: "autoreas-request-mcp", Version: "v1.0.0"}, nil)
-	mcp.AddTool(sdk, &mcp.Tool{Name: "search_requests", Description: "Search captured bridge requests"}, func(ctx context.Context, req *mcp.CallToolRequest, input SearchRequestsInput) (*mcp.CallToolResult, SearchRequestsResult, error) {
+	mcp.AddTool(sdk, &mcp.Tool{Name: "search_requests", Description: "Search captured bridge requests; the route, outcome and kind text filters match case-insensitive substrings"}, func(ctx context.Context, req *mcp.CallToolRequest, input SearchRequestsInput) (*mcp.CallToolResult, SearchRequestsResult, error) {
 		result, err := searchRequests(ctx, reader, input)
 		return nil, result, err
 	})
@@ -53,7 +50,7 @@ func registerEventTools(sdk *mcp.Server, reader Reader) {
 	if !ok {
 		return
 	}
-	mcp.AddTool(sdk, &mcp.Tool{Name: "search_events", Description: "Search persisted runtime events"}, func(ctx context.Context, req *mcp.CallToolRequest, input SearchEventsInput) (*mcp.CallToolResult, SearchEventsResult, error) {
+	mcp.AddTool(sdk, &mcp.Tool{Name: "search_events", Description: "Search persisted runtime events; the text filter matches case-insensitive substrings"}, func(ctx context.Context, req *mcp.CallToolRequest, input SearchEventsInput) (*mcp.CallToolResult, SearchEventsResult, error) {
 		result, err := searchEvents(ctx, events, input)
 		return nil, result, err
 	})

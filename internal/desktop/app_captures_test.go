@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -267,6 +268,51 @@ func assertChangelogIDFilter(t *testing.T, got *int64, wantSet bool, wantValue i
 
 	if *got != wantValue {
 		t.Fatalf("expected changelog id %d, got %d", wantValue, *got)
+	}
+}
+
+// TestListCaptureTransactionsUsesSummaryProjectionAndDetailKeepsBodies drives
+// the real bindings over a bridge DB: the list read must ask for the summary
+// projection (no bodies read), while GetCaptureTransaction keeps the full
+// detail including the stored body.
+func TestListCaptureTransactionsUsesSummaryProjectionAndDetailKeepsBodies(t *testing.T) {
+	t.Parallel()
+	db := captureAppTestDB(t)
+	seedCaptureRow(t, db, "req-1", 100)
+	requestBody := `{"name":"x","nested":{"n":1},"secret":"keep-me"}`
+	if _, err := db.Exec(`UPDATE request_captures SET request_body = ? WHERE request_id = ?`, requestBody, "req-1"); err != nil {
+		t.Fatalf("seed request body: %v", err)
+	}
+
+	params := toSearchParams(contracts.CaptureQuery{Limit: 10})
+	if !params.Summary {
+		t.Fatal("expected the desktop list read to request the summary projection")
+	}
+
+	app := &App{bridgeDB: db, captureReader: requestcapture.NewReader(db)}
+	page := app.ListCaptureTransactions(contracts.CaptureQuery{Limit: 10})
+	if len(page.Items) != 1 {
+		t.Fatalf("expected 1 item, got %#v", page.Items)
+	}
+
+	reader := requestcapture.NewReader(db)
+	listPage, err := reader.Search(context.Background(), params)
+	if err != nil {
+		t.Fatalf("search with the mapped list params: %v", err)
+	}
+	if len(listPage.Items) != 1 {
+		t.Fatalf("expected 1 item, got %#v", listPage.Items)
+	}
+	if listPage.Items[0].RequestBody != nil {
+		t.Fatalf("expected the list projection to omit request bodies, got %#v", listPage.Items[0].RequestBody)
+	}
+
+	detail := app.GetCaptureTransaction("req-1")
+	if !detail.Found {
+		t.Fatal("expected req-1 to be found by the detail read")
+	}
+	if detail.Item.RequestBody == nil || *detail.Item.RequestBody != requestBody {
+		t.Fatalf("expected the detail read to keep the request body %q, got %#v", requestBody, detail.Item.RequestBody)
 	}
 }
 

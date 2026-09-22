@@ -1,4 +1,4 @@
-import type { UIEvent } from 'react';
+import type { RefCallback } from 'react';
 import type { RuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import type {
   EventFeedState,
@@ -144,16 +144,29 @@ export interface NetworkDetailViewModel {
   readonly traceEntries: readonly NetworkTraceEntryViewModel[];
 }
 
-/** Props for the dumb NetworkTable presentational component. */
+/**
+ * Props for the dumb NetworkTable presentational component. The rows are
+ * already the virtual window's slice; the spacer heights and the scroll ref
+ * are the virtual window's rendering half. There is no `onScroll`: the
+ * virtualizer observes the scroll element itself, and load-more fires from
+ * the virtual range inside the window hook.
+ */
 export interface NetworkTableProps {
   readonly rows: readonly NetworkEntryViewModel[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
-  readonly onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  /** Height in px of the unrendered content above the window; 0 when the window starts at the first row. */
+  readonly topSpacerHeightPx: number;
+  /** Height in px of the unrendered content below the window; 0 when the window ends at the last row. */
+  readonly bottomSpacerHeightPx: number;
+  /** Attaches to the rail's scroll container so the virtual window can observe its rect and offset. */
+  readonly scrollRef: RefCallback<HTMLDivElement>;
   /** Copy rendered in place of the rows once resolved: empty, or the degraded reason. */
   readonly emptyMessage: string;
   /** Whether the runtime-event page has not resolved yet; drives the skeleton rows and the busy state. */
   readonly isLoading: boolean;
+  /** A settled filter query is in flight while rows are on screen: the table stays busy and announces it, but keeps rendering the rows. */
+  readonly isUpdating: boolean;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */

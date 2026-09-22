@@ -1,49 +1,52 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UIEvent } from 'react';
-import { isNearListBottom } from '../../../../shared/helpers/progressive-list.helpers';
-import { mergeEventFeed, reconcileVisibleEventCount } from './network-feed.helpers';
-import { EVENT_PAGE_INITIAL_COUNT, EVENT_PAGE_SIZE } from './network-panel.constants';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  VIRTUAL_RAIL_OVERSCAN_ROWS,
+  VIRTUAL_RAIL_ROW_HEIGHT_ESTIMATE_PX,
+} from '../../../../shared/hooks/use-virtual-rail-window/virtual-rail-window.constants';
+import { useVirtualRailWindow } from '../../../../shared/hooks/use-virtual-rail-window/use-virtual-rail-window';
+import { mergeEventFeed } from './network-feed.helpers';
 import type { EventFeedState, RuntimeEventRow } from './network-panel.types';
 
-/** Everything the live window needs from the feed and the current selection. */
+/** Everything the virtual window needs from the feed. */
 interface NetworkPanelWindowInput {
   readonly feed: Pick<EventFeedState, 'page' | 'overlay'>;
-  readonly selectedId: string | null;
-  /** Called when the growth would run past the loaded rows, so the next cursor page can be fetched. */
+  /** Called when the virtual range reaches the last loaded row, so the next cursor page can be fetched. */
   readonly onReachEnd: () => void;
 }
 
 /**
- * Owns the Runtime Events rail's visible window.
+ * Owns the Runtime Events rail's VIRTUAL window by delegating to the shared
+ * `useVirtualRailWindow` — the virtualizer, the deterministic viewport
+ * fallback, the load-more trigger and the head-insertion compensation all
+ * live there now.
  *
- * **This rail is LIVE** (ADR-012, live branch): an event stream pushes rows in
- * at the head while the user reads. It therefore does NOT use
- * `useProgressiveListWindow` — that hook's render-phase reset would snap the
- * user back to the first batch on every pushed event — and reuses only
- * `isNearListBottom` for the scroll trigger. Rows are appended and never
- * unmounted, so the scrollbar starts short and grows honestly; there is no
- * windowing, no virtualization and no `Virtualizer`/`ListLayout`.
- *
- * The one thing this rail adds beyond the shared invariants is
- * `prependedCount`: a head insertion shifts every rendered row down one index,
- * so holding the count constant would silently drop the bottom visible row on
- * every single event (design §4.1).
+ * **This rail is LIVE** (ADR-012, live branch): a runtime-event push enters
+ * at the head while the user reads. The one thing that stays rail-specific is
+ * detecting THIS rail's head insertions: the overlay only ever grows at the
+ * head (admission is unchanged), so the growth of `feed.overlay.length` since
+ * the previous pass IS the prepended count. A filter reload clears the
+ * overlay and replaces the page — a shrink, clamped to zero, prepends
+ * nothing.
  *
  * The batch's ORIGIN is the only thing that differs from the in-memory rails:
- * once the window has consumed every loaded row, the next batch is the next
- * backend cursor page rather than a slice of a local buffer.
- * @param input The feed halves, the current selection, and the load-more trigger.
- * @returns The merged feed, the windowed slice, its size, and the scroll handler.
+ * once the virtual range reaches the last loaded row, the next batch is the
+ * next backend cursor page rather than a slice of a local buffer.
+ * @param input The feed halves and the load-more trigger.
+ * @returns The merged feed, the in-view rows, the spacer heights, and the scroll ref.
  */
-export function useNetworkPanelWindow(input: Readonly<NetworkPanelWindowInput>) {
-  const { feed, selectedId, onReachEnd } = input;
+export function useNetworkPanelWindow(input: Readonly<NetworkPanelWindowInput>): {
+  rows: readonly RuntimeEventRow[];
+  windowedRows: readonly RuntimeEventRow[];
+  topSpacerHeightPx: number;
+  bottomSpacerHeightPx: number;
+  scrollRef: (element: HTMLDivElement | null) => void;
+} {
+  const { feed, onReachEnd } = input;
 
   // 1. Refs
-  const previousTotalRef = useRef(0);
   const previousOverlayCountRef = useRef(0);
 
   // 2. State
-  const [visibleCount, setVisibleCount] = useState(EVENT_PAGE_INITIAL_COUNT);
 
   // 3. Context/3rd Party Hooks
 
@@ -51,61 +54,34 @@ export function useNetworkPanelWindow(input: Readonly<NetworkPanelWindowInput>) 
 
   // 5. Derived State (useMemo)
   const rows = useMemo(() => mergeEventFeed(feed.overlay, feed.page), [feed.overlay, feed.page]);
-  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount]);
+  // The overlay shrinks only when a filter reload clears it; clamping to zero
+  // keeps that reload from compensating the offset backwards. The bookkeeping
+  // ref updates AFTER the shared window's compensation effect has consumed
+  // this render's count (effects flush in declaration order, and the shared
+  // hook is called first), so a push is never recorded before it was
+  // compensated.
+  const prependCount = Math.max(0, feed.overlay.length - previousOverlayCountRef.current);
+  const model = useVirtualRailWindow({
+    estimateSizePx: VIRTUAL_RAIL_ROW_HEIGHT_ESTIMATE_PX,
+    items: rows,
+    onReachEnd,
+    overscan: VIRTUAL_RAIL_OVERSCAN_ROWS,
+    prependCount,
+  });
 
-  // 6. Callbacks (useCallback calling pure helpers)
-  const onScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      const element = event.currentTarget;
-
-      if (!isNearListBottom(element.scrollTop, element.clientHeight, element.scrollHeight)) {
-        return;
-      }
-
-      setVisibleCount(Math.min(rows.length, visibleCount + EVENT_PAGE_SIZE));
-
-      if (visibleCount + EVENT_PAGE_SIZE >= rows.length) {
-        onReachEnd();
-      }
-    },
-    [onReachEnd, rows.length, visibleCount],
-  );
+  // 6. Callbacks (useCallback calling pure helpers): none — see the shared
+  // window; the scroll ref is already the referentially stable state setter.
 
   // 7. Effects
   useEffect(() => {
-    // Both bookkeeping values are read into locals BEFORE the updater is
-    // queued. React may run a state updater eagerly or defer it, so reading
-    // `previousTotalRef.current` from inside the closure would sometimes see
-    // the value the two lines below have already overwritten — and rule 3
-    // ("a fully revealed feed stays revealed") would silently stop firing on
-    // an appended cursor page.
-    const previousTotal = previousTotalRef.current;
-    const prependedCount = Math.max(0, feed.overlay.length - previousOverlayCountRef.current);
-
-    previousTotalRef.current = rows.length;
     previousOverlayCountRef.current = feed.overlay.length;
-
-    setVisibleCount((currentVisibleCount) =>
-      reconcileVisibleEventCount({
-        currentVisibleCount,
-        previousTotal,
-        nextRows: rows,
-        selectedId,
-        prependedCount,
-        initialCount: EVENT_PAGE_INITIAL_COUNT,
-      }),
-    );
-  }, [feed.overlay.length, rows, selectedId]);
+  }, [feed.overlay.length]);
 
   return {
+    bottomSpacerHeightPx: model.bottomSpacerHeightPx,
     rows,
-    visibleRows,
-    visibleCount,
-    onScroll,
-  } satisfies {
-    rows: readonly RuntimeEventRow[];
-    visibleRows: readonly RuntimeEventRow[];
-    visibleCount: number;
-    onScroll: (event: UIEvent<HTMLDivElement>) => void;
+    scrollRef: model.scrollRef,
+    topSpacerHeightPx: model.topSpacerHeightPx,
+    windowedRows: model.visibleItems,
   };
 }

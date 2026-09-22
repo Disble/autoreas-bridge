@@ -9,6 +9,14 @@ import (
 // summary group.
 const defaultSummaryErrorSamples = 5
 
+// SummaryErrorSampleLimit returns the captured-request summary's bounded
+// latest-error sample count per group (defaultSummaryErrorSamples), the cap
+// behind each group's LatestErrorSamples. It is exposed so a surface can
+// state how much of the summary is shown without copying the constant.
+func SummaryErrorSampleLimit() int {
+	return defaultSummaryErrorSamples
+}
+
 // Summary aggregates captures into counts grouped by (route, http_status,
 // outcome), scoped by the supplied filters, plus a bounded number of the most
 // recent error samples per group. An empty/unmatched filter set yields a

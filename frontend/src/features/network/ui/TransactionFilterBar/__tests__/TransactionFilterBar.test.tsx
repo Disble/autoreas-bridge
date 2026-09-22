@@ -51,6 +51,17 @@ describe('TransactionFilterBar', () => {
     expect(onStatusChange).toHaveBeenCalledWith('404');
   });
 
+  it('teaches an existing route fragment as the Route placeholder', () => {
+    render(<TransactionFilterBar {...props()} />);
+
+    // The capture store holds real routes such as `/ws` and `/api/animes`, and
+    // the Route filter is a substring match, so the placeholder must name a
+    // fragment that actually exists. The previous placeholder named a full
+    // per-anime route no route ever matches after the fact, and the owner
+    // typed it verbatim and saw zero rows.
+    expect(screen.getByLabelText('Route')).toHaveAttribute('placeholder', 'animes');
+  });
+
   it('forwards a route change', () => {
     const onRouteChange = vi.fn();
     render(<TransactionFilterBar {...props({ onRouteChange })} />);

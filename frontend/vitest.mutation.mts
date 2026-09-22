@@ -8,7 +8,19 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     forbidOnly: true,
-    maxWorkers: '50%',
+    // Pinned to the same 4-worker cap the application config (`vite.config.ts`)
+    // already documents: the gate runs this suite beside other load (Go threads,
+    // dharness, other agent sessions, the owner's desktop apps), and at 50%
+    // (~8 workers here) that contention starves per-test 5s budgets — measured
+    // 2026-09-13 on this machine, same command, same tree: 50% workers failed
+    // 20+ unrelated tests with timeouts, `--maxWorkers=4` left 3 marginal
+    // failures (5818/5150/5224 ms). This is NOT a weakening: the same tests
+    // run, the same mutants are generated, and the same 5s per-test budget
+    // applies — only the worker count changes, trading gate wall-clock for a
+    // verdict that does not depend on how busy the desktop is. It is the same
+    // contention class as the DOCUMENTED EXCEPTION below, resolved by
+    // scheduling instead of by excluding another file.
+    maxWorkers: 4,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     // DOCUMENTED EXCEPTION (2026-08-23, SDD-60). NotificationTable.windowing
     // is excluded from the mutation runner's suite ONLY. It still runs in
