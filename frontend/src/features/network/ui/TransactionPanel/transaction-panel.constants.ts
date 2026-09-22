@@ -1,6 +1,20 @@
 /** Default page size for ListCaptureTransactions when the panel does not override it. */
 export const DEFAULT_TRANSACTION_PAGE_LIMIT = 25;
 
+/**
+ * Settling window (ms) before a filter query runs: the debounce period after
+ * the last keystroke, so a burst of typing produces exactly one query. The
+ * same figure History and Notifications use.
+ */
+export const TRANSACTION_FILTER_DEBOUNCE_MS = 300;
+
+/**
+ * Discreet hint shown in the rail's status line while a settled filter query
+ * is in flight and the previous rows are still on screen; the skeleton is
+ * reserved for a rail that has nothing to show yet.
+ */
+export const TRANSACTION_UPDATING_STATE_MESSAGE = 'updating…';
+
 /** Column count of the transaction table; the virtual spacer cells span all of them. */
 export const TRANSACTION_TABLE_COLUMN_COUNT = 6;
 

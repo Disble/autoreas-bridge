@@ -4,6 +4,7 @@ import type { CaptureTransactionSource } from '../../../../../infrastructure/cap
 import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
 import type { CaptureDetail, CaptureRow } from '../../../../../shared/contracts/capture.types';
 import { ELAPSED_CLOCK_TICK_MS } from '../../../../../shared/hooks/use-elapsed-clock/use-elapsed-clock.constants';
+import { TRANSACTION_FILTER_DEBOUNCE_MS } from '../transaction-panel.constants';
 import {
   getTransactionStoreState,
   resetTransactionStore,
@@ -101,6 +102,7 @@ describe('useTransactionPanel', () => {
     // mocks.
     cleanup();
     resetTransactionStore();
+    vi.useRealTimers();
   });
 
   it('loads the first page on mount', async () => {
@@ -134,6 +136,106 @@ describe('useTransactionPanel', () => {
     await waitFor(() => expect(source.listTransactions).toHaveBeenCalledTimes(2));
     expect(source.listTransactions).toHaveBeenLastCalledWith(
       expect.objectContaining({ route: '/api/animes/anime-2', cursor: undefined }),
+    );
+  });
+
+  /**
+   * A burst of typing must produce exactly ONE query, after the pause: the
+   * query is built from the SETTLED filter fields (the app-wide `useDebounce`
+   * window), never from the per-keystroke store writes. The counter stays at
+   * one through the whole burst — including the window minus one tick — and
+   * lands on exactly two (the mount query plus the settled one) after the
+   * window elapses, carrying the last settled route.
+   */
+  it('runs exactly one query per typing burst, built from the settled filter value', async () => {
+    vi.useFakeTimers();
+    const listTransactions = vi.fn().mockResolvedValue({
+      items: [],
+      appliedLimit: 25,
+      malformedRowsSkipped: 0,
+      warningCount: 0,
+      degraded: false,
+    });
+    const source = createFakeSource({ listTransactions });
+    const { result } = renderHook(() => useTransactionPanel(source));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-1');
+    });
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-12');
+    });
+    act(() => {
+      result.current.onRouteChange('/api/animes/anime-123');
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS - 1);
+    });
+    // Not one query per keystroke: the burst so far has run nothing extra.
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(2);
+    expect(listTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ route: '/api/animes/anime-123', cursor: undefined }),
+    );
+  });
+
+  /**
+   * Regression guard for the whole-object debounce: `TransactionStoreFilters`
+   * carries more than the typed text fields, and a change to a NON-typed field
+   * (`animeId`, the epoch bounds, `changelogId`) must trigger its own settled
+   * query, exactly as every filter change did before the debounce existed.
+   * Several non-typed fields changed inside one debounce window must still
+   * cost exactly ONE query, carrying the last settled value of every changed
+   * field. The store's `setFilters` is driven directly because the panel only
+   * exposes callbacks for the typed controls.
+   */
+  it('runs exactly one settled query when non-typed filter fields change inside the debounce window', async () => {
+    vi.useFakeTimers();
+    const listTransactions = vi.fn().mockResolvedValue({
+      items: [],
+      appliedLimit: 25,
+      malformedRowsSkipped: 0,
+      warningCount: 0,
+      degraded: false,
+    });
+    const source = createFakeSource({ listTransactions });
+    renderHook(() => useTransactionPanel(source));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      getTransactionStoreState().setFilters({ animeId: 'anime-9' });
+    });
+    act(() => {
+      getTransactionStoreState().setFilters({ startMs: 1000, endMs: 2000, changelogId: 7 });
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS - 1);
+    });
+    // Several non-typed fields changed inside one window: still no extra query.
+    expect(listTransactions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    // Exactly one settled query, carrying every changed non-typed field.
+    expect(listTransactions).toHaveBeenCalledTimes(2);
+    expect(listTransactions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animeId: 'anime-9', startMs: 1000, endMs: 2000, changelogId: 7, cursor: undefined }),
     );
   });
 
@@ -333,7 +435,15 @@ describe('useTransactionPanel — the visible rows carry no clock', () => {
     expect(result.current.rows).toBe(rowsBeforeTicks);
   });
 
-  it('starts no timer of its own for a pending row: the clock belongs to the row that needs it', async () => {
+  /**
+   * Re-specified for the settled-filter debounce: the four filter fields each
+   * hold a ONE-SHOT `useDebounce` timeout, so the guard is no recurring
+   * timer, not zero timers. Once the debounce window has elapsed nothing may
+   * re-arm a timer — a pending row's clock is derived where it is shown, and
+   * a clock ticked from the list-wide mapping would schedule a new timer on
+   * every tick.
+   */
+  it('starts no recurring timer of its own for a pending row: the clock belongs to the row that needs it', async () => {
     vi.useFakeTimers();
 
     const source = createFakeSource({
@@ -349,6 +459,17 @@ describe('useTransactionPanel — the visible rows carry no clock', () => {
 
     await vi.waitFor(() => expect(result.current.rows).toHaveLength(1));
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TRANSACTION_FILTER_DEBOUNCE_MS);
+    });
+    // The one-shot debounce timers have all fired...
     expect(vi.getTimerCount()).toBe(0);
+
+    act(() => {
+      vi.advanceTimersByTime(ELAPSED_CLOCK_TICK_MS);
+    });
+    // ...and a further tick re-arms nothing: no recurring clock exists.
+    expect(vi.getTimerCount()).toBe(0);
+    expect(result.current.rows).toHaveLength(1);
   });
 });

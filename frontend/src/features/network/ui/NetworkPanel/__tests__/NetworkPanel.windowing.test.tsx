@@ -222,14 +222,23 @@ describe('NetworkPanel virtual window (live rail)', () => {
 
     render(<NetworkPanel source={source} />);
 
-    await screen.findByText('event 0');
+    // One settled pass plus a single DOM query replaces findByText polling, the
+    // same harness the Transactions rail already uses: the source is a resolved
+    // mock, so the rows are deterministic. Measured at about 120 ms of this
+    // test's ~2.5 s, so this is consistency and determinism, not a fix for a
+    // budget: the test's cost is the rail's own render chain (the clicked row's
+    // detail panel included), and it only exceeds the 5 s budget when the
+    // machine itself is under heavy load.
+    await settleAsyncPasses();
+
+    expect(screen.getByText('event 0')).toBeInTheDocument();
 
     const geometry = scrollToOffset(800);
 
     screen.getByText('event 22').closest('tr')?.click();
-    await waitFor(() => {
-      expect(getNetworkStoreState().selectedId).toBe('event-22');
-    });
+    await settleAsyncPasses();
+
+    expect(getNetworkStoreState().selectedId).toBe('event-22');
 
     const before = renderedMessages();
 

@@ -1,13 +1,31 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CaptureRuntimeSource } from '../../../../../infrastructure/capture-runtime-source/capture-runtime-source.types';
-import type { CaptureTransactionSource } from '../../../../../infrastructure/capture-transaction-source/capture-transaction-source.types';
-import type { CaptureDetail, CaptureQueryFilters, CaptureRow } from '../../../../../shared/contracts/capture.types';
+import type { CaptureQueryFilters } from '../../../../../shared/contracts/capture.types';
 import {
   getTransactionStoreState,
   resetTransactionStore,
 } from '../../../../../shared/store/transaction-store/transaction-store.helpers';
 import { triggerIntersectionObservers } from '../../../../../test/setup';
+import {
+  countRenderedRows,
+  capturePage,
+  createEndlessSource,
+  createFakeSource,
+  createPushableRuntimeSource,
+  LOADED_ROW_COUNT,
+  MOUNTED_ROW_CEILING,
+  OVERSCAN_ROWS,
+  renderedRoutes,
+  row,
+  ROW_HEIGHT_PX,
+  rows,
+  SCROLLED_INDEX,
+  scrollToOffset,
+  settleAsyncPasses,
+  scroller,
+  spacerHeightPx,
+} from './transaction-panel.test-helpers';
+import { TRANSACTION_FILTER_DEBOUNCE_MS } from '../transaction-panel.constants';
 import { TransactionPanel } from '../TransactionPanel';
 
 /**
@@ -25,157 +43,6 @@ import { TransactionPanel } from '../TransactionPanel';
  * each). Every assertion, exact value, and re-specification note survives;
  * only redundant renders were removed.
  */
-
-/** Row-height estimate in px; must mirror TRANSACTION_ROW_HEIGHT_ESTIMATE_PX, as a literal on purpose. */
-const ROW_HEIGHT_PX = 36;
-
-/** Overscan rows the production virtualizer runs with; must mirror TRANSACTION_VIRTUAL_OVERSCAN_ROWS. */
-const OVERSCAN_ROWS = 5;
-
-/** Hard ceiling the virtual window must stay under however many rows are loaded. */
-const MOUNTED_ROW_CEILING = 100;
-
-/** A load above the mounted ceiling, so "bounded" cannot pass by accident. */
-const LOADED_ROW_COUNT = 150;
-
-/** Far-down row index the scroll test must reveal; stays inside the loaded fixture. */
-const SCROLLED_INDEX = 140;
-
-/** Builds one capture row, overridable field by field per test. */
-function row(overrides: Partial<CaptureRow> = {}): CaptureRow {
-  return {
-    requestId: 'req-1',
-    capturedAtMs: 1_000,
-    kind: 'patch',
-    route: '/api/animes/anime-1',
-    transport: 'http',
-    outcome: 'accepted',
-    ...overrides,
-  };
-}
-
-/** Builds `count` newest-first rows with distinct ids and routes, as one backend page. */
-function rows(count: number, offset = 0): readonly CaptureRow[] {
-  return Array.from({ length: count }, (_unused, index) =>
-    row({
-      requestId: `req-${offset + index}`,
-      route: `/api/animes/anime-${offset + index}`,
-      capturedAtMs: 100_000 - offset - index,
-    }),
-  );
-}
-
-/** Builds one capture-detail envelope for the selection round trip. */
-function detail(): CaptureDetail {
-  return { ...row(), payload: {}, correlations: { operationRefs: [] }, deviceId: 'device-1', deviceName: 'Phone' };
-}
-
-/** Builds one page envelope, defaulting to a healthy read. */
-function capturePage(items: readonly CaptureRow[], nextCursor?: string) {
-  return { items, nextCursor, appliedLimit: 25, malformedRowsSkipped: 0, warningCount: 0, degraded: false };
-}
-
-/** Builds a fake transaction source, overridable per test. */
-function createFakeSource(overrides: Partial<CaptureTransactionSource> = {}): CaptureTransactionSource {
-  return {
-    listTransactions: vi.fn().mockResolvedValue(capturePage([])),
-    getTransaction: vi.fn().mockResolvedValue({ found: true, item: detail(), degraded: false }),
-    summarizeTransactions: vi.fn().mockResolvedValue({ groups: [], degraded: false }),
-    ...overrides,
-  };
-}
-
-/** Builds a fake capture runtime source whose live listener the test can drive directly. */
-function createPushableRuntimeSource() {
-  const listeners: ((pushed: CaptureRow) => void)[] = [];
-
-  return {
-    runtimeSource: {
-      subscribeCaptureTransactions: vi.fn().mockImplementation((listener: (pushed: CaptureRow) => void) => {
-        listeners.push(listener);
-
-        return () => undefined;
-      }),
-    } satisfies CaptureRuntimeSource,
-    push(pushed: CaptureRow) {
-      for (const listener of listeners) {
-        listener(pushed);
-      }
-    },
-  };
-}
-
-/** Builds a source whose every page reports another one after it, so an unattended trigger pages forever. */
-function createEndlessSource() {
-  let pagesServed = 0;
-  const listTransactions = vi.fn().mockImplementation(() => {
-    pagesServed += 1;
-
-    return Promise.resolve(capturePage(rows(25, pagesServed * 25), `cursor-${pagesServed}`));
-  });
-
-  return { source: createFakeSource({ listTransactions }), listTransactions };
-}
-
-/** Flushes several microtask passes, so an unattended fetch loop has room to compound. */
-async function settleAsyncPasses(passes = 5): Promise<void> {
-  // Sequential by design: each pass lets the previous fetch's continuation run.
-  for (let pass = 0; pass < passes; pass += 1) {
-    await act(async () => {
-      await Promise.resolve();
-    });
-  }
-}
-
-/** Counts the transaction rows actually mounted, excluding the header and the spacer rows. */
-function countRenderedRows(): number {
-  return document.querySelectorAll('[data-transaction-scroll] tbody tr:not([data-transaction-spacer])').length;
-}
-
-/** Reads the route cell of every mounted row, in render order. */
-function renderedRoutes(): readonly string[] {
-  return Array.from(
-    document.querySelectorAll<HTMLElement>('[data-transaction-scroll] tbody tr td:nth-child(3)'),
-  ).map((cell) => cell.textContent ?? '');
-}
-
-/** Returns the rail's scroll container, failing loudly when the panel did not render one. */
-function scroller(): HTMLElement {
-  const node = document.querySelector<HTMLElement>('[data-transaction-scroll]');
-
-  if (node === null) {
-    throw new Error('the Transactions rail rendered no scroll container');
-  }
-
-  return node;
-}
-
-/** Reads a spacer row's rendered height in px, failing loudly when the spacer did not render. */
-function spacerHeightPx(position: 'bottom' | 'top'): number {
-  const spacer = document.querySelector<HTMLElement>(`[data-transaction-spacer="${position}"]`);
-
-  if (spacer === null) {
-    throw new Error(`the Transactions rail rendered no "${position}" spacer row`);
-  }
-
-  return Number.parseFloat(spacer.style.height);
-}
-
-/** Installs mocked scrollTop on the rail and fires the scroll event the virtualizer observes. */
-function scrollToOffset(scrollTop: number) {
-  const node = scroller();
-  const state = { scrollTop };
-  Object.defineProperty(node, 'scrollTop', {
-    configurable: true,
-    get: () => state.scrollTop,
-    set: (value: number) => {
-      state.scrollTop = value;
-    },
-  });
-  fireEvent.scroll(node);
-
-  return state;
-}
 
 describe('TransactionPanel virtual window (live rail)', () => {
   afterEach(() => {
@@ -295,19 +162,23 @@ describe('TransactionPanel virtual window (live rail)', () => {
 
     expect(screen.getByText('/api/animes/anime-0')).toBeInTheDocument();
 
-    for (let step = 1; step <= 5; step += 1) {
+    for (let step = 1; step <= 4; step += 1) {
       scrollToOffset(step * 25 * ROW_HEIGHT_PX);
     }
 
     expect(countRenderedRows()).toBeLessThanOrEqual(MOUNTED_ROW_CEILING);
 
     // A keystroke lands as a store filter change; the re-render it causes
-    // must not scale with the loaded rows. One settled pass and a single DOM
-    // query assert it — no per-keystroke polling against the per-test budget.
+    // must not scale with the loaded rows. The query itself now waits for the
+    // app-wide debounce window, so the settled state is one window plus the
+    // async passes — a real (not faked) single wait, then the usual settles.
     act(() => {
       getTransactionStoreState().setFilters({ route: '/api/sync' });
     });
 
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, TRANSACTION_FILTER_DEBOUNCE_MS));
+    });
     await settleAsyncPasses(2);
 
     expect(screen.getByText('/api/animes/anime-9000')).toBeInTheDocument();

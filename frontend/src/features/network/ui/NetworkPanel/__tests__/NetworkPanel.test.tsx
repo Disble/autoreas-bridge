@@ -1,7 +1,13 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RuntimeEventQuery } from '../../../../../shared/contracts/runtime-event.types';
+import type { RuntimeEventPage, RuntimeEventQuery } from '../../../../../shared/contracts/runtime-event.types';
 import { resetNetworkStore } from '../../../../../shared/store/network-store/network-store.helpers';
+import {
+  NETWORK_FILTER_DEBOUNCE_MS,
+  NETWORK_LOADING_STATE_MESSAGE,
+  NETWORK_TABLE_SKELETON_ROW_COUNT,
+  NETWORK_UPDATING_STATE_MESSAGE,
+} from '../network-panel.constants';
 import { NetworkPanel } from '../NetworkPanel';
 import { createFakeSource, eventPage, eventSummary, record } from './network-panel.test-support';
 
@@ -256,5 +262,67 @@ describe('NetworkPanel', () => {
 
     expect(screen.getByRole('searchbox', { name: 'Filter runtime events' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The settled-filter contract at the panel boundary: while a settled query is
+ * in flight the rail keeps its previous rows with the discreet updating hint,
+ * and the skeleton appears only on a first load, when there is nothing to
+ * show yet.
+ */
+describe('NetworkPanel — settled filter loading states', () => {
+  afterEach(() => {
+    cleanup();
+    resetNetworkStore();
+    vi.useRealTimers();
+  });
+
+  it('keeps the previous rows on screen with the updating hint while a settled filter query is in flight', async () => {
+    vi.useFakeTimers();
+    const searchEvents = vi
+      .fn()
+      .mockImplementationOnce(() => Promise.resolve(eventPage([record(1, { message: 'persisted row' })])))
+      .mockImplementation(() => new Promise<RuntimeEventPage>(() => undefined));
+    const { container } = render(<NetworkPanel source={createFakeSource({ searchEvents })} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('persisted row')).toBeInTheDocument();
+    expect(screen.queryByText(NETWORK_UPDATING_STATE_MESSAGE)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter runtime events' }), { target: { value: 'timeout' } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NETWORK_FILTER_DEBOUNCE_MS);
+    });
+    // Exactly one settled query ran after the pause.
+    expect(searchEvents).toHaveBeenCalledTimes(2);
+
+    // The rows stay mounted; nothing swaps them for skeletons.
+    expect(screen.getByText('persisted row')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('network-table-skeleton-row')).toHaveLength(0);
+
+    // The table is busy and announces it, and the hint sits in the status line.
+    expect(container.querySelector('[data-network-scroll] [aria-busy="true"]')).not.toBeNull();
+    expect(screen.getByRole('status', { name: NETWORK_UPDATING_STATE_MESSAGE })).toBeInTheDocument();
+    const statusLine = screen.getByText(/Showing 20 events per page/);
+    expect(statusLine).toHaveTextContent(NETWORK_UPDATING_STATE_MESSAGE);
+  });
+
+  it('still shows the placeholder table with the announcement on a first load, when there is nothing to show yet', async () => {
+    vi.useFakeTimers();
+    const searchEvents = vi.fn().mockImplementation(() => new Promise<RuntimeEventPage>(() => undefined));
+    const { container } = render(<NetworkPanel source={createFakeSource({ searchEvents })} />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getAllByTestId('network-table-skeleton-row')).toHaveLength(NETWORK_TABLE_SKELETON_ROW_COUNT);
+    expect(screen.getByRole('status', { name: NETWORK_LOADING_STATE_MESSAGE })).toBeInTheDocument();
+    expect(container.querySelector('[data-network-scroll] [aria-busy="true"]')).not.toBeNull();
+    expect(screen.queryByText(NETWORK_UPDATING_STATE_MESSAGE)).not.toBeInTheDocument();
   });
 });

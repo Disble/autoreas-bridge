@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.helpers';
 import type { RuntimeEventSource } from '../../../../infrastructure/runtime-event-source/runtime-event-source.types';
 import { EVENT_PAGE_SIZE } from './network-panel.constants';
@@ -6,6 +6,8 @@ import { readCorrelationId } from './network-panel.helpers';
 import type { RuntimeEventRow } from './network-panel.types';
 import { useNetworkPanelActions } from './use-network-panel-actions';
 import { useNetworkPanelDetailTab } from './use-network-panel-detail-tab';
+import { useNetworkPanelFilters } from './use-network-panel-filters';
+import { useNetworkPanelLoading } from './use-network-panel-loading';
 import { useNetworkPanelSync } from './use-network-panel-sync';
 import { useNetworkPanelViewModel } from './use-network-panel-view-model';
 import { useNetworkPanelWindow } from './use-network-panel-window';
@@ -17,6 +19,10 @@ import { useNetworkStoreBindings } from './use-network-store-bindings';
  * asynchronous edges. It owns no async I/O and no window arithmetic of its
  * own — those live in `use-network-panel-sync` and the shared virtual rail
  * window, and the store subscriptions live in `use-network-store-bindings`.
+ * The settled-filter contract lives in `use-network-panel-filters`, and the
+ * asynchronous query status (the in-flight and degraded flags plus the two
+ * loading meanings) in `use-network-panel-loading`, so this hook composes the
+ * rail's concerns instead of carrying their subtleties inline.
  *
  * The rail reads the PERSISTED runtime-event store through
  * `SearchRuntimeEvents`, not the in-process ring buffer, so its history
@@ -40,27 +46,30 @@ export function useNetworkPanel(
   const loadMoreRef = useRef<() => void>(() => undefined);
 
   // 2. State
-  const [isLoading, setIsLoading] = useState(true);
-  const [degraded, setDegraded] = useState(false);
   const [traceSiblings, setTraceSiblings] = useState<readonly RuntimeEventRow[]>([]);
 
   // 3. Context/3rd Party Hooks
   const store = useNetworkStoreBindings();
 
   // 4. Queries/Mutations
-  const filters = useMemo(
-    () => ({ query: store.query, level: store.levelFilter, domain: store.domainFilter }),
-    [store.domainFilter, store.levelFilter, store.query],
-  );
-  const feed = useMemo(() => ({ page: store.page, overlay: store.overlay }), [store.overlay, store.page]);
+  // The settled filter contract (one debounce over the whole memoized object)
+  // and its rationale live in `use-network-panel-filters`.
+  const settledFilters = useNetworkPanelFilters(store);
 
   // 5. Derived State (useMemo)
   const onReachEnd = useCallback(() => loadMoreRef.current(), []);
+  // The `feed` projection is passed inline on purpose: every consumer (the
+  // window's merge memo and its overlay bookkeeping) keys on the `page` and
+  // `overlay` fields themselves, so the object identity never needs to be
+  // stable.
   const { rows: feedRows, windowedRows, topSpacerHeightPx, bottomSpacerHeightPx, scrollRef } = useNetworkPanelWindow({
-    feed,
+    feed: { page: store.page, overlay: store.overlay },
     onReachEnd,
   });
   const { detailTab, onDetailTabChange } = useNetworkPanelDetailTab(store.selectedId);
+  // The rail's asynchronous status (the in-flight and degraded flags, and the
+  // two loading meanings) and its contract live in `use-network-panel-loading`.
+  const { degraded, hasNothingToShow, isUpdating, setDegraded, setLoading } = useNetworkPanelLoading({ feedRows });
   const { rows, selectedEntry, selectedDetail, statusMessage, emptyMessage, entryCount, errorCount } =
     useNetworkPanelViewModel({
       // The TABLE renders the virtual window's slice; the full merged feed
@@ -85,10 +94,12 @@ export function useNetworkPanel(
   const { loadMore } = useNetworkPanelSync({
     source,
     limit,
-    filters,
+    // The sync hook names its input `filters`; it receives the SETTLED object
+    // so its query effect and `loadMore` never read mid-burst values.
+    filters: settledFilters,
     selectedCorrelationId: readCorrelationId(selectedEntry),
     store,
-    setLoading: setIsLoading,
+    setLoading,
     setDegraded,
     setTraceSiblings,
   });
@@ -107,7 +118,8 @@ export function useNetworkPanel(
     domainFilter: store.domainFilter,
     domainOptions: store.domainOptions,
     detailTab,
-    isLoading,
+    isLoading: hasNothingToShow,
+    isUpdating,
     statusMessage,
     emptyMessage,
     entryCount,

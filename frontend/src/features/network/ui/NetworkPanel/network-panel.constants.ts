@@ -3,6 +3,20 @@ import type { NetworkDomainFilterOption, NetworkLevelFilterOption } from './netw
 /** Null Object label for a value that has not been recorded (status, duration, etc). */
 export const NETWORK_EMPTY_LABEL = '—';
 
+/**
+ * Settling window (ms) before a filter query runs: the debounce period after
+ * the last keystroke, so a burst of typing produces exactly one query. The
+ * same figure History and Notifications use.
+ */
+export const NETWORK_FILTER_DEBOUNCE_MS = 300;
+
+/**
+ * Discreet hint shown in the rail's status line while a settled filter query
+ * is in flight and the previous rows are still on screen; the skeleton is
+ * reserved for a rail that has nothing to show yet.
+ */
+export const NETWORK_UPDATING_STATE_MESSAGE = 'updating…';
+
 /** `eventType` value identifying an HTTP request entry (renders as `METHOD path`). */
 export const NETWORK_HTTP_EVENT_TYPE = 'http.request';
 

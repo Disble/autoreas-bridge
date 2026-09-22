@@ -11,6 +11,7 @@ import {
   TRANSACTION_CAPTURE_DEGRADED_MESSAGE,
   TRANSACTION_RETENTION_UNAVAILABLE_NOTE,
   TRANSACTION_SYNC_DIAGNOSTICS_FILTER_LABEL,
+  TRANSACTION_UPDATING_STATE_MESSAGE,
 } from './transaction-panel.constants';
 import type { TransactionPanelProps } from './transaction-panel.types';
 import { useTransactionPanel } from './use-transaction-panel';
@@ -37,6 +38,7 @@ export function TransactionPanel({
     status,
     detailTab,
     isLoading,
+    isUpdating,
     degraded,
     onSelect,
     onClose,
@@ -81,6 +83,9 @@ export function TransactionPanel({
         {facts === null
           ? TRANSACTION_RETENTION_UNAVAILABLE_NOTE
           : `the capture store retains the most recent ${facts.retention.captureRows} rows.`}
+        {/* Discreet updating hint inside the existing status line: no grid
+            item and no extra line, so the layout gate's height budget holds. */}
+        {isUpdating ? <span className="text-muted">{` · ${TRANSACTION_UPDATING_STATE_MESSAGE}`}</span> : null}
       </p>
 
       {degraded ? (
@@ -96,6 +101,7 @@ export function TransactionPanel({
         <TransactionTable
           bottomSpacerHeightPx={bottomSpacerHeightPx}
           isLoading={isLoading}
+          isUpdating={isUpdating}
           onSelect={onSelect}
           rows={rows}
           scrollRef={scrollRef}

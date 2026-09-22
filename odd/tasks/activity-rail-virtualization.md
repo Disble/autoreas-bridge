@@ -156,19 +156,52 @@ Commit for tasks 1-2: `599bea8`.
   Constant 36 px estimate with the drift risk recorded (the layout smoke measures rows at
   36–39 px). The spike file was deleted once its assertions moved into the production
   tests.
-- [ ] **3. Virtualize the Runtime Events rail** on the same approach, so the two
+- [x] **3. Virtualize the Runtime Events rail** on the same approach, so the two
   rails do not drift into two different windowing rules.
-- [ ] **4. Pin the bound with DOM-count tests on both rails**: after paging deep,
+  **Done**: not a second copy — the mechanism was extracted into one shared
+  `useVirtualRailWindow` (generic over the row type, with `estimateSizePx`, `overscan`,
+  `prependCount` and `onReachEnd` as inputs) and BOTH rails render through it. Each rail
+  keeps only its own head-insertion detection: Transactions locates its previous head
+  row, Events uses its overlay-length delta and feeds it as `prependCount`.
+  `NetworkTable` renders the two spacer rows (one cell spanning its five columns) and
+  attaches the ref, keeping `ACTIVITY_RAIL_SCROLLER_CLASS` and `data-network-scroll`.
+- [x] **4. Pin the bound with DOM-count tests on both rails**: after paging deep,
   the number of mounted rows never exceeds the window however many rows are
-  loaded, and a pushed row still does not disturb what the user is reading.
-- [ ] **5. Update ADR-012 and log the lesson**, including the measurement that
-  forced the change.
-- [ ] **6. Verify at the boundary**: render smoke and layout smoke (the
-  virtualizer changes the DOM structure the layout gate measures), plus an
-  interaction-cost measurement at a deep-paged state, before and after.
-- [ ] **7. Close**: gates (frontend staged mutation zero-tolerance, typecheck,
-  lint, size), one work-unit commit per task at least, and the numbers recorded
-  here.
+  loaded; the spacers plus the mounted window account for every loaded row; scrolling
+  far down mounts that row and unmounts the top ones; a pushed row still does not disturb
+  what the user is reading; and the freeze regression itself — typing while hundreds of
+  rows are loaded still mounts only the bounded window. Both pins were proven live by
+  mutating the shared overscan so the window mounts every loaded row and watching both
+  suites fail.
+- [x] **5. Update ADR-012 and log the lesson**, including the measurement that
+  forced the change. The ADR keeps its history as dated supersession notes, states the
+  new rule, and names what jsdom cannot prove; the why-log carries the one-line lesson.
+- [x] **6. Verify at the boundary**: `bun --cwd=frontend run build` exit 0 — this is the
+  command `wails dev` runs before opening, and it was RED while the half-finished change
+  left three test files pinning a removed prop (the application did not open at all) —
+  plus `wails dev` compiling the application and opening its WebView2 environment on the
+  orchestrator's own run, and render smoke and layout smoke green for both rails.
+  **Still open, and named in the ADR as a jsdom limit**: spacer height under real layout
+  and head-insertion scroll anchoring in a live engine need a human eye on the running
+  app; the unit suite cannot see either.
+- [x] **7. Close**: gates green on both commits (`599bea8`, `266dcc8`), including the
+  zero-tolerance frontend mutation report, with the numbers recorded above.
+
+## Delivery lesson from this unit, recorded because it cost the owner a session
+
+The half-finished events-rail change was left in the working tree with three test files
+still pinning a removed prop, and `wails dev` runs `tsc && vite build` BEFORE it opens.
+The owner tried to test and the application did not open at all. A work unit is not
+handed over until linters, the production build and the dev server all pass: the
+boundary check is `bun --cwd=frontend run build` plus a real `wails dev` start, not the
+unit suite alone.
+
+The same failure exposed a suite-capacity problem. The mutation gate's dry run executes
+the whole frontend suite at 50% workers (~8 on this machine) and, under the ambient load
+of two agent sessions plus the owner's desktop apps, starved per-test 5 s budgets and
+failed 20+ UNRELATED tests. The runner is now pinned to the same four-worker cap the
+application config documents: scheduling, not weakening — same tests, same mutants, same
+budget, only the worker count.
 
 ## Constraints
 

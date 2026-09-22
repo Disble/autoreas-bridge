@@ -293,3 +293,36 @@ collection component.
   running WebView2, not by the unit suite. The DOM-count enforcement above
   still applies to these rails, restated for the new model: a test asserts the
   MOUNTED row count stays bounded while the loaded collection grows.
+
+## Addendum (2026-09-21): non-data placeholders must never enter a React Aria collection
+
+The virtualization decision above keeps each rail's React Aria collection to
+the mounted window, not the whole list. That surfaced a constraint the append
+model never hit: React Aria's collection-aware state hooks walk that collection
+and assume it is complete — `useGridState`'s focus fixup in particular scans
+the rows with an unbounded `while (index >= 0)`, so a collection in which every
+row is skippable (disabled, or a header row) makes the index oscillate between
+two adjacent values forever, wedging the renderer at 100% of one core with no
+error. The Activity freeze of 2026-09-21 was exactly this: both rails rendered
+their loading skeleton rows inside `Table.Body` with `isDisabled`, and
+`disabledBehavior` defaults to `"all"`, so the loading collection was 100%
+skippable.
+
+**The rule this leaves behind: a loading skeleton is not data — non-data
+placeholders must never enter a React Aria collection.** While loading, the
+rails render a plain `<table>` (same accessible labels, same column widths,
+`aria-busy`, `role="columnheader"` on the placeholder header) so no collection
+exists while the placeholders are on screen.
+
+Machine owners of the rule:
+
+- `frontend/scripts/layout-fixtures/loading-skeletons-fixture.tsx` — measures
+  the placeholder against the real row in the layout smoke.
+- `frontend/src/features/network/ui/TransactionTable/__tests__/TransactionTable.loading-collection.test.tsx`
+  and `frontend/src/features/network/ui/NetworkTable/__tests__/NetworkTable.loading-collection.test.tsx`
+  — fail if the placeholders become collection rows again.
+
+What the suite does NOT prove: the loop itself cannot be asserted, because a
+synchronous infinite loop hangs the test runner instead of failing it. The
+guards pin the invariant that makes the loop unreachable — they do not execute
+the failure mode.

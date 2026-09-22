@@ -165,6 +165,8 @@ export interface NetworkTableProps {
   readonly emptyMessage: string;
   /** Whether the runtime-event page has not resolved yet; drives the skeleton rows and the busy state. */
   readonly isLoading: boolean;
+  /** A settled filter query is in flight while rows are on screen: the table stays busy and announces it, but keeps rendering the rows. */
+  readonly isUpdating: boolean;
 }
 
 /** Props for the dumb NetworkFilterBar presentational component. */

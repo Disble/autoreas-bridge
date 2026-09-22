@@ -3,7 +3,7 @@ name: autoreas-theme
 description: "Living design-system guide for the autoreas-bridge frontend. Use BEFORE building or refactoring ANY UI under frontend/src — it tells you which HeroUI v3 component to use instead of hand-rolling divs/buttons/tables, the project's semantic color tokens, and the domain/level color conventions. Keywords: theme, design system, UI, rebrand, restyle, frontend component, HeroUI, Tailwind, styling, feature UI."
 metadata:
   author: autoreas-bridge
-  version: "1.1.1"
+  version: "1.2.0"
   scope: project
   updates: living
 ---
@@ -39,17 +39,19 @@ This is the project's UI source of truth. **The mandate: never hand-roll a `<div
 | Large **static** list (100s+ rows; count changes only on filter/search) | **`useProgressiveListWindow`** (`shared/hooks/use-progressive-list-window.ts`) → `{ scrollRef, onScroll, visibleCount }`; render `items.slice(0, visibleCount)` of selectable `Button` rows in a height-bounded `overflow-y-auto` div (short scrollbar that *grows*) | re-implementing the window per feature; a full mapped `Button` column (renders all 800); **ListBox + `Virtualizer`/`ListLayout` windowing** — tried and rejected here (see changelog `1.0.11`) |
 | Large **live** list (an event stream pushes items into a store) | The panel's own window reconciliation + **only** `isNearListBottom` from `shared/helpers/progressive-list.helpers.ts` for the scroll trigger (`RunHistoryPanel` is the reference) | `useProgressiveListWindow` — its render-phase reset snaps the user back to the first batch every time an event lands. See `docs/adr/012-progressive-list-rendering.md` |
 | Status column in a list row | One `shrink-0` fixed-width slot + `min-w-0 flex-1` name, with a **one-word** tag | a full sentence inline next to the name — it makes row width track the message and repeats identically on every row |
-| **Unresolved request** | A shape-mirroring **skeleton** in a status region, or **`LoadingBars`** (`shared/ui/LoadingBars/`) when the placeholder is a stack of uniform bars. See the mandatory section below | a sentence like "Loading animes…", a lone `Spinner`, or a skeleton with no `role="status"` |
+| **Unresolved request, nothing loaded yet** | A shape-mirroring **skeleton** in a status region, or **`LoadingBars`** (`shared/ui/LoadingBars/`) when the placeholder is a stack of uniform bars. See the mandatory section below | a sentence like "Loading animes…", a lone `Spinner`, or a skeleton with no `role="status"` |
+| **Refetching with rows already on screen** | **Keep the rows**: `aria-busy` plus a discreet visible hint in the surface's own status line (Activity rails: `TRANSACTION_UPDATING_STATE_MESSAGE` / `NETWORK_UPDATING_STATE_MESSAGE`) | swapping a skeleton in on every keystroke — the 2026-09-21 flicker report, and on a table the all-disabled collection that wedges React Aria |
 | **Resolved-empty result** | **`AirisEmptyState`** (`shared/ui/AirisEmptyState/`) with surface-owned copy and at most one recovery action | a bare "No results" line, or an empty state that renders while the request is still unresolved |
 
 ## Loading and empty states — MANDATORY
 
-Three states, three components, no exceptions. A surface that shows a sentence while it loads, or a
-spinner alone, is not finished.
+Four states, one answer each, no exceptions — the fourth was added 2026-09-21 after the Activity
+flicker report. A surface that shows a sentence while it loads, or a spinner alone, is not finished.
 
 | State | What to render |
 |-------|----------------|
-| Request unresolved | A **skeleton mirroring the shape of the content that will replace it**, inside a status region |
+| Request unresolved, nothing loaded yet | A **skeleton mirroring the shape of the content that will replace it**, inside a status region |
+| Refetching while rows are already on screen | **The rows themselves** — `aria-busy` plus a discreet visible hint in the surface's status line, and no skeleton. See "Settle the typing before you query" below |
 | Request resolved, nothing to show | **`AirisEmptyState`** — artwork, surface-owned copy, at most one recovery action |
 | Request failed | The surface's error `Alert`. Never an empty state, never a skeleton |
 
@@ -75,6 +77,13 @@ Why it slips through: a surface that refetches keeps the previous rows in state 
 is in flight, so `isLoading` and `rows.length > 0` are BOTH true. On first mount they never are, so the
 bug is invisible until someone switches a filter, a day, or a tab. It shipped on three surfaces here
 before a user screenshotted a skeleton block stacked on top of the real cards.
+
+Nuance (2026-09-21, owner decision): "exclusive" bans a placeholder rendered ON TOP OF real content. It
+does not require a placeholder to appear at all. When a refetch runs while rows are already on screen,
+the correct shape is **the rows plus `aria-busy` plus a discreet visible hint** in the surface's own
+status line — the skeleton belongs to a surface that has nothing to show yet. The Activity rails do
+this with two flags (`isLoading` → skeleton, `isUpdating` → rows plus hint) so that no keystroke can
+flash a skeleton.
 
 **Every loading test must assert the negative**, or it will not catch this:
 
@@ -116,11 +125,34 @@ placeholder's **height** a contract, not a detail:
   (`CATALOG_LIST_ROW_CLASS`, `ANIME_EDITOR_LIST_ROW_CLASS`, `EPISODE_COVER_SLOT_CLASS`).
 - Render **more than one** placeholder row for list- and table-shaped content, from a named
   `*_SKELETON_ROW_COUNT` constant.
-- For tables, render skeleton **`Table.Row`s as `Table.Body` children** — never a pre-table branch.
-  Replacing the table loses the header, so columns appear and resize when data lands.
+- For tables, render the placeholder as a **plain `<table>` INSTEAD of the React Aria `Table` — never
+  as `Table.Row`s inside `Table.Body`**. Keep the header (that half of the old rule still holds) by
+  rendering the placeholder's own `<th>` header from the SAME column descriptor module the real header
+  maps over, so labels and widths cannot drift. Putting placeholders INTO the collection is worse than
+  losing the header: React Aria's `useGridState` focus-fixup scan has no iteration bound, and a
+  collection in which every row is skippable — skeleton rows carry `isDisabled`, and `disabledBehavior`
+  defaults to `"all"` — makes it oscillate forever. That is the 2026-09-21 Activity freeze: one core
+  pinned for 35+ minutes, memory climbing to 2.8 GB, the skeleton frozen on screen and no error
+  anywhere. `TransactionTableSkeleton` / `NetworkTableSkeleton` are the reference implementations.
+  Two measured details ride along: the placeholder ROW carries the real row's height (`h-9`, the 36 px
+  band on these rails; the fixture allows 6 px of drift), and a placeholder `<th>` needs an EXPLICIT
+  `role="columnheader"`, because `loading-skeletons-fixture.tsx` matches `[role="columnheader"]` by
+  CSS attribute selector and an implicit `<th>` role does not match an attribute selector.
 - Prove it: `scripts/layout-fixtures/loading-skeletons-fixture.tsx` measures each placeholder against
   its real row in headless Edge. jsdom has no layout engine, so a half-height placeholder passes every
   unit test in the suite.
+
+### Settle the typing before you query
+
+A query driven by typed text must be built from the SETTLED text, through the app-wide `useDebounce`
+(`shared/hooks/use-debounce.ts`): 300 ms on History, Notifications and the Activity filters, 200 ms on
+Catalog. The input's own text stays immediate — the store updates per keystroke and only the query
+waits — and the surface keeps its rows (see above), so nothing flickers. One typing burst must cost
+exactly one query; without the debounce the surface enters its loading state on every letter, which is
+both the flicker the owner reported and one more pass through the all-disabled collection described
+above. Debounce the WHOLE filters object: the stores rebuild it only when a filter actually changes, so
+its identity is stable across unrelated renders, and debouncing fields one by one silently drops every
+field you forgot to list.
 
 ### What the tests must assert
 
@@ -279,8 +311,9 @@ Containment and fill are the same mechanism from opposite ends, and a card needs
 This is a **living** document. When you establish a new UI convention, adopt a new HeroUI component, change a token mapping, or hit a non-obvious React-Aria gotcha — **update this file** and bump `version`. Add a line to the changelog.
 
 ### Changelog
+- `1.2.0` — Corrected the loading rules after the Activity freeze, and recorded the debounce rule. **The instruction repaired here:** `1.1.0` told authors to render table placeholders as `Table.Row`s inside `Table.Body`. A collection in which every row is skippable (skeleton rows carry `isDisabled`, and `disabledBehavior` defaults to `"all"`) makes React Aria's `useGridState` focus-fixup scan — an unbounded `while (index >= 0)` — oscillate forever, so a focused row plus any reload pinned one core for 35+ minutes with the skeleton frozen on screen and no error anywhere. Table placeholders now render as a plain `<table>` instead of the React Aria `Table`, from ONE column descriptor module shared with the real header, with the placeholder row carrying the real row's height (`h-9`) and an explicit `role="columnheader"` on its `<th>` (the layout fixture matches that role by CSS attribute selector, and an implicit `<th>` role does not match one). Also new: the fourth loading state — a refetch with rows on screen keeps the rows and shows a discreet hint instead of a skeleton — and the rule that a query built from typed text runs on the SETTLED text through `useDebounce` (300 ms), so one typing burst is one query and no keystroke can flash a skeleton.
 - `1.1.1` — Added "The states are EXCLUSIVE" to the mandatory loading section, after a user screenshotted a block of skeletons stacked directly on top of the real anime cards on Today. The placeholder REPLACES the content; it is not a block added above it. The trap is that a refetching surface keeps its previous rows in state, so `isLoading` and `rows.length > 0` are both true — on first mount they never are, which is why it is invisible until someone switches a day, filter or tab. Three surfaces shipped with it (`EpisodeSchedulePanel` mapped rows unconditionally, `SoloAnimeDownloadPanel` gated on `options.length > 0` alone, `ActivityOverview`'s sample list mapped unconditionally). The root cause was in the TESTS, not the markup: they asserted the skeleton appears and later disappears, and never that real content is absent while loading — which passes happily while both blocks render. Every loading test now asserts that negative.
-- `1.1.0` — Loading and empty states became **mandatory** rather than conventional, after three changes shipped three different answers across nine surfaces: a sentence, a lone `Spinner`, and a silent skeleton. The rule is three states to three components — a shape-mirroring skeleton for unresolved, `AirisEmptyState` for resolved-empty, the surface's error `Alert` for failed — plus `LoadingBars` (`shared/ui/LoadingBars/`) for the uniform-bar placeholder that had been copied seven times, each copy carrying the same announcement gap because the markup was the same. Two findings are recorded in full because each cost a cycle. **`role="status"` takes its accessible name from the author**, so a region named only by an inner `sr-only` span computes `""` and `getByRole('status', { name })` fails — `aria-labelledby` is required, and the span must still be there because that is what a polite live region announces. And **a placeholder's height is a contract**: the row-shape class is shared with the real row so the two cannot drift, and `loading-skeletons-fixture.tsx` measures them against each other in headless Edge, because jsdom has no layout engine and passes a half-height placeholder. Tables get skeleton `Table.Row`s as `Table.Body` children, never the pre-table branch `HistoryTable` used — that one loses the header, so the columns resize when data lands.
+- `1.1.0` — Loading and empty states became **mandatory** rather than conventional, after three changes shipped three different answers across nine surfaces: a sentence, a lone `Spinner`, and a silent skeleton. The rule is three states to three components — a shape-mirroring skeleton for unresolved, `AirisEmptyState` for resolved-empty, the surface's error `Alert` for failed — plus `LoadingBars` (`shared/ui/LoadingBars/`) for the uniform-bar placeholder that had been copied seven times, each copy carrying the same announcement gap because the markup was the same. Two findings are recorded in full because each cost a cycle. **`role="status"` takes its accessible name from the author**, so a region named only by an inner `sr-only` span computes `""` and `getByRole('status', { name })` fails — `aria-labelledby` is required, and the span must still be there because that is what a polite live region announces. And **a placeholder's height is a contract**: the row-shape class is shared with the real row so the two cannot drift, and `loading-skeletons-fixture.tsx` measures them against each other in headless Edge, because jsdom has no layout engine and passes a half-height placeholder. Tables get skeleton placeholders. **Superseded 2026-09-21 by `1.2.0`:** this entry originally said to render them as `Table.Row`s inside `Table.Body`, which is the instruction that later wedged the renderer — a placeholder must never enter a React Aria collection. The header is still kept, by rendering the placeholder's own header from the shared column descriptors. The pre-table branch `HistoryTable` used still loses the header, so the columns resize when data lands.
 - `1.0.19` — Current-day marker on the Today weekday tabs: a `size-1.5 rounded-full bg-current` dot plus an `sr-only` phrase, so the tab strip always says which day is today even while another day is selected. `bg-current` is the load-bearing choice — `.toggle-button` sets `color` explicitly in BOTH states (`--toggle-button-fg: currentColor` unselected, `--accent-soft-foreground` selected), so a fixed `bg-accent` would vanish on the selected tab while `currentColor` never does. Two testing gotchas recorded above: the accessible name concatenates sibling text with no separator (`Sundaytoday`), and a today marker turns any exact weekday-name query into a date-dependent test.
 - `1.0.18` — Added "Filling the height: the vertical mirror of `min-w-0`" after the `1.0.17` containment fix left both Activity detail cards with a wide empty band (measured: 261px under the Trace list, 165px under the body pane). The rule that matters is **cap the CARD, fill the panes**: a fixed `max-h-64` on a pane contains it but cannot grow into a card the grid stretched, while a `flex-1 min-h-0` pane needs the card capped or it grows the grid row to the height of a 6916px list — a `flex-basis: 0` item still contributes its content height to its container's intrinsic size. Three measured corrections: `min-h-0` is needed at EVERY level (HeroUI's `.card`/`.card__content` bring `flex flex-col` and `flex-1` but never release the automatic minimum size, and `.tabs__panel` is a plain block); a filling pane takes only the REMAINDER, so an unbounded headers block starved it to 22px of a 512px card, fixed with a scroller on the block and a floor on `CodeBlock`'s **wrapper** (on the `<pre>` the floor did nothing — its `min-h-0` wrapper let it overflow instead of pushing back); and a fill guard needs ORDINARY chrome plus a **second viewport**, because with hostile content the pane never reaches the old cap and at 1280 a re-added `max-h-64` is inert. `layout:smoke` now renders at 1280x900 and 1600x1000 and carries an ordinary-chrome pair beside the hostile one.
 - `1.0.17` — Added the "Containment: a card must never widen the page" section after the Activity detail card gave the whole window a horizontal scrollbar (measured: 2950px of content in a 471px card, 3719px document at a 1241px viewport). The rule that matters is **never a bare `1fr` track** — `minmax(auto, 1fr)` is content-based and grows past its container — plus `min-w-0` on the item, since a bounded track alone does not hold it. Two measured corrections to the folklore: a `<pre class="overflow-auto">` does NOT leak its width (7973px line, 391px pane, contained with no `min-w-0` above it), so `min-w-0` on such a wrapper is hardening rather than the fix; and `truncate` was silently containing content all along via `overflow: hidden`, so replacing it with `break-all` gives up a containment and must be paired with `minmax(0, …)`. `layout-smoke` now carries two fixtures with one verdict node each and passes only when all pass.

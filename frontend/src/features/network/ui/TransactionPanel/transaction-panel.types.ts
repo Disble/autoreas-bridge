@@ -138,6 +138,8 @@ export interface TransactionTableProps {
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly isLoading: boolean;
+  /** A settled filter query is in flight while rows are on screen: the table stays busy and announces it, but keeps rendering the rows. */
+  readonly isUpdating: boolean;
   readonly topSpacerHeightPx: number;
   readonly bottomSpacerHeightPx: number;
   readonly scrollRef: RefCallback<HTMLDivElement>;

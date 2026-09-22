@@ -8,6 +8,7 @@ import {
   EVENT_PAGE_SIZE,
   NETWORK_EVENTS_DEBUG_NOT_PERSISTED_NOTE,
   NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE,
+  NETWORK_UPDATING_STATE_MESSAGE,
 } from './network-panel.constants';
 import type { NetworkPanelProps } from './network-panel.types';
 import { useNetworkPanel } from './use-network-panel';
@@ -34,6 +35,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
     domainOptions,
     detailTab,
     isLoading,
+    isUpdating,
     statusMessage,
     emptyMessage,
     entryCount,
@@ -70,6 +72,9 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
         {facts === null
           ? NETWORK_EVENTS_RETENTION_UNAVAILABLE_NOTE
           : `the event store retains the most recent ${facts.retention.eventRows} rows.`}
+        {/* Discreet updating hint inside the existing status line: no grid
+            item and no extra line, so the layout gate's height budget holds. */}
+        {isUpdating ? <span className="text-default-400">{` · ${NETWORK_UPDATING_STATE_MESSAGE}`}</span> : null}
       </p>
 
       {statusMessage === null ? null : (
@@ -86,6 +91,7 @@ export function NetworkPanel({ source }: Readonly<NetworkPanelProps>) {
           bottomSpacerHeightPx={bottomSpacerHeightPx}
           emptyMessage={emptyMessage}
           isLoading={isLoading}
+          isUpdating={isUpdating}
           onSelect={onSelect}
           rows={rows}
           scrollRef={scrollRef}

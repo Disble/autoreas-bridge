@@ -67,6 +67,14 @@ export function useTransactionPanel(
     [store.selectedDetail],
   );
   const status = toStatusFilterInput(store.filters.httpStatus);
+  // Two flags, two meanings. `isLoading` is "nothing to show yet": the store
+  // is fetching and there are no rows on screen, so the skeleton placeholder
+  // is the honest state. `isUpdating` is "a settled filter query is in flight
+  // while rows are on screen": the rail keeps its rows and shows the updating
+  // hint instead, so a keystroke burst never swaps the rows for skeletons.
+  const hasRows = store.items.length > 0;
+  const isLoading = store.isLoading && !hasRows;
+  const isUpdating = store.isLoading && hasRows;
 
   // 6. Callbacks (useCallback calling pure helpers)
   const { select } = store;
@@ -91,7 +99,8 @@ export function useTransactionPanel(
     kind: store.filters.kind,
     status,
     detailTab,
-    isLoading: store.isLoading,
+    isLoading,
+    isUpdating,
     degraded: store.degraded,
     onSelect,
     onClose,
