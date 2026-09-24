@@ -58,18 +58,23 @@ const (
 // object. Every field is independently nullable except Outcome, which is
 // required non-null whenever PreviousCycle itself is present. A nil
 // *PreviousCycle on Record models the wire's explicit previous_cycle: null.
+//
+// The tags are the stored payload's own vocabulary, snake_case to match the
+// wire vocabulary docs/openapi.yaml declares, and deliberately without
+// omitempty: a nullable member keeps its key and serializes as explicit
+// null, because an absent key and a null member are different facts.
 type PreviousCycle struct {
-	CycleID           *string
-	TriggerSource     *string
-	Outcome           string
-	LastStage         *string
-	StartedAt         *int64
-	ElapsedMS         *int64
-	ErrorName         *string
-	NativeErrcodeByte *int
-	ErrorStage        *string
-	ErrorCause        *string
-	ErrorFingerprint  *string
+	CycleID           *string `json:"cycle_id"`
+	TriggerSource     *string `json:"trigger_source"`
+	Outcome           string  `json:"outcome"`
+	LastStage         *string `json:"last_stage"`
+	StartedAt         *int64  `json:"started_at"`
+	ElapsedMS         *int64  `json:"elapsed_ms"`
+	ErrorName         *string `json:"error_name"`
+	NativeErrcodeByte *int    `json:"native_errcode_byte"`
+	ErrorStage        *string `json:"error_stage"`
+	ErrorCause        *string `json:"error_cause"`
+	ErrorFingerprint  *string `json:"error_fingerprint"`
 }
 
 // RecentEvent is one validated entry of the wire envelope's recent_events
@@ -85,19 +90,31 @@ type RecentEvent struct {
 }
 
 // Record is the validated, storage-ready shape of one diagnostics report.
+//
+// Its tags are the stored payload_json contract: snake_case, matching the
+// vocabulary docs/openapi.yaml already declares on the wire. DeviceID,
+// ReportedAtMS and Degraded are json:"-" because the envelope's own columns
+// own them -- device identity comes from the authenticated token, receipt
+// time from the receipt clock, and degraded has a column of its own. A copy
+// inside the payload could only ever contradict the column that owns it.
+//
+// Nothing here is omitempty. recent_events must serialize as [] rather than
+// vanish or become null, and a nil PreviousCycle must serialize as explicit
+// null: the wire distinguishes an absent key from an explicit null, and this
+// record's nil means explicit null.
 type Record struct {
-	DeviceID                  string
-	ReportedAtMS              int64
-	CycleID                   string
-	Degraded                  *string
-	TriggerSource             string
-	AppState                  string
-	ConsecutiveUnclosedCycles int
-	PendingOpsCount           int
-	Cursor                    int
-	RecentEvents              []RecentEvent
+	DeviceID                  string        `json:"-"`
+	ReportedAtMS              int64         `json:"-"`
+	CycleID                   string        `json:"cycle_id"`
+	Degraded                  *string       `json:"-"`
+	TriggerSource             string        `json:"trigger_source"`
+	AppState                  string        `json:"app_state"`
+	ConsecutiveUnclosedCycles int           `json:"consecutive_unclosed_cycles"`
+	PendingOpsCount           int           `json:"pending_ops_count"`
+	Cursor                    int           `json:"cursor"`
+	RecentEvents              []RecentEvent `json:"recent_events"`
 	// PreviousCycle is nil for the wire's explicit previous_cycle: null.
-	PreviousCycle *PreviousCycle
+	PreviousCycle *PreviousCycle `json:"previous_cycle"`
 }
 
 // StoreConfig configures the write budget used by InsertReport. The zero

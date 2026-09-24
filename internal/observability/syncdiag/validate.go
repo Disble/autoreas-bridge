@@ -37,6 +37,16 @@ type WireReport struct {
 	PreviousCycle json.RawMessage `json:"previous_cycle"`
 	Counters      *wireCounters   `json:"counters"`
 	RecentEvents  []wireEvent     `json:"recent_events"`
+	// Kind is the optional wire discriminator the kind-discriminated
+	// telemetry store dispatches on. It is declared here so an explicit
+	// kind: "cycle_report" is not rejected as an undeclared field by the
+	// request decode's DisallowUnknownFields, which would break the very
+	// clients the field was added for. The frozen legacy default is the
+	// ABSENCE of this key, so a body without it must keep decoding exactly as
+	// before. Nothing here validates it: dispatch belongs to the store's kind
+	// registry, and a rule here could only make the alias and the default
+	// diverge.
+	Kind string `json:"kind"`
 }
 
 // wireCounters is the wire envelope's nested counters object. All three
